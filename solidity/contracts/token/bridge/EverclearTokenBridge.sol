@@ -3,7 +3,7 @@ pragma solidity ^0.8.22;
 
 import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
-import {IEverclearAdapter, IEverclear} from "../../interfaces/IEverclearAdapter.sol";
+import {IEverclearAdapter, IEverclear, IEverclearSpoke} from "../../interfaces/IEverclearAdapter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -46,6 +46,9 @@ contract EverclearTokenBridge is HypERC20Collateral {
     /// @dev Immutable reference to the Everclear adapter used for creating intents
     IEverclearAdapter public immutable everclearAdapter;
 
+    /// @notice The Everclear spoke contract
+    IEverclearSpoke public immutable everclearSpoke;
+
     /**
      * @notice Emitted when fee parameters are updated
      * @param fee The new fee amount
@@ -71,6 +74,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
         IEverclearAdapter _everclearAdapter
     ) HypERC20Collateral(_erc20, _scale, _mailbox) {
         everclearAdapter = _everclearAdapter;
+        everclearSpoke = _everclearAdapter.spoke();
     }
 
     /**
@@ -192,8 +196,10 @@ contract EverclearTokenBridge is HypERC20Collateral {
         bytes32 _recipient,
         uint256 _amount
     ) internal returns (IEverclear.Intent memory) {
-        bytes32 outputAsset = outputAssets[_destination];
-        require(outputAsset != bytes32(0), "ETB: Output asset not set");
+        require(
+            outputAssets[_destination] != bytes32(0),
+            "ETB: Output asset not set"
+        );
 
         // Create everclear intent
         uint32[] memory destinations = new uint32[](1);
@@ -205,22 +211,37 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _destinations: destinations,
             _receiver: _mustHaveRemoteRouter(_destination),
             _inputAsset: address(wrappedToken),
-            _outputAsset: outputAsset,
+            _outputAsset: outputAssets[_destination], // We load this from storage again to avoid stack too deep
             _amount: _amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: _getIntentCalldata(_recipient, _amount),
+            _data: _getIntentCalldata(destinations[0], _recipient, _amount),
             _feeParams: feeParams
         });
 
         return intent;
     }
 
+    /**
+     * @notice Gets the calldata for the intent that will unwrap WETH to ETH on destination
+     * @dev Overrides parent to return calldata for unwrapping WETH to ETH
+     * @return The encoded calldata for the unwrap and send operation
+     */
     function _getIntentCalldata(
+        uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view virtual returns (bytes memory) {
-        return "";
+    ) internal view returns (bytes memory) {
+        // This encodes a call to the _unwrapAndSend function
+        bytes memory _calldata = abi.encodeCall(
+            this.sendTokensFromIntent,
+            (_recipient, _amount)
+        );
+        bytes memory intentCalldata = abi.encode(
+            _mustHaveRemoteRouter(_destination).bytes32ToAddress(), // target
+            _calldata // data
+        );
+        return intentCalldata;
     }
 
     function _beforeDispatch(
@@ -245,6 +266,18 @@ contract EverclearTokenBridge is HypERC20Collateral {
         return (_dispatchValue, _msg);
     }
 
+    function sendTokensFromIntent(
+        bytes32 _recipient,
+        uint256 _amount
+    ) external {
+        require(
+            msg.sender == address(everclearSpoke),
+            "ETB: Only callable by EverclearSpoke"
+        );
+
+        _transferTo(_recipient.bytes32ToAddress(), _amount);
+    }
+
     function _handle(
         uint32 _origin,
         bytes32 /* sender */,
@@ -260,19 +293,18 @@ contract EverclearTokenBridge is HypERC20Collateral {
         // Check that intent is settled
         bytes32 intentId = keccak256(abi.encode(intent));
         require(
-            everclearAdapter.spoke().status(intentId) ==
-                IEverclear.IntentStatus.SETTLED,
-            "ETB: Intent not settled"
+            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
+            "ETB: Intent Status != SETTLED"
         );
 
-        // Get recipient and amount from intent
-        bytes32 recipient = intent.receiver;
-        uint256 amount = intent.amount;
-
         // effects
-        emit ReceivedTransferRemote(_origin, recipient, amount);
+        emit ReceivedTransferRemote(
+            _origin,
+            _message.recipient(),
+            _message.amount()
+        );
 
-        // Send token to user (interactions)
-        _transferTo(recipient.bytes32ToAddress(), _inboundAmount(amount));
+        // interactions: Execute intent calldata
+        everclearSpoke.executeIntentCalldata(intent);
     }
 }

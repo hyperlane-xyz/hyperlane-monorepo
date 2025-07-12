@@ -124,7 +124,7 @@ contract MockEverclearAdapter is IEverclearAdapter {
 }
 
 contract EverclearTokenBridgeTest is Test {
-    using TypeCasts for address;
+    using TypeCasts for *;
 
     // Constants
     uint32 internal constant ORIGIN = 11;
@@ -385,7 +385,16 @@ contract EverclearTokenBridgeTest is Test {
         assertEq(everclearAdapter.lastAmount(), TRANSFER_AMT);
         assertEq(everclearAdapter.lastMaxFee(), 0);
         assertEq(everclearAdapter.lastTtl(), 0);
-        assertEq(everclearAdapter.lastData(), "");
+        assertEq(
+            everclearAdapter.lastData(),
+            abi.encode(
+                RECIPIENT.bytes32ToAddress(), // recipient address doubles as remote router address
+                abi.encodeCall(
+                    bridge.sendTokensFromIntent,
+                    (RECIPIENT, TRANSFER_AMT)
+                )
+            )
+        );
 
         // Check fee params
         (uint256 fee, uint256 deadline, bytes memory sig) = everclearAdapter
@@ -685,9 +694,6 @@ contract EverclearTokenBridgeForkTest is Test {
  */
 contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
     using TypeCasts for address;
-    // Placeholder address for Everclear spoke - needs to be updated with real address
-    address internal constant EVERCLEAR_SPOKE =
-        0x1234567890123456789012345678901234567890;
 
     // ETH bridge contract
     EverclearEthBridge internal ethBridge;
@@ -701,8 +707,7 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             IWETH(ARBITRUM_WETH),
             1,
             address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
-            everclearAdapter,
-            EVERCLEAR_SPOKE
+            everclearAdapter
         );
 
         // Deploy proxy
@@ -779,7 +784,7 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         );
     }
 
-    function testEthBridgeUnwrapAndSend() public {
+    function testEthBridgesendTokensFromIntent() public {
         uint256 amount = 1e18; // 1 ETH
 
         // Give the bridge some WETH
@@ -787,11 +792,11 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         vm.prank(address(ethBridge));
         weth.deposit{value: amount}();
 
-        // Mock the everclear spoke calling unwrapAndSend
-        vm.prank(EVERCLEAR_SPOKE);
+        // Mock the everclear spoke calling sendTokensFromIntent
+        vm.prank(address(ethBridge.everclearSpoke()));
 
         uint256 initialBobBalance = BOB.balance;
-        ethBridge.unwrapAndSend(RECIPIENT, amount);
+        ethBridge.sendTokensFromIntent(RECIPIENT, amount);
 
         // Verify Bob received the ETH
         assertEq(BOB.balance, initialBobBalance + amount);
@@ -799,7 +804,7 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         assertEq(weth.balanceOf(address(ethBridge)), 0);
     }
 
-    function testEthBridgeUnwrapAndSendOnlyEverclearSpoke() public {
+    function testEthBridgesendTokensFromIntentOnlyEverclearSpoke() public {
         uint256 amount = 1e18; // 1 ETH
 
         // Give the bridge some WETH
@@ -807,10 +812,10 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         vm.prank(address(ethBridge));
         weth.deposit{value: amount}();
 
-        // Try to call unwrapAndSend from a different address
+        // Try to call sendTokensFromIntent from a different address
         vm.prank(ALICE);
-        vm.expectRevert("EEB: Only callable by EverclearSpoke");
-        ethBridge.unwrapAndSend(RECIPIENT, amount);
+        vm.expectRevert("ETB: Only callable by EverclearSpoke");
+        ethBridge.sendTokensFromIntent(RECIPIENT, amount);
     }
 
     function testEthBridgeQuoteTransferRemote() public {
@@ -843,16 +848,14 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             IWETH(ARBITRUM_WETH),
             1,
             address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
-            everclearAdapter,
-            EVERCLEAR_SPOKE
+            everclearAdapter
         );
 
-        assertEq(address(newBridge.weth()), address(weth));
+        assertEq(address(newBridge.wrappedToken()), address(weth));
         assertEq(
             address(newBridge.everclearAdapter()),
             address(everclearAdapter)
         );
-        assertEq(newBridge.everclearSpoke(), EVERCLEAR_SPOKE);
         assertEq(address(newBridge.token()), address(weth));
     }
 }

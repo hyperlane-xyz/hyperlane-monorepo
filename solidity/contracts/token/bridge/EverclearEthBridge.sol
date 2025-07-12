@@ -24,23 +24,15 @@ contract EverclearEthBridge is EverclearTokenBridge {
     using Address for address payable;
     using TypeCasts for bytes32;
 
-    /// @notice The WETH contract interface
-    IWETH public immutable weth;
-    /// @notice The Everclear spoke contract
-    address public immutable everclearSpoke;
-
     /**
      * @notice Constructor to initialize the Everclear ETH bridge
-     * @param _weth The address of the WETH contract
      * @param _everclearAdapter The address of the Everclear adapter contract
-     * @param _everclearSpoke The address of the Everclear spoke contract
      */
     constructor(
         IWETH _weth,
         uint256 _scale,
         address _mailbox,
-        IEverclearAdapter _everclearAdapter,
-        address _everclearSpoke
+        IEverclearAdapter _everclearAdapter
     )
         EverclearTokenBridge(
             address(_weth),
@@ -48,10 +40,7 @@ contract EverclearEthBridge is EverclearTokenBridge {
             _mailbox,
             _everclearAdapter
         )
-    {
-        weth = _weth;
-        everclearSpoke = _everclearSpoke;
-    }
+    {}
 
     function quoteTransferRemote(
         uint32 _destination,
@@ -74,12 +63,19 @@ contract EverclearEthBridge is EverclearTokenBridge {
         // The `_amount` here will be amount + fee where amount is what the user wants to send,
         // And `fee` is what is being payed to everclear.
         // The user will also include the gas payment in the msg.value.
-        console.log("msg.value");
-        console.logUint(msg.value);
-        console.log("_amount");
-        console.logUint(_amount);
         require(msg.value >= _amount, "EEB: ETH amount mismatch");
-        weth.deposit{value: _amount}();
+        IWETH(address(wrappedToken)).deposit{value: _amount}();
+    }
+
+    function _transferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal override {
+        // Withdraw WETH to ETH
+        IWETH(address(wrappedToken)).withdraw(_amount);
+
+        // Send ETH to recipient
+        payable(_recipient).sendValue(_amount);
     }
 
     function _chargeSender(
@@ -96,68 +92,6 @@ contract EverclearEthBridge is EverclearTokenBridge {
             _transferTo(feeRecipient(), fee);
         }
         return dispatchValue;
-    }
-
-    /**
-     * @notice Gets the calldata for the intent that will unwrap WETH to ETH on destination
-     * @dev Overrides parent to return calldata for unwrapping WETH to ETH
-     * @return The encoded calldata for the unwrap and send operation
-     */
-    function _getIntentCalldata(
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal view override returns (bytes memory) {
-        // This encodes a call to the _unwrapAndSend function
-        bytes memory _calldata = abi.encodeCall(
-            this.unwrapAndSend,
-            (_recipient, _amount)
-        );
-        bytes memory intentCalldata = abi.encode(address(this), _calldata);
-        return intentCalldata;
-    }
-
-    /**
-     * @notice Internal function to unwrap WETH to ETH and send to recipient
-     * @dev This function will be called on the destination chain via the EverclearSpoke.executeIntentCalldata() function
-     * @param _recipient The address to receive the unwrapped ETH
-     * @param _amount The amount of WETH to unwrap and send
-     */
-    function unwrapAndSend(bytes32 _recipient, uint256 _amount) external {
-        require(
-            msg.sender == everclearSpoke,
-            "EEB: Only callable by EverclearSpoke"
-        );
-        // Withdraw WETH to ETH
-        weth.withdraw(_amount);
-
-        // Send ETH to recipient
-        payable(_recipient.bytes32ToAddress()).sendValue(_amount);
-    }
-
-    function _handle(
-        uint32 _origin,
-        bytes32 /* sender */,
-        bytes calldata _message
-    ) internal override {
-        // Get intent from hyperlane message
-        bytes memory metadata = _message.metadata();
-        IEverclear.Intent memory intent = abi.decode(
-            metadata,
-            (IEverclear.Intent)
-        );
-
-        // Validate the intent.
-        super._handle(_origin, bytes32(0), _message);
-
-        // Execute intentcalldata
-        everclearAdapter.spoke().executeIntentCalldata(intent);
-    }
-
-    function _transferTo(
-        address _recipient,
-        uint256 _amount
-    ) internal virtual override {
-        // No-op. ETH will be sent in spoke.executeIntentCalldata()
     }
 
     /**
