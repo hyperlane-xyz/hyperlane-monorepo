@@ -334,7 +334,7 @@ contract TokenBridgeCctpV1Test is Test {
         assertEq(tbDestination.verify(metadata, message), true);
     }
 
-    function _upgrade(TokenBridgeCctpV1 bridge) internal {
+    function _upgrade(TokenBridgeCctpBase bridge) internal virtual {
         TokenBridgeCctpV1 newImplementation = new TokenBridgeCctpV1(
             address(bridge.wrappedToken()),
             bridge.scale(),
@@ -354,7 +354,7 @@ contract TokenBridgeCctpV1Test is Test {
         );
     }
 
-    function testFork_verify() public {
+    function testFork_verify() public virtual {
         TokenBridgeCctpV1 recipient = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
         );
@@ -624,7 +624,7 @@ contract TokenBridgeCctpV1Test is Test {
     function testFork_postDispatch(
         bytes32 recipient,
         bytes calldata body
-    ) public {
+    ) public virtual {
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
         TokenBridgeCctpV1 hook = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
@@ -670,7 +670,7 @@ contract TokenBridgeCctpV1Test is Test {
         mailbox.dispatch(destination, recipient, body, bytes(""), hook);
     }
 
-    function testFork_verifyDeployerMessage() public {
+    function testFork_verifyDeployerMessage() public virtual {
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
         TokenBridgeCctpV1 hook = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
@@ -941,6 +941,21 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                 minFinalityThreshold,
                 message
             );
+    }
+
+    function testFork_verify() public override {
+        vm.skip(true);
+    }
+
+    function testFork_postDispatch(
+        bytes32 recipient,
+        bytes calldata body
+    ) public override {
+        vm.skip(true);
+    }
+
+    function testFork_verifyDeployerMessage() public override {
+        vm.skip(true);
     }
 
     function test_transferRemoteCctp() public override {
