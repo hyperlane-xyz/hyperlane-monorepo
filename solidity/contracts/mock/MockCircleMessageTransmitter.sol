@@ -70,8 +70,8 @@ contract MockCircleMessageTransmitter is
     }
 
     function sendMessage(
-        uint32 destinationDomain,
-        bytes32 recipient,
+        uint32,
+        bytes32,
         bytes calldata message
     ) public returns (uint64) {
         emit MessageSent(message);
@@ -79,8 +79,8 @@ contract MockCircleMessageTransmitter is
     }
 
     function sendMessageWithCaller(
-        uint32 destinationDomain,
-        bytes32 recipient,
+        uint32,
+        bytes32,
         bytes32,
         bytes calldata message
     ) external returns (uint64) {

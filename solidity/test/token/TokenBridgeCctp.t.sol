@@ -741,7 +741,6 @@ contract TokenBridgeCctpV1Test is Test {
         );
 
         bytes memory cctpMessage = _encodeCctpHookMessage(abi.encode(id));
-
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
         mailboxDestination.addInboundMetadata(0, metadata);

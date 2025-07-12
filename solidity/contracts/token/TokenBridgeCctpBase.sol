@@ -191,7 +191,6 @@ abstract contract TokenBridgeCctpBase is
         // check if CCTP message source matches the hyperlane message origin
         uint32 origin = _hyperlaneMessage.origin();
         uint32 sourceDomain = _getCircleSource(cctpMessage);
-
         require(
             sourceDomain == hyperlaneDomainToCircleDomain(origin),
             "Invalid source domain"
