@@ -22,9 +22,14 @@ import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openze
 import {CctpMessage, BurnMessage} from "../../contracts/libs/CctpMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {CctpService} from "../../contracts/token/TokenBridgeCctp.sol";
+import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
+import {IMessageTransmitter} from "../../contracts/interfaces/cctp/IMessageTransmitter.sol";
+import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
+import {ISpecifiesInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 
 contract TokenBridgeCctpTest is Test {
     using TypeCasts for address;
+    using TypeCasts for bytes32;
     using Message for bytes;
 
     uint32 internal constant CCTP_VERSION_1 = 0;
@@ -140,14 +145,14 @@ contract TokenBridgeCctpTest is Test {
         vm.deal(user, 1 ether);
     }
 
-    function _encodeCctpMessage(
+    function _encodeCctpBurnMessage(
         uint64 nonce,
         uint32 sourceDomain,
         bytes32 recipient,
         uint256 amount
     ) internal view returns (bytes memory) {
         return
-            _encodeCctpMessage(
+            _encodeCctpBurnMessage(
                 nonce,
                 sourceDomain,
                 recipient,
@@ -156,7 +161,7 @@ contract TokenBridgeCctpTest is Test {
             );
     }
 
-    function _encodeCctpMessage(
+    function _encodeCctpBurnMessage(
         uint64 nonce,
         uint32 sourceDomain,
         bytes32 recipient,
@@ -177,7 +182,7 @@ contract TokenBridgeCctpTest is Test {
                 cctpDestination,
                 nonce,
                 address(tokenMessengerOrigin).addressToBytes32(),
-                address(tbDestination).addressToBytes32(),
+                address(tokenMessengerDestination).addressToBytes32(),
                 bytes32(0),
                 burnMessage
             );
@@ -272,7 +277,7 @@ contract TokenBridgeCctpTest is Test {
         _expectOffChainLookUpRevert(message);
         tbDestination.getOffchainVerifyInfo(message);
 
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             cctpOrigin,
             recipient,
@@ -291,6 +296,26 @@ contract TokenBridgeCctpTest is Test {
         assertEq(tbDestination.verify(metadata, message), true);
     }
 
+    function _upgrade(TokenBridgeCctp bridge) internal {
+        TokenBridgeCctp newImplementation = new TokenBridgeCctp(
+            address(bridge.wrappedToken()),
+            bridge.scale(),
+            address(bridge.mailbox()),
+            bridge.messageTransmitter(),
+            bridge.tokenMessenger()
+        );
+
+        bytes32 adminBytes = vm.load(
+            address(bridge),
+            bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1)
+        );
+        address admin = address(uint160(uint256(adminBytes)));
+        vm.prank(admin);
+        ITransparentUpgradeableProxy(address(bridge)).upgradeTo(
+            address(newImplementation)
+        );
+    }
+
     function testFork_verify() public {
         TokenBridgeCctp recipient = TokenBridgeCctp(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
@@ -305,24 +330,7 @@ contract TokenBridgeCctpTest is Test {
         vm.expectRevert();
         recipient.verify(metadata, message);
 
-        TokenBridgeCctp newImplementation = new TokenBridgeCctp(
-            address(recipient.wrappedToken()),
-            recipient.scale(),
-            address(recipient.mailbox()),
-            recipient.messageTransmitter(),
-            recipient.tokenMessenger()
-        );
-
-        bytes32 adminBytes = vm.load(
-            address(recipient),
-            bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1)
-        );
-        address admin = address(uint160(uint256(adminBytes)));
-        vm.prank(admin);
-        ITransparentUpgradeableProxy(address(recipient)).upgradeTo(
-            address(newImplementation)
-        );
-
+        _upgrade(recipient);
         assertEq(recipient.verify(metadata, message), true);
     }
 
@@ -335,7 +343,7 @@ contract TokenBridgeCctpTest is Test {
 
         // invalid nonce := nextNonce + 1
         uint64 badNonce = cctpNonce + 1;
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             badNonce,
             cctpOrigin,
             recipient,
@@ -357,7 +365,7 @@ contract TokenBridgeCctpTest is Test {
 
         // invalid source domain := destination
         uint32 badSourceDomain = cctpDestination;
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             badSourceDomain,
             recipient,
@@ -370,7 +378,7 @@ contract TokenBridgeCctpTest is Test {
         tbDestination.verify(metadata, message);
     }
 
-    function test_verify_revertsWhen_invalidAmount() public {
+    function test_verify_revertsWhen_invalidMintAmount() public {
         (
             bytes memory message,
             uint64 cctpNonce,
@@ -379,7 +387,7 @@ contract TokenBridgeCctpTest is Test {
 
         // invalid amount := amount + 1
         uint256 badAmount = amount + 1;
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             cctpOrigin,
             recipient,
@@ -388,16 +396,16 @@ contract TokenBridgeCctpTest is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid amount"));
+        vm.expectRevert(bytes("Invalid mint amount"));
         tbDestination.verify(metadata, message);
     }
 
-    function test_verify_revertsWhen_invalidRecipient() public {
+    function test_verify_revertsWhen_invalidMintRecipient() public {
         (bytes memory message, uint64 cctpNonce, ) = _setupAndDispatch();
 
         // invalid recipient := evil
         bytes32 badRecipient = evil.addressToBytes32();
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             cctpOrigin,
             badRecipient,
@@ -406,11 +414,11 @@ contract TokenBridgeCctpTest is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid recipient"));
+        vm.expectRevert(bytes("Invalid mint recipient"));
         tbDestination.verify(metadata, message);
     }
 
-    function test_verify_revertsWhen_invalidSender() public {
+    function test_verify_revertsWhen_invalidBurnSender() public {
         (
             bytes memory message,
             uint64 cctpNonce,
@@ -418,7 +426,7 @@ contract TokenBridgeCctpTest is Test {
         ) = _setupAndDispatch();
 
         // invalid sender := evil
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             cctpOrigin,
             recipient,
@@ -428,7 +436,7 @@ contract TokenBridgeCctpTest is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid sender"));
+        vm.expectRevert(bytes("Invalid burn sender"));
         tbDestination.verify(metadata, message);
     }
 
@@ -439,7 +447,7 @@ contract TokenBridgeCctpTest is Test {
             bytes32 recipient
         ) = _setupAndDispatch();
 
-        bytes memory cctpMessage = _encodeCctpMessage(
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
             cctpNonce,
             cctpOrigin,
             recipient,
@@ -540,8 +548,279 @@ contract TokenBridgeCctpTest is Test {
         );
     }
 
-    function test_parent_initialize_reverts() public {
-        vm.expectRevert("Only TokenBridgeCctp.initialize() may be called");
-        tbOrigin.initialize(address(0), address(0), address(0));
+    function test_postDispatch(bytes32 recipient, bytes calldata body) public {
+        // precompute message ID
+        bytes32 id = Message.id(
+            Message.formatMessage(
+                3,
+                0,
+                origin,
+                address(this).addressToBytes32(),
+                destination,
+                recipient,
+                body
+            )
+        );
+
+        vm.expectCall(
+            address(messageTransmitterOrigin),
+            abi.encodeCall(
+                MockCircleMessageTransmitter.sendMessageWithCaller,
+                (
+                    cctpDestination,
+                    address(tbDestination).addressToBytes32(),
+                    address(tbDestination).addressToBytes32(),
+                    abi.encode(id)
+                )
+            )
+        );
+        bytes32 actualId = mailboxOrigin.dispatch(
+            destination,
+            recipient,
+            body,
+            bytes(""),
+            tbOrigin
+        );
+        assertEq(actualId, id);
+    }
+
+    function testFork_postDispatch(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
+        TokenBridgeCctp hook = TokenBridgeCctp(
+            0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
+        );
+        _upgrade(hook);
+
+        IMailbox mailbox = hook.mailbox();
+        uint32 destination = 1; // ethereum
+        uint32 origin = mailbox.localDomain();
+        bytes32 router = hook.routers(destination);
+
+        // precompute message ID
+        bytes memory message = Message.formatMessage(
+            3,
+            mailbox.nonce(),
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+
+        bytes memory cctpMessage = CctpMessage._formatMessage(
+            0,
+            hook.messageTransmitter().localDomain(),
+            hook.hyperlaneDomainToCircleDomain(destination),
+            hook.messageTransmitter().nextAvailableNonce(),
+            address(hook).addressToBytes32(),
+            router,
+            router,
+            abi.encode(Message.id(message))
+        );
+
+        vm.expectEmit(
+            true,
+            true,
+            true,
+            true,
+            address(hook.messageTransmitter())
+        );
+        emit IMessageTransmitter.MessageSent(cctpMessage);
+
+        mailbox.dispatch(destination, recipient, body, bytes(""), hook);
+    }
+
+    function testFork_verifyDeployerMessage() public {
+        vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
+        TokenBridgeCctp hook = TokenBridgeCctp(
+            0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
+        );
+        bytes32 router = hook.routers(1);
+        uint32 origin = hook.localDomain();
+
+        // https://basescan.org/tx/0x16b2c15cff779f16ab16a279a12c45a143047e680f8ed538318c7d67eed35569
+        bytes
+            memory message = hex"03001661f000002105000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000001000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9badeadbeef";
+
+        // https://basescan.org/tx/0x4eeffc2aa410ede620d17ae18f513bf31941d301e8ada6676b54d3300dac116a
+        bytes
+            memory cctpMessage = hex"0000000000000006000000000000000000096af6000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000edcbaa585fd0f80f20073f9958246476466205b8000000000000000000000000edcbaa585fd0f80f20073f9958246476466205b8a331d7762c517834242bea4b027d3dcebbd32e7d312ef3dd7a9d73ced95f9adb";
+
+        // https://iris-api.circle.com/v1/messages/6/0x4eeffc2aa410ede620d17ae18f513bf31941d301e8ada6676b54d3300dac116a
+        bytes
+            memory attestation = hex"4a713f6935bf2f0a9b6aa01a9a5c1c4e0da23f858193f20fde96e814e63345d85a65b6f1f53f0b22cde3c611d03a032eab7ac4c26232f3a7ff9185c69ee205ee1b614fac487343203b8c6e2c210440576fbe64e7fb70de5f4be87291187604656d19c4ebc4dc33558d36e6e799fc8adca45f8b704cf6eecf3adf7254ad88d2efd41c";
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.createSelectFork(vm.rpcUrl("mainnet"), 22_898_879);
+        TokenBridgeCctp ism = TokenBridgeCctp(router.bytes32ToAddress());
+        _upgrade(ism);
+
+        vm.expectRevert(bytes("Invalid circle sender"));
+        ism.verify(metadata, message);
+
+        // CCTP message was sent by deployer on origin chain
+        // enroll the deployer as the origin router
+        address deployer = 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba;
+        vm.prank(ism.owner());
+        ism.enrollRemoteRouter(origin, deployer.addressToBytes32());
+
+        vm.expectCall(
+            address(ism),
+            abi.encode(TokenBridgeCctp.handleReceiveMessage.selector)
+        );
+        assert(ism.verify(metadata, message));
+    }
+
+    function test_postDispatch_revertsWhen_messageNotDispatched(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        bytes memory message = Message.formatMessage(
+            3,
+            0,
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+        vm.expectRevert(bytes("Message not dispatched"));
+        tbOrigin.postDispatch(bytes(""), message);
+    }
+
+    function test_verify_hookMessage(bytes calldata body) public {
+        TestRecipient recipient = new TestRecipient();
+        recipient.setInterchainSecurityModule(address(tbDestination));
+
+        bytes32 id = mailboxOrigin.dispatch(
+            destination,
+            address(recipient).addressToBytes32(),
+            body,
+            bytes(""),
+            tbOrigin
+        );
+
+        bytes memory cctpMessage = CctpMessage._formatMessage(
+            version,
+            cctpOrigin,
+            cctpDestination,
+            tokenMessengerOrigin.nextNonce(),
+            address(tbOrigin).addressToBytes32(),
+            address(tbDestination).addressToBytes32(),
+            bytes32(0), // destinationCaller
+            abi.encode(id)
+        );
+
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+        mailboxDestination.addInboundMetadata(0, metadata);
+
+        mailboxDestination.processNextInboundMessage();
+
+        assertEq(recipient.lastData(), body);
+    }
+
+    function test_verify_revertsWhen_invalidMessageSender(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        bytes memory message = Message.formatMessage(
+            3,
+            0,
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+
+        bytes32 badSender = ~address(tbOrigin).addressToBytes32();
+
+        bytes memory cctpMessage = CctpMessage._formatMessage(
+            version,
+            cctpOrigin,
+            cctpDestination,
+            tokenMessengerOrigin.nextNonce(),
+            badSender,
+            address(tbDestination).addressToBytes32(),
+            bytes32(0), // destinationCaller
+            message
+        );
+
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid circle sender"));
+        tbDestination.verify(metadata, message);
+    }
+
+    function test_verify_revertsWhen_invalidMessageId(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        bytes memory message = Message.formatMessage(
+            3,
+            0,
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+        bytes32 badMessageId = ~Message.id(message);
+
+        bytes memory cctpMessage = CctpMessage._formatMessage(
+            version,
+            cctpOrigin,
+            cctpDestination,
+            tokenMessengerOrigin.nextNonce(),
+            address(tbOrigin).addressToBytes32(),
+            address(tbDestination).addressToBytes32(),
+            bytes32(0), // destinationCaller
+            abi.encode(badMessageId)
+        );
+
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid message id"));
+        tbDestination.verify(metadata, message);
+    }
+
+    function test_verify_revertsWhen_invalidMessageRecipient(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        bytes memory message = Message.formatMessage(
+            3,
+            0,
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+
+        address badRecipient = address(~bytes20(address(tbDestination)));
+
+        bytes memory cctpMessage = CctpMessage._formatMessage(
+            version,
+            cctpOrigin,
+            cctpDestination,
+            tokenMessengerOrigin.nextNonce(),
+            address(tbOrigin).addressToBytes32(),
+            badRecipient.addressToBytes32(),
+            bytes32(0), // destinationCaller
+            abi.encode(Message.id(message))
+        );
+
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid circle recipient"));
+        tbDestination.verify(metadata, message);
     }
 }

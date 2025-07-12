@@ -14,7 +14,7 @@ contract DefaultHook is AbstractPostDispatchHook, MailboxClient {
     constructor(address _mailbox) MailboxClient(_mailbox) {}
 
     function hookType() external pure returns (uint8) {
-        return uint8(IPostDispatchHook.Types.MAILBOX_DEFAULT_HOOK);
+        return uint8(IPostDispatchHook.HookTypes.MAILBOX_DEFAULT_HOOK);
     }
 
     function _hook() public view returns (IPostDispatchHook) {

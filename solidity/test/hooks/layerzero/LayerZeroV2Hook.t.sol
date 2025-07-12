@@ -194,6 +194,9 @@ contract LayerZeroV2HookTest is Test {
 
     // TODO test failed/retry
     function testLzV2Hook_HookType() public {
-        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.ID_AUTH_ISM));
+        assertEq(
+            hook.hookType(),
+            uint8(IPostDispatchHook.HookTypes.ID_AUTH_ISM)
+        );
     }
 }
