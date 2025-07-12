@@ -8,7 +8,7 @@ import {TokenMessage} from "./libs/TokenMessage.sol";
 import {CctpMessageV1, BurnMessageV1} from "../libs/CctpMessageV1.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
-import {ITokenMessenger} from "../interfaces/cctp/ITokenMessenger.sol";
+import {ITokenMessengerV1} from "../interfaces/cctp/ITokenMessenger.sol";
 import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
 
 // TokenMessage.metadata := uint8 cctpNonce
@@ -29,7 +29,7 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         uint256 _scale,
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
-        ITokenMessenger _tokenMessenger
+        ITokenMessengerV1 _tokenMessenger
     )
         TokenBridgeCctpBase(
             _erc20,
@@ -46,13 +46,13 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
 
     function _getCircleRecipient(
         bytes29 cctpMessage
-    ) internal view override returns (address) {
+    ) internal pure override returns (address) {
         return cctpMessage._recipient().bytes32ToAddress();
     }
 
     function _getCircleNonce(
         bytes29 cctpMessage
-    ) internal view override returns (bytes32) {
+    ) internal pure override returns (bytes32) {
         bytes32 sourceAndNonceHash = keccak256(
             abi.encodePacked(cctpMessage._sourceDomain(), cctpMessage._nonce())
         );
@@ -61,14 +61,14 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
 
     function _getCircleSource(
         bytes29 cctpMessage
-    ) internal view override returns (uint32) {
+    ) internal pure override returns (uint32) {
         return cctpMessage._sourceDomain();
     }
 
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
-    ) internal view override {
+    ) internal pure override {
         bytes29 burnMessage = cctpMessage._messageBody();
         burnMessage._validateBurnMessageFormat();
 
@@ -158,12 +158,13 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
 
         uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
 
-        uint64 nonce = ITokenMessenger(tokenMessenger).depositForBurn(
-            amount,
-            circleDomain,
-            recipient,
-            address(wrappedToken)
-        );
+        uint64 nonce = ITokenMessengerV1(address(tokenMessenger))
+            .depositForBurn(
+                amount,
+                circleDomain,
+                recipient,
+                address(wrappedToken)
+            );
 
         message = TokenMessage.format(
             recipient,

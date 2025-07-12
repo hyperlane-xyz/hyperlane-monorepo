@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ITokenMessenger} from "../interfaces/cctp/ITokenMessenger.sol";
+import {ITokenMessenger, ITokenMessengerV1} from "../interfaces/cctp/ITokenMessenger.sol";
 import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
 import {MockToken} from "./MockToken.sol";
 
-contract MockCircleTokenMessenger is ITokenMessenger, ITokenMessengerV2 {
+contract MockCircleTokenMessenger is ITokenMessengerV1, ITokenMessengerV2 {
     uint64 public nextNonce = 0;
     MockToken token;
     uint32 public version;
@@ -37,11 +37,7 @@ contract MockCircleTokenMessenger is ITokenMessenger, ITokenMessengerV2 {
         depositForBurn(_amount, 0, 0, _burnToken);
     }
 
-    function messageBodyVersion()
-        external
-        override(ITokenMessenger, ITokenMessengerV2)
-        returns (uint32)
-    {
+    function messageBodyVersion() external override returns (uint32) {
         return version;
     }
 

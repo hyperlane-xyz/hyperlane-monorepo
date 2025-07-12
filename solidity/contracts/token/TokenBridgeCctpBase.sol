@@ -149,20 +149,20 @@ abstract contract TokenBridgeCctpBase is
 
     function _getCircleRecipient(
         bytes29 cctpMessage
-    ) internal view virtual returns (address);
+    ) internal pure virtual returns (address);
 
     function _getCircleSource(
         bytes29 cctpMessage
-    ) internal view virtual returns (uint32);
+    ) internal pure virtual returns (uint32);
 
     function _getCircleNonce(
         bytes29 cctpMessage
-    ) internal view virtual returns (bytes32);
+    ) internal pure virtual returns (bytes32);
 
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
-    ) internal view virtual;
+    ) internal pure virtual;
 
     function _validateHookMessage(
         bytes calldata hyperlaneMessage,

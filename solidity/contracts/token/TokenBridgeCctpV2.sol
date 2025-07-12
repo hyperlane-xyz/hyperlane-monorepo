@@ -33,7 +33,8 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         address _mailbox,
         IMessageTransmitterV2 _messageTransmitter,
         ITokenMessengerV2 _tokenMessenger,
-        uint256 _maxFeeBps
+        uint256 _maxFeeBps,
+        uint32 _minFinalityThreshold
     )
         TokenBridgeCctpBase(
             _erc20,
@@ -44,6 +45,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         )
     {
         maxFeeBps = _maxFeeBps;
+        minFinalityThreshold = _minFinalityThreshold;
     }
 
     function _getCCTPVersion() internal pure override returns (uint32) {
@@ -52,19 +54,19 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
 
     function _getCircleRecipient(
         bytes29 cctpMessage
-    ) internal view override returns (address) {
+    ) internal pure override returns (address) {
         return cctpMessage._getRecipient().bytes32ToAddress();
     }
 
     function _getCircleNonce(
         bytes29 cctpMessage
-    ) internal view override returns (bytes32) {
+    ) internal pure override returns (bytes32) {
         return cctpMessage._getNonce();
     }
 
     function _getCircleSource(
         bytes29 cctpMessage
-    ) internal view override returns (uint32) {
+    ) internal pure override returns (uint32) {
         return cctpMessage._getSourceDomain();
     }
 
@@ -80,7 +82,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
-    ) internal view override {
+    ) internal pure override {
         bytes29 burnMessage = cctpMessage._getMessageBody();
         burnMessage._validateBurnMessageFormat();
 

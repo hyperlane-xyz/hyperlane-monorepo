@@ -17,7 +17,7 @@ import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {ICcipReadIsm} from "../../contracts/interfaces/isms/ICcipReadIsm.sol";
 import {IMessageTransmitter, IRelayer} from "../../contracts/interfaces/cctp/IMessageTransmitter.sol";
 import {IMessageTransmitterV2, IRelayerV2} from "../../contracts/interfaces/cctp/IMessageTransmitterV2.sol";
-import {ITokenMessenger} from "../../contracts/interfaces/cctp/ITokenMessenger.sol";
+import {ITokenMessenger, ITokenMessengerV1} from "../../contracts/interfaces/cctp/ITokenMessenger.sol";
 import {ITokenMessengerV2} from "../../contracts/interfaces/cctp/ITokenMessengerV2.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
@@ -289,7 +289,7 @@ contract TokenBridgeCctpV1Test is Test {
         vm.expectCall(
             address(tokenMessengerOrigin),
             abi.encodeCall(
-                ITokenMessenger.depositForBurn,
+                ITokenMessengerV1.depositForBurn,
                 (
                     amount,
                     cctpDestination,
@@ -340,7 +340,7 @@ contract TokenBridgeCctpV1Test is Test {
             bridge.scale(),
             address(bridge.mailbox()),
             bridge.messageTransmitter(),
-            bridge.tokenMessenger()
+            ITokenMessengerV1(address(bridge.tokenMessenger()))
         );
 
         bytes32 adminBytes = vm.load(
@@ -858,6 +858,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin,
+            maxFee,
             minFinalityThreshold
         );
 
@@ -880,7 +881,8 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(mailboxDestination),
             messageTransmitterDestination,
             tokenMessengerDestination,
-            maxFee
+            maxFee,
+            minFinalityThreshold
         );
 
         TransparentUpgradeableProxy proxyDestination = new TransparentUpgradeableProxy(
@@ -1023,7 +1025,8 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin,
-            maxFee
+            maxFee,
+            minFinalityThreshold
         );
 
         messageTransmitterOrigin.setVersion(CCTP_VERSION_1);
@@ -1034,7 +1037,8 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin,
-            maxFee
+            maxFee,
+            minFinalityThreshold
         );
     }
 

@@ -26,6 +26,4 @@ interface ITokenMessengerV2 is ITokenMessenger {
         uint256 maxFee,
         uint32 minFinalityThreshold
     ) external;
-
-    function messageBodyVersion() external returns (uint32);
 }
