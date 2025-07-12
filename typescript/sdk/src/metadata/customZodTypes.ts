@@ -18,3 +18,9 @@ export const ZHash = z
   );
 /** Zod ChainName schema */
 export const ZChainName = z.string().regex(/^[a-z][a-z0-9]*$/);
+
+export const ZBigNumberish = z
+  .bigint()
+  .or(ZUint)
+  .or(z.string().regex(/^[0-9]+$/))
+  .transform(BigInt);
