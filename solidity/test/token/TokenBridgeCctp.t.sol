@@ -21,15 +21,19 @@ import {ITokenMessenger} from "../../contracts/interfaces/cctp/ITokenMessenger.s
 import {ITokenMessengerV2} from "../../contracts/interfaces/cctp/ITokenMessengerV2.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {CctpMessage, BurnMessage} from "../../contracts/libs/CctpMessage.sol";
+import {CctpMessageV1, BurnMessageV1} from "../../contracts/libs/CctpMessageV1.sol";
 import {CctpMessageV2, BurnMessageV2} from "../../contracts/libs/CctpMessageV2.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {CctpService} from "../../contracts/token/TokenBridgeCctpBase.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {TokenBridgeCctpBase} from "../../contracts/token/TokenBridgeCctpBase.sol";
+import {IMessageTransmitter} from "../../contracts/interfaces/cctp/IMessageTransmitter.sol";
+import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
+import {ISpecifiesInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 
 contract TokenBridgeCctpV1Test is Test {
     using TypeCasts for address;
+    using TypeCasts for bytes32;
     using Message for bytes;
 
     uint32 internal constant CCTP_VERSION_1 = 0;
@@ -107,8 +111,8 @@ contract TokenBridgeCctpV1Test is Test {
             address(tokenOrigin),
             scale,
             address(mailboxOrigin),
-            address(messageTransmitterOrigin),
-            address(tokenMessengerOrigin)
+            messageTransmitterOrigin,
+            tokenMessengerOrigin
         );
 
         bytes memory initData = abi.encodeWithSignature(
@@ -128,8 +132,8 @@ contract TokenBridgeCctpV1Test is Test {
             address(tokenDestination),
             scale,
             address(mailboxDestination),
-            address(messageTransmitterDestination),
-            address(tokenMessengerDestination)
+            messageTransmitterDestination,
+            tokenMessengerDestination
         );
 
         TransparentUpgradeableProxy proxyDestination = new TransparentUpgradeableProxy(
@@ -168,7 +172,7 @@ contract TokenBridgeCctpV1Test is Test {
         uint256 amount,
         address sender
     ) internal view virtual returns (bytes memory) {
-        bytes memory burnMessage = BurnMessage._formatMessage(
+        bytes memory burnMessage = BurnMessageV1._formatMessage(
             version,
             address(tokenOrigin).addressToBytes32(),
             recipient,
@@ -176,7 +180,7 @@ contract TokenBridgeCctpV1Test is Test {
             sender.addressToBytes32()
         );
         return
-            CctpMessage._formatMessage(
+            CctpMessageV1._formatMessage(
                 version,
                 sourceDomain,
                 cctpDestination,
@@ -194,7 +198,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory message
     ) internal view virtual returns (bytes memory) {
         return
-            CctpMessage._formatMessage(
+            CctpMessageV1._formatMessage(
                 version,
                 cctpOrigin,
                 cctpDestination,
@@ -330,6 +334,26 @@ contract TokenBridgeCctpV1Test is Test {
         assertEq(tbDestination.verify(metadata, message), true);
     }
 
+    function _upgrade(TokenBridgeCctpV1 bridge) internal {
+        TokenBridgeCctpV1 newImplementation = new TokenBridgeCctpV1(
+            address(bridge.wrappedToken()),
+            bridge.scale(),
+            address(bridge.mailbox()),
+            bridge.messageTransmitter(),
+            bridge.tokenMessenger()
+        );
+
+        bytes32 adminBytes = vm.load(
+            address(bridge),
+            bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1)
+        );
+        address admin = address(uint160(uint256(adminBytes)));
+        vm.prank(admin);
+        ITransparentUpgradeableProxy(address(bridge)).upgradeTo(
+            address(newImplementation)
+        );
+    }
+
     function testFork_verify() public {
         TokenBridgeCctpV1 recipient = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
@@ -344,25 +368,8 @@ contract TokenBridgeCctpV1Test is Test {
         vm.expectRevert();
         recipient.verify(metadata, message);
 
-        TokenBridgeCctpV1 newImplementation = new TokenBridgeCctpV1(
-            address(recipient.wrappedToken()),
-            recipient.scale(),
-            address(recipient.mailbox()),
-            recipient.messageTransmitter(),
-            recipient.tokenMessenger()
-        );
-
-        bytes32 adminBytes = vm.load(
-            address(recipient),
-            bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1)
-        );
-        address admin = address(uint160(uint256(adminBytes)));
-        vm.prank(admin);
-        ITransparentUpgradeableProxy(address(recipient)).upgradeTo(
-            address(newImplementation)
-        );
-
-        assertEq(recipient.verify(metadata, message), true);
+        _upgrade(recipient);
+        assert(recipient.verify(metadata, message));
     }
 
     function test_verify_revertsWhen_invalidNonce() public virtual {
@@ -409,7 +416,7 @@ contract TokenBridgeCctpV1Test is Test {
         tbDestination.verify(metadata, message);
     }
 
-    function test_verify_revertsWhen_invalidAmount() public {
+    function test_verify_revertsWhen_invalidMintAmount() public {
         (
             bytes memory message,
             uint64 cctpNonce,
@@ -431,7 +438,7 @@ contract TokenBridgeCctpV1Test is Test {
         tbDestination.verify(metadata, message);
     }
 
-    function test_verify_revertsWhen_invalidRecipient() public {
+    function test_verify_revertsWhen_invalidMintRecipient() public {
         (bytes memory message, uint64 cctpNonce, ) = _setupAndDispatch();
 
         // invalid recipient := evil
@@ -502,8 +509,8 @@ contract TokenBridgeCctpV1Test is Test {
             address(tokenOrigin),
             scale,
             address(mailboxOrigin),
-            address(messageTransmitterOrigin),
-            address(tokenMessengerOrigin)
+            messageTransmitterOrigin,
+            tokenMessengerOrigin
         );
 
         messageTransmitterOrigin.setVersion(CCTP_VERSION_2);
@@ -512,8 +519,8 @@ contract TokenBridgeCctpV1Test is Test {
             address(tokenOrigin),
             scale,
             address(mailboxOrigin),
-            address(messageTransmitterOrigin),
-            address(tokenMessengerOrigin)
+            messageTransmitterOrigin,
+            tokenMessengerOrigin
         );
     }
 
@@ -575,11 +582,6 @@ contract TokenBridgeCctpV1Test is Test {
         );
     }
 
-    function test_parent_initialize_reverts() public {
-        vm.expectRevert("Only TokenBridgeCctp.initialize() may be called");
-        tbOrigin.initialize(address(0), address(0), address(0));
-    }
-
     function test_postDispatch(
         bytes32 recipient,
         bytes calldata body
@@ -617,6 +619,96 @@ contract TokenBridgeCctpV1Test is Test {
             tbOrigin
         );
         assertEq(actualId, id);
+    }
+
+    function testFork_postDispatch(
+        bytes32 recipient,
+        bytes calldata body
+    ) public {
+        vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
+        TokenBridgeCctpV1 hook = TokenBridgeCctpV1(
+            0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
+        );
+        _upgrade(hook);
+
+        IMailbox mailbox = hook.mailbox();
+        uint32 destination = 1; // ethereum
+        uint32 origin = mailbox.localDomain();
+        bytes32 router = hook.routers(destination);
+
+        // precompute message ID
+        bytes memory message = Message.formatMessage(
+            3,
+            mailbox.nonce(),
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+
+        bytes memory cctpMessage = CctpMessageV1._formatMessage(
+            0,
+            hook.messageTransmitter().localDomain(),
+            hook.hyperlaneDomainToCircleDomain(destination),
+            hook.messageTransmitter().nextAvailableNonce(),
+            address(hook).addressToBytes32(),
+            router,
+            router,
+            abi.encode(Message.id(message))
+        );
+
+        vm.expectEmit(
+            true,
+            true,
+            true,
+            true,
+            address(hook.messageTransmitter())
+        );
+        emit IMessageTransmitter.MessageSent(cctpMessage);
+
+        mailbox.dispatch(destination, recipient, body, bytes(""), hook);
+    }
+
+    function testFork_verifyDeployerMessage() public {
+        vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
+        TokenBridgeCctpV1 hook = TokenBridgeCctpV1(
+            0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
+        );
+        bytes32 router = hook.routers(1);
+        uint32 origin = hook.localDomain();
+
+        // https://basescan.org/tx/0x16b2c15cff779f16ab16a279a12c45a143047e680f8ed538318c7d67eed35569
+        bytes
+            memory message = hex"03001661f000002105000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000001000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9badeadbeef";
+
+        // https://basescan.org/tx/0x4eeffc2aa410ede620d17ae18f513bf31941d301e8ada6676b54d3300dac116a
+        bytes
+            memory cctpMessage = hex"0000000000000006000000000000000000096af6000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000edcbaa585fd0f80f20073f9958246476466205b8000000000000000000000000edcbaa585fd0f80f20073f9958246476466205b8a331d7762c517834242bea4b027d3dcebbd32e7d312ef3dd7a9d73ced95f9adb";
+
+        // https://iris-api.circle.com/v1/messages/6/0x4eeffc2aa410ede620d17ae18f513bf31941d301e8ada6676b54d3300dac116a
+        bytes
+            memory attestation = hex"4a713f6935bf2f0a9b6aa01a9a5c1c4e0da23f858193f20fde96e814e63345d85a65b6f1f53f0b22cde3c611d03a032eab7ac4c26232f3a7ff9185c69ee205ee1b614fac487343203b8c6e2c210440576fbe64e7fb70de5f4be87291187604656d19c4ebc4dc33558d36e6e799fc8adca45f8b704cf6eecf3adf7254ad88d2efd41c";
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.createSelectFork(vm.rpcUrl("mainnet"), 22_898_879);
+        TokenBridgeCctpV1 ism = TokenBridgeCctpV1(router.bytes32ToAddress());
+        _upgrade(ism);
+
+        vm.expectRevert(bytes("Invalid circle sender"));
+        ism.verify(metadata, message);
+
+        // CCTP message was sent by deployer on origin chain
+        // enroll the deployer as the origin router
+        address deployer = 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba;
+        vm.prank(ism.owner());
+        ism.enrollRemoteRouter(origin, deployer.addressToBytes32());
+
+        vm.expectCall(
+            address(ism),
+            abi.encode(TokenBridgeCctpV1.handleReceiveMessage.selector)
+        );
+        assert(ism.verify(metadata, message));
     }
 
     function test_postDispatch_revertsWhen_messageNotDispatched(
@@ -659,7 +751,7 @@ contract TokenBridgeCctpV1Test is Test {
         assertEq(recipient.lastData(), body);
     }
 
-    function test_verify_revertsWhen_invalidSender(
+    function test_verify_revertsWhen_invalidMessageSender(
         bytes32 recipient,
         bytes calldata body
     ) public {
@@ -714,7 +806,7 @@ contract TokenBridgeCctpV1Test is Test {
         tbDestination.verify(metadata, message);
     }
 
-    function test_verify_revertsWhen_invalidRecipient(
+    function test_verify_revertsWhen_invalidMessageRecipient(
         bytes32 recipient,
         bytes calldata body
     ) public {
@@ -746,8 +838,8 @@ contract TokenBridgeCctpV1Test is Test {
 contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
     using TypeCasts for address;
 
-    uint256 maxFee;
-    uint32 minFinalityThreshold;
+    uint256 constant maxFee = 1;
+    uint32 constant minFinalityThreshold = 1000;
 
     function setUp() public override {
         super.setUp();
@@ -764,12 +856,10 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(tokenOrigin),
             scale,
             address(mailboxOrigin),
-            address(messageTransmitterOrigin),
-            address(tokenMessengerOrigin)
+            messageTransmitterOrigin,
+            tokenMessengerOrigin,
+            minFinalityThreshold
         );
-
-        maxFee = originImplementation.MAX_FEE_BPS();
-        minFinalityThreshold = originImplementation.MIN_FINALITY_THRESHOLD();
 
         bytes memory initData = abi.encodeWithSignature(
             "initialize(address,address,string[])",
@@ -788,8 +878,9 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(tokenDestination),
             scale,
             address(mailboxDestination),
-            address(messageTransmitterDestination),
-            address(tokenMessengerDestination)
+            messageTransmitterDestination,
+            tokenMessengerDestination,
+            maxFee
         );
 
         TransparentUpgradeableProxy proxyDestination = new TransparentUpgradeableProxy(
@@ -930,8 +1021,9 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(tokenOrigin),
             scale,
             address(mailboxOrigin),
-            address(messageTransmitterOrigin),
-            address(tokenMessengerOrigin)
+            messageTransmitterOrigin,
+            tokenMessengerOrigin,
+            maxFee
         );
 
         messageTransmitterOrigin.setVersion(CCTP_VERSION_1);
@@ -940,12 +1032,14 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(tokenOrigin),
             scale,
             address(mailboxOrigin),
-            address(messageTransmitterOrigin),
-            address(tokenMessengerOrigin)
+            messageTransmitterOrigin,
+            tokenMessengerOrigin,
+            maxFee
         );
     }
 
     function test_verify_revertsWhen_invalidNonce() public override {
+        vm.skip(true);
         // cannot assert nonce in v2
     }
 

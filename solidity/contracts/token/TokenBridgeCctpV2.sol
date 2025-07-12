@@ -24,15 +24,16 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     using TypeCasts for bytes32;
 
     // see https://developers.circle.com/cctp/cctp-finality-and-fees#defined-finality-thresholds
-    uint32 public constant MIN_FINALITY_THRESHOLD = 1000;
-    uint256 public constant MAX_FEE_BPS = 1;
+    uint32 public immutable minFinalityThreshold;
+    uint256 public immutable maxFeeBps;
 
     constructor(
         address _erc20,
         uint256 _scale,
         address _mailbox,
-        address _messageTransmitter,
-        address _tokenMessenger
+        IMessageTransmitterV2 _messageTransmitter,
+        ITokenMessengerV2 _tokenMessenger,
+        uint256 _maxFeeBps
     )
         TokenBridgeCctpBase(
             _erc20,
@@ -41,7 +42,9 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             _messageTransmitter,
             _tokenMessenger
         )
-    {}
+    {
+        maxFeeBps = _maxFeeBps;
+    }
 
     function _getCCTPVersion() internal pure override returns (uint32) {
         return 1;
@@ -116,44 +119,37 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         require(circleMessageId == hyperlaneMessage.id(), "Invalid message id");
     }
 
+    // @inheritdoc IMessageHandlerV2
     function handleReceiveFinalizedMessage(
-        uint32 sourceDomain,
-        bytes32 sender,
-        uint32 finalityThresholdExecuted,
-        bytes calldata messageBody
-    ) external returns (bool) {
+        uint32 /*sourceDomain*/,
+        bytes32 /*sender*/,
+        uint32 /*finalityThresholdExecuted*/,
+        bytes calldata /*messageBody*/
+    ) external pure override returns (bool) {
         return true;
     }
 
-    /**
-     * @notice Handles an incoming unfinalized message from an IReceiverV2
-     * @dev Unfinalized messages have finality threshold values less than 2000
-     * @param sourceDomain The source domain of the message
-     * @param sender The sender of the message
-     * @param finalityThresholdExecuted The finality threshold at which the message was attested to
-     * @param messageBody The raw bytes of the message body
-     * @return success True, if successful; false, if not.
-     */
+    // @inheritdoc IMessageHandlerV2
     function handleReceiveUnfinalizedMessage(
-        uint32 sourceDomain,
-        bytes32 sender,
-        uint32 finalityThresholdExecuted,
-        bytes calldata messageBody
-    ) external returns (bool) {
+        uint32 /*sourceDomain*/,
+        bytes32 /*sender*/,
+        uint32 /*finalityThresholdExecuted*/,
+        bytes calldata /*messageBody*/
+    ) external pure override returns (bool) {
         return true;
     }
 
-    function _sendCircleMessage(
+    function _sendMessageIdToIsm(
         uint32 destinationDomain,
-        bytes32 recipientAndCaller,
-        bytes memory messageBody
+        bytes32 ism,
+        bytes32 messageId
     ) internal override {
-        IMessageTransmitterV2(messageTransmitter).sendMessage(
+        IMessageTransmitterV2(address(messageTransmitter)).sendMessage(
             destinationDomain,
-            recipientAndCaller,
-            recipientAndCaller,
-            MIN_FINALITY_THRESHOLD,
-            messageBody
+            ism,
+            ism,
+            minFinalityThreshold,
+            abi.encode(messageId)
         );
     }
 
@@ -162,7 +158,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         bytes32 recipient,
         uint256 amount
     ) internal view override returns (uint256 feeAmount) {
-        return (amount * MAX_FEE_BPS) / 10_000;
+        return (amount * maxFeeBps) / 10_000;
     }
 
     function _beforeDispatch(
@@ -180,14 +176,14 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
 
         uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
 
-        ITokenMessengerV2(tokenMessenger).depositForBurn(
+        ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
             amount,
             circleDomain,
             recipient,
             address(wrappedToken),
             bytes32(0), // allow anyone to relay
-            MAX_FEE_BPS,
-            MIN_FINALITY_THRESHOLD
+            maxFeeBps,
+            minFinalityThreshold
         );
 
         dispatchValue = msg.value;

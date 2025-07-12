@@ -17,6 +17,14 @@ contract MockCircleMessageTransmitter is
         token = _token;
     }
 
+    function nextAvailableNonce() external view returns (uint64) {
+        return 0;
+    }
+
+    function signatureThreshold() external view returns (uint256) {
+        return 1;
+    }
+
     function receiveMessage(
         bytes memory,
         bytes calldata

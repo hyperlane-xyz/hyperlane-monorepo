@@ -17,6 +17,7 @@
  */
 pragma solidity >=0.8.0;
 
+import {IMessageTransmitter} from "./IMessageTransmitter.sol";
 import {IReceiver} from "./IMessageTransmitter.sol";
 
 /**
@@ -56,4 +57,8 @@ interface IRelayerV2 {
  * @title IMessageTransmitterV2
  * @notice Interface for V2 message transmitters, which both relay and receive messages.
  */
-interface IMessageTransmitterV2 is IRelayerV2, IReceiverV2 {}
+interface IMessageTransmitterV2 is
+    IRelayerV2,
+    IReceiverV2,
+    IMessageTransmitter
+{}

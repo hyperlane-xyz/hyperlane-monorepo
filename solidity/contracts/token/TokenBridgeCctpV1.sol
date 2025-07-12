@@ -5,7 +5,7 @@ import {TokenBridgeCctpBase} from "./TokenBridgeCctpBase.sol";
 import {TypedMemView} from "./../libs/TypedMemView.sol";
 import {Message} from "./../libs/Message.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
-import {CctpMessage, BurnMessage} from "../libs/CctpMessage.sol";
+import {CctpMessageV1, BurnMessageV1} from "../libs/CctpMessageV1.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
 import {ITokenMessenger} from "../interfaces/cctp/ITokenMessenger.sol";
@@ -17,8 +17,8 @@ uint256 constant CCTP_TOKEN_BRIDGE_MESSAGE_LEN = TokenMessage.METADATA_OFFSET +
 
 // @dev Supports only CCTP V1
 contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
-    using CctpMessage for bytes29;
-    using BurnMessage for bytes29;
+    using CctpMessageV1 for bytes29;
+    using BurnMessageV1 for bytes29;
     using TypedMemView for bytes29;
 
     using Message for bytes;
@@ -28,8 +28,8 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         address _erc20,
         uint256 _scale,
         address _mailbox,
-        address _messageTransmitter,
-        address _tokenMessenger
+        IMessageTransmitter _messageTransmitter,
+        ITokenMessenger _tokenMessenger
     )
         TokenBridgeCctpBase(
             _erc20,
@@ -118,24 +118,20 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         uint32 /*sourceDomain*/,
         bytes32 /*sender*/,
         bytes calldata /*body*/
-    ) external override returns (bool) {
-        require(
-            msg.sender == address(messageTransmitter),
-            "Invalid message transmitter"
-        );
+    ) external pure override returns (bool) {
         return true;
     }
 
-    function _sendCircleMessage(
+    function _sendMessageIdToIsm(
         uint32 destinationDomain,
-        bytes32 recipientAndCaller,
-        bytes memory messageBody
+        bytes32 ism,
+        bytes32 messageId
     ) internal override {
         IMessageTransmitter(messageTransmitter).sendMessageWithCaller(
             destinationDomain,
-            recipientAndCaller,
-            recipientAndCaller,
-            messageBody
+            ism,
+            ism,
+            abi.encode(messageId)
         );
     }
 

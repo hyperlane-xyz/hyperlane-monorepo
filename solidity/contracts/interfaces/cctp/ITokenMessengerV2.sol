@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface ITokenMessengerV2 {
+import {ITokenMessenger} from "./ITokenMessenger.sol";
+
+interface ITokenMessengerV2 is ITokenMessenger {
     event DepositForBurn(
         address indexed burnToken,
         uint256 amount,
