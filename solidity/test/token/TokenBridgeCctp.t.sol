@@ -25,6 +25,7 @@ import {CctpService} from "../../contracts/token/TokenBridgeCctp.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {IMessageTransmitter} from "../../contracts/interfaces/cctp/IMessageTransmitter.sol";
 import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
+import {ISpecifiesInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 
 contract TokenBridgeCctpTest is Test {
     using TypeCasts for address;
@@ -632,12 +633,54 @@ contract TokenBridgeCctpTest is Test {
         mailbox.dispatch(destination, recipient, body, bytes(""), hook);
     }
 
-    function testFork_verify() public {
+    function testFork_verifyDeployerMessage() public {
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
-        TokenBridgeCctp ism = TokenBridgeCctp(
+        TokenBridgeCctp hook = TokenBridgeCctp(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
         );
+        bytes32 router = hook.routers(1);
+        uint32 origin = hook.localDomain();
+
+        // https://basescan.org/tx/0x16b2c15cff779f16ab16a279a12c45a143047e680f8ed538318c7d67eed35569
+        bytes
+            memory message = hex"03001661f000002105000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000001000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9badeadbeef";
+
+        // https://basescan.org/tx/0x4eeffc2aa410ede620d17ae18f513bf31941d301e8ada6676b54d3300dac116a
+        bytes
+            memory cctpMessage = hex"0000000000000006000000000000000000096af6000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000edcbaa585fd0f80f20073f9958246476466205b8000000000000000000000000edcbaa585fd0f80f20073f9958246476466205b8a331d7762c517834242bea4b027d3dcebbd32e7d312ef3dd7a9d73ced95f9adb";
+
+        // $ curl https://iris-api.circle.com/v1/messages/6/0x4eeffc2aa410ede620d17ae18f513bf31941d301e8ada6676b54d3300dac116a
+        bytes
+            memory attestation = hex"4a713f6935bf2f0a9b6aa01a9a5c1c4e0da23f858193f20fde96e814e63345d85a65b6f1f53f0b22cde3c611d03a032eab7ac4c26232f3a7ff9185c69ee205ee1b614fac487343203b8c6e2c210440576fbe64e7fb70de5f4be87291187604656d19c4ebc4dc33558d36e6e799fc8adca45f8b704cf6eecf3adf7254ad88d2efd41c";
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.createSelectFork(vm.rpcUrl("mainnet"), 22_898_879);
+        TokenBridgeCctp ism = TokenBridgeCctp(router.bytes32ToAddress());
         _upgrade(ism);
+
+        vm.expectRevert(bytes("Invalid circle sender"));
+        ism.verify(metadata, message);
+
+        // CCTP message was manually sent from deployer on origin chain to deployer on destination chain
+        address deployer = 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba;
+        vm.prank(ism.owner());
+        ism.enrollRemoteRouter(origin, deployer.addressToBytes32());
+
+        vm.mockCall(
+            deployer,
+            abi.encodeWithSelector(
+                ISpecifiesInterchainSecurityModule
+                    .interchainSecurityModule
+                    .selector
+            ),
+            abi.encode(address(ism))
+        );
+
+        vm.expectCall(
+            address(ism),
+            abi.encode(TokenBridgeCctp.handleReceiveMessage.selector)
+        );
+        ism.mailbox().process(metadata, message);
     }
 
     function test_postDispatch_revertsWhen_messageNotDispatched(
