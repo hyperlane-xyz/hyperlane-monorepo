@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import tmp from 'tmp';
 
-import { rootLogger, sleep, stringifyObject } from '@hyperlane-xyz/utils';
+import { rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
 
 import {
   HelmChartConfig,
@@ -206,10 +206,13 @@ export abstract class HelmManager<T = HelmValues> {
     valuesTmpFile.removeCallback();
   }
 
-  async doesHelmReleaseExist() {
+  static async doesHelmReleaseExist(
+    releaseName: string,
+    namespace: string,
+  ): Promise<boolean> {
     try {
       await execCmd(
-        `helm status ${this.helmReleaseName} --namespace ${this.namespace}`,
+        `helm status ${releaseName} --namespace ${namespace}`,
         {},
         false,
         false,
@@ -253,4 +256,19 @@ export abstract class HelmManager<T = HelmValues> {
       },
     );
   }
+}
+
+export function getHelmReleaseName(id: string, prefix: string): string {
+  let name = `${prefix}-${id.toLowerCase().replaceAll('/', '-')}`;
+
+  // 52 because the max label length is 63, and there is an auto appended 11 char
+  // suffix, e.g. `controller-revision-hash=hyperlane-warp-route-tia-mantapacific-neutron-566dc75599`
+  const maxChars = 52;
+
+  // Max out length, and it can't end with a dash.
+  if (name.length > maxChars) {
+    name = name.slice(0, maxChars);
+    name = name.replace(/-+$/, '');
+  }
+  return name;
 }
