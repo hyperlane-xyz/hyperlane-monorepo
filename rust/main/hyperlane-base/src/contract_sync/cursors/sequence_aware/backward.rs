@@ -27,7 +27,7 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     /// If in block mode, this is the max number of blocks to query.
     chunk_size: u32,
     /// The lowest block height or sequence of an entity which should be indexed.
-    lowest_block_height_or_sequence: u32,
+    pub lowest_block_height_or_sequence: u32,
     /// A store used to check which logs have already been indexed.
     store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
     /// A snapshot of the last log to be indexed, or if no indexing has occurred yet,
