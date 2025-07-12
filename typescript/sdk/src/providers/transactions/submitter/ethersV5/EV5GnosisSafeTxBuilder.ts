@@ -67,7 +67,7 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
       ),
     );
     return {
-      version: this.props.version,
+      version: '1.0',
       chainId: chainId.toString(),
       meta: {},
       transactions,
