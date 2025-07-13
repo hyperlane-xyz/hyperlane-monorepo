@@ -981,10 +981,21 @@ async fn process_confirm_result(
             confirm_queue.push(op, None).await;
         }
         PendingOperationResult::Confirm(reason) => {
-            // TODO: push multiple messages at once
-            confirm_queue
-                .push(op, Some(PendingOperationStatus::Confirm(reason.clone())))
-                .await;
+            let mut batch = vec![op];
+            // Try to get more operations from the queue that are ready for confirmation
+            while let Some(next_op) = confirm_queue.pop().await {
+                batch.push(next_op);
+                if batch.len() >= max_batch_size as usize {
+                    break;
+                }
+            }
+            
+            // Push all operations back to confirm queue
+            for op in batch {
+                confirm_queue
+                    .push(op, Some(PendingOperationStatus::Confirm(reason.clone())))
+                    .await;
+            }
         }
         PendingOperationResult::Reprepare(reason) => {
             send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, Some(reason)).await;
