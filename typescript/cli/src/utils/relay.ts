@@ -7,13 +7,13 @@ import {
   HyperlaneCore,
   HyperlaneRelayer,
   MultiProvider,
-  SubmissionStrategy,
   TxSubmitterBuilder,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
+import { ExtendedSubmissionStrategy } from '../submitters/types.js';
 
 /**
  * Workaround helper for bypassing bad hook derivation when self-relaying.
@@ -40,7 +40,7 @@ export function stubMerkleTreeConfig(
 
 export function canSelfRelay(
   selfRelay: boolean,
-  config: SubmissionStrategy,
+  config: ExtendedSubmissionStrategy,
   transactionReceipts: Awaited<
     ReturnType<TxSubmitterBuilder<ProtocolType>['submit']>
   >,
