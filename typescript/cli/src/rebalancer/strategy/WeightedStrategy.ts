@@ -1,3 +1,5 @@
+import { Logger } from 'pino';
+
 import type { WeightedStrategyConfig } from '@hyperlane-xyz/sdk';
 
 import type { RawBalances } from '../interfaces/IStrategy.js';
@@ -12,10 +14,17 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
 export class WeightedStrategy extends BaseStrategy {
   private readonly config: WeightedStrategyConfig;
   private readonly totalWeight: bigint;
+  protected readonly logger: Logger;
 
-  constructor(config: WeightedStrategyConfig, metrics?: Metrics) {
+  constructor(
+    config: WeightedStrategyConfig,
+    logger: Logger,
+    metrics?: Metrics,
+  ) {
     const chains = Object.keys(config);
-    super(chains, metrics);
+    const log = logger.child({ class: WeightedStrategy.name });
+    super(chains, log, metrics);
+    this.logger = log;
 
     let totalWeight = 0n;
 
@@ -39,6 +48,7 @@ export class WeightedStrategy extends BaseStrategy {
 
     this.config = config;
     this.totalWeight = totalWeight;
+    this.logger.info('WeightedStrategy created');
   }
 
   /**
