@@ -10,7 +10,6 @@ import {TypedMemView} from "./../libs/TypedMemView.sol";
 import {ITokenMessenger} from "./../interfaces/cctp/ITokenMessenger.sol";
 import {Message} from "./../libs/Message.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
-import {CctpMessage, BurnMessage} from "../libs/CctpMessage.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";

@@ -180,7 +180,7 @@ library CctpMessageV2 {
     }
 }
 
-import {BurnMessage} from "./CctpMessage.sol";
+import {BurnMessageV1} from "./CctpMessageV1.sol";
 
 /**
  * @title BurnMessageV2 Library
@@ -205,7 +205,7 @@ import {BurnMessage} from "./CctpMessage.sol";
 library BurnMessageV2 {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
-    using BurnMessage for bytes29;
+    using BurnMessageV1 for bytes29;
 
     // Field indices
     uint8 private constant MAX_FEE_INDEX = 132;
