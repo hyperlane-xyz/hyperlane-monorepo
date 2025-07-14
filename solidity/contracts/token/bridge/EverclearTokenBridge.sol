@@ -9,7 +9,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
-import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 

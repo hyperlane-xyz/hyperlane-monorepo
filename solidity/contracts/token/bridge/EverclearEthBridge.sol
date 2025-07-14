@@ -10,7 +10,6 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
-import "forge-std/console.sol";
 
 /**
  * @title EverclearEthBridge
