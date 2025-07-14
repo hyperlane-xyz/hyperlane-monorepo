@@ -143,7 +143,10 @@ export async function prepareDeploy(
   await Promise.all(
     chains.map(async (chain: ChainName) => {
       const provider = isDryRun
-        ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
+        ? getLocalProvider({
+            anvilIPAddr: ENV.ANVIL_IP_ADDR,
+            anvilPort: ENV.ANVIL_PORT,
+          })
         : multiProvider.getProvider(chain);
       const address =
         userAddress ?? (await multiProvider.getSigner(chain).getAddress());
@@ -165,7 +168,10 @@ export async function completeDeploy(
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
     const provider = isDryRun
-      ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
+      ? getLocalProvider({
+          anvilIPAddr: ENV.ANVIL_IP_ADDR,
+          anvilPort: ENV.ANVIL_PORT,
+        })
       : multiProvider.getProvider(chain);
     const address =
       userAddress ?? (await multiProvider.getSigner(chain).getAddress());
