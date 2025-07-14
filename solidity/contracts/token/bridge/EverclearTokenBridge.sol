@@ -195,7 +195,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal returns (IEverclear.Intent memory) {
+    ) internal virtual returns (IEverclear.Intent memory) {
         require(
             outputAssets[_destination] != bytes32(0),
             "ETB: Output asset not set"
@@ -228,20 +228,11 @@ contract EverclearTokenBridge is HypERC20Collateral {
      * @return The encoded calldata for the unwrap and send operation
      */
     function _getIntentCalldata(
-        uint32 _destination,
+        uint32 /* _destination */,
         bytes32 _recipient,
         uint256 _amount
     ) internal view returns (bytes memory) {
-        // This encodes a call to the _unwrapAndSend function
-        bytes memory _calldata = abi.encodeCall(
-            this.sendTokensFromIntent,
-            (_recipient, _amount)
-        );
-        bytes memory intentCalldata = abi.encode(
-            _mustHaveRemoteRouter(_destination).bytes32ToAddress(), // target
-            _calldata // data
-        );
-        return intentCalldata;
+        return abi.encode(_recipient, _amount);
     }
 
     function _beforeDispatch(
@@ -266,18 +257,6 @@ contract EverclearTokenBridge is HypERC20Collateral {
         return (_dispatchValue, _msg);
     }
 
-    function sendTokensFromIntent(
-        bytes32 _recipient,
-        uint256 _amount
-    ) external {
-        require(
-            msg.sender == address(everclearSpoke),
-            "ETB: Only callable by EverclearSpoke"
-        );
-
-        _transferTo(_recipient.bytes32ToAddress(), _amount);
-    }
-
     function _handle(
         uint32 _origin,
         bytes32 /* sender */,
@@ -297,14 +276,14 @@ contract EverclearTokenBridge is HypERC20Collateral {
             "ETB: Intent Status != SETTLED"
         );
 
-        // effects
-        emit ReceivedTransferRemote(
-            _origin,
-            _message.recipient(),
-            _message.amount()
+        (bytes32 _recipient, uint256 _amount) = abi.decode(
+            intent.data,
+            (bytes32, uint256)
         );
 
-        // interactions: Execute intent calldata
-        everclearSpoke.executeIntentCalldata(intent);
+        // effects
+        emit ReceivedTransferRemote(_origin, _recipient, _amount);
+
+        _transferTo(_recipient.bytes32ToAddress(), _amount);
     }
 }

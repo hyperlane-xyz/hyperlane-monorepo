@@ -22,11 +22,12 @@ import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
-
+import {Message} from "../../contracts/libs/Message.sol";
 import {EverclearTokenBridge, OutputAssetInfo} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
 import {EverclearEthBridge} from "../../contracts/token/bridge/EverclearEthBridge.sol";
 import {IEverclearAdapter, IEverclear, IEverclearSpoke} from "../../contracts/interfaces/IEverclearAdapter.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
+import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {IWETH} from "contracts/token/interfaces/IWETH.sol";
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -387,13 +388,7 @@ contract EverclearTokenBridgeTest is Test {
         assertEq(everclearAdapter.lastTtl(), 0);
         assertEq(
             everclearAdapter.lastData(),
-            abi.encode(
-                RECIPIENT.bytes32ToAddress(), // recipient address doubles as remote router address
-                abi.encodeCall(
-                    bridge.sendTokensFromIntent,
-                    (RECIPIENT, TRANSFER_AMT)
-                )
-            )
+            abi.encode(RECIPIENT, TRANSFER_AMT)
         );
 
         // Check fee params
@@ -539,6 +534,30 @@ contract EverclearTokenBridgeTest is Test {
     }
 }
 
+contract MockEverclearTokenBridge is EverclearTokenBridge {
+    constructor(
+        address _weth,
+        uint256 _scale,
+        address _mailbox,
+        IEverclearAdapter _everclearAdapter
+    ) EverclearTokenBridge(_weth, _scale, _mailbox, _everclearAdapter) {}
+
+    bytes public lastIntent;
+    function _createIntent(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal override returns (IEverclear.Intent memory) {
+        IEverclear.Intent memory intent = super._createIntent(
+            _destination,
+            _recipient,
+            _amount
+        );
+        lastIntent = abi.encode(intent);
+        return intent;
+    }
+}
+
 /**
  * @notice Fork test contract for EverclearTokenBridge on Arbitrum
  * @dev Tests the bridge using real Arbitrum state and contracts with WETH transfers to Optimism
@@ -546,7 +565,9 @@ contract EverclearTokenBridgeTest is Test {
  * forge-config: default.evm_version = "cancun"
  */
 contract EverclearTokenBridgeForkTest is Test {
-    using TypeCasts for address;
+    using TypeCasts for *;
+    using Message for bytes;
+    using stdStorage for StdStorage;
 
     // Arbitrum mainnet constants
     uint32 internal constant ARBITRUM_DOMAIN = 42161;
@@ -567,22 +588,29 @@ contract EverclearTokenBridgeForkTest is Test {
 
     // Test addresses
     address internal ALICE = makeAddr("alice");
-    address internal constant BOB = address(0x2);
-    address internal constant OWNER = address(0x3);
-    address internal constant PROXY_ADMIN = address(0x37);
+    address internal BOB = makeAddr("bob");
+    address internal OWNER = makeAddr("owner");
+    address internal PROXY_ADMIN = makeAddr("proxyAdmin");
 
     // Contracts
     IWETH internal weth;
     IEverclearAdapter internal everclearAdapter;
-    EverclearTokenBridge internal bridge;
+    MockEverclearTokenBridge internal bridge;
 
     // Test data
     bytes32 internal constant OUTPUT_ASSET =
         bytes32(uint256(uint160(OPTIMISM_WETH)));
-    bytes32 internal constant RECIPIENT = bytes32(uint256(uint160(BOB)));
+    bytes32 internal RECIPIENT = bytes32(uint256(uint160(BOB)));
     uint256 internal feeDeadline;
     address internal feeSigner;
     bytes internal feeSignature = hex"123f"; // We will create a real signature in setUp
+
+    function verify(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) external returns (bool) {
+        return true;
+    }
 
     function setUp() public virtual {
         // Fork Arbitrum at the latest block
@@ -596,7 +624,7 @@ contract EverclearTokenBridgeForkTest is Test {
         feeDeadline = block.timestamp + 3600; // 1 hour from now
 
         // Deploy bridge implementation
-        EverclearTokenBridge implementation = new EverclearTokenBridge(
+        MockEverclearTokenBridge implementation = new MockEverclearTokenBridge(
             address(weth),
             1,
             address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
@@ -610,7 +638,7 @@ contract EverclearTokenBridgeForkTest is Test {
             abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
         );
 
-        bridge = EverclearTokenBridge(address(proxy));
+        bridge = MockEverclearTokenBridge(address(proxy));
 
         // It would be great if we could mock the ecrecover function to always return the fee signer for the adapter
         // but we can't do that with forge. So we're going to sign the fee params with the fee signer private key
@@ -642,7 +670,24 @@ contract EverclearTokenBridgeForkTest is Test {
                 outputAsset: OUTPUT_ASSET
             })
         );
-        bridge.enrollRemoteRouter(OPTIMISM_DOMAIN, RECIPIENT);
+        bridge.enrollRemoteRouter(
+            OPTIMISM_DOMAIN,
+            address(bridge).addressToBytes32()
+        );
+
+        // Handle ARB-ARB transfers as well
+        bridge.setOutputAsset(
+            OutputAssetInfo({
+                destination: ARBITRUM_DOMAIN,
+                outputAsset: bytes32(uint256(uint160(ARBITRUM_WETH)))
+            })
+        );
+        bridge.enrollRemoteRouter(
+            ARBITRUM_DOMAIN,
+            address(bridge).addressToBytes32()
+        );
+        // We will be the ism for this bridge
+        bridge.setInterchainSecurityModule(address(this));
         vm.stopPrank();
 
         // Setup allowances
@@ -682,6 +727,56 @@ contract EverclearTokenBridgeForkTest is Test {
         assertEq(weth.balanceOf(ALICE), initialBalance - amount - FEE_AMOUNT);
         // The bridge forwards all weth to the adapter, so the bridge balance should be the same
         assertEq(weth.balanceOf(address(bridge)), initialBridgeBalance);
+    }
+
+    function testFork_receiveMessage(uint256 amount) public {
+        amount = bound(amount, 1, 100e6 ether);
+        uint depositAmount = amount + FEE_AMOUNT;
+        vm.deal(ALICE, depositAmount);
+        vm.prank(ALICE);
+        weth.deposit{value: depositAmount}();
+
+        uint256 initialBalance = weth.balanceOf(ALICE);
+        uint256 initialBridgeBalance = weth.balanceOf(address(bridge));
+
+        // Replace mailbox with code from MockMailbox
+        MockMailbox _mailbox = new MockMailbox(ARBITRUM_DOMAIN);
+        vm.etch(address(bridge.mailbox()), address(_mailbox).code);
+        MockMailbox mailbox = MockMailbox(address(bridge.mailbox()));
+        mailbox.addRemoteMailbox(ARBITRUM_DOMAIN, mailbox);
+
+        // Test the transfer
+        vm.prank(ALICE);
+
+        // Actually sending message to arbitrum
+        bridge.transferRemote(ARBITRUM_DOMAIN, RECIPIENT, amount);
+
+        bytes memory intent = bridge.lastIntent();
+        bytes32 intentId = keccak256(intent);
+
+        // Settle the created intent via direct storage write
+        stdstore
+            .target(address(bridge.everclearSpoke()))
+            .sig(bridge.everclearSpoke().status.selector)
+            .with_key(intentId)
+            .checked_write(uint8(IEverclear.IntentStatus.SETTLED));
+
+        assertEq(
+            uint(bridge.everclearSpoke().status(intentId)),
+            uint(IEverclear.IntentStatus.SETTLED)
+        );
+
+        // Give the bridge some WETH
+        vm.deal(address(bridge), amount);
+        vm.prank(address(bridge));
+        weth.deposit{value: amount}();
+
+        // Process the hyperlane message -> call handle directly
+        // Deliver the message to the recipient.
+        mailbox.processNextInboundMessage();
+
+        // Funds should be sent to actual recipient
+        assertEq(weth.balanceOf(BOB), amount);
     }
 }
 
@@ -782,40 +877,6 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             RECIPIENT,
             amount
         );
-    }
-
-    function testEthBridgesendTokensFromIntent() public {
-        uint256 amount = 1e18; // 1 ETH
-
-        // Give the bridge some WETH
-        vm.deal(address(ethBridge), amount);
-        vm.prank(address(ethBridge));
-        weth.deposit{value: amount}();
-
-        // Mock the everclear spoke calling sendTokensFromIntent
-        vm.prank(address(ethBridge.everclearSpoke()));
-
-        uint256 initialBobBalance = BOB.balance;
-        ethBridge.sendTokensFromIntent(RECIPIENT, amount);
-
-        // Verify Bob received the ETH
-        assertEq(BOB.balance, initialBobBalance + amount);
-        // Verify the bridge no longer has WETH
-        assertEq(weth.balanceOf(address(ethBridge)), 0);
-    }
-
-    function testEthBridgesendTokensFromIntentOnlyEverclearSpoke() public {
-        uint256 amount = 1e18; // 1 ETH
-
-        // Give the bridge some WETH
-        vm.deal(address(ethBridge), amount);
-        vm.prank(address(ethBridge));
-        weth.deposit{value: amount}();
-
-        // Try to call sendTokensFromIntent from a different address
-        vm.prank(ALICE);
-        vm.expectRevert("ETB: Only callable by EverclearSpoke");
-        ethBridge.sendTokensFromIntent(RECIPIENT, amount);
     }
 
     function testEthBridgeQuoteTransferRemote() public {
