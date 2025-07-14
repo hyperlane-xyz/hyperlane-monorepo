@@ -19,11 +19,11 @@ use dym_kas_validator::deposit::validate_new_deposit;
 use dym_kas_validator::withdraw::{sign_withdrawal_fxg, validate_withdrawal_batch, MustMatch};
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
-use hyperlane_core::Signature as HLCoreSignature;
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
     SignedCheckpointWithMessageId, SignedType, H256,
 };
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Signature as HLCoreSignature};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::prost::Message;
@@ -92,6 +92,10 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
 
     fn must_hub_rpc(&self) -> &CosmosGrpcClient {
         self.kas_provider.as_ref().unwrap().hub_rpc()
+    }
+
+    pub fn must_kas_domain(&self) -> &HyperlaneDomain {
+        self.kas_provider.as_ref().unwrap().domain()
     }
 
     fn must_rest_client(&self) -> &HttpClient {
@@ -174,9 +178,14 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         .toggles
         .withdrawal_confirmation_enabled
     {
-        validate_confirmed_withdrawals(resources.must_rest_client(), &confirmation_fxg)
-            .await
-            .map_err(|e| AppError(Report::from(e)))?;
+        validate_confirmed_withdrawals(
+            &confirmation_fxg,
+            resources.must_rest_client(),
+            &resources.must_wallet().api(),
+            resources.must_wallet().net.network_id,
+        )
+        .await
+        .map_err(|e| AppError(Report::from(e)))?;
         info!("Validator: confirmed withdrawal is valid");
     }
 

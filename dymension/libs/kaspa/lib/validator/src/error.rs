@@ -8,6 +8,12 @@ pub enum ValidationError {
     #[error("The same message was relayed twice: {message_id}")]
     DoubleSpending { message_id: String },
 
+    #[error("HL message: mismatched domain or recipient")]
+    IncorrectHLMessage,
+
+    #[error("Immature transaction: {tx_id}")]
+    ImmatureTransaction { tx_id: String },
+
     #[error("Message is for another bridge: {message_id}")]
     MessageWrongBridge { message_id: String },
 

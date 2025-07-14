@@ -57,39 +57,20 @@ pub mod maturity {
         block_daa_score: u64,
         network_id: NetworkId,
     ) -> Result<bool> {
-        validate_maturity_params(client, block_daa_score, &NetworkParams::from(network_id)).await
-    }
-
-    pub async fn validate_maturity_params(
-        client: &Arc<DynRpcApi>,
-        block_daa_score: u64,
-        params: &NetworkParams,
-    ) -> Result<bool> {
         let dag_info = client
             .get_block_dag_info()
             .await
             .map_err(|e| eyre::eyre!("Get block DAG info: {}", e))?;
 
-        Ok(is_mature_params(
+        Ok(is_mature(
             block_daa_score,
             dag_info.virtual_daa_score,
-            params,
+            network_id,
         ))
     }
 
     pub fn is_mature(block_daa_score: u64, current_daa_score: u64, network_id: NetworkId) -> bool {
-        is_mature_params(
-            block_daa_score,
-            current_daa_score,
-            NetworkParams::from(network_id),
-        )
-    }
-
-    pub fn is_mature_params(
-        block_daa_score: u64,
-        current_daa_score: u64,
-        params: &NetworkParams,
-    ) -> bool {
+        let params = NetworkParams::from(network_id);
         let maturity = params.user_transaction_maturity_period_daa();
 
         current_daa_score >= block_daa_score + maturity

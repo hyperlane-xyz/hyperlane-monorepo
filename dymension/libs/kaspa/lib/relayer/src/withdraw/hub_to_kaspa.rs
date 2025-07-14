@@ -337,12 +337,15 @@ async fn get_utxo_to_spend(
         .get_block_dag_info()
         .await
         .map_err(|e| eyre::eyre!("Get block DAG info: {}", e))?;
-    let current_daa_score = block.virtual_daa_score;
 
     // Descending order – older UTXOs first
     utxos.sort_by_key(|u| std::cmp::Reverse(u.utxo_entry.block_daa_score));
     utxos.retain(|u| {
-        util::maturity::is_mature(u.utxo_entry.block_daa_score, current_daa_score, network_id)
+        util::maturity::is_mature(
+            u.utxo_entry.block_daa_score,
+            block.virtual_daa_score,
+            network_id,
+        )
     });
 
     Ok(utxos)

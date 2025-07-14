@@ -17,7 +17,8 @@ use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::{Report, Result};
 use hex::ToHex;
-use hyperlane_core::{Decode, HyperlaneMessage, H256, U256};
+use hyperlane_core::HyperlaneDomainConfigError::DomainNameMismatch;
+use hyperlane_core::{Decode, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, H256, U256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
@@ -78,6 +79,7 @@ impl MustMatch {
 
 /// Validate WithdrawFXG received from the relayer against Kaspa and Hub.
 /// It verifies that:
+/// (0)  All messages should have Kaspa domain.
 /// (1)  No double spending allowed. All messages must be unique.
 /// (2)  Each message is actually dispatched on the Hub. Achieved by `CosmosGrpcClient.delivered`.
 ///      Consequence: `delivered` ensures that the HL message hash in known on the Hub,

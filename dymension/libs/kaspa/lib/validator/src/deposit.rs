@@ -21,24 +21,9 @@ use eyre::Result;
 use hyperlane_core::U256;
 use kaspa_txscript::extract_script_pub_key_address;
 
-use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+use corelib::{confirmation::ConfirmationFXG, util, withdraw::WithdrawFXG};
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-
-async fn validate_maturity(
-    client: &Arc<DynRpcApi>,
-    block: &RpcBlock,
-    network_params: &NetworkParams,
-) -> Result<bool> {
-    let dag_info = client.get_block_dag_info().await?;
-    if block.header.daa_score + network_params.user_transaction_maturity_period_daa()
-        < dag_info.virtual_daa_score
-    {
-        return Ok(true);
-    }
-
-    Ok(false)
-}
 
 /// Deposit validation process
 /// Executed by validators to check the deposit info relayed is equivalent to the original Kaspa tx to the escrow address
@@ -91,7 +76,8 @@ pub async fn validate_new_deposit_inner(
     let block: RpcBlock = client.get_block(block_hash, true).await?;
 
     // validation of the Kaspa tx maturity (old enough to be accepted)
-    let maturity_result = validate_maturity(client, &block, net.network_params()).await?;
+    let maturity_result =
+        util::maturity::validate_maturity(client, block.header.daa_score, net.network_id).await?;
     if !maturity_result {
         error!(
             "Deposit is not mature, block daa score: {:?}",
