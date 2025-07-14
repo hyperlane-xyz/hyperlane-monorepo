@@ -250,6 +250,7 @@ describe('HyperlaneHaasGovernor', () => {
       // Verify the innerCalls were properly combined
       const mockFirstCallArgs = mockGetCallRemote.firstCall.args[0];
       expect(mockFirstCallArgs.innerCalls).to.have.length(3);
+      // All should use fallback since innerCalls is undefined
       expect(mockFirstCallArgs.innerCalls[0]).to.deep.equal({
         to: call1.to,
         data: call1.data,
@@ -395,6 +396,75 @@ describe('HyperlaneHaasGovernor', () => {
       expect(preservedNonIcaCall?.to).to.equal(nonIcaCall.to);
       expect(preservedNonIcaCall?.data).to.equal(nonIcaCall.data);
       expect(preservedNonIcaCall?.value).to.equal(nonIcaCall.value);
+    });
+
+    it('should use innerCalls from callRemoteArgs if present, otherwise fallback to call fields', async () => {
+      const callRemoteArgsWithInner = {
+        chain: TestChainName.test1,
+        destination: TestChainName.test2,
+        config: {
+          origin: TestChainName.test1,
+          owner: '0x1234567890123456789012345678901234567890' as Address,
+        },
+        innerCalls: [
+          { to: '0xabc', data: '0xaaa', value: '42' },
+          { to: '0xdef', data: '0xbbb', value: '99' },
+        ],
+        hookMetadata: undefined,
+      };
+      const callWithInner: AnnotatedCallData = {
+        to: '0xshouldnotbeused' as Address,
+        data: '0xshouldnotbeused',
+        value: BigNumber.from(123),
+        description: 'ICA call with innerCalls',
+        callRemoteArgs: callRemoteArgsWithInner,
+      };
+      const callRemoteArgsNoInner = {
+        chain: TestChainName.test1,
+        destination: TestChainName.test2,
+        config: {
+          origin: TestChainName.test1,
+          owner: '0x1234567890123456789012345678901234567890' as Address,
+        },
+        innerCalls: [],
+        hookMetadata: undefined,
+      };
+      const callNoInner: AnnotatedCallData = {
+        to: '0xnoinner' as Address,
+        data: '0xnoinner',
+        value: BigNumber.from(555),
+        description: 'ICA call without innerCalls',
+        callRemoteArgs: callRemoteArgsNoInner,
+      };
+      (governor as any).calls = {
+        [TestChainName.test1]: [callWithInner, callNoInner],
+      };
+      const mockCallRemoteResponse = {
+        to: '0x999',
+        data: '0xcombined',
+        value: BigNumber.from(1),
+      };
+      mockGetCallRemote.resolves(mockCallRemoteResponse);
+      await governor.batchIcaCalls();
+      expect(mockGetCallRemote.calledOnce).to.be.true;
+      const innerCallsArg = mockGetCallRemote.firstCall.args[0].innerCalls;
+      // First two should be from callWithInner.callRemoteArgs.innerCalls
+      expect(innerCallsArg[0]).to.deep.equal({
+        to: '0xabc',
+        data: '0xaaa',
+        value: '42',
+      });
+      expect(innerCallsArg[1]).to.deep.equal({
+        to: '0xdef',
+        data: '0xbbb',
+        value: '99',
+      });
+      // Third should be fallback from callNoInner
+      expect(innerCallsArg[2]).to.deep.equal({
+        to: '0xnoinner',
+        data: '0xnoinner',
+        value: '555',
+      });
     });
   });
 });
