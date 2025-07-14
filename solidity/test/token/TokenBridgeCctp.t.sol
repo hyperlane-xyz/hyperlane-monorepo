@@ -1001,28 +1001,12 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         bytes
             memory originalCctpMessage = hex"0000000100000002000000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000A7ECCDB9BE08178F896C26B7BBD8C3D4E844D9BA000000000000000000000000A7ECCDB9BE08178F896C26B7BBD8C3D4E844D9BA000000000000000000000000A7ECCDB9BE08178F896C26B7BBD8C3D4E844D9BA000003E800000000B410A464EC38D27F7C9394F9BF9B1EF1A5921F5E82FE77CF67A10DB6FE8425FD";
 
-        bytes32 nonce = bytes32(
-            0xa94cc8b2c5a35f696379d89ca4cd0a0d7058c6c2e949ac08e8dfc607cc0590f9
-        );
-
-        // must populate nonce and finality threshold executed offchain
-        bytes memory filledCctpMessage = abi.encodePacked(
-            uint32(CCTP_VERSION_2),
-            uint32(circleOrigin),
-            uint32(circleDestination),
-            nonce,
-            deployer.addressToBytes32(),
-            deployer.addressToBytes32(),
-            deployer.addressToBytes32(),
-            uint32(minFinalityThreshold),
-            uint32(minFinalityThreshold),
-            abi.encode(Message.id(message))
-        );
-
         // https://iris-api.circle.com/v2/messages/2?transactionHash=0xc50f4acd4e442529b9814b252e8b568b72e10720b18603232c73124ac1e9ae1f
         bytes
+            memory cctpMessage = hex"000000010000000200000006a94cc8b2c5a35f696379d89ca4cd0a0d7058c6c2e949ac08e8dfc607cc0590f9000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000003e8000003e8b410a464ec38d27f7c9394f9bf9b1ef1a5921f5e82fe77cf67a10db6fe8425fd";
+        bytes
             memory attestation = hex"fdaca657526b164d6b09678297565d40e1e68cad3bfb0786470b0e8bce013ee340a985970d69629af69599f3deff5cc975b3df46d2efeadfebd867d049e5e5641cba6f5e720dc86c90d8d51747619fbe2b24246e36fa0603792cb86ad88bdc06136663d6211a8d5d134cf94cf8197892a460b24a5e21715642d338530b472a325d1c";
-        bytes memory metadata = abi.encode(filledCctpMessage, attestation);
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
 
         vm.expectCall(
             address(ism),
