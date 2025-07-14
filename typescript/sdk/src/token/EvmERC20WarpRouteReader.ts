@@ -9,13 +9,15 @@ import {
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IFiatToken__factory,
+  IMessageTransmitter__factory,
   IXERC20__factory,
   MovableCollateralRouter__factory,
   OpL1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   PackageVersioned__factory,
   ProxyAdmin__factory,
-  TokenBridgeCctp__factory,
+  TokenBridgeCctpBase__factory,
+  TokenBridgeCctpV2__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -459,22 +461,53 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const collateralConfig =
       await this.deriveHypCollateralTokenConfig(hypToken);
 
-    const tokenBridge = TokenBridgeCctp__factory.connect(
+    const tokenBridge = TokenBridgeCctpBase__factory.connect(
       hypToken,
       this.provider,
     );
 
-    const messageTransmitter = await tokenBridge.messageTransmitter();
-    const tokenMessenger = await tokenBridge.tokenMessenger();
-    const urls = await tokenBridge.urls();
+    const [messageTransmitter, tokenMessenger, urls] = await Promise.all([
+      tokenBridge.messageTransmitter(),
+      tokenBridge.tokenMessenger(),
+      tokenBridge.urls(),
+    ]);
 
-    return {
-      ...collateralConfig,
-      type: TokenType.collateralCctp,
+    const onchainCctpVersion = await IMessageTransmitter__factory.connect(
       messageTransmitter,
-      tokenMessenger,
-      urls,
-    };
+      this.provider,
+    ).version();
+
+    if (onchainCctpVersion === 0) {
+      return {
+        ...collateralConfig,
+        type: TokenType.collateralCctp,
+        cctpVersion: 'V1',
+        messageTransmitter,
+        tokenMessenger,
+        urls,
+      };
+    } else if (onchainCctpVersion === 1) {
+      const tokenBridgeV2 = await TokenBridgeCctpV2__factory.connect(
+        hypToken,
+        this.provider,
+      );
+      const [minFinalityThreshold, maxFeeBps] = await Promise.all([
+        tokenBridgeV2.minFinalityThreshold(),
+        tokenBridgeV2.maxFeeBps(),
+      ]);
+      return {
+        ...collateralConfig,
+        type: TokenType.collateralCctp,
+        cctpVersion: 'V2',
+        messageTransmitter,
+        tokenMessenger,
+        urls,
+        minFinalityThreshold,
+        maxFeeBps: maxFeeBps.toNumber(),
+      };
+    } else {
+      throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);
+    }
   }
 
   private async deriveHypCollateralTokenConfig(
