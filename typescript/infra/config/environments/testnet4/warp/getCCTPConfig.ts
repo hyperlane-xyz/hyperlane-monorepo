@@ -38,6 +38,7 @@ export const getCCTPWarpConfig = async (
         messageTransmitter: messageTransmitterAddresses[chain],
         tokenMessenger: tokenMessengerAddresses[chain],
         urls: ['https://offchain-lookup.web3tools.net/cctp/getProofs'],
+        cctpVersion: 'V1',
       };
       return [chain, config];
     }),

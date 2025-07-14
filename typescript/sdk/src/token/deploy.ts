@@ -10,7 +10,7 @@ import {
   MovableCollateralRouter__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
-  TokenBridgeCctp__factory,
+  TokenBridgeCctpBase__factory,
 } from '@hyperlane-xyz/core';
 import {
   ProtocolType,
@@ -40,6 +40,7 @@ import {
   HypERC20contracts,
   HypERC721Factories,
   TokenFactories,
+  getCctpFactory,
   hypERC20contracts,
   hypERC20factories,
   hypERC721contracts,
@@ -93,7 +94,7 @@ export const TOKEN_INITIALIZE_SIGNATURE = (
       return OP_L1_INITIALIZE_SIGNATURE;
     case 'TokenBridgeCctp':
       assert(
-        TokenBridgeCctp__factory.createInterface().functions[
+        TokenBridgeCctpBase__factory.createInterface().functions[
           CCTP_INITIALIZE_SIGNATURE
         ],
         'missing expected initialize function',
@@ -147,13 +148,28 @@ abstract class TokenDeployer<
       );
       return [config.decimals, scale, config.mailbox, collateralDomain];
     } else if (isCctpTokenConfig(config)) {
-      return [
-        config.token,
-        scale,
-        config.mailbox,
-        config.messageTransmitter,
-        config.tokenMessenger,
-      ];
+      switch (config.cctpVersion) {
+        case 'V1':
+          return [
+            config.token,
+            scale,
+            config.mailbox,
+            config.messageTransmitter,
+            config.tokenMessenger,
+          ];
+        case 'V2':
+          return [
+            config.token,
+            scale,
+            config.mailbox,
+            config.messageTransmitter,
+            config.tokenMessenger,
+            config.minFinalityThreshold,
+            config.maxFeeBps,
+          ];
+        default:
+          throw new Error('Unsupported CCTP version');
+      }
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
@@ -333,7 +349,7 @@ abstract class TokenDeployer<
     await promiseObjAll(
       objMap(cctpConfigs, async (chain, _config) => {
         const router = this.router(deployedContractsMap[chain]).address;
-        const tokenBridge = TokenBridgeCctp__factory.connect(
+        const tokenBridge = TokenBridgeCctpBase__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
         );
@@ -530,7 +546,40 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
   }
 
   routerContractName(config: HypTokenRouterConfig): string {
+    // Handle CCTP version-specific contract names
+    if (isCctpTokenConfig(config)) {
+      return `TokenBridgeCctp${config.cctpVersion}`;
+    }
     return hypERC20contracts[this.routerContractKey(config)];
+  }
+
+  // Override deployContractFromFactory to handle CCTP version selection
+  async deployContractFromFactory(
+    chain: ChainName,
+    factory: any,
+    contractName: string,
+    constructorArgs: any[],
+    initializeArgs?: any[],
+    shouldRecover = true,
+    implementationAddress?: string,
+  ): Promise<any> {
+    // For CCTP contracts, use the version-specific factory
+    if (contractName.startsWith('TokenBridgeCctp')) {
+      factory = getCctpFactory(
+        contractName.split('TokenBridgeCctp')[1] as 'V1' | 'V2',
+      );
+    }
+
+    // Use the default deployment for other types
+    return super.deployContractFromFactory(
+      chain,
+      factory,
+      contractName,
+      constructorArgs,
+      initializeArgs,
+      shouldRecover,
+      implementationAddress,
+    );
   }
 }
 
