@@ -219,7 +219,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _amount: _amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: _getIntentCalldata(destinations[0], _recipient, _amount),
+            _data: _getIntentCalldata(_recipient, _amount),
             _feeParams: feeParams
         });
 
@@ -232,7 +232,6 @@ contract EverclearTokenBridge is HypERC20Collateral {
      * @return The encoded calldata for the unwrap and send operation
      */
     function _getIntentCalldata(
-        uint32 /* _destination */,
         bytes32 _recipient,
         uint256 _amount
     ) internal view returns (bytes memory) {
