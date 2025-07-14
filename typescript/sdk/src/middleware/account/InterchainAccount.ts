@@ -97,9 +97,9 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       );
     }
     const destinationRouter = this.router(this.contractsMap[destinationChain]);
-    const originRouterAddress =
-      config.localRouter ??
-      bytes32ToAddress(await destinationRouter.routers(originDomain));
+    const originRouterAddress = config.localRouter
+      ? bytes32ToAddress(config.localRouter)
+      : bytes32ToAddress(await destinationRouter.routers(originDomain));
     if (isZeroishAddress(originRouterAddress)) {
       throw new Error(
         `Origin router address is zero for ${config.origin} on ${destinationChain}`,
