@@ -4,6 +4,7 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import {
   ZBigNumberish,
+  ZBytes32String,
   ZChainName,
   ZHash,
 } from '../../../../metadata/customZodTypes.js';
@@ -94,9 +95,9 @@ export const EvmTimelockControllerSubmitterPropsSchema: z.ZodSchema<EvmTimelockC
       type: z.literal(TxSubmitterType.TIMELOCK_CONTROLLER),
       chain: ZChainName,
       timelockAddress: ZHash,
-      salt: z.string().optional(),
+      salt: ZBytes32String.optional(),
       delay: ZBigNumberish.optional(),
-      predecessor: z.string().optional(),
+      predecessor: ZBytes32String.optional(),
       proposerSubmitter: EvmSubmitterMetadataSchema,
     }),
   );

@@ -127,6 +127,22 @@ export class EV5TimelockSubmitter
       [[], [], []] as [string[], string[], string[]],
     );
 
+    // The Timelock keeps track of past operations so even if it has been
+    // executed we need to check if there was in the past an operation with the same id
+    // as this one to avoid having it fail as it would have the same id if no salt is given
+    const operationId = await this.timelockInstance.hashOperationBatch(
+      to,
+      value,
+      data,
+      this.config.predecessor,
+      this.config.salt,
+    );
+    const checkStatus = await this.timelockInstance.isOperation(operationId);
+    assert(
+      !checkStatus,
+      `Operation with id "${operationId}" already exists. If this is a new operation with the same input as another one provide a salt to generate a different operation id or cancel the existing one if it is still pending.`,
+    );
+
     const [proposeCallData, executeCallData] = await Promise.all([
       this.timelockInstance.populateTransaction.scheduleBatch(
         to,
