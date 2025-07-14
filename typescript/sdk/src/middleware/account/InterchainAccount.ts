@@ -97,18 +97,20 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       );
     }
     const destinationRouter = this.router(this.contractsMap[destinationChain]);
-    const originRouterAddress =
-      config.localRouter ??
-      bytes32ToAddress(await destinationRouter.routers(originDomain));
+    const originRouterAddress = config.localRouter
+      ? bytes32ToAddress(config.localRouter)
+      : bytes32ToAddress(await destinationRouter.routers(originDomain));
     if (isZeroishAddress(originRouterAddress)) {
       throw new Error(
         `Origin router address is zero for ${config.origin} on ${destinationChain}`,
       );
     }
 
-    const destinationIsmAddress =
-      config.ismOverride ??
-      bytes32ToAddress(await destinationRouter.isms(originDomain));
+    const destinationIsmAddress = bytes32ToAddress(
+      addressToBytes32(
+        config.ismOverride ?? (await destinationRouter.isms(originDomain)),
+      ),
+    );
     const destinationAccount = await destinationRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
     ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);

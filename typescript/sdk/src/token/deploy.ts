@@ -480,16 +480,20 @@ abstract class TokenDeployer<
       throw err;
     }
 
-    const resolvedConfigMap = objMap(configMap, (chain, config) => ({
-      name: tokenMetadataMap.getName(chain),
-      decimals: tokenMetadataMap.getDecimals(chain),
-      symbol:
-        tokenMetadataMap.getSymbol(chain) ||
-        tokenMetadataMap.getDefaultSymbol(),
-      scale: tokenMetadataMap.getScale(chain),
-      gas: gasOverhead(config.type),
-      ...config,
-    }));
+    const resolvedConfigMap = await promiseObjAll(
+      objMap(configMap, async (chain, config) => ({
+        name: tokenMetadataMap.getName(chain),
+        decimals: tokenMetadataMap.getDecimals(chain),
+        symbol:
+          tokenMetadataMap.getSymbol(chain) ||
+          tokenMetadataMap.getDefaultSymbol(),
+        scale: tokenMetadataMap.getScale(chain),
+        gas: gasOverhead(config.type),
+        ...config,
+        // override intermediate owner to the signer
+        owner: await this.multiProvider.getSigner(chain).getAddress(),
+      })),
+    );
     const deployedContractsMap = await super.deploy(resolvedConfigMap);
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
@@ -500,6 +504,8 @@ abstract class TokenDeployer<
     await this.setAllowedBridges(configMap, deployedContractsMap);
 
     await this.setBridgesTokenApprovals(configMap, deployedContractsMap);
+
+    await super.transferOwnership(deployedContractsMap, configMap);
 
     return deployedContractsMap;
   }

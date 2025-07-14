@@ -25,8 +25,7 @@ use crate::{
 /// Boxed operation that can be stored in an operation queue
 pub type QueueOperation = Box<dyn PendingOperation>;
 
-/// A pending operation that will be run by the submitter and cause a
-/// transaction to be sent.
+/// A pending operation that will be processed by the MessageProcessor.
 ///
 /// There are three stages to the lifecycle of a pending operation:
 ///
@@ -71,6 +70,9 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 
     /// The recipient address of this operation.
     fn recipient_address(&self) -> &H256;
+
+    /// The message body of this operation.
+    fn body(&self) -> &[u8];
 
     /// Label to use for metrics granularity.
     fn app_context(&self) -> Option<String>;
@@ -138,7 +140,7 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     async fn confirm(&mut self) -> PendingOperationResult;
 
     /// Record the outcome of the operation
-    fn set_operation_outcome(
+    async fn set_operation_outcome(
         &mut self,
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,

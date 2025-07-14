@@ -1,5 +1,30 @@
 # @hyperlane-xyz/widgets
 
+## 14.4.0
+
+### Patch Changes
+
+- daea40b35: Change argentX wallet name to Ready Wallet for `useStarknetWalletDetails`
+- Updated dependencies [dce47e7b6]
+  - @hyperlane-xyz/sdk@14.4.0
+  - @hyperlane-xyz/cosmos-sdk@14.4.0
+  - @hyperlane-xyz/utils@14.4.0
+
+## 14.3.0
+
+### Minor Changes
+
+- 112d99ff2: Catch onSwitchNetwork for starknet
+
+### Patch Changes
+
+- Updated dependencies [ae0771d9e]
+- Updated dependencies [9cc7ef6fd]
+- Updated dependencies [ae0771d9e]
+  - @hyperlane-xyz/sdk@14.3.0
+  - @hyperlane-xyz/cosmos-sdk@14.3.0
+  - @hyperlane-xyz/utils@14.3.0
+
 ## 14.2.0
 
 ### Patch Changes
