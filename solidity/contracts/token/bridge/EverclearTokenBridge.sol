@@ -254,7 +254,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _amount
         );
 
-        _msg = bytes.concat(_msg, abi.encode(intent));
+        _msg = abi.encodePacked(_msg, abi.encode(intent));
 
         return (_dispatchValue, _msg);
     }
@@ -271,25 +271,25 @@ contract EverclearTokenBridge is HypERC20Collateral {
             (IEverclear.Intent)
         );
 
+        /* CHECKS */
         // Check that intent is settled
         bytes32 intentId = keccak256(abi.encode(intent));
         require(
             everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
             "ETB: Intent Status != SETTLED"
         );
-
         // Check that we have not processed this intent before
         require(!intentSettled[intentId], "ETB: Intent already processed");
-        intentSettled[intentId] = true;
-
         (bytes32 _recipient, uint256 _amount) = abi.decode(
             intent.data,
             (bytes32, uint256)
         );
 
-        // effects
+        /* EFFECTS */
+        intentSettled[intentId] = true;
         emit ReceivedTransferRemote(_origin, _recipient, _amount);
 
+        /* INTERACTIONS */
         _transferTo(_recipient.bytes32ToAddress(), _amount);
     }
 }

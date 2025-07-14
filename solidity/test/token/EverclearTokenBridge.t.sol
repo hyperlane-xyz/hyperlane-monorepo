@@ -1065,17 +1065,6 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         assertEq(quotes[0].amount, amount + FEE_AMOUNT);
     }
 
-    function testEthBridgeReceiveFunction() public {
-        uint256 amount = 1e18; // 1 ETH
-
-        // Test that the bridge can receive ETH
-        vm.deal(ALICE, amount);
-        vm.prank(ALICE);
-        (bool success, ) = address(ethBridge).call{value: amount}("");
-        assertTrue(success);
-        assertEq(address(ethBridge).balance, amount);
-    }
-
     function testEthBridgeConstructor() public {
         EverclearEthBridge newBridge = new EverclearEthBridge(
             IWETH(ARBITRUM_WETH),

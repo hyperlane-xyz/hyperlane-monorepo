@@ -92,9 +92,4 @@ contract EverclearEthBridge is EverclearTokenBridge {
         }
         return dispatchValue;
     }
-
-    /**
-     * @notice Receive function to accept ETH
-     */
-    receive() external payable {}
 }
