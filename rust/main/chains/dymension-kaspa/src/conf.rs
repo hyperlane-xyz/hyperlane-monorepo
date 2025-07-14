@@ -98,15 +98,21 @@ impl ConnectionConf {
         kas_token_placeholder: H256,
     ) -> Self {
         let v = match &kaspa_escrow_private_key {
-            Some(kas_escrow_private) => Some(ValidatorStuff {
-                hub_domain,
-                hub_token_id,
-                kas_domain,
-                kas_token_placeholder,
-                hub_mailbox_id,
-                kas_escrow_private: kas_escrow_private.clone(),
-                toggles: validation_conf,
-            }),
+            Some(kas_escrow_private) => {
+                if hub_domain == 0 || kas_domain == 0 || hub_token_id == H256::default() {
+                    panic!("Missing validator config: hub_domain: {}, kas_domain: {}, hub_token_id: {}, kas_token_placeholder: {}", hub_domain, kas_domain, hub_token_id, kas_token_placeholder)
+                } else {
+                    Some(ValidatorStuff {
+                        hub_domain,
+                        hub_token_id,
+                        kas_domain,
+                        kas_token_placeholder,
+                        hub_mailbox_id,
+                        kas_escrow_private: kas_escrow_private.clone(),
+                        toggles: validation_conf,
+                    })
+                }
+            }
             None => None,
         };
 
