@@ -563,7 +563,7 @@ impl CoreMetrics {
     /// Labels:
     /// - `remote`: Remote chain the queue is for.
     /// - `queue_name`: Which queue the message is in.
-    pub fn submitter_queue_length(&self) -> IntGaugeVec {
+    pub fn processor_queue_length(&self) -> IntGaugeVec {
         self.submitter_queue_length.clone()
     }
 

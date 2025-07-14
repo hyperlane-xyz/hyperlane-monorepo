@@ -34,31 +34,19 @@ use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
 
 /// This is needed for logic where we need to allocate
-/// based on how many queues exist in each OpSubmitter.
+/// based on how many queues exist in each MessageProcessor.
 /// This value needs to be manually updated if we ever
-/// update the number of queues an OpSubmitter has.
-pub const SUBMITTER_QUEUE_COUNT: usize = 3;
+/// update the number of queues an MessageProcessor has.
+pub const MESSAGE_PROCESSOR_QUEUE_COUNT: usize = 3;
 
-/// SerialSubmitter accepts operations over a channel. It is responsible for
-/// executing the right strategy to deliver those messages to the destination
-/// chain. It is designed to be used in a scenario allowing only one
-/// simultaneously in-flight submission, a consequence imposed by strictly
-/// ordered nonces at the target chain combined with a hesitancy to
-/// speculatively batch > 1 messages with a sequence of nonces, which entails
-/// harder to manage error recovery, could lead to head of line blocking, etc.
-///
-/// The single transaction execution slot is (likely) a bottlenecked resource
-/// under steady state traffic, so the SerialSubmitter implemented in this file
-/// carefully schedules work items onto the constrained
-/// resource (transaction execution slot) according to a policy that
-/// incorporates both user-visible metrics and message operation readiness
-/// checks.
+/// MessageProcessor accepts operations over a channel, prepares them for submission,
+/// and if successful, sends them to the destination chain via a submitter.
 ///
 /// Operations which failed processing due to a retriable error are also
-/// retained within the SerialSubmitter, and will eventually be retried
+/// retained within the MessageProcessor, and will eventually be retried
 /// according to our prioritization rule.
 ///
-/// Finally, the SerialSubmitter ensures that message delivery is robust to
+/// Finally, the MessageProcessor ensures that message delivery is robust to
 /// destination chain reorgs prior to committing delivery status to
 /// HyperlaneRocksDB.
 ///
@@ -86,13 +74,13 @@ pub const SUBMITTER_QUEUE_COUNT: usize = 3;
 /// eligible for submission, we should be working on it within reason. This
 /// must be balanced with the cost of making RPCs that will almost certainly
 /// fail and potentially block new messages from being sent immediately.
-pub struct SerialSubmitter {
-    /// Domain this submitter delivers to.
+pub struct MessageProcessor {
+    /// Domain this processor delivers to.
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
     rx: Option<mpsc::UnboundedReceiver<QueueOperation>>,
-    /// Metrics for serial submitter.
-    metrics: SerialSubmitterMetrics,
+    /// Metrics for message processor.
+    metrics: MessageProcessorMetrics,
     /// Max batch size for submitting messages
     max_batch_size: u32,
     max_submit_queue_len: Option<u32>,
@@ -105,13 +93,13 @@ pub struct SerialSubmitter {
     db: Arc<dyn HyperlaneDb>,
 }
 
-impl SerialSubmitter {
+impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         domain: HyperlaneDomain,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
         retry_op_transmitter: &Sender<MessageRetryRequest>,
-        metrics: SerialSubmitterMetrics,
+        metrics: MessageProcessorMetrics,
         max_batch_size: u32,
         max_submit_queue_len: Option<u32>,
         task_monitor: TaskMonitor,
@@ -119,17 +107,17 @@ impl SerialSubmitter {
         db: HyperlaneRocksDB,
     ) -> Self {
         let prepare_queue = OpQueue::new(
-            metrics.submitter_queue_length.clone(),
+            metrics.processor_queue_length.clone(),
             "prepare_queue".to_string(),
             Arc::new(Mutex::new(retry_op_transmitter.subscribe())),
         );
         let submit_queue = OpQueue::new(
-            metrics.submitter_queue_length.clone(),
+            metrics.processor_queue_length.clone(),
             "submit_queue".to_string(),
             Arc::new(Mutex::new(retry_op_transmitter.subscribe())),
         );
         let confirm_queue = OpQueue::new(
-            metrics.submitter_queue_length.clone(),
+            metrics.processor_queue_length.clone(),
             "confirm_queue".to_string(),
             Arc::new(Mutex::new(retry_op_transmitter.subscribe())),
         );
@@ -155,7 +143,7 @@ impl SerialSubmitter {
     }
 
     pub fn spawn(self) -> JoinHandle<()> {
-        let span = info_span!("SerialSubmitter", destination=%self.domain);
+        let span = info_span!("MessageProcessor", destination=%self.domain);
         let task_monitor = self.task_monitor.clone();
         let name = Self::task_name("", &self.domain);
         tokio::task::Builder::new()
@@ -192,7 +180,7 @@ impl SerialSubmitter {
             error!(
                 error=?err,
                 domain=?self.domain.name(),
-                "SerialSubmitter task panicked for domain"
+                "MessageProcessor task panicked for domain"
             );
         }
     }
@@ -328,7 +316,7 @@ impl SerialSubmitter {
     }
 
     fn task_name(prefix: &str, domain: &HyperlaneDomain) -> String {
-        format!("op_submitter::{}{}", prefix, domain.name())
+        format!("message_processor::{}{}", prefix, domain.name())
     }
 }
 
@@ -338,7 +326,7 @@ async fn receive_task(
     mut rx: mpsc::UnboundedReceiver<QueueOperation>,
     prepare_queue: OpQueue,
 ) {
-    // Pull any messages sent to this submitter
+    // Pull any messages sent to this message processor
     while let Some(op) = rx.recv().await {
         trace!(?op, "Received new operation");
         // make sure things are getting wired up correctly; if this works in testing it
@@ -357,7 +345,7 @@ async fn prepare_classic_task(
     confirm_queue: OpQueue,
     max_batch_size: u32,
     max_submit_queue_len: Option<u32>,
-    metrics: SerialSubmitterMetrics,
+    metrics: MessageProcessorMetrics,
 ) {
     loop {
         if apply_backpressure(&submit_queue, &max_submit_queue_len).await {
@@ -392,7 +380,7 @@ async fn prepare_lander_task(
     confirm_queue: OpQueue,
     max_batch_size: u32,
     max_submit_queue_len: Option<u32>,
-    metrics: SerialSubmitterMetrics,
+    metrics: MessageProcessorMetrics,
     db: Arc<dyn HyperlaneDb>,
 ) {
     loop {
@@ -513,7 +501,7 @@ async fn process_batch(
     prepare_queue: &mut OpQueue,
     submit_queue: &OpQueue,
     confirm_queue: &OpQueue,
-    metrics: &SerialSubmitterMetrics,
+    metrics: &MessageProcessorMetrics,
 ) {
     let mut task_prep_futures = vec![];
     let op_refs = batch.iter_mut().map(|op| op.as_mut()).collect::<Vec<_>>();
@@ -580,7 +568,7 @@ async fn submit_classic_task(
     mut submit_queue: OpQueue,
     mut confirm_queue: OpQueue,
     max_batch_size: u32,
-    metrics: SerialSubmitterMetrics,
+    metrics: MessageProcessorMetrics,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
@@ -614,7 +602,7 @@ async fn submit_lander_task(
     mut submit_queue: OpQueue,
     confirm_queue: OpQueue,
     max_batch_size: u32,
-    metrics: SerialSubmitterMetrics,
+    metrics: MessageProcessorMetrics,
     db: Arc<dyn HyperlaneDb>,
 ) {
     let recv_limit = max_batch_size as usize;
@@ -639,7 +627,7 @@ async fn submit_via_lander(
     entrypoint: &Arc<DispatcherEntrypoint>,
     prepare_queue: &OpQueue,
     confirm_queue: &OpQueue,
-    metrics: &SerialSubmitterMetrics,
+    metrics: &MessageProcessorMetrics,
     db: Arc<dyn HyperlaneDb>,
 ) {
     let operation_payload = match op.payload().await {
@@ -714,7 +702,7 @@ pub(crate) async fn submit_single_operation(
     mut op: QueueOperation,
     prepare_queue: &mut OpQueue,
     confirm_queue: &mut OpQueue,
-    metrics: &SerialSubmitterMetrics,
+    metrics: &MessageProcessorMetrics,
 ) {
     let status = op.submit().await;
     match status {
@@ -748,7 +736,7 @@ pub(crate) async fn submit_single_operation(
 async fn confirm_op(
     mut op: QueueOperation,
     confirm_queue: &OpQueue,
-    metrics: &SerialSubmitterMetrics,
+    metrics: &MessageProcessorMetrics,
 ) {
     use ConfirmReason::SubmittedBySelf;
 
@@ -778,7 +766,7 @@ async fn confirm_classic_task(
     prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,
     max_batch_size: u32,
-    metrics: SerialSubmitterMetrics,
+    metrics: MessageProcessorMetrics,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
@@ -815,7 +803,7 @@ async fn confirm_classic_task(
 }
 
 // TODO this function should be revisited in depth when we decide to re-enable Lander for
-// TODO confirmation stage of MessageProcessor (aka SerialSubmitter), since the logic here
+// TODO confirmation stage of MessageProcessor, since the logic here
 // TODO does not take into account the payloads which were reverted as part of a batch.
 #[instrument(skip_all, fields(%domain))]
 async fn confirm_lander_task(
@@ -824,7 +812,7 @@ async fn confirm_lander_task(
     prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,
     max_batch_size: u32,
-    metrics: SerialSubmitterMetrics,
+    metrics: MessageProcessorMetrics,
     db: Arc<dyn HyperlaneDb>,
 ) {
     let recv_limit = max_batch_size as usize;
@@ -953,7 +941,7 @@ async fn confirm_operation(
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
-    metrics: SerialSubmitterMetrics,
+    metrics: MessageProcessorMetrics,
 ) -> PendingOperationResult {
     trace!(?op, "Confirming operation");
     debug_assert_eq!(*op.destination_domain(), domain);
@@ -966,7 +954,7 @@ async fn process_confirm_result(
     op: QueueOperation,
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
-    metrics: SerialSubmitterMetrics,
+    metrics: MessageProcessorMetrics,
     operation_result: PendingOperationResult,
 ) -> PendingOperationResult {
     let app_context = op.app_context();
@@ -1000,7 +988,7 @@ async fn process_confirm_result(
 async fn send_back_on_failed_submission(
     op: QueueOperation,
     prepare_queue: OpQueue,
-    metrics: &SerialSubmitterMetrics,
+    metrics: &MessageProcessorMetrics,
     maybe_reason: Option<&ReprepareReason>,
 ) {
     let app_context = op.app_context();
@@ -1013,9 +1001,9 @@ async fn send_back_on_failed_submission(
 }
 
 #[derive(Debug, Clone)]
-pub struct SerialSubmitterMetrics {
+pub struct MessageProcessorMetrics {
     pub destination: String,
-    pub(crate) submitter_queue_length: IntGaugeVec,
+    pub(crate) processor_queue_length: IntGaugeVec,
     pub(crate) ops_prepared: IntCounterVec,
     pub(crate) ops_submitted: IntCounterVec,
     pub(crate) ops_confirmed: IntCounterVec,
@@ -1023,13 +1011,13 @@ pub struct SerialSubmitterMetrics {
     pub(crate) ops_dropped: IntCounterVec,
 }
 
-impl SerialSubmitterMetrics {
+impl MessageProcessorMetrics {
     pub fn new(metrics: impl AsRef<CoreMetrics>, destination: &HyperlaneDomain) -> Self {
         let destination = destination.name();
 
         Self {
             destination: destination.to_string(),
-            submitter_queue_length: metrics.as_ref().submitter_queue_length(),
+            processor_queue_length: metrics.as_ref().processor_queue_length(),
             ops_prepared: metrics.as_ref().operations_processed_count(),
             ops_submitted: metrics.as_ref().operations_processed_count(),
             ops_confirmed: metrics.as_ref().operations_processed_count(),
