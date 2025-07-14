@@ -38,6 +38,10 @@ contract EverclearTokenBridge is HypERC20Collateral {
     /// @dev Everclear needs to know the output asset address to create intents for cross-chain transfers
     mapping(uint32 destination => bytes32 outputAssets) public outputAssets;
 
+    /// @notice Whether an intent has been settled
+    /// @dev This is used to prevent funds from being sent to a recipient that has already received them
+    mapping(bytes32 intentId => bool isSettled) public intentSettled;
+
     /// @notice Fee parameters for the bridge operations
     /// @dev The signatures are produced by Everclear and stored here for re-use. We use the same fee for all transfers to all destinations
     IEverclearAdapter.FeeParams public feeParams;
@@ -275,6 +279,10 @@ contract EverclearTokenBridge is HypERC20Collateral {
             everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
             "ETB: Intent Status != SETTLED"
         );
+
+        // Check that we have not processed this intent before
+        require(!intentSettled[intentId], "ETB: Intent already processed");
+        intentSettled[intentId] = true;
 
         (bytes32 _recipient, uint256 _amount) = abi.decode(
             intent.data,

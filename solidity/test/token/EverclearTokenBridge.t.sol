@@ -202,6 +202,7 @@ contract EverclearTokenBridgeTest is Test {
                 outputAsset: OUTPUT_ASSET
             })
         );
+        bridge.enrollRemoteRouter(ORIGIN, address(bridge).addressToBytes32());
         bridge.enrollRemoteRouter(DESTINATION, RECIPIENT);
 
         vm.stopPrank();
@@ -531,6 +532,177 @@ contract EverclearTokenBridgeTest is Test {
             token.balanceOf(ALICE),
             1000e18 - 2 * (transferAmount + FEE_AMOUNT)
         );
+    }
+
+    // ============ IntentSettled Tests ============
+
+    function testIntentSettledInitiallyFalse() public {
+        // Create a mock intent
+        IEverclear.Intent memory intent = IEverclear.Intent({
+            initiator: bytes32(uint256(uint160(ALICE))),
+            receiver: RECIPIENT,
+            inputAsset: bytes32(uint256(uint160(address(token)))),
+            outputAsset: bytes32(uint256(uint160(address(token)))),
+            maxFee: 0,
+            origin: ORIGIN,
+            destinations: new uint32[](1),
+            nonce: 1,
+            timestamp: uint48(block.timestamp),
+            ttl: 0,
+            amount: 100e18,
+            data: abi.encode(RECIPIENT, 100e18)
+        });
+        intent.destinations[0] = DESTINATION;
+
+        bytes32 intentId = keccak256(abi.encode(intent));
+
+        // Verify intent is not initially settled
+        assertFalse(bridge.intentSettled(intentId));
+    }
+
+    function testIntentSettledAfterProcessing() public {
+        // Create a mock intent
+        IEverclear.Intent memory intent = IEverclear.Intent({
+            initiator: bytes32(uint256(uint160(ALICE))),
+            receiver: RECIPIENT,
+            inputAsset: bytes32(uint256(uint160(address(token)))),
+            outputAsset: bytes32(uint256(uint160(address(token)))),
+            maxFee: 0,
+            origin: ORIGIN,
+            destinations: new uint32[](1),
+            nonce: 1,
+            timestamp: uint48(block.timestamp),
+            ttl: 0,
+            amount: 100e18,
+            data: abi.encode(RECIPIENT, 100e18)
+        });
+        intent.destinations[0] = DESTINATION;
+
+        bytes32 intentId = keccak256(abi.encode(intent));
+
+        // Mock the spoke to return SETTLED status
+        vm.mockCall(
+            address(everclearAdapter.spoke()),
+            abi.encodeWithSelector(IEverclearSpoke.status.selector, intentId),
+            abi.encode(IEverclear.IntentStatus.SETTLED)
+        );
+
+        // Give the bridge some tokens to transfer
+        token.mintTo(address(bridge), 100e18);
+
+        // Create a mock message with the intent in metadata
+        bytes memory metadata = abi.encode(intent);
+        bytes memory message = TokenMessage.format(RECIPIENT, 100e18, metadata);
+
+        // Simulate receiving the message (this should process the intent)
+        vm.prank(address(mailbox));
+        bridge.handle(
+            ORIGIN,
+            bytes32(uint256(uint160(address(bridge)))),
+            message
+        );
+
+        // Verify intent is now settled
+        assertTrue(bridge.intentSettled(intentId));
+    }
+
+    function testIntentAlreadyProcessedReverts() public {
+        // Create a mock intent
+        IEverclear.Intent memory intent = IEverclear.Intent({
+            initiator: bytes32(uint256(uint160(ALICE))),
+            receiver: RECIPIENT,
+            inputAsset: bytes32(uint256(uint160(address(token)))),
+            outputAsset: bytes32(uint256(uint160(address(token)))),
+            maxFee: 0,
+            origin: ORIGIN,
+            destinations: new uint32[](1),
+            nonce: 1,
+            timestamp: uint48(block.timestamp),
+            ttl: 0,
+            amount: 100e18,
+            data: abi.encode(RECIPIENT, 100e18)
+        });
+        intent.destinations[0] = DESTINATION;
+
+        bytes32 intentId = keccak256(abi.encode(intent));
+
+        // Mock the spoke to return SETTLED status
+        vm.mockCall(
+            address(everclearAdapter.spoke()),
+            abi.encodeWithSelector(IEverclearSpoke.status.selector, intentId),
+            abi.encode(IEverclear.IntentStatus.SETTLED)
+        );
+
+        // Give the bridge some tokens to transfer
+        token.mintTo(address(bridge), 200e18);
+
+        // Create a mock message with the intent in metadata
+        bytes memory metadata = abi.encode(intent);
+        bytes memory message = TokenMessage.format(RECIPIENT, 100e18, metadata);
+
+        // Process the intent first time (should succeed)
+        vm.prank(address(mailbox));
+        bridge.handle(
+            ORIGIN,
+            bytes32(uint256(uint160(address(bridge)))),
+            message
+        );
+
+        // Verify intent is settled
+        assertTrue(bridge.intentSettled(intentId));
+
+        // Try to process the same intent again (should revert)
+        vm.prank(address(mailbox));
+        vm.expectRevert("ETB: Intent already processed");
+        bridge.handle(
+            ORIGIN,
+            bytes32(uint256(uint160(address(bridge)))),
+            message
+        );
+    }
+
+    function testIntentNotSettledReverts() public {
+        // Create a mock intent
+        IEverclear.Intent memory intent = IEverclear.Intent({
+            initiator: bytes32(uint256(uint160(ALICE))),
+            receiver: RECIPIENT,
+            inputAsset: bytes32(uint256(uint160(address(token)))),
+            outputAsset: bytes32(uint256(uint160(address(token)))),
+            maxFee: 0,
+            origin: ORIGIN,
+            destinations: new uint32[](1),
+            nonce: 1,
+            timestamp: uint48(block.timestamp),
+            ttl: 0,
+            amount: 100e18,
+            data: abi.encode(RECIPIENT, 100e18)
+        });
+        intent.destinations[0] = DESTINATION;
+
+        bytes32 intentId = keccak256(abi.encode(intent));
+
+        // Mock the spoke to return ADDED status
+        vm.mockCall(
+            address(everclearAdapter.spoke()),
+            abi.encodeWithSelector(IEverclearSpoke.status.selector, intentId),
+            abi.encode(IEverclear.IntentStatus.ADDED)
+        );
+
+        // Create a mock message with the intent in metadata
+        bytes memory metadata = abi.encode(intent);
+        bytes memory message = TokenMessage.format(RECIPIENT, 100e18, metadata);
+
+        // Try to process an unsettled intent (should revert)
+        vm.prank(address(mailbox));
+        vm.expectRevert("ETB: Intent Status != SETTLED");
+        bridge.handle(
+            ORIGIN,
+            bytes32(uint256(uint160(address(bridge)))),
+            message
+        );
+
+        // Verify intent is not settled in our mapping
+        assertFalse(bridge.intentSettled(intentId));
     }
 }
 
