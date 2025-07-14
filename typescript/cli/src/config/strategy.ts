@@ -2,7 +2,7 @@ import { confirm, input, password, select } from '@inquirer/prompts';
 import { Wallet } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
-import { ChainSubmissionStrategy, TxSubmitterType } from '@hyperlane-xyz/sdk';
+import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
   assert,
@@ -31,7 +31,8 @@ export async function readChainSubmissionStrategyConfig(
   filePath: string,
 ): Promise<ExtendedChainSubmissionStrategy> {
   log(`Reading submission strategy in ${filePath}`);
-  const strategyConfig = readYamlOrJson<ChainSubmissionStrategy>(filePath);
+  const strategyConfig =
+    readYamlOrJson<ExtendedChainSubmissionStrategy>(filePath);
   const parseResult =
     ExtendedChainSubmissionStrategySchema.parse(strategyConfig);
   return parseResult;
