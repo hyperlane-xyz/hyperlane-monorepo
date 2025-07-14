@@ -72,6 +72,27 @@ export function createHyperlanePinoLogger(
   logLevel: LevelWithSilent,
   logFormat: LogFormat,
 ) {
+  // In development, pino-pretty is used for a better dev experience,
+  // but only if the log format is 'pretty'. This allows for JSON logs
+  // in development as well if explicitly configured.
+  if (
+    process.env.NODE_ENV === 'development' &&
+    logFormat === LogFormat.Pretty
+  ) {
+    return pino({
+      level: logLevel,
+      transport: {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'SYS:standard',
+          ignore: 'pid,hostname',
+        },
+      },
+    });
+  }
+
+  // In production (or other envs), use the original hook-based logger
   return pino({
     level: logLevel,
     name: 'hyperlane',
