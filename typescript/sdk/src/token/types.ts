@@ -153,7 +153,7 @@ export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.omit({
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
 
-const CctpTokenBaseSchema = CollateralTokenConfigSchema.omit({
+export const CctpTokenConfigSchema = CollateralTokenConfigSchema.omit({
   type: true,
 })
   .extend({
@@ -164,23 +164,11 @@ const CctpTokenBaseSchema = CollateralTokenConfigSchema.omit({
     tokenMessenger: z
       .string()
       .describe('CCTP Token Messenger contract address'),
+    cctpVersion: z.enum(['V1', 'V2']),
+    minFinalityThreshold: z.number().optional(),
+    maxFeeBps: z.number().optional(),
   })
   .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
-
-const CctpTokenV1ConfigSchema = CctpTokenBaseSchema.extend({
-  cctpVersion: z.literal('V1'),
-});
-
-const CctpTokenV2ConfigSchema = CctpTokenBaseSchema.extend({
-  cctpVersion: z.literal('V2'),
-  minFinalityThreshold: z.number(),
-  maxFeeBps: z.number(),
-});
-
-export const CctpTokenConfigSchema = z.discriminatedUnion('cctpVersion', [
-  CctpTokenV1ConfigSchema,
-  CctpTokenV2ConfigSchema,
-]);
 
 export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
 export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
@@ -245,8 +233,7 @@ export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   XERC20TokenConfigSchema,
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
-  CctpTokenV1ConfigSchema,
-  CctpTokenV2ConfigSchema,
+  CctpTokenConfigSchema,
 ]);
 export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 

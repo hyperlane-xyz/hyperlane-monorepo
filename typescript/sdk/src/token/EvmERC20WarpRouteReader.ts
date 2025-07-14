@@ -487,7 +487,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         urls,
       };
     } else if (onchainCctpVersion === 1) {
-      const tokenBridgeV2 = await TokenBridgeCctpV2__factory.connect(
+      const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
         hypToken,
         this.provider,
       );
