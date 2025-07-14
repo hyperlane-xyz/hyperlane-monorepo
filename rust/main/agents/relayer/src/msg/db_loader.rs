@@ -20,19 +20,19 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, instrument, trace};
 
 use super::{blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*};
-use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
+use crate::{db_loader::DbLoaderExt, settings::matching_list::MatchingList};
 
 /// Finds unprocessed messages from an origin and submits then through a channel
 /// for to the appropriate destination.
 #[allow(clippy::too_many_arguments)]
-pub struct MessageProcessor {
+pub struct MessageDbLoader {
     /// A matching list of messages that should be whitelisted.
     message_whitelist: Arc<MatchingList>,
     /// A matching list of messages that should be blacklisted.
     message_blacklist: Arc<MatchingList>,
     /// Addresses that messages may not interact with.
     address_blacklist: Arc<AddressBlacklist>,
-    metrics: MessageProcessorMetrics,
+    metrics: MessageDbLoaderMetrics,
     /// channel for each destination chain to send operations (i.e. message
     /// submissions) to
     send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
@@ -82,7 +82,7 @@ impl ForwardBackwardIterator {
 
     async fn try_get_next_message(
         &mut self,
-        metrics: &MessageProcessorMetrics,
+        metrics: &MessageDbLoaderMetrics,
     ) -> Result<Option<HyperlaneMessage>> {
         loop {
             let high_nonce_message_status = self.high_nonce_iter.try_get_next_nonce(metrics)?;
@@ -164,7 +164,7 @@ impl DirectionalNonceIterator {
 
     fn try_get_next_nonce(
         &self,
-        metrics: &MessageProcessorMetrics,
+        metrics: &MessageDbLoaderMetrics,
     ) -> Result<MessageStatus<HyperlaneMessage>> {
         if let Some(message) = self.indexed_message_with_nonce()? {
             Self::update_max_nonce_gauge(&message, metrics);
@@ -178,7 +178,7 @@ impl DirectionalNonceIterator {
         Ok(MessageStatus::Unindexed)
     }
 
-    fn update_max_nonce_gauge(message: &HyperlaneMessage, metrics: &MessageProcessorMetrics) {
+    fn update_max_nonce_gauge(message: &HyperlaneMessage, metrics: &MessageDbLoaderMetrics) {
         let current_max = metrics.max_last_known_message_nonce_gauge.get();
         metrics
             .max_last_known_message_nonce_gauge
@@ -227,24 +227,24 @@ enum MessageStatus<T> {
     Processed,
 }
 
-impl Debug for MessageProcessor {
+impl Debug for MessageDbLoader {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "MessageProcessor {{ message_whitelist: {:?}, message_blacklist: {:?}, address_blacklist: {:?}, nonce_iterator: {:?}}}",
+            "MessageDbLoader {{ message_whitelist: {:?}, message_blacklist: {:?}, address_blacklist: {:?}, nonce_iterator: {:?}}}",
             self.message_whitelist, self.message_blacklist, self.address_blacklist, self.nonce_iterator
         )
     }
 }
 
 #[async_trait]
-impl ProcessorExt for MessageProcessor {
-    /// The name of this processor
+impl DbLoaderExt for MessageDbLoader {
+    /// The name of this db_loader
     fn name(&self) -> String {
-        format!("processor::message::{}", self.domain().name())
+        format!("db_loader::message::{}", self.domain().name())
     }
 
-    /// The domain this processor is getting messages from.
+    /// The domain this db_loader is getting messages from.
     fn domain(&self) -> &HyperlaneDomain {
         self.nonce_iterator.high_nonce_iter.db.domain()
     }
@@ -261,7 +261,7 @@ impl ProcessorExt for MessageProcessor {
             trace!(
                 ?msg,
                 cursor = ?self.nonce_iterator,
-                "Processor working on message"
+                "db_loader working on message"
             );
             let destination = msg.destination;
 
@@ -328,14 +328,14 @@ impl ProcessorExt for MessageProcessor {
     }
 }
 
-impl MessageProcessor {
+impl MessageDbLoader {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         db: HyperlaneRocksDB,
         message_whitelist: Arc<MatchingList>,
         message_blacklist: Arc<MatchingList>,
         address_blacklist: Arc<AddressBlacklist>,
-        metrics: MessageProcessorMetrics,
+        metrics: MessageDbLoaderMetrics,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
         metric_app_contexts: Vec<(MatchingList, String)>,
@@ -355,7 +355,7 @@ impl MessageProcessor {
     }
 
     async fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
-        trace!(nonce_iterator=?self.nonce_iterator, "Trying to get the next processor message");
+        trace!(nonce_iterator=?self.nonce_iterator, "Trying to get the next db_loader message");
         let next_message = self
             .nonce_iterator
             .try_get_next_message(&self.metrics)
@@ -368,12 +368,12 @@ impl MessageProcessor {
 }
 
 #[derive(Debug)]
-pub struct MessageProcessorMetrics {
+pub struct MessageDbLoaderMetrics {
     max_last_known_message_nonce_gauge: IntGauge,
     last_known_message_nonce_gauges: HashMap<u32, IntGauge>,
 }
 
-impl MessageProcessorMetrics {
+impl MessageDbLoaderMetrics {
     pub fn new<'a>(
         metrics: &CoreMetrics,
         origin: &HyperlaneDomain,
@@ -384,7 +384,7 @@ impl MessageProcessorMetrics {
             gauges.insert(
                 destination.id(),
                 metrics.last_known_message_nonce().with_label_values(&[
-                    "processor_loop",
+                    "db_loader_loop",
                     origin.name(),
                     destination.name(),
                 ]),
@@ -393,7 +393,7 @@ impl MessageProcessorMetrics {
         Self {
             max_last_known_message_nonce_gauge: metrics
                 .last_known_message_nonce()
-                .with_label_values(&["processor_loop", origin.name(), "any"]),
+                .with_label_values(&["db_loader_loop", origin.name(), "any"]),
             last_known_message_nonce_gauges: gauges,
         }
     }
@@ -432,7 +432,7 @@ pub mod test {
     use tracing::info_span;
 
     use crate::{
-        processor::Processor,
+        db_loader::DbLoader,
         test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder},
     };
 
@@ -451,8 +451,8 @@ pub mod test {
         }
     }
 
-    pub fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
-        MessageProcessorMetrics {
+    pub fn dummy_message_loader_metrics(domain_id: u32) -> MessageDbLoaderMetrics {
+        MessageDbLoaderMetrics {
             max_last_known_message_nonce_gauge: IntGauge::new(
                 "dummy_max_last_known_message_nonce_gauge",
                 "help string",
@@ -480,12 +480,12 @@ pub mod test {
         }
     }
 
-    fn dummy_message_processor(
+    fn dummy_message_loader(
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
         cache: OptionalCache<MeteredCache<LocalCache>>,
-    ) -> (MessageProcessor, UnboundedReceiver<QueueOperation>) {
+    ) -> (MessageDbLoader, UnboundedReceiver<QueueOperation>) {
         let base_metadata_builder =
             dummy_metadata_builder(origin_domain, destination_domain, db, cache.clone());
         let message_context = Arc::new(dummy_message_context(
@@ -496,12 +496,12 @@ pub mod test {
 
         let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
         (
-            MessageProcessor::new(
+            MessageDbLoader::new(
                 db.clone(),
                 Default::default(),
                 Default::default(),
                 Default::default(),
-                dummy_processor_metrics(origin_domain.id()),
+                dummy_message_loader_metrics(origin_domain.id()),
                 HashMap::from([(destination_domain.id(), send_channel)]),
                 HashMap::from([(destination_domain.id(), message_context)]),
                 vec![],
@@ -547,21 +547,21 @@ pub mod test {
         });
     }
 
-    /// Runs the processor and returns the first `num_operations` to arrive on the
+    /// Runs the db loader and returns the first `num_operations` to arrive on the
     /// receiving end of the channel.
     /// A default timeout is used for all `n` operations to arrive, otherwise the function panics.
-    async fn get_first_n_operations_from_processor(
+    async fn get_first_n_operations_from_db_loader(
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
         cache: OptionalCache<MeteredCache<LocalCache>>,
         num_operations: usize,
     ) -> Vec<QueueOperation> {
-        let (message_processor, mut receive_channel) =
-            dummy_message_processor(origin_domain, destination_domain, db, cache);
+        let (message_db_loader, mut receive_channel) =
+            dummy_message_loader(origin_domain, destination_domain, db, cache);
 
-        let processor = Processor::new(Box::new(message_processor), TaskMonitor::new());
-        let process_fut = processor.spawn(info_span!("MessageProcessor"));
+        let db_loader = DbLoader::new(Box::new(message_db_loader), TaskMonitor::new());
+        let load_fut = db_loader.spawn(info_span!("MessageDbLoader"));
         let mut pending_messages = vec![];
         let pending_message_accumulator = async {
             while let Some(pm) = receive_channel.recv().await {
@@ -572,9 +572,9 @@ pub mod test {
             }
         };
         tokio::select! {
-            _ = process_fut => {},
+            _ = load_fut => {},
             _ = pending_message_accumulator => {},
-            _ = sleep(Duration::from_millis(200)) => { panic!("No PendingMessage received from the processor") }
+            _ = sleep(Duration::from_millis(200)) => { panic!("No PendingMessage received from the db_loader") }
         };
         pending_messages
     }
@@ -758,7 +758,7 @@ pub mod test {
             persist_retried_messages(&msg_retries, &db, &destination_domain);
 
             // Run parser to load the messages in memory
-            let pending_messages = get_first_n_operations_from_processor(
+            let pending_messages = get_first_n_operations_from_db_loader(
                 &origin_domain,
                 &destination_domain,
                 &db,
@@ -775,7 +775,7 @@ pub mod test {
                 .for_each(|(i, mut pm)| pm.set_retries(msg_retries_to_set[i]));
 
             // Run parser again
-            let pending_messages = get_first_n_operations_from_processor(
+            let pending_messages = get_first_n_operations_from_db_loader(
                 &origin_domain,
                 &destination_domain,
                 &db,
@@ -849,7 +849,7 @@ pub mod test {
         mock_db
             .expect_retrieve_processed_by_nonce()
             .returning(|_| Ok(Some(false)));
-        let dummy_metrics = dummy_processor_metrics(0);
+        let dummy_metrics = dummy_message_loader_metrics(0);
         let db = Arc::new(mock_db);
 
         let mut forward_backward_iterator = ForwardBackwardIterator::new(db.clone());

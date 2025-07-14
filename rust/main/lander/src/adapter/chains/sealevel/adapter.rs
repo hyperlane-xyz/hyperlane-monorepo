@@ -53,7 +53,8 @@ use crate::{
     DispatcherMetrics, TransactionDropReason,
 };
 
-const TX_RESUBMISSION_MIN_DELAY_SECS: u64 = 15;
+const TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER: f32 = 3.0;
+const TX_RESUBMISSION_TIME_BUFFER: Duration = Duration::from_millis(500);
 
 #[derive(Default, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum EstimateFreshnessCache {
@@ -268,6 +269,12 @@ impl SealevelAdapter {
             }
         }
     }
+
+    fn time_before_resubmission(&self) -> Duration {
+        self.estimated_block_time
+            .mul_f32(TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER)
+            + TX_RESUBMISSION_TIME_BUFFER
+    }
 }
 
 #[async_trait]
@@ -384,10 +391,11 @@ impl AdaptsChain for SealevelAdapter {
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
+        let time_before_resubmission = self.time_before_resubmission();
         if let Some(ref last_submission_time) = tx.last_submission_attempt {
             let seconds_since_last_submission =
-                (Utc::now() - last_submission_time).num_seconds() as u64;
-            return seconds_since_last_submission >= TX_RESUBMISSION_MIN_DELAY_SECS;
+                (Utc::now() - last_submission_time).num_milliseconds() as u64;
+            return seconds_since_last_submission >= time_before_resubmission.as_millis() as u64;
         }
         true
     }

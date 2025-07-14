@@ -11,8 +11,8 @@ use tokio::time::sleep;
 use tracing::{info, instrument, warn};
 
 use super::{
+    message_processor::{submit_single_operation, MessageProcessorMetrics},
     op_queue::OpQueue,
-    op_submitter::{submit_single_operation, SerialSubmitterMetrics},
     pending_message::CONFIRM_DELAY,
 };
 
@@ -31,7 +31,7 @@ impl OperationBatch {
         self,
         prepare_queue: &mut OpQueue,
         confirm_queue: &mut OpQueue,
-        metrics: &SerialSubmitterMetrics,
+        metrics: &MessageProcessorMetrics,
     ) {
         let excluded_ops = match self.try_submit_as_batch(metrics).await {
             Ok(batch_result) => {
@@ -54,7 +54,7 @@ impl OperationBatch {
     #[instrument(skip(self, metrics), ret, level = "debug")]
     async fn try_submit_as_batch(
         &self,
-        metrics: &SerialSubmitterMetrics,
+        metrics: &MessageProcessorMetrics,
     ) -> ChainResult<BatchResult> {
         // We already assume that the relayer submits to a single mailbox per destination.
         // So it's fine to use the first item in the batch to get the mailbox.
@@ -155,7 +155,7 @@ impl OperationBatch {
         self,
         prepare_queue: &mut OpQueue,
         confirm_queue: &mut OpQueue,
-        metrics: &SerialSubmitterMetrics,
+        metrics: &MessageProcessorMetrics,
     ) {
         for op in self.operations.into_iter() {
             submit_single_operation(op, prepare_queue, confirm_queue, metrics).await;
@@ -171,6 +171,7 @@ mod tests {
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
         msg::{
+            db_loader::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
             gas_payment::GasPaymentEnforcer,
             metadata::{
                 BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
@@ -178,7 +179,6 @@ mod tests {
             },
             op_queue::test::MockPendingOperation,
             pending_message::{MessageContext, PendingMessage},
-            processor::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
         },
         settings::{
             matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
@@ -440,8 +440,8 @@ mod tests {
         }
 
         let arb_domain = HyperlaneDomain::new_test_domain("arbitrum");
-        let serial_submitter_metrics =
-            SerialSubmitterMetrics::new(core_metrics.clone(), &arb_domain);
+        let message_processor_metrics =
+            MessageProcessorMetrics::new(core_metrics.clone(), &arb_domain);
 
         let operation_batch = OperationBatch::new(
             pending_messages
@@ -451,7 +451,7 @@ mod tests {
             arb_domain,
         );
         operation_batch
-            .try_submit_as_batch(&serial_submitter_metrics)
+            .try_submit_as_batch(&message_processor_metrics)
             .await
             .unwrap();
     }
