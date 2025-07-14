@@ -28,7 +28,7 @@ export const ZBigNumberish = z
 export const ZBytes32String = z
   .string()
   .regex(
-    /^[0-9a-fA-F]{64}$/,
-    'Must be a 64-character hexadecimal string (32 bytes)',
+    /^0x[0-9a-fA-F]{64}$/,
+    'Must be a 0x prefixed 64-character hexadecimal string (32 bytes)',
   )
   .transform((val) => val.toLowerCase());
