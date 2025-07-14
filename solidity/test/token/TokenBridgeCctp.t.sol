@@ -30,6 +30,7 @@ import {TokenBridgeCctpBase} from "../../contracts/token/TokenBridgeCctpBase.sol
 import {IMessageTransmitter} from "../../contracts/interfaces/cctp/IMessageTransmitter.sol";
 import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
 import {ISpecifiesInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TokenBridgeCctpV1Test is Test {
     using TypeCasts for address;
@@ -354,7 +355,7 @@ contract TokenBridgeCctpV1Test is Test {
         );
     }
 
-    function testFork_verify() public virtual {
+    function testFork_verify_upgrade() public virtual {
         TokenBridgeCctpV1 recipient = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
         );
@@ -670,7 +671,7 @@ contract TokenBridgeCctpV1Test is Test {
         mailbox.dispatch(destination, recipient, body, bytes(""), hook);
     }
 
-    function testFork_verifyDeployerMessage() public virtual {
+    function testFork_verify() public virtual {
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
         TokenBridgeCctpV1 hook = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
@@ -840,6 +841,8 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
     uint256 constant maxFee = 1;
     uint32 constant minFinalityThreshold = 1000;
 
+    address constant deployer = 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba;
+
     function setUp() public override {
         super.setUp();
 
@@ -942,19 +945,171 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             );
     }
 
+    function _deploy() internal returns (TokenBridgeCctpV2) {
+        ITokenMessengerV2 tokenMessenger = ITokenMessengerV2(
+            address(0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d)
+        );
+
+        IMessageTransmitterV2 messageTransmitter = IMessageTransmitterV2(
+            address(0x81D40F21F12A8F0E3252Bccb954D722d4c464B64)
+        );
+
+        TokenBridgeCctpV2 implementation = new TokenBridgeCctpV2(
+            0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,
+            1,
+            0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D,
+            messageTransmitter,
+            tokenMessenger,
+            maxFee,
+            minFinalityThreshold
+        );
+
+        // deploy proxy code to deployer address, which is configured as recipient on cctp messages
+        deployCodeTo(
+            "../node_modules/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy",
+            abi.encode(
+                address(implementation),
+                proxyAdmin,
+                abi.encodeWithSignature(
+                    "initialize(address,address,string[])",
+                    address(0),
+                    address(this),
+                    _getUrls()
+                )
+            ),
+            address(deployer)
+        );
+
+        return TokenBridgeCctpV2(address(deployer));
+    }
+
     function testFork_verify() public override {
-        vm.skip(true);
+        vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
+
+        uint32 circleDestination = 6;
+        uint32 origin = 10;
+        TokenBridgeCctpV2 ism = _deploy();
+        uint32 circleOrigin = 2;
+        ism.addDomain(origin, circleOrigin);
+        ism.enrollRemoteRouter(origin, deployer.addressToBytes32());
+
+        // https://optimistic.etherscan.io/tx/0xf53a6a2cb5a334706912b96088171251df1400156a0a0a68a79fe70961634f65
+        bytes
+            memory message = hex"030010EF000000000A000000000000000000000000A7ECCDB9BE08178F896C26B7BBD8C3D4E844D9BA00002105000000000000000000000000A7ECCDB9BE08178F896C26B7BBD8C3D4E844D9BADEADBEEF";
+
+        // https://optimistic.etherscan.io/tx/0xc50f4acd4e442529b9814b252e8b568b72e10720b18603232c73124ac1e9ae1f
+        bytes
+            memory originalCctpMessage = hex"0000000100000002000000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000A7ECCDB9BE08178F896C26B7BBD8C3D4E844D9BA000000000000000000000000A7ECCDB9BE08178F896C26B7BBD8C3D4E844D9BA000000000000000000000000A7ECCDB9BE08178F896C26B7BBD8C3D4E844D9BA000003E800000000B410A464EC38D27F7C9394F9BF9B1EF1A5921F5E82FE77CF67A10DB6FE8425FD";
+
+        bytes32 nonce = bytes32(
+            0xa94cc8b2c5a35f696379d89ca4cd0a0d7058c6c2e949ac08e8dfc607cc0590f9
+        );
+
+        // must populate nonce and finality threshold executed offchain
+        bytes memory filledCctpMessage = abi.encodePacked(
+            uint32(CCTP_VERSION_2),
+            uint32(circleOrigin),
+            uint32(circleDestination),
+            nonce,
+            deployer.addressToBytes32(),
+            deployer.addressToBytes32(),
+            deployer.addressToBytes32(),
+            uint32(minFinalityThreshold),
+            uint32(minFinalityThreshold),
+            abi.encode(Message.id(message))
+        );
+
+        // https://iris-api.circle.com/v2/messages/2?transactionHash=0xc50f4acd4e442529b9814b252e8b568b72e10720b18603232c73124ac1e9ae1f
+        bytes
+            memory attestation = hex"fdaca657526b164d6b09678297565d40e1e68cad3bfb0786470b0e8bce013ee340a985970d69629af69599f3deff5cc975b3df46d2efeadfebd867d049e5e5641cba6f5e720dc86c90d8d51747619fbe2b24246e36fa0603792cb86ad88bdc06136663d6211a8d5d134cf94cf8197892a460b24a5e21715642d338530b472a325d1c";
+        bytes memory metadata = abi.encode(filledCctpMessage, attestation);
+
+        vm.expectCall(
+            address(ism),
+            abi.encode(
+                TokenBridgeCctpV2.handleReceiveUnfinalizedMessage.selector
+            )
+        );
+        assert(ism.verify(metadata, message));
+    }
+
+    function testFork_transferRemote(bytes32 recipient, uint32 amount) public {
+        // depositForBurn will revert if amount is less than maxFee
+        vm.assume(amount > maxFee);
+        vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
+
+        bytes32 ism = 0x0000000000000000000000000000000000000000000000000000000000000001;
+
+        TokenBridgeCctpV2 router = _deploy();
+
+        uint32 destination = 1; // ethereum
+        router.addDomain(destination, 0);
+        router.enrollRemoteRouter(destination, ism);
+
+        Quote[] memory quotes = router.quoteTransferRemote(
+            destination,
+            recipient,
+            amount
+        );
+
+        deal(quotes[1].token, address(this), quotes[1].amount);
+        IERC20(quotes[1].token).approve(address(router), quotes[1].amount);
+
+        router.transferRemote{value: quotes[0].amount}(
+            destination,
+            recipient,
+            amount
+        );
     }
 
     function testFork_postDispatch(
         bytes32 recipient,
         bytes calldata body
     ) public override {
-        vm.skip(true);
-    }
+        vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
 
-    function testFork_verifyDeployerMessage() public override {
-        vm.skip(true);
+        bytes32 ism = 0x0000000000000000000000000000000000000000000000000000000000000001;
+
+        TokenBridgeCctpV2 hook = _deploy();
+
+        IMailbox mailbox = hook.mailbox();
+        uint32 origin = mailbox.localDomain();
+        uint32 destination = 1; // ethereum
+        hook.addDomain(destination, 0);
+        hook.enrollRemoteRouter(destination, ism);
+
+        // precompute message ID
+        bytes memory message = Message.formatMessage(
+            3,
+            mailbox.nonce(),
+            origin,
+            address(this).addressToBytes32(),
+            destination,
+            recipient,
+            body
+        );
+
+        bytes memory cctpMessage = CctpMessageV2._formatMessageForRelay(
+            CCTP_VERSION_2,
+            hook.messageTransmitter().localDomain(),
+            hook.hyperlaneDomainToCircleDomain(destination),
+            address(hook).addressToBytes32(),
+            ism,
+            ism,
+            minFinalityThreshold,
+            abi.encode(Message.id(message))
+        );
+
+        vm.expectEmit(
+            true,
+            true,
+            true,
+            true,
+            address(hook.messageTransmitter())
+        );
+        emit IMessageTransmitter.MessageSent(cctpMessage);
+
+        mailbox.dispatch(destination, recipient, body, bytes(""), hook);
     }
 
     function test_transferRemoteCctp() public override {
@@ -1059,6 +1214,10 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
     function test_verify_revertsWhen_invalidNonce() public override {
         vm.skip(true);
         // cannot assert nonce in v2
+    }
+
+    function testFork_verify_upgrade() public override {
+        vm.skip(true);
     }
 
     function test_quoteTransferRemote_getCorrectQuote() public override {
