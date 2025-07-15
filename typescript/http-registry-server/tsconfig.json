@@ -1,0 +1,11 @@
+{
+  "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/",
+    "rootDir": "./",
+    "module": "nodenext",
+    "moduleResolution": "nodenext"
+  },
+  "exclude": ["./node_modules/", "./dist/"],
+  "include": ["./*.ts", "./scripts/**/*.ts", "./src/**/*.ts", "./test/**/*.ts"]
+}

@@ -48,7 +48,7 @@
     "decimals": 9
   },
   "botanix": {
-    "amount": "0.000000014",
+    "amount": "0.000000021",
     "decimals": 9
   },
   "flame": {
@@ -191,6 +191,10 @@
     "amount": "20.0",
     "decimals": 9
   },
+  "galactica": {
+    "amount": "0.1",
+    "decimals": 9
+  },
   "game7": {
     "amount": "0.01",
     "decimals": 9
@@ -201,10 +205,6 @@
   },
   "gravity": {
     "amount": "1800.0",
-    "decimals": 9
-  },
-  "guru": {
-    "amount": "0.001000252",
     "decimals": 9
   },
   "harmony": {
@@ -249,10 +249,6 @@
   },
   "katana": {
     "amount": "0.001000251",
-    "decimals": 9
-  },
-  "kroma": {
-    "amount": "0.001000252",
     "decimals": 9
   },
   "kyve": {
@@ -343,6 +339,10 @@
     "amount": "1000.0",
     "decimals": 9
   },
+  "noble": {
+    "amount": "0.1",
+    "decimals": 1
+  },
   "oortmainnet": {
     "amount": "100.0",
     "decimals": 9
@@ -368,8 +368,8 @@
     "decimals": 1
   },
   "paradex": {
-    "amount": "0.000000100",
-    "decimals": 9
+    "amount": "5000",
+    "decimals": 1
   },
   "peaq": {
     "amount": "100.0",
@@ -408,7 +408,7 @@
     "decimals": 9
   },
   "redstone": {
-    "amount": "0.00010005",
+    "amount": "0.00020005",
     "decimals": 9
   },
   "rivalz": {
@@ -472,8 +472,8 @@
     "decimals": 9
   },
   "starknet": {
-    "amount": "0.000000145",
-    "decimals": 9
+    "amount": "5000",
+    "decimals": 1
   },
   "story": {
     "amount": "0.001001186",
@@ -553,6 +553,10 @@
   },
   "xpla": {
     "amount": "280.0",
+    "decimals": 9
+  },
+  "xrplevm": {
+    "amount": "275.0",
     "decimals": 9
   },
   "zeronetwork": {

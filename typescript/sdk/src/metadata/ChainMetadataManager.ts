@@ -469,4 +469,10 @@ export class ChainMetadataManager<MetaExt = {}> {
 
     return { intersection, result };
   }
+
+  isLocalRpc(chain: ChainName) {
+    const metadata = this.tryGetChainMetadata(chain);
+    const rpcUrl = metadata?.rpcUrls[0]?.http;
+    return rpcUrl?.includes('localhost') || rpcUrl?.includes('127.0.0.1');
+  }
 }

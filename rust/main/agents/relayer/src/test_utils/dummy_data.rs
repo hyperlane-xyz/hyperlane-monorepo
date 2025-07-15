@@ -15,13 +15,13 @@ use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     metrics::message_submission::MessageSubmissionMetrics,
     msg::{
+        db_loader::test::DummyApplicationOperationVerifier,
         gas_payment::GasPaymentEnforcer,
         metadata::{
             BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
             IsmCachePolicyClassifier,
         },
         pending_message::MessageContext,
-        processor::test::DummyApplicationOperationVerifier,
     },
 };
 
@@ -111,7 +111,7 @@ pub fn dummy_message_context(
         origin_db: Arc::new(db.clone()),
         cache,
         metadata_builder: base_metadata_builder,
-        origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new([], db.clone())),
+        origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new([], db.clone()))),
         transaction_gas_limit: Default::default(),
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),

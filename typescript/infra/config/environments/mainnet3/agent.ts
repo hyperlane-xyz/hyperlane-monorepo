@@ -116,10 +116,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // fractal: false,
     fraxtal: true,
     fusemainnet: true,
+    galactica: true,
     game7: true,
     gnosis: true,
     gravity: true,
-    guru: true,
     harmony: true,
     hashkey: true,
     hemi: true,
@@ -131,7 +131,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     kaia: true,
     katana: true,
-    kroma: true,
     kyve: true,
     linea: true,
     lisk: true,
@@ -154,6 +153,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nero: true,
     neutron: true,
     nibiru: true,
+    noble: true,
     oortmainnet: true,
     ontology: true,
     opbnb: true,
@@ -207,6 +207,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xai: true,
     xlayer: true,
     xpla: true,
+    xrplevm: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
@@ -265,10 +266,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // fractal: false,
     fraxtal: true,
     fusemainnet: true,
+    galactica: true,
     game7: true,
     gnosis: true,
     gravity: true,
-    guru: true,
     harmony: true,
     hashkey: true,
     hemi: true,
@@ -280,7 +281,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     kaia: true,
     katana: true,
-    kroma: true,
     kyve: true,
     linea: true,
     lisk: true,
@@ -290,7 +290,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantapacific: true,
     mantle: true,
     matchain: true,
-    merlin: false,
+    merlin: true,
     metal: true,
     metis: true,
     milkyway: true,
@@ -303,6 +303,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nero: true,
     neutron: true,
     nibiru: true,
+    noble: true,
     oortmainnet: true,
     ontology: true,
     opbnb: true,
@@ -356,6 +357,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xai: true,
     xlayer: true,
     xpla: true,
+    xrplevm: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
@@ -414,10 +416,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // fractal: false,
     fraxtal: true,
     fusemainnet: true,
+    galactica: true,
     game7: true,
     gnosis: true,
     gravity: true,
-    guru: true,
     harmony: true,
     hashkey: true,
     hemi: true,
@@ -429,7 +431,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     injective: true,
     kaia: true,
     katana: true,
-    kroma: true,
     kyve: true,
     linea: true,
     lisk: true,
@@ -452,6 +453,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nero: true,
     neutron: true,
     nibiru: true,
+    noble: true,
     oortmainnet: true,
     ontology: true,
     opbnb: true,
@@ -506,6 +508,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xai: true,
     xlayer: true,
     xpla: true,
+    xrplevm: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
@@ -593,6 +596,23 @@ const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
   '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
 );
 
+// ICA v2 deploys that superswaps make use of
+const superswapIcaV2MatchingList = chainMapMatchingList({
+  base: '0x44647Cd983E80558793780f9a0c7C2aa9F384D07',
+  bob: '0xA6f0A37DFDe9C2c8F46F010989C47d9edB3a9FA8',
+  celo: '0x1eA7aC243c398671194B7e2C51d76d1a1D312953',
+  fraxtal: '0xD59a200cCEc5b3b1bF544dD7439De452D718f594',
+  ink: '0x55Ba00F1Bac2a47e0A73584d7c900087642F9aE3',
+  lisk: '0xE59592a179c4f436d5d2e4caA6e2750beA4E3166',
+  metal: '0x0b2d429acccAA411b867d57703F88Ed208eC35E4',
+  mode: '0x860ec58b115930EcbC53EDb8585C1B16AFFF3c50',
+  optimism: '0x3E343D07D024E657ECF1f8Ae8bb7a12f08652E75',
+  soneium: '0xc08C1451979e9958458dA3387E92c9Feb1571f9C',
+  superseed: '0x3CA0e8AEfC14F962B13B40c6c4b9CEE3e4927Ae3',
+  swell: '0x95Fb6Ca1BBF441386b119ad097edcAca3b1C35B7',
+  unichain: '0x43320f6B410322Bf5ca326a0DeAaa6a2FC5A021B',
+});
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -602,6 +622,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         originDomain: getDomainId('infinityvmmainnet'),
         destinationDomain: getDomainId('solanamainnet'),
       },
+      { originDomain: getDomainId('noble') },
       { originDomain: getDomainId('starknet') },
       { originDomain: getDomainId('paradex') },
     ],
@@ -621,11 +642,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround during testing of MilkyWay.
       { originDomain: getDomainId('milkyway') },
-      // Temporary workaround for incorrect gas limits estimated when sending to Starknet chains
-      { destinationDomain: getDomainId('starknet') },
-      { destinationDomain: getDomainId('paradex') },
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
+      // ICA v2 deploys that superswaps make use of, once we have body regex MatchingList support this
+      // can be made more specific
+      ...superswapIcaV2MatchingList,
     ],
   },
   {
@@ -763,6 +784,10 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       name: 'stHYPER-STAGING/bsc-ethereum',
       matchingList: stagingStHyperMatchingList,
     },
+    {
+      name: 'superswap_ica_v2',
+      matchingList: superswapIcaV2MatchingList,
+    },
   ];
 };
 
@@ -823,7 +848,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6d1f7ee-20250624-105828',
+      tag: 'fcb9d47-20250711-125026',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -843,7 +868,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '2fc626d-20250623-121531',
+      tag: '5291797-20250701-134531',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -854,7 +879,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6d1f7ee-20250624-105828',
+      tag: '5291797-20250701-134531',
     },
     resources: scraperResources,
   },
@@ -869,7 +894,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6d1f7ee-20250624-105828',
+      tag: 'fcb9d47-20250711-125026',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -892,7 +917,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '5291797-20250701-134531',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -913,7 +938,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5f60dee-20250623-071346',
+      tag: '5291797-20250701-134531',
     },
     blacklist,
     gasPaymentEnforcement,
