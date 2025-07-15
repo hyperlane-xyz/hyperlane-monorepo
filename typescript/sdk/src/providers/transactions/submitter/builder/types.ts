@@ -16,45 +16,51 @@ export const SubmissionStrategySchema = z
 
 export type SubmissionStrategy = z.infer<typeof SubmissionStrategySchema>;
 
+export function preprocessChainSubmissionStrategy<
+  T extends { submitter: { type: string } },
+>(value: unknown): ChainMap<T> {
+  const castedValued = value as ChainMap<SubmissionStrategy>;
+
+  const parsedValue = objMap(
+    castedValued,
+    (chainName, strategy): SubmissionStrategy => {
+      return {
+        submitter: preprocessSubmissionStrategy(chainName, strategy.submitter),
+      };
+    },
+  );
+
+  return parsedValue as ChainMap<T>;
+}
+
+export function refineChainSubmissionStrategy<
+  T extends { submitter: { type: string } },
+>(value: Record<string, T>, ctx: z.RefinementCtx) {
+  Object.entries(value).forEach(([chain, config]) => {
+    if (config.submitter.type !== TxSubmitterType.INTERCHAIN_ACCOUNT) {
+      return;
+    }
+
+    const submitter = config.submitter as EvmIcaTxSubmitterProps;
+    const { owner, internalSubmitter } = submitter;
+    if (
+      (internalSubmitter.type === TxSubmitterType.GNOSIS_SAFE ||
+        internalSubmitter.type === TxSubmitterType.GNOSIS_TX_BUILDER) &&
+      !eqAddress(owner, internalSubmitter.safeAddress)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Interchain account owner address and multisig address must match for ${chain}`,
+      });
+    }
+  });
+}
+
 export const ChainSubmissionStrategySchema = z.preprocess(
-  // Add the chain property to the internal submitter config before validation
-  // to avoid having to set the field manually when writing the config
-  (value: unknown): ChainMap<SubmissionStrategy> => {
-    const castedValued = value as ChainMap<SubmissionStrategy>;
-
-    const parsedValue = objMap(
-      castedValued,
-      (chainName, strategy): SubmissionStrategy => {
-        return {
-          submitter: preprocessSubmissionStrategy(
-            chainName,
-            strategy.submitter,
-          ),
-        };
-      },
-    );
-
-    return parsedValue;
-  },
-  z.record(ZChainName, SubmissionStrategySchema).superRefine((value, ctx) => {
-    Object.entries(value).forEach(([chain, config]) => {
-      if (config.submitter.type !== TxSubmitterType.INTERCHAIN_ACCOUNT) {
-        return;
-      }
-
-      const { owner, internalSubmitter } = config.submitter;
-      if (
-        (internalSubmitter.type === TxSubmitterType.GNOSIS_SAFE ||
-          internalSubmitter.type === TxSubmitterType.GNOSIS_TX_BUILDER) &&
-        !eqAddress(owner, internalSubmitter.safeAddress)
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Interchain account owner address and multisig address must match for ${chain}`,
-        });
-      }
-    });
-  }),
+  preprocessChainSubmissionStrategy,
+  z
+    .record(ZChainName, SubmissionStrategySchema)
+    .superRefine(refineChainSubmissionStrategy),
 );
 
 function preprocessSubmissionStrategy(
@@ -77,7 +83,10 @@ function preprocessSubmissionStrategy(
 
 const preprocessIcaSubmitter = (
   chainName: ChainName,
-  strategy: SubmitterMetadata,
+  strategy: Extract<
+    SubmitterMetadata,
+    { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
+  >,
 ): SubmitterMetadata => {
   assert(
     strategy.type === TxSubmitterType.INTERCHAIN_ACCOUNT,

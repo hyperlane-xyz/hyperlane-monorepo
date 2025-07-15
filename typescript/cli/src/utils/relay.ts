@@ -7,13 +7,13 @@ import {
   HyperlaneCore,
   HyperlaneRelayer,
   MultiProvider,
-  SubmissionStrategy,
   TxSubmitterBuilder,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
+import { ExtendedSubmissionStrategy } from '../submitters/types.js';
 
 /**
  * Workaround helper for bypassing bad hook derivation when self-relaying.
@@ -40,7 +40,7 @@ export function stubMerkleTreeConfig(
 
 export function canSelfRelay(
   selfRelay: boolean,
-  config: SubmissionStrategy,
+  config: ExtendedSubmissionStrategy,
   transactionReceipts: Awaited<
     ReturnType<TxSubmitterBuilder<ProtocolType>['submit']>
   >,
@@ -82,7 +82,7 @@ export function canSelfRelay(
  * Recursively traverse the submitter config to check if it allows transaction self relaying
  */
 function canSelfRelayFromConfig(
-  config: SubmissionStrategy['submitter'],
+  config: ExtendedSubmissionStrategy['submitter'],
 ): boolean {
   if (config.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
     return config.internalSubmitter.type === TxSubmitterType.JSON_RPC;
