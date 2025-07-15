@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -73,7 +75,7 @@ pub trait SealevelProviderForLander: Send + Sync {
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
     ) -> ChainResult<Transaction>;
 
@@ -82,8 +84,8 @@ pub trait SealevelProviderForLander: Send + Sync {
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        priority_fee_oracle: &dyn PriorityFeeOracle,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
+        priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     ) -> ChainResult<SealevelTxCostEstimate>;
 
     /// Waits for Sealevel transaction confirmation with processed commitment level
@@ -117,7 +119,7 @@ impl SealevelProviderForLander for SealevelProvider {
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
     ) -> ChainResult<Transaction> {
         let instructions = vec![
@@ -162,8 +164,8 @@ impl SealevelProviderForLander for SealevelProvider {
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        priority_fee_oracle: &dyn PriorityFeeOracle,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
+        priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     ) -> ChainResult<SealevelTxCostEstimate> {
         // Build a transaction that sets the max compute units and a dummy compute unit price.
         // This is used for simulation to get the actual compute unit limit. We set dummy values
@@ -399,8 +401,8 @@ impl SealevelProvider {
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        priority_fee_oracle: &dyn PriorityFeeOracle,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
+        priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     ) -> ChainResult<Transaction> {
         // Get the estimated costs for the instruction.
         let SealevelTxCostEstimate {
@@ -410,7 +412,7 @@ impl SealevelProvider {
             .get_estimated_costs_for_instruction(
                 instruction.clone(),
                 payer,
-                tx_submitter,
+                tx_submitter.clone(),
                 priority_fee_oracle,
             )
             .await?;

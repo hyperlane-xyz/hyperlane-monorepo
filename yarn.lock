@@ -8095,6 +8095,7 @@ __metadata:
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
     "@hyperlane-xyz/cosmos-sdk": "npm:14.4.0"
+    "@hyperlane-xyz/http-registry-server": "npm:1.0.0"
     "@hyperlane-xyz/registry": "npm:19.2.0"
     "@hyperlane-xyz/sdk": "npm:14.4.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
@@ -8286,7 +8287,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server":
+"@hyperlane-xyz/http-registry-server@npm:1.0.0, @hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server"
   dependencies:

@@ -43,6 +43,9 @@
   "carrchaintestnet": {
     "validators": ["0xa96dfc4d8c6cabb510701732ee01e52a75776205"]
   },
+  "celestiatestnet": {
+    "validators": ["0x3e0227b7f129576c53ff5d98d17c9b8433445094"]
+  },
   "chronicleyellowstone": {
     "validators": ["0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4"]
   },

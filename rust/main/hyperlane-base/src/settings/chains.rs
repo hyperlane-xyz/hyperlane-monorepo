@@ -1230,7 +1230,7 @@ fn build_sealevel_tx_submitter(
     connection_conf: &h_sealevel::ConnectionConf,
     locator: &ContractLocator,
     metrics: &CoreMetrics,
-) -> Box<dyn TransactionSubmitter> {
+) -> Arc<dyn TransactionSubmitter> {
     let middleware_metrics = chain_conf.metrics_conf();
     let client_metrics = metrics.client_metrics();
     connection_conf.transaction_submitter.create_submitter(
