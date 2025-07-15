@@ -3,11 +3,14 @@ pragma solidity ^0.8.22;
 
 import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
-import {IEverclearAdapter} from "../../interfaces/IEverclearAdapter.sol";
+import {IEverclearAdapter, IEverclear, IEverclearSpoke} from "../../interfaces/IEverclearAdapter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
+import {IWETH} from "../interfaces/IWETH.sol";
+import {TokenMessage} from "../libs/TokenMessage.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 /**
  * @notice Information about an output asset for a destination domain
@@ -25,16 +28,18 @@ struct OutputAssetInfo {
  * @notice A token bridge that integrates with Everclear's intent-based architecture
  * @dev Extends HypERC20Collateral to provide cross-chain token transfers via Everclear's intent system
  */
-contract EverclearTokenBridge is
-    ITokenBridge,
-    OwnableUpgradeable,
-    PackageVersioned
-{
+contract EverclearTokenBridge is HypERC20Collateral {
+    using TokenMessage for bytes;
+    using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
 
     /// @notice The output asset for a given destination domain
     /// @dev Everclear needs to know the output asset address to create intents for cross-chain transfers
     mapping(uint32 destination => bytes32 outputAssets) public outputAssets;
+
+    /// @notice Whether an intent has been settled
+    /// @dev This is used to prevent funds from being sent to a recipient that has already received them
+    mapping(bytes32 intentId => bool isSettled) public intentSettled;
 
     /// @notice Fee parameters for the bridge operations
     /// @dev The signatures are produced by Everclear and stored here for re-use. We use the same fee for all transfers to all destinations
@@ -43,6 +48,9 @@ contract EverclearTokenBridge is
     /// @notice The Everclear adapter contract interface
     /// @dev Immutable reference to the Everclear adapter used for creating intents
     IEverclearAdapter public immutable everclearAdapter;
+
+    /// @notice The Everclear spoke contract
+    IEverclearSpoke public immutable everclearSpoke;
 
     /**
      * @notice Emitted when fee parameters are updated
@@ -58,26 +66,27 @@ contract EverclearTokenBridge is
      */
     event OutputAssetSet(uint32 destination, bytes32 outputAsset);
 
-    IERC20 public immutable token;
-
     /**
      * @notice Constructor to initialize the Everclear token bridge
-     * @param _erc20 The address of the ERC20 token to be used as collateral
      * @param _everclearAdapter The address of the Everclear adapter contract
      */
-    constructor(IERC20 _erc20, IEverclearAdapter _everclearAdapter) {
-        token = _erc20;
+    constructor(
+        address _erc20,
+        uint256 _scale,
+        address _mailbox,
+        IEverclearAdapter _everclearAdapter
+    ) HypERC20Collateral(_erc20, _scale, _mailbox) {
         everclearAdapter = _everclearAdapter;
+        everclearSpoke = _everclearAdapter.spoke();
     }
 
     /**
      * @notice Initializes the proxy contract.
      * @dev Approves the Everclear adapter to spend tokens
      */
-    function initialize(address _owner) public initializer {
-        __Ownable_init();
-        _transferOwnership(_owner);
-        token.approve(address(everclearAdapter), type(uint256).max);
+    function initialize(address _hook, address _owner) public initializer {
+        _HypERC20_initialize(_hook, address(0), _owner);
+        wrappedToken.approve(address(everclearAdapter), type(uint256).max);
     }
 
     /**
@@ -148,45 +157,34 @@ contract EverclearTokenBridge is
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public view override returns (Quote[] memory quotes) {
+    ) public view virtual override returns (Quote[] memory quotes) {
         _destination; // Keep this to avoid solc's documentation warning (3881)
         _recipient;
 
-        quotes = new Quote[](1);
+        quotes = new Quote[](2);
         quotes[0] = Quote({
-            token: address(token),
+            token: address(0),
+            amount: _quoteGasPayment(_destination, _recipient, _amount)
+        });
+        quotes[1] = Quote({
+            token: address(wrappedToken),
             amount: _amount + feeParams.fee
         });
     }
 
-    /**
-     * @notice Transfers tokens to a remote chain via Everclear's intent system
-     * @dev Creates an Everclear intent for cross-chain transfer. The actual Hyperlane message is sent by Everclear
-     * @param _destination The destination domain ID
-     * @param _recipient The recipient address on the destination chain
-     * @param _amount The amount of tokens to transfer
-     * @return bytes32(0) as the transfer ID (actual ID is managed by Everclear)
-     */
-    function transferRemote(
+    /// @dev We can't use _feeAmount here because Everclear wants to pull tokens from this contract
+    /// and the amount from _feeAmount is sent to the fee recipient.
+    function _chargeSender(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external payable override returns (bytes32) {
-        IEverclearAdapter.FeeParams memory _feeParams = feeParams;
-
-        // Charge sender the stored fee
-        token.safeTransferFrom({
-            from: msg.sender,
-            to: address(this),
-            value: _amount + _feeParams.fee
-        });
-
-        // Create everclear intent
-        _createIntent(_destination, _recipient, _amount, _feeParams);
-
-        // A hyperlane message will be sent by everclear internally
-        // in a separate transaction. See `EverclearSpokeV3.processIntentQueue`.
-        return bytes32(0);
+    ) internal virtual override returns (uint256 dispatchValue) {
+        return
+            super._chargeSender(
+                _destination,
+                _recipient,
+                _amount + feeParams.fee
+            );
     }
 
     /**
@@ -195,31 +193,106 @@ contract EverclearTokenBridge is
      * @param _destination The destination domain ID
      * @param _recipient The recipient address on the destination chain
      * @param _amount The amount of tokens to transfer
-     * @param _feeParams The fee parameters for the intent
      */
     function _createIntent(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount,
-        IEverclearAdapter.FeeParams memory _feeParams
-    ) internal {
-        bytes32 outputAsset = outputAssets[_destination];
-        require(outputAsset != bytes32(0), "ETB: Output asset not set");
+        uint256 _amount
+    ) internal virtual returns (IEverclear.Intent memory) {
+        require(
+            outputAssets[_destination] != bytes32(0),
+            "ETB: Output asset not set"
+        );
 
         // Create everclear intent
         uint32[] memory destinations = new uint32[](1);
         destinations[0] = _destination;
 
-        everclearAdapter.newIntent({
+        // Create intent
+        // We always send the funds to the remote router, which will then send them to the recipient in _handle
+        (, IEverclear.Intent memory intent) = everclearAdapter.newIntent({
             _destinations: destinations,
-            _receiver: _recipient,
-            _inputAsset: address(token),
-            _outputAsset: outputAsset,
+            _receiver: _mustHaveRemoteRouter(_destination),
+            _inputAsset: address(wrappedToken),
+            _outputAsset: outputAssets[_destination], // We load this from storage again to avoid stack too deep
             _amount: _amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: "",
-            _feeParams: _feeParams
+            _data: _getIntentCalldata(_recipient, _amount),
+            _feeParams: feeParams
         });
+
+        return intent;
+    }
+
+    /**
+     * @notice Gets the calldata for the intent that will unwrap WETH to ETH on destination
+     * @dev Overrides parent to return calldata for unwrapping WETH to ETH
+     * @return The encoded calldata for the unwrap and send operation
+     */
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view returns (bytes memory) {
+        return abi.encode(_recipient, _amount);
+    }
+
+    function _beforeDispatch(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal virtual override returns (uint256, bytes memory) {
+        (uint256 _dispatchValue, bytes memory _msg) = super._beforeDispatch(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        IEverclear.Intent memory intent = _createIntent(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        // Add the intent to the `TokenMessage` as metadata
+        // The original `_msg` is abi.encodePacked(_recipient, _amount)
+        // We need can't use abi.encodePacked because the intent is a struct
+        _msg = bytes.concat(_msg, abi.encode(intent));
+
+        return (_dispatchValue, _msg);
+    }
+
+    function _handle(
+        uint32 _origin,
+        bytes32 /* sender */,
+        bytes calldata _message
+    ) internal virtual override {
+        // Get intent from hyperlane message
+        bytes memory metadata = _message.metadata();
+        IEverclear.Intent memory intent = abi.decode(
+            metadata,
+            (IEverclear.Intent)
+        );
+
+        /* CHECKS */
+        // Check that intent is settled
+        bytes32 intentId = keccak256(abi.encode(intent));
+        require(
+            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
+            "ETB: Intent Status != SETTLED"
+        );
+        // Check that we have not processed this intent before
+        require(!intentSettled[intentId], "ETB: Intent already processed");
+        (bytes32 _recipient, uint256 _amount) = abi.decode(
+            intent.data,
+            (bytes32, uint256)
+        );
+
+        /* EFFECTS */
+        intentSettled[intentId] = true;
+        emit ReceivedTransferRemote(_origin, _recipient, _amount);
+
+        /* INTERACTIONS */
+        _transferTo(_recipient.bytes32ToAddress(), _amount);
     }
 }
