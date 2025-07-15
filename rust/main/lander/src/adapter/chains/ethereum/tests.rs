@@ -102,7 +102,7 @@ pub enum ExpectedTxType {
     Eip2930,
 }
 
-pub struct ExpectedTxState {
+pub struct ExpectedEvmTxState {
     pub nonce: Option<EthersU256>,
     pub gas_limit: Option<EthersU256>,
     // either gas price or max fee per gas

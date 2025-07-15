@@ -39,7 +39,7 @@ import {
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = providers.Provider;
+type Provider = providers.Provider | ZKSyncProvider;
 
 export interface MultiProviderOptions {
   logger?: Logger;
@@ -354,6 +354,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
+      // no need to `handleTx` for zkSync as the zksync deployer itself
+      // will wait for the deploy tx to be confirmed before returning
     } else {
       const contractFactory = factory.connect(signer);
       const deployTx = contractFactory.getDeployTransaction(...params);
@@ -362,10 +364,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
+      // manually wait for deploy tx to be confirmed for non-zksync chains
+      await this.handleTx(chainNameOrId, contract.deployTransaction);
     }
-
-    // wait for deploy tx to be confirmed
-    await this.handleTx(chainNameOrId, contract.deployTransaction);
 
     this.logger.trace(
       `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
