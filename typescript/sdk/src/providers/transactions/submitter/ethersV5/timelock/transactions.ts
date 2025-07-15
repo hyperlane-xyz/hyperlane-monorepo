@@ -2,7 +2,14 @@ import { BigNumber } from 'ethers';
 import { getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
-import { Address, CallData, assert, objFilter } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  CallData,
+  HexString,
+  assert,
+  objFilter,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import {
   GetEventLogsResponse,
@@ -15,6 +22,9 @@ import {
 } from '../../../../../block-explorer/utils.js';
 import { ChainNameOrId } from '../../../../../types.js';
 import { MultiProvider } from '../../../../MultiProvider.js';
+
+const ZERO_32_BYTES =
+  '0x0000000000000000000000000000000000000000000000000000000000000000';
 
 const CALL_EXECUTED_EVENT_SELECTOR = toEventSelector(
   getAbiItem({
@@ -37,6 +47,13 @@ const CALL_CANCELLED_EVENT_SELECTOR = toEventSelector(
   }),
 );
 
+const CALL_SALT_EVENT_SELECTOR = toEventSelector(
+  getAbiItem({
+    abi: TimelockController__factory.abi,
+    name: 'CallSalt',
+  }),
+);
+
 export type GetPendingTimelockTransactionsOptions = {
   chain: Readonly<ChainNameOrId>;
   timelockAddress: Readonly<Address>;
@@ -44,10 +61,15 @@ export type GetPendingTimelockTransactionsOptions = {
 };
 
 type TimelockTx = {
-  id: string;
+  id: HexString;
   delay: number;
-  predecessor: string;
+  predecessor: HexString;
+  salt: HexString;
   data: [CallData, ...CallData[]];
+};
+
+type ExecutableTimelockTx = TimelockTx & {
+  encodedExecuteTransaction: HexString;
 };
 
 export async function getPendingEvmTimelockControllerTransactions({
@@ -77,6 +99,7 @@ export async function getPendingEvmTimelockControllerTransactions({
     CALL_EXECUTED_EVENT_SELECTOR,
     CALL_CANCELLED_EVENT_SELECTOR,
     CALL_SCHEDULED_EVENT_SELECTOR,
+    CALL_SALT_EVENT_SELECTOR,
   ]) {
     const currentEvents = await getLogsFromEtherscanLikeExplorerAPI(
       {
@@ -94,13 +117,20 @@ export async function getPendingEvmTimelockControllerTransactions({
     events.push(currentEvents);
   }
 
-  const [callExecutedEvents, callCancelledEvents, callScheduledEvents] = events;
+  const [
+    callExecutedEvents,
+    callCancelledEvents,
+    callScheduledEvents,
+    callSaltEvents,
+  ] = events;
   const cancelledOperationIds =
     getCancelledTimelockOperationIdsFromLogs(callCancelledEvents);
   const executedOperationIds =
     getExecutedTimelockOperationIdsFromLogs(callExecutedEvents);
-  const scheduledOperationById =
-    getScheduledTimelockOperationIdsFromLogs(callScheduledEvents);
+  const scheduledOperationById = getScheduledTimelockOperationIdsFromLogs(
+    callScheduledEvents,
+    getTimelockOperationSaltByIdFromLogs(callSaltEvents),
+  );
 
   return objFilter(
     scheduledOperationById,
@@ -111,7 +141,7 @@ export async function getPendingEvmTimelockControllerTransactions({
 
 export async function getPendingExecutableEvmTimelockControllerTransactions(
   options: GetPendingTimelockTransactionsOptions,
-): Promise<Record<string, TimelockTx>> {
+): Promise<Record<string, ExecutableTimelockTx>> {
   const maybeExecutableOperations =
     await getPendingEvmTimelockControllerTransactions(options);
 
@@ -131,10 +161,25 @@ export async function getPendingExecutableEvmTimelockControllerTransactions(
     }
   }
 
-  return objFilter(
+  const pendingExecutableTransactions = objFilter(
     maybeExecutableOperations,
     (operationId, _operation): _operation is TimelockTx =>
       readyOperationIds.has(operationId),
+  );
+
+  return objMap(
+    pendingExecutableTransactions,
+    (_operationId, transactionData): ExecutableTimelockTx => {
+      return {
+        data: transactionData.data,
+        delay: transactionData.delay,
+        encodedExecuteTransaction:
+          getTimelockExecutableTransactionFromBatch(transactionData),
+        id: transactionData.id,
+        predecessor: transactionData.predecessor,
+        salt: transactionData.salt,
+      };
+    },
   );
 }
 
@@ -162,39 +207,84 @@ function getExecutedTimelockOperationIdsFromLogs(
   return new Set(result.map((parsedEvent) => parsedEvent.args.id));
 }
 
-function getScheduledTimelockOperationIdsFromLogs(
+function getTimelockOperationSaltByIdFromLogs(
   logs: ReadonlyArray<GetEventLogsResponse>,
+): Record<string, string> {
+  const result = parseEventLogs({
+    abi: TimelockController__factory.abi,
+    eventName: 'CallSalt',
+    logs: logs.map(viemLogFromGetEventLogsResponse),
+  });
+
+  return Object.fromEntries(
+    result.map((parsedEvent) => [parsedEvent.args.id, parsedEvent.args.salt]),
+  );
+}
+
+function getScheduledTimelockOperationIdsFromLogs(
+  callScheduledLogs: ReadonlyArray<GetEventLogsResponse>,
+  callSaltByOperationId: Record<string, string>,
 ): Record<string, TimelockTx> {
   const parsedLogs = parseEventLogs({
     abi: TimelockController__factory.abi,
     eventName: 'CallScheduled',
-    logs: logs.map(viemLogFromGetEventLogsResponse),
+    logs: callScheduledLogs.map(viemLogFromGetEventLogsResponse),
   });
 
   return parsedLogs.reduce(
-    (operationById: Record<string, TimelockTx>, parsedLog) => {
+    (operationsById: Record<string, TimelockTx>, parsedLog) => {
       const { data, delay, id, index, predecessor, target, value } =
         parsedLog.args;
 
-      const currentOperation = operationById[id] ?? {
-        data: [],
-        delay,
-        predecessor,
-        id,
-      };
+      if (!operationsById[id]) {
+        operationsById[id] = {
+          data: [
+            {
+              data,
+              to: target,
+              value: BigNumber.from(value),
+            },
+          ],
+          delay: Number(delay),
+          predecessor,
+          // If no CallSalt event was emitted for this operation batch
+          // it means that no salt was provided when proposing the transaction
+          salt: callSaltByOperationId[id] ?? ZERO_32_BYTES,
+          id,
+        };
+      } else {
+        // it should be safe to convert a bigint to number
+        // in this case as it is an array index for a Timelock
+        // contract operation
+        operationsById[id].data[Number(index)] = {
+          data,
+          to: target,
+          value: BigNumber.from(value),
+        };
+      }
 
-      // it should be safe to convert a bigint to number
-      // in this case as it is an array index for a Timelock
-      // contract operation
-      currentOperation.data[Number(index)] = {
-        data,
-        to: target,
-        value: BigNumber.from(value),
-      };
-
-      operationById[id] = currentOperation;
-      return operationById;
+      return operationsById;
     },
     {},
+  );
+}
+
+function getTimelockExecutableTransactionFromBatch(
+  transactionData: TimelockTx,
+): HexString {
+  const [to, data, value] = transactionData.data.reduce(
+    ([targets, data, values], item) => {
+      targets.push(item.to);
+      data.push(item.data);
+      values.push(item.value?.toString() ?? '0');
+
+      return [targets, data, values];
+    },
+    [[], [], []] as [string[], string[], string[]],
+  );
+
+  return TimelockController__factory.createInterface().encodeFunctionData(
+    'executeBatch(address[],uint256[],bytes[],bytes32,bytes32)',
+    [to, value, data, transactionData.predecessor, transactionData.salt],
   );
 }
