@@ -595,5 +595,16 @@ export const validatorChainConfig = (
         'neuratestnet',
       ),
     },
+
+    celestiatestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('celestiatestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x3e0227b7f129576c53ff5d98d17c9b8433445094'],
+        },
+        'celestiatestnet',
+      ),
+    },
   };
 };

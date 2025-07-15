@@ -3319,6 +3319,62 @@
       "index": {
         "from": 690384
       }
+    },
+    "celestiatestnet": {
+      "bech32Prefix": "celestia",
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 6,
+        "reorgPeriod": 1
+      },
+      "canonicalAsset": "utia",
+      "chainId": "mocha-4",
+      "contractAddressBytes": 32,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Celestia Testnet",
+      "domainId": 1297040200,
+      "gasPrice": {
+        "amount": "0.1",
+        "denom": "utia"
+      },
+      "grpcUrls": [
+        {
+          "http": "https://grpc-celestia-testnet.mzonder.com:443"
+        }
+      ],
+      "index": {
+        "chunk": 10,
+        "from": 6915786
+      },
+      "isTestnet": true,
+      "name": "celestiatestnet",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "utia",
+        "name": "Celestia",
+        "symbol": "TIA"
+      },
+      "protocol": "cosmosnative",
+      "restUrls": [
+        {
+          "http": "https://celestia-t-api.noders.services"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "https://rpc-1.testnet.celestia.nodes.guru"
+        }
+      ],
+      "slip44": 118,
+      "technicalStack": "other",
+      "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000040000000000000001",
+      "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000010000000000000000",
+      "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000000",
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
     }
   }
 }

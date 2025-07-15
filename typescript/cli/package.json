@@ -10,6 +10,7 @@
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
     "@hyperlane-xyz/cosmos-sdk": "14.4.0",
+    "@hyperlane-xyz/http-registry-server": "1.0.0",
     "@hyperlane-xyz/registry": "19.2.0",
     "@hyperlane-xyz/sdk": "14.4.0",
     "@hyperlane-xyz/tsconfig": "workspace:^",

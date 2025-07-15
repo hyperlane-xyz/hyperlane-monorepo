@@ -18,23 +18,26 @@ export type SubmitterBuilderSettings = {
   submissionStrategy: SubmissionStrategy;
   multiProvider: MultiProvider;
   registry: IRegistry;
+  additionalSubmitterFactories?: Record<string, SubmitterFactory>;
 };
 
 export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
   submissionStrategy,
   multiProvider,
   registry,
+  additionalSubmitterFactories,
 }: SubmitterBuilderSettings): Promise<TxSubmitterBuilder<TProtocol>> {
   const submitter = await getSubmitter<TProtocol>(
     multiProvider,
     submissionStrategy.submitter,
     registry,
+    additionalSubmitterFactories,
   );
 
   return new TxSubmitterBuilder<TProtocol>(submitter);
 }
 
-type SubmitterFactory<TProtocol extends ProtocolType = any> = (
+export type SubmitterFactory<TProtocol extends ProtocolType = any> = (
   multiProvider: MultiProvider,
   metadata: SubmitterMetadata,
   registry: IRegistry,
