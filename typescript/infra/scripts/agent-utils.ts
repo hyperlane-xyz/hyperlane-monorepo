@@ -595,7 +595,11 @@ export async function getMultiProviderForRole(
       async (chain, _) => {
         if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
           const key = getKeyForRole(environment, context, role, chain, index);
-          const signer = await key.getSigner();
+          const provider = multiProvider.tryGetProvider(chain);
+          if (!provider) {
+            throw new Error(`Provider not found for chain ${chain}`);
+          }
+          const signer = await key.getSigner(provider);
           multiProvider.setSigner(chain, signer);
         }
       },
