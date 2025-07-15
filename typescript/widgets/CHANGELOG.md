@@ -1,5 +1,18 @@
 # @hyperlane-xyz/widgets
 
+## 15.0.0-beta.0
+
+### Patch Changes
+
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [23861b70a]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [e0ea8910c]
+- Updated dependencies [d16a853c0]
+  - @hyperlane-xyz/utils@15.0.0-beta.0
+  - @hyperlane-xyz/sdk@15.0.0-beta.0
+  - @hyperlane-xyz/cosmos-sdk@15.0.0-beta.0
+
 ## 14.4.0
 
 ### Patch Changes

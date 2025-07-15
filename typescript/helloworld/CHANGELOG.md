@@ -1,5 +1,25 @@
 # @hyperlane-xyz/helloworld
 
+## 15.0.0-beta.0
+
+### Patch Changes
+
+- Updated dependencies [205bcae75]
+- Updated dependencies [f8da8cd40]
+- Updated dependencies [23861b70a]
+- Updated dependencies [2c6506735]
+- Updated dependencies [799751606]
+- Updated dependencies [826e83741]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [737ea2b35]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [dd16e3df4]
+- Updated dependencies [e0ea8910c]
+- Updated dependencies [d16a853c0]
+- Updated dependencies [9a43cdca9]
+  - @hyperlane-xyz/core@10.0.0-beta.0
+  - @hyperlane-xyz/sdk@15.0.0-beta.0
+
 ## 14.4.0
 
 ### Patch Changes

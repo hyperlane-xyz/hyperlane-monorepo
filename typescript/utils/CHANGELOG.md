@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 15.0.0-beta.0
+
+### Minor Changes
+
+- 451f3f6c3: Support pino-pretty in development
+
 ## 14.4.0
 
 ## 14.3.0
