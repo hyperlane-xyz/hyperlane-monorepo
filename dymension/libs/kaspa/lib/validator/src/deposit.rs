@@ -10,10 +10,11 @@ use corelib::message::{add_kaspa_metadata_hl_messsage, parse_hyperlane_metadata,
 use std::str::FromStr;
 
 use corelib::escrow::EscrowPublic;
+use corelib::finality;
 use corelib::wallet::NetworkInfo;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
-use kaspa_rpc_core::{RpcHash, RpcTransactionOutput};
+use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
 use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
 use std::sync::Arc;
 
@@ -58,7 +59,7 @@ pub async fn validate_new_deposit(
 ///
 pub async fn validate_new_deposit_inner(
     client: &Arc<DynRpcApi>,
-    deposit: &DepositFXG,
+    d_untrusted: &DepositFXG,
     net: &NetworkInfo,
     escrow_address: &Address,
     hub_bootstrapped: bool,
@@ -68,86 +69,98 @@ pub async fn validate_new_deposit_inner(
         return Ok(false);
     }
 
-    // convert block and tx id strings to hashes
-    let block_hash = RpcHash::from_str(&deposit.block_id)?;
-    let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
+    /*
+    TODO: INSECURE! NEED TO CHECK CLAIMED ACCEPTING BLOCK ACTUALLY ACCEPTS TX
+      */
+    if !finality::validate_maturity_block(
+        client,
+        d_untrusted.accepting_block_hash_rpc()?,
+        net.network_id,
+    )
+    .await?
+    {
+        error!("Deposit is not sufficiently final",);
+        return Ok(false);
+    }
 
-    // get block from Kaspa node
-    let block: RpcBlock = client.get_block(block_hash, true).await?;
-
-    // validation of the Kaspa tx maturity (old enough to be accepted)
-    let maturity_result =
-        util::maturity::validate_maturity(client, block.header.daa_score, net.network_id).await?;
-    if !maturity_result {
-        error!(
-            "Deposit is not mature, block daa score: {:?}",
-            block.header.daa_score
-        );
+    if !d_untrusted.tx_hash_rpc().is_ok() {
+        error!("Deposit tx hash is not valid");
         return Ok(false);
     }
 
     // check that the HL message version is allowed
-    if deposit.hl_message.version != ALLOWED_HL_MESSAGE_VERSION {
+    if d_untrusted.hl_message.version != ALLOWED_HL_MESSAGE_VERSION {
         error!("HL message version is not allowed");
         return Ok(false);
     }
 
-    // find the relayed Kaspa Tx in block (id included in the deposit)
-    let tx_index = block
+    let containing_block: RpcBlock = client
+        .get_block(d_untrusted.containing_block_hash_rpc()?, true)
+        .await?;
+
+    let actual_deposit = tx_by_id(&containing_block, &d_untrusted.tx_hash_rpc().unwrap())?;
+
+    // get utxo in the tx from index in deposit.
+    let actual_deposit_utxo: &RpcTransactionOutput = actual_deposit
+        .outputs
+        .get(d_untrusted.utxo_index)
+        .ok_or("utxo not found by index")
+        .map_err(|e: &'static str| eyre::eyre!(e))?;
+
+    // get HLMessage and token message from Tx payload
+    let actual_hl_message = ParsedHL::parse_bytes(actual_deposit.payload)?;
+
+    // deposit tx amount
+    let actual_hl_amt: U256 = actual_hl_message.token_message.amount();
+
+    // recreate the metadata injection to the token message done by the relayer
+    let actual_hl_message_with_injected_info = add_kaspa_metadata_hl_messsage(
+        actual_hl_message,
+        d_untrusted.tx_hash_rpc()?,
+        d_untrusted.utxo_index,
+    )?;
+
+    // validate the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
+    if d_untrusted.hl_message.id() != actual_hl_message_with_injected_info.id() {
+        error!("Relayed HL message does not match HL message included in Kaspa Tx");
+        return Ok(false);
+    }
+
+    // deposit covers HL message amount?
+    if U256::from(actual_deposit_utxo.value) < actual_hl_amt {
+        error!(
+            "Deposit amount is less than token message amount, deposit: {:?}, token message: {:?}",
+            U256::from(actual_deposit_utxo.value),
+            actual_hl_amt
+        );
+        return Ok(false);
+    }
+
+    let actual_utxo_addr =
+        extract_script_pub_key_address(&actual_deposit_utxo.script_public_key, net.address_prefix)?;
+    if actual_utxo_addr != *escrow_address {
+        error!(
+            "Deposit is not to escrow address, escrow: {:?}, utxo: {:?}",
+            escrow_address, actual_deposit_utxo.script_public_key
+        );
+        return Ok(false);
+    }
+
+    Ok(true)
+}
+
+/// takes block and tx id and returns the tx
+fn tx_by_id(block: &RpcBlock, tx_id: &RpcHash) -> Result<RpcTransaction> {
+    let tx_index_actual = block
         .verbose_data
         .as_ref()
         .ok_or("block data not found")
         .map_err(|e: &'static str| eyre::eyre!(e))?
         .transaction_ids
         .iter()
-        .position(|id| id == &tx_hash)
+        .position(|id| id == tx_id)
         .ok_or("transaction not found in block")
         .map_err(|e: &'static str| eyre::eyre!(e))?;
 
-    // deposit tx retrieved from Kaspa node
-    let deposit_tx = block.transactions[tx_index].clone();
-
-    // get utxo in the tx from index in deposit.
-    let utxo: &RpcTransactionOutput = deposit_tx
-        .outputs
-        .get(deposit.utxo_index)
-        .ok_or("utxo not found by index")
-        .map_err(|e: &'static str| eyre::eyre!(e))?;
-
-    // get HLMessage and token message from Tx payload
-    let parsed_hl = ParsedHL::parse_bytes(deposit_tx.payload)?;
-
-    // deposit tx amount
-    let amount: U256 = parsed_hl.token_message.amount();
-
-    // this recreates the metadata injection to the token message done by the relayer
-    let hl_message_with_tx_info =
-        add_kaspa_metadata_hl_messsage(parsed_hl, tx_hash, deposit.utxo_index)?;
-
-    // this validates the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
-    if deposit.hl_message.id() != hl_message_with_tx_info.id() {
-        error!("Relayed HL message does not match HL message included in Kaspa Tx");
-        return Ok(false);
-    }
-
-    // validation the utxo amount is sufficient for the deposit
-    if U256::from(utxo.value) < amount {
-        error!(
-            "Deposit amount is less than token message amount, deposit: {:?}, token message: {:?}",
-            U256::from(utxo.value),
-            amount
-        );
-        return Ok(false);
-    }
-
-    let utxo_addr = extract_script_pub_key_address(&utxo.script_public_key, net.address_prefix)?;
-    if utxo_addr != *escrow_address {
-        error!(
-            "Deposit is not to escrow address, escrow: {:?}, utxo: {:?}",
-            escrow_address, utxo.script_public_key
-        );
-        return Ok(false);
-    }
-
-    Ok(true)
+    Ok(block.transactions[tx_index_actual].clone())
 }

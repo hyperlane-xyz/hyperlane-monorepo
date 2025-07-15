@@ -5,6 +5,7 @@ use std::cmp::min;
 use corelib::api::client::HttpClient;
 
 use api_rs::models::TxModel;
+use corelib::finality;
 use corelib::payload::{MessageID, MessageIDs};
 use corelib::util;
 use kaspa_consensus_core::network::NetworkId;
@@ -13,6 +14,7 @@ use kaspa_hashes::Hash as KaspaHash;
 use kaspa_rpc_core::RpcHash;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use std::collections::HashSet;
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{info, warn};
 // FIXME: add address validation
@@ -80,11 +82,6 @@ pub async fn validate_confirmed_withdrawals(
 
     let mut collected_message_ids = Vec::new();
 
-    let dag_info = kas_rpc
-        .get_block_dag_info()
-        .await
-        .map_err(|e| eyre::eyre!("Get block DAG info: {}", e))?;
-
     // Start from the next UTXO after the anchor_utxo (skip the first outpoint)
     for (i, curr_outpoint) in outpoints.iter().enumerate().skip(1) {
         info!(
@@ -97,7 +94,7 @@ pub async fn validate_confirmed_withdrawals(
         let tx_id = &curr_outpoint.transaction_id.to_string();
 
         // Get the transaction that CREATED this UTXO
-        let transaction = kas_http.get_tx_by_id(tx_id).await.map_err(|e| {
+        let tx = kas_http.get_tx_by_id(tx_id).await.map_err(|e| {
             eyre::eyre!(
                 "Validator: Failed to get transaction {}: {}",
                 curr_outpoint.transaction_id,
@@ -105,42 +102,15 @@ pub async fn validate_confirmed_withdrawals(
             )
         })?;
 
-        // Validate that the tx is mature
-        let block_hashes = &transaction
-            .block_hash
-            .clone()
-            .ok_or_else(|| eyre::eyre!("Validator: No block hash found in transaction"))?;
-
-        // Note: we do `get_block` (network call) for every tx block hash
-        // which might create network overhead or trigger rate limit.
-        // TODO: does it make sense to use some cache?
-        let mut earlies_daa: u64 = 0;
-        for hash in block_hashes {
-            let hash = RpcHash::constructor(hash.as_str());
-            let block = kas_rpc
-                .get_block(hash, false)
-                .await
-                .map_err(|e| eyre::eyre!("Failed to get block {}: {}", hash, e))?;
-
-            earlies_daa = min(earlies_daa, block.header.daa_score);
-        }
-
-        if !util::maturity::is_mature(earlies_daa, dag_info.virtual_daa_score, network_id) {
-            return Err(ValidationError::ImmatureTransaction {
-                tx_id: tx_id.clone(),
-            });
-        }
-
         // Validate that this transaction spends the previous outpoint
         let prev_outpoint = &outpoints[i - 1]; // Previous outpoint in the chain
-        if !validate_previous_transaction_in_inputs(&transaction, prev_outpoint)? {
+        if !validate_previous_transaction_in_inputs(&tx, prev_outpoint)? {
             return Err(ValidationError::SystemError(eyre::eyre!(
                 "Validator: Previous transaction not found in inputs"
             )));
         }
 
-        // Extract the messageID from the payload
-        let payload = transaction
+        let payload = tx
             .payload
             .clone()
             .ok_or_else(|| eyre::eyre!("No payload found in transaction"))?;
@@ -148,11 +118,25 @@ pub async fn validate_confirmed_withdrawals(
         let message_ids = MessageIDs::from_tx_payload(&payload)
             .map_err(|e| eyre::eyre!("Failed to parse message IDs from payload: {}", e))?;
 
+        // If the last TX in sequence is final then the others must be too
+        if i == outpoints.len() - 1 {
+            let hash = RpcHash::from_str(
+                &tx.accepting_block_hash
+                    .ok_or_else(|| eyre::eyre!("No accepting block hash found in transaction"))?,
+            )
+            .map_err(|e| eyre::eyre!("Failed to convert accepting block hash to RpcHash: {}", e))?;
+            if !finality::validate_maturity_block(kas_rpc, hash, network_id).await? {
+                return Err(ValidationError::ImmatureTransaction {
+                    tx_id: tx_id.clone(),
+                });
+            }
+        }
+
         collected_message_ids.extend(message_ids.0);
     }
 
     // Assert that the collected messageIds are the same as progress_indication.processed_withdrawals
-    validate_message_ids_match(fxg, &collected_message_ids)?;
+    validate_message_ids_exactly_equal(fxg, &collected_message_ids)?;
 
     info!("Validator: All validations passed successfully");
     Ok(())
@@ -194,7 +178,7 @@ fn validate_previous_transaction_in_inputs(
 }
 
 /// Validate that the collected message IDs match the progress indication
-fn validate_message_ids_match(
+fn validate_message_ids_exactly_equal(
     fxg: &ConfirmationFXG,
     collected_message_ids: &[MessageID],
 ) -> Result<(), ValidationError> {

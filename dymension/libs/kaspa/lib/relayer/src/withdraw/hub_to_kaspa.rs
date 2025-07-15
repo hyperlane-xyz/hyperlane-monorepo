@@ -42,6 +42,7 @@ use secp256k1::PublicKey;
 use std::io::Cursor;
 use std::sync::Arc;
 
+use corelib::finality;
 use corelib::util;
 use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
@@ -341,7 +342,7 @@ async fn get_utxo_to_spend(
     // Descending order – older UTXOs first
     utxos.sort_by_key(|u| std::cmp::Reverse(u.utxo_entry.block_daa_score));
     utxos.retain(|u| {
-        util::maturity::is_mature(
+        finality::is_mature(
             u.utxo_entry.block_daa_score,
             block.virtual_daa_score,
             network_id,

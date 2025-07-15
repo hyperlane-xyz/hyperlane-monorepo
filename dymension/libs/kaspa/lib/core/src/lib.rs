@@ -5,6 +5,7 @@ pub mod consts;
 pub mod deposit;
 pub mod env;
 pub mod escrow;
+pub mod finality;
 pub mod message;
 pub mod payload;
 pub mod pskt;

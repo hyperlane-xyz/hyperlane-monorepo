@@ -22,7 +22,7 @@ use api_rs::apis::kaspa_transactions_api::{
     get_transaction_transactions_transaction_id_get as get_tx_by_id,
     GetTransactionTransactionsTransactionIdGetParams as get_tx_by_id_params,
 };
-use api_rs::models::{TxModel, TxOutput};
+use api_rs::models::{AcceptanceMode, TxModel, TxOutput};
 
 use super::base::{get_client, get_config};
 
@@ -35,7 +35,10 @@ pub struct Deposit {
     pub time: i64,
     pub accepted: bool,
     pub outputs: Vec<TxOutput>,
-    pub block_hash: Vec<String>,
+    pub accepting_block_hash: String,
+    pub accepting_block_time: i64,
+    pub accepting_block_blue_score: i64,
+    pub block_hashes: Vec<String>,
 }
 
 impl Hash for Deposit {
@@ -65,8 +68,19 @@ impl TryFrom<TxModel> for Deposit {
             .ok_or(eyre::eyre!("Transaction accepted is missing"))?;
         let tx_hash = KaspaHash::from_str(&tx_id)?;
         let outputs = tx.outputs.ok_or(eyre::eyre!("Outputs are missing"))?; // TODO: outputs may be missing!
-        let block_hash = tx.block_hash.ok_or(eyre::eyre!("Block hash is missing"))?;
         let time = tx.block_time.ok_or(eyre::eyre!("Block time not set"))?;
+        let accepting_block_hash = tx
+            .accepting_block_hash
+            .ok_or(eyre::eyre!("Accepting block hash is missing"))?;
+        let accepting_block_blue_score = tx
+            .accepting_block_blue_score
+            .ok_or(eyre::eyre!("Accepting block blue score is missing"))?;
+        let accepting_block_time = tx
+            .accepting_block_time
+            .ok_or(eyre::eyre!("Accepting block time is missing"))?;
+        let block_hashes = tx
+            .block_hash
+            .ok_or(eyre::eyre!("Block hashes are missing"))?;
 
         Ok(Deposit {
             id: tx_hash,
@@ -74,7 +88,10 @@ impl TryFrom<TxModel> for Deposit {
             accepted: accepted,
             outputs: outputs,
             time: time,
-            block_hash: block_hash,
+            accepting_block_hash: accepting_block_hash,
+            accepting_block_time: accepting_block_time,
+            accepting_block_blue_score: accepting_block_blue_score,
+            block_hashes: block_hashes,
         })
     }
 }
@@ -123,7 +140,7 @@ impl HttpClient {
                     after: Some(lower_bound_t),
                     fields: None,
                     resolve_previous_outpoints: None,
-                    acceptance: None,
+                    acceptance: Some(AcceptanceMode::Accepted),
                 },
             )
             .await?;
@@ -149,6 +166,7 @@ impl HttpClient {
             .filter(|tx| {
                 is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
                     && tx.payload.is_some()
+                    && tx.is_accepted.unwrap_or(false)
             })
             .map(Deposit::try_from)
             .collect::<Result<Vec<Deposit>>>()?)
@@ -160,6 +178,7 @@ impl HttpClient {
         get_config(&url, self.client.clone())
     }
 
+    // TODO: we should pass block hash hint in validator (he can get it from relayer)
     pub async fn get_tx_by_id(&self, tx_id: &str) -> Result<TxModel> {
         info!("Querying kaspa tx by id: {:?}", tx_id);
         let c = self.get_config();

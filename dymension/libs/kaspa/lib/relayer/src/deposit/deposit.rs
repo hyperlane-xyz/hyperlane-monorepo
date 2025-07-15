@@ -15,7 +15,7 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 pub use secp256k1::PublicKey;
 use std::error::Error;
 
-pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<DepositFXG> {
+pub async fn on_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<Option<DepositFXG>> {
     // decode payload into Hyperlane message
 
     let payload = deposit.payload.clone().unwrap();
@@ -25,45 +25,34 @@ pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Resu
         parsed_hl.hl_message
     );
 
-    let amount = parsed_hl.token_message.amount();
+    let amt_hl = parsed_hl.token_message.amount();
     // find the index of the utxo that satisfies the transfer amount in hl message
     let utxo_index = deposit
         .outputs
         .iter()
         .position(|utxo: &api_rs::models::TxOutput| {
-            U256::from(utxo.amount) >= amount
+            U256::from(utxo.amount) >= amt_hl
                 && utxo.script_public_key_address.as_ref().unwrap() == escrow_address
         })
         .ok_or(eyre::eyre!("kaspa deposit had insufficient sompi amount"))?;
 
     let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)?;
 
+    if deposit.block_hashes.len() == 0 {
+        return Err(eyre::eyre!("kaspa deposit had no block hashes"));
+    }
+
     // build response for validator
     let tx = DepositFXG {
         tx_id: deposit.id.to_string(),
         utxo_index: utxo_index,
-        amount: amount,
-        block_id: deposit.block_hash[0].clone(), // used by validator to find tx by block
+        amount: amt_hl,
+        accepting_block_hash: deposit.accepting_block_hash.clone(),
+        containing_block_hash: deposit.block_hashes[0].clone(), // used by validator to find tx by block
+
         hl_message: hl_message_new,
     };
-    Ok(tx)
-}
-
-pub async fn handle_new_deposits(
-    deposits: Vec<&Deposit>,
-    escrow_address: &str,
-) -> Result<Vec<DepositFXG>, Box<dyn Error>> {
-    let mut txs = Vec::new();
-
-    for deposit in deposits {
-        if deposit.payload.is_none() {
-            continue;
-        }
-        let tx = handle_new_deposit(escrow_address, deposit).await?;
-        txs.push(tx);
-    }
-
-    Ok(txs)
+    Ok(Some(tx))
 }
 
 #[cfg(test)]
@@ -88,9 +77,4 @@ mod tests {
             }
         }
     }
-}
-
-pub async fn on_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<Option<DepositFXG>> {
-    let deposit_tx_result = handle_new_deposit(escrow_address, deposit).await?;
-    Ok(Some(deposit_tx_result))
 }
