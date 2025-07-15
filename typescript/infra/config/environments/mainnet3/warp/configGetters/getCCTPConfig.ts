@@ -13,8 +13,8 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import {
-  messageTransmitterAddresses,
-  tokenMessengerAddresses,
+  messageTransmitterAddressesV1,
+  tokenMessengerAddressesV1,
   usdcTokenAddresses,
 } from '../cctp.js';
 
@@ -44,8 +44,8 @@ export const getCCTPWarpConfig = async (
         mailbox: routerConfig[chain].mailbox,
         type: TokenType.collateralCctp,
         token: usdcTokenAddresses[chain],
-        messageTransmitter: messageTransmitterAddresses[chain],
-        tokenMessenger: tokenMessengerAddresses[chain],
+        messageTransmitter: messageTransmitterAddressesV1[chain],
+        tokenMessenger: tokenMessengerAddressesV1[chain],
         urls: [`${SERVICE_URL}/cctp/getCctpAttestation`],
         contractVersion: '8.1.0',
         cctpVersion: 'V1',
