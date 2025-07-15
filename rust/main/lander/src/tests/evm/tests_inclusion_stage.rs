@@ -16,7 +16,7 @@ use hyperlane_ethereum::EthereumReorgPeriod;
 
 use crate::adapter::chains::ethereum::{
     apply_estimate_buffer_to_ethers,
-    tests::{dummy_evm_tx, ExpectedTxState, ExpectedTxType, MockEvmProvider},
+    tests::{dummy_evm_tx, ExpectedEvmTxState, ExpectedTxType, MockEvmProvider},
     EthereumAdapter, EthereumAdapterMetrics, NonceDb, NonceManager, NonceManagerState,
     NonceUpdater, Precursor,
 };
@@ -40,7 +40,7 @@ async fn test_inclusion_happy_path() {
     let mock_evm_provider = mocked_evm_provider();
 
     let expected_tx_states = vec![
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: None,
             gas_limit: None,
             gas_price: None,
@@ -49,7 +49,7 @@ async fn test_inclusion_happy_path() {
             retries: 0,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(200000)), // Default fee used by the `ethers` lib estimation logic
@@ -60,7 +60,7 @@ async fn test_inclusion_happy_path() {
             retries: 1,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(200000)),
@@ -154,7 +154,7 @@ async fn test_inclusion_gas_spike() {
     });
 
     let expected_tx_states = vec![
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: None,
             gas_limit: None,
             gas_price: None,
@@ -163,7 +163,7 @@ async fn test_inclusion_gas_spike() {
             retries: 0,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(200000)),
@@ -174,7 +174,7 @@ async fn test_inclusion_gas_spike() {
             retries: 1,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(220000)), // This is the price that gets included
@@ -185,7 +185,7 @@ async fn test_inclusion_gas_spike() {
             retries: 2,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(242000)), // This is the price that gets included
@@ -196,7 +196,7 @@ async fn test_inclusion_gas_spike() {
             retries: 3,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(242000)),
@@ -268,7 +268,7 @@ async fn test_inclusion_gas_underpriced() {
     });
 
     let expected_tx_states = vec![
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: None,
             gas_limit: None,
             gas_price: None,
@@ -277,7 +277,7 @@ async fn test_inclusion_gas_underpriced() {
             retries: 0,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             // immediately returning an error causes a submission retry, with a 10% increase in gas price
@@ -289,7 +289,7 @@ async fn test_inclusion_gas_underpriced() {
             retries: 1,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(220000)),
@@ -384,7 +384,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
     });
 
     let expected_tx_states = vec![
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: None,
             gas_limit: None,
             gas_price: None,
@@ -393,7 +393,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
             retries: 0,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(200000)),
@@ -404,7 +404,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
             retries: 1,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(220000)),
@@ -415,7 +415,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
             retries: 2,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(242000)),
@@ -426,7 +426,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
             retries: 3,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(242000)), // This is the price that gets included
@@ -488,7 +488,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
     });
 
     let expected_tx_states = vec![
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: None,
             gas_limit: None,
             gas_price: None,
@@ -497,7 +497,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
             retries: 0,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(200000)),
@@ -508,7 +508,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
             retries: 1,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(220000)),
@@ -519,7 +519,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
             retries: 2,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(220000)),
@@ -581,7 +581,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
     // 3. EIP-1559 transaction (after escalation)
     // 4. EIP-1559 transaction (after finalization)
     let expected_tx_states = vec![
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: None,
             gas_limit: None,
             gas_price: Some(EthersU256::from(200000)),
@@ -592,7 +592,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
             retries: 0,
             tx_type: ExpectedTxType::Legacy,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(200000)),
@@ -603,7 +603,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
             retries: 1,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(220000)),
@@ -614,7 +614,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
             retries: 2,
             tx_type: ExpectedTxType::Eip1559,
         },
-        ExpectedTxState {
+        ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
             gas_limit: Some(TEST_GAS_LIMIT.clone()),
             gas_price: Some(EthersU256::from(220000)),
@@ -882,7 +882,7 @@ async fn test_tx_ready_for_resubmission() {
 
 async fn run_and_expect_successful_inclusion(
     initial_tx_type: ExpectedTxType,
-    mut expected_tx_states: Vec<ExpectedTxState>,
+    mut expected_tx_states: Vec<ExpectedEvmTxState>,
     mock_evm_provider: MockEvmProvider,
     block_time: Duration,
 ) {
@@ -943,7 +943,7 @@ async fn run_and_expect_successful_inclusion(
 }
 
 async fn assert_tx_db_state(
-    expected: &ExpectedTxState,
+    expected: &ExpectedEvmTxState,
     tx_db: &Arc<dyn TransactionDb>,
     created_tx: &Transaction,
 ) {

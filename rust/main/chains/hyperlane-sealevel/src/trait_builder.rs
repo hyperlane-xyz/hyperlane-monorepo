@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, NativeToken};
 use serde::Serialize;
 use url::Url;
@@ -50,13 +52,13 @@ impl Default for PriorityFeeOracleConfig {
 
 impl PriorityFeeOracleConfig {
     /// Create a new priority fee oracle from the configuration
-    pub fn create_oracle(&self) -> Box<dyn PriorityFeeOracle> {
+    pub fn create_oracle(&self) -> Arc<dyn PriorityFeeOracle> {
         match self {
             PriorityFeeOracleConfig::Constant(fee) => {
-                Box::new(ConstantPriorityFeeOracle::new(*fee))
+                Arc::new(ConstantPriorityFeeOracle::new(*fee))
             }
             PriorityFeeOracleConfig::Helius(config) => {
-                Box::new(HeliusPriorityFeeOracle::new(config.clone()))
+                Arc::new(HeliusPriorityFeeOracle::new(config.clone()))
             }
         }
     }
