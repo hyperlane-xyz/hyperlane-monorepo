@@ -155,3 +155,26 @@ export function addBufferToGasLimit(
   const bufferMultiplier = 100 + bufferPercent;
   return estimatedGas.mul(bufferMultiplier).div(100);
 }
+
+/**
+ * Calculates the amount from the origin chain scaled to the destination chain
+ * This calculation is in line with the FungibleTokenRouter contract _outboundAmount
+ * and _inboundAmount functions
+ * @param fromScale The origin scale number.
+ * @param toScale The destination scale number.
+ * @param amount The number to scale.
+ * @param precisionFactor  Number used to get accurate conversion for smaller numbers.
+ * Take into account the resulting amount will be have this precision factor multiplied into it.
+ */
+export function convertToScaledAmount(
+  fromScale: number | undefined,
+  toScale: number | undefined,
+  amount: bigint,
+  precisionFactor: number,
+) {
+  if (!fromScale || !toScale || fromScale === toScale) return amount;
+
+  const scaledAmount =
+    amount * BigInt(Math.floor((fromScale * precisionFactor) / toScale));
+  return scaledAmount;
+}

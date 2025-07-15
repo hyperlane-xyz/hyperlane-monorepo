@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import {
+  convertToScaledAmount,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,
@@ -55,5 +56,29 @@ describe('eqAmountApproximate', () => {
     expect(eqAmountApproximate(9, 9.001, 0.01)).to.be.true;
     expect(eqAmountApproximate('9876543210', '9876543210', '1')).to.be.true;
     expect(eqAmountApproximate('9876543210', '9876543212', '1')).to.be.false;
+  });
+});
+
+describe('convertToScaledAmount', () => {
+  it('returns the original amount when scales are equal or undefined', () => {
+    const amount = 1000n;
+
+    expect(convertToScaledAmount(undefined, 6, amount, 100)).to.equal(amount);
+    expect(convertToScaledAmount(6, undefined, amount, 100)).to.equal(amount);
+    expect(convertToScaledAmount(6, 6, amount, 100)).to.equal(amount);
+  });
+
+  it('scales properly when fromScale is higher than toScale', () => {
+    expect(convertToScaledAmount(10, 1, 10n, 100_000)).to.equal(10_000_000n);
+    expect(convertToScaledAmount(8, 2, 99n, 100_000)).to.equal(39_600_000n);
+    expect(convertToScaledAmount(7, 2, 1n, 100_000)).to.equal(350_000n);
+    expect(convertToScaledAmount(5, 3, 10n, 1_000)).to.equal(16_660n);
+  });
+
+  it('scales properly when fromScale is lower than toScale', () => {
+    expect(convertToScaledAmount(1, 10, 10n, 100_000)).to.equal(100_000n);
+    expect(convertToScaledAmount(2, 8, 99n, 100_000)).to.equal(2_475_000n);
+    expect(convertToScaledAmount(2, 7, 1n, 100_000)).to.equal(28_571n);
+    expect(convertToScaledAmount(3, 5, 10n, 1_000)).to.equal(6_000n);
   });
 });
