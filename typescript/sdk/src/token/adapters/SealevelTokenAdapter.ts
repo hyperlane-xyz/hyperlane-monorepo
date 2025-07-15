@@ -35,7 +35,7 @@ import {
 } from '../../gas/adapters/SealevelIgpAdapter.js';
 import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { HYPERLANE_TOKEN_METADATA_ACCOUNT_PDA_SEEDS } from '../../sealevel/pda.js';
+import { HYPERLANE_TOKEN_METADATA_PDA_SEEDS } from '../../sealevel/pda.js';
 import { ChainName } from '../../types.js';
 import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
 import { getSealevelHypTokenAccountData } from '../sealevel/token.js';
@@ -565,7 +565,7 @@ export abstract class SealevelHypTokenAdapter
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#LL49C1-L53C30
   deriveHypTokenAccount(): PublicKey {
     return super.derivePda(
-      HYPERLANE_TOKEN_METADATA_ACCOUNT_PDA_SEEDS,
+      HYPERLANE_TOKEN_METADATA_PDA_SEEDS,
       this.warpProgramPubKey,
     );
   }
