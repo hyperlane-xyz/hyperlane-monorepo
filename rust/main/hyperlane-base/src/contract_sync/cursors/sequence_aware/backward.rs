@@ -64,7 +64,7 @@ impl<T> Debug for BackwardSequenceAwareSyncCursor<T> {
 
 impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAwareSyncCursor<T> {
     #[instrument(
-        skip(store, metrics_data),
+        skip(store, latest_sequence_querier, metrics_data),
         fields(
             chunk_size,
             lowest_block_height_or_sequence,
