@@ -254,7 +254,10 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _amount
         );
 
-        _msg = abi.encodePacked(_msg, abi.encode(intent));
+        // Add the intent to the `TokenMessage` as metadata
+        // The original `_msg` is abi.encodePacked(_recipient, _amount)
+        // We need can't use abi.encodePacked because the intent is a struct
+        _msg = bytes.concat(_msg, abi.encode(intent));
 
         return (_dispatchValue, _msg);
     }
