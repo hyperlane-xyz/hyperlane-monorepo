@@ -945,6 +945,8 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             );
     }
 
+    address constant usdc = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+
     function _deploy() internal returns (TokenBridgeCctpV2) {
         ITokenMessengerV2 tokenMessenger = ITokenMessengerV2(
             address(0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d)
@@ -955,7 +957,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
 
         TokenBridgeCctpV2 implementation = new TokenBridgeCctpV2(
-            0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,
+            usdc,
             1,
             0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D,
             messageTransmitter,
@@ -1027,7 +1029,8 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         TokenBridgeCctpV2 router = _deploy();
 
         uint32 destination = 1; // ethereum
-        router.addDomain(destination, 0);
+        uint32 circleDestination = 0;
+        router.addDomain(destination, circleDestination);
         router.enrollRemoteRouter(destination, ism);
 
         Quote[] memory quotes = router.quoteTransferRemote(
@@ -1036,8 +1039,27 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             amount
         );
 
-        deal(quotes[1].token, address(this), quotes[1].amount);
-        IERC20(quotes[1].token).approve(address(router), quotes[1].amount);
+        assertEq(quotes[1].token, usdc);
+        uint256 usdcQuote = quotes[1].amount;
+
+        deal(usdc, address(this), usdcQuote);
+        IERC20(usdc).approve(address(router), usdcQuote);
+
+        vm.expectEmit(true, true, true, true, address(router.tokenMessenger()));
+        emit ITokenMessengerV2.DepositForBurn(
+            usdc,
+            usdcQuote,
+            address(router),
+            recipient,
+            circleDestination,
+            bytes32(
+                0x00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d
+            ), // tokenMessengerDestination
+            bytes32(0), // destinationCaller
+            maxFee,
+            minFinalityThreshold,
+            bytes("")
+        );
 
         router.transferRemote{value: quotes[0].amount}(
             destination,

@@ -179,7 +179,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
 
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
-            amount,
+            amount + fastFee,
             circleDomain,
             recipient,
             address(wrappedToken),
