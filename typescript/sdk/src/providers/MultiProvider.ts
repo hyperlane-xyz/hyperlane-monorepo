@@ -39,7 +39,7 @@ import {
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = providers.Provider;
+type Provider = providers.Provider | ZKSyncProvider;
 
 export interface MultiProviderOptions {
   logger?: Logger;
@@ -362,10 +362,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
+      // wait for deploy tx to be confirmed for EVM chains
+      await this.handleTx(chainNameOrId, contract.deployTransaction);
     }
-
-    // wait for deploy tx to be confirmed
-    await this.handleTx(chainNameOrId, contract.deployTransaction);
 
     this.logger.trace(
       `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
