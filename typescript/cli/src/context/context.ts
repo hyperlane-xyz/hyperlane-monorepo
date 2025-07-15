@@ -1,5 +1,6 @@
 import { confirm } from '@inquirer/prompts';
-import { Signer, ethers } from 'ethers';
+import { Signer } from 'ethers';
+import { Wallet } from 'zksync-ethers';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -132,7 +133,6 @@ export async function getContext({
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
     signerAddress = await signer.getAddress();
   }
-
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
 
@@ -218,10 +218,12 @@ export async function getDryRunContext(
  * @param customChains Custom chains specified by the user
  * @returns a new MultiProvider
  */
-async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
+async function getMultiProvider(registry: IRegistry, signer?: Signer | Wallet) {
   const chainMetadata = await registry.getMetadata();
   const multiProvider = new MultiProvider(chainMetadata);
+
   if (signer) multiProvider.setSharedSigner(signer);
+
   return multiProvider;
 }
 

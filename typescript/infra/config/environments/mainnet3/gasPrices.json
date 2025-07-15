@@ -160,7 +160,7 @@
     "decimals": 9
   },
   "evmos": {
-    "amount": "27.5",
+    "amount": "33.375931531",
     "decimals": 9
   },
   "fantom": {
@@ -432,7 +432,7 @@
     "decimals": 9
   },
   "sei": {
-    "amount": "1.1",
+    "amount": "1.100326643",
     "decimals": 9
   },
   "shibarium": {
@@ -484,7 +484,7 @@
     "decimals": 1
   },
   "subtensor": {
-    "amount": "10.0",
+    "amount": "10.14637",
     "decimals": 9
   },
   "superseed": {

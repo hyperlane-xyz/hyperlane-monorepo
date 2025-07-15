@@ -315,10 +315,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     switch (config.type) {
       case HookType.ROUTING: {
         this.logger.debug('Deploying DomainRoutingHook for %s', chain);
-        routingHook = await this.deployContract(chain, HookType.ROUTING, [
-          mailbox,
-          deployer,
-        ]);
+        routingHook = await this.deployContractWithName(
+          chain,
+          HookType.ROUTING,
+          'domainRoutingHook',
+          [mailbox, deployer],
+        );
         break;
       }
       case HookType.FALLBACK_ROUTING: {
@@ -334,9 +336,10 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
           );
           fallbackAddress = fallbackHook[config.fallback.type].address;
         }
-        routingHook = await this.deployContract(
+        routingHook = await this.deployContractWithName(
           chain,
           HookType.FALLBACK_ROUTING,
+          'fallbackDomainRoutingHook',
           [mailbox, deployer, fallbackAddress],
         );
         break;

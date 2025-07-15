@@ -131,6 +131,15 @@ export abstract class HyperlaneDeployer<
     return verifier?.verifyContract(chain, input, logger);
   }
 
+  async verifyContractForZKSync(
+    chain: ChainName,
+    input: ContractVerificationInput,
+    logger = this.logger,
+  ): Promise<void> {
+    const verifier = new ZKSyncContractVerifier(this.multiProvider);
+    return verifier?.verifyContract(chain, input, logger);
+  }
+
   abstract deployContracts(
     chain: ChainName,
     config: Config,
@@ -140,6 +149,7 @@ export abstract class HyperlaneDeployer<
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
     const configChains = Object.keys(configMap);
+
     const ethereumConfigChains = configChains.filter(
       (chain) =>
         this.multiProvider.getChainMetadata(chain).protocol ===
@@ -278,6 +288,7 @@ export abstract class HyperlaneDeployer<
     setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     const configuredIsm = await getIsm(contract);
+
     let matches = false;
     let targetIsm: Address;
     if (typeof config === 'string') {
@@ -412,7 +423,6 @@ export abstract class HyperlaneDeployer<
         return cachedContract;
       }
     }
-
     this.logger.info(
       `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
         ', ',
@@ -463,6 +473,7 @@ export abstract class HyperlaneDeployer<
           },
         );
         const receipt = await this.multiProvider.handleTx(chain, initTx);
+
         this.logger.debug(
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
         );

@@ -104,7 +104,6 @@ async function executeDelivery({
   recipient ||= recipientAddress;
 
   const chainAddresses = await registry.getAddresses();
-
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
   const warpCore = WarpCore.FromConfig(

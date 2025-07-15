@@ -661,10 +661,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     if (config.type === IsmType.STORAGE_AGGREGATION) {
       // TODO: support using minimal proxy factories for storage aggregation ISMs too
       const factory = new StorageAggregationIsm__factory().connect(signer);
-      const ism = await this.multiProvider.handleDeploy(destination, factory, [
-        addresses,
-        config.threshold,
-      ]);
+      const ism = await this.multiProvider.handleDeploy(
+        destination,
+        factory,
+        [addresses, config.threshold],
+        await getZKSyncArtifactByContractName('StorageAggregationIsm'),
+      );
       ismAddress = ism.address;
     } else {
       const staticAggregationIsmFactory =

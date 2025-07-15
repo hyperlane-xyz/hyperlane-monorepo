@@ -1,11 +1,10 @@
 import {
   BigNumber,
-  Contract,
   ContractFactory,
   ContractReceipt,
   ContractTransaction,
+  Signer as EthersSigner,
   PopulatedTransaction,
-  Signer,
   providers,
 } from 'ethers';
 import { Logger } from 'pino';
@@ -39,7 +38,8 @@ import {
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = providers.Provider;
+type Provider = providers.Provider | ZKSyncProvider;
+type Signer = EthersSigner | ZKSyncWallet;
 
 export interface MultiProviderOptions {
   logger?: Logger;
@@ -147,7 +147,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.providers[chainName] = provider;
     const signer = this.signers[chainName];
     if (signer && signer.provider) {
-      this.setSigner(chainName, signer.connect(provider));
+      this.setSigner(chainName, (signer as EthersSigner).connect(provider));
     }
     return provider;
   }
@@ -176,7 +176,14 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     // Auto-connect the signer for convenience
     const provider = this.tryGetProvider(chainName);
     if (!provider) return signer;
-    return signer.connect(provider);
+
+    // Handle different signer/provider combinations with type assertions
+    if (signer instanceof ZKSyncWallet && provider instanceof ZKSyncProvider) {
+      return signer.connect(provider);
+    } else if (signer instanceof EthersSigner) {
+      return (signer as EthersSigner).connect(provider as providers.Provider);
+    }
+    return signer;
   }
 
   /**
@@ -335,37 +342,52 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     params: Parameters<F['deploy']>,
     artifact?: ZKSyncArtifact,
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
-    const overrides = this.getTransactionOverrides(chainNameOrId);
-    const signer = this.getSigner(chainNameOrId);
-    const metadata = this.getChainMetadata(chainNameOrId);
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
+    if (!metadata) {
+      throw new Error('Chain metadata not found!');
+    }
+
     const { technicalStack } = metadata;
 
-    let contract: Contract;
-    let estimatedGas: BigNumber;
+    let contract;
+    const overrides = this.getTransactionOverrides(chainNameOrId);
+    const signer = this.getSigner(chainNameOrId);
 
-    // estimate gas for deploy
-    // deploy with buffer on gas limit
     if (technicalStack === ChainTechnicalStack.ZkSync) {
-      if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
+      if (!artifact) {
+        throw new Error(`No ZKSync contract artifact provided!`);
+      }
 
+      // Handle deployment for ZKSync protocol
       const deployer = new ZKSyncDeployer(signer as ZKSyncWallet);
-      estimatedGas = await deployer.estimateDeployGas(artifact, params);
+
+      const estimatedGas = await deployer.estimateDeployGas(artifact, params);
+
       contract = await deployer.deploy(artifact, params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
+
+      this.logger.trace(
+        `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
+      );
     } else {
       const contractFactory = factory.connect(signer);
       const deployTx = contractFactory.getDeployTransaction(...params);
-      estimatedGas = await signer.estimateGas(deployTx);
+      const estimatedGas = await signer.estimateGas(deployTx);
       contract = await contractFactory.deploy(...params, {
-        gasLimit: addBufferToGasLimit(estimatedGas),
+        gasLimit: addBufferToGasLimit(estimatedGas), // 10% buffer
         ...overrides,
       });
-    }
 
-    // wait for deploy tx to be confirmed
-    await this.handleTx(chainNameOrId, contract.deployTransaction);
+      this.logger.trace(
+        `Deploying contract ${contract.address} on ${chainNameOrId}:`,
+        { transaction: deployTx },
+      );
+
+      // wait for deploy tx to be confirmed
+      await this.handleTx(chainNameOrId, contract.deployTransaction);
+    }
 
     this.logger.trace(
       `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
@@ -449,7 +471,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     }
     const txReq = await this.prepareTx(chainNameOrId, tx);
     const signer = this.getSigner(chainNameOrId);
-    const response = await signer.sendTransaction(txReq);
+
+    const response = await signer.sendTransaction({
+      ...txReq,
+    });
     this.logger.info(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);
   }

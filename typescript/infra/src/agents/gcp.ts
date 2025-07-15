@@ -242,7 +242,7 @@ export class AgentGCPKey extends CloudAgentKey {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async _create(rotate: boolean) {
     this.logger.debug(`Creating key with rotation: ${rotate}`);
-    const wallet = Wallet.createRandom();
+    const wallet = ZkWallet.createRandom();
     const address = await wallet.getAddress();
     const identifier = this.identifier;
 

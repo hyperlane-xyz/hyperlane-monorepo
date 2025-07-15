@@ -32,12 +32,14 @@ export function hyperlaneCoreDeployRaw(
 export async function hyperlaneCoreDeploy(
   chain: string,
   coreInputPath: string,
+  privateKey?: string,
+  registryPath?: string,
 ) {
   return $`${localTestRunCmdPrefix()} hyperlane core deploy \
         --registry ${REGISTRY_PATH} \
         --config ${coreInputPath} \
         --chain ${chain} \
-        --key ${ANVIL_KEY} \
+        --key ${privateKey ?? ANVIL_KEY} \
         --verbosity debug \
         --yes`;
 }
