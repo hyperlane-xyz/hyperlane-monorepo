@@ -85,7 +85,6 @@ trash $AGENT_TMP/dbs
 mkdir $AGENT_TMP/dbs
 
 
-# RUST_BACKTRACE=1 cargo run --release --bin validator -- \
 ./target/release/validator \
   --db $DB_VALIDATOR \
   --originChainName kaspatest10 \
