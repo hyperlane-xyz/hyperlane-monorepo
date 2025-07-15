@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers';
-import { Hex, Log, getAbiItem, parseEventLogs, toEventSelector } from 'viem';
+import { getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
 import { Address, CallData, assert, objFilter } from '@hyperlane-xyz/utils';
@@ -9,7 +9,10 @@ import {
   getContractDeploymentTransaction,
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../../../../../block-explorer/etherscan.js';
-import { getExplorerFromChainMetadata } from '../../../../../block-explorer/utils.js';
+import {
+  getExplorerFromChainMetadata,
+  viemLogFromGetEventLogsResponse,
+} from '../../../../../block-explorer/utils.js';
 import { ChainNameOrId } from '../../../../../types.js';
 import { MultiProvider } from '../../../../MultiProvider.js';
 
@@ -133,20 +136,6 @@ export async function getPendingExecutableEvmTimelockControllerTransactions(
     (operationId, _operation): _operation is TimelockTx =>
       readyOperationIds.has(operationId),
   );
-}
-
-function viemLogFromGetEventLogsResponse(log: GetEventLogsResponse): Log {
-  return {
-    address: log.address as Hex,
-    data: log.data as Hex,
-    blockNumber: BigInt(log.blockNumber),
-    transactionHash: log.transactionHash as Hex,
-    logIndex: Number(log.logIndex),
-    transactionIndex: Number(log.transactionIndex),
-    topics: log.topics as [Hex, ...Hex[]],
-    blockHash: null,
-    removed: false,
-  };
 }
 
 function getCancelledTimelockOperationIdsFromLogs(
