@@ -166,13 +166,19 @@ export function addBufferToGasLimit(
  * @param precisionFactor  Number used to get accurate conversion for smaller numbers.
  * Take into account the resulting amount will be have this precision factor multiplied into it.
  */
-export function convertToScaledAmount(
-  fromScale: number | undefined,
-  toScale: number | undefined,
-  amount: bigint,
-  precisionFactor: number,
-) {
-  if (!fromScale || !toScale || fromScale === toScale) return amount;
+export function convertToScaledAmount({
+  amount,
+  fromScale,
+  toScale,
+  precisionFactor,
+}: {
+  fromScale?: number;
+  toScale?: number;
+  amount: bigint;
+  precisionFactor: number;
+}) {
+  if (!fromScale || !toScale || fromScale === toScale)
+    return amount * BigInt(Math.floor(precisionFactor));
 
   const scaledAmount =
     amount * BigInt(Math.floor((fromScale * precisionFactor) / toScale));
