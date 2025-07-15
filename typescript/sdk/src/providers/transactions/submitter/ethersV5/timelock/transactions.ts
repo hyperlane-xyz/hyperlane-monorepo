@@ -2,7 +2,7 @@ import { BigNumber } from 'ethers';
 import { Hex, Log, getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
-import { Address, CallData, objFilter } from '@hyperlane-xyz/utils';
+import { Address, CallData, assert, objFilter } from '@hyperlane-xyz/utils';
 
 import {
   GetEventLogsResponse,
@@ -51,11 +51,12 @@ export async function getPendingEvmTimelockControllerTransactions({
   chain,
   multiProvider,
   timelockAddress,
-}: GetPendingTimelockTransactionsOptions) {
+}: GetPendingTimelockTransactionsOptions): Promise<Record<string, TimelockTx>> {
   const explorer = getExplorerFromChainMetadata(chain, multiProvider);
-  if (!explorer) {
-    return;
-  }
+  assert(
+    explorer,
+    `No explorer was configured correctly to make requests to the API for chain "${chain}". Set an API key or use an explorer API that does not require one`,
+  );
 
   const contractDeploymentTx = await getContractDeploymentTransaction(
     { apiUrl: explorer.apiUrl, apiKey: explorer.apiKey },
@@ -98,44 +99,18 @@ export async function getPendingEvmTimelockControllerTransactions({
   const scheduledOperationById =
     getScheduledTimelockOperationIdsFromLogs(callScheduledEvents);
 
-  const maybeExecutableOperations = objFilter(
+  return objFilter(
     scheduledOperationById,
     (id, _operation): _operation is TimelockTx =>
       !(executedOperationIds.has(id) || cancelledOperationIds.has(id)),
-  );
-
-  const contractInstance = TimelockController__factory.connect(
-    timelockAddress,
-    provider,
-  );
-
-  const readyOperationIds = new Set();
-  const maybeExecutableTxIds = Object.keys(maybeExecutableOperations);
-  for (const operationId of maybeExecutableTxIds) {
-    const isReady = await contractInstance.isOperationReady(operationId);
-
-    if (isReady) {
-      readyOperationIds.add(operationId);
-    }
-  }
-
-  return objFilter(
-    maybeExecutableOperations,
-    (operationId, _operation): _operation is TimelockTx =>
-      readyOperationIds.has(operationId),
   );
 }
 
 export async function getPendingExecutableEvmTimelockControllerTransactions(
   options: GetPendingTimelockTransactionsOptions,
-) {
+): Promise<Record<string, TimelockTx>> {
   const maybeExecutableOperations =
     await getPendingEvmTimelockControllerTransactions(options);
-  if (!maybeExecutableOperations) {
-    return;
-  }
-
-  const maybeExecutableTxIds = Object.keys(maybeExecutableOperations);
 
   const provider = options.multiProvider.getProvider(options.chain);
   const contractInstance = TimelockController__factory.connect(
@@ -144,6 +119,7 @@ export async function getPendingExecutableEvmTimelockControllerTransactions(
   );
 
   const readyOperationIds = new Set();
+  const maybeExecutableTxIds = Object.keys(maybeExecutableOperations);
   for (const operationId of maybeExecutableTxIds) {
     const isReady = await contractInstance.isOperationReady(operationId);
 

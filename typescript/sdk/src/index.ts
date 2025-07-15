@@ -775,3 +775,7 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export {
+  getPendingEvmTimelockControllerTransactions,
+  getPendingExecutableEvmTimelockControllerTransactions,
+} from './providers/transactions/submitter/ethersV5/timelock/transactions.js';
