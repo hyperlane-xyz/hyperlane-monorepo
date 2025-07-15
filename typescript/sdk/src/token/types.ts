@@ -164,6 +164,9 @@ export const CctpTokenConfigSchema = CollateralTokenConfigSchema.omit({
     tokenMessenger: z
       .string()
       .describe('CCTP Token Messenger contract address'),
+    cctpVersion: z.enum(['V1', 'V2']),
+    minFinalityThreshold: z.number().optional(),
+    maxFeeBps: z.number().optional(),
   })
   .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
 

@@ -10,7 +10,15 @@ import {TypedMemView} from "./../libs/TypedMemView.sol";
 import {ITokenMessenger} from "./../interfaces/cctp/ITokenMessenger.sol";
 import {Message} from "./../libs/Message.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
-import {CctpMessage, BurnMessage} from "../libs/CctpMessage.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
+import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
+import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
+import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface CctpService {
     function getCCTPAttestation(
@@ -21,18 +29,16 @@ interface CctpService {
         returns (bytes memory cctpMessage, bytes memory attestation);
 }
 
-// TokenMessage.metadata := uint8 cctpNonce
-uint256 constant CCTP_TOKEN_BRIDGE_MESSAGE_LEN = TokenMessage.METADATA_OFFSET +
-    8;
-
-// @dev Supports only CCTP V1
-contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
-    using CctpMessage for bytes29;
-    using BurnMessage for bytes29;
-
+abstract contract TokenBridgeCctpBase is
+    MovableCollateralRouter,
+    AbstractCcipReadIsm,
+    IPostDispatchHook
+{
     using Message for bytes;
+    using TypeCasts for bytes32;
+    using SafeERC20 for IERC20;
 
-    uint32 internal constant CCTP_VERSION = 0;
+    IERC20 public immutable wrappedToken;
 
     // @notice CCTP message transmitter contract
     IMessageTransmitter public immutable messageTransmitter;
@@ -62,20 +68,26 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
         ITokenMessenger _tokenMessenger
-    ) HypERC20Collateral(_erc20, _scale, _mailbox) {
+    ) FungibleTokenRouter(_scale, _mailbox) {
         require(
-            _messageTransmitter.version() == CCTP_VERSION,
+            _messageTransmitter.version() == _getCCTPVersion(),
             "Invalid messageTransmitter CCTP version"
         );
         messageTransmitter = _messageTransmitter;
 
         require(
-            _tokenMessenger.messageBodyVersion() == CCTP_VERSION,
+            _tokenMessenger.messageBodyVersion() == _getCCTPVersion(),
             "Invalid TokenMessenger CCTP version"
         );
         tokenMessenger = _tokenMessenger;
 
+        wrappedToken = IERC20(_erc20);
+
         _disableInitializers();
+    }
+
+    function token() public view virtual override returns (address) {
+        return address(wrappedToken);
     }
 
     function initialize(
@@ -83,21 +95,12 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         address _owner,
         string[] memory __urls
     ) external virtual initializer {
-        // Call initialization functions of all parent contracts
         // ISM should not be set
-        _HypERC20_initialize(_hook, address(0), _owner);
+        _MailboxClient_initialize(_hook, address(0), _owner);
 
         // Setup urls for offchain lookup and do token approval
         setUrls(__urls);
         wrappedToken.approve(address(tokenMessenger), type(uint256).max);
-    }
-
-    function initialize(
-        address _hook,
-        address _interchainSecurityModule,
-        address _owner
-    ) public override {
-        revert("Only TokenBridgeCctp.initialize() may be called");
     }
 
     function interchainSecurityModule()
@@ -141,86 +144,84 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         return domain.circle;
     }
 
+    function _getCCTPVersion() internal pure virtual returns (uint32);
+
+    function _getCircleRecipient(
+        bytes29 cctpMessage
+    ) internal pure virtual returns (address);
+
+    function _getCircleSource(
+        bytes29 cctpMessage
+    ) internal pure virtual returns (uint32);
+
+    function _getCircleNonce(
+        bytes29 cctpMessage
+    ) internal pure virtual returns (bytes32);
+
+    function _validateTokenMessage(
+        bytes calldata hyperlaneMessage,
+        bytes29 cctpMessage
+    ) internal pure virtual;
+
+    function _validateHookMessage(
+        bytes calldata hyperlaneMessage,
+        bytes29 cctpMessage
+    ) internal view virtual;
+
+    function _sendMessageIdToIsm(
+        uint32 destinationDomain,
+        bytes32 ism,
+        bytes32 messageId
+    ) internal virtual;
+
     // @dev Enforces that the CCTP message source domain and nonce matches the Hyperlane message origin and nonce.
     function verify(
         bytes calldata _metadata,
         bytes calldata _hyperlaneMessage
     ) external returns (bool) {
         // decode return type of CctpService.getCCTPAttestation
-        (bytes memory cctpMessage, bytes memory attestation) = abi.decode(
+        (bytes memory cctpMessageBytes, bytes memory attestation) = abi.decode(
             _metadata,
             (bytes, bytes)
         );
 
-        bytes calldata tokenMessage = _hyperlaneMessage.body();
-        _validateMessageLength(tokenMessage);
+        bytes29 cctpMessage = TypedMemView.ref(cctpMessageBytes, 0);
 
-        bytes29 originalMsg = TypedMemView.ref(cctpMessage, 0);
-
-        bytes29 burnMessage = originalMsg._messageBody();
+        // check if CCTP message source matches the hyperlane message origin
+        uint32 origin = _hyperlaneMessage.origin();
+        uint32 sourceDomain = _getCircleSource(cctpMessage);
         require(
-            TokenMessage.amount(tokenMessage) == burnMessage._getAmount(),
-            "Invalid amount"
-        );
-        require(
-            TokenMessage.recipient(tokenMessage) ==
-                burnMessage._getMintRecipient(),
-            "Invalid recipient"
-        );
-
-        bytes32 sourceSender = burnMessage._getMessageSender();
-        require(sourceSender == _hyperlaneMessage.sender(), "Invalid sender");
-
-        uint32 sourceDomain = originalMsg._sourceDomain();
-        require(
-            sourceDomain ==
-                hyperlaneDomainToCircleDomain(_hyperlaneMessage.origin()),
+            sourceDomain == hyperlaneDomainToCircleDomain(origin),
             "Invalid source domain"
         );
 
-        uint64 sourceNonce = originalMsg._nonce();
-        require(
-            sourceNonce == uint64(bytes8(TokenMessage.metadata(tokenMessage))),
-            "Invalid nonce"
-        );
+        address circleRecipient = _getCircleRecipient(cctpMessage);
+        // check if CCTP message is a USDC burn message
+        if (circleRecipient == address(tokenMessenger)) {
+            _validateTokenMessage(_hyperlaneMessage, cctpMessage);
+        }
+        // check if CCTP message is a GMP message to this contract
+        else if (circleRecipient == address(this)) {
+            _validateHookMessage(_hyperlaneMessage, cctpMessage);
+        }
+        // disallow other CCTP message destinations
+        else {
+            revert("Invalid circle recipient");
+        }
 
+        bytes32 nonce = _getCircleNonce(cctpMessage);
         // Receive only if the nonce hasn't been used before
-        bytes32 sourceAndNonceHash = keccak256(
-            abi.encodePacked(sourceDomain, sourceNonce)
-        );
-        if (messageTransmitter.usedNonces(sourceAndNonceHash) == 0) {
-            messageTransmitter.receiveMessage(cctpMessage, attestation);
+        if (messageTransmitter.usedNonces(nonce) == 0) {
+            require(
+                messageTransmitter.receiveMessage(
+                    cctpMessageBytes,
+                    attestation
+                ),
+                "Failed to receive message"
+            );
         }
 
         return true;
-    }
-
-    function _beforeDispatch(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    )
-        internal
-        virtual
-        override
-        returns (uint256 dispatchValue, bytes memory message)
-    {
-        dispatchValue = _chargeSender(_destination, _recipient, _amount);
-
-        uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
-        uint64 nonce = tokenMessenger.depositForBurn(
-            _amount,
-            circleDomain,
-            _recipient,
-            address(wrappedToken)
-        );
-
-        message = TokenMessage.format(
-            _recipient,
-            _outboundAmount(_amount),
-            abi.encodePacked(nonce)
-        );
-        _validateMessageLength(message);
     }
 
     function _offchainLookupCalldata(
@@ -229,17 +230,50 @@ contract TokenBridgeCctp is HypERC20Collateral, AbstractCcipReadIsm {
         return abi.encodeCall(CctpService.getCCTPAttestation, (_message));
     }
 
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.CCTP);
+    }
+
+    /// @inheritdoc IPostDispatchHook
+    function supportsMetadata(
+        bytes calldata metadata
+    ) public pure override returns (bool) {
+        return true;
+    }
+
+    /// @inheritdoc IPostDispatchHook
+    function quoteDispatch(
+        bytes calldata,
+        bytes calldata
+    ) external pure override returns (uint256) {
+        return 0;
+    }
+
+    /// @inheritdoc IPostDispatchHook
+    function postDispatch(
+        bytes calldata /*metadata*/,
+        bytes calldata message
+    ) external payable override {
+        bytes32 id = message.id();
+        require(_isLatestDispatched(id), "Message not dispatched");
+
+        uint32 destination = message.destination();
+        bytes32 ism = _mustHaveRemoteRouter(destination);
+        uint32 circleDestination = hyperlaneDomainToCircleDomain(destination);
+
+        _sendMessageIdToIsm(circleDestination, ism, id);
+    }
+
+    // @dev Copied from HypERC20Collateral._transferFromSender
+    function _transferFromSender(uint256 _amount) internal virtual override {
+        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
+    }
+
     function _transferTo(
         address _recipient,
         uint256 _amount
     ) internal override {
         // do not transfer to recipient as the CCTP transfer will do it
-    }
-
-    function _validateMessageLength(bytes memory _tokenMessage) internal pure {
-        require(
-            _tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
-            "Invalid message body length"
-        );
     }
 }

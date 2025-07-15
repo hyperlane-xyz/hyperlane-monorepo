@@ -37,7 +37,10 @@ contract ProtocolFeeTest is Test {
     }
 
     function testHookType() public {
-        assertEq(fees.hookType(), uint8(IPostDispatchHook.Types.PROTOCOL_FEE));
+        assertEq(
+            fees.hookType(),
+            uint8(IPostDispatchHook.HookTypes.PROTOCOL_FEE)
+        );
     }
 
     function testSetProtocolFee(uint256 fee) public {
