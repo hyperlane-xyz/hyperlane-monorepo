@@ -9,6 +9,7 @@ import {
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { deploymentChains as ousdtChains } from '../../config/environments/mainnet3/warp/configGetters/getoUSDTTokenWarpConfig.js';
+import { legacyIcaChains } from '../config/chain.js';
 
 const MAINNET = 'ethereum';
 
@@ -49,7 +50,12 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
   async checkIcaRouterEnrollment(chain: ChainName): Promise<void> {
     // If the chain should be fully connected, do the regular full check.
     if (FULLY_CONNECTED_ICA_CHAINS.has(chain)) {
-      return super.checkEnrolledRouters(chain);
+      // don't try to enroll legacy ica chains
+      const actualRemoteChains = await this.app.remoteChains(chain);
+      const filteredRemoteChains = actualRemoteChains.filter(
+        (c) => !legacyIcaChains.includes(c),
+      );
+      return super.checkEnrolledRouters(chain, filteredRemoteChains);
     }
     // Otherwise only do a partial check to ensure that only fully-connected chains
     // are enrolled. This is so any fresh deployments are always controllable from
@@ -67,6 +73,15 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
       rootLogger.warn(
         chalk.bold.yellow(
           `Skipping check for ${chain} because there is no expected config`,
+        ),
+      );
+      return;
+    }
+
+    if (legacyIcaChains.includes(chain)) {
+      rootLogger.warn(
+        chalk.bold.yellow(
+          `Skipping check for ${chain} because it is a legacy ica chain`,
         ),
       );
       return;
