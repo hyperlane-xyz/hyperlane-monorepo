@@ -1,6 +1,7 @@
 warpRouteId: USDC/arbitrum-base-ethereum-ink-optimism-solanamainnet-superseed
 strategy:
-  rebalanceStrategy: minAmount
+  rebalanceStrategy: weighted
+  # this config aims to maintain 80% of the total USDC on ethereum
   chains:
     base:
       minAmount:
