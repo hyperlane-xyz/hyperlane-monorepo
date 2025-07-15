@@ -1,8 +1,8 @@
 pub mod msg;
 
+mod db_loader;
 mod merkle_tree;
 mod metrics;
-mod processor;
 mod prover;
 mod relayer;
 mod settings;

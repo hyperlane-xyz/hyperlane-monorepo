@@ -60,7 +60,7 @@ export const skipConfirmationOption: Options = {
 export const keyCommandOption: Options = {
   type: 'string',
   description:
-    'A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.',
+    'A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var. Use --key.{protocol} or HYP_KEY_{PROTOCOL} for chain specific key inputs',
   alias: ['k', 'private-key', 'seed-phrase'],
   default: ENV.HYP_KEY,
   defaultDescription: 'process.env.HYP_KEY',
@@ -270,4 +270,24 @@ export const warpRouteIdCommandOption: Options = {
   type: 'string',
   description: 'Warp route ID to specify the warp route',
   alias: 'id',
+};
+
+export const forkCommandOptions: Record<string, Options> = {
+  port: {
+    type: 'number',
+    description:
+      'Port to be used as initial port from which assign port numbers to all anvil instances',
+    default: 8545,
+  },
+  'fork-config': {
+    type: 'string',
+    description:
+      'The path to a configuration file that specifies how to build the forked chains',
+  },
+  kill: {
+    type: 'boolean',
+    default: false,
+    description:
+      'If set, it will stop the forked chains once the forked config has been applied',
+  },
 };

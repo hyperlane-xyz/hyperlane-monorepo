@@ -1,6 +1,6 @@
 #!/bin/bash
 OUTPUT_PATH=${1:-storage}
-EXCLUDE="test|mock|interfaces|libs|upgrade|README|Abstract|Static"
+EXCLUDE="test|mock|interfaces|libs|upgrade|README|Abstract|Static|LayerZero|PolygonPos|Portal"
 
 IFS=$'\n'
 CONTRACT_FILES=($(find ./contracts -type f))
@@ -17,5 +17,5 @@ do
 
     contract=$(basename "$file" .sol)
     echo "Generating storage layout of $contract"
-    forge inspect "$contract" storage --pretty > "$OUTPUT_PATH/$contract.md"
+    forge inspect "$contract" storage > "$OUTPUT_PATH/$contract.md"
 done

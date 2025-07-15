@@ -1,4 +1,7 @@
 {
+  "weavevmtestnet": {
+    "validators": []
+  },
   "alfajores": {
     "validators": [
       "0xace978aaa61d9ee44fe3ab147fd227e0e66b8909",

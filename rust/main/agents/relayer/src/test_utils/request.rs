@@ -10,6 +10,7 @@ pub async fn parse_body_to_json<T: DeserializeOwned>(body: Body) -> T {
         .to_bytes()
         .into_iter()
         .collect();
+
     let resp_json: T =
         serde_json::from_slice(&resp_body).expect("Failed to deserialize response body");
     resp_json

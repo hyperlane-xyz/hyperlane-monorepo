@@ -1,0 +1,18 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "Ae7UG9JQSicuQtRSgSmCF18sMB3fxp9j8M2RMtSA6XmD",
+    "token": "sctmY8fJucsJatwHz6P48RuWBBkdBMNmSMuBYrWFdrw"
+  },
+  "sonicsvm": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Adra LST",
+    "symbol": "adraSOL",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/4fa604eb35348d22710a3c6503091ace12d2d106/deployments/warp_routes/adraSOL/metadata.json",
+    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief",
+    "owner": "CnAXvfEf4GT9EKeFeticTXfqstzrow9dCFLepUuCfnFp"
+  }
+}

@@ -88,6 +88,16 @@ contract RateLimitedHookTest is Test {
         new RateLimitedHook(address(localMailbox), MAX_CAPACITY, address(0));
     }
 
+    // fuzz for other functions/invocations by any non-mailbox address
+    function testRateLimitedHook_onlyMailboxCanConsumeRateLimit(
+        bytes calldata data
+    ) external {
+        uint256 filledLevelBefore = rateLimitedHook.calculateCurrentLevel();
+        address(rateLimitedHook).call(data);
+        uint256 filledLevelAfter = rateLimitedHook.calculateCurrentLevel();
+        assertEq(filledLevelAfter, filledLevelBefore);
+    }
+
     function testRateLimitedHook_revertsIfCalledByNonMailbox(
         bytes calldata _message
     ) external {

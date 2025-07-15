@@ -50,6 +50,7 @@ export enum AgentSignerKeyType {
   Hex = 'hexKey',
   Node = 'node',
   Cosmos = 'cosmosKey',
+  Starknet = 'starkKey',
 }
 
 export enum AgentSealevelPriorityFeeOracleType {
@@ -295,12 +296,6 @@ export const AgentConfigSchema = z.object({
   defaultSigner: AgentSignerSchema.optional().describe(
     'Default signer to use for any chains that have not defined their own.',
   ),
-  defaultRpcConsensusType: z
-    .nativeEnum(RpcConsensusType)
-    .describe(
-      'The default consensus type to use for any chains that have not defined their own.',
-    )
-    .optional(),
   log: z
     .object({
       format: z
@@ -584,6 +579,5 @@ export function buildAgentConfig(
 
   return {
     chains: chainConfigs,
-    defaultRpcConsensusType: RpcConsensusType.Fallback,
   };
 }

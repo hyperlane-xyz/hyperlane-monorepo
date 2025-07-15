@@ -213,7 +213,7 @@ impl Mailbox for CosmosMailbox {
 
 impl CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
-    pub(crate) async fn nonce_at_block(&self, block_height: Option<u64>) -> ChainResult<u32> {
+    pub(crate) async fn nonce_at_block(&self, block_height: u64) -> ChainResult<u32> {
         let payload = payloads::mailbox::NonceRequest {
             nonce: general::EmptyStruct {},
         };
@@ -221,7 +221,7 @@ impl CosmosMailbox {
         let data = self
             .provider
             .grpc()
-            .wasm_query(GeneralMailboxQuery { mailbox: payload }, block_height)
+            .wasm_query(GeneralMailboxQuery { mailbox: payload }, Some(block_height))
             .await?;
 
         let response: payloads::mailbox::NonceResponse = serde_json::from_slice(&data)?;

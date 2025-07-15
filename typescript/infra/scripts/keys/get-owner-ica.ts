@@ -11,7 +11,11 @@ import {
 
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { icaOwnerChain } from '../../config/environments/mainnet3/owners.js';
-import { chainsToSkip } from '../../src/config/chain.js';
+import {
+  chainsToSkip,
+  legacyEthIcaRouter,
+  legacyIcaChains,
+} from '../../src/config/chain.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
@@ -86,20 +90,22 @@ async function main() {
   const results: Record<string, { ICA: Address; Deployed?: string }> = {};
   const settledResults = await Promise.allSettled(
     getOwnerIcaChains.map(async (chain) => {
+      const icaRouter = legacyIcaChains.includes(chain)
+        ? legacyEthIcaRouter
+        : ownerChainInterchainAccountRouter;
+
       try {
-        const account = await ica.getAccount(
-          chain,
-          ownerConfig,
-          ownerChainInterchainAccountRouter,
-        );
+        const account = await ica.getAccount(chain, {
+          ...ownerConfig,
+          localRouter: icaRouter,
+        });
         const result: { ICA: Address; Deployed?: string } = { ICA: account };
 
         if (deploy) {
-          const deployedAccount = await ica.deployAccount(
-            chain,
-            ownerConfig,
-            ownerChainInterchainAccountRouter,
-          );
+          const deployedAccount = await ica.deployAccount(chain, {
+            ...ownerConfig,
+            localRouter: icaRouter,
+          });
           result.Deployed = eqAddress(account, deployedAccount) ? '✅' : '❌';
           if (result.Deployed === '❌') {
             rootLogger.warn(

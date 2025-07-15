@@ -25,7 +25,8 @@ impl Debug for RuntimeMetrics {
 }
 
 impl RuntimeMetrics {
-    pub(crate) fn new(metrics: &CoreMetrics, task_monitor: TaskMonitor) -> Result<RuntimeMetrics> {
+    /// constructor
+    pub fn new(metrics: &CoreMetrics, task_monitor: TaskMonitor) -> Result<RuntimeMetrics> {
         let dropped_tasks = metrics
             .new_int_counter("tokio_dropped_tasks", RUNTIME_DROPPED_TASKS_HELP, &[])?
             .with_label_values(&[]);

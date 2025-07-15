@@ -20,7 +20,7 @@
         }
       ],
       "index": {
-        "from": 1,
+        "from": 0,
         "mode": "sequence"
       }
     },
@@ -44,7 +44,7 @@
         }
       ],
       "index": {
-        "from": 1,
+        "from": 0,
         "mode": "sequence"
       }
     }

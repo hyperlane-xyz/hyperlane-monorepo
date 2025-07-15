@@ -1,5 +1,6 @@
 {
   "extensions": ["ts"],
+  "file": ["src/tests/e2e-test.setup.ts"],
   "node-option": [
     "experimental-specifier-resolution=node",
     "loader=ts-node/esm"

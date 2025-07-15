@@ -6,7 +6,7 @@ import type { Address, ParsedMessage } from '@hyperlane-xyz/utils';
 import type { UpgradeConfig } from '../deploy/proxy.js';
 import type { CheckerViolation } from '../deploy/types.js';
 import { ProxyFactoryFactoriesSchema } from '../deploy/types.js';
-import { HookConfigSchema } from '../hook/types.js';
+import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
 import {
   DerivedIcaRouterConfigSchema,
   IcaRouterConfigSchema,
@@ -39,7 +39,6 @@ export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
   testRecipient: z.string(),
   timelockController: z.string().optional(),
   interchainAccountRouter: z.string(),
-  interchainAccountIsm: z.string(),
   merkleTreeHook: z.string().optional(),
   interchainGasPaymaster: z.string().optional(),
 });
@@ -51,7 +50,15 @@ export type CoreConfig = z.infer<typeof CoreConfigSchema> & {
   upgrade?: UpgradeConfig;
 };
 
-export type DerivedCoreConfig = z.infer<typeof DerivedCoreConfigSchema>;
+export type CoreConfigHookFieldKey = keyof Pick<
+  CoreConfig,
+  'requiredHook' | 'defaultHook'
+>;
+
+export type DerivedCoreConfig = z.infer<typeof DerivedCoreConfigSchema> & {
+  requiredHook: DerivedHookConfig;
+  defaultHook: DerivedHookConfig;
+};
 
 export enum CoreViolationType {
   Mailbox = 'Mailbox',

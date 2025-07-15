@@ -83,7 +83,7 @@ async function getReadOnlyScraperDb() {
   const credentialsUrl = await fetchLatestGCPSecret(
     SCRAPER_READ_ONLY_DB_SECRET_NAME,
   );
-  return postgres(credentialsUrl);
+  return postgres(credentialsUrl, { ssl: 'require' });
 }
 
 async function getDailyRelayerBurnScraperDB(

@@ -14,6 +14,7 @@ export enum GovernanceType {
   AbacusWorks = 'abacusWorks',
   Regular = 'regular',
   Irregular = 'irregular',
+  OUSDT = 'ousdt',
 }
 
 export enum Owner {

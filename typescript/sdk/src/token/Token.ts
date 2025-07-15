@@ -12,6 +12,7 @@ import {
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ChainName } from '../types.js';
+import { isStarknetFeeToken } from '../utils/starknet.js';
 
 import type { IToken, TokenArgs } from './IToken.js';
 import { TokenAmount } from './TokenAmount.js';
@@ -65,6 +66,12 @@ import {
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
+import {
+  StarknetHypCollateralAdapter,
+  StarknetHypFeeAdapter,
+  StarknetHypNativeAdapter,
+  StarknetHypSyntheticAdapter,
+} from './adapters/StarknetTokenAdapter.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 
 // Declaring the interface in addition to class allows
@@ -295,6 +302,22 @@ export class Token implements IToken {
     } else if (standard === TokenStandard.CosmNativeHypSynthetic) {
       return new CosmNativeHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
+      });
+    } else if (isStarknetFeeToken(chainName, addressOrDenom)) {
+      return new StarknetHypFeeAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.StarknetHypNative) {
+      return new StarknetHypNativeAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.StarknetHypSynthetic) {
+      return new StarknetHypSyntheticAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.StarknetHypCollateral) {
+      return new StarknetHypCollateralAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
       });
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);

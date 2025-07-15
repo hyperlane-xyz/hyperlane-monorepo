@@ -7,6 +7,8 @@ import {
   test1,
   test2,
   testCosmosChain,
+  testScale1,
+  testScale2,
   testSealevelChain,
   testVSXERC20,
   testXERC20,
@@ -35,6 +37,8 @@ describe('WarpCore', () => {
   const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
   let warpCore: WarpCore;
   let evmHypNative: Token;
+  let evmHypNativeScale1: Token;
+  let evmHypNativeScale2: Token;
   let evmHypSynthetic: Token;
   let evmHypXERC20: Token;
   let evmHypVSXERC20: Token;
@@ -68,6 +72,8 @@ describe('WarpCore', () => {
       evmHypXERC20,
       evmHypVSXERC20,
       evmHypXERC20Lockbox,
+      evmHypNativeScale1,
+      evmHypNativeScale2,
       sealevelHypSynthetic,
       cwHypCollateral,
       cw20,
@@ -198,6 +204,41 @@ describe('WarpCore', () => {
     await testCollateral(evmHypVSXERC20, testXERC20.name, true);
     await testCollateral(evmHypXERC20Lockbox, testXERC20.name, true);
     await testCollateral(evmHypNative, testXERC20Lockbox.name, false);
+
+    stubs.forEach((s) => s.restore());
+  });
+
+  it('Checks for destination collateral with scaling factors', async () => {
+    const stubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        getBalance: () => Promise.resolve(10n),
+        getBridgedSupply: () => Promise.resolve(10n),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
+      } as any),
+    );
+
+    const testCollateral = async (
+      token: Token,
+      destination: ChainName,
+      amount: bigint,
+      expectedResult: boolean,
+    ) => {
+      const result = await warpCore.isDestinationCollateralSufficient({
+        originTokenAmount: token.amount(amount),
+        destination,
+      });
+
+      expect(
+        result,
+        `collateral check for ${token.chainName} to ${destination}`,
+      ).to.equal(expectedResult);
+    };
+
+    await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
+    await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
+    await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
+    await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
+    await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
 
     stubs.forEach((s) => s.restore());
   });

@@ -461,6 +461,7 @@ mod test {
                     chunk_size: 1,
                     mode: IndexMode::Block,
                 },
+                ignore_reorg_reports: false,
             },
         )];
 

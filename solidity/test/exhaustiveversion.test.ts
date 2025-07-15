@@ -10,6 +10,7 @@ const EXCLUDE_PATTERNS: RegExp[] = [
   /Test/g,
   /Mock/g,
   /Versioned/g,
+  /Service/g,
   // also abstract
   /ECDSAServiceManagerBase/g,
   /ECDSAStakeRegistryStorage/g,

@@ -8,7 +8,11 @@ import {
   providers,
 } from 'ethers';
 import { Logger } from 'pino';
-import * as zk from 'zksync-ethers';
+import {
+  ContractFactory as ZKSyncContractFactory,
+  Provider as ZKSyncProvider,
+  Wallet as ZKSyncWallet,
+} from 'zksync-ethers';
 
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
@@ -34,8 +38,8 @@ import {
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = providers.Provider | zk.Provider;
-type Signer = EthersSigner | zk.Wallet;
+type Provider = providers.Provider | ZKSyncProvider;
+type Signer = EthersSigner | ZKSyncWallet;
 
 export interface MultiProviderOptions {
   logger?: Logger;
@@ -51,7 +55,7 @@ export interface MultiProviderOptions {
 export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   readonly providers: ChainMap<Provider>;
   readonly providerBuilder: ProviderBuilderFn<Provider>;
-  signers: ChainMap<zk.Wallet | Signer>;
+  signers: ChainMap<Signer>;
   useSharedSigner = false; // A single signer to be used for all chains
   readonly logger: Logger;
 
@@ -103,7 +107,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     if (testChains.includes(name)) {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
-        this.providers[name] = new zk.Provider('http://127.0.0.1:8011', 260);
+        this.providers[name] = new ZKSyncProvider('http://127.0.0.1:8011', 260);
       } else {
         this.providers[name] = new providers.JsonRpcProvider(
           'http://127.0.0.1:8545',
@@ -171,7 +175,15 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (signer.provider) return signer;
     // Auto-connect the signer for convenience
     const provider = this.tryGetProvider(chainName);
-    return provider ? signer.connect(provider as any) : signer;
+    if (!provider) return signer;
+
+    // Handle different signer/provider combinations with type assertions
+    if (signer instanceof ZKSyncWallet && provider instanceof ZKSyncProvider) {
+      return signer.connect(provider);
+    } else if (signer instanceof EthersSigner) {
+      return (signer as EthersSigner).connect(provider as providers.Provider);
+    }
+    return signer;
   }
 
   /**
@@ -324,7 +336,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Wait for deploy tx to be confirmed
    * @throws if chain's metadata or signer has not been set or tx fails
    */
-  async handleDeploy<F extends zk.ContractFactory | ContractFactory>(
+  async handleDeploy<F extends ZKSyncContractFactory | ContractFactory>(
     chainNameOrId: ChainNameOrId,
     factory: F,
     params: Parameters<F['deploy']>,
@@ -347,7 +359,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       }
 
       // Handle deployment for ZKSync protocol
-      const deployer = new ZKSyncDeployer(signer as zk.Wallet);
+      const deployer = new ZKSyncDeployer(signer as ZKSyncWallet);
 
       const estimatedGas = await deployer.estimateDeployGas(artifact, params);
 
@@ -376,6 +388,12 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       // wait for deploy tx to be confirmed
       await this.handleTx(chainNameOrId, contract.deployTransaction);
     }
+
+    this.logger.trace(
+      `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
+      { transaction: contract.deployTransaction },
+    );
+
     // return deployed contract
     return contract as Awaited<ReturnType<F['deploy']>>;
   }

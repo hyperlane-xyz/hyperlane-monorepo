@@ -98,6 +98,22 @@ export const testXERC20Lockbox: ChainMetadata = {
   name: 'testxerc20lockbox',
 };
 
+export const testScale1: ChainMetadata = {
+  ...test1,
+  chainId: 9913377,
+  domainId: 9913377,
+  displayName: 'Test Scale 1',
+  name: 'testscale1',
+};
+
+export const testScale2: ChainMetadata = {
+  ...test1,
+  chainId: 9913378,
+  domainId: 9913378,
+  displayName: 'Test Scale 2',
+  name: 'testscale2',
+};
+
 export const testChainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
@@ -143,6 +159,32 @@ export const testSealevelChain: ChainMetadata = {
   rpcUrls: [{ http: 'http://127.0.0.1:8899' }],
 };
 
+export const testStarknetChain: ChainMetadata = {
+  chainId: '0x534e5f5345504f4c4941',
+  domainId: 5854809,
+  name: 'starknetdevnet',
+  nativeToken: {
+    decimals: 18,
+    denom: '0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7',
+    name: 'Ether',
+    symbol: 'ETH',
+  },
+  protocol: ProtocolType.Starknet,
+  rpcUrls: [
+    {
+      http: 'http://127.0.0.1:5050',
+    },
+  ],
+  blockExplorers: [
+    {
+      apiUrl: 'https://sepolia.voyager.online/api',
+      family: ExplorerFamily.Voyager,
+      name: 'Starknet Sepolia Explorer',
+      url: 'https://sepolia.voyager.online',
+    },
+  ],
+};
+
 export const multiProtocolTestChainMetadata: ChainMap<ChainMetadata> = {
   ...testChainMetadata,
   testcosmos: testCosmosChain,
@@ -150,6 +192,9 @@ export const multiProtocolTestChainMetadata: ChainMap<ChainMetadata> = {
   testxerc20: testXERC20,
   testvsxerc20: testVSXERC20,
   testxerc20lockbox: testXERC20Lockbox,
+  starknetdevnet: testStarknetChain,
+  testscale1: testScale1,
+  testscale2: testScale2,
 };
 
 export const multiProtocolTestChains: Array<ChainName> = Object.keys(

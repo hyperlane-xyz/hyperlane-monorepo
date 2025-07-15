@@ -136,7 +136,7 @@ impl HyperlaneDbStore {
         let mut hashes_to_insert: Vec<&H512> = Vec::with_capacity(CHUNK_SIZE);
 
         for mut chunk in as_chunks::<(&H512, &mut (Option<i64>, i64))>(txns_to_fetch, CHUNK_SIZE) {
-            for (hash, (_, block_id)) in chunk.iter() {
+            for (hash, (_, block_id)) in chunk.iter().filter(|(hash, _)| !hash.is_zero()) {
                 let info = match self.provider.get_txn_by_hash(hash).await {
                     Ok(info) => info,
                     Err(e) => {

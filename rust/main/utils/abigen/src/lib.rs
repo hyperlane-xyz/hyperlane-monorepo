@@ -1,6 +1,8 @@
 #[cfg(feature = "fuels")]
 use fuels_code_gen::ProgramType;
 use std::collections::BTreeSet;
+#[cfg(feature = "starknet")]
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::Write;
@@ -12,6 +14,7 @@ use inflector::Inflector;
 pub enum BuildType {
     Ethers,
     Fuels,
+    Starknet,
 }
 
 /// A `build.rs` tool for building a directory of ABIs. This will parse the
@@ -124,6 +127,44 @@ pub fn generate_bindings(
             .expect("Could not write bindings to file");
 
         fmt_file(&output_file);
+    }
+    #[cfg(feature = "starknet")]
+    if build_type == BuildType::Starknet {
+        let mut aliases = HashMap::new();
+        aliases.insert(
+            String::from("openzeppelin::access::ownable::ownable::OwnableComponent::Event"),
+            String::from("OwnableCptEvent"),
+        );
+        aliases.insert(
+            String::from("openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event"),
+            String::from("UpgradeableCptEvent"),
+        );
+        aliases.insert(
+            String::from("hyperlane_starknet::contracts::client::mailboxclient_component::MailboxclientComponent::Event"),
+            String::from("MailboxclientCptEvent")
+        );
+
+        let abigen = cainome::rs::Abigen::new(contract_name, abi_source)
+            .with_types_aliases(aliases)
+            .with_execution_version(cainome::rs::ExecutionVersion::V3)
+            .with_derives(vec![
+                "Debug".to_owned(),
+                "PartialEq".to_owned(),
+                "serde::Serialize".to_owned(),
+                "serde::Deserialize".to_owned(),
+            ])
+            .with_contract_derives(vec![
+                "Debug".to_owned(),
+                "Clone".to_owned(),
+                "serde::Serialize".to_owned(),
+                "serde::Deserialize".to_owned(),
+            ]);
+
+        abigen
+            .generate()
+            .expect("Fail to generate bindings")
+            .write_to_file(output_file.to_str().expect("valid utf8 path"))
+            .expect("Fail to write bindings to file");
     }
 
     module_name

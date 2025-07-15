@@ -18,6 +18,12 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 1 * 10 ** 9, // 1 gwei
     },
   },
+  hyperliquidevmtestnet: {
+    blocks: {
+      confirmations: 1,
+      reorgPeriod: 5,
+    },
+  },
   kyvetestnet: {
     transactionOverrides: {
       gasPrice: '2.0',

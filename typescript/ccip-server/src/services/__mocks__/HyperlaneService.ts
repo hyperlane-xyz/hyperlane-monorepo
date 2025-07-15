@@ -1,4 +1,4 @@
-import { MessageTx } from '../explorerTypes';
+import { MessageTx } from '../explorerTypes.js';
 
 class HyperlaneService {
   async getOriginBlockByMessageId(_messageId: string): Promise<MessageTx> {

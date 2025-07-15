@@ -171,6 +171,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
       default_hook: igps.igps[0].id,
       required_hook: merkleTreeHooks.merkle_tree_hooks[0].id,
       new_owner: '',
+      renounce_ownership: false,
     });
     expect(mailboxTxResponse.code).to.equal(0);
 
@@ -184,6 +185,8 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     const interchainGas = await signer.query.warp.QuoteRemoteTransfer({
       id: token.id,
       destination_domain: remoteRouter.receiver_domain.toString(),
+      custom_hook_id: '',
+      custom_hook_metadata: '',
     });
 
     // ACT
@@ -311,6 +314,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
       token_id: tokenBefore.id,
       ism_id: '',
       new_owner: newOwner,
+      renounce_ownership: false,
     });
 
     // ASSERT

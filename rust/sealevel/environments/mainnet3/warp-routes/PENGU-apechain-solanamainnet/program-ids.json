@@ -1,0 +1,10 @@
+{
+  "apechain": {
+    "hex": "0x0000000000000000000000009eaf39a97d56119236a356225b339fe7383549b3",
+    "base58": "1111111111113DDwBZG7ckGNZKzZ1B76penkvDPp"
+  },
+  "solanamainnet": {
+    "hex": "0xa51f69e733636afcc8d2e1cf6983f89b200e339fc79cbab4ac402328c3b0e304",
+    "base58": "C7a43nYF9atxgJhfqoP2vc95exJcEQhvJqYbtCNkDf8f"
+  }
+}

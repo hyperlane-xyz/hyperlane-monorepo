@@ -265,6 +265,7 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
     const txResponse = await signer.setIgpOwner({
       igp_id: igpBefore.id,
       new_owner: newOwner,
+      renounce_ownership: false,
     });
 
     // ASSERT

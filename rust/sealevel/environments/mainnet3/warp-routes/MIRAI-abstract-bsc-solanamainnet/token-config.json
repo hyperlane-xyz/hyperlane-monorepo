@@ -1,0 +1,25 @@
+{
+  "abstract": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Project Mirai",
+    "symbol": "MIRAI",
+    "owner": "",
+    "foreignDeployment": "0xbCdA9Ae6A148Bc4fb411979fFA883c9D1DF08F43"
+  },
+  "bsc": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Project Mirai",
+    "symbol": "MIRAI",
+    "owner": "",
+    "foreignDeployment": "0xcb508877ffe5a085B2474641dD3B28F8Bc22A57c"
+  },
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "5evN2exivZXJfLaA1KhHfiJKWfwH8znqyH36w1SFz89Y",
+    "owner": "GpYhR9WY1i2V2jE7amN4RsSNSfzu4JeMkPEeWrCprFPS"
+  }
+}

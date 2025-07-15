@@ -9,6 +9,8 @@ use h_eth::TransactionOverrides;
 use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
 
+use hyperlane_starknet as h_starknet;
+
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
 
@@ -302,6 +304,34 @@ pub fn build_cosmos_native_connection_conf(
     }
 }
 
+fn build_starknet_connection_conf(
+    urls: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let native_token_address = chain
+        .chain(err)
+        .get_key("nativeToken")
+        .get_key("denom")
+        .parse_address_hash()
+        .end();
+
+    let Some(native_token_address) = native_token_address else {
+        err.push(
+            &chain.cwp + "nativeToken.denom",
+            eyre!("nativeToken denom required"),
+        );
+        return None;
+    };
+
+    Some(ChainConnectionConf::Starknet(h_starknet::ConnectionConf {
+        urls: urls.to_vec(),
+        native_token_address,
+        op_submission_config: operation_batch,
+    }))
+}
+
 fn build_sealevel_connection_conf(
     urls: &[Url],
     chain: &ValueParser,
@@ -522,6 +552,9 @@ pub fn build_connection_conf(
         }
         HyperlaneDomainProtocol::Cosmos => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        HyperlaneDomainProtocol::Starknet => {
+            build_starknet_connection_conf(rpcs, chain, err, operation_batch)
         }
         HyperlaneDomainProtocol::CosmosNative => {
             build_cosmos_native_connection_conf(rpcs, chain, err, operation_batch)

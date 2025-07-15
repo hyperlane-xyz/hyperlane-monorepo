@@ -5,9 +5,11 @@ import {
   ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
+  deepCopy,
   intersection,
   isAddressEvm,
   isCosmosIbcDenomAddress,
+  isObjEmpty,
   objFilter,
   objMap,
   promiseObjAll,
@@ -24,6 +26,7 @@ import { ChainMap } from '../types.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { gasOverhead } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
@@ -31,8 +34,10 @@ import {
   DerivedWarpRouteDeployConfig,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
+  OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isMovableCollateralTokenConfig,
 } from './types.js';
 
 /**
@@ -116,10 +121,8 @@ export async function expandWarpDeployConfig(params: {
     expandedOnChainWarpConfig,
   } = params;
 
-  const derivedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
-    multiProvider,
-    warpDeployConfig,
-  );
+  const derivedTokenMetadata: TokenMetadataMap =
+    await HypERC20Deployer.deriveTokenMetadata(multiProvider, warpDeployConfig);
 
   // If the token is on an EVM chain check if it is deployed as a proxy
   // to expand the proxy config too
@@ -146,7 +149,10 @@ export async function expandWarpDeployConfig(params: {
       const chainConfig: WarpRouteDeployConfigMailboxRequired[string] &
         Partial<HypTokenRouterVirtualConfig> = {
         // Default Expansion
-        ...derivedTokenMetadata,
+        name: derivedTokenMetadata.getName(chain),
+        symbol: derivedTokenMetadata.getSymbol(chain),
+        decimals: derivedTokenMetadata.getDecimals(chain),
+        scale: derivedTokenMetadata.getScale(chain),
         remoteRouters,
         destinationGas,
         hook: zeroAddress,
@@ -188,7 +194,9 @@ export async function expandWarpDeployConfig(params: {
       const isEVMChain =
         multiProvider.getProtocol(chain) === ProtocolType.Ethereum;
 
-      // Expand EVM warpDeployConfig virtual to the control states
+      // Expand EVM warpDeployConfig virtual to the control states (states that we expect)
+      // For contractVerificationStatus, all values should be 'verified'
+      // For ownerStatus, all values should be 'active or 'gnosisSafe'
       if (
         expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus &&
         multiProvider.getProtocol(chain) === ProtocolType.Ethereum
@@ -197,11 +205,37 @@ export async function expandWarpDeployConfig(params: {
         chainConfig.contractVerificationStatus = objMap(
           expandedOnChainWarpConfig[chain].contractVerificationStatus ?? {},
           (_, status) => {
-            // Skipped for local e2e testing
-            if (status === ContractVerificationStatus.Skipped)
-              return ContractVerificationStatus.Skipped;
+            switch (status) {
+              case ContractVerificationStatus.Skipped:
+              case ContractVerificationStatus.Verified:
+                return status; // Pass through the status so diffs will be shown
+              case ContractVerificationStatus.Unverified:
+              case ContractVerificationStatus.Error:
+                return ContractVerificationStatus.Verified;
+            }
+          },
+        );
+      }
 
-            return ContractVerificationStatus.Verified;
+      if (
+        expandedOnChainWarpConfig?.[chain]?.ownerStatus &&
+        multiProvider.getProtocol(chain) === ProtocolType.Ethereum
+      ) {
+        // For 'active' or 'gnosis-safe', we set their actual state as the control because they are both acceptable.
+        // For other cases, we expect 'active'
+        chainConfig.ownerStatus = objMap(
+          expandedOnChainWarpConfig[chain].ownerStatus ?? {},
+          (_, status) => {
+            switch (status) {
+              // Skipped for local e2e testing
+              case OwnerStatus.Skipped:
+              case OwnerStatus.Active:
+              case OwnerStatus.GnosisSafe:
+                return status; // Pass through the status so diffs will be shown
+              case OwnerStatus.Error:
+              case OwnerStatus.Inactive:
+                return OwnerStatus.Active;
+            }
           },
         );
       }
@@ -326,8 +360,22 @@ export function transformConfigToCheck(
     ),
   );
 
+  const clonedTokenConfig: HypTokenRouterConfig = deepCopy(filteredObj);
+
+  if (isMovableCollateralTokenConfig(clonedTokenConfig)) {
+    clonedTokenConfig.allowedRebalancers = clonedTokenConfig.allowedRebalancers
+      ?.length
+      ? clonedTokenConfig.allowedRebalancers
+      : undefined;
+    clonedTokenConfig.allowedRebalancingBridges = !isObjEmpty(
+      clonedTokenConfig.allowedRebalancingBridges ?? {},
+    )
+      ? clonedTokenConfig.allowedRebalancingBridges
+      : undefined;
+  }
+
   return sortArraysInObject(
-    transformObj(filteredObj, transformWarpDeployConfigToCheck),
+    transformObj(clonedTokenConfig, transformWarpDeployConfigToCheck),
     sortArraysInConfigToCheck,
   );
 }

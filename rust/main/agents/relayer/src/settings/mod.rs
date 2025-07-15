@@ -19,7 +19,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, U256};
 use itertools::Itertools;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
@@ -87,7 +87,7 @@ pub struct GasPaymentEnforcementConf {
 }
 
 /// Config for a GasPaymentEnforcementPolicy
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 pub enum GasPaymentEnforcementPolicy {
     /// No requirement - all messages are processed regardless of gas payment
     /// and regardless of whether a payment for the message was processed by the specified IGP.
@@ -120,6 +120,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
         raw: RawRelayerSettings,
         cwp: &ConfigPath,
         _filter: (),
+        agent_name: &str,
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
@@ -136,6 +137,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 relay_chain_names.as_ref(),
                 "Parsing base config",
+                agent_name.to_string(),
             )
             .take_config_err(&mut err);
 

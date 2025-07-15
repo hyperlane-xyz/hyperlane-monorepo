@@ -8,7 +8,7 @@ import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { DeployedOwnableConfig } from '../types.js';
 
-type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
+export type EthersLikeProvider = ethers.providers.Provider | ZKSyncProvider;
 
 export type UpgradeConfig = {
   timelock: {
@@ -38,11 +38,10 @@ export async function isInitialized(
   contract: Address,
 ): Promise<boolean> {
   // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
-  const storageValue = await provider.getStorageAt(contract, '0x0');
-  return (
-    storageValue ===
-    '0x00000000000000000000000000000000000000000000000000000000000000ff'
+  const storageValue = ethers.BigNumber.from(
+    await provider.getStorageAt(contract, '0x0'),
   );
+  return storageValue.eq(1) || storageValue.eq(255);
 }
 
 export async function proxyAdmin(
@@ -67,9 +66,13 @@ export function proxyConstructorArgs<C extends ethers.Contract>(
   implementation: C,
   proxyAdmin: string,
   initializeArgs?: Parameters<C['initialize']>,
+  initializeFnSignature = 'initialize',
 ): [string, string, string] {
   const initData = initializeArgs
-    ? implementation.interface.encodeFunctionData('initialize', initializeArgs)
+    ? implementation.interface.encodeFunctionData(
+        initializeFnSignature,
+        initializeArgs,
+      )
     : '0x';
   return [implementation.address, proxyAdmin, initData];
 }
@@ -131,4 +134,31 @@ export function proxyAdminUpdateTxs(
   }
 
   return transactions;
+}
+
+const requiredProxyAdminFunctionSelectors = [
+  'owner()',
+  'getProxyAdmin(address)',
+  'getProxyImplementation(address)',
+  'upgrade(address,address)',
+  'upgradeAndCall(address,address,bytes)',
+  'changeProxyAdmin(address,address)',
+].map((func) => ethers.utils.id(func).substring(2, 10));
+
+/**
+ * Check if contract bytecode matches ProxyAdmin patterns
+ * This is more efficient than function calls but less reliable
+ * @param provider The provider to use
+ * @param address The contract address
+ * @returns true if the bytecode suggests it's a ProxyAdmin
+ */
+export async function isProxyAdminFromBytecode(
+  provider: EthersLikeProvider,
+  address: Address,
+): Promise<boolean> {
+  const code = await provider.getCode(address);
+  if (code === '0x') return false;
+  return requiredProxyAdminFunctionSelectors.every((selector) =>
+    code.includes(selector),
+  );
 }

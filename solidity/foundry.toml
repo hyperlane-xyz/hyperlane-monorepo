@@ -7,19 +7,15 @@ test = 'test'
 cache_path = 'forge-cache'
 allow_paths = ["../node_modules"]
 solc_version = '0.8.22'
-evm_version= 'paris'
+evm_version = 'paris'
 optimizer = true
 optimizer_runs = 999_999
 fs_permissions = [
-    { access = "read", path = "./script/avs/"},
+    { access = "read", path = "./script/avs/" },
     { access = "read", path = "../vectors" },
-    { access = "write", path = "./fixtures" }
+    { access = "write", path = "./fixtures" },
 ]
-ignored_warnings_from = [
-    'lib',
-    'test',
-    'contracts/test'
-]
+ignored_warnings_from = ['lib', 'test', 'contracts/test']
 
 [profile.ci]
 verbosity = 4
@@ -27,7 +23,7 @@ verbosity = 4
 [rpc_endpoints]
 mainnet = "https://eth.merkle.io"
 optimism = "https://mainnet.optimism.io	"
-polygon = "https://rpc.ankr.com/polygon"
+base = "https://mainnet.base.org"
 
 [fuzz]
 runs = 50

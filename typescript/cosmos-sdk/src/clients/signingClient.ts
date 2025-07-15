@@ -29,6 +29,10 @@ import {
   MsgCreateMerkleRootMultisigIsmEncodeObject,
   MsgCreateMessageIdMultisigIsmEncodeObject,
   MsgCreateNoopIsmEncodeObject,
+  MsgCreateRoutingIsmEncodeObject,
+  MsgRemoveRoutingIsmDomainEncodeObject,
+  MsgSetRoutingIsmDomainEncodeObject,
+  MsgUpdateRoutingIsmOwnerEncodeObject,
 } from '../hyperlane/interchain_security/messages.js';
 import { setupInterchainSecurityExtension } from '../hyperlane/interchain_security/query.js';
 import {
@@ -255,6 +259,66 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
       value: R.MsgAnnounceValidator.proto.converter.create({
         ...value,
         creator: this.account.address,
+      }),
+    };
+
+    return this.submitTx(msg, options);
+  }
+
+  public async createRoutingIsm(
+    value: Omit<isTx.MsgCreateRoutingIsm, 'creator'>,
+    options?: TxOptions,
+  ): Promise<TxResponse<isTx.MsgCreateRoutingIsmResponse>> {
+    const msg: MsgCreateRoutingIsmEncodeObject = {
+      typeUrl: R.MsgCreateRoutingIsm.proto.type,
+      value: R.MsgCreateRoutingIsm.proto.converter.create({
+        ...value,
+        creator: this.account.address,
+      }),
+    };
+
+    return this.submitTx(msg, options);
+  }
+
+  public async setRoutingIsmDomain(
+    value: Omit<isTx.MsgSetRoutingIsmDomain, 'owner'>,
+    options?: TxOptions,
+  ): Promise<TxResponse<isTx.MsgSetRoutingIsmDomainResponse>> {
+    const msg: MsgSetRoutingIsmDomainEncodeObject = {
+      typeUrl: R.MsgSetRoutingIsmDomain.proto.type,
+      value: R.MsgSetRoutingIsmDomain.proto.converter.create({
+        ...value,
+        owner: this.account.address,
+      }),
+    };
+
+    return this.submitTx(msg, options);
+  }
+
+  public async removeRoutingIsmDomain(
+    value: Omit<isTx.MsgRemoveRoutingIsmDomain, 'owner'>,
+    options?: TxOptions,
+  ): Promise<TxResponse<isTx.MsgRemoveRoutingIsmDomainResponse>> {
+    const msg: MsgRemoveRoutingIsmDomainEncodeObject = {
+      typeUrl: R.MsgRemoveRoutingIsmDomain.proto.type,
+      value: R.MsgRemoveRoutingIsmDomain.proto.converter.create({
+        ...value,
+        owner: this.account.address,
+      }),
+    };
+
+    return this.submitTx(msg, options);
+  }
+
+  public async updateRoutingIsmOwner(
+    value: Omit<isTx.MsgUpdateRoutingIsmOwner, 'owner'>,
+    options?: TxOptions,
+  ): Promise<TxResponse<isTx.MsgUpdateRoutingIsmOwnerResponse>> {
+    const msg: MsgUpdateRoutingIsmOwnerEncodeObject = {
+      typeUrl: R.MsgUpdateRoutingIsmOwner.proto.type,
+      value: R.MsgUpdateRoutingIsmOwner.proto.converter.create({
+        ...value,
+        owner: this.account.address,
       }),
     };
 

@@ -22,10 +22,6 @@ describe('Agent config', () => {
 
   it('Should generate a new agent config', () => {
     const result = buildAgentConfig(...args);
-    expect(Object.keys(result)).to.deep.equal([
-      'chains',
-      'defaultRpcConsensusType',
-    ]);
     expect(result.chains[TestChainName.test1].mailbox).to.equal('0xmailbox');
     expect(result.chains[TestChainName.test1].interchainGasPaymaster).to.equal(
       '0xgas',

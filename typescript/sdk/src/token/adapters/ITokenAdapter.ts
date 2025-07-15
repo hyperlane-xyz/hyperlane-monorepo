@@ -14,6 +14,7 @@ export interface TransferParams {
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
   interchainGas?: InterchainGasQuote;
+  customHook?: Address;
 }
 
 export interface InterchainGasQuote {
@@ -44,6 +45,26 @@ export interface ITokenAdapter<Tx> {
   populateTransferTx(params: TransferParams): Promise<Tx>;
 }
 
+export interface IMovableCollateralRouterAdapter<Tx> extends ITokenAdapter<Tx> {
+  isRebalancer(address: Address): Promise<boolean>;
+  isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean>;
+  getAllowedDestination(domain: Domain): Promise<Address>;
+  getRebalanceQuotes(
+    bridge: Address,
+    domain: Domain,
+    recipient: Address,
+    amount: Numberish,
+    isWarp: boolean,
+  ): Promise<InterchainGasQuote[]>;
+
+  populateRebalanceTx(
+    domain: Domain,
+    amount: Numberish,
+    bridge: Address,
+    quotes: InterchainGasQuote[],
+  ): Promise<Tx>;
+}
+
 export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getDomains(): Promise<Domain[]>;
   getRouterAddress(domain: Domain): Promise<Buffer>;
@@ -53,6 +74,7 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   quoteTransferRemoteGas(
     destination: Domain,
     sender?: Address,
+    customHook?: Address,
   ): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }

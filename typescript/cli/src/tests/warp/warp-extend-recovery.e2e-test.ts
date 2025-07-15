@@ -22,6 +22,7 @@ import {
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
+  WARP_DEPLOY_2_ID,
   deployOrUseExistingCore,
   extendWarpConfig,
   getCombinedWarpRoutePath,
@@ -33,15 +34,13 @@ import { hyperlaneWarpDeploy, readWarpConfig } from '../commands/warp.js';
 describe('hyperlane warp apply recovery extension tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let chain2Addresses: ChainAddresses = {};
+  let chain3Addresses: ChainAddresses = {};
 
   before(async function () {
-    await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
-    chain2Addresses = await deployOrUseExistingCore(
-      CHAIN_NAME_3,
-      CORE_CONFIG_PATH,
-      ANVIL_KEY,
-    );
+    [, chain3Addresses] = await Promise.all([
+      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+    ]);
 
     // Create a new warp config using the example
     const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
@@ -52,7 +51,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
   });
 
   beforeEach(async function () {
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
+    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
   });
 
   it('should recover and re-enroll routers after direct contract-level unenrollment through TokenRouter interface', async () => {
@@ -69,7 +68,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: {
         decimals: 18,
-        mailbox: chain2Addresses!.mailbox,
+        mailbox: chain3Addresses!.mailbox,
         name: 'Ether',
         owner: new Wallet(ANVIL_KEY).address,
         symbol: 'ETH',
@@ -119,7 +118,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: {
         decimals: 18,
-        mailbox: chain2Addresses!.mailbox,
+        mailbox: chain3Addresses!.mailbox,
         name: 'Ether',
         owner: new Wallet(ANVIL_KEY).address,
         symbol: 'ETH',
@@ -147,7 +146,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       warpConfigPath,
       configToExtend,
       combinedWarpCorePath,
-    } = await setupIncompleteWarpRouteExtension(chain2Addresses);
+    } = await setupIncompleteWarpRouteExtension(chain3Addresses);
 
     // Verify initial state - neither chain should be enrolled in the other
     const initialConfig2 = await readWarpConfig(
@@ -221,7 +220,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       warpConfigPath,
       configToExtend,
       combinedWarpCorePath,
-    } = await setupIncompleteWarpRouteExtension(chain2Addresses);
+    } = await setupIncompleteWarpRouteExtension(chain3Addresses);
 
     // Verify initial state - neither chain should be enrolled in the other
     const initialConfig2 = await readWarpConfig(
@@ -295,7 +294,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       warpConfigPath,
       configToExtend,
       combinedWarpCorePath,
-    } = await setupIncompleteWarpRouteExtension(chain2Addresses);
+    } = await setupIncompleteWarpRouteExtension(chain3Addresses);
 
     // Verify initial state - gas values should not be set
     const initialConfig2 = await readWarpConfig(

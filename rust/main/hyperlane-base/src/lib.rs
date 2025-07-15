@@ -24,7 +24,6 @@ pub use metrics::*;
 
 /// Hyperlane server utils
 pub mod server;
-pub use server::*;
 
 mod contract_sync;
 pub use contract_sync::*;
@@ -37,3 +36,6 @@ pub use types::*;
 
 #[cfg(feature = "oneline-eyre")]
 pub mod oneline_eyre;
+
+/// code related to testing
+pub mod tests;

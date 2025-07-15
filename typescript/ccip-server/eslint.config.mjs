@@ -12,6 +12,11 @@ export default [
     },
   },
   {
-    ignores: ['**/__mocks__/*', '**/tests/*'],
+    ignores: [
+      '**/__mocks__/*',
+      '**/tests/*',
+      'src/**/*.js',
+      'src/generated/**',
+    ],
   },
 ];

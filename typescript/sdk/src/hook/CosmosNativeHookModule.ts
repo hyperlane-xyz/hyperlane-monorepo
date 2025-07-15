@@ -8,6 +8,7 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -15,6 +16,7 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -43,24 +45,24 @@ export class CosmosNativeHookModule extends HyperlaneModule<
   });
   protected readonly reader: CosmosNativeHookReader;
 
-  // Adding these to reduce how often we need to grab from MultiProvider.
+  // Adding these to reduce how often we need to grab from ChainMetadataManager.
   public readonly chain: ChainName;
   public readonly chainId: ChainId;
   public readonly domainId: Domain;
 
   constructor(
-    protected readonly multiProvider: MultiProvider,
+    protected readonly metadataManager: ChainMetadataManager,
     params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
     protected readonly signer: SigningHyperlaneModuleClient,
   ) {
     params.config = HookConfigSchema.parse(params.config);
     super(params);
 
-    this.reader = new CosmosNativeHookReader(multiProvider, signer);
+    this.reader = new CosmosNativeHookReader(metadataManager, signer);
 
-    this.chain = multiProvider.getChainName(this.args.chain);
-    this.chainId = multiProvider.getChainId(this.chain);
-    this.domainId = multiProvider.getDomainId(this.chain);
+    this.chain = metadataManager.getChainName(this.args.chain);
+    this.chainId = metadataManager.getChainId(this.chain);
+    this.domainId = metadataManager.getDomainId(this.chain);
   }
 
   public async read(): Promise<HookConfig> {
@@ -156,7 +158,7 @@ export class CosmosNativeHookModule extends HyperlaneModule<
   }): Promise<Address> {
     this.logger.debug('Deploying IGP as hook...');
 
-    const { nativeToken } = this.multiProvider.getChainMetadata(this.chain);
+    const { nativeToken } = this.metadataManager.getChainMetadata(this.chain);
 
     assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
 
@@ -165,7 +167,7 @@ export class CosmosNativeHookModule extends HyperlaneModule<
     });
 
     for (const [remote, c] of Object.entries(config.oracleConfig)) {
-      const remoteDomain = this.multiProvider.tryGetDomainId(remote);
+      const remoteDomain = this.metadataManager.tryGetDomainId(remote);
       if (remoteDomain === null) {
         this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
         continue;
@@ -184,10 +186,11 @@ export class CosmosNativeHookModule extends HyperlaneModule<
       });
     }
 
-    if (config.owner && this.signer.account.address !== config.owner) {
+    if (!eqAddress(this.signer.account.address, config.owner)) {
       await this.signer.setIgpOwner({
         igp_id: igp.id,
         new_owner: config.owner,
+        renounce_ownership: !config.owner, // if owner is empty we renounce the ownership
       });
     }
 

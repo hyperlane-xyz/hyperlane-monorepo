@@ -1,0 +1,8 @@
+basefork:
+  submitter:
+    type: file
+    filepath: './generated/transactions/base_arbitrum_combined.json' # filepath to combined transactions array
+arbitrumfork:
+  submitter:
+    type: file
+    filepath: './generated/transactions/base_arbitrum_combined.json' # filepath to combined transactions array

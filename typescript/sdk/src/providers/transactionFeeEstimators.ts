@@ -22,6 +22,8 @@ import {
   ProviderType,
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
+  StarknetJsProvider,
+  StarknetJsTransaction,
   TypedProvider,
   TypedTransaction,
   ViemProvider,
@@ -326,9 +328,28 @@ export function estimateTransactionFee({
       sender,
       senderPubKey,
     });
+  } else if (
+    transaction.type === ProviderType.Starknet &&
+    provider.type === ProviderType.Starknet
+  ) {
+    return estimateTransactionFeeStarknet({ transaction, provider, sender });
   } else {
     throw new Error(
       `Unsupported transaction type ${transaction.type} or provider type ${provider.type} for gas estimation`,
     );
   }
+}
+
+// Starknet does not support gas estimation without starknet account
+// TODO: Figure out a way to inject starknet account
+export async function estimateTransactionFeeStarknet({
+  transaction: _transaction,
+  provider: _provider,
+  sender: _sender,
+}: {
+  transaction: StarknetJsTransaction;
+  provider: StarknetJsProvider;
+  sender: Address;
+}): Promise<TransactionFeeEstimate> {
+  return { gasUnits: 0, gasPrice: 0, fee: 0 };
 }

@@ -369,3 +369,31 @@ function iamConditionsEqual(
   }
   return a && b && a.title === b.title && a.expression === b.expression;
 }
+
+async function checkDockerTagExists({
+  repo = 'abacus-labs-dev',
+  image,
+  tag,
+}: {
+  repo?: string;
+  image: string;
+  tag: string;
+}): Promise<boolean> {
+  const url = `https://gcr.io/v2/${repo}/${image}/manifests/${tag}`;
+  const res = await fetch(url, { method: 'HEAD' });
+  return res.status === 200;
+}
+
+export async function checkAgentImageExists(tag: string) {
+  return checkDockerTagExists({
+    image: 'hyperlane-agent',
+    tag,
+  });
+}
+
+export async function checkMonorepoImageExists(tag: string) {
+  return checkDockerTagExists({
+    image: 'hyperlane-monorepo',
+    tag,
+  });
+}

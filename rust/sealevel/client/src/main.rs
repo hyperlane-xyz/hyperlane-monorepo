@@ -21,7 +21,9 @@ use solana_sdk::{
 
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::{H160, H256};
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_connection_client::{
+    gas_router::GasRouterConfig, router::RemoteRouterConfig,
+};
 use hyperlane_sealevel_igp::{
     accounts::{InterchainGasPaymasterType, OverheadIgpAccount},
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
@@ -46,7 +48,10 @@ use hyperlane_sealevel_token_collateral::{
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
-    instruction::{Instruction as HtInstruction, TransferRemote as HtTransferRemote},
+    instruction::{
+        enroll_remote_routers_instruction, set_destination_gas_configs,
+        Instruction as HtInstruction, TransferRemote as HtTransferRemote,
+    },
 };
 use hyperlane_sealevel_token_native::hyperlane_token_native_collateral_pda_seeds;
 use hyperlane_sealevel_validator_announce::{
@@ -68,6 +73,7 @@ mod r#core;
 mod helloworld;
 mod igp;
 mod multisig_ism;
+mod registry;
 mod router;
 mod serde;
 mod squads;
@@ -149,7 +155,7 @@ pub(crate) struct WarpRouteDeploy {
     #[arg(long)]
     token_config_file: PathBuf,
     #[arg(long)]
-    chain_config_file: PathBuf,
+    registry: PathBuf,
     #[arg(long)]
     ata_payer_funding_amount: Option<u64>,
 }
@@ -296,6 +302,7 @@ enum TokenSubCmd {
     Query(TokenQuery),
     TransferRemote(TokenTransferRemote),
     EnrollRemoteRouter(TokenEnrollRemoteRouter),
+    SetDestinationGas(TokenSetDestinationGas),
     TransferOwnership(TransferOwnership),
     SetInterchainSecurityModule(SetInterchainSecurityModule),
     Igp(Igp),
@@ -335,6 +342,14 @@ struct TokenEnrollRemoteRouter {
     program_id: Pubkey,
     domain: u32,
     router: H256,
+}
+
+#[derive(Args)]
+struct TokenSetDestinationGas {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    domain: u32,
+    gas: u64,
 }
 
 #[derive(Args)]
@@ -559,7 +574,7 @@ struct ConfigureIgpArgs {
     #[arg(long)]
     gas_oracle_config_file: PathBuf,
     #[arg(long)]
-    chain_config_file: PathBuf,
+    registry: PathBuf,
     #[arg(long)]
     account_salt: Option<H256>,
 }
@@ -632,6 +647,8 @@ struct MultisigIsmMessageIdDeploy {
     chain: String,
     #[arg(long)]
     context: String,
+    #[arg(long)]
+    registry: PathBuf,
 }
 
 #[derive(Args)]
@@ -641,7 +658,7 @@ struct MultisigIsmMessageIdConfigure {
     #[arg(long)]
     multisig_config_file: PathBuf,
     #[arg(long)]
-    chain_config_file: PathBuf,
+    registry: PathBuf,
 }
 
 #[derive(Args)]
@@ -691,7 +708,7 @@ pub(crate) struct HelloWorldDeploy {
     #[arg(long)]
     config_file: PathBuf,
     #[arg(long)]
-    chain_config_file: PathBuf,
+    registry: PathBuf,
     #[arg(long)]
     context: String,
 }
@@ -1217,30 +1234,45 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 data: ixn.encode().unwrap(),
                 accounts,
             };
-            let tx_result = ctx.new_txn().add(xfer_instruction).send(&[
-                &*ctx.payer_signer(),
-                &sender,
-                &unique_message_account_keypair,
-            ]);
+            let tx_result = ctx.new_txn().add(xfer_instruction).send(
+                &[
+                    ctx.payer_signer().as_deref(),
+                    Some(&sender),
+                    Some(&unique_message_account_keypair),
+                ],
+                &ctx.payer_pubkey,
+            );
             // Print the output so it can be used in e2e tests
             println!("{:?}", tx_result);
         }
         TokenSubCmd::EnrollRemoteRouter(enroll) => {
-            let enroll_instruction = HtInstruction::EnrollRemoteRouter(RemoteRouterConfig {
-                domain: enroll.domain,
-                router: enroll.router.into(),
-            });
-            let (token_account, _token_bump) =
-                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &enroll.program_id);
+            let instruction = enroll_remote_routers_instruction(
+                enroll.program_id,
+                ctx.payer_pubkey,
+                vec![RemoteRouterConfig {
+                    domain: enroll.domain,
+                    router: enroll.router.into(),
+                }],
+            )
+            .expect("Should build instruction correctly");
 
-            let instruction = Instruction {
-                program_id: enroll.program_id,
-                data: enroll_instruction.encode().unwrap(),
-                accounts: vec![
-                    AccountMeta::new(token_account, false),
-                    AccountMeta::new_readonly(ctx.payer_pubkey, true),
-                ],
-            };
+            ctx.new_txn().add(instruction).send_with_payer();
+        }
+        TokenSubCmd::SetDestinationGas(TokenSetDestinationGas {
+            domain,
+            gas,
+            program_id,
+        }) => {
+            let instruction = set_destination_gas_configs(
+                program_id,
+                ctx.payer_pubkey,
+                vec![GasRouterConfig {
+                    domain,
+                    gas: Some(gas),
+                }],
+            )
+            .expect("Failed to build set remote gas instruction");
+
             ctx.new_txn().add(instruction).send_with_payer();
         }
         TokenSubCmd::TransferOwnership(transfer) => {
@@ -1261,12 +1293,12 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
         }
         TokenSubCmd::SetInterchainSecurityModule(set_ism) => {
             let instruction =
-                hyperlane_sealevel_token_lib::instruction::set_interchain_security_module_instruction(
-                    set_ism.program_id,
-                    ctx.payer_pubkey,
-                    set_ism.ism
-                )
-                .unwrap();
+                    hyperlane_sealevel_token_lib::instruction::set_interchain_security_module_instruction(
+                        set_ism.program_id,
+                        ctx.payer_pubkey,
+                        set_ism.ism
+                    )
+                    .unwrap();
 
             ctx.new_txn()
                 .add_with_description(instruction, format!("Set ISM to {:?}", set_ism.ism))

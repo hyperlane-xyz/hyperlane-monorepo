@@ -24,12 +24,13 @@ interface IPostDispatchHook {
         ID_AUTH_ISM,
         PAUSABLE,
         PROTOCOL_FEE,
-        LAYER_ZERO_V1,
+        DEPRECATED,
         RATE_LIMITED,
         ARB_L2_TO_L1,
         OP_L2_TO_L1,
         MAILBOX_DEFAULT_HOOK,
-        AMOUNT_ROUTING
+        AMOUNT_ROUTING,
+        CCTP
     }
 
     /**

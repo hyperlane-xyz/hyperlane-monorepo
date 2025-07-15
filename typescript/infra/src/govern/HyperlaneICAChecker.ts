@@ -1,13 +1,24 @@
 import {
   ChainMap,
   ChainName,
+  ConnectionClientViolationType,
   InterchainAccountChecker,
   RouterViolation,
   RouterViolationType,
 } from '@hyperlane-xyz/sdk';
-import { AddressBytes32, addressToBytes32 } from '@hyperlane-xyz/utils';
+import {
+  AddressBytes32,
+  addressToBytes32,
+  eqAddress,
+} from '@hyperlane-xyz/utils';
 
 export class HyperlaneICAChecker extends InterchainAccountChecker {
+  async checkMailboxClient(chain: ChainName): Promise<void> {
+    const router = this.app.router(this.app.getContracts(chain));
+    const config = this.configMap[chain];
+    await this.checkMailbox(chain, router, config);
+  }
+
   /*
    * Check that the Ethereum router is enrolled correctly,
    * and that remote chains have the correct router enrolled.
@@ -57,7 +68,10 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
   async checkChain(chain: ChainName): Promise<void> {
     await this.checkMailboxClient(chain);
     await this.checkEthRouterEnrollment(chain);
-    await this.checkProxiedContracts(chain);
-    await this.checkOwnership(chain);
+    await super.checkOwnership(
+      chain,
+      this.configMap[chain].owner,
+      this.configMap[chain].ownerOverrides,
+    );
   }
 }

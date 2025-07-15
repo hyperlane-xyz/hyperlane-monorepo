@@ -1,9 +1,12 @@
-use serde::Serialize;
-use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::utils::{fmt_address_for_domain, fmt_domain};
-use crate::{Decode, Encode, HyperlaneProtocolError, H256};
+use serde::{Deserialize, Serialize};
+use sha3::{digest::Update, Digest, Keccak256};
+
+use crate::{
+    utils::{fmt_address_for_domain, fmt_domain},
+    Decode, Encode, HyperlaneProtocolError, H256,
+};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
 
@@ -22,7 +25,7 @@ impl From<&HyperlaneMessage> for RawHyperlaneMessage {
 }
 
 /// A full Hyperlane message between chains
-#[derive(Clone, Eq, PartialEq, Hash, Serialize)]
+#[derive(Clone, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub struct HyperlaneMessage {
     /// 1   Hyperlane version number
     pub version: u8,
@@ -59,15 +62,13 @@ impl Debug for HyperlaneMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "HyperlaneMessage {{ id: {:?}, version: {}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {}, body: 0x{} }}",
+            "HyperlaneMessage {{ id: {:?}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {} }}",
             self.id(),
-            self.version,
             self.nonce,
             fmt_domain(self.origin),
             fmt_address_for_domain(self.origin, self.sender),
             fmt_domain(self.destination),
             fmt_address_for_domain(self.destination, self.recipient),
-            hex::encode(&self.body)
         )
     }
 }

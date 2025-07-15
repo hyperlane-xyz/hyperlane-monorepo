@@ -119,3 +119,23 @@ See [`rust/README.md`](rust/README.md)
 We use [changesets](https://github.com/changesets/changesets) to release to NPM. You can use the `release` script in `package.json` to publish.
 
 For an alpha or beta version, follow the directions [here](https://github.com/changesets/changesets/blob/main/docs/prereleases.md).
+
+### Manually Triggering Docker Builds in CI
+
+To manually trigger Agent or Monorepo Docker builds in CI, you can use the workflows provided in the repository. Here are the steps to do so:
+
+1. **Navigate to the workflow:**
+
+   - For agents, go to the [Rust Docker Workflow](https://github.com/hyperlane-xyz/hyperlane-monorepo/actions/workflows/rust-docker.yml).
+   - For the monorepo, go to the [Monorepo Docker Workflow](https://github.com/hyperlane-xyz/hyperlane-monorepo/actions/workflows/monorepo-docker.yml).
+
+2. **Trigger the workflow:**
+
+   - On the workflow page, click on the "Run workflow" button.
+   - You may need to select a branch and decide whether to trigger builds for the `arm64` platform.
+
+3. **Wait for the build to complete:**
+   - Once triggered, monitor the progress of the build by opening the new workflow run.
+     - You may have to refresh the page for it to appear.
+   - Check the logs for any errors or issues during the build process.
+   - Wait for the `build-and-push-to-gcr` step to complete successfully before using the new image.

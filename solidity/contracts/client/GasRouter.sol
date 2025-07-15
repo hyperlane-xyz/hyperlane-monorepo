@@ -21,7 +21,7 @@ abstract contract GasRouter is Router {
     event GasSet(uint32 domain, uint256 gas);
 
     // ============ Mutable Storage ============
-    mapping(uint32 => uint256) public destinationGas;
+    mapping(uint32 destinationDomain => uint256 gasLimit) public destinationGas;
 
     struct GasRouterConfig {
         uint32 domain;
@@ -58,7 +58,7 @@ abstract contract GasRouter is Router {
      */
     function quoteGasPayment(
         uint32 _destinationDomain
-    ) external view virtual returns (uint256) {
+    ) public view virtual returns (uint256) {
         return _GasRouter_quoteDispatch(_destinationDomain, "", address(hook));
     }
 

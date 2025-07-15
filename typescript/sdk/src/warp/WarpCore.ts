@@ -157,6 +157,7 @@ export class WarpCore {
       const quote = await hypAdapter.quoteTransferRemoteGas(
         destinationDomainId,
         sender,
+        originToken.igpTokenAddressOrDenom,
       );
       gasAmount = BigInt(quote.amount);
       gasAddressOrDenom = quote.addressOrDenom;
@@ -226,6 +227,11 @@ export class WarpCore {
       recipient,
       interchainFee,
     });
+
+    // Starknet does not support gas estimation without starknet account
+    if (originToken.protocol === ProtocolType.Starknet) {
+      return { gasUnits: 0n, gasPrice: 0n, fee: 0n };
+    }
 
     // Typically the transfers require a single transaction
     if (txs.length === 1) {
@@ -383,6 +389,45 @@ export class WarpCore {
       });
     }
 
+    // if the interchain fee is of protocol starknet we also have
+    // to approve the transfer of this fee token
+    if (interchainFee.token.protocol === ProtocolType.Starknet) {
+      const interchainFeeAdapter = interchainFee.token.getAdapter(
+        this.multiProvider,
+      );
+      const isRequired = await interchainFeeAdapter.isApproveRequired(
+        sender,
+        token.addressOrDenom,
+        interchainFee.amount,
+      );
+      this.logger.debug(
+        `Approval is${isRequired ? '' : ' not'} required for interchain fee of ${
+          interchainFee.token.symbol
+        }`,
+      );
+
+      if (isRequired) {
+        const txCategory = WarpTxCategory.Approval;
+
+        this.logger.info(
+          `${txCategory} required for transfer of ${interchainFee.token.symbol}`,
+        );
+        const approveTxReq = await interchainFeeAdapter.populateApproveTx({
+          weiAmountOrId: interchainFee.amount,
+          recipient: token.addressOrDenom,
+        });
+        this.logger.debug(
+          `${txCategory} tx for ${interchainFee.token.symbol} populated`,
+        );
+        const approveTx = {
+          category: txCategory,
+          type: providerType,
+          transaction: approveTxReq,
+        } as WarpTypedTransaction;
+        transactions.push(approveTx);
+      }
+    }
+
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
       destination: destinationDomainId,
@@ -392,6 +437,7 @@ export class WarpCore {
         amount: interchainFee.amount,
         addressOrDenom: interchainFee.token.addressOrDenom,
       },
+      customHook: token.igpTokenAddressOrDenom,
     });
     this.logger.debug(`Remote transfer tx for ${token.symbol} populated`);
 
@@ -486,6 +532,23 @@ export class WarpCore {
     else return originToken.amount(0);
   }
 
+  async getTokenCollateral(token: IToken): Promise<bigint> {
+    if (
+      token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+      token.standard === TokenStandard.EvmHypVSXERC20Lockbox
+    ) {
+      const adapter = token.getAdapter(
+        this.multiProvider,
+      ) as EvmHypXERC20LockboxAdapter;
+      const tokenCollateral = await adapter.getBridgedSupply();
+      return tokenCollateral;
+    } else {
+      const adapter = token.getAdapter(this.multiProvider);
+      const tokenCollateral = await adapter.getBalance(token.addressOrDenom);
+      return tokenCollateral;
+    }
+  }
+
   /**
    * Checks if destination chain's collateral is sufficient to cover the transfer
    */
@@ -513,28 +576,30 @@ export class WarpCore {
       return true;
     }
 
-    let destinationBalance: bigint = 0n;
-
-    if (
-      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox ||
-      destinationToken.standard === TokenStandard.EvmHypVSXERC20Lockbox
-    ) {
-      const adapter = destinationToken.getAdapter(
-        this.multiProvider,
-      ) as EvmHypXERC20LockboxAdapter;
-      destinationBalance = await adapter.getBridgedSupply();
-    } else {
-      const adapter = destinationToken.getAdapter(this.multiProvider);
-      destinationBalance = await adapter.getBalance(
-        destinationToken.addressOrDenom,
-      );
-    }
+    const destinationBalance = await this.getTokenCollateral(destinationToken);
 
     const destinationBalanceInOriginDecimals = convertDecimalsToIntegerString(
       destinationToken.decimals,
       originToken.decimals,
       destinationBalance.toString(),
     );
+
+    // check for scaling factor
+    if (
+      originToken.scale &&
+      destinationToken.scale &&
+      originToken.scale !== destinationToken.scale
+    ) {
+      const precisionFactor = 100_000;
+      const scaledAmount =
+        amount *
+        BigInt((originToken.scale * precisionFactor) / destinationToken.scale);
+
+      return (
+        BigInt(destinationBalanceInOriginDecimals) * BigInt(precisionFactor) >=
+        scaledAmount
+      );
+    }
 
     const isSufficient = BigInt(destinationBalanceInOriginDecimals) >= amount;
     this.logger.debug(

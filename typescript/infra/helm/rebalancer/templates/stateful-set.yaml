@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "hyperlane.fullname" . }}
+  labels: &metadata_labels
+    {{- include "hyperlane.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "hyperlane.fullname" . }}
+  replicas: 1
+  selector:
+    matchLabels: *metadata_labels
+  template:
+    metadata:
+      labels: *metadata_labels
+      annotations:
+        prometheus.io/port: "9090"
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+{{- include "hyperlane.rebalancer.container" . | indent 6 }}
+

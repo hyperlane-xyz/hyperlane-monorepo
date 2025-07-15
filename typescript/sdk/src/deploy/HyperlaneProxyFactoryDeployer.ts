@@ -2,6 +2,7 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { attachContracts } from '../contracts/contracts.js';
 import { HyperlaneContracts } from '../contracts/types.js';
+import { isStaticDeploymentSupported } from '../ism/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -11,7 +12,6 @@ import {
   proxyFactoryFactories,
   proxyFactoryImplementations,
 } from './contracts.js';
-import { shouldSkipStaticDeployment } from './protocolDeploymentConfig.js';
 import { createDefaultProxyFactoryFactories } from './proxyFactoryUtils.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 
@@ -39,7 +39,7 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
     const technicalStack =
       this.multiProvider.getChainMetadata(chain).technicalStack;
     // Check if we should skip static address set deployment
-    if (shouldSkipStaticDeployment(technicalStack)) {
+    if (!isStaticDeploymentSupported(technicalStack)) {
       const addresses = createDefaultProxyFactoryFactories();
       return attachContracts(addresses, this.factories);
     }
@@ -48,14 +48,19 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
       this.factories,
     ) as (keyof ProxyFactoryFactories)[]) {
       const factory = await this.deployContract(chain, factoryName, []);
-      this.addVerificationArtifacts(chain, [
-        {
+      try {
+        const artifact = {
           name: proxyFactoryImplementations[factoryName],
           address: await factory.implementation(),
           constructorArguments: '',
           isProxy: true,
-        },
-      ]);
+        };
+        await this.verifyContract(chain, artifact);
+        this.addVerificationArtifacts(chain, [artifact]);
+      } catch (error) {
+        this.logger.warn(`Failed to verify ${factoryName} on ${chain}:`, error);
+        // Continue deployment even if verification fails
+      }
       contracts[factoryName] = factory;
     }
     return contracts as HyperlaneContracts<ProxyFactoryFactories>;

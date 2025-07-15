@@ -1,0 +1,20 @@
+# The transactions to be sent on polygonamoy will be sent from
+# basesepolia and submitted using a SAFE multisig wallet which
+# is the owner of the ICA account on the remote chain. The transaction
+# will then be relayed by a relayer on the destination chain and executed by the
+# Interchain Account derived from the combination of the owner address, the origin chain
+# and the ica router on the origin chain. See https://docs.hyperlane.xyz/docs/applications/interchain-account
+polygonamoy:
+  submitter:
+    type: interchainAccount
+    # The origin chain for the ICA transactions
+    chain: basesepolia
+    # The destination chain for the transactions
+    destinationChain: polygonamoy
+    # The owner of the remote ICA account
+    owner: '0x32e02dDB233958834fcB5E93b11E254F8D1EAd1b'
+    internalSubmitter:
+      type: gnosisSafeTxBuilder
+      # The Gnosis Safe address. It must be equal to the owner field as
+      # the Safe is the owner of ICA account on the remote chain
+      safeAddress: '0x32e02dDB233958834fcB5E93b11E254F8D1EAd1b'

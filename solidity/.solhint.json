@@ -11,7 +11,8 @@
     "func-name-mixedcase": "off",
     "reason-string": ["warn", { "maxLength": 64 }],
     "prettier/prettier": "error",
-    "gas-custom-errors": "off"
+    "gas-custom-errors": "off",
+    "named-parameters-mapping": "error"
   },
   "plugins": ["prettier"]
 }

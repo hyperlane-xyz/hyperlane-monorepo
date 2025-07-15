@@ -5,7 +5,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
+import {PackageVersioned} from "./PackageVersioned.sol";
 import {TREE_DEPTH} from "./libs/Merkle.sol";
 import {CheckpointLib, Checkpoint} from "./libs/CheckpointLib.sol";
 import {CheckpointFraudProofs} from "./CheckpointFraudProofs.sol";
@@ -35,7 +35,8 @@ contract AttributeCheckpointFraud is Ownable, PackageVersioned {
     CheckpointFraudProofs public immutable checkpointFraudProofs =
         new CheckpointFraudProofs();
 
-    mapping(address => bool) public merkleTreeWhitelist;
+    mapping(address merkleTree => bool isWhitelisted)
+        public merkleTreeWhitelist;
 
     mapping(address signer => mapping(bytes32 digest => Attribution))
         internal _attributions;

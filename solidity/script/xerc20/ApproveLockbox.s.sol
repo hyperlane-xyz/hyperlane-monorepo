@@ -12,8 +12,7 @@ import {ProxyAdmin} from "contracts/upgrade/ProxyAdmin.sol";
 
 import {HypXERC20Lockbox} from "contracts/token/extensions/HypXERC20Lockbox.sol";
 import {IXERC20Lockbox} from "contracts/token/interfaces/IXERC20Lockbox.sol";
-import {IXERC20} from "contracts/token/interfaces/IXERC20.sol";
-import {IERC20} from "contracts/token/interfaces/IXERC20.sol";
+import {IXERC20, IERC20} from "contracts/token/interfaces/IXERC20.sol";
 
 // source .env.<CHAIN>
 // forge script ApproveLockbox.s.sol --broadcast --rpc-url localhost:XXXX

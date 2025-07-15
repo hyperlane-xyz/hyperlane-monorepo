@@ -5,7 +5,7 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256,
 };
 
-use crate::msg::gas_payment::GasPaymentPolicy;
+use crate::{msg::gas_payment::GasPaymentPolicy, settings::GasPaymentEnforcementPolicy};
 
 #[derive(Debug)]
 pub struct GasPaymentPolicyNone;
@@ -20,6 +20,10 @@ impl GasPaymentPolicy for GasPaymentPolicyNone {
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
         Ok(Some(tx_cost_estimate.gas_limit))
+    }
+
+    fn enforcement_type(&self) -> GasPaymentEnforcementPolicy {
+        GasPaymentEnforcementPolicy::None
     }
 }
 
