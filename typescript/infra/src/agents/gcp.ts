@@ -218,7 +218,7 @@ export class AgentGCPKey extends CloudAgentKey {
   }
 
   async getSigner(
-    provider?: ethers.providers.Provider | ZkProvider,
+    provider: ethers.providers.Provider | ZkProvider,
   ): Promise<ethers.Signer | ZkWallet> {
     this.logger.debug('Getting signer');
     if (!this.remoteKey.fetched) {
