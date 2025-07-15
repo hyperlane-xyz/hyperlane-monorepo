@@ -950,23 +950,41 @@ export class GovernTransactionReader {
       const remoteChainName = this.multiProvider.getChainName(domain);
       const expectedRouter = this.chainAddresses[remoteChainName][routerName];
       const routerToBeEnrolled = addresses[index];
-      const matchesExpectedRouter =
-        eqAddress(expectedRouter, bytes32ToAddress(routerToBeEnrolled)) &&
-        // Poor man's check that the 12 byte padding is all zeroes
-        addressToBytes32(bytes32ToAddress(routerToBeEnrolled)) ===
-          routerToBeEnrolled;
+      const isAddressMatch = eqAddress(
+        expectedRouter,
+        bytes32ToAddress(routerToBeEnrolled),
+      );
+      const isPaddingCorrect = eqAddress(
+        addressToBytes32(bytes32ToAddress(routerToBeEnrolled)),
+        routerToBeEnrolled,
+      );
 
       let insight = '✅ matches expected router from artifacts';
-      if (!matchesExpectedRouter) {
-        insight = `❌ fatal mismatch, expected ${expectedRouter}`;
-        this.errors.push({
-          chain: chain,
-          remoteDomain: domain,
-          remoteChain: remoteChainName,
-          router: routerToBeEnrolled,
-          expected: expectedRouter,
-          info: 'Incorrect router getting enrolled',
-        });
+      if (!isAddressMatch || !isPaddingCorrect) {
+        if (!isAddressMatch) {
+          insight = `❌ fatal mismatch, expected ${expectedRouter}`;
+          this.errors.push({
+            chain: chain,
+            remoteDomain: domain,
+            remoteChain: remoteChainName,
+            router: routerToBeEnrolled,
+            expected: expectedRouter,
+            info: 'Incorrect router address getting enrolled',
+          });
+        }
+
+        if (!isPaddingCorrect) {
+          // This is a subtle but important check: the address must be properly padded to 32 bytes
+          insight = `❌ fatal mismatch, expected ${addressToBytes32(bytes32ToAddress(routerToBeEnrolled))}`;
+          this.errors.push({
+            chain: chain,
+            remoteDomain: domain,
+            remoteChain: remoteChainName,
+            router: routerToBeEnrolled,
+            expected: addressToBytes32(bytes32ToAddress(routerToBeEnrolled)),
+            info: 'Router address is not properly padded to 32 bytes (should be 12 leading zero bytes)',
+          });
+        }
       }
 
       return {
@@ -1231,7 +1249,7 @@ export class GovernTransactionReader {
         expected: expectedRemoteIcaAddress,
         info: 'Incorrect destination ICA in ICA call',
       });
-      remoteIcaInsight = `❌ fatal mismatch, expected ${remoteIcaAddress}`;
+      remoteIcaInsight = `❌ fatal mismatch, expected ${expectedRemoteIcaAddress}`;
     }
 
     const decodedCalls = await Promise.all(
