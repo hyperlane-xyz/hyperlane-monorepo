@@ -27,6 +27,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { awIcasV2 } from '../../config/environments/mainnet3/governance/ica/aw2.js';
+import { regularIcasV2 } from '../../config/environments/mainnet3/governance/ica/regular2.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { legacyEthIcaRouter, legacyIcaChainRouters } from '../config/chain.js';
 import {
@@ -384,8 +386,21 @@ export abstract class HyperlaneAppGovernor<
     let accountConfig = this.interchainAccount.knownAccounts[account.address];
 
     if (!accountConfig) {
-      const { ownerType, governanceType: icaGovernanceType } =
-        await determineGovernanceType(chain, account.address);
+      let ownerType: Owner | null;
+      let icaGovernanceType: GovernanceType;
+
+      // Temporary hack to handle Abacus Works ICA v2 til we migrate everything
+      if (eqAddress(account.address, awIcasV2[chain])) {
+        ownerType = Owner.ICA;
+        icaGovernanceType = GovernanceType.AbacusWorks;
+      } else if (eqAddress(account.address, regularIcasV2[chain])) {
+        ownerType = Owner.ICA;
+        icaGovernanceType = GovernanceType.Regular;
+      } else {
+        ({ ownerType, governanceType: icaGovernanceType } =
+          await determineGovernanceType(chain, account.address));
+      }
+
       // verify that we expect it to be an ICA
       assert(ownerType === Owner.ICA, 'ownerType should be ICA');
       // get the set of safes for this governance type
