@@ -1125,15 +1125,16 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             amount
         );
 
+        uint256 tokenQuote = quote[1].amount;
         vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+        tokenOrigin.approve(address(tbOrigin), tokenQuote);
 
         vm.expectCall(
             address(tokenMessengerOrigin),
             abi.encodeCall(
                 ITokenMessengerV2.depositForBurn,
                 (
-                    amount,
+                    tokenQuote,
                     cctpDestination,
                     user.addressToBytes32(),
                     address(tokenOrigin),
