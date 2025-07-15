@@ -37,7 +37,7 @@ contract MockCircleTokenMessenger is ITokenMessengerV1, ITokenMessengerV2 {
         depositForBurn(_amount, 0, 0, _burnToken);
     }
 
-    function messageBodyVersion() external override returns (uint32) {
+    function messageBodyVersion() external view override returns (uint32) {
         return version;
     }
 

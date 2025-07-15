@@ -7,19 +7,15 @@ test = 'test'
 cache_path = 'forge-cache'
 allow_paths = ["../node_modules"]
 solc_version = '0.8.22'
-evm_version= 'paris'
+evm_version = 'paris'
 optimizer = true
 optimizer_runs = 999_999
 fs_permissions = [
-    { access = "read", path = "./script/avs/"},
+    { access = "read", path = "./script/avs/" },
     { access = "read", path = "../vectors" },
-    { access = "write", path = "./fixtures" }
+    { access = "write", path = "./fixtures" },
 ]
-ignored_warnings_from = [
-    'lib',
-    'test',
-    'contracts/test'
-]
+ignored_warnings_from = ['lib', 'test', 'contracts/test']
 
 [profile.ci]
 verbosity = 4

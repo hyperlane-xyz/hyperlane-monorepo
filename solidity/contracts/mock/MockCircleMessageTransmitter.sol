@@ -11,7 +11,8 @@ contract MockCircleMessageTransmitter is
 {
     mapping(bytes32 => bool) processedNonces;
     MockToken token;
-    uint32 public version;
+    uint32 public override version;
+    uint32 public override localDomain = 0;
 
     constructor(MockToken _token) {
         token = _token;
@@ -28,7 +29,7 @@ contract MockCircleMessageTransmitter is
     function receiveMessage(
         bytes memory,
         bytes calldata
-    ) external pure returns (bool success) {
+    ) external pure override returns (bool success) {
         success = true;
     }
 
@@ -48,16 +49,14 @@ contract MockCircleMessageTransmitter is
         token.mint(_recipient, _amount);
     }
 
-    function usedNonces(bytes32 _nonceId) external view returns (uint256) {
+    function usedNonces(
+        bytes32 _nonceId
+    ) external view override returns (uint256) {
         return processedNonces[_nonceId] ? 1 : 0;
     }
 
     function setVersion(uint32 _version) external {
         version = _version;
-    }
-
-    function localDomain() external view returns (uint32) {
-        return 0;
     }
 
     function replaceMessage(

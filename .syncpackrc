@@ -1,3 +1,11 @@
 {
-  "dependencyTypes": ["prod", "dev"]
+  "dependencyTypes": ["prod", "dev"],
+  "versionGroups": [
+    {
+      "label": "express v4 in ccip-server",
+      "packages": ["@hyperlane-xyz/ccip-server"],
+      "dependencies": ["express", "@types/express"],
+      "dependencyTypes": ["prod", "dev"]
+    }
+  ]
 }

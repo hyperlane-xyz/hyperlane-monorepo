@@ -57,6 +57,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bepolia: true,
     bsctestnet: true,
     carrchaintestnet: true,
+    celestiatestnet: true,
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
@@ -82,7 +83,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet2: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -108,6 +108,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bepolia: true,
     bsctestnet: true,
     carrchaintestnet: true,
+    celestiatestnet: true,
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
@@ -133,7 +134,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet2: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -159,6 +159,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bepolia: true,
     bsctestnet: true,
     carrchaintestnet: true,
+    celestiatestnet: true,
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: false,
@@ -184,7 +185,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    rometestnet2: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -411,6 +411,12 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -420,7 +426,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cbf884d-20250613-190354',
+      tag: '373482a-20250707-140617',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -429,7 +435,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cbf884d-20250613-190354',
+      tag: '373482a-20250707-140617',
     },
     resources: scraperResources,
   },
@@ -444,12 +450,18 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cbf884d-20250613-190354',
+      tag: '373482a-20250707-140617',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -488,6 +500,12 @@ const neutron: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },

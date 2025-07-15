@@ -230,7 +230,7 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[instrument(fields(domain=domain.name()), skip(indexer, store, stored_logs_metric, indexed_height_metric, liveness_metric))]
+    #[instrument(fields(domain=domain.name()), skip(indexer, store, cursor, broadcast_sender, stored_logs_metric, indexed_height_metric, liveness_metric))]
     async fn cursor_indexer_task(
         domain: HyperlaneDomain,
         indexer: I,

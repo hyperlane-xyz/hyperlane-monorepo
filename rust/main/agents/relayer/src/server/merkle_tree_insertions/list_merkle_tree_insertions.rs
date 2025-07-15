@@ -1,34 +1,15 @@
-use std::collections::HashMap;
-
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    routing::get,
-    Router,
 };
-use derive_new::new;
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::{
-    db::HyperlaneRocksDB,
-    server::{
-        merkle_tree_insertions::{fetch_merkle_tree_insertions, TreeInsertion},
-        utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
-    },
+use hyperlane_base::server::{
+    merkle_tree_insertions::{fetch_merkle_tree_insertions, TreeInsertion},
+    utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
 };
 
-#[derive(Clone, Debug, new)]
-pub struct ServerState {
-    pub dbs: HashMap<u32, HyperlaneRocksDB>,
-}
-
-impl ServerState {
-    pub fn router(self) -> Router {
-        Router::new()
-            .route("/merkle_tree_insertions", get(handler))
-            .with_state(self)
-    }
-}
+use crate::server::merkle_tree_insertions::ServerState;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
@@ -93,13 +74,16 @@ pub async fn handler(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use axum::{
         body::{self, Body},
         http::{header::CONTENT_TYPE, Request, Response, StatusCode},
+        Router,
     };
     use tower::ServiceExt;
 
-    use hyperlane_base::db::{HyperlaneDb, DB};
+    use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB, DB};
     use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, MerkleTreeInsertion, H256};
 
     use crate::test_utils::request::parse_body_to_json;

@@ -4,13 +4,13 @@ import { Logger } from 'pino';
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
   ChainName,
-  ChainSubmissionStrategy,
   MultiProtocolProvider,
   MultiProvider,
   ProtocolMap,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
+import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 import { ENV } from '../../../utils/env.js';
 
 import {
@@ -35,7 +35,7 @@ export class MultiProtocolSignerManager {
   public readonly logger: Logger;
 
   constructor(
-    protected readonly submissionStrategy: ChainSubmissionStrategy,
+    protected readonly submissionStrategy: ExtendedChainSubmissionStrategy,
     protected readonly chains: ChainName[],
     protected readonly multiProvider: MultiProvider,
     protected readonly multiProtocolProvider: MultiProtocolProvider,
