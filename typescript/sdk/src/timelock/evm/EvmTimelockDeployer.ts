@@ -18,6 +18,7 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
 > {
   constructor(
     multiProvider: MultiProvider,
+    concurrentDeploy?: boolean,
     contractVerifier?: ContractVerifier,
     logger?: Logger,
   ) {
@@ -30,6 +31,7 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
         logger:
           logger ?? rootLogger.child({ module: EvmTimelockDeployer.name }),
         contractVerifier,
+        concurrentDeploy,
       },
     );
   }
