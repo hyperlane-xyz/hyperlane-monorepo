@@ -8,6 +8,7 @@ import {
   assert,
   convertDecimalsToIntegerString,
   convertToProtocolAddress,
+  convertToScaledAmount,
   isValidAddress,
   isZeroishAddress,
   rootLogger,
@@ -591,9 +592,12 @@ export class WarpCore {
       originToken.scale !== destinationToken.scale
     ) {
       const precisionFactor = 100_000;
-      const scaledAmount =
-        amount *
-        BigInt((originToken.scale * precisionFactor) / destinationToken.scale);
+      const scaledAmount = convertToScaledAmount({
+        fromScale: originToken.scale,
+        toScale: destinationToken.scale,
+        amount,
+        precisionFactor,
+      });
 
       return (
         BigInt(destinationBalanceInOriginDecimals) * BigInt(precisionFactor) >=

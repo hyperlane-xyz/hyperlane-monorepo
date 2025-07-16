@@ -9458,10 +9458,6 @@
       "validatorAnnounce": "0x466b330C2e360c0214A9Da2428415298f720883E",
       "index": {
         "from": 200948
-      },
-      "transactionOverrides": {
-        "maxFeePerGas": 1000007,
-        "maxPriorityFeePerGas": 1000007
       }
     },
     "katana": {
