@@ -47,6 +47,9 @@ pub async fn is_safe_against_reorg_n_confs(
     let tx = rest_client
         .get_tx_by_id_slim(tx_id, containing_block_hash_hint)
         .await?;
+    if !tx.is_accepted.unwrap_or(false) {
+        return Ok(false);
+    }
     let accepting_blue_score = tx
         .accepting_block_blue_score
         .ok_or(eyre::eyre!("Accepting block blue score is missing"))?;
