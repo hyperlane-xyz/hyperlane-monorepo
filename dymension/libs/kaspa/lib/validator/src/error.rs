@@ -11,8 +11,8 @@ pub enum ValidationError {
     #[error("HL message: mismatched domain or recipient")]
     IncorrectHLMessage,
 
-    #[error("Immature transaction: {tx_id}")]
-    ImmatureTransaction { tx_id: String },
+    #[error("Transaction is not safe against reorg: {tx_id}")]
+    NotSafeAgainstReorg { tx_id: String },
 
     #[error("Message is for another bridge: {message_id}")]
     MessageWrongBridge { message_id: String },

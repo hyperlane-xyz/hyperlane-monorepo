@@ -124,6 +124,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     if resources.must_val_stuff().toggles.deposit_enabled
         && !validate_new_deposit(
             &resources.must_api(),
+            &resources.must_rest_client(),
             &deposits,
             &resources.must_wallet().net,
             &resources.must_escrow().addr,
@@ -178,14 +179,9 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         .toggles
         .withdrawal_confirmation_enabled
     {
-        validate_confirmed_withdrawals(
-            &confirmation_fxg,
-            resources.must_rest_client(),
-            &resources.must_wallet().api(),
-            resources.must_wallet().net.network_id,
-        )
-        .await
-        .map_err(|e| AppError(Report::from(e)))?;
+        validate_confirmed_withdrawals(&confirmation_fxg, resources.must_rest_client())
+            .await
+            .map_err(|e| AppError(Report::from(e)))?;
         info!("Validator: confirmed withdrawal is valid");
     }
 

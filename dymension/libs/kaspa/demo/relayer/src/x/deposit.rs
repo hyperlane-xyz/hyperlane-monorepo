@@ -195,10 +195,16 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let deposit_cache = DepositCache::new();
     let address = escrow_address.clone();
 
+    let client_clone = client.clone();
     let handle: JoinHandle<Deposit> = tokio::spawn(async move {
-        return deposit_loop(&deposit_cache, &client, address.address_to_string(), tx_id)
-            .await
-            .expect("deposit loop");
+        return deposit_loop(
+            &deposit_cache,
+            &client_clone,
+            address.address_to_string(),
+            tx_id,
+        )
+        .await
+        .expect("deposit loop");
     });
 
     let result: Deposit = handle.await?;
@@ -219,8 +225,15 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     );
 
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result =
-        validate_new_deposit_inner(&w.api(), &deposit_recv, &w.net, &escrow_address, true).await?;
+    let validation_result = validate_new_deposit_inner(
+        &w.api(),
+        &client.client,
+        &deposit_recv,
+        &w.net,
+        &escrow_address,
+        true,
+    )
+    .await?;
 
     if validation_result {
         println!("Deposit validated");

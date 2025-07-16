@@ -18,6 +18,7 @@ use api_rs::apis::kaspa_addresses_api::{
     get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
     GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
 };
+use api_rs::apis::kaspa_network_info_api::health_state_info_health_get as get_health;
 use api_rs::apis::kaspa_transactions_api::{
     get_transaction_transactions_transaction_id_get as get_tx_by_id,
     GetTransactionTransactionsTransactionIdGetParams as get_tx_by_id_params,
@@ -195,6 +196,38 @@ impl HttpClient {
         )
         .await?;
         Ok(tx)
+    }
+
+    pub async fn get_tx_by_id_slim(
+        &self,
+        tx_id: &str,
+        block_hash_hint: Option<String>,
+    ) -> Result<TxModel> {
+        info!("Querying kaspa tx by id slim: {:?}", tx_id);
+        let c = self.get_config();
+
+        let tx = get_tx_by_id(
+            &c,
+            get_tx_by_id_params {
+                transaction_id: tx_id.to_string(),
+                block_hash: block_hash_hint,
+                inputs: Some(false),
+                outputs: Some(false),
+                resolve_previous_outpoints: Some("no".to_string()),
+            },
+        )
+        .await?;
+        Ok(tx)
+    }
+
+    pub async fn get_blue_score(&self) -> Result<i64> {
+        let c = self.get_config();
+        let res = get_health(&c).await?;
+        let blue_score = res
+            .database
+            .blue_score
+            .ok_or(eyre::eyre!("Blue score is missing"))?;
+        Ok(blue_score)
     }
 }
 

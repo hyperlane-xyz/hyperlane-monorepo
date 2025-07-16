@@ -334,7 +334,7 @@ async fn get_utxo_to_spend(
         .await
         .map_err(|e| eyre::eyre!("Get escrow UTXOs: {}", e))?;
 
-    let block = kaspa_rpc
+    let b = kaspa_rpc
         .get_block_dag_info()
         .await
         .map_err(|e| eyre::eyre!("Get block DAG info: {}", e))?;
@@ -344,7 +344,7 @@ async fn get_utxo_to_spend(
     utxos.retain(|u| {
         finality::is_mature(
             u.utxo_entry.block_daa_score,
-            block.virtual_daa_score,
+            b.virtual_daa_score,
             network_id,
         )
     });
