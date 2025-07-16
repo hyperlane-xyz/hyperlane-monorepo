@@ -1,5 +1,37 @@
 # @hyperlane-xyz/core
 
+## 10.0.0-beta.0
+
+### Major Changes
+
+- dd16e3df4: Add LP interface to collateral routers
+
+  The `balanceOf` function has been removed from `TokenRouter` to remove ambiguity between `LpCollateralRouter.balanceOf`.
+
+  To migrate, use the new `TokenRouter.token()` to get an `IERC20` or `IERC721` compliant address that you can call `balanceOf` on.
+
+### Minor Changes
+
+- 2c6506735: Implement support for CCTP v2 fast transfers
+- 799751606: Extend CCTP TokenBridge with GMP support via hook
+- e0c69e255: Implement token fees on FungibleTokenRouter
+
+  Removes `metadata` from return type of internal `TokenRouter._transferFromSender` hook
+
+  To append `metadata` to `TokenMessage`, override the `TokenRouter._beforeDispatch` hook
+
+- 737ea2b35: feat: emit event on protocol fee payment
+- e0c69e255: Adds fees to FungibleTokenRouter
+
+### Patch Changes
+
+- 205bcae75: Rebalancer covers all fees associated with rebalancing
+- f8da8cd40: Remove ValueTransferBridge and use ITokenBridge. ValueTransferBridge is a deprecated name for the interface.
+- 826e83741: Fix TokenBridgeCCTP.verify burn message sender enforcement
+- 9a43cdca9: Remove absolute imports. Fixes compilation for users who import from files under `solidity/contracts`.
+- Updated dependencies [451f3f6c3]
+  - @hyperlane-xyz/utils@15.0.0-beta.0
+
 ## 9.0.0
 
 ### Major Changes

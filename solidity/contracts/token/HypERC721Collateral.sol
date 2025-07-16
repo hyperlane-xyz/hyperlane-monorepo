@@ -34,30 +34,17 @@ contract HypERC721Collateral is TokenRouter {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
-    function ownerOf(uint256 _tokenId) external view returns (address) {
-        return IERC721(wrappedToken).ownerOf(_tokenId);
-    }
-
-    /**
-     * @dev Returns the balance of `_account` for `wrappedToken`.
-     * @inheritdoc TokenRouter
-     */
-    function balanceOf(
-        address _account
-    ) external view override returns (uint256) {
-        return IERC721(wrappedToken).balanceOf(_account);
+    function token() public view virtual override returns (address) {
+        return address(wrappedToken);
     }
 
     /**
      * @dev Transfers `_tokenId` of `wrappedToken` from `msg.sender` to this contract.
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(
-        uint256 _tokenId
-    ) internal virtual override returns (bytes memory) {
+    function _transferFromSender(uint256 _tokenId) internal virtual override {
         // safeTransferFrom not used here because recipient is this contract
         wrappedToken.transferFrom(msg.sender, address(this), _tokenId);
-        return bytes(""); // no metadata
     }
 
     /**
@@ -66,8 +53,7 @@ contract HypERC721Collateral is TokenRouter {
      */
     function _transferTo(
         address _recipient,
-        uint256 _tokenId,
-        bytes calldata // no metadata
+        uint256 _tokenId
     ) internal override {
         wrappedToken.safeTransferFrom(address(this), _recipient, _tokenId);
     }

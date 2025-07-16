@@ -93,10 +93,8 @@ contract HypERC4626 is HypERC20 {
 
     // @inheritdoc HypERC20
     // @dev Amount specified by the user is in assets, but the internal accounting is in shares
-    function _transferFromSender(
-        uint256 _amount
-    ) internal virtual override returns (bytes memory) {
-        return HypERC20._transferFromSender(assetsToShares(_amount));
+    function _transferFromSender(uint256 _amount) internal virtual override {
+        HypERC20._transferFromSender(assetsToShares(_amount));
     }
 
     // @inheritdoc FungibleTokenRouter

@@ -1,5 +1,37 @@
 # @hyperlane-xyz/sdk
 
+## 15.0.0-beta.0
+
+### Minor Changes
+
+- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additonal updates to types related to these changes.
+
+### Patch Changes
+
+- 23861b70a: Don't `handleTx` for zksync, since the zksync deployer itself will handle it.
+- e0c69e255: Implement token fees on FungibleTokenRouter
+
+  Removes `metadata` from return type of internal `TokenRouter._transferFromSender` hook
+
+  To append `metadata` to `TokenMessage`, override the `TokenRouter._beforeDispatch` hook
+
+- d16a853c0: Update paradex AW validator address.
+- Updated dependencies [205bcae75]
+- Updated dependencies [f8da8cd40]
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [2c6506735]
+- Updated dependencies [799751606]
+- Updated dependencies [826e83741]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [737ea2b35]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [dd16e3df4]
+- Updated dependencies [9a43cdca9]
+  - @hyperlane-xyz/core@10.0.0-beta.0
+  - @hyperlane-xyz/utils@15.0.0-beta.0
+  - @hyperlane-xyz/starknet-core@15.0.0-beta.0
+  - @hyperlane-xyz/cosmos-sdk@15.0.0-beta.0
+
 ## 14.4.0
 
 ### Minor Changes

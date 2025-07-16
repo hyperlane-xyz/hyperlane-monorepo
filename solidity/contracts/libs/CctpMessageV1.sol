@@ -40,7 +40,7 @@ import {TypedMemView} from "./TypedMemView.sol";
  * messageBody           dynamic    bytes      116
  *
  **/
-library CctpMessage {
+library CctpMessageV1 {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
 
@@ -182,7 +182,7 @@ library CctpMessage {
  * amount                32         uint256    68
  * messageSender         32         bytes32    100
  **/
-library BurnMessage {
+library BurnMessageV1 {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
 

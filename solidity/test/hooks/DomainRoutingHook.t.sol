@@ -107,7 +107,7 @@ contract DomainRoutingHookTest is Test {
     }
 
     function testHookType() public virtual {
-        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.ROUTING));
+        assertEq(hook.hookType(), uint8(IPostDispatchHook.HookTypes.ROUTING));
     }
 }
 
@@ -171,7 +171,7 @@ contract FallbackDomainRoutingHookTest is DomainRoutingHookTest {
     function testHookType() public override {
         assertEq(
             hook.hookType(),
-            uint8(IPostDispatchHook.Types.FALLBACK_ROUTING)
+            uint8(IPostDispatchHook.HookTypes.FALLBACK_ROUTING)
         );
     }
 }

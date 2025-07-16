@@ -1,5 +1,5 @@
 import { compareVersions } from 'compare-versions';
-import { BigNumber, Contract } from 'ethers';
+import { Contract } from 'ethers';
 
 import {
   HypERC20Collateral__factory,
@@ -10,6 +10,7 @@ import {
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IFiatToken__factory,
+  IMessageTransmitter__factory,
   ISafe__factory,
   IXERC20__factory,
   MovableCollateralRouter__factory,
@@ -18,7 +19,8 @@ import {
   Ownable__factory,
   PackageVersioned__factory,
   ProxyAdmin__factory,
-  TokenBridgeCctp__factory,
+  TokenBridgeCctpBase__factory,
+  TokenBridgeCctpV2__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -26,6 +28,7 @@ import {
   Address,
   arrayToObject,
   assert,
+  eqAddress,
   getLogLevel,
   isZeroishAddress,
   objFilter,
@@ -333,13 +336,13 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const contractTypes: Partial<
       Record<TokenType, { factory: any; method: string }>
     > = {
+      [TokenType.collateralVault]: {
+        factory: HypERC4626OwnerCollateral__factory,
+        method: 'assetDeposited',
+      },
       [TokenType.collateralVaultRebase]: {
         factory: HypERC4626Collateral__factory,
         method: 'NULL_RECIPIENT',
-      },
-      [TokenType.collateralVault]: {
-        factory: HypERC4626OwnerCollateral__factory,
-        method: 'vault',
       },
       [TokenType.XERC20Lockbox]: {
         factory: HypXERC20Lockbox__factory,
@@ -352,10 +355,6 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       [TokenType.syntheticRebase]: {
         factory: HypERC4626__factory,
         method: 'collateralDomain',
-      },
-      [TokenType.synthetic]: {
-        factory: HypERC20__factory,
-        method: 'decimals',
       },
     };
 
@@ -413,23 +412,25 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       }
     }
 
-    // Finally check native
-    // Using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
-    try {
-      await this.multiProvider.estimateGas(
-        this.chain,
-        {
-          to: warpRouteAddress,
-          value: BigNumber.from(0),
-        },
-        NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
-      );
+    // Check for native vs synthetic by looking at the token() method
+    // HypNative.token() returns address(0), HypERC20.token() returns address(this)
+    const tokenRouter = TokenRouter__factory.connect(
+      warpRouteAddress,
+      this.provider,
+    );
+    const tokenAddress = await tokenRouter.token();
+
+    if (isZeroishAddress(tokenAddress)) {
+      // Native token returns address(0)
       return TokenType.native;
-    } catch (e) {
-      throw Error(`Error accessing token specific method ${e}`);
-    } finally {
-      this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
+    } else if (eqAddress(tokenAddress, warpRouteAddress)) {
+      // Synthetic token returns its own address (address(this))
+      return TokenType.synthetic;
     }
+
+    throw new Error(
+      `Error deriving token type for token at address "${warpRouteAddress}" on chain "${this.chain}"`,
+    );
   }
 
   async fetchXERC20Config(
@@ -546,22 +547,53 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const collateralConfig =
       await this.deriveHypCollateralTokenConfig(hypToken);
 
-    const tokenBridge = TokenBridgeCctp__factory.connect(
+    const tokenBridge = TokenBridgeCctpBase__factory.connect(
       hypToken,
       this.provider,
     );
 
-    const messageTransmitter = await tokenBridge.messageTransmitter();
-    const tokenMessenger = await tokenBridge.tokenMessenger();
-    const urls = await tokenBridge.urls();
+    const [messageTransmitter, tokenMessenger, urls] = await Promise.all([
+      tokenBridge.messageTransmitter(),
+      tokenBridge.tokenMessenger(),
+      tokenBridge.urls(),
+    ]);
 
-    return {
-      ...collateralConfig,
-      type: TokenType.collateralCctp,
+    const onchainCctpVersion = await IMessageTransmitter__factory.connect(
       messageTransmitter,
-      tokenMessenger,
-      urls,
-    };
+      this.provider,
+    ).version();
+
+    if (onchainCctpVersion === 0) {
+      return {
+        ...collateralConfig,
+        type: TokenType.collateralCctp,
+        cctpVersion: 'V1',
+        messageTransmitter,
+        tokenMessenger,
+        urls,
+      };
+    } else if (onchainCctpVersion === 1) {
+      const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
+        hypToken,
+        this.provider,
+      );
+      const [minFinalityThreshold, maxFeeBps] = await Promise.all([
+        tokenBridgeV2.minFinalityThreshold(),
+        tokenBridgeV2.maxFeeBps(),
+      ]);
+      return {
+        ...collateralConfig,
+        type: TokenType.collateralCctp,
+        cctpVersion: 'V2',
+        messageTransmitter,
+        tokenMessenger,
+        urls,
+        minFinalityThreshold,
+        maxFeeBps: maxFeeBps.toNumber(),
+      };
+    } else {
+      throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);
+    }
   }
 
   private async deriveHypCollateralTokenConfig(

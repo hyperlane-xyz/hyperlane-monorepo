@@ -1,6 +1,6 @@
 // from https://developers.circle.com/stablecoins/evm-smart-contracts
 
-export const tokenMessengerAddresses = {
+export const tokenMessengerAddressesV1 = {
   ethereum: '0xBd3fa81B58Ba92a82136038B25aDec7066af3155',
   avalanche: '0x6B25532e1060CE10cc3B0A99e5683b91BFDe6982',
   optimism: '0x2B4069517957735bE00ceE0fadAE88a26365528f',
@@ -10,7 +10,7 @@ export const tokenMessengerAddresses = {
   unichain: '0x4e744b28E787c3aD0e810eD65A24461D4ac5a762',
 } as const;
 
-export const messageTransmitterAddresses = {
+export const messageTransmitterAddressesV1 = {
   ethereum: '0x0a992d191DEeC32aFe36203Ad87D7d289a738F81',
   avalanche: '0x8186359aF5F57FbB40c6b14A588d2A59C0C29880',
   optimism: '0x4D41f22c5a0e5c74090899E5a8Fb597a8842b3e8',

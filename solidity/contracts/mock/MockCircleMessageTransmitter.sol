@@ -2,10 +2,13 @@
 pragma solidity ^0.8.13;
 
 import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
+import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
 import {MockToken} from "./MockToken.sol";
 
-contract MockCircleMessageTransmitter is IMessageTransmitter {
-    uint64 public nonce = 0;
+contract MockCircleMessageTransmitter is
+    IMessageTransmitter,
+    IMessageTransmitterV2
+{
     mapping(bytes32 => bool) processedNonces;
     MockToken token;
     uint32 public override version;
@@ -15,31 +18,12 @@ contract MockCircleMessageTransmitter is IMessageTransmitter {
         token = _token;
     }
 
-    function sendMessage(
-        uint32 destinationDomain,
-        bytes32 recipient,
-        bytes calldata messageBody
-    ) public override returns (uint64) {
-        emit MessageSent(messageBody);
-        return ++nonce;
+    function nextAvailableNonce() external view returns (uint64) {
+        return 0;
     }
 
-    function sendMessageWithCaller(
-        uint32 destinationDomain,
-        bytes32 recipient,
-        bytes32 destinationCaller,
-        bytes calldata messageBody
-    ) external override returns (uint64) {
-        return sendMessage(destinationDomain, recipient, messageBody);
-    }
-
-    function replaceMessage(
-        bytes calldata originalMessage,
-        bytes calldata originalAttestation,
-        bytes calldata newMessageBody,
-        bytes32 newDestinationCaller
-    ) external override {
-        revert("Not implemented");
+    function signatureThreshold() external view returns (uint256) {
+        return 1;
     }
 
     function receiveMessage(
@@ -73,5 +57,42 @@ contract MockCircleMessageTransmitter is IMessageTransmitter {
 
     function setVersion(uint32 _version) external {
         version = _version;
+    }
+
+    function replaceMessage(
+        bytes calldata,
+        bytes calldata,
+        bytes calldata,
+        bytes32
+    ) external {
+        revert("Not implemented");
+    }
+
+    function sendMessage(
+        uint32,
+        bytes32,
+        bytes calldata message
+    ) public returns (uint64) {
+        emit MessageSent(message);
+        return 0;
+    }
+
+    function sendMessageWithCaller(
+        uint32,
+        bytes32,
+        bytes32,
+        bytes calldata message
+    ) external returns (uint64) {
+        return sendMessage(0, 0, message);
+    }
+
+    function sendMessage(
+        uint32 destinationDomain,
+        bytes32 recipient,
+        bytes32,
+        uint32,
+        bytes calldata messageBody
+    ) external {
+        sendMessage(destinationDomain, recipient, messageBody);
     }
 }

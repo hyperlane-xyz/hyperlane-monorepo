@@ -17,7 +17,7 @@ contract AmountRoutingHook is AmountPartition, AbstractPostDispatchHook {
     ) AmountPartition(_lowerHook, _upperHook, _threshold) {}
 
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.AMOUNT_ROUTING);
+        return uint8(IPostDispatchHook.HookTypes.AMOUNT_ROUTING);
     }
 
     function _postDispatch(

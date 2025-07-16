@@ -1,0 +1,40 @@
+{
+  "mode": "pre",
+  "tag": "beta",
+  "initialVersions": {
+    "@hyperlane-xyz/core": "9.0.0",
+    "@hyperlane-xyz/starknet-core": "14.4.0",
+    "@hyperlane-xyz/ccip-server": "14.4.0",
+    "@hyperlane-xyz/cli": "14.4.0",
+    "@hyperlane-xyz/cosmos-sdk": "14.4.0",
+    "@hyperlane-xyz/cosmos-types": "14.4.0",
+    "@hyperlane-xyz/github-proxy": "14.4.0",
+    "@hyperlane-xyz/helloworld": "14.4.0",
+    "@hyperlane-xyz/http-registry-server": "1.0.0",
+    "@hyperlane-xyz/infra": "14.4.0",
+    "@hyperlane-xyz/sdk": "14.4.0",
+    "@hyperlane-xyz/tsconfig": "14.4.0",
+    "@hyperlane-xyz/utils": "14.4.0",
+    "@hyperlane-xyz/widgets": "14.4.0"
+  },
+  "changesets": [
+    "brown-scissors-crash",
+    "clean-swans-tell",
+    "clever-carpets-double",
+    "clever-dogs-melt",
+    "clever-starfishes-retire",
+    "cold-pumas-punch",
+    "friendly-files-greet",
+    "light-years-reply",
+    "nice-crabs-vanish",
+    "odd-carrots-whisper",
+    "red-moose-change",
+    "rude-apricots-try",
+    "short-yaks-laugh",
+    "stale-baboons-hope",
+    "sweet-coats-jump",
+    "thick-fishes-try",
+    "tiny-ladybugs-switch",
+    "wise-steaks-think"
+  ]
+}

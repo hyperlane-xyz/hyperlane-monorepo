@@ -58,7 +58,7 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.OP_L2_TO_L1);
+        return uint8(IPostDispatchHook.HookTypes.OP_L2_TO_L1);
     }
 
     /// @inheritdoc AbstractPostDispatchHook

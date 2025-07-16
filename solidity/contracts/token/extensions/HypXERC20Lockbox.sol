@@ -55,22 +55,18 @@ contract HypXERC20Lockbox is HypERC20Collateral {
         _MailboxClient_initialize(_hook, _ism, _owner);
     }
 
-    function _transferFromSender(
-        uint256 _amount
-    ) internal override returns (bytes memory) {
+    function _transferFromSender(uint256 _amount) internal override {
         // transfer erc20 from sender
         super._transferFromSender(_amount);
         // convert erc20 to xERC20
         lockbox.deposit(_amount);
         // burn xERC20
         xERC20.burn(address(this), _amount);
-        return bytes("");
     }
 
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata /*metadata*/
+        uint256 _amount
     ) internal override {
         // mint xERC20
         xERC20.mint(address(this), _amount);
