@@ -7,7 +7,7 @@ anvil3:
     # Optional, the salt to be used for computing the operation id
     salt: '0x0000000000000000000000000000000000000000000000000000000000000000'
     # Optional, minimum amount of time to wait for executing the operation
-    # after it has been proposed. By default it will use the mindDelay configured on the timelock
+    # after it has been proposed. By default it will use the minDelay configured on the timelock
     delay: 0
     # Optional, the id of the operation that should be executed before this one
     predecessor: '0x0000000000000000000000000000000000000000000000000000000000000000'

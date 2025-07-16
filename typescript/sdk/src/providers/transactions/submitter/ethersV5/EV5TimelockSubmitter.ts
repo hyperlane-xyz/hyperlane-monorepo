@@ -55,10 +55,10 @@ export class EV5TimelockSubmitter
     const delay = config.delay ?? minDelay;
     assert(
       delay >= minDelay,
-      `Expected user supplied delay ${delay} to be greater or equal than the configured mindDelay ${minDelay}`,
+      `Expected user supplied delay ${delay} to be greater or equal than the configured minDelay ${minDelay}`,
     );
 
-    const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
+    const proposerSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
       config.proposerSubmitter,
       registry,
@@ -72,7 +72,7 @@ export class EV5TimelockSubmitter
         salt: config.salt ?? ZERO_32_BYTES,
       },
       multiProvider,
-      internalSubmitter,
+      proposerSubmitter,
       timelockInstance,
     );
   }
@@ -116,7 +116,7 @@ export class EV5TimelockSubmitter
       };
     });
 
-    const [to, data, value] = calldata.reduce(
+    const [to, data, value] = calldata.reduce<[string[], string[], string[]]>(
       ([targets, data, values], item) => {
         targets.push(item.to);
         data.push(item.data);
@@ -124,7 +124,7 @@ export class EV5TimelockSubmitter
 
         return [targets, data, values];
       },
-      [[], [], []] as [string[], string[], string[]],
+      [[], [], []],
     );
 
     // The Timelock keeps track of past operations so even if it has been
