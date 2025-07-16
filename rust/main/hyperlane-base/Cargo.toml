@@ -68,6 +68,7 @@ hyperlane-cosmos-native = { path = "../chains/hyperlane-cosmos-native" }
 dymension-kaspa = { path = "../chains/dymension-kaspa" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 dym_kas_core = { path = "../../../dymension/libs/kaspa/lib/core" , package="core"}
+dym_kas_hardcode = { path = "../../../dymension/libs/kaspa/lib/hardcode" , package="hardcode"}
 api-rs = { path = "../../../dymension/libs/kaspa/lib/api", package = "openapi" }
 dym_kas_relayer = { path = "../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
 dym_kas_validator = { path = "../../../dymension/libs/kaspa/lib/validator" , package="validator"}

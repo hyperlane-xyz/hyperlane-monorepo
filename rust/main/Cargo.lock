@@ -6386,6 +6386,7 @@ dependencies = [
  "fuels",
  "futures",
  "futures-util",
+ "hardcode",
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-cosmos-dymension-rs",

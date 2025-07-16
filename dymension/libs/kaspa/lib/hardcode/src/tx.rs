@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 pub const DUST_AMOUNT: u64 = 20_000_001;
 pub const RELAYER_FEE: u64 = 20_000; // HARDCODED: empirically saw at least 10500 needed TODO: dynamic
 
@@ -33,3 +35,4 @@ Blue Score Difference (d)	Time Elapsed (Approx)	Upper Bound on Reorg Probability
 We choose 1000, which is probably over conservative.
  */
 pub const REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS: i64 = 1000;
+pub const FINALITY_APPROX_WAIT_TIME: Duration = Duration::from_secs(100 + 3); // give a bit of leeway
