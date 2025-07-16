@@ -2,12 +2,12 @@ import { BigNumber } from 'ethers';
 import { Logger } from 'pino';
 import {
   Account,
-  BigNumberish,
   CallData,
   ContractFactory,
   ContractFactoryParams,
   MultiType,
   RawArgs,
+  UniversalDeployerContractPayload,
 } from 'starknet';
 
 import {
@@ -42,13 +42,74 @@ import {
 
 export class StarknetDeployer {
   private readonly logger: Logger;
-  private readonly deployedContracts: Record<string, string> = {};
 
   constructor(
     private readonly account: Account,
     private readonly multiProvider: MultiProvider,
   ) {
     this.logger = rootLogger.child({ module: 'starknet-deployer' });
+  }
+
+  async deployContracts(
+    contracts: {
+      contractName: string;
+      constructorArgs: RawArgs;
+      contractType?: ContractType;
+    }[],
+  ): Promise<string[]> {
+    this.logger.info(`Deploying multiple contractcs: ${contracts.length}...`);
+
+    const deployParams: UniversalDeployerContractPayload[] = [];
+
+    const declared = new Map<string, string>();
+
+    for (const { contractName, constructorArgs, contractType } of contracts) {
+      const compiledContract = getCompiledContract(contractName, contractType);
+      const casm = getCompiledContractCasm(contractName, contractType);
+      const constructorCalldata = CallData.compile(constructorArgs);
+
+      const params: ContractFactoryParams = {
+        compiledContract,
+        account: this.account,
+        casm,
+      };
+
+      // don't have to ensure declaration of a contract that has already been declared for sure
+      if (declared.has(contractName)) {
+        deployParams.push({
+          classHash: declared.get(contractName)!,
+          constructorCalldata: constructorCalldata,
+        });
+        continue;
+      }
+
+      this.logger.info(`Declaring contract: ${contractName}`);
+      const declaration = await this.account.declareIfNot({
+        contract: params.compiledContract,
+        casm: params.casm,
+        classHash: params.classHash,
+        compiledClassHash: params.compiledClassHash,
+      });
+
+      declared.set(contractName, declaration.class_hash);
+
+      deployParams.push({
+        classHash: declaration.class_hash,
+        constructorCalldata: constructorCalldata,
+      });
+    }
+
+    this.logger.info(`Doing batch deploy call...`);
+    const deployment = await this.account.deploy(deployParams);
+    await this.account.waitForTransaction(deployment.transaction_hash);
+
+    const addresses = deployment.contract_address.map((x) => {
+      if (x.length < 66) '0x' + x.slice(2).padStart(64, '0');
+      return x;
+    });
+
+    this.logger.info(`Contracts deployed at address: ${addresses}`);
+    return addresses;
   }
 
   async deployContract(
@@ -70,13 +131,8 @@ export class StarknetDeployer {
 
     const contractFactory = new ContractFactory(params);
     const contract = await contractFactory.deploy(constructorCalldata);
-    const receipt = await this.account.waitForTransaction(
-      contract.deployTransactionHash as BigNumberish,
-    );
-
-    assert(receipt.isSuccess(), `Contract ${contractName} deployment failed`);
-
     let address = contract.address;
+
     // Ensure the address is 66 characters long (including the '0x' prefix)
     if (address.length < 66) {
       address = '0x' + address.slice(2).padStart(64, '0');
@@ -85,9 +141,58 @@ export class StarknetDeployer {
     this.logger.info(
       `Contract ${contractName} deployed at address: ${address}`,
     );
-    this.deployedContracts[contractName] = address;
 
     return address;
+  }
+
+  async deployIsms(
+    params: Array<{ chain: ChainName; ismConfig: IsmConfig; mailbox: Address }>,
+  ): Promise<Address[]> {
+    const contracts: {
+      contractName: string;
+      constructorArgs: RawArgs;
+      contractType?: ContractType;
+    }[] = [];
+    // array to keep deployment order inplace
+    // we might destroy the order if we have a mix of parallized and unparallized deployments
+    // either the addresse directly or the index into the parallel deployed addresses
+    const indicies: (number | string)[] = [];
+
+    for (let i = 0; i < params.length; i++) {
+      const contract = params[i];
+      // if the contract can not be deployed in parallel
+      if (
+        typeof contract.ismConfig === 'string' ||
+        (contract.ismConfig.type != IsmType.MERKLE_ROOT_MULTISIG &&
+          contract.ismConfig.type != IsmType.MESSAGE_ID_MULTISIG)
+      ) {
+        indicies.push(await this.deployIsm(contract));
+        continue;
+      }
+
+      const constructorArgs = [
+        this.account.address,
+        contract.ismConfig.validators,
+        contract.ismConfig.threshold,
+      ];
+
+      const contractName =
+        StarknetIsmContractName[
+          contract.ismConfig.type as SupportedIsmTypesOnStarknetType
+        ];
+
+      indicies.push(contracts.length);
+      contracts.push({ contractName, constructorArgs });
+    }
+
+    // deploy remaining contracts in parallel
+    const deployedAddresses = await this.deployContracts(contracts);
+
+    const result = indicies.map((x) => {
+      if (typeof x === 'number') return deployedAddresses[x];
+      return x;
+    });
+    return result;
   }
 
   async deployIsm(params: {
@@ -113,32 +218,15 @@ export class StarknetDeployer {
       StarknetIsmContractName[ismType as SupportedIsmTypesOnStarknetType];
     let constructorArgs: RawArgs | undefined;
 
-    // Log ownership model difference for ownable ISMs
-    if (
-      [
-        IsmType.MERKLE_ROOT_MULTISIG,
-        IsmType.MESSAGE_ID_MULTISIG,
-        IsmType.AGGREGATION,
-      ].includes(ismType)
-    ) {
-      this.logger.info(
-        `Deploying ${ismType} with deployer (${this.account.address}) as initial owner. ` +
-          'Note: Unlike EVM, this ISM type is ownable on Starknet and ownership can be transferred later.',
-      );
-    }
-
     switch (ismType) {
       case IsmType.MERKLE_ROOT_MULTISIG:
       case IsmType.MESSAGE_ID_MULTISIG:
-        constructorArgs = [
-          this.account.address,
-          ismConfig.validators,
-          ismConfig.threshold,
-        ];
-
+        // 0x1 to make mutlsigs immutable and not owned
+        constructorArgs = ['0x1', ismConfig.validators, ismConfig.threshold];
         break;
       case IsmType.ROUTING: {
-        constructorArgs = [ismConfig.owner];
+        // initialize the contract with the deployer as the owner to later transfer ownership
+        constructorArgs = [this.account.address];
         const ismAddress = await this.deployContract(
           contractName,
           constructorArgs,
@@ -150,44 +238,44 @@ export class StarknetDeployer {
         );
         const domains = ismConfig.domains;
         const domainIds = [];
-        const routes = [];
+        const subIsms = [];
         for (const domain of Object.keys(domains)) {
-          const route = await this.deployIsm({
-            chain,
-            ismConfig: domains[domain],
-            mailbox,
-          });
+          subIsms.push({ chain, ismConfig: domains[domain], mailbox });
           const domainId = this.multiProvider.getDomainId(domain);
           domainIds.push(domainId);
-          routes.push(route);
-          this.logger.info(`ISM ${route} deployed for domain ${domainId}`);
         }
+        const routes = await this.deployIsms(subIsms);
+        const calls = [];
         // setting the routes in a single transaction
-        const tx = await routingContract.invoke('set', [domainIds, routes]);
-        await this.account.waitForTransaction(tx.transaction_hash);
+        for (let i = 0; i < domainIds.length; i++) {
+          calls.push(
+            routingContract.populate('set', [domainIds[i], routes[i]]),
+          );
+        }
+        const result = await this.account.execute(calls);
+        await this.account.waitForTransaction(result.transaction_hash);
         this.logger.info(`ISM ${routes} set for domains ${domainIds}`);
+
+        // transfer ownership once configuration is done
+        if (ismConfig.owner != this.account.address) {
+          const transfer = await routingContract.invoke('transfer_ownership', [
+            ismConfig.owner,
+          ]);
+          await this.account.waitForTransaction(transfer.transaction_hash);
+        }
 
         return ismAddress;
       }
       case IsmType.PAUSABLE:
         constructorArgs = [ismConfig.owner];
-
         break;
       case IsmType.AGGREGATION: {
-        const addresses: Address[] = [];
-        for (const module of ismConfig.modules) {
-          const submodule = await this.deployIsm({
-            chain,
-            ismConfig: module,
-            mailbox,
-          });
-          addresses.push(submodule);
-        }
-        constructorArgs = [
-          this.account.address,
-          addresses,
-          ismConfig.threshold,
-        ];
+        const addresses = await this.deployIsms(
+          ismConfig.modules.map((x) => ({ chain, ismConfig: x, mailbox })),
+        );
+
+        // make aggregationIsm immutable
+        constructorArgs = ['0x1', addresses, ismConfig.threshold];
 
         break;
       }
