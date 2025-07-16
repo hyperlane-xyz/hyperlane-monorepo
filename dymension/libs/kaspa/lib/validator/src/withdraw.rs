@@ -150,6 +150,12 @@ pub async fn validate_withdrawal_batch(
         return Err(ValidationError::MessagesNotUnprocessed);
     }
 
+    /*
+    At this point we know
+    - The set of messages is unique
+    - All the messages are dispatched on the hub
+    - None of the messages are already confirmed on the hub
+     */
     validate_pskts(fxg, hub_anchor, must_match)
         .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
 
@@ -168,17 +174,6 @@ pub fn validate_pskts(
 ) -> Result<(), ValidationError> {
     // Step 4: Validate that the Hub anchor in WithdrawFXG is still the actual Hub anchor
 
-    // By convention, the first anchor of `fxg.anchors` is the Hub anchor
-    let relayer_hub_outpoint = fxg.anchors.first().unwrap();
-    if relayer_hub_outpoint.index != hub_anchor.index
-        || relayer_hub_outpoint.transaction_id != hub_anchor.transaction_id
-    {
-        return Err(ValidationError::HubAnchorMismatch {
-            hub_anchor,
-            relayer_anchor: relayer_hub_outpoint.clone(),
-        });
-    }
-
     // Step 5: Validate the correct UTXO chaining.
     // Batch transactoins should follow this approach:
     //
@@ -188,39 +183,24 @@ pub fn validate_pskts(
     //   TX(N) input: `tx(N-1)_anchor`  TX(N) output: `tx(N)_anchor`
 
     // The first anchor is the hub anchor
-    let mut prev_anchor = hub_anchor;
+    let mut anchor_prev = hub_anchor;
 
-    // Iterate through all PSKTs in the bundle and verify that the chaining
-    // is satisfied.
+    // PSKTs must be linked by anchor
     for (idx, pskt) in fxg.bundle.iter().enumerate() {
-        // Get messages that are covered by the corresponding PSKT
         let messages = fxg.messages.get(idx).unwrap();
 
         // Compute the next anchor UTXO
-        let expected_next_outpoint = validate_pskt(
+        let anchor_next = validate_pskt(
             PSKT::<Signer>::from(pskt.clone()),
-            prev_anchor,
+            anchor_prev,
             messages,
             must_match.clone(),
         )
         .map_err(|e| eyre::eyre!("Single PSKT validation failed: {}", e))?;
 
-        // Validate that the computed anchor is the same as the one
-        // provided in WithdrawFXG
-
-        // +1 bc the first anchor is the hub anchor
-        let fxg_anchor = fxg.anchors.get(idx + 1).unwrap();
-
-        // Compare field-by-field to avoid copying
-        if expected_next_outpoint.index != fxg_anchor.index
-            || expected_next_outpoint.transaction_id != fxg_anchor.transaction_id
-        {
-            return Err(ValidationError::AnchorMismatch { o: hub_anchor });
-        }
-
         // The previous anchor for the *next* PSKT is the next anchor of
         // the *previous* PSKT.
-        prev_anchor = expected_next_outpoint;
+        anchor_prev = anchor_next;
     }
 
     Ok(())
@@ -228,17 +208,17 @@ pub fn validate_pskts(
 
 pub fn validate_pskt(
     pskt: PSKT<Signer>,
-    prev_anchor: TransactionOutpoint,
+    anchor_prev: TransactionOutpoint,
     pending_messages: &Vec<HyperlaneMessage>,
     must_match: MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
     // Step 5 continuing: Check that PSKT contains the previous anchor as input
     let prev_outpoint_found = pskt.inputs.iter().any(|input| {
-        input.previous_outpoint.transaction_id == prev_anchor.transaction_id
-            && input.previous_outpoint.index == prev_anchor.index
+        input.previous_outpoint.transaction_id == anchor_prev.transaction_id
+            && input.previous_outpoint.index == anchor_prev.index
     });
     if !prev_outpoint_found {
-        return Err(ValidationError::AnchorNotFound { o: prev_anchor });
+        return Err(ValidationError::AnchorNotFound { o: anchor_prev });
     }
 
     // Step 6: Check PSKT:
