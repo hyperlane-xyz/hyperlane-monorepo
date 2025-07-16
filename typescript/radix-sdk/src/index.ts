@@ -300,6 +300,46 @@ export class RadixSDK {
 
     return result;
   }
+
+  public async queryEnrolledRouters(
+    token: string,
+    domainId: string | number,
+  ): Promise<{
+    address: string;
+  }> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(token);
+
+    assert(
+      (details.details as any).blueprint_name === 'HypToken',
+      `Expected contract at address ${token} to be "HypToken" but got ${(details.details as any).blueprint_name}`,
+    );
+
+    const fields = (details.details as any).state.fields;
+
+    const enrolledRouters =
+      fields.find((f: any) => f.field_name === 'enrolled_routers')?.value ?? '';
+    assert(enrolledRouters, `found no enrolled routers on token ${token}`);
+
+    const value = await this.gateway.state.innerClient.keyValueStoreData({
+      stateKeyValueStoreDataRequest: {
+        key_value_store_address: enrolledRouters,
+        keys: [
+          {
+            key_hex: Buffer.from(`${domainId}`).toString('hex'),
+          },
+        ],
+      },
+    });
+
+    console.log('enrolledRouters value', value);
+
+    const result = {
+      address: token,
+    };
+
+    return result;
+  }
 }
 
 export class RadixSigningSDK extends RadixSDK {
