@@ -270,15 +270,10 @@ export class StarknetDeployer {
         constructorArgs = [ismConfig.owner];
         break;
       case IsmType.AGGREGATION: {
-        const addresses: Address[] = [];
-        for (const module of ismConfig.modules) {
-          const submodule = await this.deployIsm({
-            chain,
-            ismConfig: module,
-            mailbox,
-          });
-          addresses.push(submodule);
-        }
+        const addresses = await this.deployIsms(
+          ismConfig.modules.map((x) => ({ chain, ismConfig: x, mailbox })),
+        );
+
         // make aggregationIsm immutable
         constructorArgs = ['0x1', addresses, ismConfig.threshold];
 

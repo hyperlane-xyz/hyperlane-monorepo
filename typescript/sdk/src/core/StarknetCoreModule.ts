@@ -121,7 +121,7 @@ export class StarknetCoreModule {
     // 4. Deploy Mailbox with initial configuration
     const mailboxContract = await this.deployMailbox(
       chain,
-      config.owner,
+      this.signer.address,
       noopIsm,
       protocolFee,
       requiredHook,
