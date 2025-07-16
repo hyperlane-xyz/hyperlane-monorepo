@@ -11,6 +11,7 @@ import {
   MOCK_CHAIN_NAME,
   mockChainAddresses,
   mockChainMetadata,
+  mockWarpRouteDeploys,
   mockWarpRoutes,
 } from '../utils/mockData.js';
 
@@ -22,6 +23,7 @@ describe('WarpService', () => {
   let mockRegistry: PartialRegistry;
 
   const mockWarpRoute = mockWarpRoutes[0];
+  const mockWarpRouteDeploy = mockWarpRouteDeploys[0];
 
   beforeEach(() => {
     // Create mock registry with warp route data
@@ -98,6 +100,27 @@ describe('WarpService', () => {
 
       // Verify the stub on the full mock registry was called correctly
       expect(getWarpRouteStub.calledWith(warpRouteId)).to.be.true;
+    });
+  });
+
+  describe('getWarpRouteDeploy', () => {
+    it('should return warp route deploy when it exists', async () => {
+      const warpRouteId: WarpRouteId = 'test-warp-route';
+      sinon
+        .stub(mockRegistry, 'getWarpDeployConfig')
+        .resolves(mockWarpRouteDeploy);
+
+      const result = await warpService.getWarpDeployConfig(warpRouteId);
+      expect(result).to.deep.equal(mockWarpRouteDeploy);
+    });
+
+    it('should throw NotFoundError when warp route deploy does not exist', async () => {
+      const warpRouteId: WarpRouteId = 'nonexistent-warp-route';
+      sinon.stub(mockRegistry, 'getWarpDeployConfig').resolves(null);
+      await expect(warpService.getWarpDeployConfig(warpRouteId))
+        .to.be.rejectedWith(NotFoundError)
+        .and.eventually.have.property('message')
+        .that.include(`Warp deploy config not found for id ${warpRouteId}`);
     });
   });
 });

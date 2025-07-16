@@ -10,7 +10,7 @@ import { NotFoundError } from '../../src/errors/ApiError.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';
 import { createWarpRouter } from '../../src/routes/warp.js';
 import { WarpService } from '../../src/services/warpService.js';
-import { mockWarpRoutes } from '../utils/mockData.js';
+import { mockWarpRouteDeploys, mockWarpRoutes } from '../utils/mockData.js';
 
 chaiUse(chaiAsPromised);
 
@@ -19,6 +19,7 @@ describe('Warp Routes', () => {
   let mockWarpService: sinon.SinonStubbedInstance<WarpService>;
 
   const mockWarpRoute = mockWarpRoutes[0];
+  const mockWarpRouteDeploy = mockWarpRouteDeploys[0];
 
   beforeEach(() => {
     // Create stubbed warp service
@@ -114,6 +115,21 @@ describe('Warp Routes', () => {
         .expect(AppConstants.HTTP_STATUS_OK);
 
       expect(response.body).to.deep.equal(mockWarpRoute);
+    });
+  });
+
+  describe('GET /warp-route/deploy/:id', () => {
+    it('should return warp route when it exists', async () => {
+      const warpRouteId = 'test/warp-route';
+      mockWarpService.getWarpDeployConfig.resolves(mockWarpRouteDeploy);
+
+      const response = await request(app)
+        .get(`/warp-route/deploy/${warpRouteId}`)
+        .expect(AppConstants.HTTP_STATUS_OK);
+
+      expect(response.body).to.deep.equal(mockWarpRouteDeploy);
+      expect(mockWarpService.getWarpDeployConfig.calledWith(warpRouteId)).to.be
+        .true;
     });
   });
 });
