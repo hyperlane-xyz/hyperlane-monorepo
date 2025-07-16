@@ -99,6 +99,7 @@ mod tests {
             utxo_index: 5,
             amount: U256::from(100_000_000),
             accepting_block_hash: "test_block_id_abc".to_string(),
+            containing_block_hash: "test_block_id_def".to_string(),
             hl_message: HyperlaneMessage::default(),
         };
 
@@ -153,6 +154,7 @@ mod tests {
         let deposit1 = DepositFXG {
             tx_id: "deterministic_tx".to_string(),
             utxo_index: 10,
+            containing_block_hash: "deterministic_block".to_string(),
             accepting_block_hash: "deterministic_block".to_string(),
             amount: U256::from(100_000_000),
             hl_message: HyperlaneMessage {
@@ -169,6 +171,7 @@ mod tests {
         let deposit2 = DepositFXG {
             tx_id: "deterministic_tx".to_string(),
             utxo_index: 10,
+            containing_block_hash: "deterministic_block".to_string(),
             accepting_block_hash: "deterministic_block".to_string(),
             amount: U256::from(100_000_000),
             hl_message: HyperlaneMessage {

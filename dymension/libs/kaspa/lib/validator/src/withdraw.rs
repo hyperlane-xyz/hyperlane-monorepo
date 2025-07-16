@@ -12,7 +12,7 @@ use secp256k1::Keypair as SecpKeypair;
 use crate::error::ValidationError;
 use corelib::payload::{MessageID, MessageIDs};
 use corelib::util;
-use corelib::util::{check_sighash_type, get_recipient_address, get_recipient_script_pubkey};
+use corelib::util::{get_recipient_address, get_recipient_script_pubkey, is_valid_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::{Report, Result};
@@ -247,7 +247,7 @@ pub fn validate_pskt(
     let incorrect_sig_hash = pskt
         .inputs
         .iter()
-        .any(|input| !check_sighash_type(input.sighash_type));
+        .any(|input| !is_valid_sighash_type(input.sighash_type));
     if incorrect_sig_hash {
         return Err(ValidationError::IncorrectSigHashType);
     }

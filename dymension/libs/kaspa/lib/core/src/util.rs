@@ -30,8 +30,11 @@ pub fn input_sighash_type() -> SigHashType {
     SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap()
 }
 
-pub fn check_sighash_type(t: SigHashType) -> bool {
-    t.is_sighash_all() && t.is_sighash_anyone_can_pay()
+pub fn is_valid_sighash_type(t: SigHashType) -> bool {
+    return t.to_u8()
+        == (SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
+            .unwrap())
+        .to_u8();
 }
 
 /// Find the first duplicate if any.
@@ -49,6 +52,6 @@ mod tests {
 
     #[test]
     fn test_input_sighash_type() {
-        assert!(check_sighash_type(input_sighash_type()));
+        assert!(is_valid_sighash_type(input_sighash_type()));
     }
 }

@@ -627,7 +627,7 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, w: &Arc<Wallet>, s: &Secret) -> Re
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use corelib::util::check_sighash_type;
+    use corelib::util::is_valid_sighash_type;
     use corelib::withdraw::WithdrawFXG;
     use std::collections::BTreeMap;
 
@@ -785,7 +785,7 @@ mod tests {
 
         // Verify sighash type
         let sighash_type_1 = pskt.inputs.first().unwrap().sighash_type;
-        assert!(check_sighash_type(sighash_type_1));
+        assert!(is_valid_sighash_type(sighash_type_1));
 
         // Create WithdrawFXG
         let bundle = Bundle::from(pskt);
@@ -818,7 +818,7 @@ mod tests {
             .unwrap()
             .sighash_type;
 
-        assert!(check_sighash_type(sighash_type_2));
+        assert!(is_valid_sighash_type(sighash_type_2));
 
         Ok(())
     }
