@@ -67,10 +67,10 @@ pub struct SealevelAdapter {
     estimated_block_time: Duration,
     max_batch_size: u32,
     keypair: SealevelKeypair,
-    client: Box<dyn SubmitSealevelRpc>,
-    provider: Box<dyn SealevelProviderForLander>,
-    oracle: Box<dyn PriorityFeeOracle>,
-    submitter: Box<dyn TransactionSubmitter>,
+    client: Arc<dyn SubmitSealevelRpc>,
+    provider: Arc<dyn SealevelProviderForLander>,
+    oracle: Arc<dyn PriorityFeeOracle>,
+    submitter: Arc<dyn TransactionSubmitter>,
     estimate_freshness_cache: Arc<Mutex<HashMap<TransactionUuid, EstimateFreshnessCache>>>,
 }
 
@@ -111,8 +111,8 @@ impl SealevelAdapter {
         Self::new_internal(
             conf,
             raw_conf,
-            Box::new(client),
-            Box::new(provider),
+            Arc::new(client),
+            Arc::new(provider),
             oracle,
             submitter,
         )
@@ -121,10 +121,10 @@ impl SealevelAdapter {
     fn new_internal(
         conf: ChainConf,
         _raw_conf: RawChainConf,
-        client: Box<dyn SubmitSealevelRpc>,
-        provider: Box<dyn SealevelProviderForLander>,
-        oracle: Box<dyn PriorityFeeOracle>,
-        submitter: Box<dyn TransactionSubmitter>,
+        client: Arc<dyn SubmitSealevelRpc>,
+        provider: Arc<dyn SealevelProviderForLander>,
+        oracle: Arc<dyn PriorityFeeOracle>,
+        submitter: Arc<dyn TransactionSubmitter>,
     ) -> eyre::Result<Self> {
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
@@ -146,13 +146,31 @@ impl SealevelAdapter {
     #[allow(unused)]
     #[cfg(test)]
     fn new_internal_default(
-        client: Box<dyn SubmitSealevelRpc>,
-        provider: Box<dyn SealevelProviderForLander>,
-        oracle: Box<dyn PriorityFeeOracle>,
-        submitter: Box<dyn TransactionSubmitter>,
+        client: Arc<dyn SubmitSealevelRpc>,
+        provider: Arc<dyn SealevelProviderForLander>,
+        oracle: Arc<dyn PriorityFeeOracle>,
+        submitter: Arc<dyn TransactionSubmitter>,
+    ) -> Self {
+        Self::new_internal_with_block_time(
+            Duration::from_secs(1),
+            client,
+            provider,
+            oracle,
+            submitter,
+        )
+    }
+
+    #[allow(unused)]
+    #[cfg(test)]
+    fn new_internal_with_block_time(
+        estimated_block_time: Duration,
+        client: Arc<dyn SubmitSealevelRpc>,
+        provider: Arc<dyn SealevelProviderForLander>,
+        oracle: Arc<dyn PriorityFeeOracle>,
+        submitter: Arc<dyn TransactionSubmitter>,
     ) -> Self {
         Self {
-            estimated_block_time: Duration::from_secs(1),
+            estimated_block_time,
             max_batch_size: 1,
             keypair: SealevelKeypair::default(),
             provider,
@@ -180,8 +198,8 @@ impl SealevelAdapter {
             .get_estimated_costs_for_instruction(
                 precursor.instruction.clone(),
                 &self.keypair,
-                &*self.submitter,
-                &*self.oracle,
+                self.submitter.clone(),
+                self.oracle.clone(),
             )
             .await?;
         Ok(SealevelTxPrecursor::new(
@@ -220,7 +238,7 @@ impl SealevelAdapter {
                 estimate.compute_unit_price_micro_lamports,
                 instruction.clone(),
                 &self.keypair,
-                &*self.submitter,
+                self.submitter.clone(),
                 sign,
             )
             .await
