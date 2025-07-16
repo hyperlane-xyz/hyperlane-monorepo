@@ -213,6 +213,13 @@ export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
 
+export function withInputFile<T>(args: Argv<T>) {
+  return args
+    .describe('inputFile', 'input file')
+    .string('inputFile')
+    .alias('-i', 'inputFile');
+}
+
 export function withMetrics<T>(args: Argv<T>) {
   return args
     .describe('metrics', 'metrics')
