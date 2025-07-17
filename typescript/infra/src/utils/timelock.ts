@@ -11,7 +11,7 @@ import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 
-export const DEFAULT_TIMELOCK_DELAY = 1;
+export const DEFAULT_TIMELOCK_DELAY_SECONDS = 60 * 60 * 24 * 1; // 1 day
 
 export async function timelockConfigMatches({
   multiProvider,
@@ -90,7 +90,7 @@ export function getTimelockConfigs({
     assert(owner, `No owner found for ${chain}`);
 
     timelockConfigs[chain] = {
-      minimumDelay: DEFAULT_TIMELOCK_DELAY,
+      minimumDelay: DEFAULT_TIMELOCK_DELAY_SECONDS,
       proposers: [owner],
       executors: [DEPLOYER],
     };
