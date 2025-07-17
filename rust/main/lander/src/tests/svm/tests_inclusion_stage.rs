@@ -289,7 +289,7 @@ async fn test_svm_inclusion_escalate_but_old_hash_finalized() {
 
 #[tokio::test]
 #[traced_test]
-async fn test_svm_inclusion_send_returs_blockhash_not_found() {
+async fn test_svm_inclusion_send_returns_blockhash_not_found() {
     let block_time = TEST_BLOCK_TIME;
 
     let mut client = MockClient::new();
