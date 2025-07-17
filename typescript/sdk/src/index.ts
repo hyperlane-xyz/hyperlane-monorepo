@@ -403,6 +403,7 @@ export {
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
 export {
   randomAddress,
+  randomCosmosAddress,
   randomHookConfig,
   randomIsmConfig,
 } from './test/testUtils.js';
@@ -782,3 +783,15 @@ export {
   getPendingEvmTimelockControllerTransactions,
   getPendingExecutableEvmTimelockControllerTransactions,
 } from './providers/transactions/submitter/ethersV5/timelock/transactions.js';
+export { EvmTimelockDeployer } from './timelock/evm/EvmTimelockDeployer.js';
+export {
+  TimelockConfig,
+  TimelockConfigSchema,
+  TimelockConfigMapSchema,
+  TimelockConfigMap,
+} from './timelock/types.js';
+export {
+  CANCELLER_ROLE,
+  EXECUTOR_ROLE,
+  PROPOSER_ROLE,
+} from './timelock/evm/constants.js';
