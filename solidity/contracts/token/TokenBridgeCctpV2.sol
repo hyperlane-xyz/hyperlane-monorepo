@@ -190,7 +190,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         );
 
         dispatchValue = msg.value;
-        message = TokenMessage.format(recipient, _outboundAmount(amount));
+        message = TokenMessage.format(recipient, amount + fastFee);
         _validateTokenMessageLength(message);
     }
 }
