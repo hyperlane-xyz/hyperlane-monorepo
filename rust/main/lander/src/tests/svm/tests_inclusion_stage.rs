@@ -1,15 +1,16 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain};
 use hyperlane_sealevel::{SealevelKeypair, SealevelTxCostEstimate, TransactionSubmitter};
 use solana_client::rpc_response::RpcSimulateTransactionResult;
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, hash::Hash,
+    commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction, hash::Hash,
     instruction::Instruction as SealevelInstruction, message::Message, pubkey::Pubkey,
     signature::Signature, signer::Signer, system_instruction,
     transaction::Transaction as SealevelTransaction,
 };
 use tokio::{select, sync::mpsc};
+use tracing::info;
 use tracing_test::traced_test;
 
 use crate::{
@@ -27,7 +28,7 @@ use crate::{
     dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb},
     tests::test_utils::tmp_dbs,
     transaction::Transaction,
-    DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus,
+    DispatcherMetrics, FullPayload, LanderError, PayloadStatus, TransactionStatus,
 };
 
 const TEST_BLOCK_TIME: Duration = Duration::from_millis(50);
@@ -75,6 +76,104 @@ async fn test_svm_inclusion_happy_path() {
             retries: 1,
         },
     ];
+    run_and_expect_successful_inclusion(expected_tx_states, mock_svm_adapter).await;
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_svm_inclusion_gas_spike() {
+    let block_time = Duration::from_millis(0);
+
+    let mut client = MockClient::new();
+    mock_simulate_transaction(&mut client);
+    mock_get_block_with_commitment(&mut client);
+    let oracle = MockOracle::new();
+    let mut provider = MockSvmProvider::new();
+    mock_create_transaction_for_instruction(&mut provider);
+
+    // Mock fee escalation behavior
+    let mut fee_call_counter = 0;
+    provider
+        .expect_get_estimated_costs_for_instruction()
+        .returning(
+            move |_instruction, _payer, _tx_submitter, _priority_fee_oracle| {
+                fee_call_counter += 1;
+                let compute_unit_price_micro_lamports = match fee_call_counter {
+                    1 => 500, // Initial fee
+                    2 => 550, // 10% spike
+                    3 => 605, // Another 10% spike
+                    _ => 605, // Final spike
+                };
+                Ok(SealevelTxCostEstimate {
+                    compute_units: 1400000,
+                    compute_unit_price_micro_lamports,
+                })
+            },
+        );
+
+    let mut commitment_call_counter = 0;
+    client
+        .expect_get_transaction_with_commitment()
+        .returning(move |_, commitment| {
+            commitment_call_counter += 1;
+            info!(
+                ?commitment_call_counter,
+                "calling get_transaction_with_commitment"
+            );
+            // when a transaction is not yet included, the status check makes 3 calls (one with each commitment level in inverse order: finalized, confirmed, processed).
+            // it takes 3 unsuccessful tx statuses to escalate twice
+            if commitment.is_finalized() && commitment_call_counter > 9 {
+                return Ok(encoded_svm_transaction()); // Simulate transaction being included at the `finalized` level after 4 retries
+            }
+            if commitment.is_processed() {
+                return Ok(encoded_svm_transaction()); // Simulate transaction being processed
+            }
+            Err(ChainCommunicationError::from_other(
+                LanderError::TxHashNotFound("Not included yet".to_string()),
+            ))
+        });
+
+    let mut submitter = MockSubmitter::new();
+    mock_get_priority_fee_instruction(&mut submitter);
+    mock_send_transaction(&mut submitter);
+    mock_wait_for_transaction_confirmation(&mut submitter);
+    mock_confirm_transaction(&mut submitter);
+
+    let mock_svm_adapter = mocked_svm_adapter(block_time, client, oracle, provider, submitter);
+
+    let expected_tx_states = vec![
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 0,
+            status: TransactionStatus::PendingInclusion,
+            retries: 0,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 500,
+            status: TransactionStatus::Mempool,
+            retries: 1,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 550,
+            status: TransactionStatus::Mempool,
+            retries: 2,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 605,
+            status: TransactionStatus::Mempool,
+            retries: 3,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 605,
+            status: TransactionStatus::Finalized,
+            retries: 3,
+        },
+    ];
+
     run_and_expect_successful_inclusion(expected_tx_states, mock_svm_adapter).await;
 }
 
