@@ -1,7 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { keccak256 } from 'ethers/lib/utils.js';
 import hre from 'hardhat';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
@@ -12,6 +11,7 @@ import { randomAddress } from '../../test/testUtils.js';
 import { TimelockConfig } from '../types.js';
 
 import { EvmTimelockDeployer } from './EvmTimelockDeployer.js';
+import { CANCELLER_ROLE, EXECUTOR_ROLE, PROPOSER_ROLE } from './constants.js';
 
 chai.use(chaiAsPromised);
 
@@ -20,9 +20,6 @@ describe('EvmTimelockDeployer', async () => {
   let deployer: EvmTimelockDeployer;
   let signer: SignerWithAddress;
   let config: TimelockConfig;
-  const PROPOSER_ROLE: string = keccak256(Buffer.from('PROPOSER_ROLE'));
-  const EXECUTOR_ROLE: string = keccak256(Buffer.from('EXECUTOR_ROLE'));
-  const CANCELLER_ROLE: string = keccak256(Buffer.from('CANCELLER_ROLE'));
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();

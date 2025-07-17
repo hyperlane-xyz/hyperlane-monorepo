@@ -786,3 +786,8 @@ export {
   TimelockConfigMapSchema,
   TimelockConfigMap,
 } from './timelock/types.js';
+export {
+  CANCELLER_ROLE,
+  EXECUTOR_ROLE,
+  PROPOSER_ROLE,
+} from './timelock/evm/constants.js';

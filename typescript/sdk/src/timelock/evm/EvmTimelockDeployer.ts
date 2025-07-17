@@ -1,7 +1,6 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { TimelockController__factory } from '@hyperlane-xyz/core';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneDeployer } from '../../deploy/HyperlaneDeployer.js';
