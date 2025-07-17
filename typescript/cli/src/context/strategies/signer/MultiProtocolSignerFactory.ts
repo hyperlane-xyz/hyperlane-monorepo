@@ -11,12 +11,13 @@ import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   ChainName,
-  ChainSubmissionStrategy,
   ChainTechnicalStack,
   MultiProvider,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, ensure0x } from '@hyperlane-xyz/utils';
+
+import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 
 import {
   BaseMultiProtocolSigner,
@@ -27,7 +28,7 @@ import {
 export class MultiProtocolSignerFactory {
   static getSignerStrategy(
     chain: ChainName,
-    strategyConfig: ChainSubmissionStrategy,
+    strategyConfig: ExtendedChainSubmissionStrategy,
     multiProvider: MultiProvider,
   ): IMultiProtocolSigner {
     const { protocol, technicalStack } = multiProvider.getChainMetadata(chain);

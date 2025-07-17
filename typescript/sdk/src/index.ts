@@ -382,6 +382,7 @@ export {
   ViemProvider,
   ViemTransaction,
   ViemTransactionReceipt,
+  ProtocolTypedTransaction,
 } from './providers/ProviderType.js';
 export {
   isCosmJsProviderHealthy,
@@ -429,6 +430,8 @@ export {
   ChainSubmissionStrategySchema,
   SubmissionStrategy,
   SubmissionStrategySchema,
+  refineChainSubmissionStrategy,
+  preprocessChainSubmissionStrategy,
 } from './providers/transactions/submitter/builder/types.js';
 
 export { EV5GnosisSafeTxBuilder } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxBuilder.js';
