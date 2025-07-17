@@ -1,3 +1,5 @@
+import { Hex, Log } from 'viem';
+
 import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -94,4 +96,20 @@ export async function getLogsFromRpc({
       transactionIndex: rawLog.transactionIndex,
     };
   });
+}
+
+export function viemLogFromGetEventLogsResponse(
+  log: GetEventLogsResponse,
+): Log {
+  return {
+    address: log.address as Hex,
+    data: log.data as Hex,
+    blockNumber: BigInt(log.blockNumber),
+    transactionHash: log.transactionHash as Hex,
+    logIndex: Number(log.logIndex),
+    transactionIndex: Number(log.transactionIndex),
+    topics: log.topics as [Hex, ...Hex[]],
+    blockHash: null,
+    removed: false,
+  };
 }

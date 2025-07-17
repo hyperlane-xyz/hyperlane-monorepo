@@ -6,12 +6,12 @@ import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
-  GetEventLogsResponse,
   getContractDeploymentTransaction,
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../block-explorer/etherscan.js';
-import { viemLogFromGetEventLogsResponse } from '../block-explorer/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { GetEventLogsResponse } from '../rpc/evm/types.js';
+import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainNameOrId } from '../types.js';
 
 import { XERC20TokenExtraBridgesLimits } from './types.js';
