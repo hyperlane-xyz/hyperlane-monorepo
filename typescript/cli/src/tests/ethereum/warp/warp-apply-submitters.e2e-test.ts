@@ -25,24 +25,6 @@ import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { hyperlaneCoreApply, readCoreConfig } from '../commands/core.js';
 import { deployOrUseExistingCore } from '../commands/helpers.js';
-// import {
-//   ANVIL_KEY,
-//   CHAIN_2_METADATA_PATH,
-//   CHAIN_3_METADATA_PATH,
-//   CHAIN_NAME_2,
-//   CHAIN_NAME_3,
-//   CORE_CONFIG_PATH,
-//   CORE_READ_CONFIG_PATH_2,
-//   CORE_READ_CONFIG_PATH_3,
-//   DEFAULT_E2E_TEST_TIMEOUT,
-//   JSON_RPC_ICA_STRATEGY_CONFIG_PATH,
-//   JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH,
-//   TEMP_PATH,
-//   WARP_CONFIG_PATH_2,
-//   WARP_CONFIG_PATH_EXAMPLE,
-//   deployOrUseExistingCore,
-//   getCombinedWarpRoutePath,
-// } from '../../commands/helpers.js';
 import {
   hyperlaneWarpApplyRaw,
   hyperlaneWarpDeploy,
