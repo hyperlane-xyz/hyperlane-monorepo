@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import {
-  SubmissionStrategySchema,
+  SubmitterMetadata,
   SubmitterMetadataSchema,
   TxSubmitterType,
   ZChainName,
@@ -23,15 +23,19 @@ const FileSubmitterMetadataSchema = z.object({
   ...EV5FileTxSubmitterPropsSchema.shape,
 });
 
-const ExtendedSubmitterMetadataSchema = SubmitterMetadataSchema.or(
-  FileSubmitterMetadataSchema,
-);
+type FileSubmitterMetadata = z.infer<typeof FileSubmitterMetadataSchema>;
 
-export const ExtendedSubmissionStrategySchema = SubmissionStrategySchema.extend(
-  {
-    submitter: ExtendedSubmitterMetadataSchema,
-  },
-);
+type ExtendedSubmitterMetadata = SubmitterMetadata | FileSubmitterMetadata;
+
+// @ts-expect-error recursive schema causes type inference errors
+const ExtendedSubmitterMetadataSchema: z.ZodSchema<ExtendedSubmitterMetadata> =
+  SubmitterMetadataSchema.or(FileSubmitterMetadataSchema);
+
+export const ExtendedSubmissionStrategySchema: z.ZodSchema<{
+  submitter: ExtendedSubmitterMetadata;
+}> = z.object({
+  submitter: ExtendedSubmitterMetadataSchema,
+});
 
 export type ExtendedSubmissionStrategy = z.infer<
   typeof ExtendedSubmissionStrategySchema
