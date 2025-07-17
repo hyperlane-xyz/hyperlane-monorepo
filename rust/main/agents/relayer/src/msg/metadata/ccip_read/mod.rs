@@ -282,8 +282,8 @@ async fn metadata_build(
                 // remove leading 0x which hex_decode doesn't like
                 let metadata = hex_decode(&result.data[2..]).map_err(|err| {
                     let msg = format!(
-                        "Failed to decode hex from offchain lookup server response: {}",
-                        err
+                        "Failed to decode hex from offchain lookup server response: err: ({}), data: ({})",
+                        err, result.data
                     );
                     MetadataBuildError::FailedToBuild(msg)
                 })?;
