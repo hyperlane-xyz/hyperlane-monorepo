@@ -11,7 +11,7 @@ export class WarpService extends AbstractService {
     super(registryService);
   }
 
-  async getWarpRoute(id: WarpRouteId): Promise<WarpCoreConfig> {
+  async getWarpCoreConfig(id: WarpRouteId): Promise<WarpCoreConfig> {
     return this.withRegistry(async (registry) => {
       const warpRoute = await registry.getWarpRoute(id);
       if (!warpRoute) {

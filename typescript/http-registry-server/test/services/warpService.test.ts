@@ -57,7 +57,7 @@ describe('WarpService', () => {
       // Mock registry to return the warp route
       sinon.stub(mockRegistry, 'getWarpRoute').resolves(mockWarpRoute);
 
-      const result = await warpService.getWarpRoute(warpRouteId);
+      const result = await warpService.getWarpCoreConfig(warpRouteId);
 
       expect(result).to.deep.equal(mockWarpRoute);
       expect(mockRegistryService.withRegistry.calledOnce).to.be.true;
@@ -69,7 +69,7 @@ describe('WarpService', () => {
       // Mock registry to return null
       sinon.stub(mockRegistry, 'getWarpRoute').resolves(null);
 
-      await expect(warpService.getWarpRoute(warpRouteId))
+      await expect(warpService.getWarpCoreConfig(warpRouteId))
         .to.be.rejectedWith(NotFoundError)
         .and.eventually.have.property('message')
         .that.include('Warp route not found for id nonexistent-warp-route');
@@ -83,9 +83,9 @@ describe('WarpService', () => {
         .stub(mockRegistry, 'getWarpRoute')
         .rejects(new Error('Registry error'));
 
-      await expect(warpService.getWarpRoute(warpRouteId)).to.be.rejectedWith(
-        'Registry error',
-      );
+      await expect(
+        warpService.getWarpCoreConfig(warpRouteId),
+      ).to.be.rejectedWith('Registry error');
     });
 
     it('should call withRegistry with correct operation', async () => {
@@ -94,7 +94,7 @@ describe('WarpService', () => {
         .stub(mockRegistry, 'getWarpRoute')
         .resolves(mockWarpRoute);
 
-      await warpService.getWarpRoute(warpRouteId);
+      await warpService.getWarpCoreConfig(warpRouteId);
 
       expect(mockRegistryService.withRegistry.calledOnce).to.be.true;
 

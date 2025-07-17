@@ -26,7 +26,7 @@ export function createWarpRouter(warpService: WarpService) {
 
   // get warp core config
   router.get(
-    '/*id',
+    '/core/*id',
     (req, res, next) => {
       if (Array.isArray(req.params.id)) {
         // The splat route captures path segments as an array. Join them back together.
@@ -36,7 +36,7 @@ export function createWarpRouter(warpService: WarpService) {
     },
     validateRequestParam('id', z.string()),
     async (req: Request, res: Response) => {
-      const warpRoute = await warpService.getWarpRoute(req.params.id);
+      const warpRoute = await warpService.getWarpCoreConfig(req.params.id);
       res.json(warpRoute);
     },
   );
