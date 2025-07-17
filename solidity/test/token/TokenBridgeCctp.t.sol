@@ -1068,6 +1068,13 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
     }
 
+    event MintAndWithdraw(
+        address indexed mintRecipient,
+        uint256 amount,
+        address indexed mintToken,
+        uint256 feeCollected
+    );
+
     function testFork_verify_tokenMessage() public {
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
 
@@ -1081,6 +1088,8 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         ism.enrollRemoteRouter(origin, hook);
 
         // https://optimistic.etherscan.io/tx/0x4a8c5aef605bd1a79d7e4ab7b1852d246a05859a168db2b4791563877f2f3325
+        uint256 amount = 2;
+        uint256 fee = 1;
         bytes
             memory cctpMessage = hex"0000000100000002000000069abb52aa4e37d2ee3e521f9bc92e97581a68dadcd826fd2abaa5150de95db90e00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000003e8000003e8000000010000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff85000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000001f825d8";
 
@@ -1097,9 +1106,11 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             hook,
             ism.localDomain(),
             address(ism).addressToBytes32(),
-            abi.encode(hook, uint256(2))
+            abi.encode(hook, amount)
         );
 
+        vm.expectEmit(true, true, true, true, address(ism.tokenMessenger()));
+        emit MintAndWithdraw(deployer, amount - fee, usdc, fee);
         ism.verify(metadata, message);
     }
 
