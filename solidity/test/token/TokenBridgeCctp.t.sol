@@ -1068,44 +1068,27 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
     }
 
-    function testFork_verify_tokenMessage(
-        bytes32 recipient,
-        uint32 amount
-    ) public {
+    function testFork_verify_tokenMessage() public {
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
 
         TokenBridgeCctpV2 ism = _deploy();
 
-        bytes32 hook = 0x0000000000000000000000000000000000000000000000000000000000000001;
+        bytes32 hook = deployer.addressToBytes32();
 
-        uint32 origin = 1; // ethereum
-        uint32 circleOrigin = 0;
+        uint32 origin = 10; // optimism
+        uint32 circleOrigin = 2;
         ism.addDomain(origin, circleOrigin);
         ism.enrollRemoteRouter(origin, hook);
 
-        bytes memory burnMessage = BurnMessageV2._formatMessageForRelay(
-            CCTP_VERSION_2,
-            address(tokenOrigin).addressToBytes32(),
-            recipient,
-            amount,
-            hook,
-            maxFee,
-            bytes("")
-        );
+        // https://optimistic.etherscan.io/tx/0x4a8c5aef605bd1a79d7e4ab7b1852d246a05859a168db2b4791563877f2f3325
+        bytes
+            memory cctpMessage = hex"0000000100000002000000069abb52aa4e37d2ee3e521f9bc92e97581a68dadcd826fd2abaa5150de95db90e00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000003e8000003e8000000010000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff85000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000001f825d8";
 
-        bytes memory cctpMessage = CctpMessageV2._formatMessageForRelay(
-            CCTP_VERSION_2,
-            circleOrigin,
-            cctpDestination,
-            address(0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d)
-                .addressToBytes32(),
-            address(ism.tokenMessenger()).addressToBytes32(),
-            address(ism).addressToBytes32(),
-            minFinalityThreshold,
-            burnMessage
-        );
+        // https://iris-api.circle.com/v2/messages/2?transactionHash=0x4a8c5aef605bd1a79d7e4ab7b1852d246a05859a168db2b4791563877f2f3325
+        bytes
+            memory attestation = hex"f75d61f667685827a63a857fcfae06fd9c42860c9a94175a2041a98941c874303aa44a973bf28b447ecc39e25d81a869584e9379d41f669dc526bf3b6810a0161c278bcd556ac5dd462095094af97a8773b33c00788a362c424d5569bdb4c2fb853ab4aefab3839bc8128e280f16fc09c6cfb11361061e527f5804fa6c6b130dc91b";
 
-        bytes memory metadata = abi.encode(cctpMessage, bytes(""));
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
 
         bytes memory message = abi.encodePacked(
             uint8(3),
@@ -1114,7 +1097,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             hook,
             ism.localDomain(),
             address(ism).addressToBytes32(),
-            abi.encode(recipient, uint256(amount))
+            abi.encode(hook, uint256(2))
         );
 
         ism.verify(metadata, message);
