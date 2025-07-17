@@ -1,5 +1,5 @@
 import type { ethers } from 'ethers';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import type { Domain, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -18,7 +18,7 @@ export type Connection = ethers.providers.Provider | ethers.Signer;
 
 export const OwnableSchema = z.object({
   owner: ZHash,
-  ownerOverrides: z.record(ZHash).optional(),
+  ownerOverrides: z.record(z.string(), ZHash).optional(),
 });
 
 export type OwnableConfig = z.infer<typeof OwnableSchema>;

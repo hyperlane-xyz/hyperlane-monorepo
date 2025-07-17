@@ -1,4 +1,4 @@
-import { fromZodError } from 'zod-validation-error';
+import { createErrorMap, fromZodError } from 'zod-validation-error/v4';
 
 import {
   type RebalancerConfigFileInput,
@@ -25,7 +25,13 @@ export class RebalancerConfig {
     const validationResult = RebalancerConfigSchema.safeParse(config);
 
     if (!validationResult.success) {
-      throw new Error(fromZodError(validationResult.error).message);
+      throw new Error(
+        fromZodError(validationResult.error, {
+          error: createErrorMap({
+            includePath: true,
+          }),
+        }).message,
+      );
     }
 
     const { warpRouteId, strategy } = validationResult.data;

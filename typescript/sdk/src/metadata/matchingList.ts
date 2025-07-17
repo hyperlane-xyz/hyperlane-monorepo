@@ -2,7 +2,7 @@
  * The types defined here are the source of truth for chain metadata.
  * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
  */
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { ZHash, ZNzUint } from './customZodTypes.js';
 

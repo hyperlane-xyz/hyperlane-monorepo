@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
@@ -147,51 +147,60 @@ export const ArbL2ToL1HookSchema = z.object({
       'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
     ),
   destinationChain: z.string(),
-  childHook: z.lazy((): z.ZodSchema => HookConfigSchema),
+  get childHook() {
+    return HookConfigSchema;
+  },
 });
 
 export const IgpSchema = OwnableSchema.extend({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
   beneficiary: z.string(),
   oracleKey: z.string(),
-  overhead: z.record(z.number()),
-  oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
+  overhead: z.record(z.string(), z.number()),
+  oracleConfig: z.record(
+    z.string(),
+    ProtocolAgnositicGasOracleConfigWithTypicalCostSchema,
+  ),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
-  z.lazy(() =>
-    OwnableSchema.extend({
-      type: z.literal(HookType.ROUTING),
-      domains: z.record(HookConfigSchema),
-    }),
-  );
+  OwnableSchema.extend({
+    type: z.literal(HookType.ROUTING),
+    get domains() {
+      return z.record(z.string(), HookConfigSchema);
+    },
+  });
 
 export const FallbackRoutingHookConfigSchema: z.ZodSchema<FallbackRoutingHookConfig> =
-  z.lazy(() =>
-    OwnableSchema.extend({
-      type: z.literal(HookType.FALLBACK_ROUTING),
-      domains: z.record(HookConfigSchema),
-      fallback: HookConfigSchema,
-    }),
-  );
+  OwnableSchema.extend({
+    type: z.literal(HookType.FALLBACK_ROUTING),
+    get domains() {
+      return z.record(z.string(), HookConfigSchema);
+    },
+    get fallback() {
+      return HookConfigSchema;
+    },
+  });
 
 export const AmountRoutingHookConfigSchema: z.ZodSchema<AmountRoutingHookConfig> =
-  z.lazy(() =>
-    z.object({
-      type: z.literal(HookType.AMOUNT_ROUTING),
-      threshold: z.number(),
-      lowerHook: HookConfigSchema,
-      upperHook: HookConfigSchema,
-    }),
-  );
+  z.object({
+    type: z.literal(HookType.AMOUNT_ROUTING),
+    threshold: z.number(),
+    get lowerHook() {
+      return HookConfigSchema;
+    },
+    get upperHook() {
+      return HookConfigSchema;
+    },
+  });
 
 export const AggregationHookConfigSchema: z.ZodSchema<AggregationHookConfig> =
-  z.lazy(() =>
-    z.object({
-      type: z.literal(HookType.AGGREGATION),
-      hooks: z.array(HookConfigSchema),
-    }),
-  );
+  z.object({
+    type: z.literal(HookType.AGGREGATION),
+    get hooks() {
+      return z.array(HookConfigSchema);
+    },
+  });
 
 export const CCIPHookSchema = z.object({
   type: z.literal(HookType.CCIP),
@@ -220,5 +229,5 @@ export const HooksConfigSchema = z.object({
   required: HookConfigSchema,
 });
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
-export const HooksConfigMapSchema = z.record(HooksConfigSchema);
+export const HooksConfigMapSchema = z.record(z.string(), HooksConfigSchema);
 export type HooksConfigMap = z.infer<typeof HooksConfigMapSchema>;

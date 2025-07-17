@@ -8080,7 +8080,7 @@ __metadata:
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
-    zod: "npm:^3.21.2"
+    zod: "npm:4.0.0"
   languageName: unknown
   linkType: soft
 
@@ -8133,8 +8133,8 @@ __metadata:
     yaml: "npm:2.4.5"
     yargs: "npm:^17.7.2"
     zksync-ethers: "npm:^5.10.0"
-    zod: "npm:^3.21.2"
-    zod-validation-error: "npm:^3.3.0"
+    zod: "npm:4.0.0"
+    zod-validation-error: "npm:^3.5.2"
     zx: "npm:^8.1.4"
   bin:
     hyperlane: ./cli-bundle/index.js
@@ -8377,6 +8377,7 @@ __metadata:
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
     yargs: "npm:^17.7.2"
+    zod-validation-error: "npm:^3.5.2"
   peerDependencies:
     "@ethersproject/abi": "*"
   languageName: unknown
@@ -8473,7 +8474,7 @@ __metadata:
     viem: "npm:^2.21.45"
     yaml: "npm:2.4.5"
     zksync-ethers: "npm:^5.10.0"
-    zod: "npm:^3.21.2"
+    zod: "npm:4.0.0"
   peerDependencies:
     "@ethersproject/abi": "*"
     "@ethersproject/providers": "*"
@@ -40901,12 +40902,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod-validation-error@npm:^3.3.0":
-  version: 3.3.0
-  resolution: "zod-validation-error@npm:3.3.0"
+"zod-validation-error@npm:^3.5.2":
+  version: 3.5.2
+  resolution: "zod-validation-error@npm:3.5.2"
   peerDependencies:
-    zod: ^3.18.0
-  checksum: 10/19574cbc453c7a41105de572546e95191958f459dd93440f541a42c0ff209b56f1cd54e8f8ab1899430dd7c183e11cd16e8cace0bd4fc5d356ef772645210792
+    zod: ^3.25.0
+  checksum: 10/ca084429d32b6e084088a2d384fd12c2839929fbf0f31e383ae1606c60a85ac0a0cf7a9c1a61f8053690c50a39e9d6ee4d1286edc19305532f20de1b369109e6
+  languageName: node
+  linkType: hard
+
+"zod@npm:4.0.0":
+  version: 4.0.0
+  resolution: "zod@npm:4.0.0"
+  checksum: 10/54d1d57e29b9523fe1a0b6d8c1522b2fbec020309b514938b3646b69208d0c68e40f8663706859a8843ca825de542c205fa2ae41e3e7c79a0980f068d85f33ef
   languageName: node
   linkType: hard
 

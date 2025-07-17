@@ -1,7 +1,7 @@
 import type { TransactionReceipt } from '@ethersproject/providers';
 import { Request, Response, Router } from 'express';
 import { Logger } from 'pino';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import {
   CommitmentReadIsmService__factory,

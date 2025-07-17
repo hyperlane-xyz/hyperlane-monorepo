@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { Address, Numberish, ProtocolType } from '@hyperlane-xyz/utils';
 

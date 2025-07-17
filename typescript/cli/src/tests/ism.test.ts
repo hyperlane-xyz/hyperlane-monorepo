@@ -74,7 +74,7 @@ describe('readIsmConfig', () => {
   it('parsing failure, wrong ism type', () => {
     expect(function () {
       readIsmConfig('src/tests/ism/wrong-ism-type-fail.yaml');
-    }).to.throw('Invalid ISM config: anvil2 => Invalid input');
+    }).to.throw('Invalid ISM config: anvil2 => Validation error:');
   });
 
   it('parsing failure, threshold > modules.length', () => {

@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
