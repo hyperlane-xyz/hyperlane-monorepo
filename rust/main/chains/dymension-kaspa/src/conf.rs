@@ -116,13 +116,10 @@ impl ConnectionConf {
             None => None,
         };
 
-        let r = match &kaspa_escrow_private_key {
-            None => Some(RelayerStuff {
+        let relayer_stuff = Some(RelayerStuff {
                 deposit_look_back_mins,
                 validator_hosts,
-            }),
-            Some(_) => None,
-        };
+            });
 
         Self {
             wallet_secret,
@@ -134,7 +131,7 @@ impl ConnectionConf {
             multisig_threshold_hub_ism,
             multisig_threshold_kaspa: multisig_threshold_kaspa_schnorr,
             hub_grpc_urls,
-            relayer_stuff: r,
+            relayer_stuff: relayer_stuff,
             op_submission_config,
         }
     }
