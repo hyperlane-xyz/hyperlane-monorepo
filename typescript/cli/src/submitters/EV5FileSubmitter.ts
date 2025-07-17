@@ -41,7 +41,7 @@ export class EV5FileSubmitter
         Array.isArray(maybeExistingTxs),
         `Target filepath ${filepath} has existing data, but is not an array. Overwriting.`,
       );
-      allTxs.push(...maybeExistingTxs);
+      allTxs.unshift(...maybeExistingTxs);
     } catch (e) {
       this.logger.debug(`Invalid transactions read from ${filepath}: ${e}`);
     }

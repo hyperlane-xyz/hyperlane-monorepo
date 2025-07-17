@@ -201,7 +201,7 @@ describe('hyperlane submit', function () {
       await hyperlaneSubmit({ strategyPath, transactionsPath });
 
       const outputtedTransactions = readYamlOrJson(outputTransactionPath);
-      expect(outputtedTransactions).to.have.deep.members(transactions); // members is an array of values that are unordered
+      expect(outputtedTransactions).to.deep.equal(transactions);
     });
 
     it('should overwrite a transactions file if it is malformed (not array)', async () => {
@@ -235,7 +235,7 @@ describe('hyperlane submit', function () {
 
       await hyperlaneSubmit({ strategyPath, transactionsPath });
       const outputtedTransactions = readYamlOrJson(outputTransactionPath);
-      expect(outputtedTransactions).to.have.deep.members(transactions); // members is an array of values that are unordered
+      expect(outputtedTransactions).to.deep.equal(transactions);
     });
   });
 });
