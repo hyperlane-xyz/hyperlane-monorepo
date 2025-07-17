@@ -170,7 +170,7 @@ pub async fn build_mock_checkpoint_syncs(
             .responses
             .fetch_checkpoint
             .lock()
-            .unwrap()
+            .expect("Failed to acquire mutex lock")
             .push_back(sig);
         let key: H160 = validator
             .public_key
