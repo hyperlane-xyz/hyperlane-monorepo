@@ -143,7 +143,7 @@ pub struct NodeInfo {
     pub host: Option<String>,
 }
 
-/// Type of RPC client connnection
+/// Type of RPC client connection
 #[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClientConnectionType {
