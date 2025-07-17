@@ -8,7 +8,7 @@ import {
   RebalancerStrategyOptions,
 } from '@hyperlane-xyz/sdk';
 
-import { REBALANCER_CONFIG_PATH } from '../../tests/commands/helpers.js';
+import { REBALANCER_CONFIG_PATH } from '../../tests/ethereum/consts.js';
 import { writeYamlOrJson } from '../../utils/files.js';
 
 import { RebalancerConfig } from './RebalancerConfig.js';
