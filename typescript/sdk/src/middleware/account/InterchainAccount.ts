@@ -74,39 +74,21 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   async getAccount(
     destinationChain: ChainName,
     config: AccountConfig,
-    routerOverride?: Address,
-    ismOverride?: Address,
   ): Promise<Address> {
-    return this.getOrDeployAccount(
-      false,
-      destinationChain,
-      config,
-      routerOverride,
-      ismOverride,
-    );
+    return this.getOrDeployAccount(false, destinationChain, config);
   }
 
   async deployAccount(
     destinationChain: ChainName,
     config: AccountConfig,
-    routerOverride?: Address,
-    ismOverride?: Address,
   ): Promise<Address> {
-    return this.getOrDeployAccount(
-      true,
-      destinationChain,
-      config,
-      routerOverride,
-      ismOverride,
-    );
+    return this.getOrDeployAccount(true, destinationChain, config);
   }
 
   protected async getOrDeployAccount(
     deployIfNotExists: boolean,
     destinationChain: ChainName,
     config: AccountConfig,
-    routerOverride?: Address,
-    ismOverride?: Address,
   ): Promise<Address> {
     const originDomain = this.multiProvider.tryGetDomainId(config.origin);
     if (!originDomain) {
@@ -115,18 +97,20 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       );
     }
     const destinationRouter = this.router(this.contractsMap[destinationChain]);
-    const originRouterAddress =
-      routerOverride ??
-      bytes32ToAddress(await destinationRouter.routers(originDomain));
+    const originRouterAddress = config.localRouter
+      ? bytes32ToAddress(config.localRouter)
+      : bytes32ToAddress(await destinationRouter.routers(originDomain));
     if (isZeroishAddress(originRouterAddress)) {
       throw new Error(
         `Origin router address is zero for ${config.origin} on ${destinationChain}`,
       );
     }
 
-    const destinationIsmAddress =
-      ismOverride ??
-      bytes32ToAddress(await destinationRouter.isms(originDomain));
+    const destinationIsmAddress = bytes32ToAddress(
+      addressToBytes32(
+        config.ismOverride ?? (await destinationRouter.isms(originDomain)),
+      ),
+    );
     const destinationAccount = await destinationRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
     ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
@@ -189,7 +173,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     config,
     hookMetadata,
   }: GetCallRemoteSettings): Promise<PopulatedTransaction> {
-    const localRouter = this.router(this.contractsMap[chain]);
+    const localRouter = config.localRouter
+      ? InterchainAccountRouter__factory.connect(
+          config.localRouter,
+          this.multiProvider.getSigner(chain),
+        )
+      : this.router(this.contractsMap[chain]);
     const remoteDomain = this.multiProvider.getDomainId(destination);
     const quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
     const remoteRouter = addressToBytes32(

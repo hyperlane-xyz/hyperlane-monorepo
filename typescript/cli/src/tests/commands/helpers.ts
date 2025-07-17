@@ -75,3 +75,12 @@ export async function asyncStreamInputWrite(
   // Adding a slight delay to allow the buffer to update the output
   await sleep(500);
 }
+
+export async function restoreSnapshot(
+  stream: NodeJS.WritableStream,
+  data: string | Buffer,
+): Promise<void> {
+  stream.write(data);
+  // Adding a slight delay to allow the buffer to update the output
+  await sleep(500);
+}

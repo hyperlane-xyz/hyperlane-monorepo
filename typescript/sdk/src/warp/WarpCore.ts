@@ -8,6 +8,7 @@ import {
   assert,
   convertDecimalsToIntegerString,
   convertToProtocolAddress,
+  convertToScaledAmount,
   isValidAddress,
   isZeroishAddress,
   rootLogger,
@@ -583,6 +584,26 @@ export class WarpCore {
       originToken.decimals,
       destinationBalance.toString(),
     );
+
+    // check for scaling factor
+    if (
+      originToken.scale &&
+      destinationToken.scale &&
+      originToken.scale !== destinationToken.scale
+    ) {
+      const precisionFactor = 100_000;
+      const scaledAmount = convertToScaledAmount({
+        fromScale: originToken.scale,
+        toScale: destinationToken.scale,
+        amount,
+        precisionFactor,
+      });
+
+      return (
+        BigInt(destinationBalanceInOriginDecimals) * BigInt(precisionFactor) >=
+        scaledAmount
+      );
+    }
 
     const isSufficient = BigInt(destinationBalanceInOriginDecimals) >= amount;
     this.logger.debug(

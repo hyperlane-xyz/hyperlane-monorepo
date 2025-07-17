@@ -17,10 +17,10 @@ import {
   HypXERC20Lockbox__factory,
   IXERC20VS__factory,
   IXERC20__factory,
+  MovableCollateralRouter__factory,
   Ownable__factory,
   ProxyAdmin__factory,
   TimelockController__factory,
-  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
@@ -47,6 +47,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { awIcasV2 } from '../../config/environments/mainnet3/governance/ica/aw2.js';
+import { regularIcasV2 } from '../../config/environments/mainnet3/governance/ica/regular2.js';
 import {
   getAllSafesForChain,
   getGovernanceIcas,
@@ -62,7 +64,11 @@ import {
 } from '../../scripts/core-utils.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { tokens } from '../config/warp.js';
-import { GovernanceType, determineGovernanceType } from '../governance.js';
+import {
+  GovernanceType,
+  Owner,
+  determineGovernanceType,
+} from '../governance.js';
 import { getSafeTx, parseSafeTx } from '../utils/safe.js';
 
 interface GovernTransaction extends Record<string, any> {
@@ -716,7 +722,8 @@ export class GovernTransactionReader {
     }
 
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const tokenRouterInterface = TokenRouter__factory.createInterface();
+    const tokenRouterInterface =
+      MovableCollateralRouter__factory.createInterface();
 
     const decoded = tokenRouterInterface.parseTransaction({
       data: tx.data,
@@ -730,6 +737,22 @@ export class GovernTransactionReader {
     ) {
       const [hookAddress] = decoded.args;
       insight = `Set hook to ${hookAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['addBridge(uint32,address)'].name
+    ) {
+      const [domain, bridgeAddress] = decoded.args;
+      insight = `Set bridge for origin domain ${domain}to ${bridgeAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['addRebalancer(address)'].name
+    ) {
+      const [rebalancer] = decoded.args;
+      insight = `Add rebalancer ${rebalancer}`;
     }
 
     if (
@@ -843,11 +866,28 @@ export class GovernTransactionReader {
       );
     } else if (
       decoded.functionFragment.name ===
+      icaInterface.functions['enrollRemoteRouters(uint32[],bytes32[])'].name
+    ) {
+      prettyArgs = await this.formatRouterEnrollments(
+        chain,
+        'interchainAccountRouter',
+        args,
+      );
+    } else if (
+      decoded.functionFragment.name ===
       icaInterface.functions[
         'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])'
       ].name
     ) {
       prettyArgs = await this.readIcaRemoteCall(chain, args);
+    } else if (decoded.signature === 'transferOwnership(address)') {
+      // Fallback to ownable transaction handling for unknown functions
+      const ownableTx = await this.readOwnableTransaction(chain, tx);
+      return {
+        ...ownableTx,
+        to: `ICA Router (${chain} ${this.chainAddresses[chain].interchainAccountRouter})`,
+        signature: decoded.signature,
+      };
     }
 
     return {
@@ -920,6 +960,14 @@ export class GovernTransactionReader {
       mailboxInterface.functions['setDefaultIsm(address)'].name
     ) {
       prettyArgs = await this.formatMailboxSetDefaultIsm(chain, args);
+    } else if (decoded.signature === 'transferOwnership(address)') {
+      // Fallback to ownable transaction handling for unknown functions
+      const ownableTx = await this.readOwnableTransaction(chain, tx);
+      return {
+        ...ownableTx,
+        to: `Mailbox (${chain} ${this.chainAddresses[chain].mailbox})`,
+        signature: decoded.signature,
+      };
     }
 
     return {
@@ -1240,7 +1288,8 @@ export class GovernTransactionReader {
       ownableInterface.functions['transferOwnership(address)'].name
     ) {
       const [newOwner] = decoded.args;
-      insight = `Transfer ownership to ${newOwner}`;
+      const newOwnerInsight = await getOwnerInsight(chain, newOwner);
+      insight = `Transfer ownership to ${newOwnerInsight}`;
     }
 
     const args = formatFunctionFragmentArgs(
@@ -1523,4 +1572,27 @@ function formatOperationType(operation: OperationType | undefined): string {
     default:
       return '⚠️ Unknown ⚠️';
   }
+}
+
+async function getOwnerInsight(
+  chain: ChainName,
+  address: Address,
+): Promise<string> {
+  const { ownerType, governanceType } = await determineGovernanceType(
+    chain,
+    address,
+  );
+  if (ownerType !== Owner.UNKNOWN) {
+    return `${address} (${governanceType.toUpperCase()} ${ownerType})`;
+  }
+
+  if (eqAddress(address, awIcasV2[chain])) {
+    return `${address} (${GovernanceType.AbacusWorks.toUpperCase()} ${Owner.ICA} v2)`;
+  }
+
+  if (eqAddress(address, regularIcasV2[chain])) {
+    return `${address} (${GovernanceType.Regular.toUpperCase()} ${Owner.ICA} v2)`;
+  }
+
+  return `${address} (Unknown)`;
 }

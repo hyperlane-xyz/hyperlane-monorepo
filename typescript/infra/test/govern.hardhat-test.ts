@@ -96,7 +96,7 @@ describe('ICA governance', async () => {
   let multiProvider: MultiProvider;
   let accountConfig: AccountConfig;
   let coreApp: TestCoreApp;
-  // let local: InterchainAccountRouter;
+  let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
   let routerConfig: ChainMap<IcaRouterConfig>;
   let contracts: HyperlaneContractsMap<InterchainAccountFactories>;
@@ -133,14 +133,15 @@ describe('ICA governance', async () => {
     contracts = await new InterchainAccountDeployer(multiProvider).deploy(
       routerConfig,
     );
-    // local = contracts[localChain].interchainAccountRouter;
+    local = contracts[localChain].interchainAccountRouter;
     remote = contracts[remoteChain].interchainAccountRouter;
     icaApp = new InterchainAccount(contracts, multiProvider);
 
     accountConfig = {
       origin: TestChainName.test1,
       owner: signer.address,
-      localRouter: remote.address,
+      localRouter: local.address,
+      routerOverride: remote.address,
     };
 
     accountOwner = await icaApp.deployAccount(remoteChain, accountConfig);

@@ -222,7 +222,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     alephzeroevmmainnet: true,
     apechain: true,
     appchain: true,
-    arcadia: false,
+    arcadia: true,
     arbitrum: true,
     arbitrumnova: true,
     artela: true,
@@ -374,7 +374,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     appchain: true,
     arbitrum: true,
     arbitrumnova: true,
-    arcadia: false,
+    arcadia: true,
     artela: true,
     astar: true,
     aurora: true,
@@ -848,7 +848,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5291797-20250701-134531',
+      tag: 'fcb9d47-20250711-125026',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -894,7 +894,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c40b577-20250701-162513',
+      tag: 'fcb9d47-20250711-125026',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

@@ -885,7 +885,7 @@
     "type": "messageIdMultisigIsm",
     "threshold": 2,
     "validators": [
-      "0x190ecB6CD53e02D375aa65F69C9f808dd92c6ab3",
+      "0x0ede747b84071ac24b60c08f8d59ad55d23f8a5c",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },

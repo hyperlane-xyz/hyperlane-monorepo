@@ -546,3 +546,23 @@ async function snapshotBaseCall<T>(
   const { result } = await response.json();
   return result;
 }
+
+export async function hyperlaneSubmit({
+  transactionsPath,
+  strategyPath,
+  hypKey,
+}: {
+  transactionsPath: string;
+  strategyPath?: string;
+  hypKey?: string;
+}) {
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : []
+  } ${localTestRunCmdPrefix()} hyperlane submit \
+        --registry ${REGISTRY_PATH} \
+        --transactions ${transactionsPath} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        ${strategyPath ? ['--strategy', strategyPath] : []} \
+        --yes`;
+}

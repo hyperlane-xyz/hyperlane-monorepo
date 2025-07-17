@@ -1,5 +1,5 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../MultiProvider.js';
 
@@ -18,51 +18,98 @@ export type SubmitterBuilderSettings = {
   submissionStrategy: SubmissionStrategy;
   multiProvider: MultiProvider;
   registry: IRegistry;
+  additionalSubmitterFactories?: Record<string, SubmitterFactory>;
 };
 
 export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
   submissionStrategy,
   multiProvider,
   registry,
+  additionalSubmitterFactories,
 }: SubmitterBuilderSettings): Promise<TxSubmitterBuilder<TProtocol>> {
   const submitter = await getSubmitter<TProtocol>(
     multiProvider,
     submissionStrategy.submitter,
     registry,
+    additionalSubmitterFactories,
   );
 
   return new TxSubmitterBuilder<TProtocol>(submitter);
 }
 
+export type SubmitterFactory<TProtocol extends ProtocolType = any> = (
+  multiProvider: MultiProvider,
+  metadata: SubmitterMetadata,
+  registry: IRegistry,
+) => Promise<TxSubmitterInterface<TProtocol>> | TxSubmitterInterface<TProtocol>;
+
+const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
+  [TxSubmitterType.JSON_RPC]: (multiProvider, metadata) => {
+    // Used to type narrow metadata
+    assert(
+      metadata.type === TxSubmitterType.JSON_RPC,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
+    );
+    return new EV5JsonRpcTxSubmitter(multiProvider, metadata);
+  },
+  [TxSubmitterType.IMPERSONATED_ACCOUNT]: (multiProvider, metadata) => {
+    assert(
+      metadata.type === TxSubmitterType.IMPERSONATED_ACCOUNT,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.IMPERSONATED_ACCOUNT}`,
+    );
+    return new EV5ImpersonatedAccountTxSubmitter(multiProvider, metadata);
+  },
+  [TxSubmitterType.GNOSIS_SAFE]: (multiProvider, metadata) => {
+    assert(
+      metadata.type === TxSubmitterType.GNOSIS_SAFE,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.GNOSIS_SAFE}`,
+    );
+    return EV5GnosisSafeTxSubmitter.create(multiProvider, metadata);
+  },
+  [TxSubmitterType.GNOSIS_TX_BUILDER]: (multiProvider, metadata) => {
+    assert(
+      metadata.type === TxSubmitterType.GNOSIS_TX_BUILDER,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.GNOSIS_TX_BUILDER}`,
+    );
+    return EV5GnosisSafeTxBuilder.create(multiProvider, metadata);
+  },
+  [TxSubmitterType.INTERCHAIN_ACCOUNT]: (multiProvider, metadata, registry) => {
+    assert(
+      metadata.type === TxSubmitterType.INTERCHAIN_ACCOUNT,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.INTERCHAIN_ACCOUNT}`,
+    );
+    return EvmIcaTxSubmitter.fromConfig(metadata, multiProvider, registry);
+  },
+};
+
+/**
+ * Retrieves a transaction submitter instance based on the provided metadata.
+ * This function acts as a factory, using a registry of submitter builders
+ * to construct the appropriate submitter for the given protocol and submission strategy.
+ * It allows for extending the default registry with custom submitter types.
+ *
+ * @param multiProvider - The MultiProvider instance
+ * @param submitterMetadata - The metadata defining the type and configuration of the submitter.
+ * @param registry - The IRegistry instance for looking up chain-specific details.
+ * @param additionalSubmitterFactories optional extension to extend the default registry. Can override if specifying the the same key.
+ * @returns A promise that resolves to an instance of a TxSubmitterInterface.
+ * @throws If no submitter factory is registered for the type specified in the metadata.
+ */
 export async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
   submitterMetadata: SubmitterMetadata,
   registry: IRegistry,
+  additionalSubmitterFactories: Record<string, SubmitterFactory> = {},
 ): Promise<TxSubmitterInterface<TProtocol>> {
-  switch (submitterMetadata.type) {
-    case TxSubmitterType.JSON_RPC:
-      return new EV5JsonRpcTxSubmitter(multiProvider, {
-        ...submitterMetadata,
-      });
-    case TxSubmitterType.IMPERSONATED_ACCOUNT:
-      return new EV5ImpersonatedAccountTxSubmitter(multiProvider, {
-        ...submitterMetadata,
-      });
-    case TxSubmitterType.GNOSIS_SAFE:
-      return EV5GnosisSafeTxSubmitter.create(multiProvider, {
-        ...submitterMetadata,
-      });
-    case TxSubmitterType.GNOSIS_TX_BUILDER:
-      return EV5GnosisSafeTxBuilder.create(multiProvider, {
-        ...submitterMetadata,
-      });
-    case TxSubmitterType.INTERCHAIN_ACCOUNT:
-      return EvmIcaTxSubmitter.fromConfig(
-        submitterMetadata,
-        multiProvider,
-        registry,
-      );
-    default:
-      throw new Error(`Invalid TxSubmitterType.`);
+  const mergedSubmitterRegistry = {
+    ...defaultSubmitterFactories,
+    ...additionalSubmitterFactories,
+  };
+  const factory = mergedSubmitterRegistry[submitterMetadata.type];
+  if (!factory) {
+    throw new Error(
+      `No submitter factory registered for type ${submitterMetadata.type}`,
+    );
   }
+  return factory(multiProvider, submitterMetadata, registry);
 }
