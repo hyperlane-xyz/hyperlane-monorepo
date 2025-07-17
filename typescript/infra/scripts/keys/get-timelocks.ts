@@ -155,11 +155,13 @@ async function main() {
 
   // eslint-disable-next-line no-console
   console.table(
-    Object.entries(results).map(([chain, { address, status }]) => ({
-      chain,
-      address: address ?? '',
-      status,
-    })),
+    Object.entries(results)
+      .map(([chain, { address, status }]) => ({
+        chain,
+        address: address ?? '',
+        status,
+      }))
+      .sort((a, b) => a.chain.localeCompare(b.chain)),
   );
 }
 
