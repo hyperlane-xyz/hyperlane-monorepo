@@ -158,7 +158,7 @@ describe('hyperlane submit', function () {
     ]);
   });
 
-  describe.only('FileSubmitter', function () {
+  describe('FileSubmitter', function () {
     it('should execute a file strategy and append transactions to a file', async () => {
       // Generate a random-ish filename for local testing because FileSubmitterStrategy always appends so tests may fail
       const outputTransactionPath = `${TEMP_PATH}/transactions_${randomInt(0, 1_000_000)}.json`;
