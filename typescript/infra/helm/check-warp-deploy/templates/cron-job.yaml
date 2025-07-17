@@ -25,8 +25,6 @@ spec:
             - {{ .Values.hyperlane.runEnv }}
             - --pushMetrics
             env:
-            - name: DEBUG
-              value: "*"
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}
             {{- if .Values.hyperlane.registryCommit }}
