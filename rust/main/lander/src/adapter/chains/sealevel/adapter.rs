@@ -162,7 +162,7 @@ impl SealevelAdapter {
 
     #[allow(unused)]
     #[cfg(test)]
-    fn new_internal_with_block_time(
+    pub fn new_internal_with_block_time(
         estimated_block_time: Duration,
         client: Arc<dyn SubmitSealevelRpc>,
         provider: Arc<dyn SealevelProviderForLander>,
@@ -430,4 +430,4 @@ impl AdaptsChain for SealevelAdapter {
 }
 
 #[cfg(test)]
-mod tests;
+pub mod tests;
