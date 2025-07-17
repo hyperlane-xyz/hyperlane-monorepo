@@ -120,7 +120,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     hyperliquidevmtestnet: true,
-    infinityvmmonza: true,
+    infinityvmmonza: false,
     inksepolia: true,
     kyvetestnet: false,
     megaethtestnet: true,
@@ -250,6 +250,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       {
         originDomain: getDomainId('bsctestnet'),
         destinationDomain: getDomainId('milkywaytestnet'),
+      },
+      // Workaround for gas price fluctuations
+      // Works in tandem with increased igp overhead
+      {
+        destinationDomain: getDomainId('somniatestnet'),
       },
     ],
   },
@@ -405,7 +410,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '33b3649-20250612-161513',
+      tag: 'ac07f38-20250716-204548',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -450,7 +455,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '373482a-20250707-140617',
+      tag: 'ac07f38-20250716-204548',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
