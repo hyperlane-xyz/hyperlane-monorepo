@@ -304,6 +304,7 @@ jobs:
           # Other commands
           - relay
           # Warp Commands
+          - warp-apply-submitters
           - warp-apply
           - warp-bridge-1
           - warp-bridge-2
