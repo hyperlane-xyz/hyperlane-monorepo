@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used)]
+
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
 use url::Url;
@@ -54,12 +56,12 @@ pub struct ConnectionConf {
 impl ConnectionConf {
     /// Returns the RPC urls for this connection configuration
     pub fn rpc_urls(&self) -> Vec<Url> {
-        use RpcConnectionConf::{Http, HttpFallback, HttpQuorum};
+        use RpcConnectionConf::{Http, HttpFallback, HttpQuorum, Ws};
 
         match &self.rpc_connection {
             HttpQuorum { urls } | HttpFallback { urls } => urls.clone(),
             Http { url } => vec![url.clone()],
-            _ => vec![],
+            Ws { .. } => panic!("Websocket connection is not supported"),
         }
     }
 
