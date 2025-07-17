@@ -75,6 +75,7 @@ type ExecutableTimelockTx = TimelockTx & {
   encodedExecuteTransaction: HexString;
 };
 
+// TODO: organize this a bit better
 export class EvmTimelockReader {
   protected constructor(
     protected readonly chain: ChainNameOrId,

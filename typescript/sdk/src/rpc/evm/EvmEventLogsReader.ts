@@ -105,6 +105,7 @@ class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
   }
 }
 
+// TODO: implement tests for this
 export class EvmEventLogsReader {
   protected logReaderStrategy: IEvmEventLogsReaderStrategy;
 
