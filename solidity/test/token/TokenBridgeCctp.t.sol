@@ -898,13 +898,21 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         _setupTokenBridgesCctp(tbOrigin, tbDestination);
     }
 
+    function _setNonce(bytes memory cctpMessage, bytes32 nonce) internal view {
+        // length + NONCE_INDEX
+        uint256 nonceOffset = 32 + 12;
+        assembly {
+            mstore(add(cctpMessage, nonceOffset), nonce)
+        }
+    }
+
     function _encodeCctpBurnMessage(
-        uint64 /*nonce*/,
+        uint64 nonce,
         uint32 sourceDomain,
         bytes32 recipient,
         uint256 amount,
         address sender
-    ) internal view override returns (bytes memory) {
+    ) internal view override returns (bytes memory cctpMessage) {
         bytes memory burnMessage = BurnMessageV2._formatMessageForRelay(
             version,
             address(tokenOrigin).addressToBytes32(),
@@ -914,35 +922,41 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             maxFee,
             bytes("")
         );
-        return
-            CctpMessageV2._formatMessageForRelay(
-                version,
-                sourceDomain,
-                cctpDestination,
-                address(tokenMessengerOrigin).addressToBytes32(),
-                address(tokenMessengerDestination).addressToBytes32(),
-                bytes32(0),
-                minFinalityThreshold,
-                burnMessage
-            );
+        cctpMessage = CctpMessageV2._formatMessageForRelay(
+            version,
+            sourceDomain,
+            cctpDestination,
+            address(tokenMessengerOrigin).addressToBytes32(),
+            address(tokenMessengerDestination).addressToBytes32(),
+            bytes32(0),
+            minFinalityThreshold,
+            burnMessage
+        );
+        // pseudo random
+        bytes32 nonceBytes = keccak256(
+            abi.encode(nonce, sender, recipient, amount)
+        );
+        _setNonce(cctpMessage, nonceBytes);
     }
 
     function _encodeCctpHookMessage(
         bytes32 sender,
         bytes32 recipient,
         bytes memory message
-    ) internal view override returns (bytes memory) {
-        return
-            CctpMessageV2._formatMessageForRelay(
-                version,
-                cctpOrigin,
-                cctpDestination,
-                sender,
-                recipient,
-                bytes32(0),
-                minFinalityThreshold,
-                message
-            );
+    ) internal view override returns (bytes memory cctpMessage) {
+        cctpMessage = CctpMessageV2._formatMessageForRelay(
+            version,
+            cctpOrigin,
+            cctpDestination,
+            sender,
+            recipient,
+            bytes32(0),
+            minFinalityThreshold,
+            message
+        );
+        // pseudo random nonce
+        bytes32 nonce = keccak256(abi.encode(sender, recipient, message));
+        _setNonce(cctpMessage, nonce);
     }
 
     address constant usdc = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
