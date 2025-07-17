@@ -10,11 +10,11 @@ import { HyperlaneContracts } from '../../index.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { TimelockConfig } from '../types.js';
 
+import { EvmTimelockFactories, evmTimelockFactories } from './contracts.js';
+
 export class EvmTimelockDeployer extends HyperlaneDeployer<
   TimelockConfig,
-  {
-    TimelockController: TimelockController__factory;
-  }
+  EvmTimelockFactories
 > {
   constructor(
     multiProvider: MultiProvider,
@@ -22,31 +22,19 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
     contractVerifier?: ContractVerifier,
     logger?: Logger,
   ) {
-    super(
-      multiProvider,
-      {
-        TimelockController: new TimelockController__factory(),
-      },
-      {
-        logger:
-          logger ?? rootLogger.child({ module: EvmTimelockDeployer.name }),
-        contractVerifier,
-        concurrentDeploy,
-      },
-    );
+    super(multiProvider, evmTimelockFactories, {
+      logger: logger ?? rootLogger.child({ module: EvmTimelockDeployer.name }),
+      contractVerifier,
+      concurrentDeploy,
+    });
   }
 
   async deployContracts(
     chain: string,
     config: TimelockConfig,
-  ): Promise<
-    HyperlaneContracts<{
-      TimelockController: TimelockController__factory;
-    }>
-  > {
-    const deployedContract = await this.deployContractFromFactory(
+  ): Promise<HyperlaneContracts<EvmTimelockFactories>> {
+    const deployedContract = await this.deployContract(
       chain,
-      new TimelockController__factory(),
       'TimelockController',
       [
         config.minimumDelay,
@@ -54,8 +42,6 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
         config.executors,
         config.admin ?? ethers.constants.AddressZero,
       ],
-      undefined,
-      false,
     );
 
     return {
