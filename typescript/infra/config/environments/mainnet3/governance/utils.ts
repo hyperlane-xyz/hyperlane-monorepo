@@ -12,6 +12,23 @@ import { regularSafes } from './safe/regular.js';
 import { awSigners, awThreshold } from './signers/aw.js';
 import { irregularSigners, irregularThreshold } from './signers/irregular.js';
 import { regularSigners, regularThreshold } from './signers/regular.js';
+import { awTimelocks } from './timelock/aw.js';
+import { regularTimelocks } from './timelock/regular.js';
+
+export function getGovernanceTimelocks(governanceType: GovernanceType) {
+  switch (governanceType) {
+    case GovernanceType.Regular:
+      return regularTimelocks;
+    case GovernanceType.AbacusWorks:
+      return awTimelocks;
+    case GovernanceType.Irregular:
+      return {};
+    case GovernanceType.OUSDT:
+      return {};
+    default:
+      throw new Error(`Unknown governance type: ${governanceType}`);
+  }
+}
 
 export function getGovernanceSafes(governanceType: GovernanceType) {
   switch (governanceType) {
