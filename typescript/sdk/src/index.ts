@@ -403,6 +403,7 @@ export {
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
 export {
   randomAddress,
+  randomCosmosAddress,
   randomHookConfig,
   randomIsmConfig,
 } from './test/testUtils.js';
@@ -778,3 +779,15 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export { EvmTimelockDeployer } from './timelock/evm/EvmTimelockDeployer.js';
+export {
+  TimelockConfig,
+  TimelockConfigSchema,
+  TimelockConfigMapSchema,
+  TimelockConfigMap,
+} from './timelock/types.js';
+export {
+  CANCELLER_ROLE,
+  EXECUTOR_ROLE,
+  PROPOSER_ROLE,
+} from './timelock/evm/constants.js';
