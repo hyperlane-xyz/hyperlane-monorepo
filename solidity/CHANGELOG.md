@@ -1,5 +1,23 @@
 # @hyperlane-xyz/core
 
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [a33c8abd4]
+  - @hyperlane-xyz/utils@15.0.0
+
+## 9.0.0
+
+### Major Changes
+
+- 155f5a5e8: Remove old liquidity layer contracts
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@14.4.0
+
 ## 8.1.2
 
 ### Patch Changes

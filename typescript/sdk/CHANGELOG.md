@@ -1,5 +1,37 @@
 # @hyperlane-xyz/sdk
 
+## 15.0.0
+
+### Minor Changes
+
+- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additional updates to types related to these changes.
+
+### Patch Changes
+
+- 23861b70a: Don't `handleTx` for zksync, since the zksync deployer itself will handle it.
+- a33c8abd4: Use `convertToScaledAmount` in WarpCore
+- d16a853c0: Update paradex AW validator address.
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [a33c8abd4]
+  - @hyperlane-xyz/utils@15.0.0
+  - @hyperlane-xyz/core@9.0.1
+  - @hyperlane-xyz/starknet-core@15.0.0
+  - @hyperlane-xyz/cosmos-sdk@15.0.0
+
+## 14.4.0
+
+### Minor Changes
+
+- dce47e7b6: Update getSubmitter() to be return the default set of submitters, and also allow an extension to it.
+
+### Patch Changes
+
+- Updated dependencies [155f5a5e8]
+  - @hyperlane-xyz/core@9.0.0
+  - @hyperlane-xyz/starknet-core@14.4.0
+  - @hyperlane-xyz/cosmos-sdk@14.4.0
+  - @hyperlane-xyz/utils@14.4.0
+
 ## 14.3.0
 
 ### Minor Changes
