@@ -16,10 +16,7 @@ import {
   getContractDeploymentTransaction,
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../../../../../block-explorer/etherscan.js';
-import {
-  getExplorerFromChainMetadata,
-  viemLogFromGetEventLogsResponse,
-} from '../../../../../block-explorer/utils.js';
+import { viemLogFromGetEventLogsResponse } from '../../../../../block-explorer/utils.js';
 import { ChainNameOrId } from '../../../../../types.js';
 import { MultiProvider } from '../../../../MultiProvider.js';
 
@@ -77,11 +74,7 @@ export async function getPendingEvmTimelockControllerTransactions({
   multiProvider,
   timelockAddress,
 }: GetPendingTimelockTransactionsOptions): Promise<Record<string, TimelockTx>> {
-  const explorer = getExplorerFromChainMetadata(chain, multiProvider);
-  assert(
-    explorer,
-    `No explorer was configured correctly to make requests to the API for chain "${chain}". Set an API key or use an explorer API that does not require one`,
-  );
+  const explorer = multiProvider.getEvmExplorerMetadata(chain);
 
   const contractDeploymentTx = await getContractDeploymentTransaction(
     { apiUrl: explorer.apiUrl, apiKey: explorer.apiKey },

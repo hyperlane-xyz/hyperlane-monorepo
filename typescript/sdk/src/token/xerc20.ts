@@ -10,10 +10,7 @@ import {
   getContractDeploymentTransaction,
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../block-explorer/etherscan.js';
-import {
-  getExplorerFromChainMetadata,
-  viemLogFromGetEventLogsResponse,
-} from '../block-explorer/utils.js';
+import { viemLogFromGetEventLogsResponse } from '../block-explorer/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 
@@ -71,7 +68,7 @@ export async function getExtraLockBoxConfigs({
 }: Omit<GetExtraLockboxesOptions, 'explorerUrl' | 'apiKey'>): Promise<
   XERC20TokenExtraBridgesLimits[]
 > {
-  const explorer = getExplorerFromChainMetadata(chain, multiProvider);
+  const explorer = multiProvider.tryGetEvmExplorerMetadata(chain);
   if (!explorer) {
     logger.warn(
       `No block explorer was configured correctly, skipping lockbox derivation on chain ${chain}`,
