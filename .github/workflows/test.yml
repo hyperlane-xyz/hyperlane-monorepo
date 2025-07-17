@@ -291,6 +291,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        protocol:
+          - ethereum
+          - cosmosnative
         test:
           # Core Commands
           - core-apply
@@ -333,8 +336,8 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: CLI e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:e2e
+      - name: CLI ${{ matrix.protocol }} e2e tests (${{ matrix.test }})
+        run: yarn --cwd typescript/cli test:${{ matrix.protocol }}:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
