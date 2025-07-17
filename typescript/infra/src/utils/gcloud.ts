@@ -46,8 +46,6 @@ export async function fetchGCPSecret(
 }
 
 export async function fetchLatestGCPSecret(secretName: string) {
-  console.log(`Fetching GCP secret with name ${secretName}`);
-
   const client = await getSecretManagerServiceClient();
   const [secretVersion] = await client.accessSecretVersion({
     name: `projects/${GCP_PROJECT_ID}/secrets/${secretName}/versions/latest`,

@@ -89,8 +89,6 @@ async function main() {
   // This ensures that we don't fail to fetch secrets for new chains in the cron job.
   const envConfig = getEnvironmentConfig(environment);
 
-  console.log('Found env config:', envConfig);
-
   // Use default values for context, role, and useSecrets
   const multiProvider = await envConfig.getMultiProvider(
     undefined,
@@ -98,8 +96,6 @@ async function main() {
     undefined,
     Array.from(warpConfigChains),
   );
-
-  console.log('Got multiProvider:', multiProvider);
 
   // TODO: consider retrying this if check throws an error
   for (const warpRouteId of warpIdsToCheck) {
