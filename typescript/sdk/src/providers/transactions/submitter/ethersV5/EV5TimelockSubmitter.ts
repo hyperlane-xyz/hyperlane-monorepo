@@ -98,7 +98,7 @@ export class EV5TimelockSubmitter
     // If no domain id is set on the transactions
     // assume they are to be sent on the current configured chain
     const [domainId] = transactionChains.values();
-    const destinationChain = this.multiProvider.getDomainId(
+    const destinationChainDomainId = this.multiProvider.getDomainId(
       domainId ?? this.config.chain,
     );
 
@@ -162,7 +162,7 @@ export class EV5TimelockSubmitter
     ]);
 
     const proposeFormattedCallData = await this.proposerSubmitter.submit({
-      chainId: destinationChain,
+      chainId: destinationChainDomainId,
       ...proposeCallData,
     });
 
