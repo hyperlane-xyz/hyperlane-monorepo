@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used, clippy::panic)]
+
 use derive_new::new;
 use serde::{Deserialize, Serialize};
 

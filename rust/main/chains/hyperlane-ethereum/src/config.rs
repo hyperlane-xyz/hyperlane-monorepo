@@ -54,12 +54,12 @@ pub struct ConnectionConf {
 impl ConnectionConf {
     /// Returns the RPC urls for this connection configuration
     pub fn rpc_urls(&self) -> Vec<Url> {
-        use RpcConnectionConf::{Http, HttpFallback, HttpQuorum, Ws};
+        use RpcConnectionConf::{Http, HttpFallback, HttpQuorum};
 
         match &self.rpc_connection {
             HttpQuorum { urls } | HttpFallback { urls } => urls.clone(),
             Http { url } => vec![url.clone()],
-            Ws { url: _ } => panic!("Websocket connection is not supported"),
+            _ => vec![],
         }
     }
 
@@ -67,7 +67,10 @@ impl ConnectionConf {
     pub fn batch_contract_address(&self) -> H256 {
         self.op_submission_config
             .batch_contract_address
-            .unwrap_or(hex_or_base58_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT).unwrap())
+            .unwrap_or_else(|| {
+                hex_or_base58_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT)
+                    .expect("Invalid default batch contract address")
+            })
     }
 }
 

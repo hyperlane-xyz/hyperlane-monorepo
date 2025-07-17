@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used, clippy::panic)]
+
 pub use crate::metadata::{git_sha, AgentMetadata};
 
 use std::{env, fmt::Debug, sync::Arc};

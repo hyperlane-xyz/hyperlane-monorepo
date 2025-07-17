@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used, clippy::panic)]
+
 mod gcs_storage;
 mod local_storage;
 mod multisig;

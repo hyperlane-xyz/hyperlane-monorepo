@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used)]
+
 pub use dispatcher::entrypoint::{DispatcherEntrypoint, Entrypoint};
 pub use dispatcher::{DatabaseOrPath, Dispatcher, DispatcherMetrics, DispatcherSettings};
 pub use error::LanderError;

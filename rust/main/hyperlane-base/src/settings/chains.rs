@@ -1143,7 +1143,7 @@ impl ChainConf {
                     name: Some(name.into()),
                     functions: fns
                         .into_iter()
-                        .map(|s| (Selector::try_from(s.0).unwrap(), s.1))
+                        .map(|s| (Selector::try_from(s.0).expect("Failed to parse bytes"), s.1))
                         .collect(),
                 });
         };

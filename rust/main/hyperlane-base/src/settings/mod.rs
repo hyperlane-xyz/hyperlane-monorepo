@@ -1,3 +1,4 @@
+#![deny(clippy::unwrap_used, clippy::panic)]
 //! Common settings and configuration for Hyperlane agents
 //!
 //! The correct settings shape is defined in the TypeScript SDK metadata. While the exact shape

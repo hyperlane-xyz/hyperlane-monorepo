@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used, clippy::panic)]
+
 pub use self::storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData};
 pub use error::*;
 pub use rocks::*;

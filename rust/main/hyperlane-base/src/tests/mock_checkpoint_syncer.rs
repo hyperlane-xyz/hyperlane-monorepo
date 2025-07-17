@@ -60,7 +60,7 @@ impl CheckpointSyncer for MockCheckpointSyncer {
         self.responses
             .latest_index
             .lock()
-            .unwrap()
+            .expect("Failed to acquire mutex")
             .pop_front()
             .unwrap_or_else(|| panic!("No mock latest_index response set"))
     }
@@ -69,7 +69,7 @@ impl CheckpointSyncer for MockCheckpointSyncer {
         self.responses
             .write_latest_index
             .lock()
-            .unwrap()
+            .expect("Failed to acquire mutex")
             .pop_front()
             .unwrap_or_else(|| panic!("No mock write_latest_index response set"))
     }
@@ -78,7 +78,7 @@ impl CheckpointSyncer for MockCheckpointSyncer {
         self.responses
             .fetch_checkpoint
             .lock()
-            .unwrap()
+            .expect("Failed to acquire mutex")
             .pop_front()
             .unwrap_or_else(|| panic!("No mock fetch_checkpoint response set"))
     }
@@ -87,7 +87,7 @@ impl CheckpointSyncer for MockCheckpointSyncer {
         self.responses
             .write_checkpoint
             .lock()
-            .unwrap()
+            .expect("Failed to acquire mutex")
             .pop_front()
             .unwrap_or_else(|| panic!("No mock write_checkpoint response set"))
     }
@@ -96,7 +96,7 @@ impl CheckpointSyncer for MockCheckpointSyncer {
         self.responses
             .write_metadata
             .lock()
-            .unwrap()
+            .expect("Failed to acquire mutex")
             .pop_front()
             .unwrap_or_else(|| panic!("No mock write_metadata response set"))
     }
@@ -105,7 +105,7 @@ impl CheckpointSyncer for MockCheckpointSyncer {
         self.responses
             .write_announcement
             .lock()
-            .unwrap()
+            .expect("Failed to acquire mutex")
             .pop_front()
             .unwrap_or_else(|| panic!("No mock write_announcement response set"))
     }
@@ -114,7 +114,7 @@ impl CheckpointSyncer for MockCheckpointSyncer {
         self.responses
             .announcement_location
             .lock()
-            .unwrap()
+            .expect("Failed to acquire mutex")
             .pop_front()
             .unwrap_or_else(|| panic!("No mock announcement_location response set"))
     }
@@ -123,7 +123,7 @@ impl CheckpointSyncer for MockCheckpointSyncer {
         self.responses
             .write_reorg_status
             .lock()
-            .unwrap()
+            .expect("Failed to acquire mutex")
             .pop_front()
             .unwrap_or_else(|| panic!("No mock write_reorg_status response set"))
     }
@@ -132,7 +132,7 @@ impl CheckpointSyncer for MockCheckpointSyncer {
         self.responses
             .reorg_status
             .lock()
-            .unwrap()
+            .expect("Failed to acquire mutex")
             .pop_front()
             .unwrap_or_else(|| panic!("No mock reorg_status response set"))
     }
@@ -147,18 +147,23 @@ pub async fn build_mock_checkpoint_syncs(
         let signer: Signers = validator
             .private_key
             .parse::<ethers::signers::LocalWallet>()
-            .unwrap()
+            .expect("Failed to parse private key")
             .into();
         let syncer = MockCheckpointSyncer::new();
         syncer
             .responses
             .latest_index
             .lock()
-            .unwrap()
+            .expect("Failed to acquire mutex")
             .push_back(Ok(validator.latest_index));
 
         let sig = match validator.fetch_checkpoint {
-            Some(checkpoint) => Ok(Some(signer.sign(checkpoint).await.unwrap())),
+            Some(checkpoint) => Ok(Some(
+                signer
+                    .sign(checkpoint)
+                    .await
+                    .expect("Failed to sign checkpoint"),
+            )),
             None => Ok(None),
         };
         syncer
@@ -167,7 +172,10 @@ pub async fn build_mock_checkpoint_syncs(
             .lock()
             .unwrap()
             .push_back(sig);
-        let key: H160 = validator.public_key.parse().unwrap();
+        let key: H160 = validator
+            .public_key
+            .parse()
+            .expect("Failed to parse public key");
         let val = syncer;
         syncers.insert(key, val);
     }

@@ -249,14 +249,10 @@ impl HyperlaneDbStore {
                 continue;
             }
 
-            self.db
-                .store_blocks(
-                    self.domain.id(),
-                    blocks_to_insert
-                        .iter_mut()
-                        .map(|(_, info)| info.take().unwrap()),
-                )
-                .await?;
+            let blocks = blocks_to_insert
+                .iter_mut()
+                .filter_map(|(_, info)| info.take());
+            self.db.store_blocks(self.domain.id(), blocks).await?;
 
             let hashes = self
                 .db

@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+#![deny(clippy::unwrap_used, clippy::panic)]
 
 mod contracts;
 
