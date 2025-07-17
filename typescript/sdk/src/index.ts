@@ -779,3 +779,4 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export { SvmSplTokenWarpRouteReader } from './token/sealevel/SvmSplTokenWarpReader.js';
