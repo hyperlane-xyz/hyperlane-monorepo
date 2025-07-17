@@ -36,6 +36,10 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
     overhead *= 12;
   }
 
+  if (remote === 'somniatestnet') {
+    overhead *= 2;
+  }
+
   return overhead;
 }
 
