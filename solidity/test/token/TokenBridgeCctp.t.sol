@@ -917,7 +917,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             version,
             address(tokenOrigin).addressToBytes32(),
             recipient,
-            amount,
+            amount + (amount * maxFee) / 10_000,
             sender.addressToBytes32(),
             maxFee,
             bytes("")
