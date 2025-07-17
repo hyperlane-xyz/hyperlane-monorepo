@@ -899,7 +899,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
     }
 
     function _encodeCctpBurnMessage(
-        uint64 nonce,
+        uint64 /*nonce*/,
         uint32 sourceDomain,
         bytes32 recipient,
         uint256 amount,
@@ -1066,6 +1066,58 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             recipient,
             amount
         );
+    }
+
+    function testFork_verify_tokenMessage(
+        bytes32 recipient,
+        uint32 amount
+    ) public {
+        vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
+
+        TokenBridgeCctpV2 ism = _deploy();
+
+        bytes32 hook = 0x0000000000000000000000000000000000000000000000000000000000000001;
+
+        uint32 origin = 1; // ethereum
+        uint32 circleOrigin = 0;
+        ism.addDomain(origin, circleOrigin);
+        ism.enrollRemoteRouter(origin, hook);
+
+        bytes memory burnMessage = BurnMessageV2._formatMessageForRelay(
+            CCTP_VERSION_2,
+            address(tokenOrigin).addressToBytes32(),
+            recipient,
+            amount,
+            hook,
+            maxFee,
+            bytes("")
+        );
+
+        bytes memory cctpMessage = CctpMessageV2._formatMessageForRelay(
+            CCTP_VERSION_2,
+            circleOrigin,
+            cctpDestination,
+            address(0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d)
+                .addressToBytes32(),
+            address(ism.tokenMessenger()).addressToBytes32(),
+            address(ism).addressToBytes32(),
+            minFinalityThreshold,
+            burnMessage
+        );
+
+        bytes memory metadata = abi.encode(cctpMessage, bytes(""));
+
+        bytes memory message = abi.encodePacked(
+            uint8(3),
+            uint32(0),
+            origin,
+            hook,
+            ism.localDomain(),
+            address(ism).addressToBytes32(),
+            abi.encode(recipient, uint256(amount))
+        );
+
+        ism.verify(metadata, message);
     }
 
     function testFork_postDispatch(
