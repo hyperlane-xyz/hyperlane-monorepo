@@ -62,7 +62,6 @@ export class RadixWarpRouteReader {
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
     const token = await this.signer.queryToken(warpRouteAddress);
-
     assert(token, `Failed to find token for address ${warpRouteAddress}`);
 
     switch (token.tokenType) {
@@ -87,7 +86,6 @@ export class RadixWarpRouteReader {
     routerAddress: Address,
   ): Promise<MailboxClientConfig> {
     const token = await this.signer.queryToken(routerAddress);
-
     assert(token, `Failed to find token for address ${routerAddress}`);
 
     const config: MailboxClientConfig = {
@@ -114,9 +112,15 @@ export class RadixWarpRouteReader {
     type: TokenType,
     warpRouteAddress: Address,
   ): Promise<HypTokenConfig> {
+    const token = await this.signer.queryToken(warpRouteAddress);
+    assert(token, `Failed to find token for address ${warpRouteAddress}`);
+
     return {
       type,
       token: warpRouteAddress,
+      name: token.name,
+      symbol: token.symbol,
+      decimals: token.divisibility,
     } as HypTokenConfig;
   }
 

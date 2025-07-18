@@ -271,6 +271,11 @@ export class RadixSDK {
     tokenType: 'COLLATERAL' | 'SYNTHETIC';
     mailbox: string;
     ism: string;
+    originDenom: string;
+    name?: string;
+    symbol?: string;
+    description?: string;
+    divisibility?: number;
   }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(token);
@@ -307,12 +312,49 @@ export class RadixSDK {
 
     const ismFields = fields.find((f: any) => f.field_name === 'ism').fields;
 
+    const tokenTypeFields =
+      fields.find((f: any) => f.field_name === 'token_type')?.fields ?? [];
+
+    const name =
+      tokenTypeFields.find((t: any) => t.field_name === 'name')?.value ?? '';
+
+    const symbol =
+      tokenTypeFields.find((t: any) => t.field_name === 'symbol')?.value ?? '';
+
+    const description =
+      tokenTypeFields.find((t: any) => t.field_name === 'description')?.value ??
+      '';
+
+    const divisibility = parseInt(
+      tokenTypeFields.find((t: any) => t.field_name === 'description')?.value ??
+        '0',
+    );
+
+    let originDenom;
+
+    if (tokenType === 'COLLATERAL') {
+      originDenom =
+        tokenTypeFields.find((t: any) => t.type_name === 'ResourceAddress')
+          ?.value ?? '';
+    } else if (tokenType === 'SYNTHETIC') {
+      originDenom =
+        (
+          fields.find((f: any) => f.field_name === 'resource_manager')
+            ?.fields ?? []
+        ).find((r: any) => r.type_name === 'ResourceAddress')?.value ?? '';
+    }
+
     const result = {
       address: token,
       owner: resourceHolders[0],
       tokenType,
       mailbox: fields.find((f: any) => f.field_name === 'mailbox')?.value ?? '',
       ism: ismFields[0]?.value ?? '',
+      originDenom,
+      name,
+      symbol,
+      description,
+      divisibility,
     };
 
     return result;
@@ -992,6 +1034,28 @@ export class RadixSigningSDK extends RadixSDK {
     return await this.getNewComponent(intentHashTransactionId);
   }
 
+  public async populateSetTokenOwner(token: string, newOwner: string) {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(token);
+
+    const resource = (details.details as any).role_assignments.owner.rule
+      .access_rule.proof_rule.requirement.resource;
+
+    return this.populateTransfer(newOwner, resource, '1');
+  }
+
+  public async setTokenOwner(mailbox: string, newOwner: string) {
+    const transactionManifest = await this.populateSetTokenOwner(
+      mailbox,
+      newOwner,
+    );
+
+    const intentHashTransactionId =
+      await this.signAndBroadcast(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
   public async populateSetTokenIsm(token: string, ism: string) {
     return this.createCallMethodManifestWithOwner(token, 'set_ism', [
       enumeration(1, address(ism)),
@@ -1048,6 +1112,83 @@ export class RadixSigningSDK extends RadixSDK {
     const transactionManifest = await this.populateUnrollRemoteRouter(
       token,
       receiverDomain,
+    );
+
+    await this.signAndBroadcast(transactionManifest);
+  }
+
+  public async populateRemoteTransfer(
+    token: string,
+    destinationDomain: number,
+    recipient: string,
+    amount: string,
+    _customHookId: string,
+    _gasLimit: string,
+    _customHookMetadata: string,
+    maxFee: { denom: string; amount: string },
+  ) {
+    const { originDenom } = await this.queryToken(token);
+
+    assert(originDenom, `no originDenom found on token ${token}`);
+
+    return new ManifestBuilder()
+      .callMethod(
+        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
+        'lock_fee',
+        [decimal(this.gasAmount)],
+      )
+      .callMethod(this.account.address, 'withdraw', [
+        address(originDenom),
+        decimal(amount),
+      ])
+      .callMethod(this.account.address, 'withdraw', [
+        address(maxFee.denom),
+        decimal(maxFee.amount),
+      ])
+      .takeFromWorktop(
+        originDenom,
+        new Decimal(amount),
+        (builder1, bucketId1) =>
+          builder1.takeFromWorktop(
+            maxFee.denom,
+            new Decimal(maxFee.amount),
+            (builder2, bucketId2) =>
+              builder2
+                .callMethod(token, 'transfer_remote', [
+                  u32(destinationDomain),
+                  bytes(recipient),
+                  bucket(bucketId1),
+                  array(ValueKind.Bucket, bucket(bucketId2)),
+                ])
+                .callMethod(
+                  this.account.address,
+                  'try_deposit_batch_or_refund',
+                  [expression('EntireWorktop'), enumeration(0)],
+                ),
+          ),
+      )
+      .build();
+  }
+
+  public async remoteTransfer(
+    token: string,
+    destinationDomain: number,
+    recipient: string,
+    amount: string,
+    customHookId: string,
+    gasLimit: string,
+    customHookMetadata: string,
+    maxFee: { denom: string; amount: string },
+  ) {
+    const transactionManifest = await this.populateRemoteTransfer(
+      token,
+      destinationDomain,
+      recipient,
+      amount,
+      customHookId,
+      gasLimit,
+      customHookMetadata,
+      maxFee,
     );
 
     await this.signAndBroadcast(transactionManifest);
@@ -1152,6 +1293,23 @@ export class RadixSigningSDK extends RadixSDK {
 //     1337,
 //   );
 //   console.log('query enrolled router', JSON.stringify(r));
+// const collateral = await sdk.createCollateralToken(
+//   'component_tdx_2_1cq2vyesapheluv2a796am85cdl7rcgnjkawwkp3axxetv4zcfjzl40',
+//   'resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc',
+// );
+// console.log('created collateral token with id', collateral);
+
+//   // collateral
+//   const c = await sdk.queryToken(
+//     'component_tdx_2_1cqv5pd42nhqyp66ppup3fh7dp9lq5nj0kaa4v2s0pq9sr9w3tky5e6',
+//   );
+//   console.log('collateral token state', JSON.stringify(c), '\n');
+
+//   // synthetic
+//   const s = await sdk.queryToken(
+//     'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
+//   );
+//   console.log('synthetic token state', JSON.stringify(s));
 // };
 
 // main();
