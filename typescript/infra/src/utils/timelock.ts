@@ -82,7 +82,9 @@ export async function timelockConfigMatches({
     // Ensure the cancellers have the CANCELLER_ROLE
     // by default proposers are also cancellers
     const expectedCancellers =
-      expectedConfig.cancellers ?? expectedConfig.proposers;
+      expectedConfig.cancellers && expectedConfig.cancellers.length !== 0
+        ? expectedConfig.cancellers
+        : expectedConfig.proposers;
     const cancellerRoles = await Promise.all(
       expectedCancellers.map(async (canceller) => {
         return timelock.hasRole(CANCELLER_ROLE, canceller);
