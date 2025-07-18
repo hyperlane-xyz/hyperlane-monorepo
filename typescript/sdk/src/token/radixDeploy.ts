@@ -66,6 +66,9 @@ export class RadixDeployer {
           result[chain] = await this.deploySyntheticToken(
             chain,
             config.mailbox,
+            config.name,
+            config.symbol,
+            config.decimals,
           );
           break;
         }
@@ -97,14 +100,17 @@ export class RadixDeployer {
   private async deploySyntheticToken(
     chain: ChainName,
     originMailbox: Address,
+    name: string,
+    symbol: string,
+    divisibility: number,
   ): Promise<Address> {
     this.logger.info(`Deploying synthetic token to ${chain}`);
     return this.signersMap[chain].createSyntheticToken(
       originMailbox,
+      name,
+      symbol,
       '',
-      '',
-      '',
-      1,
+      divisibility,
     );
   }
 }
