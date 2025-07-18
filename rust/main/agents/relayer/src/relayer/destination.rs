@@ -19,7 +19,7 @@ pub struct Destination {
 pub enum FactoryError {
     #[error("Failed to create dispatcher for domain {0}: {1}")]
     DispatcherCreationFailed(String, String),
-    #[error("Failed to create dispatcher entrypoint for domain {0}: {0}")]
+    #[error("Failed to create dispatcher entrypoint for domain {0}: {1}")]
     DispatcherEntrypointCreationFailed(String, String),
 }
 
