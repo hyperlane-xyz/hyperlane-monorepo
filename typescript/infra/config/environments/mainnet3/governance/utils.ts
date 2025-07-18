@@ -3,10 +3,10 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { GovernanceType } from '../../../../src/governance.js';
 
+import { awIcasLegacy } from './ica/_awLegacy.js';
+import { regularIcasLegacy } from './ica/_regularLegacy.js';
 import { awIcasV2 } from './ica/aw2.js';
-import { awIcas } from './ica/aw.js';
 import { regularIcasV2 } from './ica/regular2.js';
-import { regularIcas } from './ica/regular.js';
 import { awSafes } from './safe/aw.js';
 import { irregularSafes } from './safe/irregular.js';
 import { ousdtSafes } from './safe/ousdt.js';
@@ -50,9 +50,9 @@ export function getGovernanceSafes(governanceType: GovernanceType) {
 export function getLegacyGovernanceIcas(governanceType: GovernanceType) {
   switch (governanceType) {
     case GovernanceType.Regular:
-      return regularIcas;
+      return regularIcasLegacy;
     case GovernanceType.AbacusWorks:
-      return awIcas;
+      return awIcasLegacy;
     case GovernanceType.Irregular:
       return {};
     case GovernanceType.OUSDT:
