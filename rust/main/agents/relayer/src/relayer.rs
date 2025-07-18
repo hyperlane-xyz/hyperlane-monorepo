@@ -36,12 +36,9 @@ use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
-    Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
+    Mailbox, MerkleTreeInsertion, QueueOperation, ValidatorAnnounce, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
-use lander::{
-    DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
-};
 
 use crate::{db_loader::DbLoader, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
@@ -1098,7 +1095,7 @@ impl Relayer {
         use destination::DestinationFactory;
         use destination::Factory;
 
-        let factory = DestinationFactory {};
+        let factory = DestinationFactory::new(db, core_metrics);
 
         let destination_futures: Vec<_> = settings
             .chains
@@ -1106,14 +1103,7 @@ impl Relayer {
             .map(|(domain, chain)| async {
                 (
                     domain.clone(),
-                    factory
-                        .create(
-                            domain.clone(),
-                            chain.clone(),
-                            db.clone(),
-                            core_metrics.clone(),
-                        )
-                        .await,
+                    factory.create(domain.clone(), chain.clone()).await,
                 )
             })
             .collect();
@@ -1128,123 +1118,6 @@ impl Relayer {
                         chain_metrics,
                         &err,
                         "Critical error when building chain as destination",
-                    );
-                    None
-                }
-            })
-            .collect::<HashMap<_, _>>()
-    }
-
-    /// Helper function to build and return a hashmap of payload dispatchers.
-    /// Any chains that fail to build payload dispatcher will not be included
-    /// in the hashmap. Errors will be logged and chain metrics
-    /// will be updated for chains that fail to build payload dispatcher.
-    pub async fn build_payload_dispatcher_entrypoints(
-        settings: &RelayerSettings,
-        core_metrics: Arc<CoreMetrics>,
-        chain_metrics: &ChainMetrics,
-        dispatcher_metrics: DispatcherMetrics,
-        db: DB,
-    ) -> HashMap<HyperlaneDomain, DispatcherEntrypoint> {
-        let entrypoint_futures: Vec<_> = settings
-            .destination_chains
-            .iter()
-            .filter(|chain| {
-                settings
-                    .chains
-                    .get(chain)
-                    .map(|chain| chain.submitter == SubmitterType::Lander)
-                    .unwrap_or(false)
-            })
-            .map(|chain| {
-                (
-                    chain.clone(),
-                    DispatcherSettings {
-                        chain_conf: settings.chains[chain].clone(),
-                        raw_chain_conf: Default::default(),
-                        domain: chain.clone(),
-                        db: DatabaseOrPath::Database(db.clone()),
-                        metrics: core_metrics.clone(),
-                    },
-                )
-            })
-            .map(|(chain, s)| async {
-                (
-                    chain,
-                    DispatcherEntrypoint::try_from_settings(s, dispatcher_metrics.clone()).await,
-                )
-            })
-            .collect();
-        let results = futures::future::join_all(entrypoint_futures).await;
-        results
-            .into_iter()
-            .filter_map(|(chain, result)| match result {
-                Ok(entrypoint) => Some((chain, entrypoint)),
-                Err(err) => {
-                    Self::record_critical_error(
-                        &chain,
-                        chain_metrics,
-                        &err,
-                        "Critical error when building payload dispatcher endpoint",
-                    );
-                    None
-                }
-            })
-            .collect::<HashMap<_, _>>()
-    }
-
-    /// Helper function to build and return a hashmap of payload dispatchers.
-    /// Any chains that fail to build payload dispatcher will not be included
-    /// in the hashmap. Errors will be logged and chain metrics
-    /// will be updated for chains that fail to build payload dispatcher.
-    pub async fn build_payload_dispatchers(
-        settings: &RelayerSettings,
-        core_metrics: Arc<CoreMetrics>,
-        chain_metrics: &ChainMetrics,
-        dispatcher_metrics: DispatcherMetrics,
-        db: DB,
-    ) -> HashMap<HyperlaneDomain, Dispatcher> {
-        let dispatcher_futures: Vec<_> = settings
-            .destination_chains
-            .iter()
-            .filter(|chain| {
-                settings
-                    .chains
-                    .get(chain)
-                    .map(|chain| chain.submitter == SubmitterType::Lander)
-                    .unwrap_or(false)
-            })
-            .map(|chain| {
-                (
-                    chain.clone(),
-                    DispatcherSettings {
-                        chain_conf: settings.chains[chain].clone(),
-                        raw_chain_conf: Default::default(),
-                        domain: chain.clone(),
-                        db: DatabaseOrPath::Database(db.clone()),
-                        metrics: core_metrics.clone(),
-                    },
-                )
-            })
-            .map(|(chain, s)| async {
-                let chain_name = chain.to_string();
-                (
-                    chain,
-                    Dispatcher::try_from_settings(s, chain_name, dispatcher_metrics.clone()).await,
-                )
-            })
-            .collect();
-        let results = futures::future::join_all(dispatcher_futures).await;
-        results
-            .into_iter()
-            .filter_map(|(chain, result)| match result {
-                Ok(entrypoint) => Some((chain, entrypoint)),
-                Err(err) => {
-                    Self::record_critical_error(
-                        &chain,
-                        chain_metrics,
-                        &err,
-                        "Critical error when building payload dispatcher",
                     );
                     None
                 }
