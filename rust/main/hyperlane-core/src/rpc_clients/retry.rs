@@ -40,5 +40,7 @@ pub async fn call_and_retry_indefinitely<T>(
     f: impl FnMut() -> Pin<Box<dyn Future<Output = ChainResult<T>> + Send>>,
 ) -> T {
     // It's ok to unwrap, because `usize::MAX * RPC_RETRY_SLEEP_DURATION` means billions of years worth of retrying
-    call_and_retry_n_times(f, usize::MAX, None).await.unwrap()
+    call_and_retry_n_times(f, usize::MAX, None)
+        .await
+        .expect("Failed to call_and_retry_indefinitely")
 }

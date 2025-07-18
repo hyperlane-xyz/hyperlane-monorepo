@@ -260,7 +260,9 @@ impl MerkleTree {
         while current_depth > 0 {
             let ith_bit = (index >> (current_depth - 1)) & 0x01;
             // Note: unwrap is safe because leaves are only ever constructed at depth == 0.
-            let (left, right) = current_node.left_and_right_branches().unwrap();
+            let (left, right) = current_node
+                .left_and_right_branches()
+                .expect("left and right branches missing");
 
             // Go right, include the left branch in the proof.
             if ith_bit == 1 {

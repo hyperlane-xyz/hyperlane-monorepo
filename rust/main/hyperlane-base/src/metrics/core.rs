@@ -766,7 +766,7 @@ impl ValidatorObservabilityMetricManager {
         destination: &HyperlaneDomain,
         app_context: String,
         latest_checkpoints: &HashMap<H160, Option<u32>>,
-    ) {
+    ) -> Result<(), prometheus::Error> {
         let key = AppContextKey {
             origin: origin.clone(),
             destination: destination.clone(),
@@ -795,14 +795,12 @@ impl ValidatorObservabilityMetricManager {
                 // We unwrap because an error here occurs if the # of labels
                 // provided is incorrect, and we'd like to loudly fail in e2e if that
                 // happens.
-                self.observed_validator_latest_index
-                    .remove_label_values(&[
-                        origin.as_ref(),
-                        destination.as_ref(),
-                        &format!("0x{:x}", validator).to_lowercase(),
-                        &app_context,
-                    ])
-                    .unwrap();
+                self.observed_validator_latest_index.remove_label_values(&[
+                    origin.as_ref(),
+                    destination.as_ref(),
+                    &format!("0x{:x}", validator).to_lowercase(),
+                    &app_context,
+                ])?;
             }
         }
 
@@ -821,6 +819,8 @@ impl ValidatorObservabilityMetricManager {
             new_set.insert(*validator, time::Instant::now());
         }
         app_context_validators.insert(key, new_set);
+
+        Ok(())
     }
 
     /// Gauge for reporting recently observed latest checkpoint indices for validator sets.

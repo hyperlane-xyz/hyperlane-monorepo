@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used)]
+
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
 use url::Url;
@@ -59,7 +61,7 @@ impl ConnectionConf {
         match &self.rpc_connection {
             HttpQuorum { urls } | HttpFallback { urls } => urls.clone(),
             Http { url } => vec![url.clone()],
-            Ws { url: _ } => panic!("Websocket connection is not supported"),
+            Ws { .. } => panic!("Websocket connection is not supported"),
         }
     }
 
@@ -67,7 +69,10 @@ impl ConnectionConf {
     pub fn batch_contract_address(&self) -> H256 {
         self.op_submission_config
             .batch_contract_address
-            .unwrap_or(hex_or_base58_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT).unwrap())
+            .unwrap_or_else(|| {
+                hex_or_base58_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT)
+                    .expect("Invalid default batch contract address")
+            })
     }
 }
 

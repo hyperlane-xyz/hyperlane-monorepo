@@ -225,7 +225,13 @@ impl HyperlaneDbStore {
             debug_assert!(!chunk.is_empty());
             for (hash, block_info) in chunk {
                 // We should have block_id in this map for every hashes
-                let block_id = block_hash_to_block_id_map[hash];
+                let block_id = match block_hash_to_block_id_map.get(hash) {
+                    Some(v) => v,
+                    None => {
+                        warn!(block_hash = ?hash, "Missing block id");
+                        continue;
+                    }
+                };
                 let block_height = block_id.height;
 
                 let info = match self.provider.get_block_by_height(block_height).await {
@@ -249,14 +255,10 @@ impl HyperlaneDbStore {
                 continue;
             }
 
-            self.db
-                .store_blocks(
-                    self.domain.id(),
-                    blocks_to_insert
-                        .iter_mut()
-                        .map(|(_, info)| info.take().unwrap()),
-                )
-                .await?;
+            let blocks = blocks_to_insert
+                .iter_mut()
+                .filter_map(|(_, info)| info.take());
+            self.db.store_blocks(self.domain.id(), blocks).await?;
 
             let hashes = self
                 .db

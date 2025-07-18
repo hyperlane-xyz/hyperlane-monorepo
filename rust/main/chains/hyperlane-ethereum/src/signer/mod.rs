@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used, clippy::panic)]
+
 use async_trait::async_trait;
 use ethers::prelude::{Address, Signature};
 use ethers::types::transaction::eip2718::TypedTransaction;
@@ -109,12 +111,6 @@ pub enum SignersError {
     /// Wallet Signer Error
     #[error("{0}")]
     WalletError(#[from] WalletError),
-}
-
-impl From<std::convert::Infallible> for SignersError {
-    fn from(_error: std::convert::Infallible) -> Self {
-        panic!("infallible")
-    }
 }
 
 #[cfg(test)]

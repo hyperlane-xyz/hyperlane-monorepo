@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used, clippy::panic)]
+
 mod error;
 mod metered_cache;
 mod moka;

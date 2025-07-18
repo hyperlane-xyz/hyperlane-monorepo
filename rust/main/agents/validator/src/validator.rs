@@ -156,11 +156,7 @@ impl BaseAgent for Validator {
             .build_validator_announce(&settings.origin_chain, &metrics)
             .await?;
 
-        let origin_chain_conf = core
-            .settings
-            .chain_setup(&settings.origin_chain)
-            .unwrap()
-            .clone();
+        let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
@@ -275,7 +271,14 @@ impl BaseAgent for Validator {
                     sleep(self.interval).await;
                 }
                 Ok(_) => {
-                    tasks.push(self.run_merkle_tree_hook_sync().await);
+                    let merkle_tree_hook_sync = match self.run_merkle_tree_hook_sync().await {
+                        Ok(handle) => handle,
+                        Err(err) => {
+                            tracing::error!(?err, "Failed to run merkle tree hook sync");
+                            return;
+                        }
+                    };
+                    tasks.push(merkle_tree_hook_sync);
                     for checkpoint_sync_task in self.run_checkpoint_submitters().await {
                         tasks.push(checkpoint_sync_task);
                     }
@@ -297,28 +300,22 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
-    async fn run_merkle_tree_hook_sync(&self) -> JoinHandle<()> {
+    async fn run_merkle_tree_hook_sync(&self) -> eyre::Result<JoinHandle<()>> {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
-        let cursor = contract_sync
-            .cursor(index_settings)
-            .await
-            .unwrap_or_else(|err| {
-                panic!(
-                    "Error getting merkle tree hook cursor for origin {0}: {err}",
-                    self.origin_chain
-                )
-            });
+        let cursor = contract_sync.cursor(index_settings).await?;
         let origin = self.origin_chain.name().to_string();
-        tokio::spawn(
+
+        let handle = tokio::spawn(
             async move {
                 let label = "merkle_tree_hook";
                 contract_sync.clone().sync(label, cursor.into()).await;
                 info!(chain = origin, label, "contract sync task exit");
             }
             .instrument(info_span!("MerkleTreeHookSyncer")),
-        )
+        );
+        Ok(handle)
     }
 
     async fn run_checkpoint_submitters(&self) -> Vec<JoinHandle<()>> {

@@ -111,8 +111,7 @@ impl Indexer<H256> for StarknetMailboxIndexer {
                 }
                 let message_id: HyH256 = (event.data[0], event.data[1])
                     .try_into()
-                    .map_err(Into::<HyperlaneStarknetError>::into)
-                    .unwrap();
+                    .map_err(Into::<HyperlaneStarknetError>::into)?;
                 let message_id: Indexed<H256> = message_id.0.into();
                 Ok(message_id)
             },
