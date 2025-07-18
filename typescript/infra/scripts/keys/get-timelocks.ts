@@ -15,6 +15,7 @@ import {
 } from '../../config/environments/mainnet3/governance/utils.js';
 import { icaOwnerChain } from '../../config/environments/mainnet3/owners.js';
 import { chainsToSkip } from '../../src/config/chain.js';
+import { baseDeploy } from '../../src/deployment/deploy.js';
 import { GovernanceType, withGovernanceType } from '../../src/governance.js';
 import {
   getTimelockConfigs,
@@ -119,6 +120,13 @@ async function main() {
 
   await Promise.all(
     Object.entries(timelockConfigs).map(async ([chain, expectedConfig]) => {
+      // Temporarily skip infinityvmmainnet while we fix chain-specific deploy issue
+      if (chain === 'infinityvmmainnet') {
+        rootLogger.info('Skipping infinityvmmainnet');
+        delete timelockConfigs[chain];
+        return;
+      }
+
       const timelockAddress = governanceTimelocks[chain];
 
       try {
@@ -151,7 +159,12 @@ async function main() {
   if (Object.keys(timelockConfigs).length === 0) {
     rootLogger.info('No timelocks to deploy');
   } else if (deploy) {
-    const deployedTimelocks = await timelockDeployer.deploy(timelockConfigs);
+    const deployedTimelocks = await baseDeploy(
+      timelockConfigs,
+      timelockDeployer,
+      multiProvider,
+      true,
+    );
     Object.entries(deployedTimelocks).forEach(
       ([chain, { TimelockController }]) => {
         results[chain] = {
