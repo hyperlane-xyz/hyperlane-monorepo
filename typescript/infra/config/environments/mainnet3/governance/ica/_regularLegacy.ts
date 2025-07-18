@@ -1,7 +1,7 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-export const regularIcas: ChainMap<Address> = {
+export const regularIcasLegacy: ChainMap<Address> = {
   // Apr 19, 2025 batch
   // ----------------------------------------------------------
   ancient8: '0xf789D8a609247c448E28d3af5b8EFC6Cb786C4ee',
