@@ -21,12 +21,8 @@ export function getGovernanceTimelocks(governanceType: GovernanceType) {
       return regularTimelocks;
     case GovernanceType.AbacusWorks:
       return awTimelocks;
-    case GovernanceType.Irregular:
-      return {};
-    case GovernanceType.OUSDT:
-      return {};
     default:
-      throw new Error(`Unknown governance type: ${governanceType}`);
+      throw new Error(`Unsupported governance type: ${governanceType}`);
   }
 }
 
@@ -41,7 +37,7 @@ export function getGovernanceSafes(governanceType: GovernanceType) {
     case GovernanceType.OUSDT:
       return ousdtSafes;
     default:
-      throw new Error(`Unknown governance type: ${governanceType}`);
+      throw new Error(`Unsupported governance type: ${governanceType}`);
   }
 }
 
@@ -51,12 +47,8 @@ export function getGovernanceIcas(governanceType: GovernanceType) {
       return regularIcas;
     case GovernanceType.AbacusWorks:
       return awIcas;
-    case GovernanceType.Irregular:
-      return {};
-    case GovernanceType.OUSDT:
-      return {};
     default:
-      throw new Error(`Unknown governance type: ${governanceType}`);
+      throw new Error(`Unsupported governance type: ${governanceType}`);
   }
 }
 
