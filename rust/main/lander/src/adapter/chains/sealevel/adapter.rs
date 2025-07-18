@@ -54,7 +54,6 @@ use crate::{
 };
 
 const TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER: f32 = 3.0;
-const TX_RESUBMISSION_TIME_BUFFER: Duration = Duration::from_millis(500);
 
 #[derive(Default, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum EstimateFreshnessCache {
@@ -162,7 +161,7 @@ impl SealevelAdapter {
 
     #[allow(unused)]
     #[cfg(test)]
-    fn new_internal_with_block_time(
+    pub fn new_internal_with_block_time(
         estimated_block_time: Duration,
         client: Arc<dyn SubmitSealevelRpc>,
         provider: Arc<dyn SealevelProviderForLander>,
@@ -288,10 +287,10 @@ impl SealevelAdapter {
         }
     }
 
+    /// wait some blocks before resubmitting a transaction
     fn time_before_resubmission(&self) -> Duration {
         self.estimated_block_time
             .mul_f32(TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER)
-            + TX_RESUBMISSION_TIME_BUFFER
     }
 }
 
@@ -430,4 +429,4 @@ impl AdaptsChain for SealevelAdapter {
 }
 
 #[cfg(test)]
-mod tests;
+pub mod tests;
