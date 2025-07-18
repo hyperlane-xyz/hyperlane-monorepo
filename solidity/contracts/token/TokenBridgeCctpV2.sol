@@ -29,7 +29,6 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
 
     constructor(
         address _erc20,
-        uint256 _scale,
         address _mailbox,
         IMessageTransmitterV2 _messageTransmitter,
         ITokenMessengerV2 _tokenMessenger,
@@ -38,7 +37,6 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     )
         TokenBridgeCctpBase(
             _erc20,
-            _scale,
             _mailbox,
             _messageTransmitter,
             _tokenMessenger
@@ -174,13 +172,15 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         override
         returns (uint256 dispatchValue, bytes memory message)
     {
-        uint256 fastFee = _feeAmount(destination, recipient, amount);
-        _transferFromSender(amount + fastFee);
+        uint256 burnAmount = amount +
+            _feeAmount(destination, recipient, amount);
+
+        _transferFromSender(burnAmount);
 
         uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
 
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
-            amount + fastFee,
+            burnAmount,
             circleDomain,
             recipient,
             address(wrappedToken),
@@ -190,7 +190,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         );
 
         dispatchValue = msg.value;
-        message = TokenMessage.format(recipient, amount + fastFee);
+        message = TokenMessage.format(recipient, burnAmount);
         _validateTokenMessageLength(message);
     }
 }

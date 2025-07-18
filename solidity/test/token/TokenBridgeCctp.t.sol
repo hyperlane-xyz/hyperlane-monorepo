@@ -40,7 +40,6 @@ contract TokenBridgeCctpV1Test is Test {
     uint32 internal constant CCTP_VERSION_1 = 0;
     uint32 internal constant CCTP_VERSION_2 = 1;
 
-    uint256 internal constant scale = 1;
     uint32 internal constant origin = 1;
     uint32 internal constant destination = 2;
     uint32 internal constant cctpOrigin = 0;
@@ -110,7 +109,6 @@ contract TokenBridgeCctpV1Test is Test {
 
         TokenBridgeCctpV1 originImplementation = new TokenBridgeCctpV1(
             address(tokenOrigin),
-            scale,
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin
@@ -131,7 +129,6 @@ contract TokenBridgeCctpV1Test is Test {
 
         TokenBridgeCctpV1 destinationImplementation = new TokenBridgeCctpV1(
             address(tokenDestination),
-            scale,
             address(mailboxDestination),
             messageTransmitterDestination,
             tokenMessengerDestination
@@ -338,7 +335,6 @@ contract TokenBridgeCctpV1Test is Test {
     function _upgrade(TokenBridgeCctpBase bridge) internal virtual {
         TokenBridgeCctpV1 newImplementation = new TokenBridgeCctpV1(
             address(bridge.wrappedToken()),
-            bridge.scale(),
             address(bridge.mailbox()),
             bridge.messageTransmitter(),
             ITokenMessengerV1(address(bridge.tokenMessenger()))
@@ -508,7 +504,6 @@ contract TokenBridgeCctpV1Test is Test {
         vm.expectRevert(bytes("Invalid TokenMessenger CCTP version"));
         TokenBridgeCctpV1 v1 = new TokenBridgeCctpV1(
             address(tokenOrigin),
-            scale,
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin
@@ -518,7 +513,6 @@ contract TokenBridgeCctpV1Test is Test {
         vm.expectRevert(bytes("Invalid messageTransmitter CCTP version"));
         v1 = new TokenBridgeCctpV1(
             address(tokenOrigin),
-            scale,
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin
@@ -856,7 +850,6 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
 
         TokenBridgeCctpV2 originImplementation = new TokenBridgeCctpV2(
             address(tokenOrigin),
-            scale,
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin,
@@ -879,7 +872,6 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
 
         TokenBridgeCctpV2 destinationImplementation = new TokenBridgeCctpV2(
             address(tokenDestination),
-            scale,
             address(mailboxDestination),
             messageTransmitterDestination,
             tokenMessengerDestination,
@@ -972,7 +964,6 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
 
         TokenBridgeCctpV2 implementation = new TokenBridgeCctpV2(
             usdc,
-            1,
             0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D,
             messageTransmitter,
             tokenMessenger,
@@ -1257,7 +1248,6 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         vm.expectRevert(bytes("Invalid TokenMessenger CCTP version"));
         TokenBridgeCctpV2 v2 = new TokenBridgeCctpV2(
             address(tokenOrigin),
-            scale,
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin,
@@ -1269,7 +1259,6 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         vm.expectRevert(bytes("Invalid messageTransmitter CCTP version"));
         v2 = new TokenBridgeCctpV2(
             address(tokenOrigin),
-            scale,
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin,
