@@ -41,6 +41,20 @@ contract EverclearEthBridge is EverclearTokenBridge {
         )
     {}
 
+    function _getReceiver(
+        uint32 _destination,
+        bytes32 _recipient
+    ) internal view override returns (bytes32) {
+        return _mustHaveRemoteRouter(_destination);
+    }
+
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view override returns (bytes memory) {
+        return abi.encode(_recipient, _amount);
+    }
+
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
@@ -92,4 +106,40 @@ contract EverclearEthBridge is EverclearTokenBridge {
         }
         return dispatchValue;
     }
+
+    function _handle(
+        uint32 _origin,
+        bytes32 /* sender */,
+        bytes calldata _message
+    ) internal virtual override {
+        // Get intent from hyperlane message
+        bytes memory metadata = _message.metadata();
+        bytes32 intentId = keccak256(metadata);
+        IEverclear.Intent memory intent = abi.decode(
+            metadata,
+            (IEverclear.Intent)
+        );
+
+        /* CHECKS */
+        // Check that intent is settled
+        require(
+            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
+            "ETB: Intent Status != SETTLED"
+        );
+        // Check that we have not processed this intent before
+        require(!intentSettled[intentId], "ETB: Intent already processed");
+        (bytes32 _recipient, uint256 _amount) = abi.decode(
+            intent.data,
+            (bytes32, uint256)
+        );
+
+        /* EFFECTS */
+        intentSettled[intentId] = true;
+        emit ReceivedTransferRemote(_origin, _recipient, _amount);
+
+        /* INTERACTIONS */
+        _transferTo(_recipient.bytes32ToAddress(), _amount);
+    }
+
+    receive() external payable {}
 }

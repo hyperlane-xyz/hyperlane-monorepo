@@ -11,6 +11,7 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 
 /**
  * @notice Information about an output asset for a destination domain
@@ -172,21 +173,6 @@ contract EverclearTokenBridge is HypERC20Collateral {
         });
     }
 
-    /// @dev We can't use _feeAmount here because Everclear wants to pull tokens from this contract
-    /// and the amount from _feeAmount is sent to the fee recipient.
-    function _chargeSender(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal virtual override returns (uint256 dispatchValue) {
-        return
-            super._chargeSender(
-                _destination,
-                _recipient,
-                _amount + feeParams.fee
-            );
-    }
-
     /**
      * @notice Creates an Everclear intent for cross-chain token transfer
      * @dev Internal function to handle intent creation with Everclear adapter
@@ -212,7 +198,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
         // We always send the funds to the remote router, which will then send them to the recipient in _handle
         (, IEverclear.Intent memory intent) = everclearAdapter.newIntent({
             _destinations: destinations,
-            _receiver: _mustHaveRemoteRouter(_destination),
+            _receiver: _getReceiver(_destination, _recipient),
             _inputAsset: address(wrappedToken),
             _outputAsset: outputAssets[_destination], // We load this from storage again to avoid stack too deep
             _amount: _amount,
@@ -225,6 +211,13 @@ contract EverclearTokenBridge is HypERC20Collateral {
         return intent;
     }
 
+    function _getReceiver(
+        uint32 _destination,
+        bytes32 _recipient
+    ) internal view virtual returns (bytes32) {
+        return _recipient;
+    }
+
     /**
      * @notice Gets the calldata for the intent that will unwrap WETH to ETH on destination
      * @dev Overrides parent to return calldata for unwrapping WETH to ETH
@@ -233,8 +226,23 @@ contract EverclearTokenBridge is HypERC20Collateral {
     function _getIntentCalldata(
         bytes32 _recipient,
         uint256 _amount
-    ) internal view returns (bytes memory) {
-        return abi.encode(_recipient, _amount);
+    ) internal view virtual returns (bytes memory) {
+        return "";
+    }
+
+    // @dev We can't use _feeAmount here because Everclear wants to pull tokens from this contract
+    /// and the amount from _feeAmount is sent to the fee recipient.
+    function _chargeSender(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal virtual override returns (uint256 dispatchValue) {
+        return
+            super._chargeSender(
+                _destination,
+                _recipient,
+                _amount + feeParams.fee
+            );
     }
 
     function _beforeDispatch(
@@ -242,7 +250,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
         bytes32 _recipient,
         uint256 _amount
     ) internal virtual override returns (uint256, bytes memory) {
-        (uint256 _dispatchValue, bytes memory _msg) = super._beforeDispatch(
+        uint256 dispatchValue = _chargeSender(
             _destination,
             _recipient,
             _amount
@@ -254,12 +262,13 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _amount
         );
 
-        // Add the intent to the `TokenMessage` as metadata
-        // The original `_msg` is abi.encodePacked(_recipient, _amount)
-        // We need can't use abi.encodePacked because the intent is a struct
-        _msg = bytes.concat(_msg, abi.encode(intent));
+        bytes memory message = TokenMessage.format(
+            _recipient,
+            _outboundAmount(_amount),
+            abi.encode(intent)
+        );
 
-        return (_dispatchValue, _msg);
+        return (dispatchValue, message);
     }
 
     function _handle(
@@ -267,32 +276,6 @@ contract EverclearTokenBridge is HypERC20Collateral {
         bytes32 /* sender */,
         bytes calldata _message
     ) internal virtual override {
-        // Get intent from hyperlane message
-        bytes memory metadata = _message.metadata();
-        IEverclear.Intent memory intent = abi.decode(
-            metadata,
-            (IEverclear.Intent)
-        );
-
-        /* CHECKS */
-        // Check that intent is settled
-        bytes32 intentId = keccak256(abi.encode(intent));
-        require(
-            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
-            "ETB: Intent Status != SETTLED"
-        );
-        // Check that we have not processed this intent before
-        require(!intentSettled[intentId], "ETB: Intent already processed");
-        (bytes32 _recipient, uint256 _amount) = abi.decode(
-            intent.data,
-            (bytes32, uint256)
-        );
-
-        /* EFFECTS */
-        intentSettled[intentId] = true;
-        emit ReceivedTransferRemote(_origin, _recipient, _amount);
-
-        /* INTERACTIONS */
-        _transferTo(_recipient.bytes32ToAddress(), _amount);
+        // No-op, funds were already transferred to the recipient
     }
 }
