@@ -14,7 +14,7 @@ import {
 import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { awIcas } from '../../governance/ica/aw.js';
+import { awIcasLegacy } from '../../governance/ica/_awLegacy.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { ousdtSafes } from '../../governance/safe/ousdt.js';
 import { DEPLOYER } from '../../owners.js';
@@ -125,8 +125,8 @@ const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
     if (DPL_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
       acc[chain] = DEPLOYER;
     } else if (ICA_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
-      assert(awIcas[chain], `ICA for ${chain} not found`);
-      acc[chain] = awIcas[chain];
+      assert(awIcasLegacy[chain], `ICA for ${chain} not found`);
+      acc[chain] = awIcasLegacy[chain];
     } else {
       acc[chain] = ousdtSafes[chain] ?? awSafes[chain] ?? DEPLOYER;
     }
