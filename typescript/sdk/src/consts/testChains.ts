@@ -2,6 +2,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   ChainMetadata,
+  ChainTechnicalStack,
   ExplorerFamily,
 } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -183,6 +184,40 @@ export const testStarknetChain: ChainMetadata = {
       url: 'https://sepolia.voyager.online',
     },
   ],
+};
+
+// Base chain metadata for testing with block explorer
+export const baseTestChain: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://base.blockscout.com/api',
+      family: ExplorerFamily.Blockscout,
+      name: 'Base Explorer',
+      url: 'https://base.blockscout.com',
+    },
+  ],
+  blocks: { confirmations: 3, estimateBlockTime: 2, reorgPeriod: 10 },
+  chainId: 8453,
+  displayName: 'Base',
+  domainId: 8453,
+  gasCurrencyCoinGeckoId: 'ethereum',
+  name: 'base',
+  nativeToken: {
+    decimals: 18,
+    name: 'Ether',
+    symbol: 'ETH',
+  },
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [
+    { http: 'https://base.publicnode.com' },
+    { http: 'https://mainnet.base.org' },
+    { http: 'https://base.blockpi.network/v1/rpc/public' },
+    { http: 'https://base.drpc.org' },
+    { http: 'https://base.llamarpc.com' },
+    { http: 'https://1rpc.io/base' },
+    { http: 'https://base-pokt.nodies.app' },
+  ],
+  technicalStack: ChainTechnicalStack.OpStack,
 };
 
 export const multiProtocolTestChainMetadata: ChainMap<ChainMetadata> = {

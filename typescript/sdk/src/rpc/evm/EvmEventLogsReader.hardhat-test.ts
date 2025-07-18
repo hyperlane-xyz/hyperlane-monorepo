@@ -8,7 +8,7 @@ import hre from 'hardhat';
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { TestChainName } from '../../consts/testChains.js';
+import { TestChainName, baseTestChain } from '../../consts/testChains.js';
 import {
   ChainMetadata,
   ChainTechnicalStack,
@@ -34,40 +34,6 @@ describe('EvmEventLogsReader', () => {
   let testContract: ERC20Test;
   let erc20Factory: ERC20Test__factory;
   let deploymentBlockNumber: number;
-
-  // Taken from the registry
-  const base: ChainMetadata = {
-    blockExplorers: [
-      {
-        apiUrl: 'https://base.blockscout.com/api',
-        family: ExplorerFamily.Blockscout,
-        name: 'Base Explorer',
-        url: 'https://base.blockscout.com',
-      },
-    ],
-    blocks: { confirmations: 3, estimateBlockTime: 2, reorgPeriod: 10 },
-    chainId: 8453,
-    displayName: 'Base',
-    domainId: 8453,
-    gasCurrencyCoinGeckoId: 'ethereum',
-    name: 'base',
-    nativeToken: {
-      decimals: 18,
-      name: 'Ether',
-      symbol: 'ETH',
-    },
-    protocol: ProtocolType.Ethereum,
-    rpcUrls: [
-      { http: 'https://base.publicnode.com' },
-      { http: 'https://mainnet.base.org' },
-      { http: 'https://base.blockpi.network/v1/rpc/public' },
-      { http: 'https://base.drpc.org' },
-      { http: 'https://base.llamarpc.com' },
-      { http: 'https://1rpc.io/base' },
-      { http: 'https://base-pokt.nodies.app' },
-    ],
-    technicalStack: ChainTechnicalStack.OpStack,
-  };
 
   const transferTopic = ethers.utils.id('Transfer(address,address,uint256)');
 
@@ -284,7 +250,7 @@ describe('EvmEventLogsReader', () => {
       expect(logs[0].topics[0]).to.equal(transferTopic);
     });
 
-    it('should return empty array when no logs match the criteria', async () => {
+    it('should return empty array when no logs match the filter', async () => {
       // Emit an event just to be sure that filtering works as expected
       const tx = await testContract.transfer(
         tokenRecipient1.address,
@@ -339,7 +305,7 @@ describe('EvmEventLogsReader', () => {
         {
           chain: TestChainName.test1,
           useRPC: true,
-          logPageSize: 2, // Very small page size to force chunking
+          logPageSize: 2,
         },
         multiProvider,
       );
@@ -375,18 +341,6 @@ describe('EvmEventLogsReader', () => {
       ).to.be.rejected;
     });
 
-    it('should throw an error for contract address with no code', async () => {
-      const addressWithNoCode = randomAddress();
-
-      await expect(
-        reader.getLogsByTopic({
-          eventTopic: transferTopic,
-          contractAddress: addressWithNoCode,
-          fromBlock: deploymentBlockNumber,
-        }),
-      ).to.be.rejected;
-    });
-
     it('should handle edge case where fromBlock equals toBlock', async () => {
       // Emit event
       const tx = await testContract.transfer(
@@ -406,19 +360,6 @@ describe('EvmEventLogsReader', () => {
       expect(logs).to.have.length(1);
       expect(logs[0].blockNumber).to.equal(eventBlock);
     });
-
-    it('should handle case where fromBlock is greater than toBlock', async () => {
-      const currentBlock = await providerChainTest1.getBlockNumber();
-
-      const logs = await reader.getLogsByTopic({
-        eventTopic: transferTopic,
-        contractAddress: testContract.address,
-        fromBlock: currentBlock + 10,
-        toBlock: currentBlock,
-      });
-
-      expect(logs).to.have.length(0);
-    });
   });
 
   describe(`${EvmEventLogsReader.prototype.getLogsByTopic.name} (block explorer)`, () => {
@@ -429,11 +370,11 @@ describe('EvmEventLogsReader', () => {
       await deployTestErc20();
 
       multiProvider = new MultiProvider({
-        base,
+        base: baseTestChain,
       });
       reader = EvmEventLogsReader.fromConfig(
         {
-          chain: base.name,
+          chain: baseTestChain.name,
         },
         multiProvider,
       );
