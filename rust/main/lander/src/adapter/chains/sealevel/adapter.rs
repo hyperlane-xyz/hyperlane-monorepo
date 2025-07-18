@@ -54,7 +54,6 @@ use crate::{
 };
 
 const TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER: f32 = 3.0;
-const TX_RESUBMISSION_TIME_BUFFER: Duration = Duration::from_millis(500);
 
 #[derive(Default, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum EstimateFreshnessCache {
@@ -288,10 +287,10 @@ impl SealevelAdapter {
         }
     }
 
+    /// wait some blocks before resubmitting a transaction
     fn time_before_resubmission(&self) -> Duration {
         self.estimated_block_time
             .mul_f32(TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER)
-            + TX_RESUBMISSION_TIME_BUFFER
     }
 }
 
@@ -391,12 +390,6 @@ impl AdaptsChain for SealevelAdapter {
         tx.update_after_submission(hash, estimated);
 
         info!(?tx, "submitted transaction");
-
-        self.submitter
-            .wait_for_transaction_confirmation(&svm_transaction)
-            .await?;
-
-        info!(?tx, "confirmed transaction by signature status");
 
         Ok(())
     }
