@@ -122,4 +122,4 @@ export const awTimelocks: ChainMap<Address> = {
   zetachain: '0x8dfbEA2582F41c8C4Eb25252BbA392fd3c09449A',
   zircuit: '0x96C3A604126e4A16921D5f2B9eb54675725C6520',
   zoramainnet: '0x4A332707c218C7Fb1f1856B8000f4AD37460860b',
-};
+} as const;

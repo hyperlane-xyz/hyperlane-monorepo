@@ -122,4 +122,4 @@ export const regularTimelocks: ChainMap<Address> = {
   zetachain: '0xd0540f319B64Df1b5C1a61Ca234814f4A6Ae3D5E',
   zircuit: '0x233BBB3DD327ac944056A10fC2E86232bA0238F2',
   zoramainnet: '0xf6A7FB10906102f0D2dbC86670003363171FFf92',
-};
+} as const;
