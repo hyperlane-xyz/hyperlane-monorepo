@@ -5,8 +5,8 @@ import { GovernanceType } from '../../../../src/governance.js';
 
 import { awIcasLegacy } from './ica/_awLegacy.js';
 import { regularIcasLegacy } from './ica/_regularLegacy.js';
-import { awIcasV2 } from './ica/aw2.js';
-import { regularIcasV2 } from './ica/regular2.js';
+import { awIcas } from './ica/aw.js';
+import { regularIcas } from './ica/regular.js';
 import { awSafes } from './safe/aw.js';
 import { irregularSafes } from './safe/irregular.js';
 import { ousdtSafes } from './safe/ousdt.js';
@@ -23,12 +23,8 @@ export function getGovernanceTimelocks(governanceType: GovernanceType) {
       return regularTimelocks;
     case GovernanceType.AbacusWorks:
       return awTimelocks;
-    case GovernanceType.Irregular:
-      return {};
-    case GovernanceType.OUSDT:
-      return {};
     default:
-      throw new Error(`Unknown governance type: ${governanceType}`);
+      throw new Error(`Unsupported governance type: ${governanceType}`);
   }
 }
 
@@ -43,7 +39,7 @@ export function getGovernanceSafes(governanceType: GovernanceType) {
     case GovernanceType.OUSDT:
       return ousdtSafes;
     default:
-      throw new Error(`Unknown governance type: ${governanceType}`);
+      throw new Error(`Unsupported governance type: ${governanceType}`);
   }
 }
 
@@ -53,21 +49,17 @@ export function getLegacyGovernanceIcas(governanceType: GovernanceType) {
       return regularIcasLegacy;
     case GovernanceType.AbacusWorks:
       return awIcasLegacy;
-    case GovernanceType.Irregular:
-      return {};
-    case GovernanceType.OUSDT:
-      return {};
     default:
-      throw new Error(`Unknown governance type: ${governanceType}`);
+      throw new Error(`Unsupported governance type: ${governanceType}`);
   }
 }
 
 export function getGovernanceIcas(governanceType: GovernanceType) {
   switch (governanceType) {
     case GovernanceType.Regular:
-      return regularIcasV2;
+      return regularIcas;
     case GovernanceType.AbacusWorks:
-      return awIcasV2;
+      return awIcas;
     case GovernanceType.Irregular:
       return {};
     case GovernanceType.OUSDT:

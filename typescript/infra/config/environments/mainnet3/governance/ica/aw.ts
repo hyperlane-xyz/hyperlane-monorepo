@@ -6,7 +6,7 @@ import { Address } from '@hyperlane-xyz/utils';
 // yarn tsx scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --deploy \
 // --governanceType abacusWorks
 // -c <chain1> <chain2> ... \
-export const awIcasV2: ChainMap<Address> = {
+export const awIcas: ChainMap<Address> = {
   // owner chain
   // ethereum: '0x24c2160941cB0A75E1C2aA6B70Be3e6EC4FE3a29',
 
