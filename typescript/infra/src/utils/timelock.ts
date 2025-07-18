@@ -98,6 +98,27 @@ export async function timelockConfigMatches({
         `Canceller missing role for ${chain} at ${address}: ${cancellerMissing.join(', ')}`,
       );
     }
+
+    // Ensure the proposers that are not in the cancellers array
+    // do not have the CANCELLER_ROLE
+    const proposersThatShouldNotBeCancellers = expectedConfig.proposers.filter(
+      (proposer) => !expectedCancellers.includes(proposer),
+    );
+
+    const proposersThatShouldNotBeCancellersRoles = await Promise.all(
+      proposersThatShouldNotBeCancellers.map(async (proposer) => {
+        return timelock.hasRole(CANCELLER_ROLE, proposer);
+      }),
+    );
+
+    const extraCancellers = proposersThatShouldNotBeCancellersRoles.filter(
+      (_, i) => cancellerRoles[i],
+    );
+    if (extraCancellers.length > 0) {
+      issues.push(
+        `Proposers that should not be cancellers for ${chain} at ${address}: ${cancellerMissing.join(', ')}`,
+      );
+    }
   }
 
   return { matches: issues.length === 0, issues };
