@@ -190,6 +190,10 @@ describe('EvmTimelockDeployer', async () => {
       multiProvider.getProvider(TestChainName.test4),
     );
 
+    expect(
+      await timelock.hasRole(EXECUTOR_ROLE, hre.ethers.constants.AddressZero),
+    ).to.be.true;
+
     const _0_BYTES_32 =
       '0x0000000000000000000000000000000000000000000000000000000000000000';
     const updatedDelay = 100;

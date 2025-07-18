@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import { TimelockController__factory } from '@hyperlane-xyz/core';
 import {
   CANCELLER_ROLE,
@@ -44,7 +46,9 @@ export async function timelockConfigMatches({
     }
 
     // Ensure the executors have the EXECUTOR_ROLE
-    const expectedExecutors = expectedConfig.executors ?? [];
+    const expectedExecutors = expectedConfig.executors ?? [
+      ethers.constants.AddressZero,
+    ];
     const executorRoles = await Promise.all(
       expectedExecutors.map(async (executor) => {
         return timelock.hasRole(EXECUTOR_ROLE, executor);
