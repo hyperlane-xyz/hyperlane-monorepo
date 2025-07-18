@@ -66,6 +66,10 @@ use crate::{
     settings::{matching_list::MatchingList, RelayerSettings},
 };
 
+use destination::Destination;
+
+mod destination;
+
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const ADVANCED_LOG_META: bool = false;
@@ -110,8 +114,8 @@ pub struct Relayer {
     runtime_metrics: RuntimeMetrics,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
-    payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, DispatcherEntrypoint>,
-    payload_dispatchers: HashMap<HyperlaneDomain, Dispatcher>,
+    /// The destination chains and their associated structures
+    destinations: HashMap<HyperlaneDomain, Destination>,
 }
 
 impl Debug for Relayer {
@@ -199,28 +203,10 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized validator announces", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
-        let dispatcher_metrics = DispatcherMetrics::new(core_metrics.registry())
-            .expect("Creating dispatcher metrics is infallible");
-        let dispatcher_entrypoints = Self::build_payload_dispatcher_entrypoints(
-            &settings,
-            core_metrics.clone(),
-            &chain_metrics,
-            dispatcher_metrics.clone(),
-            db.clone(),
-        )
-        .await;
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized dispatcher entrypoints", "Relayer startup duration measurement");
-
-        start_entity_init = Instant::now();
-        let dispatchers = Self::build_payload_dispatchers(
-            &settings,
-            core_metrics.clone(),
-            &chain_metrics,
-            dispatcher_metrics,
-            db.clone(),
-        )
-        .await;
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized dipatchers", "Relayer startup duration measurement");
+        let destinations =
+            Self::build_destinations(&settings, db.clone(), core_metrics.clone(), &chain_metrics)
+                .await;
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized destination chains", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
@@ -468,8 +454,7 @@ impl BaseAgent for Relayer {
             chain_metrics,
             runtime_metrics,
             tokio_console_server: Some(tokio_console_server),
-            payload_dispatcher_entrypoints: dispatcher_entrypoints,
-            payload_dispatchers: dispatchers,
+            destinations,
         })
     }
 
@@ -508,8 +493,10 @@ impl BaseAgent for Relayer {
             let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
 
-            let payload_dispatcher_entrypoint =
-                self.payload_dispatcher_entrypoints.remove(dest_domain);
+            let dispatcher_entrypoint = self
+                .destinations
+                .get(dest_domain)
+                .and_then(|d| d.dispatcher_entrypoint.clone());
 
             let db = match self.dbs.get(dest_domain) {
                 Some(db) => db.clone(),
@@ -551,7 +538,7 @@ impl BaseAgent for Relayer {
                 max_batch_size,
                 max_submit_queue_len,
                 task_monitor.clone(),
-                payload_dispatcher_entrypoint,
+                dispatcher_entrypoint,
                 db,
             );
             prep_queues.insert(dest_domain.id(), message_processor.prepare_queue().await);
@@ -562,7 +549,11 @@ impl BaseAgent for Relayer {
                 task_monitor.clone(),
             ));
 
-            if let Some(dispatcher) = self.payload_dispatchers.remove(dest_domain) {
+            let dispatcher = self
+                .destinations
+                .get(dest_domain)
+                .and_then(|d| d.dispatcher.clone());
+            if let Some(dispatcher) = dispatcher {
                 tasks.push(dispatcher.spawn().await);
             }
 
@@ -739,13 +730,13 @@ impl BaseAgent for Relayer {
 
 impl Relayer {
     fn record_critical_error(
-        origin: &HyperlaneDomain,
+        domain: &HyperlaneDomain,
         chain_metrics: &ChainMetrics,
         err: &impl Debug,
         message: &str,
     ) {
-        error!(?err, origin=?origin.name(), "{message}");
-        chain_metrics.set_critical_error(origin.name(), true);
+        error!(?err, domain=?domain.name(), "{message}");
+        chain_metrics.set_critical_error(domain.name(), true);
     }
 
     async fn instantiate_cursor_with_retries<T: 'static>(
@@ -1096,6 +1087,52 @@ impl Relayer {
                 }
             })
             .collect()
+    }
+
+    pub async fn build_destinations(
+        settings: &RelayerSettings,
+        db: DB,
+        core_metrics: Arc<CoreMetrics>,
+        chain_metrics: &ChainMetrics,
+    ) -> HashMap<HyperlaneDomain, Destination> {
+        use destination::DestinationFactory;
+        use destination::Factory;
+
+        let factory = DestinationFactory {};
+
+        let destination_futures: Vec<_> = settings
+            .chains
+            .iter()
+            .map(|(domain, chain)| async {
+                (
+                    domain.clone(),
+                    factory
+                        .create(
+                            domain.clone(),
+                            chain.clone(),
+                            db.clone(),
+                            core_metrics.clone(),
+                        )
+                        .await,
+                )
+            })
+            .collect();
+        let results = futures::future::join_all(destination_futures).await;
+        results
+            .into_iter()
+            .filter_map(|(domain, result)| match result {
+                Ok(destination) => Some((domain, destination)),
+                Err(err) => {
+                    Self::record_critical_error(
+                        &domain,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building chain as destination",
+                    );
+                    None
+                }
+            })
+            .collect::<HashMap<_, _>>()
     }
 
     /// Helper function to build and return a hashmap of payload dispatchers.
