@@ -47,8 +47,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { awIcasV2 } from '../../config/environments/mainnet3/governance/ica/aw2.js';
-import { regularIcasV2 } from '../../config/environments/mainnet3/governance/ica/regular2.js';
+import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_awLegacy.js';
+import { regularIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_regularLegacy.js';
 import {
   getAllSafesForChain,
   getGovernanceIcas,
@@ -1639,12 +1639,12 @@ async function getOwnerInsight(
     return `${address} (${governanceType.toUpperCase()} ${ownerType})`;
   }
 
-  if (eqAddress(address, awIcasV2[chain])) {
-    return `${address} (${GovernanceType.AbacusWorks.toUpperCase()} ${Owner.ICA} v2)`;
+  if (eqAddress(address, awIcasLegacy[chain])) {
+    return `${address} (${GovernanceType.AbacusWorks.toUpperCase()} ${Owner.ICA} LEGACY)`;
   }
 
-  if (eqAddress(address, regularIcasV2[chain])) {
-    return `${address} (${GovernanceType.Regular.toUpperCase()} ${Owner.ICA} v2)`;
+  if (eqAddress(address, regularIcasLegacy[chain])) {
+    return `${address} (${GovernanceType.Regular.toUpperCase()} ${Owner.ICA} LEGACY)`;
   }
 
   return `${address} (Unknown)`;
