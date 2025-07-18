@@ -118,8 +118,7 @@ async function main() {
   const results: Record<string, { address?: string; status: string }> = {};
 
   await Promise.all(
-    getTimelockChains.map(async (chain) => {
-      const expectedConfig = timelockConfigs[chain];
+    Object.entries(timelockConfigs).map(async ([chain, expectedConfig]) => {
       const timelockAddress = governanceTimelocks[chain];
 
       try {
@@ -173,6 +172,12 @@ async function main() {
       }))
       .sort((a, b) => a.chain.localeCompare(b.chain)),
   );
+
+  // If any status is not '✅', exit with code 1, else 0
+  const hasFailures = Object.values(results).some(
+    (result) => result.status !== '✅',
+  );
+  process.exit(hasFailures ? 1 : 0);
 }
 
 main()
