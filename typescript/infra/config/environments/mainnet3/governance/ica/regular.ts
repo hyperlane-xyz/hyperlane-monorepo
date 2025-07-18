@@ -6,7 +6,7 @@ import { Address } from '@hyperlane-xyz/utils';
 // yarn tsx scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --deploy \
 // --governanceType regular
 // -c <chain1> <chain2> ... \
-export const regularIcasV2: ChainMap<Address> = {
+export const regularIcas: ChainMap<Address> = {
   // owner chain
   // ethereum: '0x28699e5d9feb54131FB14D7446d2771623295781',
 
