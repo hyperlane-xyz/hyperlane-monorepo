@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use axum::Router;
@@ -239,7 +239,7 @@ impl BaseAgent for Validator {
             ));
         }
 
-        let metrics_updater = ChainSpecificMetricsUpdater::new(
+        let metrics_updater = match ChainSpecificMetricsUpdater::new(
             &self.origin_chain_conf,
             self.core_metrics.clone(),
             self.agent_metrics.clone(),
@@ -247,13 +247,16 @@ impl BaseAgent for Validator {
             Self::AGENT_NAME.to_string(),
         )
         .await
-        .unwrap();
-        tasks.push(tokio::spawn(
-            async move {
-                metrics_updater.spawn().await.unwrap();
+        {
+            Ok(task) => task,
+            Err(err) => {
+                tracing::error!(?err, "Failed to build metrics updater");
+                return;
             }
-            .instrument(info_span!("MetricsUpdater")),
-        ));
+        };
+
+        let task = metrics_updater.spawn();
+        tasks.push(task);
 
         // report agent metadata
         self.metadata()
@@ -295,8 +298,7 @@ impl BaseAgent for Validator {
 
 impl Validator {
     async fn run_merkle_tree_hook_sync(&self) -> JoinHandle<()> {
-        let index_settings =
-            self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
+        let index_settings = self.as_ref().settings.chains[&self.origin_chain].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
         let cursor = contract_sync
             .cursor(index_settings)
@@ -445,7 +447,7 @@ impl Validator {
                     "Validator has not announced signature storage location"
                 );
 
-                if let Some(chain_signer) = self.core.settings.chains[self.origin_chain.name()]
+                if let Some(chain_signer) = self.core.settings.chains[&self.origin_chain]
                     .chain_signer()
                     .await?
                 {

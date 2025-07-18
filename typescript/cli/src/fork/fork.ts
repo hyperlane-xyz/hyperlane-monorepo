@@ -2,7 +2,11 @@ import { JsonRpcProvider, Log } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import { execa } from 'execa';
 
+import { HttpServer } from '@hyperlane-xyz/http-registry-server';
+import { MergedRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
 import {
+  ChainMap,
+  ChainMetadata,
   ChainName,
   EventAssertion,
   EventAssertionType,
@@ -17,6 +21,7 @@ import {
 import {
   Address,
   ProtocolType,
+  assert,
   deepEquals,
   retryAsync,
 } from '@hyperlane-xyz/utils';
@@ -26,6 +31,8 @@ import { logGray, logRed } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
 
 const LOCAL_HOST = 'http://127.0.0.1';
+
+type EndPoint = string;
 
 export async function runForkCommand({
   context,
@@ -40,6 +47,7 @@ export async function runForkCommand({
   kill: boolean;
   basePort?: number;
 }): Promise<void> {
+  const { registry } = context;
   const filteredChainsToFork = Array.from(chainsToFork).filter(
     (chain) =>
       context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
@@ -50,17 +58,42 @@ export async function runForkCommand({
     forkConfig,
     readYamlOrJson,
   );
+  const chainMetadataOverrides: ChainMap<{
+    blocks: ChainMetadata['blocks'];
+    rpcUrls: ChainMetadata['rpcUrls'];
+  }> = {};
   for (const chainName of filteredChainsToFork) {
-    await forkChain(
+    const endpoint = await forkChain(
       context.multiProvider,
       chainName,
       port,
       kill,
       parsedForkConfig[chainName],
     );
+    chainMetadataOverrides[chainName] = {
+      blocks: { confirmations: 1 },
+      rpcUrls: [{ http: endpoint }],
+    };
 
     port++;
   }
+
+  const mergedRegistry = new MergedRegistry({
+    registries: [
+      registry,
+      new PartialRegistry({ chainMetadata: chainMetadataOverrides }),
+    ],
+  });
+  const httpServerPort = basePort - 10;
+  assert(
+    httpServerPort > 0,
+    'HTTP server port too low, consider increasing --port',
+  );
+
+  const httpRegistryServer = await HttpServer.create(
+    async () => mergedRegistry,
+  );
+  await httpRegistryServer.start(httpServerPort.toString());
 }
 
 async function forkChain(
@@ -69,7 +102,7 @@ async function forkChain(
   forkPort: number,
   kill: boolean,
   forkConfig?: ForkedChainConfig,
-): Promise<void> {
+): Promise<EndPoint> {
   let killAnvilProcess: ((isPanicking: boolean) => Promise<void>) | undefined;
   try {
     const chainMetadata = await multiProvider.getChainMetadata(chainName);
@@ -97,7 +130,7 @@ async function forkChain(
     process.once('exit', () => killAnvilProcess && killAnvilProcess(false));
 
     if (!forkConfig) {
-      return;
+      return endpoint;
     }
 
     await handleImpersonations(
@@ -111,6 +144,8 @@ async function forkChain(
     if (kill) {
       await killAnvilProcess(false);
     }
+
+    return endpoint;
   } catch (error) {
     // Kill any running anvil process otherwise the process will keep running
     // in the background.

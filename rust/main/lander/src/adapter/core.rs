@@ -44,7 +44,9 @@ pub trait AdaptsChain: Send + Sync {
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
 
     /// Simulates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
-    async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, LanderError>;
+    async fn simulate_tx(&self, _tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError> {
+        Ok(vec![])
+    }
 
     /// Estimates a Transaction's gas limit. Called in the Inclusion Stage (PayloadDispatcher)
     /// Skips estimation if the Transaction has already been estimated

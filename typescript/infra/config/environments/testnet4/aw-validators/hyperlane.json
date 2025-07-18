@@ -43,6 +43,9 @@
   "carrchaintestnet": {
     "validators": ["0xa96dfc4d8c6cabb510701732ee01e52a75776205"]
   },
+  "celestiatestnet": {
+    "validators": ["0x3e0227b7f129576c53ff5d98d17c9b8433445094"]
+  },
   "chronicleyellowstone": {
     "validators": ["0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4"]
   },
@@ -112,9 +115,6 @@
   },
   "polygonamoy": {
     "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
-  },
-  "rometestnet2": {
-    "validators": ["0xdbc7cc0e73c5ea9fd39fe777db54f1c0ca564c1e"]
   },
   "scrollsepolia": {
     "validators": [

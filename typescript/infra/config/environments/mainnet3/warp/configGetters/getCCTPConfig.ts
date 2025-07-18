@@ -1,8 +1,11 @@
 import {
   ChainMap,
+  ChainSubmissionStrategy,
   HypTokenRouterConfig,
   OwnableConfig,
+  SubmitterMetadata,
   TokenType,
+  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -44,8 +47,46 @@ export const getCCTPWarpConfig = async (
         messageTransmitter: messageTransmitterAddresses[chain],
         tokenMessenger: tokenMessengerAddresses[chain],
         urls: [`${SERVICE_URL}/cctp/getCctpAttestation`],
+        contractVersion: '8.1.0',
       };
       return [chain, config];
     }),
+  );
+};
+
+const safeChain = 'ethereum';
+const icaOwner = awSafes[safeChain];
+const safeSubmitter: SubmitterMetadata = {
+  type: TxSubmitterType.GNOSIS_SAFE,
+  chain: safeChain,
+  safeAddress: icaOwner,
+};
+
+const icaChains = Object.keys(awIcas);
+
+export const getCCTPStrategyConfig = (): ChainSubmissionStrategy => {
+  const submitterMetadata = CCTP_CHAINS.map((chain): SubmitterMetadata => {
+    if (!icaChains.includes(chain)) {
+      return {
+        type: TxSubmitterType.GNOSIS_SAFE,
+        chain,
+        safeAddress: awSafes[chain],
+      };
+    }
+
+    return {
+      type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+      chain: safeChain,
+      owner: icaOwner,
+      destinationChain: chain,
+      internalSubmitter: safeSubmitter,
+    };
+  });
+
+  return Object.fromEntries(
+    CCTP_CHAINS.map((chain, index) => [
+      chain,
+      { submitter: submitterMetadata[index] },
+    ]),
   );
 };

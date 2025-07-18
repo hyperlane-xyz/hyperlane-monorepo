@@ -103,22 +103,25 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
 
         let default_rpc_consensus_type = agent_name_to_default_rpc_consensus_type(agent_name);
 
-        let chains: HashMap<String, ChainConf> = raw_chains
+        let chains: HashMap<HyperlaneDomain, ChainConf> = raw_chains
             .into_iter()
             .filter_map(|(name, chain)| {
                 parse_chain(chain, &name, default_rpc_consensus_type.as_str())
                     .take_config_err(&mut err)
                     .map(|v| (name, v))
             })
-            .map(|(name, mut chain)| {
+            .map(|(_, mut chain)| {
                 if let Some(default_signer) = &default_signer {
                     chain.signer.get_or_insert_with(|| default_signer.clone());
                 }
-                (name, chain)
+                (chain.domain.clone(), chain)
             })
             .collect();
 
+        let domains = chains.keys().map(|k| (k.to_string(), k.clone())).collect();
+
         err.into_result(Self {
+            domains,
             chains,
             metrics_port,
             tracing: TracingConfig { fmt, level },
@@ -140,12 +143,6 @@ fn parse_chain(
         .get_opt_key("signer")
         .and_then(parse_signer)
         .end();
-
-    let submitter = chain
-        .chain(&mut err)
-        .get_opt_key("submitter")
-        .parse_from_str::<SubmitterType>("Invalid Submitter type")
-        .unwrap_or_default();
 
     // measured in seconds (with fractions)
     let estimated_block_time = chain
@@ -260,6 +257,23 @@ fn parse_chain(
     );
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
+
+    let submitter = chain
+        .chain(&mut err)
+        .get_opt_key("submitter")
+        .parse_from_str::<SubmitterType>("Invalid Submitter type")
+        .end();
+    // for EVM chains, default to `SubmitterType::Lander` if not specified
+    let submitter = match submitter {
+        Some(submitter_type) => submitter_type,
+        None => {
+            if matches!(connection.protocol(), HyperlaneDomainProtocol::Ethereum) {
+                SubmitterType::Lander
+            } else {
+                Default::default()
+            }
+        }
+    };
     err.into_result(ChainConf {
         domain,
         signer,

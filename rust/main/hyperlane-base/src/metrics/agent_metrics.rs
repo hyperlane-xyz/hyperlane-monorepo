@@ -66,7 +66,8 @@ pub struct AgentMetrics {
 }
 
 impl AgentMetrics {
-    pub(crate) fn new(metrics: &CoreMetrics) -> Result<AgentMetrics> {
+    /// constructor
+    pub fn new(metrics: &CoreMetrics) -> Result<AgentMetrics> {
         let agent_metrics = AgentMetrics {
             wallet_balance: Some(metrics.new_gauge(
                 "wallet_balance",
@@ -98,7 +99,8 @@ pub struct ChainMetrics {
 }
 
 impl ChainMetrics {
-    pub(crate) fn new(metrics: &CoreMetrics) -> Result<ChainMetrics> {
+    /// constructor
+    pub fn new(metrics: &CoreMetrics) -> Result<ChainMetrics> {
         let block_height_metrics =
             metrics.new_int_gauge("block_height", BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS)?;
         let gas_price_metrics = metrics.new_gauge("gas_price", GAS_PRICE_HELP, GAS_PRICE_LABELS)?;

@@ -11,6 +11,7 @@ use derive_new::new;
 use eyre::Result;
 use prometheus::IntGauge;
 use serde::{de::DeserializeOwned, Serialize};
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
 use hyperlane_base::{
@@ -73,7 +74,7 @@ pub struct MessageContext {
     pub metadata_builder: Arc<dyn BuildsBaseMetadata>,
     /// Used to determine if messages from the origin have made sufficient gas
     /// payments.
-    pub origin_gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+    pub origin_gas_payment_enforcer: Arc<RwLock<GasPaymentEnforcer>>,
     /// Hard limit on transaction gas when submitting a transaction to the
     /// destination.
     pub transaction_gas_limit: Option<U256>,
@@ -82,7 +83,7 @@ pub struct MessageContext {
     pub application_operation_verifier: Option<Arc<dyn ApplicationOperationVerifier>>,
 }
 
-/// A message that the submitter can and should try to submit.
+/// A message that is pending processing and submission.
 #[derive(new, Serialize)]
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
@@ -131,7 +132,7 @@ impl Debug for PendingMessage {
                 }
             })
             .unwrap_or(0);
-        write!(f, "PendingMessage {{ num_retries: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message_id: {}, status: {:?}, app_context: {:?} }}",
+        write!(f, "PendingMessage {{ num_retries: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message_id: {:?}, status: {:?}, app_context: {:?} }}",
                self.num_retries, self.message.id(), self.status, self.app_context)
     }
 }
@@ -202,6 +203,10 @@ impl PendingOperation for PendingMessage {
 
     fn recipient_address(&self) -> &H256 {
         &self.message.recipient
+    }
+
+    fn body(&self) -> &[u8] {
+        &self.message.body
     }
 
     fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
@@ -405,7 +410,7 @@ impl PendingOperation for PendingMessage {
             .await;
         match tx_outcome {
             Ok(outcome) => {
-                self.set_operation_outcome(outcome, state.gas_limit);
+                self.set_operation_outcome(outcome, state.gas_limit).await;
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
             Err(e) => {
@@ -464,7 +469,7 @@ impl PendingOperation for PendingMessage {
         }
     }
 
-    fn set_operation_outcome(
+    async fn set_operation_outcome(
         &mut self,
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,
@@ -493,6 +498,8 @@ impl PendingOperation for PendingMessage {
         if let Err(e) = self
             .ctx
             .origin_gas_payment_enforcer
+            .read()
+            .await
             .record_tx_outcome(&self.message, operation_outcome.clone())
         {
             error!(error=?e, "Error when recording tx outcome");
@@ -793,12 +800,15 @@ impl PendingMessage {
         &mut self,
         tx_cost_estimate: &TxCostEstimate,
     ) -> GasPaymentRequirementOutcome {
-        let gas_limit = match self
+        let gas_limit = self
             .ctx
             .origin_gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
+            .read()
             .await
-        {
+            .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
+            .await;
+
+        let gas_limit = match gas_limit {
             Ok(gas_limit) => gas_limit,
             Err(err) => {
                 return GasPaymentRequirementOutcome::RequirementNotMet(
@@ -1389,5 +1399,41 @@ mod test {
             .expect("Message status not found");
 
         assert_eq!(db_status, expected_status);
+    }
+
+    #[test]
+    fn check_debug_print() {
+        let origin_domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let destination_domain =
+            HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let cache = OptionalCache::new(None);
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+
+        let message = HyperlaneMessage {
+            nonce: 0,
+            origin: KnownHyperlaneDomain::Arbitrum as u32,
+            destination: KnownHyperlaneDomain::Arbitrum as u32,
+            ..Default::default()
+        };
+
+        let base_metadata_builder =
+            dummy_metadata_builder(&origin_domain, &destination_domain, &base_db, cache.clone());
+        let message_context =
+            dummy_message_context(Arc::new(base_metadata_builder), &base_db, cache);
+
+        let pending_message = PendingMessage::new(
+            message.clone(),
+            Arc::new(message_context),
+            PendingOperationStatus::FirstPrepareAttempt,
+            Some(format!("test-{}", 0)),
+            2,
+        );
+
+        let pending_message_debug = format!("{:?}", pending_message);
+        let expected = r#"PendingMessage { num_retries: 0, since_last_attempt_s: 0, next_attempt_after_s: 0, message_id: 0xaeafdd9f018e66a50d30bb141184d10e57bd956e839f70213c163eb41a3c0d87, status: FirstPrepareAttempt, app_context: Some("test-0") }"#;
+        assert_eq!(pending_message_debug, expected);
     }
 }

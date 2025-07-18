@@ -585,16 +585,6 @@ export const validatorChainConfig = (
       ),
     },
 
-    rometestnet2: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('rometestnet2'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xdbc7cc0e73c5ea9fd39fe777db54f1c0ca564c1e'],
-        },
-        'rometestnet2',
-      ),
-    },
     neuratestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('neuratestnet'),
@@ -603,6 +593,17 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xc14514a91d0ee90ba3070abb6bfb45a10e6d341d'],
         },
         'neuratestnet',
+      ),
+    },
+
+    celestiatestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('celestiatestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x3e0227b7f129576c53ff5d98d17c9b8433445094'],
+        },
+        'celestiatestnet',
       ),
     },
   };
