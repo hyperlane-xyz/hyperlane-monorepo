@@ -1310,6 +1310,13 @@ export class RadixSigningSDK extends RadixSDK {
 //     'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
 //   );
 //   console.log('synthetic token state', JSON.stringify(s));
+
+//   console.log(sdk.getAddress());
+//   console.log(bech32m.decode(sdk.getAddress()).words);
+//   bech32m.
+//   console.log(
+//     bytesToBytes32(new Uint8Array(bech32m.decode(sdk.getAddress()).words)),
+//   );
 // };
 
 // main();
