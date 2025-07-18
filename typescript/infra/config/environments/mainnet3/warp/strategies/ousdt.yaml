@@ -15,20 +15,22 @@ bob:
     chain: ethereum
     destinationChain: bob
     internalSubmitter:
+      chain: ethereum
       safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
       type: gnosisSafeTxBuilder
       version: '1.0'
-    owner: '0xc99e58b9A4E330e2E4d09e2c94CD3c553904F588'
+    owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
     type: interchainAccount
 botanix:
   submitter:
     chain: ethereum
     destinationChain: botanix
     internalSubmitter:
+      chain: ethereum
       safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
       type: gnosisSafeTxBuilder
       version: '1.0'
-    owner: '0xf06c254d1Df285BC16B2D53A426dC106897CfDf9'
+    owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
     type: interchainAccount
 celo:
   submitter:
@@ -53,10 +55,11 @@ hashkey:
     chain: ethereum
     destinationChain: hashkey
     internalSubmitter:
+      chain: ethereum
       safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
       type: gnosisSafeTxBuilder
       version: '1.0'
-    owner: '0xEE01c007f89c9255f43b91B591b93cD1459048D1'
+    owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
     type: interchainAccount
 ink:
   submitter:
@@ -135,10 +138,11 @@ swell:
     chain: ethereum
     destinationChain: swell
     internalSubmitter:
+      chain: ethereum
       safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
       type: gnosisSafeTxBuilder
       version: '1.0'
-    owner: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687'
+    owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
     type: interchainAccount
 unichain:
   submitter:

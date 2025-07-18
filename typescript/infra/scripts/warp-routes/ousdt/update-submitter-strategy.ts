@@ -65,15 +65,16 @@ async function main() {
       chainSubmissionStrategy[chain] = {
         submitter: {
           chain: ICA_OWNER_CHAIN,
-          type: 'interchainAccount',
+          type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+          owner: ICA_OWNER_SAFE,
           destinationChain: chain,
           internalSubmitter: {
+            chain: ICA_OWNER_CHAIN,
             type: TxSubmitterType.GNOSIS_TX_BUILDER,
             version: '1.0',
             safeAddress: ICA_OWNER_SAFE,
           },
-          owner: config.owner,
-        } as any,
+        },
       };
     } else {
       chainSubmissionStrategy[chain] = {
