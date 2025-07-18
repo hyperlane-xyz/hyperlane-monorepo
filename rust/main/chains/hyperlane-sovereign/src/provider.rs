@@ -55,10 +55,17 @@ impl HyperlaneChain for SovereignProvider {
 // Initial implementation of the Sovereign chain does not include the Scraper as it is not a necessary component for cross chain relaying.
 #[async_trait]
 impl HyperlaneProvider for SovereignProvider {
-    async fn get_block_by_height(&self, _height: u64) -> ChainResult<BlockInfo> {
-        Err(custom_err!("Not supported"))
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
+        let slot = self.get_specified_slot(height).await?;
+        Ok(BlockInfo {
+            hash: slot.hash,
+            number: slot.number,
+            timestamp: slot.timestamp,
+        })
     }
 
+    /// The transaction info returned by the sovereign node doesn't have enough data
+    /// to properly fill in the [`TxnInfo`], thus calling this will result in an error.
     async fn get_txn_by_hash(&self, _hash: &H512) -> ChainResult<TxnInfo> {
         Err(custom_err!("Not supported"))
     }
@@ -67,11 +74,20 @@ impl HyperlaneProvider for SovereignProvider {
         Ok(true)
     }
 
-    async fn get_balance(&self, _address: String) -> ChainResult<U256> {
-        Err(custom_err!("Not supported"))
+    async fn get_balance(&self, address: String) -> ChainResult<U256> {
+        self.client.get_balance(address).await
     }
 
+    /// Sovereign sdk uses multidimensional gas price, so we have to return `None` for
+    /// the `min_gas_price`.
+    ///
+    /// <https://sovereign-labs.github.io/sdk-contributors/gas.html>
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        Err(custom_err!("Not supported"))
+        let latest_slot = self.get_latest_slot().await?;
+
+        Ok(Some(ChainInfo {
+            latest_block: self.get_block_by_height(latest_slot).await?,
+            min_gas_price: None,
+        }))
     }
 }

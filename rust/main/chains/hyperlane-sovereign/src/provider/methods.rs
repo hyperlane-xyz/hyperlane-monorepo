@@ -5,7 +5,7 @@ use hyperlane_core::Encode;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Announcement, ChainResult, Checkpoint,
     FixedPointNumber, HyperlaneMessage, ModuleType, SignedType, TxCostEstimate, TxOutcome, H160,
-    H256, H512, U256,
+    H256, U256,
 };
 use num_traits::FromPrimitive;
 use serde::Deserialize;
@@ -29,15 +29,7 @@ impl SovereignClient {
         Ok(self.http_get::<Slot>(&query).await?)
     }
 
-    /// Get the transaction by hash
-    pub async fn get_tx_by_hash(&self, tx_id: H512) -> ChainResult<Tx> {
-        if tx_id.0[0..32] != [0; 32] {
-            return Err(custom_err!(
-                "Invalid sovereign transaction id, should have 32 bytes: {tx_id:?}"
-            ));
-        }
-        let tx_id = H256(tx_id[32..].try_into().expect("Must be 32 bytes"));
-
+    pub async fn get_tx_by_hash(&self, tx_id: H256) -> ChainResult<Tx> {
         let query = format!("/ledger/txs/{tx_id:?}?children=1");
 
         Ok(self.http_get::<Tx>(&query).await?)
@@ -86,6 +78,24 @@ impl SovereignClient {
         }
     }
 
+    /// Get the balance of the native gas token of the provided address.
+    pub async fn get_balance(&self, address: impl AsRef<str>) -> ChainResult<U256> {
+        #[derive(Debug, Deserialize)]
+        struct Data {
+            amount: String,
+        }
+
+        let query = format!(
+            "/modules/bank/tokens/gas_token/balances/{}",
+            address.as_ref()
+        );
+
+        Ok(self
+            .http_get::<Data>(&query)
+            .await
+            .map(|res| res.amount.parse())??)
+    }
+
     /// Submit a message for processing in the rollup
     pub async fn process(
         &self,
@@ -93,12 +103,6 @@ impl SovereignClient {
         metadata: &[u8],
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        // Estimate the costs to get the price
-        let gas_price = self
-            .process_estimate_costs(message, metadata)
-            .await?
-            .gas_price;
-
         let call_message = json!({
             "mailbox": {
                 "process": {
@@ -109,16 +113,22 @@ impl SovereignClient {
         });
         let (tx_hash, _) = self.build_and_submit(call_message).await?;
 
-        let tx_details = self.get_tx_by_hash(tx_hash.into()).await?;
+        let tx_details = self.get_tx_by_hash(tx_hash).await?;
+        let gas_used = U256::from(
+            tx_details
+                .receipt
+                .data
+                .gas_used
+                .into_iter()
+                .map(u128::from)
+                .sum::<u128>(),
+        );
 
         Ok(TxOutcome {
             transaction_id: tx_details.hash.into(),
             executed: tx_details.receipt.result == "successful",
-            gas_used: match tx_details.receipt.data.gas_used.first() {
-                Some(v) => U256::from(*v),
-                None => U256::default(),
-            },
-            gas_price,
+            gas_used,
+            gas_price: FixedPointNumber::default(),
         })
     }
 
@@ -151,9 +161,10 @@ impl SovereignClient {
 
         #[derive(Clone, Debug, Deserialize)]
         struct TransactionConsumption {
-            base_fee: Vec<u32>,
-            gas_price: Vec<String>,
+            priority_fee: String,
+            base_fee: Vec<u64>,
         }
+
         let query = "/rollup/simulate";
 
         let call_message = json!({
@@ -187,29 +198,24 @@ impl SovereignClient {
             return Err(custom_err!("Transaction simulation reverted"));
         }
 
-        let gas_price = FixedPointNumber::from(
-            response
-                .apply_tx_result
-                .transaction_consumption
-                .gas_price
-                .first()
-                .ok_or_else(|| custom_err!("Failed to get item(0)"))?
-                .parse::<u32>()
-                .map_err(|e| custom_err!("Failed to parse gas_price: {e:?}"))?,
+        let tx_consumption = response.apply_tx_result.transaction_consumption;
+        let priority_fee = U256::from(
+            tx_consumption
+                .priority_fee
+                .parse::<u128>()
+                .map_err(|e| custom_err!("Couldn't parse priority fee: {e}"))?,
         );
-
-        let gas_limit = U256::from(
-            *response
-                .apply_tx_result
-                .transaction_consumption
+        let total_base_fee = U256::from(
+            tx_consumption
                 .base_fee
-                .first()
-                .ok_or_else(|| custom_err!("Failed to get item(0)"))?,
+                .into_iter()
+                .map(u128::from)
+                .sum::<u128>(),
         );
 
         let res = TxCostEstimate {
-            gas_limit,
-            gas_price,
+            gas_limit: total_base_fee + priority_fee,
+            gas_price: FixedPointNumber::default(),
             l2_gas_limit: None,
         };
 

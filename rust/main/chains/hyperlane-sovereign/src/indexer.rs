@@ -53,10 +53,19 @@ where
         Ok(latest_slot.try_into().expect("Slot number overflowed u32"))
     }
 
+    /// Get the transaction by hash. Sovereign Tx hashes are represented as H256,
+    /// so the input needs to be padded with 0's
     async fn fetch_logs_by_tx_hash(
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+        if tx_hash.0[0..32] != [0; 32] {
+            return Err(custom_err!(
+                "Invalid sovereign transaction id, should have 32 bytes: {tx_hash:?}"
+            ));
+        }
+        let tx_hash = H256(tx_hash[32..].try_into().expect("Must be 32 bytes"));
+
         let tx = self.provider().get_tx_by_hash(tx_hash).await?;
         let batch = self.provider().get_batch(tx.batch_number).await?;
         self.process_tx(&tx, batch.hash)
@@ -95,12 +104,17 @@ where
         let decoded_event = self.decode_event(event)?;
 
         let meta = LogMeta {
-            address: slot_hash, // TODO: This should be the address of the contract that emitted the event, not the batch hash
+            // NOTE: sovereign logs are emitted by modules, not contracts, so we use a dummy address
+            address: H256::default(),
             block_number: slot_num,
             block_hash: slot_hash,
             transaction_id: tx.hash.into(),
-            transaction_index: tx.number, // TODO: This doesn't match the ethers behavior. tx number in sovereign is global, while this is block-local.
-            log_index: event.number.into(), // TODO: This doesn't match the ethers behavior. event number in sovereign is global, while this is block-local.
+            // NOTE: this diverges from the Ethereum behavior, as for sovereign, those numbers are
+            // global, and for Ethereum, they are block local. However, deducing block-local numbers
+            // for transactions fetched by hash would require pulling the whole slot data, which means
+            // a lot of overhead
+            transaction_index: tx.number,
+            log_index: event.number.into(),
         };
 
         Ok((decoded_event.into(), meta))

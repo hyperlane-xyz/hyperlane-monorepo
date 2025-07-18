@@ -41,7 +41,7 @@ pub struct Receipt {
 #[derive(Clone, Debug, Deserialize)]
 pub struct TxData {
     /// Gas consumption of the transaction.
-    pub gas_used: Vec<u32>,
+    pub gas_used: Vec<u64>,
 }
 
 /// Batch of Sovereign transactions.
@@ -66,6 +66,8 @@ pub struct Slot {
     pub hash: H256,
     /// Batches in the slot, if any.
     pub batches: Vec<Batch>,
+    /// Timestamp of the slot.
+    pub timestamp: u64,
 }
 
 /// Status of the transaction processing.

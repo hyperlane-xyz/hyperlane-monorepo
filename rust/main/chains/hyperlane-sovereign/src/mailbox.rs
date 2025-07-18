@@ -192,6 +192,14 @@ impl Mailbox for SovereignMailbox {
         Ok(result)
     }
 
+    /// Sovereign-sdk uses multidimensional gas implementation. Each dimension
+    /// represents different resource (compute, storage, etc). Gas usage and prices
+    /// are represented as arrays of values, each value corresponds to a resource.
+    ///
+    /// While for the total consumption of gas we can just sum the usage of all resources,
+    /// there's no way to map gas price to and from a single floating point number.
+    ///
+    /// Hence for the gas price, we always return 0.
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
