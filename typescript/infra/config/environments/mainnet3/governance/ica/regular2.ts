@@ -7,11 +7,13 @@ import { Address } from '@hyperlane-xyz/utils';
 // --governanceType regular
 // -c <chain1> <chain2> ... \
 export const regularIcasV2: ChainMap<Address> = {
+  // owner chain
+  // ethereum: '0x28699e5d9feb54131FB14D7446d2771623295781',
+
   // keep safe-owned for now
   // arbitrum: '0xCC7F1D17351AD37E58758A329E553FB9566562E6',
   // base: '0xE3020af3784788cA04E4E68d3A9A827f2B14Bf3b',
   // bsc: '0x2be13bE357bd9Bca5aAA4Fb4917A8bc4EFDF661c',
-  // ethereum: '0x28699e5d9feb54131FB14D7446d2771623295781',
   // optimism: '0x62FAaf58331B379569D435F08633361f0Be50cB8',
 
   // Jul 2, 2025 - ICA 2.0 Migration
