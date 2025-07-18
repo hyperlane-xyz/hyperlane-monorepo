@@ -1,7 +1,6 @@
 import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { RadixHookReader } from '../hook/RadixHookReader.js';
 import { RadixIsmReader } from '../ism/RadixIsmReader.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
@@ -19,7 +18,6 @@ export class RadixWarpRouteReader {
   protected readonly logger = rootLogger.child({
     module: 'RadixWarpRouteReader',
   });
-  hookReader: RadixHookReader;
   ismReader: RadixIsmReader;
 
   constructor(
@@ -27,7 +25,6 @@ export class RadixWarpRouteReader {
     protected readonly chain: ChainNameOrId,
     protected readonly signer: RadixSigningSDK,
   ) {
-    this.hookReader = new RadixHookReader(metadataManager, signer);
     this.ismReader = new RadixIsmReader(metadataManager, signer);
   }
 
@@ -64,8 +61,20 @@ export class RadixWarpRouteReader {
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
-    // TODO: RADIX
-    return TokenType.collateral;
+    const token = await this.signer.queryToken(warpRouteAddress);
+
+    assert(token, `Failed to find token for address ${warpRouteAddress}`);
+
+    switch (token.tokenType) {
+      case 'COLLATERAL':
+        return TokenType.collateral;
+      case 'SYNTHETIC':
+        return TokenType.synthetic;
+      default:
+        throw new Error(
+          `Radix unkown token type on token contract ${warpRouteAddress}: ${token.tokenType}`,
+        );
+    }
   }
 
   /**
@@ -77,12 +86,19 @@ export class RadixWarpRouteReader {
   async fetchMailboxClientConfig(
     routerAddress: Address,
   ): Promise<MailboxClientConfig> {
-    // TODO: RADIX
+    const token = await this.signer.queryToken(routerAddress);
+
+    assert(token, `Failed to find token for address ${routerAddress}`);
+
     const config: MailboxClientConfig = {
-      mailbox: '',
-      owner: '',
-      interchainSecurityModule: '',
+      mailbox: token.mailbox,
+      owner: token.owner,
     };
+
+    if (token.ism) {
+      const derivedIsm = await this.ismReader.deriveIsmConfig(token.ism);
+      config.interchainSecurityModule = derivedIsm;
+    }
 
     return config;
   }
@@ -105,14 +121,30 @@ export class RadixWarpRouteReader {
   }
 
   async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
-    // TODO: RADIX
-    return RemoteRoutersSchema.parse({});
+    const { enrolledRouters } =
+      await this.signer.queryEnrolledRouters(warpRouteAddress);
+
+    const routers: Record<string, { address: string }> = {};
+    for (const router of enrolledRouters) {
+      routers[router.receiverDomain] = {
+        address: router.receiverContract,
+      };
+    }
+
+    return RemoteRoutersSchema.parse(routers);
   }
 
   async fetchDestinationGas(
     warpRouteAddress: Address,
   ): Promise<DestinationGas> {
-    // TODO: RADIX
-    return {};
+    const { enrolledRouters } =
+      await this.signer.queryEnrolledRouters(warpRouteAddress);
+
+    return Object.fromEntries(
+      enrolledRouters.map((routerConfig) => [
+        routerConfig.receiverDomain,
+        routerConfig.gas,
+      ]),
+    );
   }
 }

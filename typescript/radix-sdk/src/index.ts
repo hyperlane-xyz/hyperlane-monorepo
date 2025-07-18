@@ -267,6 +267,7 @@ export class RadixSDK {
 
   public async queryToken(token: string): Promise<{
     address: string;
+    owner: string;
     tokenType: 'COLLATERAL' | 'SYNTHETIC';
     mailbox: string;
     ism: string;
@@ -277,6 +278,21 @@ export class RadixSDK {
     assert(
       (details.details as any).blueprint_name === 'HypToken',
       `Expected contract at address ${token} to be "HypToken" but got ${(details.details as any).blueprint_name}`,
+    );
+
+    const ownerResource = (details.details as any).role_assignments.owner.rule
+      .access_rule.proof_rule.requirement.resource;
+
+    const { items } =
+      await this.gateway.extensions.getResourceHolders(ownerResource);
+
+    const resourceHolders = [
+      ...new Set(items.map((item) => item.holder_address)),
+    ];
+
+    assert(
+      resourceHolders.length === 1,
+      `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
     );
 
     const fields = (details.details as any).state.fields;
@@ -293,6 +309,7 @@ export class RadixSDK {
 
     const result = {
       address: token,
+      owner: resourceHolders[0],
       tokenType,
       mailbox: fields.find((f: any) => f.field_name === 'mailbox')?.value ?? '',
       ism: ismFields[0]?.value ?? '',
@@ -301,11 +318,13 @@ export class RadixSDK {
     return result;
   }
 
-  public async queryEnrolledRouters(
-    token: string,
-    domainId: string | number,
-  ): Promise<{
+  public async queryEnrolledRouters(token: string): Promise<{
     address: string;
+    enrolledRouters: {
+      receiverDomain: string;
+      receiverContract: string;
+      gas: string;
+    }[];
   }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(token);
@@ -317,25 +336,52 @@ export class RadixSDK {
 
     const fields = (details.details as any).state.fields;
 
-    const enrolledRouters =
+    const enrolledRoutersKeyValueStore =
       fields.find((f: any) => f.field_name === 'enrolled_routers')?.value ?? '';
-    assert(enrolledRouters, `found no enrolled routers on token ${token}`);
+    assert(
+      enrolledRoutersKeyValueStore,
+      `found no enrolled routers on token ${token}`,
+    );
 
-    const value = await this.gateway.state.innerClient.keyValueStoreData({
-      stateKeyValueStoreDataRequest: {
-        key_value_store_address: enrolledRouters,
-        keys: [
-          {
-            key_hex: Buffer.from(`${domainId}`).toString('hex'),
-          },
-        ],
+    const enrolledRouters = [];
+
+    const { items } = await this.gateway.state.innerClient.keyValueStoreKeys({
+      stateKeyValueStoreKeysRequest: {
+        key_value_store_address: enrolledRoutersKeyValueStore,
       },
     });
 
-    console.log('enrolledRouters value', value);
+    for (const { key } of items) {
+      const domainId = (key.programmatic_json as any).value;
+      console.log('domainId', domainId);
+
+      const { entries } =
+        await this.gateway.state.innerClient.keyValueStoreData({
+          stateKeyValueStoreDataRequest: {
+            key_value_store_address: enrolledRoutersKeyValueStore,
+            keys: [
+              {
+                key_hex: key.raw_hex,
+              },
+            ],
+          },
+        });
+
+      const routerFields = (entries[0].value.programmatic_json as any).fields;
+
+      enrolledRouters.push({
+        receiverDomain: routerFields.find((r: any) => r.field_name === 'domain')
+          .value,
+        receiverContract: routerFields.find(
+          (r: any) => r.field_name === 'recipient',
+        ).hex,
+        gas: routerFields.find((r: any) => r.field_name === 'gas').value,
+      });
+    }
 
     const result = {
       address: token,
+      enrolledRouters,
     };
 
     return result;
@@ -957,6 +1003,55 @@ export class RadixSigningSDK extends RadixSDK {
 
     await this.signAndBroadcast(transactionManifest);
   }
+
+  public async populateEnrollRemoteRouter(
+    token: string,
+    receiverDomain: number,
+    receiverAddress: string,
+    gas: string,
+  ) {
+    return this.createCallMethodManifestWithOwner(
+      token,
+      'enroll_remote_router',
+      [u32(receiverDomain), bytes(strip0x(receiverAddress)), decimal(gas)],
+    );
+  }
+
+  public async enrollRemoteRouter(
+    token: string,
+    receiverDomain: number,
+    receiverAddress: string,
+    gas: string,
+  ) {
+    const transactionManifest = await this.populateEnrollRemoteRouter(
+      token,
+      receiverDomain,
+      receiverAddress,
+      gas,
+    );
+
+    await this.signAndBroadcast(transactionManifest);
+  }
+
+  public async populateUnrollRemoteRouter(
+    token: string,
+    receiverDomain: number,
+  ) {
+    return this.createCallMethodManifestWithOwner(
+      token,
+      'unroll_remote_router',
+      [u32(receiverDomain)],
+    );
+  }
+
+  public async unrollRemoteRouter(token: string, receiverDomain: number) {
+    const transactionManifest = await this.populateUnrollRemoteRouter(
+      token,
+      receiverDomain,
+    );
+
+    await this.signAndBroadcast(transactionManifest);
+  }
 }
 
 // TODO: RADIX
@@ -1044,6 +1139,19 @@ export class RadixSigningSDK extends RadixSDK {
 //     'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
 //   );
 //   console.log('synthetic token state', JSON.stringify(s));
+
+//   await sdk.enrollRemoteRouter(
+//     'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
+//     1337,
+//     '0000000000000000000000000000000000000000000000000000000000000001',
+//     '100',
+//   );
+
+//   const r = await sdk.queryEnrolledRouters(
+//     'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
+//     1337,
+//   );
+//   console.log('query enrolled router', JSON.stringify(r));
 // };
 
 // main();
