@@ -17,9 +17,7 @@ const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
 const COSMOS_NATIVE_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
-// TODO: RADIX
-// improve regex
-const RADIX_ADDRESS_REGEX = /^[a-zA-Z1-9]{69}$/;
+const RADIX_ADDRESS_REGEX = /^account_(rdx|sim|tdx_[\d]_)[a-z0-9]{55}$/;
 
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
@@ -37,17 +35,13 @@ const EVM_TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/;
 const SEALEVEL_TX_HASH_REGEX = /^[a-zA-Z1-9]{88}$/;
 const COSMOS_TX_HASH_REGEX = /^(0x)?[A-Fa-f0-9]{64}$/;
 const STARKNET_TX_HASH_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
-// TODO: RADIX
-// improve regex
-const RADIX_TX_HASH_REGEX = /^[a-zA-Z1-9]{70}$/;
+const RADIX_TX_HASH_REGEX = /^txid_(rdx|sim|tdx_[\d]_)[a-z0-9]{59}$/;
 
 const EVM_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const SEALEVEL_ZEROISH_ADDRESS_REGEX = /^1+$/;
 const COSMOS_ZEROISH_ADDRESS_REGEX = /^[a-z]{1,10}?1[0]+$/;
 const COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const STARKNET_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
-// TODO: RADIX
-// improve regex
 const RADIX_ZEROISH_ADDRESS_REGEX = /^0*$/;
 
 export const ZERO_ADDRESS_HEX_32 =
@@ -481,9 +475,13 @@ export function bytesToAddressStarknet(bytes: Uint8Array): Address {
   return addAddressPadding(hexString);
 }
 
-export function bytesToAddressRadix(bytes: Uint8Array): Address {
-  // TODO: RADIX
-  return '';
+export function bytesToAddressRadix(
+  bytes: Uint8Array,
+  prefix: string,
+): Address {
+  if (!prefix) throw new Error('Prefix required for Radix address');
+
+  return bech32m.encode(prefix, bech32m.fromWords(bytes));
 }
 
 export function bytesToProtocolAddress(
@@ -506,7 +504,7 @@ export function bytesToProtocolAddress(
   } else if (toProtocol === ProtocolType.Starknet) {
     return bytesToAddressStarknet(bytes);
   } else if (toProtocol === ProtocolType.Radix) {
-    return bytesToAddressRadix(bytes);
+    return bytesToAddressRadix(bytes, prefix!);
   } else {
     throw new Error(`Unsupported protocol for address ${toProtocol}`);
   }
