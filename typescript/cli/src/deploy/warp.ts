@@ -14,9 +14,8 @@ import {
   CCIPContractCache,
   ChainMap,
   ChainName,
-  ChainSubmissionStrategy,
-  ChainSubmissionStrategySchema,
   ContractVerifier,
+  EVM_TOKEN_TYPE_TO_STANDARD,
   EvmERC20WarpModule,
   ExplorerLicenseType,
   HypERC20Deployer,
@@ -30,7 +29,6 @@ import {
   PausableIsmConfig,
   RoutingIsmConfig,
   SubmissionStrategy,
-  TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TokenMetadataMap,
   TrustedRelayerIsmConfig,
@@ -46,6 +44,7 @@ import {
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
   getRouterAddressesFromWarpCoreConfig,
+  getSubmitterBuilder,
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
@@ -55,6 +54,7 @@ import {
 import {
   ProtocolType,
   assert,
+  objFilter,
   objMap,
   promiseObjAll,
   retryAsync,
@@ -71,12 +71,19 @@ import {
   logTable,
   warnYellow,
 } from '../logger.js';
-import { getSubmitterBuilder } from '../submit/submit.js';
+import { WarpSendLogs } from '../send/transfer.js';
+import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
+import {
+  ExtendedChainSubmissionStrategy,
+  ExtendedChainSubmissionStrategySchema,
+  ExtendedSubmissionStrategy,
+} from '../submitters/types.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { canSelfRelay, runSelfRelay } from '../utils/relay.js';
 
 import {
   completeDeploy,
@@ -95,6 +102,7 @@ interface WarpApplyParams extends DeployParams {
   warpCoreConfig: WarpCoreConfig;
   strategyUrl?: string;
   receiptsDir: string;
+  selfRelay?: boolean;
   warpRouteId?: string;
 }
 
@@ -290,7 +298,7 @@ function generateTokenConfigs(
 
     warpCoreConfig.tokens.push({
       chainName,
-      standard: TOKEN_TYPE_TO_STANDARD[config.type],
+      standard: EVM_TOKEN_TYPE_TO_STANDARD[config.type],
       decimals,
       symbol: config.symbol || symbol,
       name,
@@ -347,9 +355,27 @@ export async function runWarpRouteApply(
       context.registry,
     );
 
+  const { multiProvider } = context;
+  // temporarily configure deployer as owner so that warp update after extension
+  // can leverage JSON RPC submitter on new chains
+  const intermediateOwnerConfig = await promiseObjAll(
+    objMap(params.warpDeployConfig, async (chain, config) => {
+      const protocolType = multiProvider.getProtocol(chain);
+
+      if (protocolType !== ProtocolType.Ethereum) {
+        return config;
+      }
+
+      return {
+        ...config,
+        owner: await multiProvider.getSignerAddress(chain),
+      };
+    }),
+  );
+
   // Extend the warp route and get the updated configs
   const updatedWarpCoreConfig = await extendWarpRoute(
-    params,
+    { ...params, warpDeployConfig: intermediateOwnerConfig },
     apiKeys,
     warpCoreConfig,
   );
@@ -418,6 +444,35 @@ async function deployWarpExtensionContracts(
 }
 
 /**
+ * Splits warp configs into existing and extended, and returns details about the extension.
+ * @param warpCoreConfig The warp core config.
+ * @param warpDeployConfig The warp deploy config.
+ * @returns An object containing the split configs, extended chains, and warp core config by chain.
+ */
+function getWarpRouteExtensionDetails(
+  warpCoreConfig: WarpCoreConfig,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+) {
+  const warpCoreConfigByChain = Object.fromEntries(
+    warpCoreConfig.tokens.map((token) => [token.chainName, token]),
+  );
+  const warpCoreChains = Object.keys(warpCoreConfigByChain);
+
+  // Split between the existing and additional config
+  const [existingConfigs, initialExtendedConfigs] =
+    splitWarpCoreAndExtendedConfigs(warpDeployConfig, warpCoreChains);
+
+  const extendedChains = Object.keys(initialExtendedConfigs);
+
+  return {
+    existingConfigs,
+    initialExtendedConfigs,
+    extendedChains,
+    warpCoreConfigByChain,
+  };
+}
+
+/**
  * Extends an existing Warp route to include new chains.
  * This function manages the entire extension workflow:
  * 1. Divides the configuration into existing and new chain segments.
@@ -432,31 +487,64 @@ export async function extendWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<WarpCoreConfig> {
   const { context, warpDeployConfig } = params;
-  const warpCoreConfigByChain = Object.fromEntries(
-    warpCoreConfig.tokens.map((token) => [token.chainName, token]),
+  const { existingConfigs, initialExtendedConfigs, warpCoreConfigByChain } =
+    getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
+
+  // Remove all the non-EVM chains from the extended configuration to avoid
+  // having the extension crash
+  const filteredExtendedConfigs = objFilter(
+    initialExtendedConfigs,
+    (chainName, _): _ is (typeof initialExtendedConfigs)[string] =>
+      context.multiProtocolProvider.getProtocol(chainName) ===
+      ProtocolType.Ethereum,
   );
-  const warpCoreChains = Object.keys(warpCoreConfigByChain);
 
-  // Split between the existing and additional config
-  const [existingConfigs, initialExtendedConfigs] =
-    splitWarpCoreAndExtendedConfigs(warpDeployConfig, warpCoreChains);
+  const filteredExistingConfigs = objFilter(
+    existingConfigs,
+    (chainName, _): _ is (typeof existingConfigs)[string] =>
+      context.multiProtocolProvider.getProtocol(chainName) ===
+      ProtocolType.Ethereum,
+  );
 
-  const extendedChains = Object.keys(initialExtendedConfigs);
-  if (extendedChains.length === 0) {
+  const filteredWarpCoreConfigByChain = objFilter(
+    warpCoreConfigByChain,
+    (chainName, _): _ is (typeof warpCoreConfigByChain)[string] =>
+      context.multiProtocolProvider.getProtocol(chainName) ===
+      ProtocolType.Ethereum,
+  );
+
+  // Get the non EVM chains that should not be unenrolled/removed after the extension
+  // otherwise the update will generate unenroll transactions
+  const nonEvmWarpCoreConfigs: WarpCoreConfig['tokens'] = Object.entries(
+    warpCoreConfigByChain,
+  )
+    .filter(
+      ([chainName]) =>
+        context.multiProtocolProvider.getProtocol(chainName) !==
+          ProtocolType.Ethereum && !!warpDeployConfig[chainName],
+    )
+    .map(([_, config]) => config);
+
+  const filteredExtendedChains = Object.keys(filteredExtendedConfigs);
+  if (filteredExtendedChains.length === 0) {
     return warpCoreConfig;
   }
 
-  logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
+  logBlue(`Extending Warp Route to ${filteredExtendedChains.join(', ')}`);
 
   // Deploy new contracts with derived metadata and merge with existing config
   const { updatedWarpCoreConfig, addWarpRouteOptions } =
     await deployWarpExtensionContracts(
       params,
       apiKeys,
-      existingConfigs,
-      initialExtendedConfigs,
-      warpCoreConfigByChain,
+      filteredExistingConfigs,
+      filteredExtendedConfigs,
+      filteredWarpCoreConfigByChain,
     );
+
+  // Re-add the non EVM chains to the warp core config so that expanding the config
+  // to get the proper remote routers and gas config works as expected
+  updatedWarpCoreConfig.tokens.push(...nonEvmWarpCoreConfigs);
 
   // Write the updated artifacts
   await writeDeploymentArtifacts(
@@ -544,11 +632,13 @@ async function updateExistingWarpRoute(
  */
 export function readChainSubmissionStrategy(
   submissionStrategyFilepath: string,
-): ChainSubmissionStrategy {
+): ExtendedChainSubmissionStrategy {
   const submissionStrategyFileContent = readYamlOrJson(
     submissionStrategyFilepath.trim(),
   );
-  return ChainSubmissionStrategySchema.parse(submissionStrategyFileContent);
+  return ExtendedChainSubmissionStrategySchema.parse(
+    submissionStrategyFileContent,
+  );
 }
 
 /**
@@ -749,18 +839,24 @@ async function submitWarpApplyTransactions(
     ]),
   );
 
+  const { extendedChains } = getWarpRouteExtensionDetails(
+    params.warpCoreConfig,
+    params.warpDeployConfig,
+  );
+
   await promiseObjAll(
     objMap(chainTransactions, async (chainId, transactions) => {
       try {
         await retryAsync(
           async () => {
             const chain = chainIdToName[chainId];
-            const submitter: TxSubmitterBuilder<ProtocolType> =
-              await getWarpApplySubmitter({
-                chain,
-                context: params.context,
-                strategyUrl: params.strategyUrl,
-              });
+            const isExtendedChain = extendedChains.includes(chain);
+            const { submitter, config } = await getSubmitterByStrategy({
+              chain,
+              context: params.context,
+              strategyUrl: params.strategyUrl,
+              isExtendedChain,
+            });
             const transactionReceipts = await submitter.submit(...transactions);
             if (transactionReceipts) {
               const receiptPath = `${params.receiptsDir}/${chain}-${
@@ -770,6 +866,32 @@ async function submitWarpApplyTransactions(
               logGreen(
                 `Transactions receipts successfully written to ${receiptPath}`,
               );
+            }
+
+            const canRelay = canSelfRelay(
+              params.selfRelay ?? false,
+              config,
+              transactionReceipts,
+            );
+
+            if (!canRelay.relay) {
+              return;
+            }
+
+            // if self relaying does not work (possibly because metadata cannot be built yet)
+            // we don't want to rerun the complete code block as this will result in
+            // the update transactions being sent multiple times
+            try {
+              await retryAsync(() =>
+                runSelfRelay({
+                  txReceipt: canRelay.txReceipt,
+                  multiProvider: params.context.multiProvider,
+                  registry: params.context.registry,
+                  successMessage: WarpSendLogs.SUCCESS,
+                }),
+              );
+            } catch (error) {
+              warnYellow(`Error when self-relaying Warp transaction`, error);
             }
           },
           5, // attempts
@@ -788,28 +910,43 @@ async function submitWarpApplyTransactions(
  *
  * @returns the warp apply submitter
  */
-async function getWarpApplySubmitter({
+export async function getSubmitterByStrategy<T extends ProtocolType>({
   chain,
   context,
   strategyUrl,
+  isExtendedChain,
 }: {
   chain: ChainName;
   context: WriteCommandContext;
   strategyUrl?: string;
-}): Promise<TxSubmitterBuilder<ProtocolType>> {
-  const { multiProvider } = context;
+  isExtendedChain?: boolean;
+}): Promise<{
+  submitter: TxSubmitterBuilder<T>;
+  config: ExtendedSubmissionStrategy;
+}> {
+  const { multiProvider, registry } = context;
 
-  const submissionStrategy: SubmissionStrategy = strategyUrl
-    ? readChainSubmissionStrategy(strategyUrl)[chain]
-    : {
-        submitter: {
-          chain,
-          type: TxSubmitterType.JSON_RPC,
+  const submissionStrategy: ExtendedSubmissionStrategy =
+    strategyUrl && !isExtendedChain
+      ? readChainSubmissionStrategy(strategyUrl)[chain]
+      : {
+          submitter: {
+            chain,
+            type: TxSubmitterType.JSON_RPC,
+          },
+        };
+
+  return {
+    submitter: await getSubmitterBuilder<T>({
+      submissionStrategy: submissionStrategy as SubmissionStrategy, // TODO: fix this
+      multiProvider,
+      registry,
+      additionalSubmitterFactories: {
+        file: (_multiProvider: MultiProvider, metadata: any) => {
+          return new EV5FileSubmitter(metadata);
         },
-      };
-
-  return getSubmitterBuilder<ProtocolType>({
-    submissionStrategy,
-    multiProvider,
-  });
+      },
+    }),
+    config: submissionStrategy,
+  };
 }

@@ -7,12 +7,10 @@ export enum WarpRouteIds {
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
   ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
-  ArbitrumTreasureMAGIC = 'MAGIC/arbitrum-treasure',
   ArtelaBaseSolanaART = 'ART/artela-base-solanamainnet',
   BscEthereumLumiaPrismPNDR = 'PNDR/bsc-ethereum-lumiaprism',
   BaseSolanamainnetTONY = 'TONY/base-solanamainnet',
   ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP = 'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
-  SolanamainnetTrumpchainTRUMP = 'TRUMP/solanamainnet-trumpchain',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
   EclipseEthereumSolanaUSDC = 'USDC/eclipsemainnet-ethereum-solanamainnet',
   EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
@@ -77,8 +75,7 @@ export enum WarpRouteIds {
   SolanaSonicsvmSSOL = 'sSOL/solanamainnet-sonicsvm',
   SolanaSonicsvmLrtsSOL = 'lrtsSOL/solanamainnet-sonicsvm',
   SolanaSonicsvmSonicSOL = 'sonicSOL/solanamainnet-sonicsvm',
-  EthereumSolanaTreasureSMOL = 'SMOL/ethereum-solanamainnet-treasure',
-  EclipseEthereumES = 'ES/eclipsemainnet-ethereum',
+  EclipseEthereumES = 'ES/eclipse',
   BaseSolanaSophonCDX = 'CDX/base-solanamainnet-sophon',
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
   oUSDT = 'oUSDT/production',
@@ -100,11 +97,16 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
-  MainnetCCTP = 'USDC/arbitrum-avalanche-base-ethereum-optimism-polygon-unichain',
-  TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
-  MainnetRebalancingUSDC = 'USDC/arbitrum-avalanche-base-bsc-ethereum-optimism-unichain',
+  SubtensorUSDC = 'USDC/subtensor',
+  ParadexUSDC = 'USDC/paradex',
+
+  MainnetCCTP = 'USDC/mainnet-cctp',
+  TestnetCCTP = 'USDC/testnet-cctp',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
   stHYPER = 'stHYPER/bsc-ethereum',
+
+  // cttp token bridge
+  MainnetCctpUSDC = 'USDC/mainnet-cctp',
 }

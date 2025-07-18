@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { pino } from 'pino';
 import sinon from 'sinon';
 
 import { ChainName, Token, TokenStandard } from '@hyperlane-xyz/sdk';
@@ -6,6 +7,8 @@ import { ChainName, Token, TokenStandard } from '@hyperlane-xyz/sdk';
 import { MonitorEvent } from '../interfaces/IMonitor.js';
 
 import { getRawBalances } from './balanceUtils.js';
+
+const testLogger = pino({ level: 'silent' });
 
 describe('getRawBalances', () => {
   let chains: ChainName[];
@@ -36,7 +39,7 @@ describe('getRawBalances', () => {
   });
 
   it('should return the bridged supply for the token (EvmHypCollateral)', () => {
-    expect(getRawBalances(chains, event)).to.deep.equal({
+    expect(getRawBalances(chains, event, testLogger)).to.deep.equal({
       mainnet: tokenBridgedSupply,
     });
   });
@@ -44,7 +47,7 @@ describe('getRawBalances', () => {
   it('should return the bridged supply for the token (EvmHypNative)', () => {
     token.standard = TokenStandard.EvmHypNative;
 
-    expect(getRawBalances(chains, event)).to.deep.equal({
+    expect(getRawBalances(chains, event, testLogger)).to.deep.equal({
       mainnet: tokenBridgedSupply,
     });
   });
@@ -52,19 +55,19 @@ describe('getRawBalances', () => {
   it('should ignore non supported token standards', () => {
     token.standard = TokenStandard.EvmHypOwnerCollateral;
 
-    expect(getRawBalances(chains, event)).to.deep.equal({});
+    expect(getRawBalances(chains, event, testLogger)).to.deep.equal({});
   });
 
   it('should ignore tokens that are not in the chains list', () => {
     chains = [];
 
-    expect(getRawBalances(chains, event)).to.deep.equal({});
+    expect(getRawBalances(chains, event, testLogger)).to.deep.equal({});
   });
 
   it('should throw if the bridged supply is undefined', () => {
     delete event.tokensInfo[0].bridgedSupply;
 
-    expect(() => getRawBalances(chains, event)).to.throw(
+    expect(() => getRawBalances(chains, event, testLogger)).to.throw(
       'bridgedSupply should not be undefined for collateralized token 0xAddress',
     );
   });

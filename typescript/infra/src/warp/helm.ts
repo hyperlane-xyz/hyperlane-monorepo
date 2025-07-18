@@ -17,7 +17,12 @@ import {
   getWarpCoreConfig,
 } from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
-import { HelmManager, removeHelmRelease } from '../../src/utils/helm.js';
+import { REBALANCER_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
+import {
+  HelmManager,
+  getHelmReleaseName,
+  removeHelmRelease,
+} from '../../src/utils/helm.js';
 import { execCmdAndParseJson, getInfraPath } from '../../src/utils/utils.js';
 
 // TODO: once we have automated tooling for ATA payer balances and a
@@ -34,7 +39,7 @@ const ataPayerAlertThreshold: ChainMap<number> = {
 const minAtaPayerBalanceFactor: number = 1.15;
 
 export class WarpRouteMonitorHelmManager extends HelmManager {
-  static helmReleasePrefix: string = 'hyperlane-warp-route-';
+  static helmReleasePrefix: string = 'hyperlane-warp-route';
 
   readonly helmChartPath: string = path.join(
     getInfraPath(),
@@ -51,6 +56,21 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 
   async runPreflightChecks(multiProtocolProvider: MultiProtocolProvider) {
+    const rebalancerReleaseName = getHelmReleaseName(
+      this.warpRouteId,
+      REBALANCER_HELM_RELEASE_PREFIX,
+    );
+    if (
+      await HelmManager.doesHelmReleaseExist(
+        rebalancerReleaseName,
+        this.namespace,
+      )
+    ) {
+      throw new Error(
+        `Rebalancer for warp route ${this.warpRouteId} already exists. Only one of rebalancer or monitor is allowed.`,
+      );
+    }
+
     const warpCoreConfig = getWarpCoreConfig(this.warpRouteId);
     if (!warpCoreConfig) {
       throw new Error(
@@ -76,7 +96,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: 'a294a4d-20250617-101754',
+        tag: '037ad48-20250707-164323',
       },
       warpRouteId: this.warpRouteId,
       fullnameOverride: this.helmReleaseName,
@@ -93,24 +113,10 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 
   get helmReleaseName() {
-    return WarpRouteMonitorHelmManager.getHelmReleaseName(this.warpRouteId);
-  }
-
-  static getHelmReleaseName(warpRouteId: string): string {
-    let name = `${WarpRouteMonitorHelmManager.helmReleasePrefix}${warpRouteId
-      .toLowerCase()
-      .replaceAll('/', '-')}`;
-
-    // 52 because the max label length is 63, and there is an auto appended 11 char
-    // suffix, e.g. `controller-revision-hash=hyperlane-warp-route-tia-mantapacific-neutron-566dc75599`
-    const maxChars = 52;
-
-    // Max out length, and it can't end with a dash.
-    if (name.length > maxChars) {
-      name = name.slice(0, maxChars);
-      name = name.replace(/-+$/, '');
-    }
-    return name;
+    return getHelmReleaseName(
+      this.warpRouteId,
+      WarpRouteMonitorHelmManager.helmReleasePrefix,
+    );
   }
 
   // Gets all Warp Monitor Helm Releases in the given namespace.
@@ -130,8 +136,11 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   static async uninstallUnknownWarpMonitorReleases(namespace: string) {
     const localRegistry = getRegistry();
     const warpRouteIds = Object.keys(localRegistry.getWarpRoutes());
-    const allExpectedHelmReleaseNames = warpRouteIds.map(
-      WarpRouteMonitorHelmManager.getHelmReleaseName,
+    const allExpectedHelmReleaseNames = warpRouteIds.map((warpRouteId) =>
+      getHelmReleaseName(
+        warpRouteId,
+        WarpRouteMonitorHelmManager.helmReleasePrefix,
+      ),
     );
     const helmReleases =
       await WarpRouteMonitorHelmManager.getWarpMonitorHelmReleases(namespace);

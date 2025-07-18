@@ -3,6 +3,7 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { ethereumChainNames } from './chains.js';
 import { awIcas } from './governance/ica/aw.js';
+import { regularIcasV2 } from './governance/ica/regular2.js';
 import { regularIcas } from './governance/ica/regular.js';
 import { awSafes } from './governance/safe/aw.js';
 import { regularSafes } from './governance/safe/regular.js';
@@ -22,6 +23,7 @@ export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => {
     const owner =
+      regularIcasV2[local] ??
       regularIcas[local] ??
       regularSafes[local] ??
       awIcas[local] ??
@@ -91,5 +93,11 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   },
   svmbnb: {
     owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+  },
+  solaxy: {
+    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+  },
+  noble: {
+    owner: 'TODO: configure noble owner',
   },
 };

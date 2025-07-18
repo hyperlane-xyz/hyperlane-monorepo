@@ -205,13 +205,6 @@ impl ValidatorSubmitter {
             {
                 let message_id = insertion.message_id();
                 tree.ingest(message_id);
-                info!(
-                    index = insertion.index(),
-                    root = ?tree.root(),
-                    message_id = ?message_id,
-                    queue_length = checkpoint_queue.len(),
-                    "Ingested leaf to in-memory merkle tree"
-                );
 
                 let checkpoint = self.checkpoint(tree);
 
@@ -226,6 +219,12 @@ impl ValidatorSubmitter {
                 sleep(Duration::from_millis(100)).await
             }
         }
+
+        info!(
+            root = ?tree.root(),
+            queue_length = checkpoint_queue.len(),
+            "Ingested leaves into in-memory merkle tree"
+        );
 
         // At this point we know that correctness_checkpoint.index == tree.index().
         assert_eq!(
@@ -379,8 +378,6 @@ impl ValidatorSubmitter {
             "Stored checkpoint",
         );
 
-        debug!(index = checkpoint.index, "Signed and submitted checkpoint");
-
         // TODO: move these into S3 implementations
         // small sleep before signing next checkpoint to avoid rate limiting
         sleep(Duration::from_millis(100)).await;
@@ -423,8 +420,10 @@ impl ValidatorSubmitter {
                     let self_clone = self_clone.clone();
                     Box::pin(async move {
                         let start = Instant::now();
+                        let checkpoint_index = checkpoint.index;
                         self_clone.sign_and_submit_checkpoint(checkpoint).await?;
                         tracing::info!(
+                            index = checkpoint_index,
                             elapsed=?start.elapsed(),
                             "Signed and submitted checkpoint",
                         );
