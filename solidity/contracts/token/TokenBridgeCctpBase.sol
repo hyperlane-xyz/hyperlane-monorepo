@@ -38,6 +38,8 @@ abstract contract TokenBridgeCctpBase is
     using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
 
+    uint256 private constant _SCALE = 1;
+
     IERC20 public immutable wrappedToken;
 
     // @notice CCTP message transmitter contract
@@ -64,11 +66,10 @@ abstract contract TokenBridgeCctpBase is
 
     constructor(
         address _erc20,
-        uint256 _scale,
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
         ITokenMessenger _tokenMessenger
-    ) FungibleTokenRouter(_scale, _mailbox) {
+    ) FungibleTokenRouter(_SCALE, _mailbox) {
         require(
             _messageTransmitter.version() == _getCCTPVersion(),
             "Invalid messageTransmitter CCTP version"

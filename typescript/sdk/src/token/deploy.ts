@@ -152,7 +152,6 @@ abstract class TokenDeployer<
         case 'V1':
           return [
             config.token,
-            scale,
             config.mailbox,
             config.messageTransmitter,
             config.tokenMessenger,
@@ -160,7 +159,6 @@ abstract class TokenDeployer<
         case 'V2':
           return [
             config.token,
-            scale,
             config.mailbox,
             config.messageTransmitter,
             config.tokenMessenger,
