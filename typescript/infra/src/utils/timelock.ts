@@ -92,7 +92,7 @@ export async function timelockConfigMatches({
     );
     if (cancellerMissing.length > 0) {
       issues.push(
-        `Canceller missing role for ${chain} at ${address}: ${executorsMissing.join(', ')}`,
+        `Canceller missing role for ${chain} at ${address}: ${cancellerMissing.join(', ')}`,
       );
     }
   }
