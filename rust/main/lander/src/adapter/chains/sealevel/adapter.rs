@@ -391,12 +391,6 @@ impl AdaptsChain for SealevelAdapter {
 
         info!(?tx, "submitted transaction");
 
-        self.submitter
-            .wait_for_transaction_confirmation(&svm_transaction)
-            .await?;
-
-        info!(?tx, "confirmed transaction by signature status");
-
         Ok(())
     }
 
