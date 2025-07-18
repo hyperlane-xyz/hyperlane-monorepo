@@ -1,5 +1,8 @@
+import { ethers } from 'ethers';
+
 import { TimelockController__factory } from '@hyperlane-xyz/core';
 import {
+  CANCELLER_ROLE,
   ChainMap,
   ChainName,
   EXECUTOR_ROLE,
@@ -43,12 +46,15 @@ export async function timelockConfigMatches({
     }
 
     // Ensure the executors have the EXECUTOR_ROLE
+    const expectedExecutors = expectedConfig.executors ?? [
+      ethers.constants.AddressZero,
+    ];
     const executorRoles = await Promise.all(
-      expectedConfig.executors.map(async (executor) => {
+      expectedExecutors.map(async (executor) => {
         return timelock.hasRole(EXECUTOR_ROLE, executor);
       }),
     );
-    const executorsMissing = expectedConfig.executors.filter(
+    const executorsMissing = expectedExecutors.filter(
       (_, i) => !executorRoles[i],
     );
     if (executorsMissing.length > 0) {
@@ -69,6 +75,24 @@ export async function timelockConfigMatches({
     if (proposersMissing.length > 0) {
       issues.push(
         `Proposers missing role for ${chain} at ${address}: ${proposersMissing.join(', ')}`,
+      );
+    }
+
+    // Ensure the cancellers have the CANCELLER_ROLE
+    // by default proposers are also cancellers
+    const expectedCancellers =
+      expectedConfig.cancellers ?? expectedConfig.proposers;
+    const cancellerRoles = await Promise.all(
+      expectedCancellers.map(async (canceller) => {
+        return timelock.hasRole(CANCELLER_ROLE, canceller);
+      }),
+    );
+    const cancellerMissing = expectedCancellers.filter(
+      (_, i) => !cancellerRoles[i],
+    );
+    if (cancellerMissing.length > 0) {
+      issues.push(
+        `Canceller missing role for ${chain} at ${address}: ${executorsMissing.join(', ')}`,
       );
     }
   }
