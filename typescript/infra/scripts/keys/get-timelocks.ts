@@ -73,7 +73,8 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
 
   // Get the safe owner for the given governance type
-  const governanceOwner = getGovernanceSafes(governanceType)[ownerChain];
+  const governanceSafes = getGovernanceSafes(governanceType);
+  const governanceOwner = governanceSafes[ownerChain];
   const originOwner = ownerOverride ?? governanceOwner;
   if (!originOwner) {
     throw new Error(`No owner found for ${ownerChain}`);
@@ -108,9 +109,10 @@ async function main() {
   );
 
   // Configure timelocks for the given chains
+  // Ensure that the owner chain has a timelock configured
   const timelockConfigs = getTimelockConfigs({
-    chains: getTimelockChains,
-    owners: governanceIcas,
+    chains: [...getTimelockChains, ownerChain],
+    owners: { ...governanceIcas, [ownerChain]: governanceOwner },
   });
 
   const results: Record<string, { address?: string; status: string }> = {};

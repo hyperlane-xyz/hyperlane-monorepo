@@ -2,6 +2,10 @@ import { ChainMap } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 export const awTimelocks: ChainMap<Address> = {
+  // Jul 18, 2025 - Timelock for "Abacus Works" Safe
+  // ----------------------------------------------------------
+  ethereum: '0xe1C500bCD9aC8c6FBaC7AE679ad3fA8e32B18682',
+
   // Jul 18, 2025 - Timelocks for v2 "Abacus Works" ICAs
   // ----------------------------------------------------------
   alephzeroevmmainnet: '0xfc8b34Fa72310A2926A0668e05F17F21c9811b80',

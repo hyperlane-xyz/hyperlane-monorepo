@@ -2,6 +2,10 @@ import { ChainMap } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 export const regularTimelocks: ChainMap<Address> = {
+  // Jul 18, 2025 - Timelock for "Regular" aka "Multisig A" Safe
+  // ----------------------------------------------------------
+  ethereum: '0xcCb249440e5F123F3f63B08Eb415Bb796A40b1E1',
+
   // Jul 18, 2025 - Timelocks for v2 "Regular" aka "Multisig A" ICAs
   // ----------------------------------------------------------
   alephzeroevmmainnet: '0x9b0348FdA7f08bB97C8Cd28D52fa55D25513Ef66',
