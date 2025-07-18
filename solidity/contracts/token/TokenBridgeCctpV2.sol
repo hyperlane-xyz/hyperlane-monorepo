@@ -58,9 +58,8 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
 
     function _getCircleNonce(
         bytes29 cctpMessage
-    ) internal pure override returns (bytes32 nonce) {
-        nonce = cctpMessage._getNonce();
-        require(nonce != bytes32(0), "Invalid nonce");
+    ) internal pure override returns (bytes32) {
+        return cctpMessage._getNonce();
     }
 
     function _getCircleSource(
