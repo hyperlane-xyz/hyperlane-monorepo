@@ -70,6 +70,7 @@
   "prepublish": "yarn build",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
+    "start:http-registry": "tsx scripts/http-registry.ts",
     "build": "tsc",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
