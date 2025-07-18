@@ -1,5 +1,6 @@
-import { EvmTimelockDeployer } from '@hyperlane-xyz/sdk';
+import { ChainMap, EvmTimelockDeployer } from '@hyperlane-xyz/sdk';
 import {
+  Address,
   LogFormat,
   LogLevel,
   configureRootLogger,
@@ -22,6 +23,11 @@ import {
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
+
+const supportedGovernanceTypes = [
+  GovernanceType.AbacusWorks,
+  GovernanceType.Regular,
+];
 
 function getArgs() {
   return withGovernanceType(withChains(getEnvArgs()))
@@ -57,12 +63,9 @@ async function main() {
     governanceType,
   } = await getArgs();
 
-  if (
-    governanceType !== GovernanceType.AbacusWorks &&
-    governanceType !== GovernanceType.Regular
-  ) {
+  if (!supportedGovernanceTypes.includes(governanceType)) {
     throw new Error(
-      `Governance type ${governanceType} not supported. Only AbacusWorks and Regular are supported.`,
+      `Governance type ${governanceType} not supported. Only ${supportedGovernanceTypes.join(', ')} are supported.`,
     );
   }
 
@@ -80,8 +83,18 @@ async function main() {
 
   const timelockDeployer = new EvmTimelockDeployer(multiProvider, true);
 
-  const governanceIcas =
-    governanceType === GovernanceType.AbacusWorks ? awIcasV2 : regularIcasV2;
+  let governanceIcas: ChainMap<Address>;
+  switch (governanceType) {
+    case GovernanceType.AbacusWorks:
+      governanceIcas = awIcasV2;
+      break;
+    case GovernanceType.Regular:
+      governanceIcas = regularIcasV2;
+      break;
+    default:
+      throw new Error(`Governance type ${governanceType} not supported.`);
+  }
+
   const governanceTimelocks = getGovernanceTimelocks(governanceType);
 
   const getTimelockChains = (
@@ -107,13 +120,8 @@ async function main() {
       const expectedConfig = timelockConfigs[chain];
       const timelockAddress = governanceTimelocks[chain];
 
-      if (!timelockAddress) {
-        results[chain] = { address: undefined, status: '❌' };
-        return;
-      }
-
       try {
-        const matches = await timelockConfigMatches({
+        const { matches, issues } = await timelockConfigMatches({
           multiProvider,
           chain,
           expectedConfig,
@@ -129,7 +137,7 @@ async function main() {
           delete timelockConfigs[chain];
         } else {
           rootLogger.info(
-            `Timelock ${chain} does not match expected config. May require redeployment.`,
+            `Timelock on ${chain} doesn't match expected config. Violations:\n${issues.map((issue) => `- ${issue}`).join('\n')}`,
           );
         }
       } catch (err) {

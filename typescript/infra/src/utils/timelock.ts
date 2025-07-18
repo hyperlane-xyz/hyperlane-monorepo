@@ -7,7 +7,7 @@ import {
   PROPOSER_ROLE,
   TimelockConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 
@@ -23,56 +23,57 @@ export async function timelockConfigMatches({
   chain: ChainName;
   expectedConfig: TimelockConfig;
   address?: string;
-}): Promise<boolean> {
+}): Promise<{ matches: boolean; issues: string[] }> {
+  const issues: string[] = [];
+
   if (!address) {
-    rootLogger.debug(`Timelock address not found for ${chain}`);
-    return false;
-  }
-
-  const timelock = TimelockController__factory.connect(
-    address,
-    multiProvider.getProvider(chain),
-  );
-
-  const minDelay = await timelock.getMinDelay();
-  if (!minDelay.eq(expectedConfig.minimumDelay)) {
-    rootLogger.debug(
-      `Min delay mismatch for ${chain} at ${address}: actual delay ${minDelay.toNumber()} !== expected delay ${expectedConfig.minimumDelay}`,
+    issues.push(`Timelock address not found for ${chain}`);
+  } else {
+    const timelock = TimelockController__factory.connect(
+      address,
+      multiProvider.getProvider(chain),
     );
-    return false;
-  }
 
-  const executorRoles = await Promise.all(
-    expectedConfig.executors.map(async (executor) => {
-      return timelock.hasRole(EXECUTOR_ROLE, executor);
-    }),
-  );
-  const executorsMissing = executorRoles.filter((role) => !role);
-  if (executorsMissing.length > 0) {
-    rootLogger.debug(
-      `Executors missing role for ${chain} at ${address}: ${executorsMissing.join(
-        ', ',
-      )}`,
+    // Ensure the min delay is set to the expected value
+    const minDelay = await timelock.getMinDelay();
+    if (!minDelay.eq(expectedConfig.minimumDelay)) {
+      issues.push(
+        `Min delay mismatch for ${chain} at ${address}: actual delay ${minDelay.toNumber()} !== expected delay ${expectedConfig.minimumDelay}`,
+      );
+    }
+
+    // Ensure the executors have the EXECUTOR_ROLE
+    const executorRoles = await Promise.all(
+      expectedConfig.executors.map(async (executor) => {
+        return timelock.hasRole(EXECUTOR_ROLE, executor);
+      }),
     );
-    return false;
-  }
-
-  const proposerRoles = await Promise.all(
-    expectedConfig.proposers.map(async (proposer) => {
-      return timelock.hasRole(PROPOSER_ROLE, proposer);
-    }),
-  );
-  const proposersMissing = proposerRoles.filter((role) => !role);
-  if (proposersMissing.length > 0) {
-    rootLogger.debug(
-      `Proposers missing role for ${chain} at ${address}: ${proposersMissing.join(
-        ', ',
-      )}`,
+    const executorsMissing = expectedConfig.executors.filter(
+      (_, i) => !executorRoles[i],
     );
-    return false;
+    if (executorsMissing.length > 0) {
+      issues.push(
+        `Executors missing role for ${chain} at ${address}: ${executorsMissing.join(', ')}`,
+      );
+    }
+
+    // Ensure the proposers have the PROPOSER_ROLE
+    const proposerRoles = await Promise.all(
+      expectedConfig.proposers.map(async (proposer) => {
+        return timelock.hasRole(PROPOSER_ROLE, proposer);
+      }),
+    );
+    const proposersMissing = expectedConfig.proposers.filter(
+      (_, i) => !proposerRoles[i],
+    );
+    if (proposersMissing.length > 0) {
+      issues.push(
+        `Proposers missing role for ${chain} at ${address}: ${proposersMissing.join(', ')}`,
+      );
+    }
   }
 
-  return true;
+  return { matches: issues.length === 0, issues };
 }
 
 export function getTimelockConfigs({
