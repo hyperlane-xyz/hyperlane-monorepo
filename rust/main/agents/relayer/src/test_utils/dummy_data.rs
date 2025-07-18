@@ -1,5 +1,3 @@
-use std::{sync::Arc, time::Duration};
-
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
     db::HyperlaneRocksDB,
@@ -9,6 +7,8 @@ use hyperlane_base::{
 use hyperlane_core::{HyperlaneDomain, H256};
 use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
 use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry};
+use std::collections::HashMap;
+use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
 use crate::{
@@ -53,12 +53,19 @@ pub fn dummy_metadata_builder(
     cache: OptionalCache<MeteredCache<LocalCache>>,
 ) -> BaseMetadataBuilder {
     let mut settings = Settings::default();
+    let domains = HashMap::from([
+        (origin_domain.name().to_string(), origin_domain.clone()),
+        (
+            destination_domain.name().to_string(),
+            destination_domain.clone(),
+        ),
+    ]);
+    settings.domains = domains;
+    settings
+        .chains
+        .insert(origin_domain.clone(), dummy_chain_conf(origin_domain));
     settings.chains.insert(
-        origin_domain.name().to_owned(),
-        dummy_chain_conf(origin_domain),
-    );
-    settings.chains.insert(
-        destination_domain.name().to_owned(),
+        destination_domain.clone(),
         dummy_chain_conf(destination_domain),
     );
     let destination_chain_conf = settings.chain_setup(destination_domain).unwrap();
