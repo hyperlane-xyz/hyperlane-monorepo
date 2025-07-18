@@ -418,7 +418,11 @@ export class ChainMetadataManager<MetaExt = {}> {
   tryGetEvmExplorerMetadata(
     chainNameOrId: ChainNameOrId,
   ): ReturnType<ChainMetadataManager['getExplorerApi']> | null {
-    const defaultExplorer = this.getExplorerApi(chainNameOrId);
+    const defaultExplorer = this.tryGetExplorerApi(chainNameOrId);
+
+    if (!defaultExplorer) {
+      return null;
+    }
 
     const chainMetadata = this.getChainMetadata(chainNameOrId);
     const [fallBackExplorer] =

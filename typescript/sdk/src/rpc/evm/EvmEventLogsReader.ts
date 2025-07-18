@@ -1,4 +1,5 @@
 import { Logger } from 'pino';
+import { z } from 'zod';
 
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -11,6 +12,7 @@ import {
   ChainNameOrId,
   MultiProvider,
 } from '../../index.js';
+import { ZBytes32String, ZHash, ZUint } from '../../metadata/customZodTypes.js';
 
 import { GetEventLogsResponse } from './types.js';
 import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';
@@ -21,21 +23,31 @@ type EvmEventLogsReaderConfig = {
   logPageSize?: number;
 };
 
-type GetLogByTopicOptions = {
-  eventTopic: string;
-  contractAddress: string;
-  fromBlock?: number;
-  toBlock?: number;
-};
+export const GetLogByTopicOptionsSchema = z.object({
+  eventTopic: ZBytes32String,
+  contractAddress: ZHash,
+  fromBlock: ZUint.optional(),
+  toBlock: ZUint.optional(),
+});
+
+export const RequiredGetLogByTopicOptionsSchema =
+  GetLogByTopicOptionsSchema.required();
+
+type GetLogByTopicOptions = z.infer<typeof GetLogByTopicOptionsSchema>;
+type RequiredGetLogByTopicOptions = z.infer<
+  typeof RequiredGetLogByTopicOptionsSchema
+>;
 
 interface IEvmEventLogsReaderStrategy {
   getContractDeploymentBlockNumber(address: Address): Promise<number>;
   getContractLogs(
-    address: Required<GetLogByTopicOptions>,
+    address: RequiredGetLogByTopicOptions,
   ): Promise<GetEventLogsResponse[]>;
 }
 
-class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrategy {
+export class EvmEtherscanLikeEventLogsReader
+  implements IEvmEventLogsReaderStrategy
+{
   constructor(
     protected readonly chain: ChainNameOrId,
     protected readonly config: Awaited<
@@ -58,24 +70,26 @@ class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrategy {
   }
 
   async getContractLogs(
-    options: Required<GetLogByTopicOptions>,
+    options: RequiredGetLogByTopicOptions,
   ): Promise<GetEventLogsResponse[]> {
+    const parsedOptions = RequiredGetLogByTopicOptionsSchema.parse(options);
+
     return getLogsFromEtherscanLikeExplorerAPI(
       {
         apiUrl: this.config.apiUrl,
         apiKey: this.config.apiKey,
       },
       {
-        address: options.contractAddress,
-        fromBlock: options.fromBlock,
-        toBlock: options.toBlock,
-        topic0: options.eventTopic,
+        address: parsedOptions.contractAddress,
+        fromBlock: parsedOptions.fromBlock,
+        toBlock: parsedOptions.toBlock,
+        topic0: parsedOptions.eventTopic,
       },
     );
   }
 }
 
-class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
+export class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
   constructor(
     protected readonly chain: ChainNameOrId,
     protected readonly config: { range: number },
@@ -91,14 +105,16 @@ class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
   }
 
   getContractLogs(
-    options: Required<GetLogByTopicOptions>,
+    options: RequiredGetLogByTopicOptions,
   ): Promise<GetEventLogsResponse[]> {
+    const parsedOptions = RequiredGetLogByTopicOptionsSchema.parse(options);
+
     return getLogsFromRpc({
       chain: this.chain,
-      contractAddress: options.contractAddress,
-      topic: options.eventTopic,
-      fromBlock: options.fromBlock,
-      toBlock: options.toBlock,
+      contractAddress: parsedOptions.contractAddress,
+      topic: parsedOptions.eventTopic,
+      fromBlock: parsedOptions.fromBlock,
+      toBlock: parsedOptions.toBlock,
       multiProvider: this.multiProvider,
       range: this.config.range,
     });
@@ -107,52 +123,65 @@ class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
 
 // TODO: implement tests for this
 export class EvmEventLogsReader {
-  protected logReaderStrategy: IEvmEventLogsReaderStrategy;
-
-  constructor(
+  protected constructor(
     protected readonly config: EvmEventLogsReaderConfig,
     protected readonly multiProvider: MultiProvider,
-    protected readonly logger: Logger = rootLogger.child({
+
+    protected logReaderStrategy: IEvmEventLogsReaderStrategy,
+    protected readonly logger: Logger,
+  ) {}
+
+  static fromConfig(
+    config: EvmEventLogsReaderConfig,
+    multiProvider: MultiProvider,
+    logger: Logger = rootLogger.child({
       module: EvmEventLogsReader.name,
     }),
   ) {
-    const explorer = this.multiProvider.tryGetEvmExplorerMetadata(
-      this.config.chain,
-    );
+    const explorer = multiProvider.tryGetEvmExplorerMetadata(config.chain);
 
+    let logReaderStrategy: IEvmEventLogsReaderStrategy;
     if (explorer && !config.useRPC) {
-      this.logReaderStrategy = new EvmEtherscanLikeEventLogsReader(
-        this.config.chain,
+      logReaderStrategy = new EvmEtherscanLikeEventLogsReader(
+        config.chain,
         explorer,
         multiProvider,
       );
     } else {
-      this.logReaderStrategy = new EvmRpcEventLogsReader(
-        this.config.chain,
-        { range: this.config.logPageSize ?? 10_000 },
-        this.multiProvider,
+      logReaderStrategy = new EvmRpcEventLogsReader(
+        config.chain,
+        { range: config.logPageSize ?? 10_000 },
+        multiProvider,
       );
     }
+
+    return new EvmEventLogsReader(
+      config,
+      multiProvider,
+      logReaderStrategy,
+      logger,
+    );
   }
 
   async getLogsByTopic(
     options: GetLogByTopicOptions,
   ): Promise<GetEventLogsResponse[]> {
-    const provider = this.multiProvider.getProvider(this.config.chain);
+    const parsedOptions = GetLogByTopicOptionsSchema.parse(options);
 
-    const contractCode = await provider.getCode(options.contractAddress);
+    const provider = this.multiProvider.getProvider(this.config.chain);
+    const contractCode = await provider.getCode(parsedOptions.contractAddress);
     assert(contractCode !== '0x', '');
 
     const fromBlock =
-      options.fromBlock ??
+      parsedOptions.fromBlock ??
       (await this.logReaderStrategy.getContractDeploymentBlockNumber(
-        options.contractAddress,
+        parsedOptions.contractAddress,
       ));
-    const toBlock = options.toBlock ?? (await provider.getBlockNumber());
+    const toBlock = parsedOptions.toBlock ?? (await provider.getBlockNumber());
 
     return this.logReaderStrategy.getContractLogs({
-      contractAddress: options.contractAddress,
-      eventTopic: options.eventTopic,
+      contractAddress: parsedOptions.contractAddress,
+      eventTopic: parsedOptions.eventTopic,
       fromBlock,
       toBlock,
     });
