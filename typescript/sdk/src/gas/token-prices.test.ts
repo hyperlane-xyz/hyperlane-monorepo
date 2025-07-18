@@ -45,10 +45,7 @@ describe('TokenPriceGetter', () => {
     it('returns token prices', async () => {
       // stubbed results
       expect(
-        await tokenPriceGetter.getTokenPriceByIds([
-          'ethereum',
-          'solanamainnet',
-        ]),
+        await tokenPriceGetter.getTokenPriceByIds(['ethereum', 'solana']),
       ).to.eql([priceA, priceB]);
     });
   });
