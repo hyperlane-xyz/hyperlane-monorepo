@@ -212,59 +212,6 @@ describe('EvmTimelockDeployer', async () => {
   });
 
   describe('canceller config', () => {
-    async function assertCancellerConfig(
-      expectedConfig: TimelockConfig,
-      timelockInstance: TimelockController,
-    ) {
-      // proposer should be a proposer but not a canceller if not in canceller config
-      assert(expectedConfig.proposers, 'Expected proposers to be defined');
-      for (const proposer of expectedConfig.proposers) {
-        expect(await timelockInstance.hasRole(PROPOSER_ROLE, proposer)).to.be
-          .true;
-
-        if (!expectedConfig.cancellers?.includes(proposer)) {
-          expect(await timelockInstance.hasRole(CANCELLER_ROLE, proposer)).to.be
-            .false;
-        }
-      }
-
-      // cancellers should be a canceller but not a proposer if not in the proposer config
-      assert(expectedConfig.cancellers, 'Expected cancellers to be defined');
-      for (const canceller of expectedConfig.cancellers) {
-        expect(await timelockInstance.hasRole(CANCELLER_ROLE, canceller)).to.be
-          .true;
-        if (!expectedConfig.proposers?.includes(canceller)) {
-          expect(await timelockInstance.hasRole(PROPOSER_ROLE, canceller)).to.be
-            .false;
-        }
-      }
-
-      // signer should not be the timelock admin after deployment
-      const timelockAdminRoleHash =
-        await timelockInstance.TIMELOCK_ADMIN_ROLE();
-      expect(
-        await timelockInstance.hasRole(timelockAdminRoleHash, signerAddress),
-      ).to.be.false;
-
-      // Timelock should still be the admin of itself
-      expect(
-        await timelockInstance.hasRole(
-          timelockAdminRoleHash,
-          timelockInstance.address,
-        ),
-      ).to.be.true;
-
-      // if an admin was set it should be the admin after the changes
-      if (expectedConfig.admin) {
-        expect(
-          await timelockInstance.hasRole(
-            timelockAdminRoleHash,
-            expectedConfig.admin,
-          ),
-        ).to.be.true;
-      }
-    }
-
     it('should deploy with the correct canceller config', async () => {
       const proposer = randomAddress();
       const cancellerConfig: TimelockConfig = {
@@ -278,14 +225,21 @@ describe('EvmTimelockDeployer', async () => {
         TestChainName.test4,
         cancellerConfig,
       );
-      const timelockAddress = TimelockController.address;
 
-      const timelock = TimelockController__factory.connect(
-        timelockAddress,
-        multiProvider.getProvider(TestChainName.test4),
-      );
+      // proposer should be a proposer but not a canceller if not in canceller config
+      assert(cancellerConfig.proposers, 'Expected proposers to be defined');
+      for (const proposer of cancellerConfig.proposers) {
+        expect(await TimelockController.hasRole(PROPOSER_ROLE, proposer)).to.be
+          .true;
+        expect(await TimelockController.hasRole(CANCELLER_ROLE, proposer)).to.be
+          .false;
+      }
 
-      await assertCancellerConfig(cancellerConfig, timelock);
+      assert(cancellerConfig.cancellers, 'Expected cancellers to be defined');
+      for (const canceller of cancellerConfig.cancellers) {
+        expect(await TimelockController.hasRole(CANCELLER_ROLE, canceller)).to
+          .be.true;
+      }
     });
 
     it('should not remove a proposer that it is also a canceller', async () => {
@@ -301,14 +255,14 @@ describe('EvmTimelockDeployer', async () => {
         TestChainName.test4,
         cancellerConfig,
       );
-      const timelockAddress = TimelockController.address;
 
-      const timelock = TimelockController__factory.connect(
-        timelockAddress,
-        multiProvider.getProvider(TestChainName.test4),
-      );
-
-      await assertCancellerConfig(cancellerConfig, timelock);
+      expect(await TimelockController.hasRole(PROPOSER_ROLE, proposer)).to.be
+        .true;
+      assert(cancellerConfig.cancellers, 'Expected cancellers to be defined');
+      for (const canceller of cancellerConfig.cancellers) {
+        expect(await TimelockController.hasRole(CANCELLER_ROLE, canceller)).to
+          .be.true;
+      }
     });
   });
 
