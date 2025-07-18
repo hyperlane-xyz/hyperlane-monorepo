@@ -24,10 +24,8 @@ import { GetEventLogsResponse } from '../../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../../rpc/evm/utils.js';
 import { ChainNameOrId } from '../../types.js';
 
+import { EMPTY_BYTES_32 } from './constants.js';
 import { getTimelockExecutableTransactionFromBatch } from './utils.js';
-
-const ZERO_32_BYTES =
-  '0x0000000000000000000000000000000000000000000000000000000000000000';
 
 const CALL_EXECUTED_EVENT_SELECTOR = toEventSelector(
   getAbiItem({
@@ -221,7 +219,7 @@ function getScheduledTimelockOperationIdsFromLogs(
           predecessor,
           // If no CallSalt event was emitted for this operation batch
           // it means that no salt was provided when proposing the transaction
-          salt: callSaltByOperationId[id] ?? ZERO_32_BYTES,
+          salt: callSaltByOperationId[id] ?? EMPTY_BYTES_32,
           id,
         };
       } else {

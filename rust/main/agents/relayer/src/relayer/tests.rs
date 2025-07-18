@@ -101,9 +101,20 @@ fn generate_test_relayer_settings(
     destination_chains: &[HyperlaneDomain],
     metrics_port: u16,
 ) -> RelayerSettings {
+    let chains = chains
+        .into_iter()
+        .map(|(_, conf)| (conf.domain.clone(), conf))
+        .collect::<HashMap<_, _>>();
+
+    let domains = chains
+        .keys()
+        .map(|domain| (domain.name().to_string(), domain.clone()))
+        .collect();
+
     RelayerSettings {
         base: Settings {
-            chains: chains.into_iter().collect(),
+            domains,
+            chains,
             metrics_port,
             tracing: TracingConfig::default(),
         },

@@ -298,8 +298,7 @@ impl BaseAgent for Validator {
 
 impl Validator {
     async fn run_merkle_tree_hook_sync(&self) -> JoinHandle<()> {
-        let index_settings =
-            self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
+        let index_settings = self.as_ref().settings.chains[&self.origin_chain].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
         let cursor = contract_sync
             .cursor(index_settings)
@@ -448,7 +447,7 @@ impl Validator {
                     "Validator has not announced signature storage location"
                 );
 
-                if let Some(chain_signer) = self.core.settings.chains[self.origin_chain.name()]
+                if let Some(chain_signer) = self.core.settings.chains[&self.origin_chain]
                     .chain_signer()
                     .await?
                 {
