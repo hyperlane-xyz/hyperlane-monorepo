@@ -141,12 +141,6 @@ fn parse_chain(
         .and_then(parse_signer)
         .end();
 
-    let submitter = chain
-        .chain(&mut err)
-        .get_opt_key("submitter")
-        .parse_from_str::<SubmitterType>("Invalid Submitter type")
-        .unwrap_or_default();
-
     // measured in seconds (with fractions)
     let estimated_block_time = chain
         .chain(&mut err)
@@ -238,6 +232,12 @@ fn parse_chain(
         .parse_u32()
         .end();
 
+    let ignore_reorg_reports = chain
+        .chain(&mut err)
+        .get_opt_key("ignoreReorgReports")
+        .parse_bool()
+        .unwrap_or(false);
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -254,6 +254,23 @@ fn parse_chain(
     );
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
+
+    let submitter = chain
+        .chain(&mut err)
+        .get_opt_key("submitter")
+        .parse_from_str::<SubmitterType>("Invalid Submitter type")
+        .end();
+    // for EVM chains, default to `SubmitterType::Lander` if not specified
+    let submitter = match submitter {
+        Some(submitter_type) => submitter_type,
+        None => {
+            if matches!(connection.protocol(), HyperlaneDomainProtocol::Ethereum) {
+                SubmitterType::Lander
+            } else {
+                Default::default()
+            }
+        }
+    };
     err.into_result(ChainConf {
         domain,
         signer,
@@ -273,6 +290,7 @@ fn parse_chain(
             chunk_size,
             mode,
         },
+        ignore_reorg_reports,
     })
 }
 
@@ -384,12 +402,35 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 account_address_type,
             })
         }};
+        (starkKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_opt_key("key")
+                .parse_private_key()
+                .unwrap_or_default();
+            let address = signer
+                .chain(&mut err)
+                .get_opt_key("address")
+                .parse_address_hash()
+                .unwrap_or_default();
+            let is_legacy = signer
+                .chain(&mut err)
+                .get_opt_key("legacy")
+                .parse_bool()
+                .unwrap_or(false);
+            err.into_result(SignerConf::StarkKey {
+                key,
+                address,
+                is_legacy,
+            })
+        }};
     }
 
     match signer_type {
         Some("hexKey") => parse_signer!(hexKey),
         Some("aws") => parse_signer!(aws),
         Some("cosmosKey") => parse_signer!(cosmosKey),
+        Some("starkKey") => parse_signer!(starkKey),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")
         }

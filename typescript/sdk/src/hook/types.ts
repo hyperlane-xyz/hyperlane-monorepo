@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
-import { ProtocolAgnositicGasOracleConfigSchema } from '../gas/oracle/types.js';
+import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
@@ -22,7 +22,7 @@ export enum OnchainHookType {
   ID_AUTH_ISM,
   PAUSABLE,
   PROTOCOL_FEE,
-  LAYER_ZERO_V1,
+  DEPRECATED,
   RATE_LIMITED,
   ARB_L2_TO_L1,
   OP_L2_TO_L1,
@@ -155,7 +155,7 @@ export const IgpSchema = OwnableSchema.extend({
   beneficiary: z.string(),
   oracleKey: z.string(),
   overhead: z.record(z.number()),
-  oracleConfig: z.record(ProtocolAgnositicGasOracleConfigSchema),
+  oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =

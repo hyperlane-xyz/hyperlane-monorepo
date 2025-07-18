@@ -1,9 +1,11 @@
 import { assert } from '@hyperlane-xyz/utils';
 
+import { verifyScale } from '../utils/decimals.js';
+
 import { TokenMetadata } from './types.js';
 
 export class TokenMetadataMap {
-  private tokenMetadataMap: Map<string, TokenMetadata>;
+  private readonly tokenMetadataMap: Map<string, TokenMetadata>;
 
   constructor() {
     this.tokenMetadataMap = new Map();
@@ -53,40 +55,15 @@ export class TokenMetadataMap {
     throw new Error('No symbol found in token metadata map.');
   }
 
-  areDecimalsUniform(): boolean {
-    const values = [...this.tokenMetadataMap.values()];
-    const [first, ...rest] = values;
-    for (const d of rest) {
-      if (d.decimals !== first.decimals) {
-        return false;
-      }
-    }
-    return true;
-  }
-
   finalize(): void {
     assert(
       [...this.tokenMetadataMap.values()].every((config) => !!config.decimals),
       'All decimals must be defined',
     );
 
-    if (!this.areDecimalsUniform()) {
-      const maxDecimals = Math.max(
-        ...[...this.tokenMetadataMap.values()].map(
-          (config) => config.decimals!,
-        ),
-      );
-
-      for (const [chain, config] of this.tokenMetadataMap.entries()) {
-        if (config.decimals) {
-          const scale = 10 ** (maxDecimals - config.decimals);
-          assert(
-            config.scale && scale !== config.scale,
-            `Scale is not correct for ${chain}`,
-          );
-          config.scale = scale;
-        }
-      }
-    }
+    assert(
+      verifyScale(this.tokenMetadataMap),
+      `Found invalid or missing scale for inconsistent decimals`,
+    );
   }
 }

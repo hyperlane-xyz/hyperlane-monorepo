@@ -13,7 +13,6 @@ import {
   getOverhead,
 } from '../../../src/config/gas-oracle.js';
 
-import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
@@ -30,11 +29,15 @@ const romeTestnetConnectedChains = [
 ];
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
-  let overhead = getOverhead(local, remote, ethereumChainNames);
+  let overhead = getOverhead(local, remote);
 
-  // Special case for rometestnet due to non-standard gas metering.
-  if (remote === 'rometestnet') {
+  // Special case for rometestnet2 due to non-standard gas metering.
+  if (remote === 'rometestnet2') {
     overhead *= 12;
+  }
+
+  if (remote === 'somniatestnet') {
+    overhead *= 2;
   }
 
   return overhead;
@@ -43,8 +46,8 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
 function getOracleConfigWithOverrides(origin: ChainName) {
   let oracleConfig = storageGasOracleConfig[origin];
 
-  // Special case for rometestnet due to non-standard gas metering.
-  if (origin === 'rometestnet') {
+  // Special case for rometestnet2 due to non-standard gas metering.
+  if (origin === 'rometestnet2') {
     oracleConfig = objFilter(
       storageGasOracleConfig[origin],
       (remoteChain, _): _ is StorageGasOracleConfig =>
@@ -86,10 +89,10 @@ export const igp: ChainMap<IgpConfig> = objMap(
       overhead: Object.fromEntries(
         // no need to set overhead for chain to itself
         exclude(chain, supportedChainNames)
-          // Special case for rometestnet due to non-standard gas metering.
+          // Special case for rometestnet2 due to non-standard gas metering.
           .filter(
             (remote) =>
-              chain !== 'rometestnet' ||
+              chain !== 'rometestnet2' ||
               romeTestnetConnectedChains.includes(remote),
           )
           .map((remote) => [remote, getOverheadWithOverrides(chain, remote)]),

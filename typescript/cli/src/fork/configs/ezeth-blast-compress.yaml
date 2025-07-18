@@ -1,0 +1,40 @@
+arbitrum:
+  transactions:
+    - type: file
+      defaultSender: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25'
+      path: ./generated/ezethStage_compress/arbitrum-gnosisSafeTxBuilder-1749666774998-receipts.json
+      overrides:
+        '0':
+          annotation: 'Set ISM to exclude blast'
+    - type: rawTransaction
+      transactions:
+        - annotation: 'Approve tokens to router'
+          from: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba'
+          to: '0x585afea249031Ea4168A379F664e91dFc5F77E7D'
+          data:
+            type: signature
+            signature: function approve(address,uint256)
+            args:
+              - '0x3F536e156eD291c135ACb1D20F77C3B948E0F8a5'
+              - '1'
+        - annotation: 'Send tokens to Blast'
+          from: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba'
+          to: '0x3F536e156eD291c135ACb1D20F77C3B948E0F8a5'
+          data:
+            type: signature
+            signature: function transferRemote(uint32,bytes32,uint256)
+            args:
+              - '81457'
+              - '0x000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba'
+              - '1'
+          value: '250000000000000000'
+          revertAssertion:
+            type: 'estimateGas'
+            reason: 'execution reverted: No hook configured for destination: 81457'
+            annotation: 'Revert because no hook configured for destination blast'
+
+blast:
+  transactions:
+    - type: file
+      defaultSender: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25'
+      path: ./generated/ezethStage_compress/blast-gnosisSafeTxBuilder-1749666774939-receipts.json

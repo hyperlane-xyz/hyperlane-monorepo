@@ -4,7 +4,6 @@ import {
   ChainName,
   DispatchedMessage,
   HyperlaneCore,
-  HyperlaneRelayer,
   MultiProtocolProvider,
   ProviderType,
   Token,
@@ -19,7 +18,7 @@ import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
-import { stubMerkleTreeConfig } from '../utils/relay.js';
+import { runSelfRelay } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export const WarpSendLogs = {
@@ -108,9 +107,6 @@ async function executeDelivery({
 
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
-  const provider = multiProvider.getProvider(origin);
-  const connectedSigner = signer.connect(provider);
-
   const warpCore = WarpCore.FromConfig(
     MultiProtocolProvider.fromMultiProvider(multiProvider),
     warpCoreConfig,
@@ -151,7 +147,7 @@ async function executeDelivery({
   const txReceipts = [];
   for (const tx of transferTxs) {
     if (tx.type === ProviderType.EthersV5) {
-      const txResponse = await connectedSigner.sendTransaction(tx.transaction);
+      const txResponse = await signer.sendTransaction(tx.transaction);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       txReceipts.push(txReceipt);
     }
@@ -172,16 +168,12 @@ async function executeDelivery({
   log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
 
   if (selfRelay) {
-    const relayer = new HyperlaneRelayer({ core });
-
-    const hookAddress = await core.getSenderHookAddress(message);
-    const merkleAddress = chainAddresses[origin].merkleTreeHook;
-    stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
-
-    log('Attempting self-relay of transfer...');
-    await relayer.relayMessage(transferTxReceipt, messageIndex, message);
-    logGreen(WarpSendLogs.SUCCESS);
-    return;
+    return runSelfRelay({
+      txReceipt: transferTxReceipt,
+      multiProvider: multiProvider,
+      registry: registry,
+      successMessage: WarpSendLogs.SUCCESS,
+    });
   }
 
   if (skipWaitForDelivery) return;

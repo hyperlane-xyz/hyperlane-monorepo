@@ -6,6 +6,7 @@ import {
   test1,
   testCosmosChain,
   testSealevelChain,
+  testStarknetChain,
 } from '../consts/testChains.js';
 
 import {
@@ -16,7 +17,12 @@ import {
   getExplorerTxUrl,
 } from './blockExplorer.js';
 
-const TEST_CHAINS = [test1, testCosmosChain, testSealevelChain];
+const TEST_CHAINS = [
+  test1,
+  testCosmosChain,
+  testSealevelChain,
+  testStarknetChain,
+];
 const EXPECTED_RESULTS = [
   [
     'https://etherscan.io/',
@@ -35,6 +41,12 @@ const EXPECTED_RESULTS = [
     null,
     'https://explorer.solana.com/tx/0x123?cluster=devnet',
     'https://explorer.solana.com/address/0x123?cluster=devnet',
+  ],
+  [
+    'https://sepolia.voyager.online/',
+    null,
+    'https://sepolia.voyager.online/tx/0x123',
+    'https://sepolia.voyager.online/contract/0x123',
   ],
 ];
 

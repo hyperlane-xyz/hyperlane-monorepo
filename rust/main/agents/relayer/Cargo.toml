@@ -57,7 +57,7 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
-submitter = { path = "../../submitter" }
+lander = { path = "../../lander" }
 
 [dev-dependencies]
 axum = { workspace = true, features = ["macros"] }

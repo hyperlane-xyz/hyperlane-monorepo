@@ -1,9 +1,9 @@
 name: test
 
 on:
-  # Triggers the workflow on pushes to main and changeset branches
+  # Triggers the workflow on pushes to main branch
   push:
-    branches: [main, changeset-release/main]
+    branches: [main, 'audit-*']
   # Triggers on pull requests
   pull_request:
     branches:
@@ -40,7 +40,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: yarn-cache
-        uses: buildjet/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -64,7 +64,8 @@ jobs:
         run: yarn syncpack list-mismatches
 
   lint-prettier:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04-4
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -290,6 +291,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        protocol:
+          - ethereum
+          - cosmosnative
         test:
           # Core Commands
           - core-apply
@@ -300,16 +304,19 @@ jobs:
           # Other commands
           - relay
           # Warp Commands
+          - warp-apply-submitters
           - warp-apply
           - warp-bridge-1
           - warp-bridge-2
           - warp-check
+          - warp-deploy
           - warp-extend-basic
           - warp-extend-config
           - warp-extend-recovery
           - warp-init
           - warp-read
           - warp-send
+          - warp-rebalancer
     steps:
       - uses: actions/checkout@v4
         with:
@@ -330,8 +337,8 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: CLI e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:e2e
+      - name: CLI ${{ matrix.protocol }} e2e tests (${{ matrix.test }})
+        run: yarn --cwd typescript/cli test:${{ matrix.protocol }}:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
@@ -416,7 +423,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, cosmosnative, evm, sealevel]
+        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -571,6 +578,13 @@ jobs:
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
+          RUST_BACKTRACE: 'full'
+
+      - name: agent tests with Starknet
+        run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
+        if: ${{ matrix.e2e-type == 'starknet' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
           RUST_BACKTRACE: 'full'
 
   e2e:

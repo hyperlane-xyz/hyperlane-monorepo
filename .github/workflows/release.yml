@@ -119,7 +119,7 @@ jobs:
       id-token: write
       contents: write
       pull-requests: write
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4

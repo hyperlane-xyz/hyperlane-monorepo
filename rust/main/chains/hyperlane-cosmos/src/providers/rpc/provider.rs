@@ -244,7 +244,6 @@ impl CosmosWasmRpcProvider {
 
 #[async_trait]
 impl WasmRpcProvider for CosmosWasmRpcProvider {
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         let latest_block = self
@@ -261,7 +260,7 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
         Ok(latest_height.saturating_sub(self.reorg_period))
     }
 
-    #[instrument(err, skip(self, parser))]
+    #[instrument(err, fields(domain = self.domain.name()), skip(self, parser))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_logs_in_block<T>(
         &self,
@@ -275,7 +274,7 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
         // The two calls below could be made in parallel, but on cosmos rate limiting is a bigger problem
         // than indexing latency, so we do them sequentially.
         let block = self.get_block(block_number).await?;
-        debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain, "Getting logs in block with hash");
+        debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain.name(), "Getting logs in block with hash");
         let block_results = self
             .rpc_client
             .call(|provider| {
@@ -305,7 +304,7 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
         let block = self.get_block(block_number).await?;
         let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
 
-        debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain, "Getting logs in transaction: block info");
+        debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain.name(), "Getting logs in transaction: block info");
 
         Ok(self.handle_tx(tx, block_hash, parser).collect())
     }

@@ -37,7 +37,7 @@ use hyperlane_core::{
 use crate::priority_fee::PriorityFeeOracle;
 use crate::tx_submitter::TransactionSubmitter;
 use crate::utils::sanitize_dynamic_accounts;
-use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, SealevelProviderForSubmitter};
+use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, SealevelProviderForLander};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
@@ -69,15 +69,15 @@ pub struct SealevelMailbox {
     pub(crate) outbox: (Pubkey, u8),
     pub(crate) provider: Arc<SealevelProvider>,
     payer: Option<SealevelKeypair>,
-    priority_fee_oracle: Box<dyn PriorityFeeOracle>,
-    tx_submitter: Box<dyn TransactionSubmitter>,
+    priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
+    tx_submitter: Arc<dyn TransactionSubmitter>,
 }
 
 impl SealevelMailbox {
     /// Create a new sealevel mailbox
     pub fn new(
         provider: Arc<SealevelProvider>,
-        tx_submitter: Box<dyn TransactionSubmitter>,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
         conf: &ConnectionConf,
         locator: &ContractLocator,
         payer: Option<SealevelKeypair>,
@@ -469,8 +469,8 @@ impl Mailbox for SealevelMailbox {
             .build_estimated_tx_for_instruction(
                 process_instruction,
                 payer,
-                &*self.tx_submitter,
-                &*self.priority_fee_oracle,
+                self.tx_submitter.clone(),
+                self.priority_fee_oracle.clone(),
             )
             .await?;
 
@@ -528,8 +528,8 @@ impl Mailbox for SealevelMailbox {
             .get_estimated_costs_for_instruction(
                 process_instruction,
                 payer,
-                &*self.tx_submitter,
-                &*self.priority_fee_oracle,
+                self.tx_submitter.clone(),
+                self.priority_fee_oracle.clone(),
             )
             .await?;
 

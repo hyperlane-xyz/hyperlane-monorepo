@@ -12,6 +12,7 @@ import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 
 import {
+  AnnotatedEV5Transaction,
   ChainNameOrId,
   MultiProvider,
   getSafe,
@@ -541,4 +542,30 @@ export async function getPendingTxsForChains(
   return txs.sort(
     (a, b) => a.chain.localeCompare(b.chain) || a.nonce - b.nonce,
   );
+}
+
+export function parseSafeTx(tx: AnnotatedEV5Transaction) {
+  const safeInterface = new ethers.utils.Interface([
+    'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
+    'function approveHash(bytes32 hashToApprove)',
+    'function addOwnerWithThreshold(address owner, uint256 _threshold)',
+    'function removeOwner(address prevOwner, address owner, uint256 _threshold)',
+    'function swapOwner(address prevOwner, address oldOwner, address newOwner)',
+    'function changeThreshold(uint256 _threshold)',
+    'function enableModule(address module)',
+    'function disableModule(address prevModule, address module)',
+    'function setGuard(address guard)',
+    'function setFallbackHandler(address handler)',
+    'function execTransactionFromModule(address to, uint256 value, bytes data, uint8 operation)',
+    'function execTransactionFromModuleReturnData(address to, uint256 value, bytes data, uint8 operation)',
+    'function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address payable paymentReceiver)',
+    'function simulateAndRevert(address targetContract, bytes calldataPayload)',
+  ]);
+
+  const decoded = safeInterface.parseTransaction({
+    data: tx.data ?? '0x',
+    value: tx.value,
+  });
+
+  return decoded;
 }

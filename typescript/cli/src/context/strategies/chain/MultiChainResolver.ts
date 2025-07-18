@@ -9,14 +9,13 @@ import {
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readCoreDeployConfigs } from '../../../config/core.js';
-import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
 import {
-  extractChainsFromObj,
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
 import { getWarpConfigs } from '../../../utils/warp.js';
+import { requestAndSaveApiKeys } from '../../context.js';
 
 import { ChainResolver } from './types.js';
 
@@ -26,6 +25,7 @@ enum ChainSelectionMode {
   WARP_APPLY,
   STRATEGY,
   CORE_APPLY,
+  CORE_DEPLOY,
   DEFAULT,
 }
 
@@ -46,10 +46,10 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveWarpApplyChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
-      case ChainSelectionMode.STRATEGY:
-        return this.resolveStrategyChains(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
+      case ChainSelectionMode.CORE_DEPLOY:
+        return this.resolveCoreDeployChains(argv);
       case ChainSelectionMode.DEFAULT:
       default:
         return this.resolveRelayerChains(argv);
@@ -118,13 +118,6 @@ export class MultiChainResolver implements ChainResolver {
     return [argv.origin, ...argv.targets];
   }
 
-  private async resolveStrategyChains(
-    argv: Record<string, any>,
-  ): Promise<ChainName[]> {
-    const strategy = await readChainSubmissionStrategyConfig(argv.strategy);
-    return extractChainsFromObj(strategy);
-  }
-
   private async resolveRelayerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
@@ -175,19 +168,68 @@ export class MultiChainResolver implements ChainResolver {
         addresses,
       ) as DeployedCoreAddresses;
 
-      const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
-        chain: argv.chain,
-        config,
-        addresses: coreAddresses,
-      });
+      const protocolType = argv.context.multiProvider.getProtocol(argv.chain);
 
-      const transactions = await evmCoreModule.update(config);
+      switch (protocolType) {
+        case ProtocolType.Ethereum: {
+          const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
+            chain: argv.chain,
+            config,
+            addresses: coreAddresses,
+          });
 
-      return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
-        (chainId) => argv.context.multiProvider.getChainName(chainId),
-      );
+          const transactions = await evmCoreModule.update(config);
+
+          return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
+            (chainId) => argv.context.multiProvider.getChainName(chainId),
+          );
+        }
+        case ProtocolType.CosmosNative: {
+          return [argv.chain];
+        }
+        default: {
+          throw new Error(`Protocol type ${protocolType} not supported`);
+        }
+      }
     } catch (error) {
       throw new Error(`Failed to resolve core apply chains`, {
+        cause: error,
+      });
+    }
+  }
+
+  private async resolveCoreDeployChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    try {
+      const { chainMetadata, dryRunChain, registry, skipConfirmation } =
+        argv.context;
+
+      let chain: string;
+
+      if (argv.chain) {
+        chain = argv.chain;
+      } else if (dryRunChain) {
+        chain = dryRunChain;
+      } else {
+        if (skipConfirmation) throw new Error('No chain provided');
+        chain = await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select chain to connect:',
+        );
+      }
+      if (!skipConfirmation) {
+        argv.context.apiKeys = await requestAndSaveApiKeys(
+          [chain],
+          chainMetadata,
+          registry,
+        );
+      }
+
+      argv.chain = chain;
+      return [chain];
+    } catch (error) {
+      throw new Error(`Failed to resolve core deploy chains`, {
         cause: error,
       });
     }
@@ -230,6 +272,10 @@ export class MultiChainResolver implements ChainResolver {
 
   static forCoreApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.CORE_APPLY);
+  }
+
+  static forCoreDeploy(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.CORE_DEPLOY);
   }
 
   static default(): MultiChainResolver {

@@ -1,9 +1,13 @@
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
-use hyperlane_core::{
-    config::OpSubmissionConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
-};
 use url::Url;
+
+use hyperlane_core::{
+    config::OpSubmissionConfig, utils::hex_or_base58_to_h256, ChainCommunicationError, ChainResult,
+    ReorgPeriod, H256, U256,
+};
+
+static BATCH_CONTRACT_ADDRESS_DEFAULT: &str = "0xcA11bde05977b3631167028862bE2a173976CA11";
 
 /// Ethereum RPC connection configuration
 #[derive(Debug, Clone)]
@@ -30,8 +34,14 @@ pub enum RpcConnectionConf {
     },
 }
 
+impl Default for RpcConnectionConf {
+    fn default() -> Self {
+        RpcConnectionConf::HttpFallback { urls: vec![] }
+    }
+}
+
 /// Ethereum connection configuration
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Default)]
 pub struct ConnectionConf {
     /// RPC connection configuration
     pub rpc_connection: RpcConnectionConf,
@@ -39,6 +49,26 @@ pub struct ConnectionConf {
     pub transaction_overrides: TransactionOverrides,
     /// Operation batching configuration
     pub op_submission_config: OpSubmissionConfig,
+}
+
+impl ConnectionConf {
+    /// Returns the RPC urls for this connection configuration
+    pub fn rpc_urls(&self) -> Vec<Url> {
+        use RpcConnectionConf::{Http, HttpFallback, HttpQuorum, Ws};
+
+        match &self.rpc_connection {
+            HttpQuorum { urls } | HttpFallback { urls } => urls.clone(),
+            Http { url } => vec![url.clone()],
+            Ws { url: _ } => panic!("Websocket connection is not supported"),
+        }
+    }
+
+    /// Returns the address of the contract which batches operations.
+    pub fn batch_contract_address(&self) -> H256 {
+        self.op_submission_config
+            .batch_contract_address
+            .unwrap_or(hex_or_base58_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT).unwrap())
+    }
 }
 
 /// Ethereum transaction overrides.
@@ -124,3 +154,6 @@ impl EthereumReorgPeriod {
         Ok(block_id)
     }
 }
+
+#[cfg(test)]
+mod tests;
