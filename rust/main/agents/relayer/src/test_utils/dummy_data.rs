@@ -1,3 +1,9 @@
+use std::collections::HashMap;
+use std::{sync::Arc, time::Duration};
+
+use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry};
+use tokio::sync::RwLock;
+
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
     db::HyperlaneRocksDB,
@@ -6,10 +12,6 @@ use hyperlane_base::{
 };
 use hyperlane_core::{HyperlaneDomain, H256};
 use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
-use prometheus::{CounterVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry};
-use std::collections::HashMap;
-use std::{sync::Arc, time::Duration};
-use tokio::sync::RwLock;
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
