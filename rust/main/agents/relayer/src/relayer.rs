@@ -524,7 +524,7 @@ impl BaseAgent for Relayer {
                 .core
                 .settings
                 .chains
-                .get(dest_domain.name())
+                .get(dest_domain)
                 .and_then(|chain| {
                     chain
                         .connection
@@ -536,7 +536,7 @@ impl BaseAgent for Relayer {
                 self.core
                     .settings
                     .chains
-                    .get(dest_domain.name())
+                    .get(dest_domain)
                     .and_then(|chain| {
                         chain
                             .connection
@@ -778,7 +778,7 @@ impl Relayer {
             .get(&origin)
             .cloned()
             .ok_or_else(|| eyre::eyre!("No message sync found"))?;
-        let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
+        let index_settings = self.as_ref().settings.chains[&origin].index_settings();
         let chain_metrics = self.chain_metrics.clone();
 
         let name = Self::contract_sync_task_name("message::", origin.name());
@@ -830,7 +830,7 @@ impl Relayer {
             .as_ref()
             .settings
             .chains
-            .get(origin.name())
+            .get(&origin)
             .map(|settings| settings.index_settings())
             .ok_or_else(|| eyre::eyre!("Error finding chain index settings"))?;
         let contract_sync = interchain_gas_payment_syncs
@@ -897,7 +897,7 @@ impl Relayer {
             .as_ref()
             .settings
             .chains
-            .get(origin.name())
+            .get(&origin)
             .map(|settings| settings.index_settings())
             .ok_or_else(|| eyre::eyre!("Error finding chain index settings"))?;
         let contract_sync = self
@@ -1115,7 +1115,7 @@ impl Relayer {
             .filter(|chain| {
                 settings
                     .chains
-                    .get(&chain.to_string())
+                    .get(chain)
                     .map(|chain| chain.submitter == SubmitterType::Lander)
                     .unwrap_or(false)
             })
@@ -1123,7 +1123,7 @@ impl Relayer {
                 (
                     chain.clone(),
                     DispatcherSettings {
-                        chain_conf: settings.chains[&chain.to_string()].clone(),
+                        chain_conf: settings.chains[chain].clone(),
                         raw_chain_conf: Default::default(),
                         domain: chain.clone(),
                         db: DatabaseOrPath::Database(db.clone()),
@@ -1173,7 +1173,7 @@ impl Relayer {
             .filter(|chain| {
                 settings
                     .chains
-                    .get(&chain.to_string())
+                    .get(chain)
                     .map(|chain| chain.submitter == SubmitterType::Lander)
                     .unwrap_or(false)
             })
@@ -1181,7 +1181,7 @@ impl Relayer {
                 (
                     chain.clone(),
                     DispatcherSettings {
-                        chain_conf: settings.chains[&chain.to_string()].clone(),
+                        chain_conf: settings.chains[chain].clone(),
                         raw_chain_conf: Default::default(),
                         domain: chain.clone(),
                         db: DatabaseOrPath::Database(db.clone()),
