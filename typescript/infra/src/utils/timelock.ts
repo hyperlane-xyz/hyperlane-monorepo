@@ -46,9 +46,10 @@ export async function timelockConfigMatches({
     }
 
     // Ensure the executors have the EXECUTOR_ROLE
-    const expectedExecutors = expectedConfig.executors ?? [
-      ethers.constants.AddressZero,
-    ];
+    const expectedExecutors =
+      expectedConfig.executors && expectedConfig.executors.length !== 0
+        ? expectedConfig.executors
+        : [ethers.constants.AddressZero];
     const executorRoles = await Promise.all(
       expectedExecutors.map(async (executor) => {
         return timelock.hasRole(EXECUTOR_ROLE, executor);
@@ -117,7 +118,7 @@ export function getTimelockConfigs({
     timelockConfigs[chain] = {
       minimumDelay: DEFAULT_TIMELOCK_DELAY_SECONDS,
       proposers: [owner],
-      executors: [DEPLOYER],
+      cancellers: [DEPLOYER],
     };
   });
 
