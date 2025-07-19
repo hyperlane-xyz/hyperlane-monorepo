@@ -1,5 +1,20 @@
 # @hyperlane-xyz/http-registry-server
 
+## 16.0.0
+
+### Minor Changes
+
+- 69d591934: Add `warp-route/deploy/id` route to HttpRegistryServer
+
+### Patch Changes
+
+- Updated dependencies [d200acfa8]
+- Updated dependencies [966ad8440]
+- Updated dependencies [a71193486]
+- Updated dependencies [af783be54]
+  - @hyperlane-xyz/sdk@16.0.0
+  - @hyperlane-xyz/utils@16.0.0
+
 ## 15.0.0
 
 ### Major Changes

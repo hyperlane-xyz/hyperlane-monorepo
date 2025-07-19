@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 16.0.0
+
+### Minor Changes
+
+- 3fac22334: Fix FileSubmitterStrategy to correctly append a transaction file
+
 ## 15.0.0
 
 ### Minor Changes
