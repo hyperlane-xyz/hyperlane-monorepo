@@ -102,6 +102,7 @@ export enum WarpRouteIds {
 
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
+  MainnetRebalancingUSDC = 'USDC/arbitrum-avalanche-base-bsc-ethereum-optimism-unichain',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
