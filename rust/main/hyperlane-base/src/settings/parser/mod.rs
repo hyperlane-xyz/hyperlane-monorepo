@@ -166,7 +166,7 @@ fn parse_chain(
         .chain(&mut err)
         .get_opt_key("index")
         .get_opt_key("from")
-        .parse_u32()
+        .parse_i64()
         .unwrap_or(0);
     let chunk_size = chain
         .chain(&mut err)
