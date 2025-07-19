@@ -120,13 +120,6 @@ async function main() {
 
   await Promise.all(
     Object.entries(timelockConfigs).map(async ([chain, expectedConfig]) => {
-      // Temporarily skip infinityvmmainnet while we fix chain-specific deploy issue
-      if (chain === 'infinityvmmainnet') {
-        rootLogger.info('Skipping infinityvmmainnet');
-        delete timelockConfigs[chain];
-        return;
-      }
-
       const timelockAddress = governanceTimelocks[chain];
 
       try {

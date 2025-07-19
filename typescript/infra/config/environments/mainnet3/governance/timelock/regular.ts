@@ -59,7 +59,7 @@ export const regularTimelocks: ChainMap<Address> = {
   hyperevm: '0xCe8Daded1447B23D43EdeCbfF22902FE7e9c9324',
   immutablezkevmmainnet: '0x4E602f930a64CcaF3A270Da1c2223A9f5860AEE7',
   inevm: '0x2906a1e20997184a7Bbae771B175239e9D32d4fC',
-  infinityvmmainnet: '',
+  infinityvmmainnet: '0x693A4cE39d99e46B04cb562329e3F0141cA17331',
   ink: '0x5306a5e0fcbC166e74950D72363A6979C99d5A59',
   kaia: '0x89aB6b1c3B1522F8Cf7AD6f8547Da173235e0fAc',
   katana: '0x086A21A16eF1133BF58a09A77E2A9e07d3b95c1c',

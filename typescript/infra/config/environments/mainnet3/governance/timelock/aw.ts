@@ -59,7 +59,7 @@ export const awTimelocks: ChainMap<Address> = {
   hyperevm: '0x677fbdE16AC399Bcd1d136b822939ea1b50D31E2',
   immutablezkevmmainnet: '0x3de63b62BeF9Da290F51f856cA9F3dB4225EDc05',
   inevm: '0x999bE2aBe444888b31f1d175310E4bD1F5B96423',
-  infinityvmmainnet: '',
+  infinityvmmainnet: '0x7279B1e11142078b8dC9e69620200f4C84FB8aaa',
   ink: '0xED56728fb977b0bBdacf65bCdD5e17Bb7e84504f',
   kaia: '0x6Ff2c6b1c707d3dc1a7A43F4Ce5d09004224b0b3',
   katana: '0x9C6e8d989ea7F212e679191BEb44139d83ac927a',
