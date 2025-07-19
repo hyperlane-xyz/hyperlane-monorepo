@@ -61,7 +61,7 @@ export type EvmTimelockReaderConfig = {
   multiProvider: Readonly<MultiProvider>;
 };
 
-type TimelockTx = {
+export type TimelockTx = {
   id: HexString;
   delay: number;
   predecessor: HexString;
@@ -69,7 +69,7 @@ type TimelockTx = {
   data: [CallData, ...CallData[]];
 };
 
-type ExecutableTimelockTx = TimelockTx & {
+export type ExecutableTimelockTx = TimelockTx & {
   encodedExecuteTransaction: HexString;
 };
 
@@ -81,6 +81,27 @@ export class EvmTimelockReader {
     protected timelockInstance: TimelockController,
     protected evmLogReader: EvmEventLogsReader,
   ) {}
+
+  static fromConfig(config: EvmTimelockReaderConfig): EvmTimelockReader {
+    const { chain, timelockAddress, multiProvider } = config;
+
+    const timelockInstance = TimelockController__factory.connect(
+      timelockAddress,
+      multiProvider.getProvider(chain),
+    );
+
+    const evmLogReader = EvmEventLogsReader.fromConfig(
+      { chain },
+      multiProvider,
+    );
+
+    return new EvmTimelockReader(
+      chain,
+      multiProvider,
+      timelockInstance,
+      evmLogReader,
+    );
+  }
 
   async getScheduledTransactions(): Promise<Record<string, TimelockTx>> {
     const [callScheduledEvents, callSaltEvents] = await Promise.all([
