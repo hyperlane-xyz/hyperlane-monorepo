@@ -78,9 +78,17 @@ describe('Warp Routes', () => {
       expect(response.body.message).to.include('Unexpected error');
     });
 
-    it('should return 400 for invalid warp route ID format', async () => {
-      // Test with empty string (should fail validation)
-      await request(app).get('/warp-route/core/').expect(404); // Express returns 404 for missing route parameter
+    it('should return warp core configs when no id is provided', async () => {
+      const warpCoreConfig = {
+        'test/warp-route': mockWarpRoute,
+      };
+      mockWarpService.getWarpCoreConfigs.resolves(warpCoreConfig);
+
+      const response = await request(app)
+        .get(`/warp-route/core`)
+        .expect(AppConstants.HTTP_STATUS_OK);
+
+      expect(response.body).to.deep.equal(warpCoreConfig);
     });
 
     it('should handle special characters in warp route ID', async () => {
