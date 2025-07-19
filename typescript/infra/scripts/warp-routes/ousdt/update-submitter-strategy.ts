@@ -51,45 +51,30 @@ async function main() {
   for (const [chain, config] of Object.entries(parsed.data)) {
     const { ownerType } = await determineGovernanceType(chain, config.owner);
     if (ownerType === Owner.SAFE) {
-      switch (chain) {
-        case 'metis':
-        case 'soneium':
-        case 'superseed':
-        case 'ethereum':
-          chainSubmissionStrategy[chain] = {
-            submitter: {
-              chain,
-              type: TxSubmitterType.GNOSIS_TX_BUILDER,
-              version: '1.0',
-              safeAddress: config.owner,
-            },
-          };
-          break;
-        default:
-          chainSubmissionStrategy[chain] = {
-            submitter: {
-              chain,
-              type: TxSubmitterType.GNOSIS_SAFE,
-              safeAddress: config.owner,
-            },
-          };
-          break;
-      }
+      chainSubmissionStrategy[chain] = {
+        submitter: {
+          chain,
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          version: '1.0',
+          safeAddress: config.owner,
+        },
+      };
     }
     // New ICA submitter config from https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/4980
     else if (ownerType === Owner.ICA) {
       chainSubmissionStrategy[chain] = {
         submitter: {
           chain: ICA_OWNER_CHAIN,
-          type: 'interchainAccount',
+          type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+          owner: ICA_OWNER_SAFE,
           destinationChain: chain,
           internalSubmitter: {
+            chain: ICA_OWNER_CHAIN,
             type: TxSubmitterType.GNOSIS_TX_BUILDER,
             version: '1.0',
             safeAddress: ICA_OWNER_SAFE,
           },
-          owner: config.owner,
-        } as any,
+        },
       };
     } else {
       chainSubmissionStrategy[chain] = {
