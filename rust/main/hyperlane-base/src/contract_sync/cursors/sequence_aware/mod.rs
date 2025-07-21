@@ -297,6 +297,9 @@ mod tests {
         .await
         .expect("Failed to instantiate ForwardBackwardSequenceAwareSyncCursor");
 
-        assert_eq!(cursor.backward.lowest_block_height_or_sequence, 90);
+        assert_eq!(
+            cursor.backward.lowest_block_height_or_sequence,
+            lowest_block_height_or_sequence
+        );
     }
 }
