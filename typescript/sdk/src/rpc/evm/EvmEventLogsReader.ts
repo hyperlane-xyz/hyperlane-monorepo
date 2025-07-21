@@ -17,9 +17,12 @@ import { ZBytes32String, ZHash, ZUint } from '../../metadata/customZodTypes.js';
 import { GetEventLogsResponse } from './types.js';
 import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';
 
-type EvmEventLogsReaderConfig = {
+export type EvmEventLogsReaderConfig = {
   chain: ChainNameOrId;
+  // if true forces the reader to use the rpc to read the timelock data
+  // useful for blockchains that do not have a block explorer API
   useRPC?: boolean;
+  // Specifies how many blocks can be retrieved to read the logs in a single batch
   logPageSize?: number;
 };
 

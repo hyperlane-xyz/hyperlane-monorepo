@@ -19,7 +19,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { EvmEventLogsReader } from '../../rpc/evm/EvmEventLogsReader.js';
+import {
+  EvmEventLogsReader,
+  EvmEventLogsReaderConfig,
+} from '../../rpc/evm/EvmEventLogsReader.js';
 import { GetEventLogsResponse } from '../../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../../rpc/evm/utils.js';
 import { ChainNameOrId } from '../../types.js';
@@ -59,7 +62,7 @@ export type EvmTimelockReaderConfig = {
   chain: Readonly<ChainNameOrId>;
   timelockAddress: Readonly<Address>;
   multiProvider: Readonly<MultiProvider>;
-};
+} & EvmEventLogsReaderConfig;
 
 export type TimelockTx = {
   id: HexString;
@@ -73,7 +76,6 @@ export type ExecutableTimelockTx = TimelockTx & {
   encodedExecuteTransaction: HexString;
 };
 
-// TODO: organize this a bit better
 export class EvmTimelockReader {
   protected constructor(
     protected readonly chain: ChainNameOrId,
@@ -83,7 +85,8 @@ export class EvmTimelockReader {
   ) {}
 
   static fromConfig(config: EvmTimelockReaderConfig): EvmTimelockReader {
-    const { chain, timelockAddress, multiProvider } = config;
+    const { chain, timelockAddress, multiProvider, useRPC, logPageSize } =
+      config;
 
     const timelockInstance = TimelockController__factory.connect(
       timelockAddress,
@@ -91,7 +94,7 @@ export class EvmTimelockReader {
     );
 
     const evmLogReader = EvmEventLogsReader.fromConfig(
-      { chain },
+      { chain, useRPC, logPageSize },
       multiProvider,
     );
 
@@ -103,21 +106,35 @@ export class EvmTimelockReader {
     );
   }
 
+  async getOperationsSalt(): Promise<Record<string, string>> {
+    const logs = await this.evmLogReader.getLogsByTopic({
+      contractAddress: this.timelockInstance.address,
+      eventTopic: CALL_SALT_EVENT_SELECTOR,
+    });
+
+    const result = parseEventLogs({
+      abi: TimelockController__factory.abi,
+      eventName: 'CallSalt',
+      logs: logs.map(viemLogFromGetEventLogsResponse),
+    });
+
+    return Object.fromEntries(
+      result.map((parsedEvent) => [parsedEvent.args.id, parsedEvent.args.salt]),
+    );
+  }
+
   async getScheduledTransactions(): Promise<Record<string, TimelockTx>> {
-    const [callScheduledEvents, callSaltEvents] = await Promise.all([
+    const [callScheduledEvents, callSaltByOperationId] = await Promise.all([
       this.evmLogReader.getLogsByTopic({
         contractAddress: this.timelockInstance.address,
         eventTopic: CALL_SCHEDULED_EVENT_SELECTOR,
       }),
-      this.evmLogReader.getLogsByTopic({
-        contractAddress: this.timelockInstance.address,
-        eventTopic: CALL_SALT_EVENT_SELECTOR,
-      }),
+      this.getOperationsSalt(),
     ]);
 
     return getScheduledTimelockOperationIdsFromLogs(
       callScheduledEvents,
-      getTimelockOperationSaltByIdFromLogs(callSaltEvents),
+      callSaltByOperationId,
     );
   }
 
@@ -198,20 +215,6 @@ export class EvmTimelockReader {
   }
 }
 
-function getTimelockOperationSaltByIdFromLogs(
-  logs: ReadonlyArray<GetEventLogsResponse>,
-): Record<string, string> {
-  const result = parseEventLogs({
-    abi: TimelockController__factory.abi,
-    eventName: 'CallSalt',
-    logs: logs.map(viemLogFromGetEventLogsResponse),
-  });
-
-  return Object.fromEntries(
-    result.map((parsedEvent) => [parsedEvent.args.id, parsedEvent.args.salt]),
-  );
-}
-
 function getScheduledTimelockOperationIdsFromLogs(
   callScheduledLogs: ReadonlyArray<GetEventLogsResponse>,
   callSaltByOperationId: Record<string, string>,
@@ -247,7 +250,7 @@ function getScheduledTimelockOperationIdsFromLogs(
         // it should be safe to convert a bigint to number
         // in this case as it is an array index for a Timelock
         // contract operation
-        operationsById[id].data[Number(index)] = {
+        operationsById[id].data[Number(index.toString())] = {
           data,
           to: target,
           value: BigNumber.from(value),
@@ -260,12 +263,10 @@ function getScheduledTimelockOperationIdsFromLogs(
   );
 }
 
-type AllEvents = ContractEventName<typeof TimelockController__factory.abi>;
-
 function getOperationIdFromEventLogs(
   logs: ReadonlyArray<GetEventLogsResponse>,
   eventName: Extract<
-    AllEvents,
+    ContractEventName<typeof TimelockController__factory.abi>,
     'CallScheduled' | 'CallExecuted' | 'Cancelled' | 'CallSalt'
   >,
 ): Set<string> {
