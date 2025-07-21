@@ -1,5 +1,5 @@
 import { WarpRouteId } from '@hyperlane-xyz/registry';
-import { WarpCoreConfig } from '@hyperlane-xyz/sdk';
+import { WarpCoreConfig, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 
 import { NotFoundError } from '../errors/ApiError.js';
 
@@ -11,13 +11,23 @@ export class WarpService extends AbstractService {
     super(registryService);
   }
 
-  async getWarpRoute(id: WarpRouteId): Promise<WarpCoreConfig> {
+  async getWarpCoreConfig(id: WarpRouteId): Promise<WarpCoreConfig> {
     return this.withRegistry(async (registry) => {
       const warpRoute = await registry.getWarpRoute(id);
       if (!warpRoute) {
         throw new NotFoundError(`Warp route not found for id ${id}`);
       }
       return warpRoute;
+    });
+  }
+
+  async getWarpDeployConfig(id: WarpRouteId): Promise<WarpRouteDeployConfig> {
+    return this.withRegistry(async (registry) => {
+      const warpDeployConfig = await registry.getWarpDeployConfig(id);
+      if (!warpDeployConfig) {
+        throw new NotFoundError(`Warp deploy config not found for id ${id}`);
+      }
+      return warpDeployConfig;
     });
   }
 }

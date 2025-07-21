@@ -186,6 +186,7 @@ export {
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
 export { CosmosNativeIsmReader } from './ism/CosmosNativeIsmReader.js';
+export { CosmosNativeWarpRouteReader } from './token/CosmosNativeWarpRouteReader.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export { BaseMetadataBuilder } from './ism/metadata/builder.js';
@@ -403,6 +404,7 @@ export {
 export { CallData, CallDataSchema } from './providers/transactions/types.js';
 export {
   randomAddress,
+  randomCosmosAddress,
   randomHookConfig,
   randomIsmConfig,
 } from './test/testUtils.js';
@@ -778,3 +780,15 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export { EvmTimelockDeployer } from './timelock/evm/EvmTimelockDeployer.js';
+export {
+  TimelockConfig,
+  TimelockConfigSchema,
+  TimelockConfigMapSchema,
+  TimelockConfigMap,
+} from './timelock/types.js';
+export {
+  CANCELLER_ROLE,
+  EXECUTOR_ROLE,
+  PROPOSER_ROLE,
+} from './timelock/evm/constants.js';

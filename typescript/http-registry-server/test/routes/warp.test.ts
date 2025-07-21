@@ -10,7 +10,7 @@ import { NotFoundError } from '../../src/errors/ApiError.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';
 import { createWarpRouter } from '../../src/routes/warp.js';
 import { WarpService } from '../../src/services/warpService.js';
-import { mockWarpRoutes } from '../utils/mockData.js';
+import { mockWarpRouteDeploys, mockWarpRoutes } from '../utils/mockData.js';
 
 chaiUse(chaiAsPromised);
 
@@ -19,6 +19,7 @@ describe('Warp Routes', () => {
   let mockWarpService: sinon.SinonStubbedInstance<WarpService>;
 
   const mockWarpRoute = mockWarpRoutes[0];
+  const mockWarpRouteDeploy = mockWarpRouteDeploys[0];
 
   beforeEach(() => {
     // Create stubbed warp service
@@ -36,39 +37,41 @@ describe('Warp Routes', () => {
     sinon.restore();
   });
 
-  describe('GET /warp-route/:id', () => {
+  describe('GET /warp-route/core/:id', () => {
     it('should return warp route when it exists', async () => {
       const warpRouteId = 'test/warp-route';
-      mockWarpService.getWarpRoute.resolves(mockWarpRoute);
+      mockWarpService.getWarpCoreConfig.resolves(mockWarpRoute);
 
       const response = await request(app)
-        .get(`/warp-route/${warpRouteId}`)
+        .get(`/warp-route/core/${warpRouteId}`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
       expect(response.body).to.deep.equal(mockWarpRoute);
-      expect(mockWarpService.getWarpRoute.calledWith(warpRouteId)).to.be.true;
+      expect(mockWarpService.getWarpCoreConfig.calledWith(warpRouteId)).to.be
+        .true;
     });
 
     it('should return 404 when warp route does not exist', async () => {
       const warpRouteId = 'nonexistent/warp-route';
-      mockWarpService.getWarpRoute.rejects(
+      mockWarpService.getWarpCoreConfig.rejects(
         new NotFoundError('Warp route not found'),
       );
 
       const response = await request(app)
-        .get(`/warp-route/${warpRouteId}`)
+        .get(`/warp-route/core/${warpRouteId}`)
         .expect(AppConstants.HTTP_STATUS_NOT_FOUND);
 
       expect(response.body.message).to.include('Warp route not found');
-      expect(mockWarpService.getWarpRoute.calledWith(warpRouteId)).to.be.true;
+      expect(mockWarpService.getWarpCoreConfig.calledWith(warpRouteId)).to.be
+        .true;
     });
 
     it('should return 500 when service throws unexpected error', async () => {
       const warpRouteId = 'error/warp-route';
-      mockWarpService.getWarpRoute.rejects(new Error('Unexpected error'));
+      mockWarpService.getWarpCoreConfig.rejects(new Error('Unexpected error'));
 
       const response = await request(app)
-        .get(`/warp-route/${warpRouteId}`)
+        .get(`/warp-route/core/${warpRouteId}`)
         .expect(AppConstants.HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
       expect(response.body.message).to.include('Internal Server Error');
@@ -77,28 +80,29 @@ describe('Warp Routes', () => {
 
     it('should return 400 for invalid warp route ID format', async () => {
       // Test with empty string (should fail validation)
-      await request(app).get('/warp-route/').expect(404); // Express returns 404 for missing route parameter
+      await request(app).get('/warp-route/core/').expect(404); // Express returns 404 for missing route parameter
     });
 
     it('should handle special characters in warp route ID', async () => {
       const specialId = 'test/warp-route-with-special@chars!';
-      mockWarpService.getWarpRoute.resolves(mockWarpRoute);
+      mockWarpService.getWarpCoreConfig.resolves(mockWarpRoute);
 
       const response = await request(app)
-        .get(`/warp-route/${encodeURIComponent(specialId)}`)
+        .get(`/warp-route/core/${encodeURIComponent(specialId)}`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
       expect(response.body).to.deep.equal(mockWarpRoute);
-      expect(mockWarpService.getWarpRoute.calledWith(specialId)).to.be.true;
+      expect(mockWarpService.getWarpCoreConfig.calledWith(specialId)).to.be
+        .true;
     });
 
     it('should handle service returning null gracefully', async () => {
       const warpRouteId = 'null/return';
       // Service should throw NotFoundError, but test edge case
-      mockWarpService.getWarpRoute.resolves(null as any);
+      mockWarpService.getWarpCoreConfig.resolves(null as any);
 
       const response = await request(app)
-        .get(`/warp-route/${warpRouteId}`)
+        .get(`/warp-route/core/${warpRouteId}`)
         .expect(AppConstants.HTTP_STATUS_OK);
 
       expect(response.body).to.be.null;
@@ -106,14 +110,29 @@ describe('Warp Routes', () => {
 
     it('should preserve response headers', async () => {
       const warpRouteId = 'test-headers/warp-route';
-      mockWarpService.getWarpRoute.resolves(mockWarpRoute);
+      mockWarpService.getWarpCoreConfig.resolves(mockWarpRoute);
 
       const response = await request(app)
-        .get(`/warp-route/${warpRouteId}`)
+        .get(`/warp-route/core/${warpRouteId}`)
         .expect('Content-Type', /json/)
         .expect(AppConstants.HTTP_STATUS_OK);
 
       expect(response.body).to.deep.equal(mockWarpRoute);
+    });
+  });
+
+  describe('GET /warp-route/deploy/:id', () => {
+    it('should return warp route when it exists', async () => {
+      const warpRouteId = 'test/warp-route';
+      mockWarpService.getWarpDeployConfig.resolves(mockWarpRouteDeploy);
+
+      const response = await request(app)
+        .get(`/warp-route/deploy/${warpRouteId}`)
+        .expect(AppConstants.HTTP_STATUS_OK);
+
+      expect(response.body).to.deep.equal(mockWarpRouteDeploy);
+      expect(mockWarpService.getWarpDeployConfig.calledWith(warpRouteId)).to.be
+        .true;
     });
   });
 });
