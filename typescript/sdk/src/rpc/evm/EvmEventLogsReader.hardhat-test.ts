@@ -6,14 +6,13 @@ import { ethers } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
-import { TestChainName, baseTestChain } from '../../consts/testChains.js';
 import {
-  ChainMetadata,
-  ChainTechnicalStack,
-  ExplorerFamily,
-} from '../../metadata/chainMetadataTypes.js';
+  KNOWN_BASE_TIMELOCK_CONTRACT,
+  TestChainName,
+  baseTestChain,
+} from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
 
@@ -382,7 +381,7 @@ describe('EvmEventLogsReader', () => {
 
     it('should get the expected number of events when fromBlock is not provided', async () => {
       const res = await reader.getLogsByTopic({
-        contractAddress: '0x733BC1F0D76AB8f0AB7C1c8044ECc4720Cd402AD',
+        contractAddress: KNOWN_BASE_TIMELOCK_CONTRACT,
         // CallExecuted signature
         eventTopic:
           '0xc2617efa69bab66782fa219543714338489c4e9e178271560a91b82c3f612b58',

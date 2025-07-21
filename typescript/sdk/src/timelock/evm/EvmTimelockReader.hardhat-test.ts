@@ -8,8 +8,14 @@ import hre from 'hardhat';
 import { TimelockController__factory } from '@hyperlane-xyz/core';
 import { assert, deepCopy, normalizeAddressEvm } from '@hyperlane-xyz/utils';
 
-import { TestChainName, test1 } from '../../consts/testChains.js';
+import {
+  KNOWN_BASE_TIMELOCK_CONTRACT,
+  TestChainName,
+  baseTestChain,
+  test1,
+} from '../../consts/testChains.js';
 import { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
+import { ZBytes32String } from '../../metadata/customZodTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress } from '../../test/testUtils.js';
 import { TimelockConfig } from '../types.js';
@@ -33,7 +39,6 @@ describe(EvmTimelockReader.name, () => {
   let timelockDeployer: EvmTimelockDeployer;
   let timelockReader: EvmTimelockReader;
   let timelockAddress: string;
-  let deploymentBlockNumber: number;
 
   beforeEach(async () => {
     [contractOwner, proposer, executor] = await hre.ethers.getSigners();
@@ -74,7 +79,6 @@ describe(EvmTimelockReader.name, () => {
       TimelockController.deployTransaction.blockNumber,
       'Expected the Timelock deployment block number to be defined',
     );
-    deploymentBlockNumber = TimelockController.deployTransaction.blockNumber;
 
     return TimelockController;
   }
@@ -814,5 +818,84 @@ describe(EvmTimelockReader.name, () => {
     });
   });
 
-  describe(`${EvmTimelockReader.name} (Block Explorer)`, () => {});
+  describe(`${EvmTimelockReader.name} (Block Explorer)`, () => {
+    let reader: EvmTimelockReader;
+    let multiProvider: MultiProvider;
+
+    beforeEach(async () => {
+      multiProvider = new MultiProvider({
+        base: baseTestChain,
+      });
+      reader = EvmTimelockReader.fromConfig({
+        chain: baseTestChain.name,
+        timelockAddress: KNOWN_BASE_TIMELOCK_CONTRACT,
+        multiProvider,
+      });
+    });
+
+    describe(`${EvmTimelockReader.prototype.getScheduledTransactions.name}`, () => {
+      it('should retrieve scheduled transactions from block explorer API', async () => {
+        const scheduledTxs: Record<string, TimelockTx> =
+          await reader.getScheduledTransactions();
+
+        // Should find some scheduled transactions on this timelock
+        expect(Object.keys(scheduledTxs).length).to.be.greaterThan(0);
+
+        // Validate structure of returned transactions
+        for (const [txId, tx] of Object.entries(scheduledTxs)) {
+          expect(ZBytes32String.safeParse(txId).success).to.be.true;
+
+          expect(tx.id).to.equal(txId);
+          expect(tx.data.length).to.be.greaterThan(0);
+          expect(tx.delay).not.to.be.undefined;
+          expect(ZBytes32String.safeParse(tx.predecessor).success).to.be.true;
+          expect(ZBytes32String.safeParse(tx.salt).success).to.be.true;
+        }
+      });
+    });
+
+    describe(`${EvmTimelockReader.prototype.getCancelledOperationIds.name}`, () => {
+      it('should retrieve cancelled operation IDs from block explorer API', async () => {
+        const cancelledIds = await reader.getCancelledOperationIds();
+
+        expect(cancelledIds).to.be.instanceOf(Set);
+        for (const id of cancelledIds) {
+          expect(ZBytes32String.safeParse(id).success).to.be.true;
+        }
+      });
+    });
+
+    describe(`${EvmTimelockReader.prototype.getExecutedOperationIds.name}`, () => {
+      it('should retrieve executed operation IDs from block explorer API', async () => {
+        const executedIds = await reader.getExecutedOperationIds();
+
+        // Should find some executed transactions on this timelock
+        expect(executedIds.size).to.be.greaterThan(0);
+        for (const id of executedIds) {
+          expect(ZBytes32String.safeParse(id).success).to.be.true;
+        }
+      });
+    });
+
+    describe(`${EvmTimelockReader.prototype.getScheduledExecutableTransactions.name}`, () => {
+      it('should retrieve scheduled executable transactions from block explorer API', async () => {
+        const executableTxs = await reader.getScheduledExecutableTransactions();
+
+        for (const [txId, executableTx] of Object.entries(executableTxs)) {
+          expect(executableTx.id).to.equal(txId);
+          expect(ZBytes32String.safeParse(txId).success).to.be.true;
+          expect(executableTx.data.length).to.be.greaterThan(0);
+          expect(executableTx.encodedExecuteTransaction).to.be.a('string');
+          expect(
+            executableTx.encodedExecuteTransaction.length,
+          ).to.be.greaterThan(0);
+          expect(executableTx.delay).not.to.be.undefined;
+          expect(ZBytes32String.safeParse(executableTx.predecessor).success).to
+            .be.true;
+          expect(ZBytes32String.safeParse(executableTx.salt).success).to.be
+            .true;
+        }
+      });
+    });
+  });
 });

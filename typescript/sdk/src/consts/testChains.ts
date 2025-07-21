@@ -186,6 +186,10 @@ export const testStarknetChain: ChainMetadata = {
   ],
 };
 
+// Address of a timelock contract on base that can be used for integration tests
+export const KNOWN_BASE_TIMELOCK_CONTRACT =
+  '0x733BC1F0D76AB8f0AB7C1c8044ECc4720Cd402AD';
+
 // Base chain metadata for testing with block explorer
 export const baseTestChain: ChainMetadata = {
   blockExplorers: [
