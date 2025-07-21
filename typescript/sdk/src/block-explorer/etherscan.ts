@@ -41,7 +41,11 @@ async function handleEtherscanResponse<T>(response: Response): Promise<T> {
 
   const explorerUrl = new URL(response.url);
   // Avoid throwing if no logs are found for the current address
-  if (body.status === '0' && body.message !== 'No records found') {
+  if (
+    body.status === '0' &&
+    body.message !== 'No records found' &&
+    body.message !== 'No logs found'
+  ) {
     throw new Error(
       `Error while performing request to Etherscan like API at ${explorerUrl.host}: ${body.message} ${body.result}`,
     );
