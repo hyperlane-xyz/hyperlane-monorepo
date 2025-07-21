@@ -5,12 +5,12 @@ import {
   TokenType,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { assert, objMap } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { getRegistry } from '../../../../registry.js';
 import { usdcTokenAddresses } from '../cctp.js';
-import { WarpRouteIds } from '../warpIds.js';
+
+import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const FIAT_COLLATERAL_CHAIN = 'lumiaprism';
 const FIAT_TOKEN = '0xFF297AC2CB0a236155605EB37cB55cFCAe6D3F01';
@@ -55,16 +55,8 @@ console.log(JSON.stringify(submitterConfig, null, 2));
 export const getLumiaUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const registry = getRegistry();
-  const mainnetCCTP = registry.getWarpRoute(WarpRouteIds.MainnetCCTP);
-
-  assert(mainnetCCTP, 'MainnetCCTP warp route not found');
-
-  const cctpBridges = Object.fromEntries(
-    mainnetCCTP.tokens.map(({ chainName, addressOrDenom }) => [
-      chainName,
-      addressOrDenom!,
-    ]),
+  const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
+    Object.keys(owners),
   );
 
   return objMap(owners, (chain, owner): HypTokenRouterConfig => {
@@ -77,23 +69,13 @@ export const getLumiaUSDCWarpConfig = async (
       };
     }
 
-    const cctpBridge = cctpBridges[chain];
-    const remotes = Object.keys(owners).filter(
-      (c) => c !== chain && c !== FIAT_COLLATERAL_CHAIN,
-    );
-
-    const allowedRebalancingBridges = Object.fromEntries(
-      remotes.map((remote) => [remote, [{ bridge: cctpBridge }]]),
-    );
-
     const config: HypTokenRouterConfig = {
       ...routerConfig[chain],
+      ...rebalancingConfig[chain],
       type: TokenType.collateral,
       token: usdcTokenAddresses[chain],
       owner,
       contractVersion: '8.0.0',
-      allowedRebalancers: [REBALANCER],
-      allowedRebalancingBridges,
     };
 
     return config;
