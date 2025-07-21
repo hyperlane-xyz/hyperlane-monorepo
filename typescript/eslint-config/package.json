@@ -1,0 +1,17 @@
+{
+    "name": "@hyperlane-xyz/eslint-config",
+    "version": "15.0.0",
+    "description": "Hyperlane ESLint config",
+    "private": true,
+    "type": "module",
+    "license": "Apache-2.0",
+    "exports": {
+        ".": "./index.js"
+    },
+    "dependencies": {
+        "@eslint/js": "^9.31.0",
+        "eslint": "^9.31.0",
+        "eslint-config-prettier": "^10.1.8",
+        "typescript-eslint": "^8.37.0"
+    }
+}
