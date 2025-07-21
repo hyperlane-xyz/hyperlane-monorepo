@@ -588,7 +588,7 @@ mod test {
         lowest_block_height_or_sequence: i64,
     ) -> BackwardSequenceAwareSyncCursor<MockSequencedData> {
         let latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
-            latest_sequence_count: Some(5),
+            latest_sequence_count: Some(100),
             tip: 100,
         });
 
