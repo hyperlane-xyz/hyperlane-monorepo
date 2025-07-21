@@ -28,6 +28,7 @@ pub trait Factory {
         &self,
         domain: HyperlaneDomain,
         chain_conf: ChainConf,
+        dispatcher_metrics: DispatcherMetrics,
     ) -> Result<Destination, FactoryError>;
 }
 
@@ -47,9 +48,10 @@ impl Factory for DestinationFactory {
         &self,
         domain: HyperlaneDomain,
         chain_conf: ChainConf,
+        dispatcher_metrics: DispatcherMetrics,
     ) -> Result<Destination, FactoryError> {
         let (dispatcher_entrypoint, dispatcher) = self
-            .init_dispatcher_and_entrypoint(&domain, chain_conf)
+            .init_dispatcher_and_entrypoint(&domain, chain_conf, dispatcher_metrics)
             .await?;
 
         let destination = Destination {
@@ -67,13 +69,11 @@ impl DestinationFactory {
         &self,
         domain: &HyperlaneDomain,
         chain_conf: ChainConf,
+        dispatcher_metrics: DispatcherMetrics,
     ) -> Result<(Option<DispatcherEntrypoint>, Option<Dispatcher>), FactoryError> {
         if chain_conf.submitter != SubmitterType::Lander {
             return Ok((None, None));
         }
-
-        let dispatcher_metrics = DispatcherMetrics::new(self.core_metrics.registry())
-            .expect("Creating dispatcher metrics is infallible");
 
         let dispatcher_settings = DispatcherSettings {
             chain_conf,

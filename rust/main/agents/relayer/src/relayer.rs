@@ -64,6 +64,7 @@ use crate::{
 };
 
 use destination::Destination;
+use lander::DispatcherMetrics;
 
 mod destination;
 
@@ -200,9 +201,16 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized validator announces", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
-        let destinations =
-            Self::build_destinations(&settings, db.clone(), core_metrics.clone(), &chain_metrics)
-                .await;
+        let dispatcher_metrics = DispatcherMetrics::new(core_metrics.registry())
+            .expect("Creating dispatcher metrics is infallible");
+        let destinations = Self::build_destinations(
+            &settings,
+            db.clone(),
+            core_metrics.clone(),
+            &chain_metrics,
+            dispatcher_metrics,
+        )
+        .await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized destination chains", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
@@ -1091,6 +1099,7 @@ impl Relayer {
         db: DB,
         core_metrics: Arc<CoreMetrics>,
         chain_metrics: &ChainMetrics,
+        dispatcher_metrics: DispatcherMetrics,
     ) -> HashMap<HyperlaneDomain, Destination> {
         use destination::DestinationFactory;
         use destination::Factory;
@@ -1103,7 +1112,9 @@ impl Relayer {
             .map(|(domain, chain)| async {
                 (
                     domain.clone(),
-                    factory.create(domain.clone(), chain.clone()).await,
+                    factory
+                        .create(domain.clone(), chain.clone(), dispatcher_metrics.clone())
+                        .await,
                 )
             })
             .collect();
