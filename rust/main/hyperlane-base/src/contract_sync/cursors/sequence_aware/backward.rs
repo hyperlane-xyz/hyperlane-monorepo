@@ -206,7 +206,13 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                 .latest_sequence_count_and_tip()
                 .await
                 .ok()?;
-            Some((latest_tip as i64).saturating_add(self.lowest_block_height_or_sequence) as u32)
+            let lowest_block_height_or_sequence =
+                (latest_tip as i64).saturating_add(self.lowest_block_height_or_sequence);
+            if lowest_block_height_or_sequence < 0 {
+                Some(0)
+            } else {
+                Some(lowest_block_height_or_sequence)
+            }
         } else {
             Some(self.lowest_block_height_or_sequence as u32)
         }
