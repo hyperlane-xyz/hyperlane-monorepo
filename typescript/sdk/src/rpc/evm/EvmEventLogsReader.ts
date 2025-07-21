@@ -7,6 +7,7 @@ import {
   getContractDeploymentTransaction,
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../../block-explorer/etherscan.js';
+import { assertIsContractAddress } from '../../contracts/contracts.js';
 import {
   ChainMetadataManager,
   ChainNameOrId,
@@ -124,7 +125,6 @@ export class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
   }
 }
 
-// TODO: implement tests for this
 export class EvmEventLogsReader {
   protected constructor(
     protected readonly config: EvmEventLogsReaderConfig,
@@ -172,8 +172,11 @@ export class EvmEventLogsReader {
     const parsedOptions = GetLogByTopicOptionsSchema.parse(options);
 
     const provider = this.multiProvider.getProvider(this.config.chain);
-    const contractCode = await provider.getCode(parsedOptions.contractAddress);
-    assert(contractCode !== '0x', '');
+    await assertIsContractAddress(
+      this.multiProvider,
+      this.config.chain,
+      options.contractAddress,
+    );
 
     const fromBlock =
       parsedOptions.fromBlock ??

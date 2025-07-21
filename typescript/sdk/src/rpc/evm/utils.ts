@@ -1,7 +1,11 @@
 import { Hex, Log } from 'viem';
 
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
+import {
+  assertIsContractAddress,
+  isContractAddress,
+} from '../../contracts/contracts.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ChainNameOrId } from '../../types.js';
 
@@ -13,25 +17,24 @@ export async function getContractCreationBlockFromRpc(
   contractAddress: Address,
   multiProvider: MultiProvider,
 ): Promise<number> {
-  const provider = multiProvider.getProvider(chain);
+  await assertIsContractAddress(multiProvider, chain, contractAddress);
 
-  const [latestBlock, latestCode] = await Promise.all([
-    provider.getBlockNumber(),
-    provider.getCode(contractAddress),
-  ]);
-  assert(
-    latestCode !== '0x',
-    `Address "${contractAddress}" on chain "${chain}" is not a contract`,
-  );
+  const provider = multiProvider.getProvider(chain);
+  const latestBlock = await provider.getBlockNumber();
 
   let low = 0;
   let high = latestBlock;
   let creationBlock = latestBlock;
   while (low <= high) {
     const mid = Math.floor((low + high) / 2);
-    const code = await provider.getCode(contractAddress, mid);
+    const isContract = await isContractAddress(
+      multiProvider,
+      chain,
+      contractAddress,
+      mid,
+    );
 
-    if (code !== '0x') {
+    if (isContract) {
       creationBlock = mid;
       high = mid - 1;
     } else {
