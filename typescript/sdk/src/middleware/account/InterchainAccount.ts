@@ -230,21 +230,21 @@ export async function buildInterchainAccountApp(
   multiProvider: MultiProvider,
   chain: ChainName,
   config: AccountConfig,
-  addressByChain: ChainMap<Record<string, string>>,
+  coreAddressesByChain: ChainMap<Record<string, string>>,
 ): Promise<InterchainAccount> {
   if (!config.localRouter) {
     throw new Error('localRouter is required for account deployment');
   }
 
   let remoteIcaAddresses: ChainMap<{ interchainAccountRouter: Address }>;
-  const localChainAddresses = addressByChain[chain];
+  const localChainAddresses = coreAddressesByChain[chain];
   // if the user specified a custom router address we need to retrieve the remote ica addresses
   // configured on the user provided router, otherwise we use the ones defined in the registry
   if (
     localChainAddresses?.interchainAccountRouter &&
     eqAddress(config.localRouter, localChainAddresses.interchainAccountRouter)
   ) {
-    remoteIcaAddresses = objMap(addressByChain, (_, chainAddresses) => ({
+    remoteIcaAddresses = objMap(coreAddressesByChain, (_, chainAddresses) => ({
       interchainAccountRouter: chainAddresses.interchainAccountRouter,
     }));
   } else {
@@ -287,10 +287,15 @@ export async function deployInterchainAccount(
   multiProvider: MultiProvider,
   chain: ChainName,
   config: AccountConfig,
-  registry: ChainMap<Record<string, string>>,
+  coreAddressesByChain: ChainMap<Record<string, string>>,
 ): Promise<Address> {
   const interchainAccountApp: InterchainAccount =
-    await buildInterchainAccountApp(multiProvider, chain, config, registry);
+    await buildInterchainAccountApp(
+      multiProvider,
+      chain,
+      config,
+      coreAddressesByChain,
+    );
   return interchainAccountApp.deployAccount(chain, config);
 }
 
