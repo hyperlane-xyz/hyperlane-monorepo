@@ -940,7 +940,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     submitter: await getSubmitterBuilder<T>({
       submissionStrategy: submissionStrategy as SubmissionStrategy, // TODO: fix this
       multiProvider,
-      registry,
+      coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories: {
         file: (_multiProvider: MultiProvider, metadata: any) => {
           return new EV5FileSubmitter(metadata);
