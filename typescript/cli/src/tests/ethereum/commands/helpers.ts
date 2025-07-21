@@ -14,6 +14,7 @@ import {
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   HypTokenRouterConfig,
+  MultiProtocolProvider,
   TokenType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
@@ -21,7 +22,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, inCIMode } from '@hyperlane-xyz/utils';
 
+import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { getContext } from '../../../context/context.js';
+import { MultiProtocolSignerManager } from '../../../context/strategies/signer/MultiProtocolSignerManager.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -297,12 +300,32 @@ export async function setupIncompleteWarpRouteExtension(
   context.multiProvider.setSigner(CHAIN_NAME_2, signer2);
   context.multiProvider.setSigner(CHAIN_NAME_3, signer3);
 
+  const strategyConfig = context.strategyPath
+    ? await readChainSubmissionStrategyConfig(context.strategyPath)
+    : {};
+
+  const multiProtocolProvider = new MultiProtocolProvider(
+    context.chainMetadata,
+  );
+  const multiProtocolSigner = new MultiProtocolSignerManager(
+    strategyConfig,
+    [CHAIN_NAME_2, CHAIN_NAME_3],
+    context.multiProvider,
+    multiProtocolProvider,
+    { key: ANVIL_KEY },
+  );
+
+  await multiProtocolSigner.initAllSigners();
+
+  context.multiProvider = await multiProtocolSigner.getMultiProvider();
+
   await extendWarpRouteWithoutApplyTransactions(
     {
       context: {
         ...context,
         signer: signer3,
         key: ANVIL_KEY,
+        multiProtocolSigner,
       },
       warpCoreConfig,
       warpDeployConfig,
