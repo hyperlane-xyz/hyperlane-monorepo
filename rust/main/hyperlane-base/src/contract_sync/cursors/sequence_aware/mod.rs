@@ -15,6 +15,8 @@ mod forward;
 pub(crate) use backward::BackwardSequenceAwareSyncCursor;
 pub(crate) use forward::ForwardSequenceAwareSyncCursor;
 
+use crate::cursors::sequence_aware::backward::BackwardSequenceAwareSyncCursorParams;
+
 use super::{CursorMetrics, Indexable};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,7 +33,7 @@ struct LastIndexedSnapshot {
 
 /// Used to avoid going over the `instrument` macro limit.
 #[derive(Debug, Clone)]
-struct MetricsData {
+pub struct MetricsData {
     pub domain: HyperlaneDomain,
     pub metrics: Arc<CursorMetrics>,
 }
@@ -111,16 +113,18 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
             mode,
             metrics_data.clone(),
         );
-        let backward_cursor = BackwardSequenceAwareSyncCursor::new(
+
+        let params = BackwardSequenceAwareSyncCursorParams {
             chunk_size,
-            latest_sequence_querier.clone(),
+            latest_sequence_querier: latest_sequence_querier.clone(),
             lowest_block_height_or_sequence,
             store,
-            sequence_count,
-            tip,
-            mode,
+            current_sequence_count: sequence_count,
+            start_block: tip,
+            index_mode: mode,
             metrics_data,
-        );
+        };
+        let backward_cursor = BackwardSequenceAwareSyncCursor::new(params);
         Ok(Self {
             forward: forward_cursor,
             backward: backward_cursor,

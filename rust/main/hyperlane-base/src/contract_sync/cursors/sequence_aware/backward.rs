@@ -62,18 +62,42 @@ impl<T> Debug for BackwardSequenceAwareSyncCursor<T> {
     }
 }
 
+#[derive(Clone)]
+pub struct BackwardSequenceAwareSyncCursorParams<T> {
+    pub chunk_size: u32,
+    pub latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
+    pub lowest_block_height_or_sequence: i64,
+    pub store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+    pub current_sequence_count: u32,
+    pub start_block: u32,
+    pub index_mode: IndexMode,
+    pub metrics_data: MetricsData,
+}
+
+impl<T: Debug + Clone + Sync + Send + Indexable + 'static> Debug
+    for BackwardSequenceAwareSyncCursorParams<T>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BackwardSequenceAwareSyncCursorParams {{ chunk_size: {}, lowest_block_height_or_sequence: {}, current_sequence_count {}, start_block: {}, indexx_mode: {:?} }}",
+            self.chunk_size, self.lowest_block_height_or_sequence, self.current_sequence_count,
+            self.start_block, self.index_mode)
+    }
+}
+
 impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAwareSyncCursor<T> {
-    #[instrument(skip(latest_sequence_querier, store, metrics_data), ret)]
-    pub fn new(
-        chunk_size: u32,
-        latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
-        lowest_block_height_or_sequence: i64,
-        store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
-        current_sequence_count: u32,
-        start_block: u32,
-        index_mode: IndexMode,
-        metrics_data: MetricsData,
-    ) -> Self {
+    #[instrument(ret)]
+    pub fn new(params: BackwardSequenceAwareSyncCursorParams<T>) -> Self {
+        let BackwardSequenceAwareSyncCursorParams {
+            chunk_size,
+            latest_sequence_querier,
+            lowest_block_height_or_sequence,
+            store,
+            current_sequence_count,
+            start_block,
+            index_mode,
+            metrics_data,
+        } = params;
+
         // If the current sequence count is 0, we haven't indexed anything yet.
         // Otherwise, consider the current sequence count as the last indexed snapshot,
         // indicating the upper bound of sequences to index.
@@ -566,16 +590,17 @@ mod test {
             domain: HyperlaneDomain::new_test_domain("test"),
             metrics: Arc::new(mock_cursor_metrics()),
         };
-        let mut cursor = BackwardSequenceAwareSyncCursor::new(
+        let params = BackwardSequenceAwareSyncCursorParams {
             chunk_size,
             latest_sequence_querier,
             lowest_block_height_or_sequence,
-            db,
-            INITIAL_SEQUENCE_COUNT,
-            INITIAL_START_BLOCK,
-            mode,
+            store: db,
+            current_sequence_count: INITIAL_SEQUENCE_COUNT,
+            start_block: INITIAL_START_BLOCK,
+            index_mode: mode,
             metrics_data,
-        );
+        };
+        let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
 
         // Skip any already indexed logs and sanity check we start at the correct spot.
         cursor.skip_indexed().await.unwrap();
@@ -916,16 +941,18 @@ mod test {
                 domain: HyperlaneDomain::new_test_domain("test"),
                 metrics: Arc::new(mock_cursor_metrics()),
             };
-            let mut cursor = BackwardSequenceAwareSyncCursor::new(
-                CHUNK_SIZE,
+
+            let params = BackwardSequenceAwareSyncCursorParams {
+                chunk_size: CHUNK_SIZE,
                 latest_sequence_querier,
-                LOWEST_BLOCK_HEIGHT,
-                db,
-                INITIAL_SEQUENCE_COUNT,
-                INITIAL_START_BLOCK,
-                INDEX_MODE,
+                lowest_block_height_or_sequence: LOWEST_BLOCK_HEIGHT,
+                store: db,
+                current_sequence_count: INITIAL_SEQUENCE_COUNT,
+                start_block: INITIAL_START_BLOCK,
+                index_mode: INDEX_MODE,
                 metrics_data,
-            );
+            };
+            let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
 
             // We're fully synced, so expect no range
             assert_eq!(cursor.get_next_range().await.unwrap(), None);
