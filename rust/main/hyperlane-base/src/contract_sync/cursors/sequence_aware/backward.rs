@@ -78,9 +78,16 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> Debug
     for BackwardSequenceAwareSyncCursorParams<T>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "BackwardSequenceAwareSyncCursorParams {{ chunk_size: {}, lowest_block_height_or_sequence: {}, current_sequence_count {}, start_block: {}, indexx_mode: {:?} }}",
-            self.chunk_size, self.lowest_block_height_or_sequence, self.current_sequence_count,
-            self.start_block, self.index_mode)
+        f.debug_struct("BackwardSequenceAwareSyncCursorParams")
+            .field("chunk_size", &self.chunk_size)
+            .field(
+                "lowest_block_height_or_sequence",
+                &self.lowest_block_height_or_sequence,
+            )
+            .field("current_sequence_count", &self.current_sequence_count)
+            .field("start_block", &self.start_block)
+            .field("index_mode", &self.index_mode)
+            .finish()
     }
 }
 
