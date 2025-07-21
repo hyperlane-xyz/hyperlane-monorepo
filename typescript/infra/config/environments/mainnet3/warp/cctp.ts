@@ -36,6 +36,7 @@ export const usdcTokenAddresses = {
   optimism: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
   polkadotassethub: '1337',
   polygon: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+  solana: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   sonic: '0x29219dd400f2Bf60E5a23d13Be72B486D4038894',
   stellar: 'USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
   sui: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
