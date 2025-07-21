@@ -63,11 +63,7 @@ impl<T> Debug for BackwardSequenceAwareSyncCursor<T> {
 }
 
 impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAwareSyncCursor<T> {
-    #[instrument(
-        skip(store, latest_sequence_querier, metrics_data),
-        fields(chunk_size, lowest_block_height_or_sequence, start_block, index_mode),
-        ret
-    )]
+    #[instrument(skip(latest_sequence_querier, store, metrics_data), ret)]
     pub fn new(
         chunk_size: u32,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
