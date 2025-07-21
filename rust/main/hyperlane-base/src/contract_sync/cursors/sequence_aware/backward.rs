@@ -220,21 +220,34 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     }
 
     async fn get_lowest_block_height_or_sequence(&self) -> Option<u32> {
-        if self.lowest_block_height_or_sequence < 0 {
-            let (_, latest_tip) = self
-                .latest_sequence_querier
-                .latest_sequence_count_and_tip()
-                .await
-                .ok()?;
-            let lowest_block_height_or_sequence =
-                (latest_tip as i64).saturating_add(self.lowest_block_height_or_sequence);
-            if lowest_block_height_or_sequence < 0 {
-                Some(0)
-            } else {
-                Some(lowest_block_height_or_sequence as u32)
+        if self.lowest_block_height_or_sequence >= 0 {
+            return Some(self.lowest_block_height_or_sequence as u32);
+        }
+
+        let (sequence_count, latest_tip) = self
+            .latest_sequence_querier
+            .latest_sequence_count_and_tip()
+            .await
+            .ok()?;
+        match self.index_mode {
+            IndexMode::Block => {
+                let lowest_block_height =
+                    (latest_tip as i64).saturating_add(self.lowest_block_height_or_sequence);
+                if lowest_block_height < 0 {
+                    Some(0)
+                } else {
+                    Some(lowest_block_height as u32)
+                }
             }
-        } else {
-            Some(self.lowest_block_height_or_sequence as u32)
+            IndexMode::Sequence => sequence_count.map(|seq_count| {
+                let lowest_sequence_count =
+                    (seq_count as i64).saturating_add(self.lowest_block_height_or_sequence);
+                if lowest_sequence_count < 0 {
+                    0
+                } else {
+                    lowest_sequence_count as u32
+                }
+            }),
         }
     }
 
