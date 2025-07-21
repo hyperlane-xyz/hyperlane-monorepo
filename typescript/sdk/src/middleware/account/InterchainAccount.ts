@@ -5,7 +5,6 @@ import {
   InterchainAccountRouter,
   InterchainAccountRouter__factory,
 } from '@hyperlane-xyz/core';
-import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   Address,
   CallData,
@@ -231,22 +230,20 @@ export async function buildInterchainAccountApp(
   multiProvider: MultiProvider,
   chain: ChainName,
   config: AccountConfig,
-  registry: Readonly<IRegistry>,
+  addressByChain: ChainMap<Record<string, string>>,
 ): Promise<InterchainAccount> {
   if (!config.localRouter) {
     throw new Error('localRouter is required for account deployment');
   }
 
   let remoteIcaAddresses: ChainMap<{ interchainAccountRouter: Address }>;
-  const localChainAddresses = await registry.getChainAddresses(chain);
+  const localChainAddresses = addressByChain[chain];
   // if the user specified a custom router address we need to retrieve the remote ica addresses
   // configured on the user provided router, otherwise we use the ones defined in the registry
   if (
     localChainAddresses?.interchainAccountRouter &&
     eqAddress(config.localRouter, localChainAddresses.interchainAccountRouter)
   ) {
-    const addressByChain = await registry.getAddresses();
-
     remoteIcaAddresses = objMap(addressByChain, (_, chainAddresses) => ({
       interchainAccountRouter: chainAddresses.interchainAccountRouter,
     }));
@@ -290,7 +287,7 @@ export async function deployInterchainAccount(
   multiProvider: MultiProvider,
   chain: ChainName,
   config: AccountConfig,
-  registry: IRegistry,
+  registry: ChainMap<Record<string, string>>,
 ): Promise<Address> {
   const interchainAccountApp: InterchainAccount =
     await buildInterchainAccountApp(multiProvider, chain, config, registry);
