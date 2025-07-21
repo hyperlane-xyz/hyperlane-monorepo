@@ -4,7 +4,6 @@ import { Logger } from 'pino';
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
   ChainName,
-  ChainSubmissionStrategy,
   MultiProtocolProvider,
   MultiProvider,
   ProtocolMap,
@@ -17,6 +16,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 import { ENV } from '../../../utils/env.js';
 
 import {
@@ -41,7 +41,7 @@ export class MultiProtocolSignerManager {
   public readonly logger: Logger;
 
   constructor(
-    protected readonly submissionStrategy: ChainSubmissionStrategy,
+    protected readonly submissionStrategy: ExtendedChainSubmissionStrategy,
     protected readonly chains: ChainName[],
     protected readonly multiProvider: MultiProvider,
     protected readonly multiProtocolProvider: MultiProtocolProvider,
@@ -258,7 +258,10 @@ export class MultiProtocolSignerManager {
     switch (metadata.protocol) {
       case ProtocolType.Ethereum: {
         const provider = params.isDryRun
-          ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
+          ? getLocalProvider({
+              anvilIPAddr: ENV.ANVIL_IP_ADDR,
+              anvilPort: ENV.ANVIL_PORT,
+            })
           : this.multiProvider.getProvider(params.chain);
         const balance = await provider.getBalance(params.address);
         return balance;

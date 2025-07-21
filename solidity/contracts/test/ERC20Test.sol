@@ -254,6 +254,10 @@ contract XERC20VSTest is ERC20Test, Ownable, IXERC20VS {
     function bufferCap(address from) public view returns (uint256) {
         return _rateLimits[from].bufferCap;
     }
+
+    function mintOnlyOwner(address account, uint256 amount) public onlyOwner {
+        _mint(account, amount);
+    }
 }
 
 contract XERC20LockboxTest is IXERC20Lockbox {

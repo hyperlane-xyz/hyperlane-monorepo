@@ -83,6 +83,41 @@ mock! {
     }
 }
 
+mock! {
+    pub SvmProvider {}
+
+    #[async_trait]
+    impl SealevelProviderForLander for SvmProvider {
+        async fn create_transaction_for_instruction(
+            &self,
+            compute_unit_limit: u32,
+            compute_unit_price_micro_lamports: u64,
+            instruction: SealevelInstruction,
+            payer: &SealevelKeypair,
+            tx_submitter: Arc<dyn TransactionSubmitter>,
+            sign: bool,
+        ) -> ChainResult<SealevelTransaction>;
+
+        async fn get_estimated_costs_for_instruction(
+            &self,
+            instruction: SealevelInstruction,
+            payer: &SealevelKeypair,
+            tx_submitter: Arc<dyn TransactionSubmitter>,
+            priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
+        ) -> ChainResult<SealevelTxCostEstimate>;
+
+        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTransaction)
+            -> ChainResult<()>;
+
+        async fn confirm_transaction(
+            &self,
+            signature: Signature,
+            commitment: CommitmentConfig,
+        ) -> ChainResult<bool>;
+    }
+}
+
+// used for localized tests for estimating, simulating, submitting txs etc
 struct MockProvider {}
 
 #[async_trait]
@@ -93,7 +128,7 @@ impl SealevelProviderForLander for MockProvider {
         _compute_unit_price_micro_lamports: u64,
         _instruction: SealevelInstruction,
         _payer: &SealevelKeypair,
-        _tx_submitter: &dyn TransactionSubmitter,
+        _tx_submitter: Arc<dyn TransactionSubmitter>,
         _sign: bool,
     ) -> ChainResult<SealevelTransaction> {
         let keypair = SealevelKeypair::default();
@@ -107,8 +142,8 @@ impl SealevelProviderForLander for MockProvider {
         &self,
         _instruction: SealevelInstruction,
         _payer: &SealevelKeypair,
-        _tx_submitter: &dyn TransactionSubmitter,
-        _priority_fee_oracle: &dyn PriorityFeeOracle,
+        _tx_submitter: Arc<dyn TransactionSubmitter>,
+        _priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     ) -> ChainResult<SealevelTxCostEstimate> {
         Ok(SealevelTxCostEstimate {
             compute_units: GAS_LIMIT,
@@ -146,10 +181,10 @@ pub fn adapter() -> SealevelAdapter {
     let submitter = mock_submitter();
 
     SealevelAdapter::new_internal_default(
-        Box::new(client),
-        Box::new(provider),
-        Box::new(oracle),
-        Box::new(submitter),
+        Arc::new(client),
+        Arc::new(provider),
+        Arc::new(oracle),
+        Arc::new(submitter),
     )
 }
 
@@ -163,10 +198,10 @@ pub fn adapter_config(conf: ChainConf) -> SealevelAdapter {
     SealevelAdapter::new_internal(
         conf,
         raw_conf,
-        Box::new(client),
-        Box::new(provider),
-        Box::new(oracle),
-        Box::new(submitter),
+        Arc::new(client),
+        Arc::new(provider),
+        Arc::new(oracle),
+        Arc::new(submitter),
     )
     .unwrap()
 }
@@ -199,17 +234,17 @@ fn mock_client() -> MockClient {
     let mut client = MockClient::new();
     client
         .expect_get_block_with_commitment()
-        .returning(move |_, _| Ok(block()));
+        .returning(move |_, _| Ok(svm_block()));
     client
         .expect_get_transaction_with_commitment()
-        .returning(move |_, _| Ok(encoded_transaction()));
+        .returning(move |_, _| Ok(encoded_svm_transaction()));
     client
         .expect_simulate_transaction()
         .returning(move |_| Ok(result.clone()));
     client
 }
 
-fn block() -> UiConfirmedBlock {
+pub fn svm_block() -> UiConfirmedBlock {
     UiConfirmedBlock {
         previous_blockhash: "".to_string(),
         blockhash: "".to_string(),
@@ -222,7 +257,7 @@ fn block() -> UiConfirmedBlock {
     }
 }
 
-fn encoded_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
+pub fn encoded_svm_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
     EncodedConfirmedTransactionWithStatusMeta {
         slot: 43,
         transaction: EncodedTransactionWithStatusMeta {

@@ -15,8 +15,6 @@ import {
   CCIPContractCache,
   ChainMap,
   ChainName,
-  ChainSubmissionStrategy,
-  ChainSubmissionStrategySchema,
   ContractVerifier,
   CosmosNativeDeployer,
   CosmosNativeIsmModule,
@@ -42,7 +40,6 @@ import {
   PausableIsmConfig,
   RoutingIsmConfig,
   SubmissionStrategy,
-  SubmissionStrategySchema,
   TokenMetadataMap,
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
@@ -86,6 +83,12 @@ import {
   warnYellow,
 } from '../logger.js';
 import { WarpSendLogs } from '../send/transfer.js';
+import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
+import {
+  ExtendedChainSubmissionStrategy,
+  ExtendedChainSubmissionStrategySchema,
+  ExtendedSubmissionStrategy,
+} from '../submitters/types.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -936,11 +939,13 @@ async function updateExistingWarpRoute(
  */
 export function readChainSubmissionStrategy(
   submissionStrategyFilepath: string,
-): ChainSubmissionStrategy {
+): ExtendedChainSubmissionStrategy {
   const submissionStrategyFileContent = readYamlOrJson(
     submissionStrategyFilepath.trim(),
   );
-  return ChainSubmissionStrategySchema.parse(submissionStrategyFileContent);
+  return ExtendedChainSubmissionStrategySchema.parse(
+    submissionStrategyFileContent,
+  );
 }
 
 /**
@@ -1150,7 +1155,7 @@ async function submitWarpApplyTransactions(
           async () => {
             const chain = chainIdToName[chainId];
             const isExtendedChain = extendedChains.includes(chain);
-            const { submitter, config } = await getWarpApplySubmitter({
+            const { submitter, config } = await getSubmitterByStrategy({
               chain,
               context: params.context,
               strategyUrl: params.strategyUrl,
@@ -1209,7 +1214,7 @@ async function submitWarpApplyTransactions(
  *
  * @returns the warp apply submitter
  */
-async function getWarpApplySubmitter<T extends ProtocolType>({
+export async function getSubmitterByStrategy<T extends ProtocolType>({
   chain,
   context,
   strategyUrl,
@@ -1221,11 +1226,11 @@ async function getWarpApplySubmitter<T extends ProtocolType>({
   isExtendedChain?: boolean;
 }): Promise<{
   submitter: TxSubmitterBuilder<T>;
-  config: SubmissionStrategy;
+  config: ExtendedSubmissionStrategy;
 }> {
   const { multiProvider, registry } = context;
 
-  const submissionStrategy: SubmissionStrategy =
+  const submissionStrategy: ExtendedSubmissionStrategy =
     strategyUrl && !isExtendedChain
       ? readChainSubmissionStrategy(strategyUrl)[chain]
       : {
@@ -1237,9 +1242,14 @@ async function getWarpApplySubmitter<T extends ProtocolType>({
 
   return {
     submitter: await getSubmitterBuilder<T>({
-      submissionStrategy: SubmissionStrategySchema.parse(submissionStrategy),
+      submissionStrategy: submissionStrategy as SubmissionStrategy, // TODO: fix this
       multiProvider,
       registry,
+      additionalSubmitterFactories: {
+        file: (_multiProvider: MultiProvider, metadata: any) => {
+          return new EV5FileSubmitter(metadata);
+        },
+      },
     }),
     config: submissionStrategy,
   };

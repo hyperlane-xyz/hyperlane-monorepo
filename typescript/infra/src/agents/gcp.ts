@@ -141,7 +141,7 @@ export class AgentGCPKey extends CloudAgentKey {
         );
         // TODO support other prefixes?
         // https://cosmosdrops.io/en/tools/bech32-converter is useful for converting to other prefixes.
-        return pubkeyToAddress(encodedPubkey, 'neutron');
+        return pubkeyToAddress(encodedPubkey, 'celestia');
       }
       default:
         this.logger.debug(`Unsupported protocol: ${protocol}`);
@@ -218,7 +218,7 @@ export class AgentGCPKey extends CloudAgentKey {
   }
 
   async getSigner(
-    provider?: ethers.providers.Provider | ZkProvider,
+    provider: ethers.providers.Provider | ZkProvider,
   ): Promise<ethers.Signer | ZkWallet> {
     this.logger.debug('Getting signer');
     if (!this.remoteKey.fetched) {

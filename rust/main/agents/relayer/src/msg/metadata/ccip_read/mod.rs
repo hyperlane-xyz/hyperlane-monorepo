@@ -131,14 +131,21 @@ impl CcipReadIsmMetadataBuilder {
                         return Err(MetadataBuildError::CouldNotFetch);
                     }
                     Err(raw_error) => {
-                        let matching_regex = Regex::new(r"0x[[:xdigit:]]+")
-                            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+                        let matching_regex = Regex::new(r"0x[[:xdigit:]]+").map_err(|err| {
+                            let msg = format!("Failed to parse regex: {}", err);
+                            MetadataBuildError::FailedToBuild(msg)
+                        })?;
                         if let Some(matching) = &matching_regex.captures(&raw_error.to_string()) {
                             let hex_val = hex_decode(&matching[0][2..]).map_err(|err| {
-                                MetadataBuildError::FailedToBuild(err.to_string())
+                                let msg =
+                                    format!("Failed to decode hex from ISM response: {}", err);
+                                MetadataBuildError::FailedToBuild(msg)
                             })?;
-                            OffchainLookup::decode(hex_val)
-                                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
+                            OffchainLookup::decode(hex_val).map_err(|err| {
+                                let msg =
+                                    format!("Failed to decode offchain lookup struct: {}", err);
+                                MetadataBuildError::FailedToBuild(msg)
+                            })?
                         } else {
                             info!(?raw_error, "unable to parse custom error out of revert");
                             return Err(MetadataBuildError::CouldNotFetch);
@@ -203,7 +210,10 @@ async fn metadata_build(
         .base_builder()
         .build_ccip_read_ism(ism_address)
         .await
-        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+        .map_err(|err| {
+            let msg = format!("Failed to build CCIP read ISM: {}", err);
+            MetadataBuildError::FailedToBuild(msg)
+        })?;
 
     let info = ism_builder
         .call_get_offchain_verify_info(ism, message)
@@ -248,11 +258,21 @@ async fn metadata_build(
                 .json(&body)
                 .send()
                 .await
-                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
+                .map_err(|err| {
+                    let msg = format!(
+                        "Failed to request offchain lookup server with post method: {}",
+                        err
+                    );
+                    MetadataBuildError::FailedToBuild(msg)
+                })?
         } else {
-            reqwest::get(interpolated_url)
-                .await
-                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
+            reqwest::get(interpolated_url).await.map_err(|err| {
+                let msg = format!(
+                    "Failed to request offchain lookup server with get method: {}",
+                    err
+                );
+                MetadataBuildError::FailedToBuild(msg)
+            })?
         };
 
         let json: Result<OffchainResponse, reqwest::Error> = res.json().await;
@@ -260,8 +280,13 @@ async fn metadata_build(
         match json {
             Ok(result) => {
                 // remove leading 0x which hex_decode doesn't like
-                let metadata = hex_decode(&result.data[2..])
-                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+                let metadata = hex_decode(&result.data[2..]).map_err(|err| {
+                    let msg = format!(
+                        "Failed to decode hex from offchain lookup server response: err: ({}), data: ({})",
+                        err, result.data
+                    );
+                    MetadataBuildError::FailedToBuild(msg)
+                })?;
                 return Ok(Metadata::new(metadata));
             }
             Err(_err) => {

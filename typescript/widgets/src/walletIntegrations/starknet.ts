@@ -55,7 +55,10 @@ export function useStarknetWalletDetails(): WalletDetails {
 
   return useMemo<WalletDetails>(
     () => ({
-      name: connector?.id || 'Starknet Wallet',
+      name:
+        connector?.id === 'argentX'
+          ? 'Ready Wallet'
+          : connector?.name || 'Starknet Wallet',
       logoUrl:
         typeof connector?.icon === 'string'
           ? connector.icon

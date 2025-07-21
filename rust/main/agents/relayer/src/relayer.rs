@@ -43,28 +43,28 @@ use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
+use crate::{db_loader::DbLoader, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
+use crate::{
+    db_loader::DbLoaderExt,
+    merkle_tree::db_loader::{MerkleTreeDbLoader, MerkleTreeDbLoaderMetrics},
+};
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     metrics::message_submission::MessageSubmissionMetrics,
     msg::{
         blacklist::AddressBlacklist,
+        db_loader::{MessageDbLoader, MessageDbLoaderMetrics},
         gas_payment::GasPaymentEnforcer,
+        message_processor::{MessageProcessor, MessageProcessorMetrics},
         metadata::{
             BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
             IsmCachePolicyClassifier,
         },
-        op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::MessageContext,
-        processor::{MessageProcessor, MessageProcessorMetrics},
     },
     server::{self as relayer_server},
     settings::{matching_list::MatchingList, RelayerSettings},
 };
-use crate::{
-    merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics},
-    processor::ProcessorExt,
-};
-use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
@@ -524,7 +524,7 @@ impl BaseAgent for Relayer {
                 .core
                 .settings
                 .chains
-                .get(dest_domain.name())
+                .get(dest_domain)
                 .and_then(|chain| {
                     chain
                         .connection
@@ -536,29 +536,29 @@ impl BaseAgent for Relayer {
                 self.core
                     .settings
                     .chains
-                    .get(dest_domain.name())
+                    .get(dest_domain)
                     .and_then(|chain| {
                         chain
                             .connection
                             .operation_submission_config()
                             .and_then(|c| c.max_submit_queue_length)
                     });
-            let serial_submitter = SerialSubmitter::new(
+            let message_processor = MessageProcessor::new(
                 dest_domain.clone(),
                 receive_channel,
                 &sender,
-                SerialSubmitterMetrics::new(&self.core.metrics, dest_domain),
+                MessageProcessorMetrics::new(&self.core.metrics, dest_domain),
                 max_batch_size,
                 max_submit_queue_len,
                 task_monitor.clone(),
                 payload_dispatcher_entrypoint,
                 db,
             );
-            prep_queues.insert(dest_domain.id(), serial_submitter.prepare_queue().await);
+            prep_queues.insert(dest_domain.id(), message_processor.prepare_queue().await);
 
-            tasks.push(self.run_destination_submitter(
+            tasks.push(self.run_destination_processor(
                 dest_domain,
-                serial_submitter,
+                message_processor,
                 task_monitor.clone(),
             ));
 
@@ -588,7 +588,7 @@ impl BaseAgent for Relayer {
             };
             tasks.push(metrics_updater.spawn());
         }
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "started submitters", "Relayer startup duration measurement");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
@@ -656,7 +656,7 @@ impl BaseAgent for Relayer {
             };
             tasks.push(merkle_tree_hook_sync);
 
-            let message_processor = match self.run_message_processor(
+            let message_db_loader = match self.run_message_db_loader(
                 origin,
                 send_channels.clone(),
                 task_monitor.clone(),
@@ -667,29 +667,29 @@ impl BaseAgent for Relayer {
                         origin,
                         &self.chain_metrics,
                         &err,
-                        "Failed to run message processor",
+                        "Failed to run message db loader",
                     );
                     continue;
                 }
             };
-            tasks.push(message_processor);
+            tasks.push(message_db_loader);
 
-            let merkle_tree_processor =
-                match self.run_merkle_tree_processor(origin, task_monitor.clone()) {
+            let merkle_tree_db_loader =
+                match self.run_merkle_tree_db_loader(origin, task_monitor.clone()) {
                     Ok(task) => task,
                     Err(err) => {
                         Self::record_critical_error(
                             origin,
                             &self.chain_metrics,
                             &err,
-                            "Failed to run merkle tree processor",
+                            "Failed to run merkle tree db loader",
                         );
                         continue;
                     }
                 };
-            tasks.push(merkle_tree_processor);
+            tasks.push(merkle_tree_db_loader);
         }
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs, and message and merkle tree processors", "Relayer startup duration measurement");
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs, and message and merkle tree db loader", "Relayer startup duration measurement");
 
         // run server
         start_entity_init = Instant::now();
@@ -778,7 +778,7 @@ impl Relayer {
             .get(&origin)
             .cloned()
             .ok_or_else(|| eyre::eyre!("No message sync found"))?;
-        let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
+        let index_settings = self.as_ref().settings.chains[&origin].index_settings();
         let chain_metrics = self.chain_metrics.clone();
 
         let name = Self::contract_sync_task_name("message::", origin.name());
@@ -830,7 +830,7 @@ impl Relayer {
             .as_ref()
             .settings
             .chains
-            .get(origin.name())
+            .get(&origin)
             .map(|settings| settings.index_settings())
             .ok_or_else(|| eyre::eyre!("Error finding chain index settings"))?;
         let contract_sync = interchain_gas_payment_syncs
@@ -897,7 +897,7 @@ impl Relayer {
             .as_ref()
             .settings
             .chains
-            .get(origin.name())
+            .get(&origin)
             .map(|settings| settings.index_settings())
             .ok_or_else(|| eyre::eyre!("Error finding chain index settings"))?;
         let contract_sync = self
@@ -956,17 +956,14 @@ impl Relayer {
         format!("contract::sync::{}{}", prefix, domain)
     }
 
-    fn run_message_processor(
+    fn run_message_db_loader(
         &self,
         origin: &HyperlaneDomain,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
-        let metrics = MessageProcessorMetrics::new(
-            &self.core.metrics,
-            origin,
-            self.destination_chains.keys(),
-        );
+        let metrics =
+            MessageDbLoaderMetrics::new(&self.core.metrics, origin, self.destination_chains.keys());
         let destination_ctxs: HashMap<_, _> = self
             .destination_chains
             .keys()
@@ -1004,7 +1001,7 @@ impl Relayer {
             .cloned()
             .ok_or_else(|| eyre::eyre!("Db not found"))?;
 
-        let message_processor = MessageProcessor::new(
+        let message_db_loader = MessageDbLoader::new(
             db,
             self.message_whitelist.clone(),
             self.message_blacklist.clone(),
@@ -1016,17 +1013,17 @@ impl Relayer {
             self.max_retries,
         );
 
-        let span = info_span!("MessageProcessor", origin=%message_processor.domain());
-        let processor = Processor::new(Box::new(message_processor), task_monitor.clone());
-        Ok(processor.spawn(span))
+        let span = info_span!("MessageDbLoader", origin=%message_db_loader.domain());
+        let db_loader = DbLoader::new(Box::new(message_db_loader), task_monitor.clone());
+        Ok(db_loader.spawn(span))
     }
 
-    fn run_merkle_tree_processor(
+    fn run_merkle_tree_db_loader(
         &self,
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
-        let metrics = MerkleTreeProcessorMetrics::new(&self.core.metrics, origin);
+        let metrics = MerkleTreeDbLoaderMetrics::new(&self.core.metrics, origin);
         let db = self
             .dbs
             .get(origin)
@@ -1038,32 +1035,32 @@ impl Relayer {
             .cloned()
             .ok_or_else(|| eyre::eyre!("No prover sync found"))?;
 
-        let merkle_tree_processor = MerkleTreeProcessor::new(db, metrics, prover_sync);
-        let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
-        let processor = Processor::new(Box::new(merkle_tree_processor), task_monitor.clone());
-        Ok(processor.spawn(span))
+        let merkle_tree_db_loader = MerkleTreeDbLoader::new(db, metrics, prover_sync);
+        let span = info_span!("MerkleTreeDbLoader", origin=%merkle_tree_db_loader.domain());
+        let db_loader = DbLoader::new(Box::new(merkle_tree_db_loader), task_monitor.clone());
+        Ok(db_loader.spawn(span))
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(skip(self, serial_submitter))]
-    fn run_destination_submitter(
+    #[tracing::instrument(skip(self, message_processor))]
+    fn run_destination_processor(
         &self,
         destination: &HyperlaneDomain,
-        serial_submitter: SerialSubmitter,
+        message_processor: MessageProcessor,
         task_monitor: TaskMonitor,
     ) -> JoinHandle<()> {
-        let span = info_span!("SerialSubmitter", destination=%destination);
+        let span = info_span!("MessageProcessor", destination=%destination);
         let destination = destination.clone();
-        let name = format!("submitter::destination::{}", destination.name());
+        let name = format!("message_processor::destination::{}", destination.name());
         tokio::task::Builder::new()
             .name(&name)
             .spawn(TaskMonitor::instrument(
                 &task_monitor,
                 async move {
                     // Propagate task panics
-                    serial_submitter.spawn().await.unwrap_or_else(|err| {
+                    message_processor.spawn().await.unwrap_or_else(|err| {
                         panic!(
-                            "destination submitter panicked for destination {}: {:?}",
+                            "destination processor panicked for destination {}: {:?}",
                             destination, err
                         )
                     });
@@ -1118,7 +1115,7 @@ impl Relayer {
             .filter(|chain| {
                 settings
                     .chains
-                    .get(&chain.to_string())
+                    .get(chain)
                     .map(|chain| chain.submitter == SubmitterType::Lander)
                     .unwrap_or(false)
             })
@@ -1126,7 +1123,7 @@ impl Relayer {
                 (
                     chain.clone(),
                     DispatcherSettings {
-                        chain_conf: settings.chains[&chain.to_string()].clone(),
+                        chain_conf: settings.chains[chain].clone(),
                         raw_chain_conf: Default::default(),
                         domain: chain.clone(),
                         db: DatabaseOrPath::Database(db.clone()),
@@ -1176,7 +1173,7 @@ impl Relayer {
             .filter(|chain| {
                 settings
                     .chains
-                    .get(&chain.to_string())
+                    .get(chain)
                     .map(|chain| chain.submitter == SubmitterType::Lander)
                     .unwrap_or(false)
             })
@@ -1184,7 +1181,7 @@ impl Relayer {
                 (
                     chain.clone(),
                     DispatcherSettings {
-                        chain_conf: settings.chains[&chain.to_string()].clone(),
+                        chain_conf: settings.chains[chain].clone(),
                         raw_chain_conf: Default::default(),
                         domain: chain.clone(),
                         db: DatabaseOrPath::Database(db.clone()),

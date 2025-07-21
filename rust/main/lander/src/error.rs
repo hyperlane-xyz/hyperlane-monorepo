@@ -61,7 +61,7 @@ impl LanderError {
     }
 }
 
-const GAS_UNDERPRICED_ERRORS: [&str; 4] = [
+const EVM_GAS_UNDERPRICED_ERRORS: [&str; 4] = [
     "replacement transaction underpriced",
     "already known",
     "Fair pubdata price too high",
@@ -69,13 +69,15 @@ const GAS_UNDERPRICED_ERRORS: [&str; 4] = [
     "insufficient fee",
 ];
 
-pub trait IsRetryable {
-    fn is_retryable(&self) -> bool;
-}
+const SVM_BLOCKHASH_NOT_FOUND_ERROR: &str = "Blockhash not found";
 
 // this error is returned randomly by the `TestTokenRecipient`,
 // to simulate delivery errors
 const SIMULATED_DELIVERY_FAILURE_ERROR: &str = "block hash ends in 0";
+
+pub trait IsRetryable {
+    fn is_retryable(&self) -> bool;
+}
 
 impl IsRetryable for LanderError {
     fn is_retryable(&self) -> bool {
@@ -91,10 +93,14 @@ impl IsRetryable for LanderError {
                 if err.to_string().contains(SIMULATED_DELIVERY_FAILURE_ERROR) {
                     return true;
                 }
-                if GAS_UNDERPRICED_ERRORS
+                if EVM_GAS_UNDERPRICED_ERRORS
                     .iter()
                     .any(|&e| err.to_string().contains(e))
                 {
+                    return true;
+                }
+
+                if err.to_string().contains(SVM_BLOCKHASH_NOT_FOUND_ERROR) {
                     return true;
                 }
                 // TODO: add logic to classify based on the error message
