@@ -29,8 +29,7 @@ export class WarpService extends AbstractService {
     filter?: WarpRouteFilterParams,
   ): Promise<ReturnType<IRegistry['getWarpRoutes']>> {
     return this.withRegistry(async (registry) => {
-      const warpCoreConfig = await registry.getWarpRoutes(filter);
-      return warpCoreConfig;
+      return registry.getWarpRoutes(filter);
     });
   }
 
