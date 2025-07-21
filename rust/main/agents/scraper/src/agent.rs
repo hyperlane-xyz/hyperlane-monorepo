@@ -190,9 +190,9 @@ impl Scraper {
 
         Ok(tokio::spawn(
             async move {
-                if let Err(err) = try_join_all(tasks).await {
-                    tracing::error!(?err, "Some scraper tasks failed");
-                }
+                try_join_all(tasks)
+                    .await
+                    .expect("Some scraper tasks failed");
             }
             .instrument(info_span!("Scraper Tasks")),
         ))
