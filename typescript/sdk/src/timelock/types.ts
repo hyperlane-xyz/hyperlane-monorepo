@@ -5,7 +5,8 @@ import { ZChainName, ZHash, ZNzUint } from '../metadata/customZodTypes.js';
 export const TimelockConfigSchema = z.object({
   minimumDelay: ZNzUint,
   proposers: z.array(ZHash).min(1),
-  executors: z.array(ZHash).min(1),
+  executors: z.array(ZHash).min(1).optional(),
+  cancellers: z.array(ZHash).min(1).optional(),
   admin: ZHash.optional(),
 });
 

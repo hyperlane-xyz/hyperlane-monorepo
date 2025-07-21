@@ -15,6 +15,7 @@ import {
 } from '../../config/environments/mainnet3/governance/utils.js';
 import { icaOwnerChain } from '../../config/environments/mainnet3/owners.js';
 import { chainsToSkip } from '../../src/config/chain.js';
+import { baseDeploy } from '../../src/deployment/deploy.js';
 import { GovernanceType, withGovernanceType } from '../../src/governance.js';
 import {
   getTimelockConfigs,
@@ -73,7 +74,8 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
 
   // Get the safe owner for the given governance type
-  const governanceOwner = getGovernanceSafes(governanceType)[ownerChain];
+  const governanceSafes = getGovernanceSafes(governanceType);
+  const governanceOwner = governanceSafes[ownerChain];
   const originOwner = ownerOverride ?? governanceOwner;
   if (!originOwner) {
     throw new Error(`No owner found for ${ownerChain}`);
@@ -108,16 +110,16 @@ async function main() {
   );
 
   // Configure timelocks for the given chains
+  // Ensure that the owner chain has a timelock configured
   const timelockConfigs = getTimelockConfigs({
-    chains: getTimelockChains,
-    owners: governanceIcas,
+    chains: [...getTimelockChains, ownerChain],
+    owners: { ...governanceIcas, [ownerChain]: governanceOwner },
   });
 
   const results: Record<string, { address?: string; status: string }> = {};
 
   await Promise.all(
-    getTimelockChains.map(async (chain) => {
-      const expectedConfig = timelockConfigs[chain];
+    Object.entries(timelockConfigs).map(async ([chain, expectedConfig]) => {
       const timelockAddress = governanceTimelocks[chain];
 
       try {
@@ -150,7 +152,12 @@ async function main() {
   if (Object.keys(timelockConfigs).length === 0) {
     rootLogger.info('No timelocks to deploy');
   } else if (deploy) {
-    const deployedTimelocks = await timelockDeployer.deploy(timelockConfigs);
+    const deployedTimelocks = await baseDeploy(
+      timelockConfigs,
+      timelockDeployer,
+      multiProvider,
+      true,
+    );
     Object.entries(deployedTimelocks).forEach(
       ([chain, { TimelockController }]) => {
         results[chain] = {
@@ -171,6 +178,12 @@ async function main() {
       }))
       .sort((a, b) => a.chain.localeCompare(b.chain)),
   );
+
+  // If any status is not '✅', exit with code 1, else 0
+  const hasFailures = Object.values(results).some(
+    (result) => result.status !== '✅',
+  );
+  process.exit(hasFailures ? 1 : 0);
 }
 
 main()
