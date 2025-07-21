@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber, constants } from 'ethers';
 import {
   ContractEventName,
   getAbiItem,
@@ -27,7 +27,12 @@ import { GetEventLogsResponse } from '../../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../../rpc/evm/utils.js';
 import { ChainNameOrId } from '../../types.js';
 
-import { EMPTY_BYTES_32 } from './constants.js';
+import {
+  CANCELLER_ROLE,
+  EMPTY_BYTES_32,
+  EXECUTOR_ROLE,
+  PROPOSER_ROLE,
+} from './constants.js';
 import { getTimelockExecutableTransactionFromBatch } from './utils.js';
 
 const CALL_EXECUTED_EVENT_SELECTOR = toEventSelector(
@@ -212,6 +217,28 @@ export class EvmTimelockReader {
         };
       },
     );
+  }
+
+  async hasRole(address: Address, role: string): Promise<boolean> {
+    // If the 0 address has the role anyone has the role
+    const [hasRole, isOpenRole] = await Promise.all([
+      this.timelockInstance.hasRole(role, address),
+      this.timelockInstance.hasRole(role, constants.AddressZero),
+    ]);
+
+    return hasRole || isOpenRole;
+  }
+
+  async canExecuteOperations(address: Address): Promise<boolean> {
+    return this.hasRole(address, EXECUTOR_ROLE);
+  }
+
+  async canCancelOperations(address: Address): Promise<boolean> {
+    return this.hasRole(address, CANCELLER_ROLE);
+  }
+
+  async canScheduleOperations(address: Address): Promise<boolean> {
+    return this.hasRole(address, PROPOSER_ROLE);
   }
 }
 
