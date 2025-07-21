@@ -1,9 +1,12 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
-import { isZeroishAddress } from '@hyperlane-xyz/utils';
-import { eqAddress } from '@hyperlane-xyz/utils';
+import {
+  addBufferToGasLimit,
+  eqAddress,
+  isZeroishAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneDeployer } from '../../deploy/HyperlaneDeployer.js';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
@@ -56,18 +59,32 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
 
       this.logger.info(`Revoking CANCELLER_ROLE from ${cancellersToRemove}`);
       for (const proposer of cancellersToRemove) {
+        // Estimate gas before calling revokeRole
+        const estimatedGas = await deployedContract.estimateGas.revokeRole(
+          CANCELLER_ROLE,
+          proposer,
+        );
         await this.multiProvider.handleTx(
           chain,
-          deployedContract.revokeRole(CANCELLER_ROLE, proposer),
+          deployedContract.revokeRole(CANCELLER_ROLE, proposer, {
+            gasLimit: addBufferToGasLimit(estimatedGas),
+          }),
         );
       }
 
       // Give canceller role only to the addresses in the cancellers config
       this.logger.info(`Setting CANCELLER_ROLE to ${config.cancellers}`);
       for (const canceller of config.cancellers) {
+        // Estimate gas before calling grantRole
+        const estimatedGas = await deployedContract.estimateGas.grantRole(
+          CANCELLER_ROLE,
+          canceller,
+        );
         await this.multiProvider.handleTx(
           chain,
-          deployedContract.grantRole(CANCELLER_ROLE, canceller),
+          deployedContract.grantRole(CANCELLER_ROLE, canceller, {
+            gasLimit: addBufferToGasLimit(estimatedGas),
+          }),
         );
       }
     }
@@ -82,9 +99,16 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
       this.logger.info(
         `Granting admin role to the expected admin ${expectedFinalAdmin}`,
       );
+      // Estimate gas before calling grantRole
+      const estimatedGas = await deployedContract.estimateGas.grantRole(
+        adminRole,
+        expectedFinalAdmin,
+      );
       await this.multiProvider.handleTx(
         chain,
-        deployedContract.grantRole(adminRole, expectedFinalAdmin),
+        deployedContract.grantRole(adminRole, expectedFinalAdmin, {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+        }),
       );
     }
 
@@ -92,9 +116,16 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
       this.logger.info(
         `Revoking temporary admin role from deployer ${deployerAddress}`,
       );
+      // Estimate gas before calling revokeRole
+      const estimatedGas = await deployedContract.estimateGas.revokeRole(
+        adminRole,
+        deployerAddress,
+      );
       await this.multiProvider.handleTx(
         chain,
-        deployedContract.revokeRole(adminRole, deployerAddress),
+        deployedContract.revokeRole(adminRole, deployerAddress, {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+        }),
       );
     }
 

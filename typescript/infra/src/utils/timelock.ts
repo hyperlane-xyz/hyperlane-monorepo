@@ -10,7 +10,7 @@ import {
   PROPOSER_ROLE,
   TimelockConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 
@@ -101,22 +101,24 @@ export async function timelockConfigMatches({
 
     // Ensure the proposers that are not in the cancellers array
     // do not have the CANCELLER_ROLE
-    const proposersThatShouldNotBeCancellers = expectedConfig.proposers.filter(
-      (proposer) => !expectedCancellers.includes(proposer),
-    );
-
-    const proposersThatShouldNotBeCancellersRoles = await Promise.all(
-      proposersThatShouldNotBeCancellers.map(async (proposer) => {
-        return timelock.hasRole(CANCELLER_ROLE, proposer);
+    const proposersWithExtraRole: string[] = [];
+    await Promise.all(
+      expectedConfig.proposers.map(async (proposer) => {
+        const proposerIsNotCanceller = !expectedCancellers.some((canceller) =>
+          eqAddress(canceller, proposer),
+        );
+        if (proposerIsNotCanceller) {
+          const hasRole = await timelock.hasRole(CANCELLER_ROLE, proposer);
+          if (hasRole) {
+            proposersWithExtraRole.push(proposer);
+          }
+        }
       }),
     );
 
-    const extraCancellers = proposersThatShouldNotBeCancellersRoles.filter(
-      (_, i) => cancellerRoles[i],
-    );
-    if (extraCancellers.length > 0) {
+    if (proposersWithExtraRole.length > 0) {
       issues.push(
-        `Proposers that should not be cancellers for ${chain} at ${address}: ${cancellerMissing.join(', ')}`,
+        `Proposers that should not be cancellers for ${chain} at ${address}: ${proposersWithExtraRole.join(', ')}`,
       );
     }
   }

@@ -159,7 +159,7 @@ export async function deployWithArtifacts<Config extends object>({
   }
 }
 
-async function baseDeploy<
+export async function baseDeploy<
   Config extends object,
   Factories extends HyperlaneFactories,
 >(
