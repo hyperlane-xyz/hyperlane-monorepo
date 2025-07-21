@@ -109,4 +109,6 @@ export enum WarpRouteIds {
 
   // cttp token bridge
   MainnetCctpUSDC = 'USDC/mainnet-cctp',
+
+  TimelockTestEth = 'ETH/timelock',
 }

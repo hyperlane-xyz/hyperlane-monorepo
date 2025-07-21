@@ -3,6 +3,7 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { GovernanceType } from '../../../../src/governance.js';
 
+import { awIcasV2 } from './ica/aw2.js';
 import { awIcas } from './ica/aw.js';
 import { regularIcas } from './ica/regular.js';
 import { awSafes } from './safe/aw.js';
@@ -50,7 +51,7 @@ export function getGovernanceIcas(governanceType: GovernanceType) {
     case GovernanceType.Regular:
       return regularIcas;
     case GovernanceType.AbacusWorks:
-      return awIcas;
+      return awIcasV2;
     case GovernanceType.Irregular:
       return {};
     case GovernanceType.OUSDT:

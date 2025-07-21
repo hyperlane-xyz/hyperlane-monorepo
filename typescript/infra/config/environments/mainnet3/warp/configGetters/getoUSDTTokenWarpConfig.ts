@@ -20,7 +20,7 @@ import { ousdtSafes } from '../../governance/safe/ousdt.js';
 import { DEPLOYER } from '../../owners.js';
 
 // Environment-independent configuration
-const deploymentChains = [
+export const oUSDTDeploymentChains = [
   'ethereum',
   'celo',
   'optimism',
@@ -48,7 +48,7 @@ const deploymentChains = [
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
 const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
 
-type oUSDTTokenChainName = (typeof deploymentChains)[number];
+export type oUSDTTokenChainName = (typeof oUSDTDeploymentChains)[number];
 type TypedoUSDTTokenChainMap<T> = {
   [Key in oUSDTTokenChainName]: T;
 };
@@ -121,7 +121,7 @@ const ICA_OWNED_CHAINS: oUSDTTokenChainName[] = [
 ];
 const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = [];
 const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
-  deploymentChains.reduce((acc, chain) => {
+  oUSDTDeploymentChains.reduce((acc, chain) => {
     if (DPL_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
       acc[chain] = DEPLOYER;
     } else if (ICA_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
@@ -418,7 +418,7 @@ const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
 };
 
 const stagingOwnerByChain: TypedoUSDTTokenChainMap<string> =
-  deploymentChains.reduce((acc, chain) => {
+  oUSDTDeploymentChains.reduce((acc, chain) => {
     acc[chain] = DEPLOYER;
     return acc;
   }, {} as TypedoUSDTTokenChainMap<string>);
@@ -484,7 +484,7 @@ function generateIsmConfig(
 
   const entries = !isCCIPChain(destination)
     ? []
-    : deploymentChains
+    : oUSDTDeploymentChains
         .filter((chain) => chain !== destination && isCCIPChain(chain))
         .map((origin) => [
           origin,
@@ -526,7 +526,7 @@ function generateHookConfig(
     return ethers.constants.AddressZero;
   }
 
-  const entries = deploymentChains
+  const entries = oUSDTDeploymentChains
     .filter((chain) => chain !== origin)
     .filter((destination) => isCCIPChain(destination))
     .map((destination) => [
@@ -573,7 +573,7 @@ function generateoUSDTTokenConfig(
   ownerOverridesByChain?: ChainMap<Record<string, string>>,
 ): ChainMap<HypTokenRouterConfig> {
   return Object.fromEntries(
-    deploymentChains.map((chain) => [
+    oUSDTDeploymentChains.map((chain) => [
       chain,
       {
         ...routerConfig[chain],
