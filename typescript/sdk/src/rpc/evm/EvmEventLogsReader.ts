@@ -1,7 +1,7 @@
 import { Logger } from 'pino';
 import { z } from 'zod';
 
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   getContractDeploymentTransaction,
