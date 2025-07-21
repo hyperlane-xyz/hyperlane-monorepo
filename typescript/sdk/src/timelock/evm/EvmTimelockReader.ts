@@ -10,13 +10,7 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import {
-  Address,
-  CallData,
-  HexString,
-  objFilter,
-  objMap,
-} from '@hyperlane-xyz/utils';
+import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import {
@@ -26,6 +20,7 @@ import {
 import { GetEventLogsResponse } from '../../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../../rpc/evm/utils.js';
 import { ChainNameOrId } from '../../types.js';
+import { ExecutableTimelockTx, TimelockTx } from '../types.js';
 
 import {
   CANCELLER_ROLE,
@@ -69,18 +64,6 @@ export type EvmTimelockReaderConfig = {
   multiProvider: Readonly<MultiProvider>;
 } & EvmEventLogsReaderConfig;
 
-export type TimelockTx = {
-  id: HexString;
-  delay: number;
-  predecessor: HexString;
-  salt: HexString;
-  data: [CallData, ...CallData[]];
-};
-
-export type ExecutableTimelockTx = TimelockTx & {
-  encodedExecuteTransaction: HexString;
-};
-
 export class EvmTimelockReader {
   protected constructor(
     protected readonly chain: ChainNameOrId,
@@ -90,8 +73,13 @@ export class EvmTimelockReader {
   ) {}
 
   static fromConfig(config: EvmTimelockReaderConfig): EvmTimelockReader {
-    const { chain, timelockAddress, multiProvider, useRPC, logPageSize } =
-      config;
+    const {
+      chain,
+      timelockAddress,
+      multiProvider,
+      useRPC,
+      paginationBlockRange,
+    } = config;
 
     const timelockInstance = TimelockController__factory.connect(
       timelockAddress,
@@ -99,7 +87,7 @@ export class EvmTimelockReader {
     );
 
     const evmLogReader = EvmEventLogsReader.fromConfig(
-      { chain, useRPC, logPageSize },
+      { chain, useRPC, paginationBlockRange },
       multiProvider,
     );
 
@@ -128,7 +116,7 @@ export class EvmTimelockReader {
     );
   }
 
-  async getScheduledTransactions(): Promise<Record<string, TimelockTx>> {
+  async getScheduledOperations(): Promise<Record<string, TimelockTx>> {
     const [callScheduledEvents, callSaltByOperationId] = await Promise.all([
       this.evmLogReader.getLogsByTopic({
         contractAddress: this.timelockInstance.address,
@@ -180,40 +168,41 @@ export class EvmTimelockReader {
   async getScheduledExecutableTransactions(): Promise<
     Record<string, ExecutableTimelockTx>
   > {
-    const [scheduledTransactions, cancelledTransactions, executedTransactions] =
+    const [scheduledOperations, cancelledOperations, executedOperations] =
       await Promise.all([
-        this.getScheduledTransactions(),
+        this.getScheduledOperations(),
         this.getCancelledOperationIds(),
         this.getExecutedOperationIds(),
       ]);
 
+    // Remove the operations that have been cancelled or executed
     const maybeExecutableOperations = objFilter(
-      scheduledTransactions,
+      scheduledOperations,
       (id, _operation): _operation is TimelockTx =>
-        !(cancelledTransactions.has(id) || executedTransactions.has(id)),
+        !(cancelledOperations.has(id) || executedOperations.has(id)),
     );
 
     const readyOperationIds = await this.getReadyOperationIds(
       Object.keys(maybeExecutableOperations),
     );
 
-    const pendingExecutableTransactions = objFilter(
+    const pendingExecutableOperations = objFilter(
       maybeExecutableOperations,
       (operationId, _operation): _operation is TimelockTx =>
         readyOperationIds.has(operationId),
     );
 
     return objMap(
-      pendingExecutableTransactions,
-      (_operationId, transactionData): ExecutableTimelockTx => {
+      pendingExecutableOperations,
+      (_operationId, operationData): ExecutableTimelockTx => {
         return {
-          data: transactionData.data,
-          delay: transactionData.delay,
+          data: operationData.data,
+          delay: operationData.delay,
           encodedExecuteTransaction:
-            getTimelockExecutableTransactionFromBatch(transactionData),
-          id: transactionData.id,
-          predecessor: transactionData.predecessor,
-          salt: transactionData.salt,
+            getTimelockExecutableTransactionFromBatch(operationData),
+          id: operationData.id,
+          predecessor: operationData.predecessor,
+          salt: operationData.salt,
         };
       },
     );

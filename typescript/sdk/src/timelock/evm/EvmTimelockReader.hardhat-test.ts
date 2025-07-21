@@ -18,14 +18,10 @@ import { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 import { ZBytes32String } from '../../metadata/customZodTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress } from '../../test/testUtils.js';
-import { TimelockConfig } from '../types.js';
+import { TimelockConfig, TimelockTx } from '../types.js';
 
 import { EvmTimelockDeployer } from './EvmTimelockDeployer.js';
-import {
-  EvmTimelockReader,
-  ExecutableTimelockTx,
-  TimelockTx,
-} from './EvmTimelockReader.js';
+import { EvmTimelockReader } from './EvmTimelockReader.js';
 import { EMPTY_BYTES_32 } from './constants.js';
 
 chai.use(chaiAsPromised);
@@ -122,9 +118,9 @@ describe(EvmTimelockReader.name, () => {
       });
     });
 
-    describe(`${EvmTimelockReader.prototype.getScheduledTransactions.name}`, () => {
+    describe(`${EvmTimelockReader.prototype.getScheduledOperations.name}`, () => {
       it('should return empty object when no transactions are scheduled', async () => {
-        const scheduledTxs = await timelockReader.getScheduledTransactions();
+        const scheduledTxs = await timelockReader.getScheduledOperations();
 
         expect(scheduledTxs).to.deep.equal({});
       });
@@ -209,7 +205,7 @@ describe(EvmTimelockReader.name, () => {
           );
           await scheduleTx.wait();
 
-          const scheduledTxs = await timelockReader.getScheduledTransactions();
+          const scheduledTxs = await timelockReader.getScheduledOperations();
           const txIds = Object.keys(scheduledTxs);
 
           expect(txIds).to.have.length(1);
@@ -794,7 +790,7 @@ describe(EvmTimelockReader.name, () => {
             }
           }
 
-          const executableTxs: Record<string, ExecutableTimelockTx> =
+          const executableTxs =
             await timelockReader.getScheduledExecutableTransactions();
           const txIds = Object.keys(executableTxs);
 
@@ -833,10 +829,10 @@ describe(EvmTimelockReader.name, () => {
       });
     });
 
-    describe(`${EvmTimelockReader.prototype.getScheduledTransactions.name}`, () => {
+    describe(`${EvmTimelockReader.prototype.getScheduledOperations.name}`, () => {
       it('should retrieve scheduled transactions from block explorer API', async () => {
         const scheduledTxs: Record<string, TimelockTx> =
-          await reader.getScheduledTransactions();
+          await reader.getScheduledOperations();
 
         // Should find some scheduled transactions on this timelock
         expect(Object.keys(scheduledTxs).length).to.be.greaterThan(0);

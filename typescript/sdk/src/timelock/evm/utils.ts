@@ -1,18 +1,14 @@
 import { TimelockController__factory } from '@hyperlane-xyz/core';
-import { CallData, HexString } from '@hyperlane-xyz/utils';
+import { HexString } from '@hyperlane-xyz/utils';
 
-type TimelockTx = {
-  id: HexString;
-  delay: number;
-  predecessor: HexString;
-  salt: HexString;
-  data: [CallData, ...CallData[]];
-};
+import { TimelockTx } from '../types.js';
 
 export function getTimelockExecutableTransactionFromBatch(
   transactionData: TimelockTx,
 ): HexString {
-  const [to, data, value] = transactionData.data.reduce(
+  const [to, data, value] = transactionData.data.reduce<
+    [string[], string[], string[]]
+  >(
     ([targets, data, values], item) => {
       targets.push(item.to);
       data.push(item.data);
@@ -20,7 +16,7 @@ export function getTimelockExecutableTransactionFromBatch(
 
       return [targets, data, values];
     },
-    [[], [], []] as [string[], string[], string[]],
+    [[], [], []],
   );
 
   return TimelockController__factory.createInterface().encodeFunctionData(

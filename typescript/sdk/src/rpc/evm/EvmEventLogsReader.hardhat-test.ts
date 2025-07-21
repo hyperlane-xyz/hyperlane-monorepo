@@ -136,7 +136,7 @@ describe('EvmEventLogsReader', () => {
         {
           chain: TestChainName.test1,
           useRPC: true,
-          logPageSize: 1000,
+          paginationBlockRange: 1000,
         },
         multiProvider,
       );
@@ -304,7 +304,7 @@ describe('EvmEventLogsReader', () => {
         {
           chain: TestChainName.test1,
           useRPC: true,
-          logPageSize: 2,
+          paginationBlockRange: 2,
         },
         multiProvider,
       );

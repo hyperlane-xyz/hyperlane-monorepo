@@ -32,7 +32,10 @@ describe('RPC Utils', () => {
     [contractOwner, tokenRecipient1, tokenRecipient2] =
       await hre.ethers.getSigners();
 
-    assert(contractOwner.provider, 'klk');
+    assert(
+      contractOwner.provider,
+      'Expected provider to be defined on the signer',
+    );
 
     // Initialize MultiProvider with test chain
     multiProvider = MultiProvider.createTestMultiProvider({

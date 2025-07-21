@@ -24,7 +24,7 @@ export type EvmEventLogsReaderConfig = {
   // useful for blockchains that do not have a block explorer API
   useRPC?: boolean;
   // Specifies how many blocks can be retrieved to read the logs in a single batch
-  logPageSize?: number;
+  paginationBlockRange?: number;
 };
 
 export const GetLogByTopicOptionsSchema = z.object({
@@ -96,7 +96,7 @@ export class EvmEtherscanLikeEventLogsReader
 export class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
   constructor(
     protected readonly chain: ChainNameOrId,
-    protected readonly config: { range: number },
+    protected readonly config: { paginationBlockRange?: number },
     protected readonly multiProvider: MultiProvider,
   ) {}
 
@@ -120,7 +120,7 @@ export class EvmRpcEventLogsReader implements IEvmEventLogsReaderStrategy {
       fromBlock: parsedOptions.fromBlock,
       toBlock: parsedOptions.toBlock,
       multiProvider: this.multiProvider,
-      range: this.config.range,
+      range: this.config.paginationBlockRange,
     });
   }
 }
@@ -129,7 +129,6 @@ export class EvmEventLogsReader {
   protected constructor(
     protected readonly config: EvmEventLogsReaderConfig,
     protected readonly multiProvider: MultiProvider,
-
     protected logReaderStrategy: IEvmEventLogsReaderStrategy,
     protected readonly logger: Logger,
   ) {}
@@ -153,7 +152,7 @@ export class EvmEventLogsReader {
     } else {
       logReaderStrategy = new EvmRpcEventLogsReader(
         config.chain,
-        { range: config.logPageSize ?? 10_000 },
+        { paginationBlockRange: config.paginationBlockRange },
         multiProvider,
       );
     }
