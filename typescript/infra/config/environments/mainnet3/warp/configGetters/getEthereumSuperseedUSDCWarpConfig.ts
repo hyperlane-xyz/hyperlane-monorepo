@@ -22,7 +22,7 @@ const owners = {
   solanamainnet: 'JAPPhnuChtzCGmskmFdurvAxENWwcAqXCV5Jn5SSiuWE',
 };
 
-const CONTRACT_VERSION = '8.0.0';
+export const CONTRACT_VERSION = '8.0.0';
 
 export const getEthereumSuperseedUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,

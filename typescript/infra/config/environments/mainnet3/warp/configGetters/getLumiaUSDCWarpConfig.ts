@@ -10,12 +10,11 @@ import { objMap } from '@hyperlane-xyz/utils';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { usdcTokenAddresses } from '../cctp.js';
 
+import { CONTRACT_VERSION } from './getEthereumSuperseedUSDCWarpConfig.js';
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const FIAT_COLLATERAL_CHAIN = 'lumiaprism';
 const FIAT_TOKEN = '0xFF297AC2CB0a236155605EB37cB55cFCAe6D3F01';
-
-const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 
 const owners = {
   ethereum: '0x18da35630c84fCD9d9c947fC61cA7a6d9b841577',
@@ -75,7 +74,7 @@ export const getLumiaUSDCWarpConfig = async (
       type: TokenType.collateral,
       token: usdcTokenAddresses[chain],
       owner,
-      contractVersion: '8.0.0',
+      contractVersion: CONTRACT_VERSION,
     };
 
     return config;
