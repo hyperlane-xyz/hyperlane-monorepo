@@ -211,7 +211,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             if lowest_block_height_or_sequence < 0 {
                 Some(0)
             } else {
-                Some(lowest_block_height_or_sequence)
+                Some(lowest_block_height_or_sequence as u32)
             }
         } else {
             Some(self.lowest_block_height_or_sequence as u32)
