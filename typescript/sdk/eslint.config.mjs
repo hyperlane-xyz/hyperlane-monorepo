@@ -1,10 +1,3 @@
-import eslintConfig, { typescriptRules } from '@hyperlane-xyz/eslint-config';
-import { defineConfig } from 'eslint/config';
+import { jsRules, typescriptRules } from '@hyperlane-xyz/eslint-config';
 
-export default defineConfig([
-  {
-    name: 'sdk',
-    files: ['src/**/*.ts'],
-    extends: [...eslintConfig, typescriptRules],
-  },
-]);
+export default [...jsRules, ...typescriptRules];
