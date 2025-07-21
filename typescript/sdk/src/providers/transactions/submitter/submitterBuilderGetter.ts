@@ -12,6 +12,7 @@ import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
 import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
+import { EV5TimelockSubmitter } from './ethersV5/EV5TimelockSubmitter.js';
 import { SubmitterMetadata } from './types.js';
 
 export type SubmitterBuilderSettings = {
@@ -79,6 +80,18 @@ const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.INTERCHAIN_ACCOUNT}`,
     );
     return EvmIcaTxSubmitter.fromConfig(metadata, multiProvider, registry);
+  },
+  [TxSubmitterType.TIMELOCK_CONTROLLER]: (
+    multiProvider,
+    metadata,
+    registry,
+  ) => {
+    assert(
+      metadata.type === TxSubmitterType.TIMELOCK_CONTROLLER,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.TIMELOCK_CONTROLLER}`,
+    );
+
+    return EV5TimelockSubmitter.fromConfig(metadata, multiProvider, registry);
   },
 };
 

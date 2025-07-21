@@ -103,22 +103,25 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
 
         let default_rpc_consensus_type = agent_name_to_default_rpc_consensus_type(agent_name);
 
-        let chains: HashMap<String, ChainConf> = raw_chains
+        let chains: HashMap<HyperlaneDomain, ChainConf> = raw_chains
             .into_iter()
             .filter_map(|(name, chain)| {
                 parse_chain(chain, &name, default_rpc_consensus_type.as_str())
                     .take_config_err(&mut err)
                     .map(|v| (name, v))
             })
-            .map(|(name, mut chain)| {
+            .map(|(_, mut chain)| {
                 if let Some(default_signer) = &default_signer {
                     chain.signer.get_or_insert_with(|| default_signer.clone());
                 }
-                (name, chain)
+                (chain.domain.clone(), chain)
             })
             .collect();
 
+        let domains = chains.keys().map(|k| (k.to_string(), k.clone())).collect();
+
         err.into_result(Self {
+            domains,
             chains,
             metrics_port,
             tracing: TracingConfig { fmt, level },
