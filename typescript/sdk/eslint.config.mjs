@@ -1,25 +1,10 @@
-import MonorepoDefaults from '../../eslint.config.mjs';
+import eslintConfig, { typescriptRules } from '@hyperlane-xyz/eslint-config';
+import { defineConfig } from 'eslint/config';
 
-export default [
-  ...MonorepoDefaults,
+export default defineConfig([
   {
-    files: ['./src/**/*.ts'],
-    rules: {
-      '@typescript-eslint/explicit-module-boundary-types': [
-        'warn',
-        {
-          allowArgumentsExplicitlyTypedAsAny: true,
-        },
-      ],
-    },
+    name: 'sdk',
+    files: ['src/**/*.ts'],
+    extends: [...eslintConfig, typescriptRules],
   },
-  {
-    ignores: ['./src/ism/metadata/**/*.ts'],
-    rules: {
-      'import/no-cycle': ['off'],
-    },
-  },
-  {
-    ignores: ['src/**/*.js'],
-  },
-];
+]);
