@@ -218,11 +218,11 @@ impl HyperlaneDbStore {
             .iter_mut()
             .filter(|(_, block_info)| block_info.is_none());
 
-        let mut blocks_to_insert: Vec<(&mut BasicBlock, Option<BlockInfo>)> =
-            Vec::with_capacity(CHUNK_SIZE);
-        let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
         for chunk in as_chunks(blocks_to_fetch, CHUNK_SIZE) {
             debug_assert!(!chunk.is_empty());
+            let mut block_infos: Vec<BlockInfo> = Vec::with_capacity(CHUNK_SIZE);
+            let mut blocks_to_insert: Vec<&mut BasicBlock> = Vec::with_capacity(CHUNK_SIZE);
+            let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
             for (hash, block_info) in chunk {
                 // We should have block_id in this map for every hashes
                 let block_id = match block_hash_to_block_id_map.get(hash) {
@@ -245,7 +245,8 @@ impl HyperlaneDbStore {
                     id: -1,
                     hash: *hash,
                 });
-                blocks_to_insert.push((basic_info_ref, Some(info)));
+                block_infos.push(info);
+                blocks_to_insert.push(basic_info_ref);
                 hashes_to_insert.push(hash);
             }
 
@@ -255,10 +256,9 @@ impl HyperlaneDbStore {
                 continue;
             }
 
-            let blocks = blocks_to_insert
-                .iter_mut()
-                .filter_map(|(_, info)| info.take());
-            self.db.store_blocks(self.domain.id(), blocks).await?;
+            self.db
+                .store_blocks(self.domain.id(), block_infos.into_iter())
+                .await?;
 
             let hashes = self
                 .db
@@ -268,7 +268,7 @@ impl HyperlaneDbStore {
                 .map(|b| (b.hash, b.id))
                 .collect::<HashMap<_, _>>();
 
-            for (block_ref, _) in blocks_to_insert.drain(..) {
+            for block_ref in blocks_to_insert {
                 if let Some(id) = hashes.get(&block_ref.hash) {
                     block_ref.id = *id;
                 }
