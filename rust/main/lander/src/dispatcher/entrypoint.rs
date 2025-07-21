@@ -24,6 +24,7 @@ pub trait Entrypoint {
     ) -> Result<Option<GasLimit>, LanderError>;
 }
 
+#[derive(Clone)]
 pub struct DispatcherEntrypoint {
     pub(crate) inner: DispatcherState,
 }
