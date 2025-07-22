@@ -4,19 +4,6 @@ import importPlugin from 'eslint-plugin-import';
 import { globalIgnores } from 'eslint/config';
 import ts from 'typescript-eslint';
 
-const basicRules = [
-  globalIgnores(['**/dist']),
-  { name: 'js/recommended', ...js.configs.recommended },
-  prettierConfig,
-  importPlugin.flatConfigs.recommended,
-  {
-    rules: {
-      'import/namespace': 'off',
-    },
-  },
-];
-export default basicRules;
-
 export const jsRules = [
   globalIgnores(['**/dist/']),
   { name: 'js/recommended', ...js.configs.recommended },
@@ -78,3 +65,5 @@ export const typescriptRules = ts.config({
     'import/resolver': 'typescript',
   },
 });
+
+export default jsRules;
