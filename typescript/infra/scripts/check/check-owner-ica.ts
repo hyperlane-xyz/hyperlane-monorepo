@@ -126,7 +126,6 @@ async function main() {
 
   if (Object.keys(mismatchedResults).length > 0) {
     rootLogger.error('\nMismatched ICAs found:');
-    // eslint-disable-next-line no-console
     console.table(mismatchedResults);
     process.exit(1);
   } else {

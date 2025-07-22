@@ -83,13 +83,11 @@ async function main() {
     ),
   );
 
-  // eslint-disable-next-line no-console
   console.table(mailboxOwners);
 
   const totalChains = Object.keys(mailboxOwners).length;
   rootLogger.info(`\nTotal chains: ${totalChains}`);
 
-  // eslint-disable-next-line no-console
   console.table(
     Object.values(Owner).map((ownerType) => ({
       'Owner Type': ownerType,

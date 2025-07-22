@@ -1,6 +1,5 @@
 // Import necessary modules
 import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
-// eslint-disable-next-line
 import * as fs from 'fs';
 import * as path from 'path';
 import yargs from 'yargs';

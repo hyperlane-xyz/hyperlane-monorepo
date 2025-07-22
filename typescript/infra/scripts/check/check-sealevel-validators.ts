@@ -1,7 +1,5 @@
 import chalk from 'chalk';
-// eslint-disable-next-line
 import fs from 'fs';
-// eslint-disable-next-line
 import path from 'path';
 
 import {
@@ -79,7 +77,6 @@ function checkValidatorsForChain(
     }
   }
 
-  // eslint-disable-next-line no-console
   console.table(tableData);
 
   if (Object.keys(discrepancies).length > 0) {
@@ -134,7 +131,6 @@ async function main() {
       );
       checkValidatorsForChain(dir, config);
     } else {
-      // eslint-disable-next-line no-console
       console.log(`No multisig-config.json found for ${dir}`);
     }
   }

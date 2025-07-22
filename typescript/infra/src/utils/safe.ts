@@ -26,7 +26,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-// eslint-disable-next-line import/no-cycle
 import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 
 const TX_FETCH_RETRIES = 5;

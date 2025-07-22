@@ -128,7 +128,6 @@ async function fundVanguards() {
   }
 
   rootLogger.info('\nCurrent balances:');
-  // eslint-disable-next-line no-console
   console.table(currentBalances);
 
   // Track which vanguards were topped up
@@ -170,7 +169,6 @@ async function fundVanguards() {
   // Print summary of topped up vanguards
   if (Object.keys(topUpsNeeded).length > 0) {
     rootLogger.info('\nTop ups needed for the following:');
-    // eslint-disable-next-line no-console
     console.table(
       Object.entries(topUpsNeeded).reduce(
         (acc, [chain, topUps]) => {

@@ -1,4 +1,3 @@
-// eslint-disable-next-line
 import fs from 'fs';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';

@@ -165,7 +165,6 @@ async function main() {
         return b.latest - a.latest;
       }),
     );
-    // eslint-disable-next-line no-console
     console.table(sortedValidators, ['alias', 'default', 'latest', 'bucket']);
   });
 

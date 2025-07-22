@@ -168,7 +168,6 @@ async function main() {
     );
   }
 
-  // eslint-disable-next-line no-console
   console.table(
     Object.entries(results)
       .map(([chain, { address, status }]) => ({

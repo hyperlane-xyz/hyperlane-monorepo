@@ -135,7 +135,6 @@ async function main() {
     }
   });
 
-  // eslint-disable-next-line no-console
   console.table(results);
   process.exit(0);
 }
