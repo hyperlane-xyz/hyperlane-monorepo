@@ -11,11 +11,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { difference, rootLogger } from '@hyperlane-xyz/utils';
 
-import {
-  DEFAULT_REGISTRY_URI,
-  getRegistry,
-  getWarpCoreConfig,
-} from '../../config/registry.js';
+import { getRegistry, getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { REBALANCER_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
 import {

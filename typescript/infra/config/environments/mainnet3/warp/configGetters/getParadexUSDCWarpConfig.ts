@@ -1,4 +1,3 @@
-import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 

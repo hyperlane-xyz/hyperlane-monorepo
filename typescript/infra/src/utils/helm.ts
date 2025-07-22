@@ -218,7 +218,7 @@ export abstract class HelmManager<T = HelmValues> {
         false,
       );
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

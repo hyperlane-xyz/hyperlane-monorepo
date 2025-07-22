@@ -558,7 +558,7 @@ export class GovernTransactionReader {
         data: tx.data,
         value: tx.value,
       });
-    } catch (error) {
+    } catch {
       throw new Error('Failed to decode Managed Lockbox transaction');
     }
 
@@ -1007,7 +1007,7 @@ export class GovernTransactionReader {
       case proxyAdminInterface.functions[
         'upgradeAndCall(address,address,bytes)'
       ].name: {
-        const [proxy, implementation, data] = decoded.args;
+        const [proxy, implementation, _data] = decoded.args;
         insight = `Upgrade proxy ${proxy} to implementation ${implementation} with initialization data`;
         break;
       }
