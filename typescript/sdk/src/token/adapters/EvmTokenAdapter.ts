@@ -470,7 +470,6 @@ export class EvmHypCollateralFiatAdapter
       wrappedToken,
       this.getProvider(),
     );
-    console.log('fiatToken', fiatToken);
     const limit = await fiatToken.minterAllowance(this.addresses.token);
 
     return limit.toBigInt();
