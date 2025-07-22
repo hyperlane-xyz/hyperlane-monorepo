@@ -19,13 +19,10 @@ export const sortYamlArraysPlugin = {
 };
 
 export const yamlEslintConfig = [
-  {
-    name: 'yaml-rules',
-    files: ['**/*.yml', '**/*.yaml'],
-    ...eslintPluginYml.configs['flat/standard'],
-  },
+  ...eslintPluginYml.configs['flat/standard'],
   {
     files: ['**/*.yml', '**/*.yaml'],
+    name: 'hyperlane-yaml-rules',
     languageOptions: {
       parser: yamlParser,
     },
