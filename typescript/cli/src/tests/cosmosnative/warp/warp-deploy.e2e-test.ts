@@ -261,4 +261,41 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(fs.existsSync(warpCorePath)).to.be.true;
     });
   });
+
+  describe('hyperlane warp deploy --config ... --yes', () => {
+    it(`should exit early when the provided deployment file does not exist and the skip flag is provided`, async function () {
+      const nonExistingFilePath = 'non-existing-path';
+      // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
+      // user to enter a valid file and then it will finally fail
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput: string) =>
+            currentOutput.includes('Select Warp route deployment config file'),
+          input: `${KeyBoardKeys.ARROW_DOWN}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput: string) =>
+            currentOutput.includes(
+              'Enter Warp route deployment config filepath',
+            ),
+          input: `${nonExistingFilePath}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
+      const output = hyperlaneWarp
+        .deployRaw({
+          warpDeployPath: nonExistingFilePath,
+          skipConfirmationPrompts: true,
+        })
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      expect(finalOutput.exitCode).to.equal(1);
+      expect(finalOutput.text()).to.include(
+        `Warp route deployment config file not found at ${nonExistingFilePath}`,
+      );
+    });
+  });
 });
