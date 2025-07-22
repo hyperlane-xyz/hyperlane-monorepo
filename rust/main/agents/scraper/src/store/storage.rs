@@ -225,13 +225,9 @@ impl HyperlaneDbStore {
             let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
             for (hash, block_info) in chunk {
                 // We should have block_id in this map for every hashes
-                let block_id = match block_hash_to_block_id_map.get(hash) {
-                    Some(v) => v,
-                    None => {
-                        warn!(block_hash = ?hash, "Missing block id");
-                        continue;
-                    }
-                };
+                let block_id = block_hash_to_block_id_map
+                    .get(hash)
+                    .expect("Missing block id");
                 let block_height = block_id.height;
 
                 let info = match self.provider.get_block_by_height(block_height).await {

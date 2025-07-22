@@ -142,7 +142,7 @@ pub fn build_cosmos_connection_conf(
         .or_else(|| {
             local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain id for chain"));
             None
-        })?;
+        });
 
     let prefix = chain
         .chain(err)
@@ -161,13 +161,13 @@ pub fn build_cosmos_connection_conf(
         .chain(err)
         .get_opt_key("gasPrice")
         .and_then(parse_cosmos_gas_price)
-        .end()?;
+        .end();
 
     let contract_address_bytes = chain
         .chain(err)
         .get_opt_key("contractAddressBytes")
         .parse_u64()
-        .end()?;
+        .end();
 
     let native_token = parse_native_token(chain, err, 18);
 
@@ -176,7 +176,11 @@ pub fn build_cosmos_connection_conf(
         return None;
     }
 
+    let chain_id = chain_id?;
     let prefix = prefix?;
+    let gas_price = gas_price?;
+    let contract_address_bytes = contract_address_bytes?;
+
     let canonical_asset = match chain
         .chain(err)
         .get_opt_key("canonicalAsset")
