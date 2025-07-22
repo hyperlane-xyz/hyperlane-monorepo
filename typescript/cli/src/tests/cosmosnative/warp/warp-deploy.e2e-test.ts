@@ -3,7 +3,11 @@ import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  TokenType,
+  WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../../utils/files.js';
@@ -14,7 +18,7 @@ import {
   handlePrompts,
 } from '../../commands/helpers.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
-import { deployToken } from '../commands/helpers.js';
+import { GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH } from '../commands/helpers.js';
 import {
   CHAIN_NAME_1,
   CHAIN_NAME_2,
@@ -68,11 +72,33 @@ describe('hyperlane warp deploy e2e tests', async function () {
     );
     const accounts = await wallet.getAccounts();
     ownerAddress = accounts[0].address;
-    [chain1Addresses, chain2Addresses] = await Promise.all([
-      hyperlaneCore1.deployOrUseExistingCore(HYP_KEY),
-      hyperlaneCore2.deployOrUseExistingCore(HYP_KEY),
-    ]);
+
+    await hyperlaneCore1.deploy(HYP_KEY);
+    await hyperlaneCore2.deploy(HYP_KEY);
+
+    chain1Addresses = await hyperlaneCore1.deployOrUseExistingCore(HYP_KEY);
+    chain2Addresses = await hyperlaneCore2.deployOrUseExistingCore(HYP_KEY);
   });
+
+  async function assertWarpRouteConfig(
+    warpDeployConfig: Readonly<WarpRouteDeployConfig>,
+    warpCoreConfigPath: string,
+    chainName: ChainName,
+  ): Promise<void> {
+    const currentWarpDeployConfig = await hyperlaneWarp.readConfig(
+      chainName,
+      warpCoreConfigPath,
+    );
+
+    expect(currentWarpDeployConfig[chainName].type).to.equal(
+      warpDeployConfig[chainName].type,
+    );
+    expect(currentWarpDeployConfig[chainName].mailbox).to.equal(
+      chainName === CHAIN_NAME_1
+        ? chain1Addresses.mailbox
+        : chain2Addresses.mailbox,
+    );
+  }
 
   describe('hyperlane warp deploy --config ...', () => {
     it(`should exit early when the provided deployment file does not exist`, async function () {
@@ -109,34 +135,30 @@ describe('hyperlane warp deploy e2e tests', async function () {
       );
     });
 
-    it(`should exit early when the provided scale is incorrect`, async function () {
-      const tokenFiat = await deployToken(
-        chain1Addresses.mailbox,
-        HYP_KEY,
-        CHAIN_NAME_1,
-      );
-      const token = await deployToken(
-        chain1Addresses.mailbox,
-        HYP_KEY,
-        CHAIN_NAME_2,
-      );
+    it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          'TEST',
+        );
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_1]: {
-          type: TokenType.collateralFiat,
-          token: tokenFiat,
+          type: TokenType.collateral,
+          token: 'uhyp',
           mailbox: chain1Addresses.mailbox,
           owner: ownerAddress,
-          decimals: 9,
-          scale: 1,
+          name: 'TEST',
+          symbol: 'TEST',
+          decimals: 6,
         },
         [CHAIN_NAME_2]: {
-          type: TokenType.collateral,
-          token: token,
+          type: TokenType.synthetic,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
-          decimals: 18,
-          scale: 5,
+          name: 'TEST',
+          symbol: 'TEST',
+          decimals: 6,
         },
       };
 
@@ -162,20 +184,21 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarp
-        .deployRaw({
-          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        })
+        .deployRaw({ warpDeployPath: WARP_DEPLOY_OUTPUT_PATH })
         .stdio('pipe')
         .nothrow();
 
       const finalOutput = await handlePrompts(output, steps);
 
       // Assertions
-      expect(finalOutput.exitCode).to.equal(1);
-
-      expect(finalOutput.text()).includes(
-        `Failed to derive token metadata Error: Found invalid or missing scale for inconsistent decimals`,
-      );
+      expect(finalOutput.exitCode).to.equal(0);
+      for (const chainName of [CHAIN_NAME_1, CHAIN_NAME_2]) {
+        await assertWarpRouteConfig(
+          warpConfig,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          chainName,
+        );
+      }
     });
   });
 });
