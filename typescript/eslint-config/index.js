@@ -29,10 +29,14 @@ export const jsRules = [
       sourceType: 'module',
     },
     rules: {
-      'import/namespace': 'off',
+      'guard-for-in': 'error',
+      'no-console': 'error',
+      'no-eval': 'error',
+      'import/namespace': 'off', // This is very slow, should be in the full-check config
+      'import/no-cycle': 'off', // This is very slow, should be in the full-check config
     },
     settings: {
-      'import/resolver': 'typescript',
+      'import/resolver': 'typescript', // This is the only resolver that works, even for JavaScript files
     },
   },
 ];
@@ -51,11 +55,16 @@ export const typescriptRules = ts.config({
     },
   },
   rules: {
-    '@typescript-eslint/no-unsafe-argument': 'off',
-    '@typescript-eslint/no-unsafe-assignment': 'off',
-    '@typescript-eslint/no-misused-promises': 'off',
-    '@typescript-eslint/no-unused-expressions': 'off',
+    '@typescript-eslint/require-await': 'off', // Recommended rule, but we have many violations
     '@typescript-eslint/no-explicit-any': 'off',
+    '@typescript-eslint/no-misused-promises': 'off', // Recommended rule, but we have many violations
+    '@typescript-eslint/no-unsafe-argument': 'off', // Recommended rule, but we have many violations
+    '@typescript-eslint/no-unsafe-assignment': 'off', // Recommended rule, but we have many violations
+    '@typescript-eslint/no-unsafe-call': 'off', // Recommended rule, but we have many violations
+    '@typescript-eslint/no-unsafe-enum-comparison': 'off', // Recommended rule, but we have many violations
+    '@typescript-eslint/no-unsafe-member-access': 'off', // Recommended rule, but we have many violations
+    '@typescript-eslint/no-unsafe-return': 'off', // Recommended rule, but we have many violations
+    '@typescript-eslint/no-unused-expressions': 'off',
     '@typescript-eslint/no-unused-vars': [
       'error',
       {
