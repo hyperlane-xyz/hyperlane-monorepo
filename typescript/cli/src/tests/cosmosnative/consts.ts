@@ -34,8 +34,8 @@ export const WARP_CONFIG_PATH_3 = `${TEMP_PATH}/${CHAIN_NAME_3}/warp-route-deplo
 export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
 
-export const WARP_DEPLOY_1_ID = 'HYP/hyp1';
-export const WARP_CORE_CONFIG_PATH_1 = getCombinedWarpRoutePath('HYP', [
+export const WARP_DEPLOY_1_ID = 'TEST/hyp1';
+export const WARP_CORE_CONFIG_PATH_1 = getCombinedWarpRoutePath('TEST', [
   CHAIN_NAME_1,
 ]);
 
