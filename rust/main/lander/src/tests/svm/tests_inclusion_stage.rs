@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain};
 use hyperlane_sealevel::{SealevelKeypair, SealevelTxCostEstimate, TransactionSubmitter};
 use solana_client::rpc_response::RpcSimulateTransactionResult;
 use solana_sdk::{
@@ -10,6 +10,7 @@ use solana_sdk::{
     transaction::Transaction as SealevelTransaction,
 };
 use tokio::{select, sync::mpsc};
+use tracing::info;
 use tracing_test::traced_test;
 
 use crate::{
@@ -27,7 +28,8 @@ use crate::{
     dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb},
     tests::test_utils::tmp_dbs,
     transaction::Transaction,
-    DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus,
+    DispatcherMetrics, FullPayload, LanderError, PayloadStatus, TransactionDropReason,
+    TransactionStatus,
 };
 
 const TEST_BLOCK_TIME: Duration = Duration::from_millis(50);
@@ -78,6 +80,347 @@ async fn test_svm_inclusion_happy_path() {
     run_and_expect_successful_inclusion(expected_tx_states, mock_svm_adapter).await;
 }
 
+#[tokio::test]
+#[traced_test]
+async fn test_svm_inclusion_gas_spike() {
+    let block_time = Duration::from_millis(0);
+
+    let mut client = MockClient::new();
+    mock_simulate_transaction(&mut client);
+    mock_get_block_with_commitment(&mut client);
+    let oracle = MockOracle::new();
+    let mut provider = MockSvmProvider::new();
+    mock_create_transaction_for_instruction(&mut provider);
+
+    // Mock fee escalation behavior
+    let mut fee_call_counter = 0;
+    provider
+        .expect_get_estimated_costs_for_instruction()
+        .returning(
+            move |_instruction, _payer, _tx_submitter, _priority_fee_oracle| {
+                fee_call_counter += 1;
+                let compute_unit_price_micro_lamports = match fee_call_counter {
+                    1 => 500, // Initial fee
+                    2 => 550, // 10% spike
+                    3 => 605, // Another 10% spike
+                    _ => 605, // Final spike
+                };
+                Ok(SealevelTxCostEstimate {
+                    compute_units: 1400000,
+                    compute_unit_price_micro_lamports,
+                })
+            },
+        );
+
+    let mut commitment_call_counter = 0;
+    client
+        .expect_get_transaction_with_commitment()
+        .returning(move |_, commitment| {
+            commitment_call_counter += 1;
+            info!(
+                ?commitment_call_counter,
+                "calling get_transaction_with_commitment"
+            );
+            // when a transaction is not yet included, the status check makes 3 calls (one with each commitment level in inverse order: finalized, confirmed, processed).
+            // it takes 3 unsuccessful tx statuses to escalate twice
+            if commitment.is_finalized() && commitment_call_counter > 9 {
+                return Ok(encoded_svm_transaction()); // Simulate transaction being included at the `finalized` level after 4 retries
+            }
+            if commitment.is_processed() {
+                return Ok(encoded_svm_transaction()); // Simulate transaction being processed
+            }
+            Err(ChainCommunicationError::from_other(
+                LanderError::TxHashNotFound("Not included yet".to_string()),
+            ))
+        });
+
+    let mut submitter = MockSubmitter::new();
+    mock_get_priority_fee_instruction(&mut submitter);
+    mock_send_transaction(&mut submitter);
+    mock_wait_for_transaction_confirmation(&mut submitter);
+    mock_confirm_transaction(&mut submitter);
+
+    let mock_svm_adapter = mocked_svm_adapter(block_time, client, oracle, provider, submitter);
+
+    let expected_tx_states = vec![
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 0,
+            status: TransactionStatus::PendingInclusion,
+            retries: 0,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 500,
+            status: TransactionStatus::Mempool,
+            retries: 1,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 550,
+            status: TransactionStatus::Mempool,
+            retries: 2,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 605,
+            status: TransactionStatus::Mempool,
+            retries: 3,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 605,
+            status: TransactionStatus::Finalized,
+            retries: 3,
+        },
+    ];
+
+    run_and_expect_successful_inclusion(expected_tx_states, mock_svm_adapter).await;
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_svm_inclusion_escalate_but_old_hash_finalized() {
+    let block_time = Duration::from_millis(0);
+    let signature1 = Signature::default(); // First transaction signature
+    let signature2 = Signature::new_unique(); // Second transaction signature (escalated gas price)
+
+    let mut client = MockClient::new();
+    mock_simulate_transaction(&mut client);
+    mock_get_block_with_commitment(&mut client);
+
+    // Mock `get_transaction_with_commitment` to simulate the first signature being finalized
+    let mut commitment_call_counter = 0;
+    client
+        .expect_get_transaction_with_commitment()
+        .returning(move |sig, commitment| {
+            commitment_call_counter += 1;
+
+            if commitment.is_finalized() && sig == signature1 && commitment_call_counter > 6 {
+                Ok(encoded_svm_transaction()) // First signature is finalized after 2 calls
+            } else if commitment.is_processed() {
+                Ok(encoded_svm_transaction()) // Simulate both signatures being processed
+            } else {
+                Err(ChainCommunicationError::from_other(
+                    LanderError::TxHashNotFound("Not included yet".to_string()),
+                ))
+            }
+        });
+
+    let oracle = MockOracle::new();
+    let mut provider = MockSvmProvider::new();
+    mock_create_transaction_for_instruction(&mut provider);
+
+    // Mock fee escalation behavior
+    let mut fee_call_counter = 0;
+    provider
+        .expect_get_estimated_costs_for_instruction()
+        .returning(
+            move |_instruction, _payer, _tx_submitter, _priority_fee_oracle| {
+                fee_call_counter += 1;
+                let compute_unit_price_micro_lamports = match fee_call_counter {
+                    1 => 500, // Initial fee
+                    2 => 550, // 10% spike
+                    _ => 605, // Final spike
+                };
+                Ok(SealevelTxCostEstimate {
+                    compute_units: 1400000,
+                    compute_unit_price_micro_lamports,
+                })
+            },
+        );
+
+    let mut submitter = MockSubmitter::new();
+    mock_get_priority_fee_instruction(&mut submitter);
+
+    // Mock `send_transaction` to return different signatures for the first and second submissions
+    let mut send_call_counter = 0;
+    submitter
+        .expect_send_transaction()
+        .returning(move |_tx, _| {
+            send_call_counter += 1;
+            if send_call_counter == 1 {
+                Ok(signature1) // First submission returns signature1
+            } else {
+                Ok(signature2) // Second submission returns signature2
+            }
+        });
+
+    mock_wait_for_transaction_confirmation(&mut submitter);
+    mock_confirm_transaction(&mut submitter);
+
+    let mock_svm_adapter = mocked_svm_adapter(block_time, client, oracle, provider, submitter);
+
+    let expected_tx_states = vec![
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 0,
+            status: TransactionStatus::PendingInclusion,
+            retries: 0,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 500,
+            status: TransactionStatus::Mempool,
+            retries: 1,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 550,
+            status: TransactionStatus::Mempool,
+            retries: 2,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 605,
+            status: TransactionStatus::Mempool,
+            retries: 3,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 605,
+            status: TransactionStatus::Finalized, // Finalized with the first signature
+            retries: 3,
+        },
+    ];
+
+    run_and_expect_successful_inclusion(expected_tx_states, mock_svm_adapter).await;
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_svm_inclusion_send_returns_blockhash_not_found() {
+    let block_time = TEST_BLOCK_TIME;
+
+    let mut client = MockClient::new();
+    mock_simulate_transaction(&mut client);
+    mock_get_block_with_commitment(&mut client);
+    mock_get_transaction_with_commitment(&mut client);
+
+    let oracle = MockOracle::new();
+    let mut provider = MockSvmProvider::new();
+    mock_create_transaction_for_instruction(&mut provider);
+
+    // Mock estimated costs to always return static values
+    provider
+        .expect_get_estimated_costs_for_instruction()
+        .returning(|_, _, _, _| {
+            Ok(SealevelTxCostEstimate {
+                compute_units: 1400000,
+                compute_unit_price_micro_lamports: 100, // Static cost
+            })
+        });
+
+    let mut submitter = MockSubmitter::new();
+    mock_get_priority_fee_instruction(&mut submitter);
+
+    // Mock `send_transaction` to return a blockhash error the first time, then succeed
+    let mut send_call_counter = 0;
+    submitter
+        .expect_send_transaction()
+        .returning(move |_tx, _| {
+            send_call_counter += 1;
+            if send_call_counter == 1 {
+                Err(ChainCommunicationError::from_other(
+                    LanderError::TxHashNotFound("Blockhash not found".to_string()),
+                ))
+            } else {
+                Ok(Signature::default()) // Subsequent submissions succeed
+            }
+        });
+
+    mock_wait_for_transaction_confirmation(&mut submitter);
+    mock_confirm_transaction(&mut submitter);
+
+    let mock_svm_adapter = mocked_svm_adapter(block_time, client, oracle, provider, submitter);
+
+    let expected_tx_states = vec![
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 0, // Static cost
+            status: TransactionStatus::PendingInclusion,
+            retries: 0,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 100, // Static cost after blockhash error
+            status: TransactionStatus::Mempool,
+            retries: 1,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 100, // Static cost
+            status: TransactionStatus::Finalized,   // Finalized after successful submission
+            retries: 1,
+        },
+    ];
+
+    run_and_expect_successful_inclusion(expected_tx_states, mock_svm_adapter).await;
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_svm_failure_to_estimate_costs_causes_tx_to_be_dropped() {
+    let block_time = TEST_BLOCK_TIME;
+
+    let mut client = MockClient::new();
+    mock_simulate_transaction(&mut client);
+    mock_get_block_with_commitment(&mut client);
+    mock_get_transaction_with_commitment(&mut client);
+
+    let oracle = MockOracle::new();
+    let mut provider = MockSvmProvider::new();
+    mock_create_transaction_for_instruction(&mut provider);
+
+    // Mock estimated costs to return an error
+    provider
+        .expect_get_estimated_costs_for_instruction()
+        .returning(|_, _, _, _| {
+            Err(ChainCommunicationError::from_other(
+                LanderError::EstimationFailed,
+            ))
+        });
+
+    let mut submitter = MockSubmitter::new();
+    mock_get_priority_fee_instruction(&mut submitter);
+    mock_send_transaction(&mut submitter);
+    mock_wait_for_transaction_confirmation(&mut submitter);
+    mock_confirm_transaction(&mut submitter);
+
+    let mock_svm_adapter = mocked_svm_adapter(block_time, client, oracle, provider, submitter);
+
+    let expected_tx_states = vec![
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 0, // Static cost
+            status: TransactionStatus::PendingInclusion,
+            retries: 0,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 0,
+            status: TransactionStatus::Dropped(TransactionDropReason::FailedSimulation),
+            retries: 0,
+        },
+    ];
+
+    let dispatcher_state = mock_dispatcher_state_with_adapter(mock_svm_adapter);
+    let created_tx = mock_svm_tx(
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::PendingInclusion,
+    )
+    .await;
+    // need to manually set this because panics don't propagate through the select! macro
+    // the `select!` macro interferes with the lints, so need to manually `allow`` here
+    select! {
+        tx_received = run_inclusion_stage(expected_tx_states, dispatcher_state, created_tx.clone()) => {
+            panic!("Inclusion stage should not process the txs successfully, but got: {:?}", tx_received);
+        },
+        _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+    }
+}
+
 struct ExpectedSvmTxState {
     pub compute_units: u32,
     pub compute_unit_price_micro_lamports: u64,
@@ -86,19 +429,41 @@ struct ExpectedSvmTxState {
 }
 
 async fn run_and_expect_successful_inclusion(
-    mut expected_tx_states: Vec<ExpectedSvmTxState>,
+    expected_tx_states: Vec<ExpectedSvmTxState>,
     mock_svm_adapter: SealevelAdapter,
 ) {
     let dispatcher_state = mock_dispatcher_state_with_adapter(mock_svm_adapter);
-    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
-    let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
-
     let created_tx = mock_svm_tx(
         &dispatcher_state.payload_db,
         &dispatcher_state.tx_db,
         TransactionStatus::PendingInclusion,
     )
     .await;
+    // need to manually set this because panics don't propagate through the select! macro
+    // the `select!` macro interferes with the lints, so need to manually `allow`` here
+    #[allow(unused_assignments)]
+    let mut success = false;
+    select! {
+        tx_received = run_inclusion_stage(expected_tx_states, dispatcher_state, created_tx.clone()) => {
+            let tx_received = tx_received.unwrap();
+            assert_eq!(tx_received.payload_details[0].uuid, created_tx.payload_details[0].uuid);
+            success = true;
+        },
+        _ = tokio::time::sleep(Duration::from_millis(5000)) => {}
+    }
+    assert!(
+        success,
+        "Inclusion stage did not process the txs successfully"
+    );
+}
+
+async fn run_inclusion_stage(
+    mut expected_tx_states: Vec<ExpectedSvmTxState>,
+    dispatcher_state: DispatcherState,
+    created_tx: Transaction,
+) -> Option<Transaction> {
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
+    let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
     let mock_domain = TEST_DOMAIN.into();
     inclusion_stage_pool
@@ -121,23 +486,7 @@ async fn run_and_expect_successful_inclusion(
 
         assert_tx_db_state(expected_tx_state, &dispatcher_state.tx_db, &created_tx).await;
     }
-
-    // need to manually set this because panics don't propagate through the select! macro
-    // the `select!` macro interferes with the lints, so need to manually `allow`` here
-    #[allow(unused_assignments)]
-    let mut success = false;
-    select! {
-        tx_received = finality_stage_receiver.recv() => {
-            let tx_received = tx_received.unwrap();
-            assert_eq!(tx_received.payload_details[0].uuid, created_tx.payload_details[0].uuid);
-            success = true;
-        },
-        _ = tokio::time::sleep(Duration::from_millis(5000)) => {}
-    }
-    assert!(
-        success,
-        "Inclusion stage did not process the txs successfully"
-    );
+    finality_stage_receiver.recv().await
 }
 
 fn mocked_svm_adapter(

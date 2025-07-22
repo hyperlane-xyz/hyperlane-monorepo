@@ -11,7 +11,7 @@ import {
   TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
-import { deployOrUseExistingCore } from '../commands/helpers.js';
+import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   hyperlaneWarpDeploy,
   hyperlaneWarpReadRaw,

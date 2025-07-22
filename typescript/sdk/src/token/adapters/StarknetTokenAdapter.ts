@@ -55,7 +55,7 @@ export class StarknetTokenAdapter
   }
 
   async getBalance(address: Address): Promise<bigint> {
-    return this.contract.balanceOf(address);
+    return this.contract.balance_of(address);
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {

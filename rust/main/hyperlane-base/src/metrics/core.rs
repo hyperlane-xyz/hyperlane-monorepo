@@ -66,6 +66,9 @@ pub struct CoreMetrics {
     // ism building metrics
     ism_build_count: IntCounterVec,
 
+    /// Chain initialization metrics
+    chain_init_latency: IntGaugeVec,
+
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
     /// quorum provider.
     client_metrics: OnceLock<PrometheusClientMetrics>,
@@ -299,6 +302,16 @@ impl CoreMetrics {
             registry
         )?;
 
+        let chain_init_latency = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("chain_init_latency"),
+                "Chain initialization latency in milliseconds",
+                const_labels_ref
+            ),
+            &["chain", "role", "entity"],
+            registry
+        )?;
+
         Ok(Self {
             agent_name: for_agent.into(),
             registry,
@@ -331,6 +344,8 @@ impl CoreMetrics {
             metadata_build_duration,
 
             ism_build_count,
+
+            chain_init_latency,
 
             client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
@@ -666,6 +681,16 @@ impl CoreMetrics {
     /// - `status`: success or failure
     pub fn ism_build_count(&self) -> IntCounterVec {
         self.ism_build_count.clone()
+    }
+
+    /// The latency of chain initialization in milliseconds.
+    ///
+    /// Labels:
+    /// - `chain`: chain
+    /// - `role`: `origin` or `destination`
+    /// - `entity`: initialized entity, e.g. `dispatcher`, `submitter`, `processor`, etc.
+    pub fn chain_init_latency(&self) -> IntGaugeVec {
+        self.chain_init_latency.clone()
     }
 
     /// Counts of tracing (logging framework) span events.
