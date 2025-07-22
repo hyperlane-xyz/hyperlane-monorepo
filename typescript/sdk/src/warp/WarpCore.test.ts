@@ -344,7 +344,7 @@ describe('WarpCore', () => {
     const invalidCollateralFiatTokenRateLimit = await warpCore.validateTransfer(
       {
         originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
-        destination: testCollateralFiat.name,
+        destination: evmHypCollateralFiat.chainName,
         recipient: MOCK_ADDRESS,
         sender: MOCK_ADDRESS,
       },
