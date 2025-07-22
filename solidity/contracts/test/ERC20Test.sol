@@ -56,6 +56,10 @@ contract FiatTokenTest is ERC20Test, IFiatToken {
         _mint(account, amount);
         return true;
     }
+
+    function minterAllowance(address _minter) public pure returns (uint256) {
+        return type(uint256).max;
+    }
 }
 
 contract XERC20Test is ERC20Test, Ownable, IXERC20 {
