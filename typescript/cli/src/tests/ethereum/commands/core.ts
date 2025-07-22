@@ -1,8 +1,10 @@
 import { $, ProcessPromise } from 'zx';
 
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { DerivedCoreConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
+import { getContext } from '../../../context/context.js';
 import { readYamlOrJson } from '../../../utils/files.js';
 import { ANVIL_KEY, REGISTRY_PATH } from '../consts.js';
 
@@ -115,4 +117,26 @@ export async function readCoreConfig(
 ): Promise<DerivedCoreConfig> {
   await hyperlaneCoreRead(chain, coreConfigPath);
   return readYamlOrJson(coreConfigPath);
+}
+
+/**
+ * Deploys new core contracts on the specified chain if it doesn't already exist, and returns the chain addresses.
+ */
+export async function deployOrUseExistingCore(
+  chain: string,
+  coreInputPath: string,
+  key: string,
+) {
+  const { registry } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key,
+  });
+  const addresses = (await registry.getChainAddresses(chain)) as ChainAddresses;
+
+  if (!addresses) {
+    await hyperlaneCoreDeploy(chain, coreInputPath);
+    return deployOrUseExistingCore(chain, coreInputPath, key);
+  }
+
+  return addresses;
 }
