@@ -2,8 +2,11 @@ import { jsRules, typescriptRules } from '@hyperlane-xyz/eslint-config';
 import { yamlEslintConfig } from '@hyperlane-xyz/utils/eslint-rules';
 
 export default [
-  ...yamlEslintConfig,
+  {
+    ignores: ['helm/**/*.yaml'],
+  },
   ...jsRules,
+  ...yamlEslintConfig,
   ...typescriptRules,
   {
     name: 'infra-rules',
