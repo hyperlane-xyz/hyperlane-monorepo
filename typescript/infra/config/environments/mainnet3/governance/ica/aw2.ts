@@ -11,10 +11,10 @@ export const awIcasV2: ChainMap<Address> = {
   // ethereum: '0x24c2160941cB0A75E1C2aA6B70Be3e6EC4FE3a29',
 
   // keep safe-owned for now
-  // arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
-  // base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7',
-  // bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd',
-  // optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
+  arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
+  base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7',
+  bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd',
+  optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
 
   // Jul 2, 2025 - ICA 2.0 Migration
   // ----------------------------------------------------------
