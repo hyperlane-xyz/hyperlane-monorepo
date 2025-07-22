@@ -1,6 +1,7 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
+import { fs } from 'zx';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -199,6 +200,65 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chainName,
         );
       }
+    });
+
+    it(`should successfully deploy a warp route with a custom warp route id`, async function () {
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_1]: {
+          type: TokenType.collateral,
+          token: 'uhyp',
+          mailbox: chain1Addresses.mailbox,
+          owner: ownerAddress,
+          name: 'TEST',
+          symbol: 'TEST',
+          decimals: 6,
+        },
+        [CHAIN_NAME_2]: {
+          type: TokenType.synthetic,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+          name: 'TEST',
+          symbol: 'TEST',
+          decimals: 6,
+        },
+      };
+      const warpRouteId = 'TEST/custom-warp-route-id';
+      const warpDeployPath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}-deploy.yaml`;
+      writeYamlOrJson(warpDeployPath, warpConfig);
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Is this deployment plan correct?'),
+          input: KeyBoardKeys.ENTER,
+        },
+      ];
+
+      // Deploy
+      const output = hyperlaneWarp
+        .deployRaw({
+          warpRouteId,
+        })
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      // Assertions
+      expect(finalOutput.exitCode).to.equal(0);
+
+      const warpCorePath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}-config.yaml`;
+      expect(fs.existsSync(warpCorePath)).to.be.true;
     });
   });
 });
