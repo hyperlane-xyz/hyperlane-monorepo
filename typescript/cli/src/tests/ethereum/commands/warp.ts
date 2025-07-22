@@ -599,6 +599,7 @@ export async function setupIncompleteWarpRouteExtension(
         ...context,
         signer: signer3,
         key: ANVIL_KEY,
+        multiProtocolSigner,
       },
       warpCoreConfig,
       warpDeployConfig,
