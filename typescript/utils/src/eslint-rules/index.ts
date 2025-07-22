@@ -19,8 +19,13 @@ export const sortYamlArraysPlugin = {
 };
 
 export const yamlEslintConfig = [
-  ...eslintPluginYml.configs['flat/standard'],
   {
+    name: 'yaml-rules',
+    files: ['**/*.yml', '**/*.yaml'],
+    ...eslintPluginYml.configs['flat/standard'],
+  },
+  {
+    files: ['**/*.yml', '**/*.yaml'],
     languageOptions: {
       parser: yamlParser,
     },
