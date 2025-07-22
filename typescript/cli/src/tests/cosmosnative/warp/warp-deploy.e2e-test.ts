@@ -297,5 +297,69 @@ describe('hyperlane warp deploy e2e tests', async function () {
         `Warp route deployment config file not found at ${nonExistingFilePath}`,
       );
     });
+
+    it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          'TEST',
+        );
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_1]: {
+          type: TokenType.collateral,
+          token: 'uhyp',
+          mailbox: chain1Addresses.mailbox,
+          owner: ownerAddress,
+          name: 'TEST',
+          symbol: 'TEST',
+          decimals: 6,
+        },
+        [CHAIN_NAME_2]: {
+          type: TokenType.synthetic,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+          name: 'TEST',
+          symbol: 'TEST',
+          decimals: 6,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
+      // Deploy
+      const output = hyperlaneWarp
+        .deployRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+          skipConfirmationPrompts: true,
+        })
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      // Assertions
+      expect(finalOutput.exitCode).to.equal(0);
+      for (const chainName of [CHAIN_NAME_1, CHAIN_NAME_2]) {
+        await assertWarpRouteConfig(
+          warpConfig,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          chainName,
+        );
+      }
+    });
   });
 });
