@@ -6,7 +6,6 @@ import { parse as yamlParse } from 'yaml';
 import {
   test1,
   test2,
-  testCollateralFiat,
   testCosmosChain,
   testScale1,
   testScale2,
