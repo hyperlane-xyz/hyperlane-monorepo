@@ -78,7 +78,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
                 MetadataToken::MerkleProof => {
                     let proof_tokens: Vec<Token> = metadata
                         .proof
-                        .expect("Metadata is mssing proof")
+                        .expect("Metadata is missing proof")
                         .path
                         .iter()
                         .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
