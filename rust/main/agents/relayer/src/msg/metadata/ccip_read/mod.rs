@@ -312,7 +312,7 @@ fn create_ccip_url_regex() -> RegexSet {
     ])
     .case_insensitive(true)
     .build()
-    .unwrap()
+    .expect("Failed to create ccip regex")
 }
 
 #[cfg(test)]

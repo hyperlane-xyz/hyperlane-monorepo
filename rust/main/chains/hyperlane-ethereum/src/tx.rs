@@ -1,5 +1,3 @@
-#![deny(clippy::unwrap_used, clippy::panic)]
-
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;

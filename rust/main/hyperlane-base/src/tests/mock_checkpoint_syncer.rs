@@ -54,6 +54,7 @@ impl MockCheckpointSyncer {
     }
 }
 
+#[allow(clippy::panic)]
 #[async_trait::async_trait]
 impl CheckpointSyncer for MockCheckpointSyncer {
     async fn latest_index(&self) -> Result<Option<u32>> {
@@ -192,9 +193,12 @@ pub async fn generate_multisig_signed_checkpoint(
         let signer: Signers = validator
             .private_key
             .parse::<ethers::signers::LocalWallet>()
-            .unwrap()
+            .expect("Failed to parse private key")
             .into();
-        let sig = signer.sign(checkpoint).await.unwrap();
+        let sig = signer
+            .sign(checkpoint)
+            .await
+            .expect("Failed to sign checkpoint");
         signatures.push(sig.signature);
     }
 

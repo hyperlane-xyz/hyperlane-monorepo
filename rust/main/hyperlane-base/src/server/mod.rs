@@ -1,5 +1,3 @@
-#![deny(clippy::unwrap_used, clippy::panic)]
-
 mod base_server;
 
 /// merkle tree insertion functions

@@ -1,5 +1,3 @@
-#![deny(clippy::unwrap_used, clippy::panic)]
-
 use async_trait::async_trait;
 use ethers::prelude::{Address, Signature};
 use ethers::types::transaction::eip2718::TypedTransaction;

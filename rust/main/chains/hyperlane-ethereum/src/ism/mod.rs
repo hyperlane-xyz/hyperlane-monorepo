@@ -1,5 +1,3 @@
-#![deny(clippy::unwrap_used, clippy::panic)]
-
 pub use {
     aggregation_ism::*, ccip_read_ism::*, interchain_security_module::*, multisig_ism::*,
     routing_ism::*,

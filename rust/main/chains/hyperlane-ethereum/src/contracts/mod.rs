@@ -1,5 +1,3 @@
-#![deny(clippy::unwrap_used, clippy::panic)]
-
 pub use {interchain_gas::*, mailbox::*, merkle_tree_hook::*, validator_announce::*};
 
 pub(crate) use utils::get_finalized_block_number;

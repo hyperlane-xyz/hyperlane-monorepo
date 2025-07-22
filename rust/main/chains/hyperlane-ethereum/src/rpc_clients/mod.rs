@@ -1,5 +1,3 @@
-#![deny(clippy::unwrap_used, clippy::panic)]
-
 use ethers::providers::HttpClientError;
 use tracing::{error, info, trace, warn};
 

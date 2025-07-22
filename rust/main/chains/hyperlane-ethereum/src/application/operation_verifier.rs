@@ -1,5 +1,3 @@
-#![deny(clippy::unwrap_used, clippy::panic)]
-
 use std::io::Cursor;
 
 use async_trait::async_trait;

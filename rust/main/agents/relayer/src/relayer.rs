@@ -1052,6 +1052,7 @@ impl Relayer {
         Ok(db_loader.spawn(span))
     }
 
+    #[allow(clippy::panic)]
     #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(skip(self, message_processor))]
     fn run_destination_processor(

@@ -1,5 +1,3 @@
-#![deny(clippy::unwrap_used, clippy::panic)]
-
 use ethers::providers::ProviderError;
 use hyperlane_core::ChainCommunicationError;
 

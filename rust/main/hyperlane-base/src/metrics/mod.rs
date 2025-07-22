@@ -1,5 +1,3 @@
-#![deny(clippy::unwrap_used, clippy::panic)]
-
 //! Useful metrics that all agents should track.
 
 pub use self::core::*;

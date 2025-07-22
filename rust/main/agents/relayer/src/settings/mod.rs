@@ -141,11 +141,13 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             )
             .take_config_err(&mut err);
 
+        let current_dir = std::env::current_dir().expect("Failed to get current directory");
+
         let db = p
             .chain(&mut err)
             .get_opt_key("db")
             .parse_from_str("Expected database path")
-            .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
+            .unwrap_or_else(|| current_dir.join("hyperlane_db"));
 
         // is_gas_payment_enforcement_set determines if we should be checking for the correct gas payment enforcement policy has been provided with "gasPaymentEnforcement" key
         let (
@@ -184,8 +186,8 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             && gas_payment_enforcement_parser
                 .val
                 .as_array()
-                .unwrap()
-                .is_empty()
+                .map(|v| v.is_empty())
+                .unwrap_or(true)
         {
             Err::<(), eyre::Report>(eyre!("GASPAYMENTENFORCEMENT policy cannot be parsed"))
                 .take_err(&mut err, || cwp + "gas_payment_enforcement");
@@ -506,9 +508,9 @@ mod test {
         ]
         "#;
 
-        let value = serde_json::from_str::<Value>(raw).unwrap();
+        let value = serde_json::from_str::<Value>(raw).expect("Failed to parse json");
         let p = ValueParser::new(ConfigPath::default(), &value);
-        let configs = parse_ism_cache_configs(p).unwrap();
+        let configs = parse_ism_cache_configs(p).expect("Failed to parse ism cache config");
         assert_eq!(configs.len(), 2);
     }
 }
