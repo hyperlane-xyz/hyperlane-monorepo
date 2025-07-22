@@ -1,6 +1,6 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
-import tmp from 'tmp';
+import * as tmp from 'tmp';
 
 import { rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
 
