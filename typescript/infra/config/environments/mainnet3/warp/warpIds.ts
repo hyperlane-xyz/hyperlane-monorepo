@@ -97,6 +97,7 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
+  LumiaUSDC = 'USDC/lumia',
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
 
@@ -106,7 +107,4 @@ export enum WarpRouteIds {
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
   stHYPER = 'stHYPER/bsc-ethereum',
-
-  // cttp token bridge
-  MainnetCctpUSDC = 'USDC/mainnet-cctp',
 }
