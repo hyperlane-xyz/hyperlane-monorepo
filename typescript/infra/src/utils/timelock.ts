@@ -173,6 +173,7 @@ type TimelockTransactionStatus = {
   chain: ChainName;
   id: string;
   executeTransactionData: HexString;
+  predecessorId: HexString;
   timelockAddress: Address;
   status: TimelockOperationStatus;
   canSignerExecute: boolean;
@@ -248,6 +249,7 @@ export async function getTimelockPendingTxs(
             executeTransactionData:
               getTimelockExecutableTransactionFromBatch(tx),
             id: tx.id,
+            predecessorId: tx.predecessor,
             status: !readyTransactionIds.has(tx.id)
               ? TimelockOperationStatus.PENDING
               : TimelockOperationStatus.READY_TO_EXECUTE,
