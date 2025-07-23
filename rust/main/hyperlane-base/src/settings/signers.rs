@@ -209,10 +209,7 @@ impl ChainSigner for hyperlane_cosmos_native::Signer {
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_sovereign::Signer {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        // TODO: delete this, see `get_key_override` for more info
-        if let Some(private_key) = hyperlane_sovereign::Signer::get_key_override().await? {
-            Ok(hyperlane_sovereign::Signer::new(&private_key)?)
-        } else if let SignerConf::HexKey { key } = conf {
+        if let SignerConf::HexKey { key } = conf {
             Ok(hyperlane_sovereign::Signer::new(key)?)
         } else {
             bail!("{conf:?} key is not supported by Sovereign");
