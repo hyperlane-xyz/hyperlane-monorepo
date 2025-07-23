@@ -176,19 +176,19 @@ export class RadixHypCollateralAdapter
   async quoteTransferRemoteGas(
     destination: Domain,
     _?: Address,
-    customHook?: Address,
+    _customHook?: Address,
   ): Promise<InterchainGasQuote> {
     // TODO: RADIX
-    // const { gas_payment } = await this.provider.query.warp.QuoteRemoteTransfer({
-    //   id: this.tokenId,
-    //   destination_domain: destination.toString(),
-    //   custom_hook_id: customHook || COSMOS_EMPTY_VALUE,
-    //   custom_hook_metadata: COSMOS_EMPTY_VALUE,
-    // });
+    // add custom hook once implemented
+    const { resource: addressOrDenom, amount } =
+      await this.provider.query.quoteRemoteTransfer({
+        token: this.tokenId,
+        destination_domain: destination,
+      });
 
     return {
-      addressOrDenom: '',
-      amount: BigInt(0),
+      addressOrDenom,
+      amount,
     };
   }
 

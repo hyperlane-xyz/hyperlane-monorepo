@@ -1,8 +1,14 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import { LTSRadixEngineToolkit } from '@radixdlt/radix-engine-toolkit';
+import {
+  LTSRadixEngineToolkit,
+  PrivateKey,
+  generateRandomNonce,
+} from '@radixdlt/radix-engine-toolkit';
 import BigNumber from 'bignumber.js';
 
 import { assert, ensure0x } from '@hyperlane-xyz/utils';
+
+import { generateSecureRandomBytes } from '../utils.js';
 
 export class RadixQuery {
   protected networkId: number;
@@ -457,5 +463,62 @@ export class RadixQuery {
         throw new Error(`unknown token type: ${token_type}`);
       }
     }
+  }
+
+  public async quoteRemoteTransfer({
+    token,
+    destination_domain,
+  }: {
+    token: string;
+    destination_domain: number;
+  }): Promise<{ resource: string; amount: bigint }> {
+    const pk = new PrivateKey.Ed25519(
+      new Uint8Array(await generateSecureRandomBytes(32)),
+    );
+
+    const constructionMetadata =
+      await this.gateway.transaction.innerClient.transactionConstruction();
+
+    const response =
+      await this.gateway.transaction.innerClient.transactionPreview({
+        transactionPreviewRequest: {
+          manifest: `
+CALL_METHOD
+    Address("${token}")
+    "quote_remote_transfer"
+    ${destination_domain}u32
+    Bytes("0000000000000000000000000000000000000000000000000000000000000000")
+    Decimal("0")
+;
+`,
+          nonce: generateRandomNonce(),
+          signer_public_keys: [
+            {
+              key_type: 'EddsaEd25519',
+              key_hex: pk.publicKeyHex(),
+            },
+          ],
+          flags: {
+            use_free_credit: true,
+          },
+          start_epoch_inclusive: constructionMetadata.ledger_state.epoch,
+          end_epoch_exclusive: constructionMetadata.ledger_state.epoch + 2,
+        },
+      });
+
+    const output = (response.receipt as any).output as any[];
+    const entries = output[0].programmatic_json.entries as any[];
+
+    assert(output.length, `found no output for quote_remote_transfer method`);
+    assert(entries.length > 0, `quote_remote_transfer returned no resources`);
+    assert(
+      entries.length < 2,
+      `quote_remote_transfer returned muliple resources`,
+    );
+
+    return {
+      resource: entries[0].key.value,
+      amount: BigInt(entries[0].value.value),
+    };
   }
 }

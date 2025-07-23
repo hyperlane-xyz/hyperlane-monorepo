@@ -103,12 +103,12 @@ export class RadixSigningSDK extends RadixSDK {
 
 // TODO: RADIX
 // const main = async () => {
-//   const sdk = await RadixSigningSDK.fromPrivateKey(
-//     '4f61d7cd8c2bebd01ff86da87001cbe0a2349fa5ba43ef95eee5d0d817b035cc',
-//     {
-//       networkId: NetworkId.Stokenet,
-//     },
-//   );
+// const sdk = await RadixSigningSDK.fromPrivateKey(
+//   '4f61d7cd8c2bebd01ff86da87001cbe0a2349fa5ba43ef95eee5d0d817b035cc',
+//   {
+//     networkId: NetworkId.Stokenet,
+//   },
+// );
 
 //   const address = sdk.getAddress();
 
@@ -202,6 +202,14 @@ export class RadixSigningSDK extends RadixSDK {
 //     token: synthetic,
 //   });
 //   console.log('query remote routers', JSON.stringify(r));
+
+//   const result = await sdk.query.quoteRemoteTransfer({
+//     token:
+//       'component_tdx_2_1cq7jh99kkg9exmucxm3j5w4wru3qfpfxy3s3etar20c63dj37mh2cj',
+//     destination_domain: 1337,
+//   });
+
+//   console.log(result);
 // };
 
 // main();
