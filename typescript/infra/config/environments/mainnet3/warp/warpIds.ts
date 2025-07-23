@@ -97,6 +97,7 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
+  LumiaUSDC = 'USDC/lumia',
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
 

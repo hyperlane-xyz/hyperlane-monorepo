@@ -53,11 +53,9 @@ import {
   getAllSafesForChain,
   getGovernanceIcas,
   getGovernanceSafes,
+  getGovernanceTimelocks,
 } from '../../config/environments/mainnet3/governance/utils.js';
-import {
-  icaOwnerChain,
-  timelocks,
-} from '../../config/environments/mainnet3/owners.js';
+import { icaOwnerChain } from '../../config/environments/mainnet3/owners.js';
 import {
   getEnvironmentConfig,
   getHyperlaneCore,
@@ -150,6 +148,7 @@ export class GovernTransactionReader {
     const warpRoutes = await registry.getWarpRoutes();
     const safes = getGovernanceSafes(governanceType);
     const icas = getGovernanceIcas(governanceType);
+    const timelocks = getGovernanceTimelocks(governanceType);
 
     const txReaderInstance = new GovernTransactionReader(
       environment,
@@ -159,6 +158,7 @@ export class GovernTransactionReader {
       warpRoutes,
       safes,
       icas,
+      timelocks,
     );
     await txReaderInstance.init();
     return txReaderInstance;
@@ -172,6 +172,7 @@ export class GovernTransactionReader {
     warpRoutes: Record<string, WarpCoreConfig>,
     readonly safes: ChainMap<string>,
     readonly icas: ChainMap<string>,
+    readonly timelocks: ChainMap<string>,
   ) {
     this.rawWarpRouteConfigMap = warpRoutes;
   }
@@ -450,8 +451,8 @@ export class GovernTransactionReader {
   ): boolean {
     return (
       tx.to !== undefined &&
-      timelocks[chain] !== undefined &&
-      eqAddress(tx.to!, timelocks[chain]!)
+      this.timelocks[chain] !== undefined &&
+      eqAddress(tx.to!, this.timelocks[chain]!)
     );
   }
 
@@ -487,6 +488,31 @@ export class GovernTransactionReader {
       const eta = new Date(Date.now() + delay.toNumber() * 1000);
 
       insight = `Schedule for ${eta}: ${JSON.stringify(inner)}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
+        'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
+      ].name
+    ) {
+      const [targets, values, data, _predecessor, _salt, delay] = decoded.args;
+
+      const innerTxs = [];
+      const numOfTxs = targets.length;
+      for (let i = 0; i < numOfTxs; i++) {
+        innerTxs.push(
+          await this.read(chain, {
+            to: targets[i],
+            data: data[i],
+            value: values[i],
+          }),
+        );
+      }
+
+      const eta = new Date(Date.now() + delay.toNumber() * 1000);
+
+      insight = `Schedule for ${eta}: ${JSON.stringify(innerTxs, null, 2)}`;
     }
 
     if (
