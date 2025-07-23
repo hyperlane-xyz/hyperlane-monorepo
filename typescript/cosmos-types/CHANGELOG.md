@@ -1,5 +1,7 @@
 # @hyperlane-xyz/cosmos-types
 
+## 16.0.0
+
 ## 15.0.0
 
 ## 14.4.0
