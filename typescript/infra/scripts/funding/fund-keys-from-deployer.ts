@@ -465,6 +465,7 @@ class ContextFunder {
       igpClaimThresholdPerChain,
     );
   }
+
   // Funds all the roles in this.keysToFundPerChain.
   // Throws if any funding operations fail.
   async fund(): Promise<void> {
@@ -739,23 +740,23 @@ class ContextFunder {
         'Skipping funding for key',
       );
       return;
-    } else {
-      logger.info(
-        {
-          chain,
-          amount: ethers.utils.formatEther(fundingAmount),
-          key: keyInfo,
-          funder: {
-            address: funderAddress,
-            balance: ethers.utils.formatEther(
-              await this.multiProvider.getSigner(chain).getBalance(),
-            ),
-          },
-          context: this.context,
-        },
-        'Funding key',
-      );
     }
+
+    logger.info(
+      {
+        chain,
+        amount: ethers.utils.formatEther(fundingAmount),
+        key: keyInfo,
+        funder: {
+          address: funderAddress,
+          balance: ethers.utils.formatEther(
+            await this.multiProvider.getSigner(chain).getBalance(),
+          ),
+        },
+        context: this.context,
+      },
+      'Funding key',
+    );
 
     const tx = await this.multiProvider.sendTransaction(chain, {
       to: key.address,
