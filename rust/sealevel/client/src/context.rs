@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_yaml;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;

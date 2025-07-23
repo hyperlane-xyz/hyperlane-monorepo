@@ -553,7 +553,7 @@ fn configure_owner(
                 .with_client(&client)
                 .send_with_pubkey_signer(
                     &actual_owner,
-                    Option::from(instructions_path),
+                    instructions_path,
                     Option::from(chain_metadata.clone().name),
                 );
         } else {
@@ -612,7 +612,7 @@ fn configure_upgrade_authority(
                 .with_client(&client)
                 .send_with_pubkey_signer(
                     &actual_upgrade_authority,
-                    Option::from(instructions_path),
+                    instructions_path,
                     Option::from(chain_metadata.clone().name),
                 );
         } else {
