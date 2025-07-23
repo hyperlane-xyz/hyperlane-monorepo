@@ -54,8 +54,12 @@ import {
   getGovernanceIcas,
   getGovernanceSafes,
   getGovernanceTimelocks,
+  getLegacyGovernanceIcas,
 } from '../../config/environments/mainnet3/governance/utils.js';
-import { icaOwnerChain } from '../../config/environments/mainnet3/owners.js';
+import {
+  icaOwnerChain,
+  timelocks as legacyTimelocks,
+} from '../../config/environments/mainnet3/owners.js';
 import {
   getEnvironmentConfig,
   getHyperlaneCore,
@@ -148,6 +152,7 @@ export class GovernTransactionReader {
     const warpRoutes = await registry.getWarpRoutes();
     const safes = getGovernanceSafes(governanceType);
     const icas = getGovernanceIcas(governanceType);
+    const legacyIcas = getLegacyGovernanceIcas(governanceType);
     const timelocks = getGovernanceTimelocks(governanceType);
 
     const txReaderInstance = new GovernTransactionReader(
@@ -158,6 +163,7 @@ export class GovernTransactionReader {
       warpRoutes,
       safes,
       icas,
+      legacyIcas,
       timelocks,
     );
     await txReaderInstance.init();
@@ -172,6 +178,7 @@ export class GovernTransactionReader {
     warpRoutes: Record<string, WarpCoreConfig>,
     readonly safes: ChainMap<string>,
     readonly icas: ChainMap<string>,
+    readonly legacyIcas: ChainMap<string>,
     readonly timelocks: ChainMap<string>,
   ) {
     this.rawWarpRouteConfigMap = warpRoutes;
@@ -449,11 +456,14 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): boolean {
-    return (
-      tx.to !== undefined &&
+    const isNewTimelock =
       this.timelocks[chain] !== undefined &&
-      eqAddress(tx.to!, this.timelocks[chain]!)
-    );
+      eqAddress(tx.to!, this.timelocks[chain]!);
+    const isLegacyTimelock =
+      legacyTimelocks[chain] !== undefined &&
+      eqAddress(tx.to!, legacyTimelocks[chain]!);
+
+    return tx.to !== undefined && (isNewTimelock || isLegacyTimelock);
   }
 
   private async readTimelockControllerTransaction(
@@ -1197,11 +1207,17 @@ export class GovernTransactionReader {
       ismOverride: ism,
     });
     const expectedRemoteIcaAddress = this.icas[remoteChainName];
+    const expectedLegacyRemoteIcaAddress = this.legacyIcas[remoteChainName];
     let remoteIcaInsight = '✅ matches expected ICA';
-    if (
-      !expectedRemoteIcaAddress ||
-      !eqAddress(remoteIcaAddress, expectedRemoteIcaAddress)
-    ) {
+
+    const isValidIca =
+      expectedRemoteIcaAddress &&
+      eqAddress(remoteIcaAddress, expectedRemoteIcaAddress);
+    const isValidLegacyIca =
+      expectedRemoteIcaAddress &&
+      eqAddress(remoteIcaAddress, expectedLegacyRemoteIcaAddress);
+
+    if (!isValidIca && !isValidLegacyIca) {
       this.errors.push({
         chain: chain,
         remoteDomain: destination,
