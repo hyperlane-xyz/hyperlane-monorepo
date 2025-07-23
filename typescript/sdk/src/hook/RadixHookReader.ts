@@ -39,14 +39,14 @@ export class RadixHookReader {
   private async deriveIgpConfig(
     address: Address,
   ): Promise<WithAddress<IgpHookConfig>> {
-    const igp = await this.sdk.queryIgpHook(address);
+    const igp = await this.sdk.query.getIgpHook({ hook: address });
 
     assert(igp, `IGP not found for address ${address}`);
 
     const overhead: IgpHookConfig['overhead'] = {};
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
 
-    Object.keys(igp.destinationGasConfigs).forEach((domainId) => {
+    Object.keys(igp.destination_gas_configs).forEach((domainId) => {
       let name = '';
       let nativeToken = {} as NativeToken;
 
@@ -58,12 +58,12 @@ export class RadixHookReader {
         nativeToken = metadata.nativeToken || ({} as NativeToken);
       }
 
-      const gasConfig = igp.destinationGasConfigs[domainId];
+      const gasConfig = igp.destination_gas_configs[domainId];
 
-      overhead[name] = parseInt(gasConfig.gasOverhead);
+      overhead[name] = parseInt(gasConfig.gas_overhead);
       oracleConfig[name] = {
-        gasPrice: gasConfig.gasOracle?.gasPrice ?? '',
-        tokenExchangeRate: gasConfig.gasOracle?.tokenExchangeRate ?? '',
+        gasPrice: gasConfig.gas_oracle?.gas_price ?? '',
+        tokenExchangeRate: gasConfig.gas_oracle?.token_exchange_rate ?? '',
         tokenDecimals: nativeToken?.decimals,
       };
     });
@@ -85,7 +85,9 @@ export class RadixHookReader {
   private async deriveMerkleTreeConfig(
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
-    const merkleTreeHook = await this.sdk.queryMerkleTreeHook(address);
+    const merkleTreeHook = await this.sdk.query.getMerkleTreeHook({
+      hook: address,
+    });
 
     assert(merkleTreeHook, `Merkle Tree Hook not found for address ${address}`);
 
@@ -97,7 +99,7 @@ export class RadixHookReader {
 
   private async isIgpHook(address: Address): Promise<boolean> {
     try {
-      const igp = await this.sdk.queryIgpHook(address);
+      const igp = await this.sdk.query.getIgpHook({ hook: address });
       return !!igp;
     } catch {
       return false;
@@ -106,7 +108,9 @@ export class RadixHookReader {
 
   private async isMerkleTreeHook(address: Address): Promise<boolean> {
     try {
-      const merkleTreeHook = await this.sdk.queryMerkleTreeHook(address);
+      const merkleTreeHook = await this.sdk.query.getMerkleTreeHook({
+        hook: address,
+      });
       return !!merkleTreeHook;
     } catch {
       return false;

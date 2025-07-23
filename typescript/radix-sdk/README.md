@@ -25,9 +25,9 @@ const signingSdk = await RadixSigningSDK.fromPrivateKey(
   },
 );
 
-const mailboxAddress = await signingSdk.createMailbox(75898670);
+const mailboxAddress = await signingSdk.tx.createMailbox({ domain_id: 75898670 });
 
-const mailbox = await signingSdk.queryMailbox(mailboxAddress)
+const mailbox = await signingSdk.query.getMailbox({ mailbox: mailboxAddress });
 ...
 
 // performing queries without signer
@@ -35,7 +35,7 @@ const sdk = new RadixSDK({
   networkId: NetworkId.Stokenet,
 })
 
-const mailbox = await signingSdk.queryMailbox(mailboxAddress)
+const mailbox = await signingSdk.query.getMailbox({ mailbox: mailboxAddress });
 ```
 
 ## Setup

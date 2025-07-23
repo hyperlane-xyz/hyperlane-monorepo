@@ -61,17 +61,17 @@ export class RadixWarpRouteReader {
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
-    const token = await this.signer.queryToken(warpRouteAddress);
+    const token = await this.signer.query.getToken({ token: warpRouteAddress });
     assert(token, `Failed to find token for address ${warpRouteAddress}`);
 
-    switch (token.tokenType) {
+    switch (token.token_type) {
       case 'COLLATERAL':
         return TokenType.collateral;
       case 'SYNTHETIC':
         return TokenType.synthetic;
       default:
         throw new Error(
-          `Radix unkown token type on token contract ${warpRouteAddress}: ${token.tokenType}`,
+          `Radix unkown token type on token contract ${warpRouteAddress}: ${token.token_type}`,
         );
     }
   }
@@ -85,7 +85,7 @@ export class RadixWarpRouteReader {
   async fetchMailboxClientConfig(
     routerAddress: Address,
   ): Promise<MailboxClientConfig> {
-    const token = await this.signer.queryToken(routerAddress);
+    const token = await this.signer.query.getToken({ token: routerAddress });
     assert(token, `Failed to find token for address ${routerAddress}`);
 
     const config: MailboxClientConfig = {
@@ -112,7 +112,7 @@ export class RadixWarpRouteReader {
     type: TokenType,
     warpRouteAddress: Address,
   ): Promise<HypTokenConfig> {
-    const token = await this.signer.queryToken(warpRouteAddress);
+    const token = await this.signer.query.getToken({ token: warpRouteAddress });
     assert(token, `Failed to find token for address ${warpRouteAddress}`);
 
     return {
@@ -125,13 +125,14 @@ export class RadixWarpRouteReader {
   }
 
   async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
-    const { enrolledRouters } =
-      await this.signer.queryEnrolledRouters(warpRouteAddress);
+    const { remote_routers } = await this.signer.query.getRemoteRouters({
+      token: warpRouteAddress,
+    });
 
     const routers: Record<string, { address: string }> = {};
-    for (const router of enrolledRouters) {
-      routers[router.receiverDomain] = {
-        address: router.receiverContract,
+    for (const router of remote_routers) {
+      routers[router.receiver_domain] = {
+        address: router.receiver_contract,
       };
     }
 
@@ -141,12 +142,13 @@ export class RadixWarpRouteReader {
   async fetchDestinationGas(
     warpRouteAddress: Address,
   ): Promise<DestinationGas> {
-    const { enrolledRouters } =
-      await this.signer.queryEnrolledRouters(warpRouteAddress);
+    const { remote_routers } = await this.signer.query.getRemoteRouters({
+      token: warpRouteAddress,
+    });
 
     return Object.fromEntries(
-      enrolledRouters.map((routerConfig) => [
-        routerConfig.receiverDomain,
+      remote_routers.map((routerConfig) => [
+        routerConfig.receiver_domain,
         routerConfig.gas,
       ]),
     );

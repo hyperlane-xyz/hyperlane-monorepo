@@ -107,7 +107,7 @@ export class RadixCoreModule extends HyperlaneModule<
     const domainId = multiProvider.getDomainId(chain);
 
     // 1. Deploy Mailbox with initial configuration
-    const mailbox = await signer.createMailbox(domainId);
+    const mailbox = await signer.tx.createMailbox({ domain_id: domainId });
 
     // 2. Deploy default ISM
     const ismModule = await RadixIsmModule.create({
@@ -152,9 +152,9 @@ export class RadixCoreModule extends HyperlaneModule<
     const { deployedHook: requiredHook } = requiredHookModule.serialize();
 
     // 5. Update the configuration with the newly created hooks
-    await signer.setDefaultIsm(mailbox, defaultIsm);
-    await signer.setDefaultHook(mailbox, defaultHook);
-    await signer.setRequiredHook(mailbox, requiredHook);
+    await signer.tx.setDefaultIsm({ mailbox, ism: defaultIsm });
+    await signer.tx.setDefaultHook({ mailbox, hook: defaultHook });
+    await signer.tx.setRequiredHook({ mailbox, hook: requiredHook });
 
     // TODO: RADIX update owner
 
@@ -284,7 +284,11 @@ export class RadixCoreModule extends HyperlaneModule<
     if (newIsmDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push(
-        this.signer.populateSetDefaultIsm(mailbox, deployedIsm),
+        this.signer.populate.setDefaultIsm({
+          from_address: this.signer.getAddress(),
+          mailbox,
+          ism: deployedIsm,
+        }),
       );
     }
 
@@ -356,7 +360,11 @@ export class RadixCoreModule extends HyperlaneModule<
     if (newHookDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push(
-        this.signer.populateSetDefaultHook(mailbox, deployedHook),
+        this.signer.populate.setDefaultHook({
+          from_address: this.signer.getAddress(),
+          mailbox,
+          hook: deployedHook,
+        }),
       );
     }
 
@@ -393,7 +401,11 @@ export class RadixCoreModule extends HyperlaneModule<
     if (newHookDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push(
-        this.signer.populateSetRequiredHook(mailbox, deployedHook),
+        this.signer.populate.setRequiredHook({
+          from_address: this.signer.getAddress(),
+          mailbox,
+          hook: deployedHook,
+        }),
       );
     }
 

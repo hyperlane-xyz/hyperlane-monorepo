@@ -91,10 +91,10 @@ export class RadixDeployer {
     originDenom: string,
   ): Promise<Address> {
     this.logger.info(`Deploying collateral token to ${chain}`);
-    return this.signersMap[chain].createCollateralToken(
-      originMailbox,
-      originDenom,
-    );
+    return this.signersMap[chain].tx.createCollateralToken({
+      mailbox: originMailbox,
+      origin_denom: originDenom,
+    });
   }
 
   private async deploySyntheticToken(
@@ -105,12 +105,12 @@ export class RadixDeployer {
     divisibility: number,
   ): Promise<Address> {
     this.logger.info(`Deploying synthetic token to ${chain}`);
-    return this.signersMap[chain].createSyntheticToken(
-      originMailbox,
+    return this.signersMap[chain].tx.createSyntheticToken({
+      mailbox: originMailbox,
       name,
       symbol,
-      '',
+      description: '',
       divisibility,
-    );
+    });
   }
 }

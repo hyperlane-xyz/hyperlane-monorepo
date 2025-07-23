@@ -171,10 +171,10 @@ export class RadixIsmModule extends HyperlaneModule<
       config.threshold <= config.validators.length,
       `threshold (${config.threshold}) for merkle root multisig ISM is greater than number of validators (${config.validators.length})`,
     );
-    return this.signer.createMerkleRootMultisigIsm(
-      config.validators,
-      config.threshold,
-    );
+    return this.signer.tx.createMerkleRootMultisigIsm({
+      validators: config.validators,
+      threshold: config.threshold,
+    });
   }
 
   protected async deployMessageIdMultisigIsm(
@@ -184,13 +184,13 @@ export class RadixIsmModule extends HyperlaneModule<
       config.threshold <= config.validators.length,
       `threshold (${config.threshold}) for message id multisig ISM is greater than number of validators (${config.validators.length})`,
     );
-    return this.signer.createMessageIdMultisigIsm(
-      config.validators,
-      config.threshold,
-    );
+    return this.signer.tx.createMessageIdMultisigIsm({
+      validators: config.validators,
+      threshold: config.threshold,
+    });
   }
 
   protected async deployNoopIsm(): Promise<Address> {
-    return this.signer.createNoopIsm();
+    return this.signer.tx.createNoopIsm();
   }
 }

@@ -17,7 +17,7 @@ export class RadixIsmReader {
 
   async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
     try {
-      const ism = await this.sdk.queryIsm(address);
+      const ism = await this.sdk.query.getIsm({ ism: address });
 
       assert(ism, `ISM with id ${address} not found`);
 
@@ -40,7 +40,7 @@ export class RadixIsmReader {
   private async deriveMerkleRootMultisigConfig(
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
-    const ism = await this.sdk.queryIsm(address);
+    const ism = await this.sdk.query.getIsm({ ism: address });
 
     return {
       type: IsmType.MERKLE_ROOT_MULTISIG,
@@ -53,7 +53,7 @@ export class RadixIsmReader {
   private async deriveMessageIdMultisigConfig(
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
-    const ism = await this.sdk.queryIsm(address);
+    const ism = await this.sdk.query.getIsm({ ism: address });
 
     return {
       type: IsmType.MESSAGE_ID_MULTISIG,

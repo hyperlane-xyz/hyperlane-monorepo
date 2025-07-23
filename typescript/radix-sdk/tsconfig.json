@@ -4,5 +4,10 @@
     "outDir": "./dist/",
     "rootDir": "./src"
   },
-  "include": ["./src/*.ts"]
+  "include": [
+    "./src/*.ts",
+    "src/modules/populate.ts",
+    "src/modules/query.ts",
+    "src/modules/tx.ts"
+  ]
 }

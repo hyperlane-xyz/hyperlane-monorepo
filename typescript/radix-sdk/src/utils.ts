@@ -1,10 +1,15 @@
 import {
   Convert,
+  LTSRadixEngineToolkit,
+  PrivateKey,
   Value,
   ValueKind,
   array,
   u8,
 } from '@radixdlt/radix-engine-toolkit';
+import { getRandomValues } from 'crypto';
+
+import { Account } from './types.js';
 
 export const bytes = (hex: string): Value => {
   return array(
@@ -34,4 +39,31 @@ export const getAccountPrefix = (networkId: number) => {
   }
 
   return prefix;
+};
+
+export const generateSecureRandomBytes = async (
+  count: number,
+): Promise<Uint8Array> => {
+  const byteArray = new Uint8Array(count);
+  getRandomValues(byteArray);
+  return byteArray;
+};
+
+export const generateNewEd25519VirtualAccount = async (
+  privateKey: string,
+  networkId: number,
+): Promise<Account> => {
+  const pk = new PrivateKey.Ed25519(
+    new Uint8Array(Buffer.from(privateKey, 'hex')),
+  );
+  const publicKey = pk.publicKey();
+  const address = await LTSRadixEngineToolkit.Derive.virtualAccountAddress(
+    publicKey,
+    networkId,
+  );
+  return {
+    privateKey: pk,
+    publicKey,
+    address,
+  };
 };

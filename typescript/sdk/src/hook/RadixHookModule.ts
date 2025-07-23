@@ -164,12 +164,14 @@ export class RadixHookModule extends HyperlaneModule<
 
     // TODO: RADIX
     // set destination gas configs
-    return this.signer.createIgp(nativeToken.denom);
+    return this.signer.tx.createIgp({ denom: nativeToken.denom });
   }
 
   protected async deployMerkleTreeHook(): Promise<Address> {
     this.logger.debug('Deploying Merkle Tree Hook...');
 
-    return this.signer.createMerkleTreeHook(this.args.addresses.mailbox);
+    return this.signer.tx.createMerkleTreeHook({
+      mailbox: this.args.addresses.mailbox,
+    });
   }
 }

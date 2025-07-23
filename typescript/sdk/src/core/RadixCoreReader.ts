@@ -23,7 +23,9 @@ export class RadixCoreReader {
   }
 
   async deriveCoreConfig(mailboxAddress: Address): Promise<DerivedCoreConfig> {
-    const mailbox = await this.sdk.queryMailbox(mailboxAddress);
+    const mailbox = await this.sdk.query.getMailbox({
+      mailbox: mailboxAddress,
+    });
 
     if (!mailbox) {
       throw new Error(`Mailbox not found for address ${mailboxAddress}`);
@@ -31,10 +33,10 @@ export class RadixCoreReader {
 
     return {
       owner: mailbox.owner,
-      defaultIsm: await this.ismReader.deriveIsmConfig(mailbox.defaultIsm),
-      defaultHook: await this.hookReader.deriveHookConfig(mailbox.defaultHook),
+      defaultIsm: await this.ismReader.deriveIsmConfig(mailbox.default_ism),
+      defaultHook: await this.hookReader.deriveHookConfig(mailbox.default_hook),
       requiredHook: await this.hookReader.deriveHookConfig(
-        mailbox.requiredHook,
+        mailbox.required_hook,
       ),
     };
   }
