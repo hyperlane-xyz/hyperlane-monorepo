@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { ethers } from 'ethers';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
@@ -6,11 +7,21 @@ import {
   ChainMap,
   ChainName,
   EXECUTOR_ROLE,
+  EvmTimelockReader,
   MultiProvider,
   PROPOSER_ROLE,
   TimelockConfig,
+  getTimelockExecutableTransactionFromBatch,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  assert,
+  eqAddress,
+  isObjEmpty,
+  retryAsync,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 
@@ -148,4 +159,104 @@ export function getTimelockConfigs({
   });
 
   return timelockConfigs;
+}
+
+const TX_FETCH_RETRIES = 5;
+const TX_FETCH_RETRY_DELAY = 5000;
+
+export enum TimelockOperationStatus {
+  PENDING = '🟡',
+  READY_TO_EXECUTE = '🟢',
+}
+
+type TimelockTransactionStatus = {
+  chain: ChainName;
+  id: string;
+  executeTransactionData: HexString;
+  timelockAddress: Address;
+  status: TimelockOperationStatus;
+  canSignerExecute: boolean;
+};
+
+export async function getTimelockPendingTxs(
+  chains: ChainName[],
+  multiProvider: MultiProvider,
+  timelocks: ChainMap<Address>,
+): Promise<TimelockTransactionStatus[]> {
+  const timelockTransactions: ChainMap<TimelockTransactionStatus[]> = {};
+
+  await Promise.all(
+    chains.map(async (chain) => {
+      const timelockAddress = timelocks[chain];
+
+      if (!timelockAddress) {
+        rootLogger.info(
+          chalk.gray.italic(
+            `Skipping chain ${chain} as it does not have a Timelock deployment`,
+          ),
+        );
+        return;
+      }
+
+      const reader = EvmTimelockReader.fromConfig({
+        chain,
+        multiProvider,
+        timelockAddress,
+        paginationBlockRange: 5_000,
+      });
+
+      let scheduledTxs: Awaited<
+        ReturnType<EvmTimelockReader['getPendingScheduledOperations']>
+      >;
+      try {
+        scheduledTxs = await retryAsync(
+          () => reader.getPendingScheduledOperations(),
+          TX_FETCH_RETRIES,
+          TX_FETCH_RETRY_DELAY,
+        );
+      } catch (error) {
+        rootLogger.error(
+          chalk.red(
+            `Failed to fetch pending transactions for Timelock "${timelockAddress}" on ${chain} after ${TX_FETCH_RETRIES} attempts: ${error}`,
+          ),
+        );
+        return;
+      }
+
+      if (!scheduledTxs || isObjEmpty(scheduledTxs)) {
+        rootLogger.info(
+          chalk.gray.italic(
+            `No pending transactions found for Timelock ${timelockAddress} on ${chain}`,
+          ),
+        );
+        return;
+      }
+
+      const scheduledTxIds = Object.keys(scheduledTxs);
+      const [readyTransactionIds, canSignerExecute] = await Promise.all([
+        reader.getReadyOperationIds(scheduledTxIds),
+        reader.canExecuteOperations(
+          await multiProvider.getSignerAddress(chain),
+        ),
+      ]);
+
+      timelockTransactions[chain] = Object.values(scheduledTxs).map(
+        (tx): TimelockTransactionStatus => {
+          return {
+            chain,
+            canSignerExecute,
+            executeTransactionData:
+              getTimelockExecutableTransactionFromBatch(tx),
+            id: tx.id,
+            status: !readyTransactionIds.has(tx.id)
+              ? TimelockOperationStatus.PENDING
+              : TimelockOperationStatus.READY_TO_EXECUTE,
+            timelockAddress,
+          };
+        },
+      );
+    }),
+  );
+
+  return Object.values(timelockTransactions).flatMap((txs) => txs);
 }
