@@ -114,6 +114,14 @@ export const testScale2: ChainMetadata = {
   name: 'testscale2',
 };
 
+export const testCollateralFiat: ChainMetadata = {
+  ...test1,
+  chainId: 9913379,
+  domainId: 9913379,
+  displayName: 'Test Collateral Fiat',
+  name: 'testcollateralfiat',
+};
+
 export const testChainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
@@ -195,6 +203,7 @@ export const multiProtocolTestChainMetadata: ChainMap<ChainMetadata> = {
   starknetdevnet: testStarknetChain,
   testscale1: testScale1,
   testscale2: testScale2,
+  testcollateralfiat: testCollateralFiat,
 };
 
 export const multiProtocolTestChains: Array<ChainName> = Object.keys(

@@ -115,3 +115,7 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
     bridge: Address,
   ): Promise<Tx>;
 }
+
+export interface IHypCollateralFiatAdapter<Tx> extends IHypTokenAdapter<Tx> {
+  getMintLimit(): Promise<bigint>;
+}
