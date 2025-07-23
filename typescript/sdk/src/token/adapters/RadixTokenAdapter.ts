@@ -30,7 +30,7 @@ class RadixTokenAdapter
   protected provider: RadixSDK;
   protected tokenId: string;
 
-  protected async getDenom(): Promise<string> {
+  protected async getResourceAddress(): Promise<string> {
     const { origin_denom } = await this.provider.query.getToken({
       token: this.tokenId,
     });
@@ -49,11 +49,10 @@ class RadixTokenAdapter
   }
 
   async getBalance(address: string): Promise<bigint> {
-    const denom = await this.getDenom();
-
+    const resource = await this.getResourceAddress();
     return this.provider.query.getBalance({
       address,
-      resource: denom,
+      resource,
     });
   }
 
@@ -69,6 +68,10 @@ class RadixTokenAdapter
     assert(
       symbol !== undefined,
       `symbol on radix token ${this.tokenId} is undefined`,
+    );
+    assert(
+      divisibility !== undefined,
+      `divisibility on radix token ${this.tokenId} is undefined`,
     );
 
     return {
@@ -99,22 +102,22 @@ class RadixTokenAdapter
   async populateTransferTx(
     transferParams: TransferParams,
   ): Promise<TransactionManifest> {
-    const denom = await this.getDenom();
+    const resource = await this.getResourceAddress();
 
     assert(transferParams.fromAccountOwner, `no sender in transfer params`);
 
     return this.provider.populate.transfer({
       from_address: transferParams.fromAccountOwner!,
       to_address: transferParams.recipient,
-      resource_address: denom,
+      resource_address: resource,
       amount: transferParams.weiAmountOrId.toString(),
     });
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
-    const denom = await this.getDenom();
+    const resource = await this.getResourceAddress();
     return this.provider.query.getTotalSupply({
-      resource: denom,
+      resource,
     });
   }
 }
