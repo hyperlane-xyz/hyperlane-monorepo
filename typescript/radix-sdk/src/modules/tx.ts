@@ -204,7 +204,7 @@ export class RadixTx {
     mailbox: string;
     hook: string;
   }) {
-    const transactionManifest = this.populate.setRequiredHook({
+    const transactionManifest = await this.populate.setRequiredHook({
       from_address: this.account.address,
       mailbox,
       hook,
@@ -220,7 +220,7 @@ export class RadixTx {
     mailbox: string;
     hook: string;
   }) {
-    const transactionManifest = this.populate.setDefaultHook({
+    const transactionManifest = await this.populate.setDefaultHook({
       from_address: this.account.address,
       mailbox,
       hook,
@@ -236,7 +236,7 @@ export class RadixTx {
     mailbox: string;
     ism: string;
   }) {
-    const transactionManifest = this.populate.setDefaultIsm({
+    const transactionManifest = await this.populate.setDefaultIsm({
       from_address: this.account.address,
       mailbox,
       ism,

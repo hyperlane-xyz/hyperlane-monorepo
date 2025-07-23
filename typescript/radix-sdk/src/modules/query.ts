@@ -293,7 +293,7 @@ export class RadixQuery {
   public async getToken({ token }: { token: string }): Promise<{
     address: string;
     owner: string;
-    token_type: 'COLLATERAL' | 'SYNTHETIC';
+    token_type: 'Collateral' | 'Synthetic';
     mailbox: string;
     ism: string;
     origin_denom: string;
@@ -331,7 +331,7 @@ export class RadixQuery {
       fields.find((f: any) => f.field_name === 'token_type')?.variant_name ??
       '';
     assert(
-      token_type === 'COLLATERAL' || token_type === 'SYNTHETIC',
+      token_type === 'Collateral' || token_type === 'Synthetic',
       `unknown token type: ${token_type}`,
     );
 
@@ -343,13 +343,13 @@ export class RadixQuery {
     let origin_denom;
     let metadata = {};
 
-    if (token_type === 'COLLATERAL') {
+    if (token_type === 'Collateral') {
       origin_denom =
         tokenTypeFields.find((t: any) => t.type_name === 'ResourceAddress')
           ?.value ?? '';
 
       metadata = await this.getMetadata({ resource: origin_denom });
-    } else if (token_type === 'SYNTHETIC') {
+    } else if (token_type === 'Synthetic') {
       origin_denom =
         (
           fields.find((f: any) => f.field_name === 'resource_manager')
@@ -443,12 +443,12 @@ export class RadixQuery {
     const { token_type, origin_denom } = await this.getToken({ token });
 
     switch (token_type) {
-      case 'COLLATERAL': {
+      case 'Collateral': {
         // if the token is collateral we get the token contract balance
         // of the origin denom
         return this.getBalance({ address: token, resource: origin_denom });
       }
-      case 'SYNTHETIC': {
+      case 'Synthetic': {
         // if the token is synthetic we get the total supply of the synthetic
         // resource
         return this.getTotalSupply({ resource: origin_denom });

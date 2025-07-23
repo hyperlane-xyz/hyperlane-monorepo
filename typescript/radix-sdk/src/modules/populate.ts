@@ -10,7 +10,6 @@ import {
   enumeration,
   expression,
   str,
-  tuple,
   u8,
   u32,
   u64,
@@ -55,26 +54,6 @@ export class RadixPopulate {
         [decimal(this.gasAmount)],
       )
       .callFunction(package_address, blueprint_name, function_name, args)
-      .callMethod(from_address, 'try_deposit_batch_or_refund', [
-        expression('EntireWorktop'),
-        enumeration(0),
-      ])
-      .build();
-  }
-
-  private createCallMethodManifest(
-    from_address: string,
-    contract_address: string | number,
-    method_name: string,
-    args: Value[],
-  ) {
-    return new ManifestBuilder()
-      .callMethod(
-        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
-        'lock_fee',
-        [decimal(this.gasAmount)],
-      )
-      .callMethod(contract_address, method_name, args)
       .callMethod(from_address, 'try_deposit_batch_or_refund', [
         expression('EntireWorktop'),
         enumeration(0),
@@ -308,7 +287,7 @@ export class RadixPopulate {
     );
   }
 
-  public setRequiredHook({
+  public async setRequiredHook({
     from_address,
     mailbox,
     hook,
@@ -317,7 +296,7 @@ export class RadixPopulate {
     mailbox: string;
     hook: string;
   }) {
-    return this.createCallMethodManifest(
+    return this.createCallMethodManifestWithOwner(
       from_address,
       mailbox,
       'set_required_hook',
@@ -325,7 +304,7 @@ export class RadixPopulate {
     );
   }
 
-  public setDefaultHook({
+  public async setDefaultHook({
     from_address,
     mailbox,
     hook,
@@ -334,7 +313,7 @@ export class RadixPopulate {
     mailbox: string;
     hook: string;
   }) {
-    return this.createCallMethodManifest(
+    return this.createCallMethodManifestWithOwner(
       from_address,
       mailbox,
       'set_default_hook',
@@ -342,7 +321,7 @@ export class RadixPopulate {
     );
   }
 
-  public setDefaultIsm({
+  public async setDefaultIsm({
     from_address,
     mailbox,
     ism,
@@ -351,7 +330,7 @@ export class RadixPopulate {
     mailbox: string;
     ism: string;
   }) {
-    return this.createCallMethodManifest(
+    return this.createCallMethodManifestWithOwner(
       from_address,
       mailbox,
       'set_default_ism',
@@ -400,7 +379,10 @@ export class RadixPopulate {
       [
         enumeration(
           1,
-          tuple(str(name), str(symbol), str(description), u8(divisibility)),
+          str(name),
+          str(symbol),
+          str(description),
+          u8(divisibility),
         ),
         address(mailbox),
       ],

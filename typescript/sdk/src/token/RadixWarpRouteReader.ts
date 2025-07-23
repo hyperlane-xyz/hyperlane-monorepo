@@ -65,9 +65,9 @@ export class RadixWarpRouteReader {
     assert(token, `Failed to find token for address ${warpRouteAddress}`);
 
     switch (token.token_type) {
-      case 'COLLATERAL':
+      case 'Collateral':
         return TokenType.collateral;
-      case 'SYNTHETIC':
+      case 'Synthetic':
         return TokenType.synthetic;
       default:
         throw new Error(

@@ -16,7 +16,7 @@ const NETWORKS = {
   [NetworkId.Stokenet]: {
     applicationName: 'hyperlane',
     packageAddress:
-      'package_tdx_2_1p4faa3cx72v0gwguntycgewxnlun34kpkpezf7m7arqyh9crr0v3f3',
+      'package_tdx_2_1pkwm6pc3yvjuh482nkp7p276t7f3kuw92vqzfy6a4urfvp3ep9tdpk',
   },
   [NetworkId.Mainnet]: {
     applicationName: 'hyperlane',
@@ -110,147 +110,101 @@ export class RadixSigningSDK extends RadixSDK {
 //     },
 //   );
 
-//   const collateral = await sdk.query.getToken({
-//     token:
-//       'component_tdx_2_1cz57khz7zqlppt4jwng5znvzur47yed474h5ck9mdudwdwh2ux8n80',
-//   });
-
-//   console.log(collateral);
-
-//   const synthetic = await sdk.query.getToken({
-//     token:
-//       'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
-//   });
-
-//   console.log(synthetic);
+//   const address = sdk.getAddress();
 
 //   console.log(
-//     await sdk.getXrdBalance({
-//       address:
-//         'component_tdx_2_1czz8fu7dr2n423qeppasaghrepm8ulpslhwchqs5n3ya2sqjf7telm',
+//     await sdk.query.getXrdBalance({
+//       address,
 //     }),
 //   );
 
-//   console.log(await sdk.getXrdTotalSupply());
+//   console.log(await sdk.query.getXrdTotalSupply());
 
-//   const balance = await sdk.getXrdBalance(sdk.getAddress());
-//   console.log('xrd balance', balance);
-// await sdk.getTestnetXrd();
+//   const mailbox = await sdk.tx.createMailbox({ domain_id: 75898670 });
+//   console.log('created mailbox with id', mailbox, '\n');
 
-// const mailbox = await sdk.createMailbox(75898670);
-// console.log('created mailbox with id', mailbox, '\n');
+//   const merkleTreeHook = await sdk.tx.createMerkleTreeHook({ mailbox });
+//   console.log('created merkleTreeHook with id', merkleTreeHook, '\n');
 
-// const merkleTreeHook = await sdk.createMerkleTreeHook(mailbox);
-// console.log('created merkleTreeHook with id', merkleTreeHook, '\n');
-
-// const merkleRootMultisigIsm = await sdk.createMerkleRootMultisigIsm(
-//   ['0x0c60e7eCd06429052223C78452F791AAb5C5CAc6'],
-//   1,
-// );
-// console.log(
-//   'created merkleRootMultisigIsm with id',
-//   merkleRootMultisigIsm,
-//   '\n',
-// );
-
-// const xrd = await sdk.getXrdAddress();
-// const igp = await sdk.createIgp(xrd);
-// console.log('created igp with id', igp, '\n');
-
-// await sdk.setRequiredHook(mailbox, merkleTreeHook);
-// console.log('set required hook\n');
-
-// await sdk.setDefaultHook(mailbox, igp);
-// console.log('set default hook\n');
-
-// await sdk.setDefaultIsm(mailbox, merkleRootMultisigIsm);
-// console.log('set default ism\n');
-
-// const m = await sdk.queryMailbox(
-//   'component_tdx_2_1cqaet9grt80sn9k07hqjtugfg974x2pzmc7k3kcndqqv7895a6v8ux',
-// );
-// console.log('mailbox state', m, '\n');
-
-// const i = await sdk.queryIsm(merkleRootMultisigIsm);
-// console.log('ism state', i, '\n');
-
-//   const h = await sdk.queryIgpHook(
-//     'component_tdx_2_1crrt89w8hd5jvvh49jcqgl9wmvmauw0k0wf7yafzahfc276xzu3ak2',
+//   const merkleRootMultisigIsm = await sdk.tx.createMerkleRootMultisigIsm({
+//     validators: ['0x0c60e7eCd06429052223C78452F791AAb5C5CAc6'],
+//     threshold: 1,
+//   });
+//   console.log(
+//     'created merkleRootMultisigIsm with id',
+//     merkleRootMultisigIsm,
+//     '\n',
 //   );
+
+//   const xrd = await sdk.query.getXrdAddress();
+//   const igp = await sdk.tx.createIgp({ denom: xrd });
+//   console.log('created igp with id', igp, '\n');
+
+//   await sdk.tx.setRequiredHook({ mailbox, hook: merkleTreeHook });
+//   console.log('set required hook\n');
+
+//   await sdk.tx.setDefaultHook({ mailbox, hook: igp });
+//   console.log('set default hook\n');
+
+//   await sdk.tx.setDefaultIsm({ mailbox, ism: merkleRootMultisigIsm });
+//   console.log('set default ism\n');
+
+//   const m = await sdk.query.getMailbox({
+//     mailbox:
+//       'component_tdx_2_1cqaet9grt80sn9k07hqjtugfg974x2pzmc7k3kcndqqv7895a6v8ux',
+//   });
+//   console.log('mailbox state', m, '\n');
+
+//   const i = await sdk.query.getIsm({ ism: merkleRootMultisigIsm });
+//   console.log('ism state', i, '\n');
+
+//   const h = await sdk.query.getIgpHook({
+//     hook: 'component_tdx_2_1crrt89w8hd5jvvh49jcqgl9wmvmauw0k0wf7yafzahfc276xzu3ak2',
+//   });
 //   console.log('igp hook state', JSON.stringify(h), '\n');
 
-// const xrd = await sdk.getXrdAddress();
-// const collateral = await sdk.createCollateralToken(
-//   'component_tdx_2_1cq2vyesapheluv2a796am85cdl7rcgnjkawwkp3axxetv4zcfjzl40',
-//   xrd,
-// );
-// console.log('created collateral token with id', collateral);
+//   const collateral = await sdk.tx.createCollateralToken({
+//     mailbox:
+//       'component_tdx_2_1cq2vyesapheluv2a796am85cdl7rcgnjkawwkp3axxetv4zcfjzl40',
+//     origin_denom: xrd,
+//   });
+//   console.log('created collateral token with id', collateral);
 
-// const c = await sdk.queryToken(
-//   'component_tdx_2_1cz57khz7zqlppt4jwng5znvzur47yed474h5ck9mdudwdwh2ux8n80',
-// );
-// console.log('collateral token state', JSON.stringify(c), '\n');
-
-// await sdk.setTokenIsm(
-//   'component_tdx_2_1cz57khz7zqlppt4jwng5znvzur47yed474h5ck9mdudwdwh2ux8n80',
-//   'component_tdx_2_1czefsgch7kvgvlw2ht5shkna00vjfaexr03xavlcuy73yka6rydr6g',
-// );
-
-// const synthetic = await sdk.createSyntheticToken(
-//   'component_tdx_2_1cq2vyesapheluv2a796am85cdl7rcgnjkawwkp3axxetv4zcfjzl40',
-//   '',
-//   '',
-//   '',
-//   1,
-// );
-// console.log('created synthetic token with id', synthetic);
-
-//   const s = await sdk.queryToken(
-//     'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
-//   );
-//   console.log('synthetic token state', JSON.stringify(s));
-
-//   await sdk.enrollRemoteRouter(
-//     'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
-//     1337,
-//     '0000000000000000000000000000000000000000000000000000000000000001',
-//     '100',
-//   );
-
-//   const r = await sdk.queryEnrolledRouters(
-//     'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
-//     1337,
-//   );
-//   console.log('query enrolled router', JSON.stringify(r));
-// const collateral = await sdk.createCollateralToken(
-//   'component_tdx_2_1cq2vyesapheluv2a796am85cdl7rcgnjkawwkp3axxetv4zcfjzl40',
-//   'resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc',
-// );
-// console.log('created collateral token with id', collateral);
-
-//   // collateral
-//   const c = await sdk.queryToken(
-//     'component_tdx_2_1cqv5pd42nhqyp66ppup3fh7dp9lq5nj0kaa4v2s0pq9sr9w3tky5e6',
-//   );
+//   const c = await sdk.query.getToken({ token: collateral });
 //   console.log('collateral token state', JSON.stringify(c), '\n');
 
-//   // synthetic
-//   const s = await sdk.queryToken(
-//     'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
-//   );
+//   await sdk.tx.setTokenIsm({
+//     token: collateral,
+//     ism: merkleRootMultisigIsm,
+//   });
+
+//   const synthetic = await sdk.tx.createSyntheticToken({
+//     mailbox,
+//     name: 'TEST',
+//     symbol: 'TEST',
+//     description: 'TEST token for hyperlane',
+//     divisibility: 6,
+//   });
+//   console.log('created synthetic token with id', synthetic);
+
+//   const s = await sdk.query.getToken({ token: synthetic });
 //   console.log('synthetic token state', JSON.stringify(s));
 
-//   console.log(sdk.getAddress());
-//   console.log(bech32m.decode(sdk.getAddress()).words);
-//   console.log(
-//     new Uint8Array(bech32m.fromWords(bech32m.decode(sdk.getAddress()).words)),
-//   );
+//   await sdk.tx.enrollRemoteRouter({
+//     token: synthetic,
+//     receiver_domain: 1337,
+//     receiver_address:
+//       '0000000000000000000000000000000000000000000000000000000000000001',
+//     gas: '100',
+//   });
 
-//   const data = new Uint8Array(
-//     bech32m.fromWords(bech32m.decode(sdk.getAddress()).words),
-//   );
-
-//   console.log(bech32m.encode(`account_tdx_2_`, bech32m.toWords(data)));
+//   const r = await sdk.query.getRemoteRouters({
+//     token: synthetic,
+//   });
+//   console.log('query remote routers', JSON.stringify(r));
 // };
 
 // main();
+
+// COLLATERAL: component_tdx_2_1cqz8a07x8hmc2qyqg3glyut9te4lpcc2qelgn740lceasgwwv3dgjs
+// SYNTHETIC: component_tdx_2_1cq7jh99kkg9exmucxm3j5w4wru3qfpfxy3s3etar20c63dj37mh2cj

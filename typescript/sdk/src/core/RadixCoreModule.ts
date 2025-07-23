@@ -284,7 +284,7 @@ export class RadixCoreModule extends HyperlaneModule<
     if (newIsmDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push(
-        this.signer.populate.setDefaultIsm({
+        await this.signer.populate.setDefaultIsm({
           from_address: this.signer.getAddress(),
           mailbox,
           ism: deployedIsm,
@@ -360,7 +360,7 @@ export class RadixCoreModule extends HyperlaneModule<
     if (newHookDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push(
-        this.signer.populate.setDefaultHook({
+        await this.signer.populate.setDefaultHook({
           from_address: this.signer.getAddress(),
           mailbox,
           hook: deployedHook,
@@ -401,7 +401,7 @@ export class RadixCoreModule extends HyperlaneModule<
     if (newHookDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push(
-        this.signer.populate.setRequiredHook({
+        await this.signer.populate.setRequiredHook({
           from_address: this.signer.getAddress(),
           mailbox,
           hook: deployedHook,
