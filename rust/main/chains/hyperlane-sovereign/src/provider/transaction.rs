@@ -5,7 +5,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use hyperlane_core::{ChainResult, H256};
+use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sov_universal_wallet::schema::RollupRoots;
@@ -16,14 +16,29 @@ use tokio_tungstenite::tungstenite::Message;
 type WsSubscription<T> = BoxStream<'static, ChainResult<T>>;
 
 use super::client::SovereignClient;
+use crate::signers::Crypto;
 use crate::types::{TxInfo, TxStatus};
 
 impl SovereignClient {
     /// Build a transaction and submit it to the rollup.
     pub async fn build_and_submit(&self, call_message: Value) -> ChainResult<(H256, String)> {
         let utx = self.build_tx_json(&call_message);
-        let tx = self.sign_tx(utx).await?;
-        let body = self.serialize_tx(&tx).await?;
+
+        let tx = self.sign_tx(utx.clone(), self.signer.ed25519()).await?;
+        let body = match self.serialize_tx(&tx).await {
+            // if serialization failed with this error, it means that rollup uses an ethereum
+            // signing scheme. This is very ugly but currently there is no better way than try
+            // and fail
+            Err(ChainCommunicationError::CustomError(reason))
+                if reason.contains("Expected an array of size 33, but only found 32") =>
+            {
+                let tx = self.sign_tx(utx, self.signer.ethereum()).await?;
+                self.serialize_tx(&tx).await?
+            }
+
+            res => res?,
+        };
+
         let hash = self.submit_tx(body.clone()).await?;
         self.wait_for_tx(hash).await?;
 
@@ -83,7 +98,7 @@ impl SovereignClient {
         Ok(format!("{bytes:?}"))
     }
 
-    async fn sign_tx(&self, mut utx_json: Value) -> ChainResult<Value> {
+    async fn sign_tx(&self, mut utx_json: Value, signer: &impl Crypto) -> ChainResult<Value> {
         let utx_index = self
             .schema
             .rollup_expected_index(RollupRoots::UnsignedTransaction)
@@ -105,17 +120,14 @@ impl SovereignClient {
             utx_bytes.extend_from_slice(&chain_hash);
         }
 
-        let signature = self.signer.sign(&utx_bytes);
+        let signature = signer.sign(&utx_bytes)?;
 
         if let Some(obj) = utx_json.as_object_mut() {
-            obj.insert(
-                "signature".to_string(),
-                json!({ "msg_sig": signature.to_bytes().to_vec() }),
-            );
+            obj.insert("signature".to_string(), json!({ "msg_sig": signature }));
             obj.insert(
                 "pub_key".to_string(),
                 json!({
-                    "pub_key": self.signer.public_key().to_bytes()
+                    "pub_key": signer.public_key()
                 }),
             );
         }

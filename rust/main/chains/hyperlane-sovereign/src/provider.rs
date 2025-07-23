@@ -5,11 +5,13 @@ use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
     HyperlaneProvider, TxnInfo, H256, H512, U256,
 };
+use tracing::info;
 
 mod client;
 mod methods;
 mod transaction;
 
+use crate::signers::Crypto;
 use crate::{ConnectionConf, Signer};
 pub use client::SovereignClient;
 
@@ -75,7 +77,32 @@ impl HyperlaneProvider for SovereignProvider {
     }
 
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        self.client.get_balance(address).await
+        let signer = &self.client.signer;
+
+        match self.client.get_balance(&address).await {
+            // This error means that the rollup couldn't parse valid bech32 address
+            // from the provided one. This usually happens in case relayer or validator
+            // wants to check its own balance using ethereum styled address (returned by default by signer),
+            // but rollup uses ed25519 based crypto scheme rather than ethereum one.
+            // We can easily fix that case and re-request balance using bech32 address
+            Err(ChainCommunicationError::CustomError(reason))
+                if reason.contains("Bech32 error")
+                    && signer
+                        .ethereum()
+                        .address()
+                        .is_ok_and(|addr| addr == address) =>
+            {
+                let bech32_addr = signer.ed25519().address()?;
+
+                info!(
+                    address = bech32_addr,
+                    "Re-requesting balance using bech32 address"
+                );
+                self.client.get_balance(bech32_addr).await
+            }
+
+            res => res,
+        }
     }
 
     /// Sovereign sdk uses multidimensional gas price, so we have to return `None` for

@@ -8,7 +8,7 @@ use hyperlane_operation_verifier::{
 };
 use hyperlane_warp_route::TokenMessage;
 
-use crate::signers::SOV_HEX_ADDRESS_LEADING_ZEROS;
+use crate::signers::ed25519::SOV_HEX_ADDRESS_LEADING_ZEROS;
 
 const WARP_ROUTE_MARKER: &str = "/";
 
@@ -59,6 +59,7 @@ impl ApplicationOperationVerifier for SovereignApplicationOperationVerifier {
     }
 }
 
+// this uses the ed25519 addresses check as it has less leading zeros
 fn has_enough_leading_zeroes(address: H256) -> bool {
     address
         .as_bytes()

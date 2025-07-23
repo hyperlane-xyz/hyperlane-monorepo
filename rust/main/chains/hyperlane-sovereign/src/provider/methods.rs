@@ -12,7 +12,9 @@ use serde::Deserialize;
 use serde_json::json;
 
 use super::client::SovereignClient;
+use crate::provider::client::RestClientError;
 use crate::types::{Batch, Slot, Tx};
+use crate::Crypto;
 
 impl SovereignClient {
     /// Get the batch by number
@@ -181,21 +183,33 @@ impl SovereignClient {
         });
 
         let encoded_call_message = self.encoded_call_message(&call_message)?;
-        let json = json!({
-            "body": {
-              "details":{
-                "chain_id": message.destination,
-                "max_fee": "100000000",
-                "max_priority_fee_bips": 0
-              },
-              "encoded_call_message": encoded_call_message,
-              "nonce": message.nonce,
-              "generation": 0,
-              "sender_pub_key": "\"f8ad2437a279e1c8932c07358c91dc4fe34864a98c6c25f298e2a0199c1509ff\""
-            }
-        });
+        let request_json = |public_key| {
+            json!({
+                "body": {
+                  "details":{
+                    "chain_id": message.destination,
+                    "max_fee": "100000000",
+                    "max_priority_fee_bips": 0
+                  },
+                  "encoded_call_message": &encoded_call_message,
+                  "nonce": message.nonce,
+                  "generation": 0,
+                  "sender_pub_key": format!("\"{}\"", hex::encode(public_key))
+                }
+            })
+        };
 
-        let response = self.http_post::<Data>(query, &json).await?;
+        let ed25519_request = request_json(self.signer.ed25519().public_key());
+        let response = match self.http_post::<Data>(query, &ed25519_request).await {
+            Err(error @ RestClientError::Response(..))
+                if error.to_string().contains("Invalid public key size") =>
+            {
+                let eth_request = request_json(self.signer.ethereum().public_key());
+                self.http_post::<Data>(query, &eth_request).await?
+            }
+
+            res => res?,
+        };
 
         let receipt = response.apply_tx_result.receipt;
         if receipt.receipt.outcome != "successful" {
