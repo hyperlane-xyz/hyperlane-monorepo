@@ -47,6 +47,21 @@ export function getGovernanceSafes(governanceType: GovernanceType) {
   }
 }
 
+export function getLegacyGovernanceIcas(governanceType: GovernanceType) {
+  switch (governanceType) {
+    case GovernanceType.Regular:
+      return regularIcas;
+    case GovernanceType.AbacusWorks:
+      return awIcas;
+    case GovernanceType.Irregular:
+      return {};
+    case GovernanceType.OUSDT:
+      return {};
+    default:
+      throw new Error(`Unknown governance type: ${governanceType}`);
+  }
+}
+
 export function getGovernanceIcas(governanceType: GovernanceType) {
   switch (governanceType) {
     case GovernanceType.Regular:
