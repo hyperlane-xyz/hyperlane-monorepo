@@ -59,12 +59,16 @@ impl SovereignClient {
 
     /// Get the count of dispatched messages in Mailbox
     pub async fn get_count(&self, at_height: Option<u64>) -> ChainResult<u32> {
+        #[derive(Clone, Debug, Deserialize)]
+        struct Data {
+            nonce: u32,
+        }
         let query = match at_height {
             None => "/modules/mailbox/nonce",
             Some(slot) => &format!("/modules/mailbox/nonce?slot_number={slot}"),
         };
 
-        Ok(self.http_get::<u32>(query).await?)
+        Ok(self.http_get::<Data>(query).await?.nonce)
     }
 
     /// Check if message with given id was delivered
@@ -224,11 +228,17 @@ impl SovereignClient {
 
     /// Get the type of the ISM of given recipient
     pub async fn module_type(&self, recipient: H256) -> ChainResult<ModuleType> {
+        #[derive(Clone, Debug, Deserialize)]
+        struct Data {
+            ism_kind: u8,
+        }
         let query = format!("/modules/mailbox/recipient-ism/{recipient:?}");
 
-        let response = self.http_get::<u8>(&query).await?;
+        let response = self.http_get::<Data>(&query).await?;
+        let module_type = response.ism_kind;
 
-        ModuleType::from_u8(response).ok_or_else(|| custom_err!("Unknown ModuleType returned"))
+        ModuleType::from_u8(module_type)
+            .ok_or_else(|| custom_err!("Unknown ModuleType returned: {module_type}"))
     }
 
     /// Get the merkle tree of dispatched messages
@@ -266,13 +276,18 @@ impl SovereignClient {
 
     /// Get the count of messages inserted into merkle tree hook
     pub async fn tree_count(&self, at_height: Option<u64>) -> ChainResult<u32> {
+        #[derive(Clone, Debug, Deserialize)]
+        struct Data {
+            count: u32,
+        }
+
         let query = match at_height {
             None => "modules/merkle-tree-hook/count",
             Some(slot) => &format!("modules/merkle-tree-hook/count?slot_number={slot}"),
         };
 
-        match self.http_get::<u32>(query).await {
-            Ok(count) => Ok(count),
+        match self.http_get::<Data>(query).await {
+            Ok(response) => Ok(response.count),
             Err(e) if e.is_not_found() => Ok(0),
             Err(e) => Err(e.into()),
         }

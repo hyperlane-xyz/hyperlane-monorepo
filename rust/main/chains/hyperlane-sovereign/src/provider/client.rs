@@ -13,18 +13,10 @@ use url::Url;
 
 use crate::{ConnectionConf, Signer};
 
-/// A generic rollup rest response
-#[derive(Clone, Debug, Deserialize)]
-struct RestResponse<T> {
-    data: Option<T>,
-    #[serde(default)]
-    errors: Vec<ErrorInfo>,
-}
-
 /// Request error details
 #[derive(Clone, Deserialize)]
 pub(crate) struct ErrorInfo {
-    title: String,
+    message: String,
     status: u64,
     details: Value,
 }
@@ -37,7 +29,7 @@ impl fmt::Debug for ErrorInfo {
                 details = format!(": {json}");
             }
         }
-        write!(f, "'{} ({}){}'", self.title, self.status, details)
+        write!(f, "'{} ({}){}'", self.message, self.status, details)
     }
 }
 
@@ -47,7 +39,7 @@ impl fmt::Debug for ErrorInfo {
 /// between those cases and checking the status code of the response.
 #[derive(Debug)]
 pub(crate) enum RestClientError {
-    Response(StatusCode, Vec<ErrorInfo>),
+    Response(StatusCode, ErrorInfo),
     Other(String),
 }
 
@@ -136,14 +128,13 @@ impl SovereignClient {
 fn is_retryable(err: &RestClientError) -> bool {
     match err {
         // TODO: make this more robust, handle rate limiting, etc
-        RestClientError::Response(status_code, errs) => {
+        RestClientError::Response(status_code, err) => {
             if status_code.is_server_error() {
                 true
             } else {
                 // Handle bug on rollup side where queryable slot_number
                 // can lag behind `/ledger/slots/finalized`
-                errs.iter()
-                    .any(|err| err.title.contains("invalid rollup height"))
+                err.message.contains("invalid rollup height")
             }
         }
         RestClientError::Other(_) => false,
@@ -216,16 +207,17 @@ where
     T: Debug + for<'a> Deserialize<'a>,
 {
     let status = response.status();
-    let result: RestResponse<T> = response
-        .json()
-        .await
-        .map_err(|e| RestClientError::Other(format!("{e:?}")))?;
 
     if status.is_success() {
-        result
-            .data
-            .ok_or_else(|| RestClientError::Other("Missing data in response".into()))
+        Ok(response
+            .json()
+            .await
+            .map_err(|e| RestClientError::Other(format!("{e:?}")))?)
     } else {
-        Err(RestClientError::Response(status, result.errors))
+        let err = response
+            .json()
+            .await
+            .map_err(|e| RestClientError::Other(format!("{e:?}")))?;
+        Err(RestClientError::Response(status, err))
     }
 }
