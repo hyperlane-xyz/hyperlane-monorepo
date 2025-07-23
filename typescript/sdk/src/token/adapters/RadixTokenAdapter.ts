@@ -8,7 +8,6 @@ import {
   ProtocolType,
   addressToBytes32,
   convertToProtocolAddress,
-  isAddressRadix,
 } from '@hyperlane-xyz/utils';
 
 import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
@@ -57,21 +56,10 @@ class RadixTokenAdapter
   async getBalance(address: string): Promise<bigint> {
     const denom = await this.getDenom();
 
-    // if the address is a radix address we can simply read the account balance
-    // of that address. The address can also be an ETH address format indicating
-    // that the balance of a Hyp Token Contract should be returned. In this case
-    // we get the token by it's id and return the bridged supply which equals the
-    // balance the token has.
-    if (isAddressRadix(address)) {
-      const amount = await this.provider.query.getBalance({
-        address,
-        resource: denom,
-      });
-      return BigInt(amount);
-    } else {
-      // TODO: RADIX
-      return BigInt(0);
-    }
+    return this.provider.getBalance({
+      address,
+      resource: denom,
+    });
   }
 
   async getMetadata(): Promise<TokenMetadata> {
@@ -193,6 +181,7 @@ export class RadixHypCollateralAdapter
     _?: Address,
     customHook?: Address,
   ): Promise<InterchainGasQuote> {
+    // TODO: RADIX
     // const { gas_payment } = await this.provider.query.warp.QuoteRemoteTransfer({
     //   id: this.tokenId,
     //   destination_domain: destination.toString(),
@@ -260,11 +249,6 @@ export class RadixHypCollateralAdapter
 }
 
 export class RadixHypSyntheticAdapter extends RadixHypCollateralAdapter {
-  // TODO: RADIX
-  protected async getTokenDenom(): Promise<string> {
-    return `hyperlane/${this.tokenId}`;
-  }
-
   async getMetadata(): Promise<TokenMetadata> {
     const { name, symbol, divisibility } = await this.provider.query.getToken({
       token: this.tokenId,

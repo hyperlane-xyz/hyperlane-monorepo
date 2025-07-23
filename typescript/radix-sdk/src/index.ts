@@ -1,5 +1,11 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import { NetworkId } from '@radixdlt/radix-engine-toolkit';
+import {
+  LTSRadixEngineToolkit,
+  NetworkId,
+} from '@radixdlt/radix-engine-toolkit';
+import { BigNumber } from 'bignumber.js';
+
+import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixPopulate } from './modules/populate.js';
 import { RadixQuery } from './modules/query.js';
@@ -10,9 +16,17 @@ import {
   generateSecureRandomBytes,
 } from './utils.js';
 
-const applicationName = 'hyperlane';
-const packageAddress =
-  'package_tdx_2_1p4faa3cx72v0gwguntycgewxnlun34kpkpezf7m7arqyh9crr0v3f3';
+const NETWORKS = {
+  [NetworkId.Stokenet]: {
+    applicationName: 'hyperlane',
+    packageAddress:
+      'package_tdx_2_1p4faa3cx72v0gwguntycgewxnlun34kpkpezf7m7arqyh9crr0v3f3',
+  },
+  [NetworkId.Mainnet]: {
+    applicationName: 'hyperlane',
+    packageAddress: '',
+  },
+};
 
 export { NetworkId };
 
@@ -20,14 +34,25 @@ export class RadixSDK {
   protected networkId: number;
   protected gateway: GatewayApiClient;
 
+  public applicationName: string;
+  public packageAddress: string;
+
   public query: RadixQuery;
   public populate: RadixPopulate;
 
   constructor(options?: RadixSDKOptions) {
     this.networkId = options?.networkId ?? NetworkId.Mainnet;
 
+    assert(
+      NETWORKS[this.networkId],
+      `Network with id ${this.networkId} not supported with the Hyperlane RadixSDK. Supported network ids: ${Object.keys(NETWORKS).join(', ')}`,
+    );
+
+    this.applicationName = NETWORKS[this.networkId].applicationName;
+    this.packageAddress = NETWORKS[this.networkId].packageAddress;
+
     this.gateway = GatewayApiClient.initialize({
-      applicationName,
+      applicationName: this.applicationName,
       networkId: this.networkId,
     });
 
@@ -35,9 +60,95 @@ export class RadixSDK {
     this.populate = new RadixPopulate(
       this.gateway,
       this.query,
-      packageAddress,
+      this.packageAddress,
       options?.gasAmount ?? 5000,
     );
+  }
+
+  public async getXrdAddress() {
+    const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
+      this.networkId,
+    );
+    return knownAddresses.resources.xrdResource;
+  }
+
+  public async getDecimals({
+    resource,
+  }: {
+    resource: string;
+  }): Promise<number> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(resource);
+
+    return (details.details as any).divisibility;
+  }
+
+  public async getXrdDecimals(): Promise<number> {
+    const xrdAddress = await this.getXrdAddress();
+    return this.getDecimals({ resource: xrdAddress });
+  }
+
+  public async getBalance({
+    address,
+    resource,
+  }: {
+    address: string;
+    resource: string;
+  }): Promise<bigint> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(address);
+
+    const fungibleResource = details.fungible_resources.items.find(
+      (r) => r.resource_address === resource,
+    );
+
+    assert(
+      fungibleResource,
+      `account with address ${address} has no resource with address ${resource}`,
+    );
+
+    if (fungibleResource.vaults.items.length !== 1) {
+      return BigInt(0);
+    }
+
+    const decimals = await this.getDecimals({ resource });
+
+    return BigInt(
+      new BigNumber(fungibleResource.vaults.items[0].amount)
+        .times(new BigNumber(10).exponentiatedBy(decimals))
+        .toFixed(0),
+    );
+  }
+
+  public async getXrdBalance({
+    address,
+  }: {
+    address: string;
+  }): Promise<bigint> {
+    const xrdAddress = await this.getXrdAddress();
+    return this.getBalance({ address, resource: xrdAddress });
+  }
+
+  public async getTotalSupply({
+    resource,
+  }: {
+    resource: string;
+  }): Promise<bigint> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(resource);
+
+    const decimals = await this.getDecimals({ resource });
+
+    return BigInt(
+      new BigNumber((details.details as any).total_supply)
+        .times(new BigNumber(10).exponentiatedBy(decimals))
+        .toFixed(0),
+    );
+  }
+
+  public async getXrdTotalSupply(): Promise<bigint> {
+    const xrdAddress = await this.getXrdAddress();
+    return this.getTotalSupply({ resource: xrdAddress });
   }
 }
 
@@ -88,6 +199,15 @@ export class RadixSigningSDK extends RadixSDK {
 //       networkId: NetworkId.Stokenet,
 //     },
 //   );
+
+//   console.log(
+//     await sdk.getXrdBalance({
+//       address:
+//         'component_tdx_2_1czz8fu7dr2n423qeppasaghrepm8ulpslhwchqs5n3ya2sqjf7telm',
+//     }),
+//   );
+
+//   console.log(await sdk.getXrdTotalSupply());
 
 //   const balance = await sdk.getXrdBalance(sdk.getAddress());
 //   console.log('xrd balance', balance);

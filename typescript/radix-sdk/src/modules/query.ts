@@ -1,5 +1,4 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import { LTSRadixEngineToolkit } from '@radixdlt/radix-engine-toolkit';
 
 import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
@@ -10,39 +9,6 @@ export class RadixQuery {
   constructor(networkId: number, gateway: GatewayApiClient) {
     this.networkId = networkId;
     this.gateway = gateway;
-  }
-
-  public async getXrdAddress() {
-    const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
-      this.networkId,
-    );
-    return knownAddresses.resources.xrdResource;
-  }
-
-  public async getBalance({
-    address,
-    resource,
-  }: {
-    address: string;
-    resource: string;
-  }) {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(address);
-
-    const fungibleResource = details.fungible_resources.items.find(
-      (r) => r.resource_address === resource,
-    );
-
-    if (!fungibleResource || fungibleResource.vaults.items.length !== 1) {
-      return '0';
-    }
-
-    return fungibleResource.vaults.items[0].amount;
-  }
-
-  public async getXrdBalance({ address }: { address: string }) {
-    const xrdAddress = await this.getXrdAddress();
-    return this.getBalance({ address, resource: xrdAddress });
   }
 
   public async getMailbox({ mailbox }: { mailbox: string }): Promise<{
