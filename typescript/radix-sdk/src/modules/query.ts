@@ -1,4 +1,6 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import { LTSRadixEngineToolkit } from '@radixdlt/radix-engine-toolkit';
+import BigNumber from 'bignumber.js';
 
 import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
@@ -9,6 +11,117 @@ export class RadixQuery {
   constructor(networkId: number, gateway: GatewayApiClient) {
     this.networkId = networkId;
     this.gateway = gateway;
+  }
+
+  public async getXrdAddress() {
+    const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
+      this.networkId,
+    );
+    return knownAddresses.resources.xrdResource;
+  }
+
+  public async getMetadata({ resource }: { resource: string }): Promise<{
+    name: string;
+    symbol: string;
+    description: string;
+    divisibility: number;
+  }> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(resource);
+
+    const result = {
+      name:
+        (
+          details.metadata.items.find((i) => i.key === 'name')?.value
+            .typed as any
+        ).value ?? '',
+      symbol:
+        (
+          details.metadata.items.find((i) => i.key === 'symbol')?.value
+            .typed as any
+        ).value ?? '',
+      description:
+        (
+          details.metadata.items.find((i) => i.key === 'description')?.value
+            .typed as any
+        ).value ?? '',
+      divisibility: (details.details as any).divisibility as number,
+    };
+
+    return result;
+  }
+
+  public async getXrdMetadata(): Promise<{
+    name: string;
+    symbol: string;
+    description: string;
+    divisibility: number;
+  }> {
+    const xrdAddress = await this.getXrdAddress();
+    return this.getMetadata({ resource: xrdAddress });
+  }
+
+  public async getBalance({
+    address,
+    resource,
+  }: {
+    address: string;
+    resource: string;
+  }): Promise<bigint> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(address);
+
+    const fungibleResource = details.fungible_resources.items.find(
+      (r) => r.resource_address === resource,
+    );
+
+    assert(
+      fungibleResource,
+      `account with address ${address} has no resource with address ${resource}`,
+    );
+
+    if (fungibleResource.vaults.items.length !== 1) {
+      return BigInt(0);
+    }
+
+    const { divisibility } = await this.getMetadata({ resource });
+
+    return BigInt(
+      new BigNumber(fungibleResource.vaults.items[0].amount)
+        .times(new BigNumber(10).exponentiatedBy(divisibility))
+        .toFixed(0),
+    );
+  }
+
+  public async getXrdBalance({
+    address,
+  }: {
+    address: string;
+  }): Promise<bigint> {
+    const xrdAddress = await this.getXrdAddress();
+    return this.getBalance({ address, resource: xrdAddress });
+  }
+
+  public async getTotalSupply({
+    resource,
+  }: {
+    resource: string;
+  }): Promise<bigint> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(resource);
+
+    const { divisibility } = await this.getMetadata({ resource });
+
+    return BigInt(
+      new BigNumber((details.details as any).total_supply)
+        .times(new BigNumber(10).exponentiatedBy(divisibility))
+        .toFixed(0),
+    );
+  }
+
+  public async getXrdTotalSupply(): Promise<bigint> {
+    const xrdAddress = await this.getXrdAddress();
+    return this.getTotalSupply({ resource: xrdAddress });
   }
 
   public async getMailbox({ mailbox }: { mailbox: string }): Promise<{
@@ -227,33 +340,23 @@ export class RadixQuery {
     const tokenTypeFields =
       fields.find((f: any) => f.field_name === 'token_type')?.fields ?? [];
 
-    const name =
-      tokenTypeFields.find((t: any) => t.field_name === 'name')?.value ?? '';
-
-    const symbol =
-      tokenTypeFields.find((t: any) => t.field_name === 'symbol')?.value ?? '';
-
-    const description =
-      tokenTypeFields.find((t: any) => t.field_name === 'description')?.value ??
-      '';
-
-    const divisibility = parseInt(
-      tokenTypeFields.find((t: any) => t.field_name === 'description')?.value ??
-        '0',
-    );
-
     let origin_denom;
+    let metadata = {};
 
     if (token_type === 'COLLATERAL') {
       origin_denom =
         tokenTypeFields.find((t: any) => t.type_name === 'ResourceAddress')
           ?.value ?? '';
+
+      metadata = await this.getMetadata({ resource: origin_denom });
     } else if (token_type === 'SYNTHETIC') {
       origin_denom =
         (
           fields.find((f: any) => f.field_name === 'resource_manager')
             ?.fields ?? []
         ).find((r: any) => r.type_name === 'ResourceAddress')?.value ?? '';
+
+      metadata = await this.getMetadata({ resource: origin_denom });
     }
 
     const result = {
@@ -263,10 +366,7 @@ export class RadixQuery {
       mailbox: fields.find((f: any) => f.field_name === 'mailbox')?.value ?? '',
       ism: ismFields[0]?.value ?? '',
       origin_denom,
-      name,
-      symbol,
-      description,
-      divisibility,
+      ...metadata,
     };
 
     return result;
@@ -306,9 +406,6 @@ export class RadixQuery {
     });
 
     for (const { key } of items) {
-      const domainId = (key.programmatic_json as any).value;
-      console.log('domainId', domainId);
-
       const { entries } =
         await this.gateway.state.innerClient.keyValueStoreData({
           stateKeyValueStoreDataRequest: {
@@ -340,5 +437,25 @@ export class RadixQuery {
     };
 
     return result;
+  }
+
+  public async getBridgedSupply({ token }: { token: string }): Promise<bigint> {
+    const { token_type, origin_denom } = await this.getToken({ token });
+
+    switch (token_type) {
+      case 'COLLATERAL': {
+        // if the token is collateral we get the token contract balance
+        // of the origin denom
+        return this.getBalance({ address: token, resource: origin_denom });
+      }
+      case 'SYNTHETIC': {
+        // if the token is synthetic we get the total supply of the synthetic
+        // resource
+        return this.getTotalSupply({ resource: origin_denom });
+      }
+      default: {
+        throw new Error(`unknown token type: ${token_type}`);
+      }
+    }
   }
 }

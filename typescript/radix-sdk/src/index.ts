@@ -1,9 +1,5 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import {
-  LTSRadixEngineToolkit,
-  NetworkId,
-} from '@radixdlt/radix-engine-toolkit';
-import { BigNumber } from 'bignumber.js';
+import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -64,92 +60,6 @@ export class RadixSDK {
       options?.gasAmount ?? 5000,
     );
   }
-
-  public async getXrdAddress() {
-    const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
-      this.networkId,
-    );
-    return knownAddresses.resources.xrdResource;
-  }
-
-  public async getDecimals({
-    resource,
-  }: {
-    resource: string;
-  }): Promise<number> {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(resource);
-
-    return (details.details as any).divisibility;
-  }
-
-  public async getXrdDecimals(): Promise<number> {
-    const xrdAddress = await this.getXrdAddress();
-    return this.getDecimals({ resource: xrdAddress });
-  }
-
-  public async getBalance({
-    address,
-    resource,
-  }: {
-    address: string;
-    resource: string;
-  }): Promise<bigint> {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(address);
-
-    const fungibleResource = details.fungible_resources.items.find(
-      (r) => r.resource_address === resource,
-    );
-
-    assert(
-      fungibleResource,
-      `account with address ${address} has no resource with address ${resource}`,
-    );
-
-    if (fungibleResource.vaults.items.length !== 1) {
-      return BigInt(0);
-    }
-
-    const decimals = await this.getDecimals({ resource });
-
-    return BigInt(
-      new BigNumber(fungibleResource.vaults.items[0].amount)
-        .times(new BigNumber(10).exponentiatedBy(decimals))
-        .toFixed(0),
-    );
-  }
-
-  public async getXrdBalance({
-    address,
-  }: {
-    address: string;
-  }): Promise<bigint> {
-    const xrdAddress = await this.getXrdAddress();
-    return this.getBalance({ address, resource: xrdAddress });
-  }
-
-  public async getTotalSupply({
-    resource,
-  }: {
-    resource: string;
-  }): Promise<bigint> {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(resource);
-
-    const decimals = await this.getDecimals({ resource });
-
-    return BigInt(
-      new BigNumber((details.details as any).total_supply)
-        .times(new BigNumber(10).exponentiatedBy(decimals))
-        .toFixed(0),
-    );
-  }
-
-  public async getXrdTotalSupply(): Promise<bigint> {
-    const xrdAddress = await this.getXrdAddress();
-    return this.getTotalSupply({ resource: xrdAddress });
-  }
 }
 
 export class RadixSigningSDK extends RadixSDK {
@@ -199,6 +109,20 @@ export class RadixSigningSDK extends RadixSDK {
 //       networkId: NetworkId.Stokenet,
 //     },
 //   );
+
+//   const collateral = await sdk.query.getToken({
+//     token:
+//       'component_tdx_2_1cz57khz7zqlppt4jwng5znvzur47yed474h5ck9mdudwdwh2ux8n80',
+//   });
+
+//   console.log(collateral);
+
+//   const synthetic = await sdk.query.getToken({
+//     token:
+//       'component_tdx_2_1czxew56q0yglq62tvvapyr5gqp8vcswlwzh62999ahrr35gc5jxg32',
+//   });
+
+//   console.log(synthetic);
 
 //   console.log(
 //     await sdk.getXrdBalance({

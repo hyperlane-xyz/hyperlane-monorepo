@@ -13,7 +13,6 @@ import {
 import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
-import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../nativeTokenMetadata.js';
 import { TokenMetadata } from '../types.js';
 
 import {
@@ -29,46 +28,53 @@ class RadixTokenAdapter
   implements ITokenAdapter<TransactionManifest>
 {
   protected provider: RadixSDK;
+  protected tokenId: string;
 
-  // use getter so Tokens which extend this base class
-  // can overwrite this denom
   protected async getDenom(): Promise<string> {
-    return this.properties.denom;
+    const { origin_denom } = await this.provider.query.getToken({
+      token: this.tokenId,
+    });
+    return origin_denom;
   }
 
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: Record<string, Address>,
-    public readonly properties: {
-      denom: string;
-    },
+    public readonly addresses: { token: Address },
   ) {
-    if (!properties.denom) {
-      throw new Error('Missing properties for RadixTokenAdapter');
-    }
-
     super(chainName, multiProvider, addresses);
 
     this.provider = this.getProvider();
+    this.tokenId = addresses.token;
   }
 
   async getBalance(address: string): Promise<bigint> {
     const denom = await this.getDenom();
 
-    return this.provider.getBalance({
+    return this.provider.query.getBalance({
       address,
       resource: denom,
     });
   }
 
   async getMetadata(): Promise<TokenMetadata> {
-    const token = await this.multiProvider.getNativeToken(this.chainName);
+    const { name, symbol, divisibility } = await this.provider.query.getToken({
+      token: this.tokenId,
+    });
+
+    assert(
+      name !== undefined,
+      `name on radix token ${this.tokenId} is undefined`,
+    );
+    assert(
+      symbol !== undefined,
+      `symbol on radix token ${this.tokenId} is undefined`,
+    );
 
     return {
-      symbol: token.symbol,
-      name: token.name,
-      decimals: token.decimals,
+      name: name!,
+      symbol: symbol!,
+      decimals: divisibility,
     };
   }
 
@@ -106,8 +112,10 @@ class RadixTokenAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
-    // TODO: RADIX
-    return BigInt(0);
+    const denom = await this.getDenom();
+    return this.provider.query.getTotalSupply({
+      resource: denom,
+    });
   }
 }
 
@@ -115,25 +123,12 @@ export class RadixHypCollateralAdapter
   extends RadixTokenAdapter
   implements IHypTokenAdapter<TransactionManifest>
 {
-  protected tokenId: string;
-
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
   ) {
-    super(chainName, multiProvider, addresses, {
-      denom: PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.Radix].denom!,
-    });
-    this.tokenId = addresses.token;
-  }
-
-  protected async getDenom(): Promise<string> {
-    const { origin_denom } = await this.provider.query.getToken({
-      token: this.tokenId,
-    });
-
-    return origin_denom;
+    super(chainName, multiProvider, addresses);
   }
 
   async getDomains(): Promise<Domain[]> {
@@ -172,8 +167,7 @@ export class RadixHypCollateralAdapter
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
-    // TODO: RADIX
-    return BigInt(0);
+    return this.provider.query.getBridgedSupply({ token: this.tokenId });
   }
 
   async quoteTransferRemoteGas(
@@ -248,19 +242,4 @@ export class RadixHypCollateralAdapter
   }
 }
 
-export class RadixHypSyntheticAdapter extends RadixHypCollateralAdapter {
-  async getMetadata(): Promise<TokenMetadata> {
-    const { name, symbol, divisibility } = await this.provider.query.getToken({
-      token: this.tokenId,
-    });
-
-    assert(name, `name on radix token ${this.tokenId} not defined`);
-    assert(symbol, `symbol on radix token ${this.tokenId} not defined`);
-
-    return {
-      name: name!,
-      symbol: symbol!,
-      decimals: divisibility,
-    };
-  }
-}
+export class RadixHypSyntheticAdapter extends RadixHypCollateralAdapter {}
