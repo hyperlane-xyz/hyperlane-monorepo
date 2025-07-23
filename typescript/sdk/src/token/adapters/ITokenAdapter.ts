@@ -117,5 +117,5 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
 }
 
 export interface IHypCollateralFiatAdapter<Tx> extends IHypTokenAdapter<Tx> {
-  getMintLimit(): Promise<BigInt>;
+  getMintLimit(): Promise<bigint>;
 }
