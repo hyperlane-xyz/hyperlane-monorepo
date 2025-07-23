@@ -29,9 +29,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   createSnapshot,
-  deployOrUseExistingCore,
   deployToken,
   getTokenAddressFromWarpConfig,
   hyperlaneRelayer,

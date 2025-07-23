@@ -1,10 +1,10 @@
-import { IRegistry } from '@hyperlane-xyz/registry';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   InterchainAccount,
   buildInterchainAccountApp,
 } from '../../../middleware/account/InterchainAccount.js';
+import { ChainMap } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 import {
   AnnotatedEV5Transaction,
@@ -40,13 +40,11 @@ export class EvmIcaTxSubmitter
   static async fromConfig(
     config: EvmIcaTxSubmitterProps,
     multiProvider: MultiProvider,
-    registry: Readonly<IRegistry>,
+    coreAddressesByChain: Readonly<ChainMap<Record<string, string>>>,
   ): Promise<EvmIcaTxSubmitter> {
-    const chainAddresses = await registry.getChainAddresses(config.chain);
-
     const interchainAccountRouterAddress: Address | undefined =
       config.originInterchainAccountRouter ??
-      chainAddresses?.interchainAccountRouter;
+      coreAddressesByChain[config.chain].interchainAccountRouter;
     assert(
       interchainAccountRouterAddress,
       `Origin chain InterchainAccountRouter address not supplied and none found in the registry metadata for chain ${config.chain}`,
@@ -55,7 +53,7 @@ export class EvmIcaTxSubmitter
     const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
       config.internalSubmitter,
-      registry,
+      coreAddressesByChain,
     );
 
     const interchainAccountApp: InterchainAccount =
@@ -68,7 +66,7 @@ export class EvmIcaTxSubmitter
           localRouter: interchainAccountRouterAddress,
           ismOverride: config.interchainSecurityModule,
         },
-        registry,
+        coreAddressesByChain,
       );
 
     return new EvmIcaTxSubmitter(

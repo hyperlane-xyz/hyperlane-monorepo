@@ -123,4 +123,21 @@ describe('WarpService', () => {
         .that.include(`Warp deploy config not found for id ${warpRouteId}`);
     });
   });
+
+  describe('getWarpCoreConfigs', () => {
+    it('should get warp core configs', async () => {
+      const warpRouteId: WarpRouteId = 'MOCK/mockchain';
+      const result = await warpService.getWarpCoreConfigs();
+      expect(result[warpRouteId]).to.deep.equal(mockWarpRoute);
+    });
+
+    it('should get warp core configs with filter', async () => {
+      const label: string = 'mockchain';
+      const warpRouteId: WarpRouteId = `MOCK/${label}`;
+      const result = await warpService.getWarpCoreConfigs({
+        label,
+      });
+      expect(result[warpRouteId]).to.deep.equal(mockWarpRoute);
+    });
+  });
 });

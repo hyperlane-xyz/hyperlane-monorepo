@@ -23,8 +23,11 @@ import {
 import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { hyperlaneCoreApply, readCoreConfig } from '../commands/core.js';
-import { deployOrUseExistingCore } from '../commands/helpers.js';
+import {
+  deployOrUseExistingCore,
+  hyperlaneCoreApply,
+  readCoreConfig,
+} from '../commands/core.js';
 import {
   hyperlaneWarpApplyRaw,
   hyperlaneWarpDeploy,

@@ -4,14 +4,13 @@ import {
   HypTokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
 
 import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { getRegistry } from '../../../../registry.js';
-import { WarpRouteIds } from '../warpIds.js';
+
+import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const owners = {
   ethereum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
@@ -23,25 +22,13 @@ const owners = {
   solanamainnet: 'JAPPhnuChtzCGmskmFdurvAxENWwcAqXCV5Jn5SSiuWE',
 };
 
-const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
-
-const CONTRACT_VERSION = '8.0.0';
+export const CONTRACT_VERSION = '8.0.0';
 
 export const getEthereumSuperseedUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const registry = getRegistry();
-  const mainnetCCTP = registry.getWarpRoute(WarpRouteIds.MainnetCCTP);
-
-  assert(mainnetCCTP, 'MainnetCCTP warp route not found');
-
-  const metadata = registry.getMetadata();
-
-  const cctpBridges = Object.fromEntries(
-    mainnetCCTP.tokens.map(({ chainName, addressOrDenom }) => [
-      chainName,
-      addressOrDenom!,
-    ]),
+  const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
+    Object.keys(owners),
   );
 
   const ethereum: HypTokenRouterConfig = {
@@ -50,12 +37,7 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
     contractVersion: CONTRACT_VERSION,
-    allowedRebalancers: [REBALANCER],
-    allowedRebalancingBridges: {
-      [metadata.arbitrum.domainId]: [{ bridge: cctpBridges.ethereum }],
-      [metadata.base.domainId]: [{ bridge: cctpBridges.ethereum }],
-      [metadata.optimism.domainId]: [{ bridge: cctpBridges.ethereum }],
-    },
+    ...rebalancingConfig.ethereum,
   };
 
   const superseed: HypTokenRouterConfig = {
@@ -71,12 +53,7 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.arbitrum.USDC,
     contractVersion: CONTRACT_VERSION,
-    allowedRebalancers: [REBALANCER],
-    allowedRebalancingBridges: {
-      [metadata.ethereum.domainId]: [{ bridge: cctpBridges.arbitrum }],
-      [metadata.base.domainId]: [{ bridge: cctpBridges.arbitrum }],
-      [metadata.optimism.domainId]: [{ bridge: cctpBridges.arbitrum }],
-    },
+    ...rebalancingConfig.arbitrum,
   };
 
   const base: HypTokenRouterConfig = {
@@ -85,12 +62,7 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.base.USDC,
     contractVersion: CONTRACT_VERSION,
-    allowedRebalancers: [REBALANCER],
-    allowedRebalancingBridges: {
-      [metadata.ethereum.domainId]: [{ bridge: cctpBridges.base }],
-      [metadata.arbitrum.domainId]: [{ bridge: cctpBridges.base }],
-      [metadata.optimism.domainId]: [{ bridge: cctpBridges.base }],
-    },
+    ...rebalancingConfig.base,
   };
 
   const optimism: HypTokenRouterConfig = {
@@ -99,12 +71,7 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.optimism.USDC,
     contractVersion: CONTRACT_VERSION,
-    allowedRebalancers: [REBALANCER],
-    allowedRebalancingBridges: {
-      [metadata.ethereum.domainId]: [{ bridge: cctpBridges.optimism }],
-      [metadata.base.domainId]: [{ bridge: cctpBridges.optimism }],
-      [metadata.arbitrum.domainId]: [{ bridge: cctpBridges.optimism }],
-    },
+    ...rebalancingConfig.optimism,
   };
 
   const ink: HypTokenRouterConfig = {
