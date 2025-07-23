@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_yaml;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -204,23 +205,27 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         );
     }
 
-    pub(crate) fn write_transaction_to_json(
+    pub(crate) fn write_transaction_to_yaml(
         &self,
         payer: &Pubkey,
         path: PathBuf,
         chain_name: Option<String>,
     ) -> Result<(), Box<dyn Error>> {
         let final_path = if path.exists() && path.is_dir() {
-            path.join("instructions.json")
-        } else if path.extension().map_or(false, |ext| ext == "json") {
+            path.join("instructions.yaml")
+        } else if path
+            .extension()
+            .map_or(false, |ext| ext == "yaml" || ext == "yml")
+        {
             path.to_path_buf()
         } else if path.exists() && path.is_file() {
-            return Err("Provided file does not have a .json extension.".into());
+            return Err("Provided file does not have a .yaml or .yml extension.".into());
         } else if path.extension().is_none() {
-            path.with_extension("json")
+            path.with_extension("yaml")
         } else {
             return Err("Invalid path provided.".into());
         };
+
         println!("Writing instructions to: {}", final_path.to_str().unwrap());
 
         let message = Message::new(&self.instructions(), Some(payer));
@@ -257,10 +262,10 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
 
         // Read existing entries if file exists
         let mut existing_entries: Vec<InstructionEntry> = if final_path.exists() {
-            let mut file = File::open(final_path.to_str().unwrap())?;
+            let mut file = File::open(&final_path)?;
             let mut contents = String::new();
             file.read_to_string(&mut contents)?;
-            serde_json::from_str(&contents).unwrap_or_default()
+            serde_yaml::from_str(&contents).unwrap_or_default()
         } else {
             vec![]
         };
@@ -269,9 +274,9 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         existing_entries.extend(new_entries);
 
         // Write back to file
-        let json_str = serde_json::to_string_pretty(&existing_entries)?;
-        let mut file = File::create(final_path.to_str().unwrap())?;
-        file.write_all(json_str.as_bytes())?;
+        let yaml_str = serde_yaml::to_string(&existing_entries)?;
+        let mut file = File::create(&final_path)?;
+        file.write_all(yaml_str.as_bytes())?;
 
         Ok(())
     }
@@ -312,8 +317,8 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             println!("Transaction to be submitted via Squads multisig:");
 
             if let Some(p) = instructions_path {
-                self.write_transaction_to_json(payer, p, chain_name)
-                    .expect("Failed to write transaction to JSON");
+                self.write_transaction_to_yaml(payer, p, chain_name)
+                    .expect("Failed to write transaction to instructions file.");
             } else {
                 println!("To write the transaction to an instructions file, a path needs to be provided. Continuing to print the transactions.");
 

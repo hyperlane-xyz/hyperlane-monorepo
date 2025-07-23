@@ -289,7 +289,7 @@ pub(crate) fn deploy_routers<
     environments_dir_path: PathBuf,
     environment: &str,
     built_so_dir_path: PathBuf,
-    instructions_path: Option<PathBuf>,
+    write_instructions: bool,
 ) {
     // Load the app configs from the app config file.
     let app_config_file = File::open(app_config_file_path).unwrap();
@@ -306,6 +306,12 @@ pub(crate) fn deploy_routers<
     let keys_dir = create_new_directory(&deploy_dir, "keys");
 
     let existing_program_ids = read_router_program_ids(&deploy_dir);
+
+    let instructions_path = if write_instructions {
+        Some(deploy_dir.join("instructions.yaml"))
+    } else {
+        None
+    };
 
     // Builds a HashMap of all the foreign deployments from the app config.
     // These domains with foreign deployments will not have any txs / deployments

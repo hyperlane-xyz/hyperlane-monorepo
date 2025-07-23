@@ -158,7 +158,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 deploy.env_args.environments_dir,
                 &deploy.env_args.environment,
                 deploy.built_so_dir,
-                deploy.instructions_path,
+                deploy.write_instructions,
             );
         }
         WarpRouteSubCmd::DestinationGas(args) => {

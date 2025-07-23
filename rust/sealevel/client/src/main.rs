@@ -159,7 +159,7 @@ pub(crate) struct WarpRouteDeploy {
     #[arg(long)]
     ata_payer_funding_amount: Option<u64>,
     #[arg(long)]
-    instructions_path: Option<PathBuf>,
+    write_instructions: bool,
 }
 
 #[derive(Args)]
@@ -714,7 +714,7 @@ pub(crate) struct HelloWorldDeploy {
     #[arg(long)]
     context: String,
     #[arg(long)]
-    instructions_file: PathBuf,
+    write_instructions: bool,
 }
 
 #[derive(Args)]
