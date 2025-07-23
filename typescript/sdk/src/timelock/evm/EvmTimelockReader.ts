@@ -162,22 +162,38 @@ export class EvmTimelockReader {
     return readyOperationIds;
   }
 
+  async getPendingOperationIds(operationIds: string[]): Promise<Set<string>> {
+    const pendingOperationIds = new Set<string>();
+    for (const operationId of operationIds) {
+      const isReady =
+        await this.timelockInstance.isOperationPending(operationId);
+
+      if (isReady) {
+        pendingOperationIds.add(operationId);
+      }
+    }
+
+    return pendingOperationIds;
+  }
+
+  async getPendingScheduledOperations(): Promise<Record<string, TimelockTx>> {
+    const scheduledOperations = await this.getScheduledOperations();
+    const pendingOperationIds = await this.getPendingOperationIds(
+      Object.keys(scheduledOperations),
+    );
+
+    // Remove the operations that have been cancelled or executed
+    return objFilter(
+      scheduledOperations,
+      (id, _operation): _operation is TimelockTx => pendingOperationIds.has(id),
+    );
+  }
+
   async getScheduledExecutableTransactions(): Promise<
     Record<string, ExecutableTimelockTx>
   > {
-    const [scheduledOperations, cancelledOperations, executedOperations] =
-      await Promise.all([
-        this.getScheduledOperations(),
-        this.getCancelledOperationIds(),
-        this.getExecutedOperationIds(),
-      ]);
-
-    // Remove the operations that have been cancelled or executed
-    const maybeExecutableOperations = objFilter(
-      scheduledOperations,
-      (id, _operation): _operation is TimelockTx =>
-        !(cancelledOperations.has(id) || executedOperations.has(id)),
-    );
+    const maybeExecutableOperations =
+      await this.getPendingScheduledOperations();
 
     const readyOperationIds = await this.getReadyOperationIds(
       Object.keys(maybeExecutableOperations),
