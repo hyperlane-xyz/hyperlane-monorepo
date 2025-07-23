@@ -141,15 +141,12 @@ export class EvmTimelockReader {
   }
 
   async getExecutedOperationIds(): Promise<Set<string>> {
-    const cancelledOperationEvents = await this.evmLogReader.getLogsByTopic({
+    const executedOperationEvents = await this.evmLogReader.getLogsByTopic({
       contractAddress: this.timelockInstance.address,
       eventTopic: CALL_EXECUTED_EVENT_SELECTOR,
     });
 
-    return getOperationIdFromEventLogs(
-      cancelledOperationEvents,
-      'CallExecuted',
-    );
+    return getOperationIdFromEventLogs(executedOperationEvents, 'CallExecuted');
   }
 
   async getReadyOperationIds(operationIds: string[]): Promise<Set<string>> {

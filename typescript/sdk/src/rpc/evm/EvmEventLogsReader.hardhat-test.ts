@@ -77,7 +77,7 @@ describe('EvmEventLogsReader', () => {
   }
 
   describe('constructor', () => {
-    it('should initialize with BlockExplorer strategy when useRPC is true', async () => {
+    it('should initialize with BlockExplorer strategy when useRPC is false', async () => {
       const readerWithRpc = EvmEventLogsReader.fromConfig(
         {
           chain: TestChainName.test1,
