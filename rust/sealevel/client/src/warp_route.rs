@@ -3,15 +3,15 @@ use hyperlane_core::H256;
 use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
 use hyperlane_sealevel_token_native::plugin::NativePlugin;
 use serde::{Deserialize, Serialize};
+use solana_client::{
+    client_error::{reqwest, ClientError},
+    rpc_client::RpcClient,
+};
+use std::path::PathBuf;
 use std::{
     collections::HashMap,
     fmt::Debug,
     process::{Command, Stdio},
-};
-
-use solana_client::{
-    client_error::{reqwest, ClientError},
-    rpc_client::RpcClient,
 };
 
 use solana_sdk::{instruction::Instruction, program_error::ProgramError, pubkey::Pubkey};
@@ -158,6 +158,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 deploy.env_args.environments_dir,
                 &deploy.env_args.environment,
                 deploy.built_so_dir,
+                deploy.instructions_path,
             );
         }
         WarpRouteSubCmd::DestinationGas(args) => {
@@ -492,6 +493,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         app_configs_to_deploy: &HashMap<&String, &TokenConfig>,
         chain_metadatas: &HashMap<String, ChainMetadata>,
         routers: &HashMap<u32, H256>,
+        instructions_path: Option<PathBuf>,
     ) {
         // Set gas amounts for each destination chain
         for chain_name in app_configs_to_deploy.keys() {
@@ -560,7 +562,11 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                             description,
                         )
                         .with_client(&chain_metadata.client())
-                        .send_with_pubkey_signer(&owner);
+                        .send_with_pubkey_signer(
+                            &owner,
+                            instructions_path.clone(),
+                            Option::from(chain_metadata.clone().name),
+                        );
                 } else {
                     println!(
                         "No destination gas amount changes for chain: {}, program_id {}",

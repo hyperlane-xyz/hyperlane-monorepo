@@ -214,5 +214,6 @@ fn deploy_helloworld(ctx: &mut Context, deploy: HelloWorldDeploy) {
         deploy.env_args.environments_dir,
         &deploy.env_args.environment,
         deploy.built_so_dir,
+        Option::from(deploy.instructions_file),
     )
 }

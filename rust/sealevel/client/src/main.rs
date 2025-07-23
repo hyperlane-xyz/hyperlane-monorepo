@@ -158,6 +158,8 @@ pub(crate) struct WarpRouteDeploy {
     registry: PathBuf,
     #[arg(long)]
     ata_payer_funding_amount: Option<u64>,
+    #[arg(long)]
+    instructions_path: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -711,6 +713,8 @@ pub(crate) struct HelloWorldDeploy {
     registry: PathBuf,
     #[arg(long)]
     context: String,
+    #[arg(long)]
+    instructions_file: PathBuf,
 }
 
 #[derive(Args)]
@@ -1241,6 +1245,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     Some(&unique_message_account_keypair),
                 ],
                 &ctx.payer_pubkey,
+                None,
+                None,
             );
             // Print the output so it can be used in e2e tests
             println!("{:?}", tx_result);
