@@ -18,9 +18,8 @@ import {
   HelmCommandOptions,
   HelmManager,
   HelmValues,
-  helmifyValues,
 } from '../utils/helm.js';
-import { execCmd, getInfraPath } from '../utils/utils.js';
+import { getInfraPath } from '../utils/utils.js';
 
 export class KathyHelmManager extends HelmManager<HelmValues> {
   readonly helmChartPath: string = join(

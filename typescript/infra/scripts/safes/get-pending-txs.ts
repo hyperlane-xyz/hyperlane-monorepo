@@ -60,7 +60,6 @@ async function main() {
     rootLogger.info(chalk.green('No pending transactions found!'));
     process.exit(0);
   }
-  // eslint-disable-next-line no-console
   console.table(pendingTxs, [
     'chain',
     'nonce',

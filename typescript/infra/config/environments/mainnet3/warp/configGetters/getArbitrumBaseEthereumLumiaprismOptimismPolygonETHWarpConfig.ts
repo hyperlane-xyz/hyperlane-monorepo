@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 

@@ -24,7 +24,6 @@ describe('Balance Alert Thresholds', async function () {
     try {
       saToken = await fetchGrafanaServiceAccountToken();
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.log(
         'Error fetching grafana service account token, skipping test',
         error,
@@ -81,7 +80,6 @@ describe('Balance Alert Thresholds', async function () {
     }
 
     if (warnings.length > 0) {
-      // eslint-disable-next-line no-console
       console.warn(
         'Found thresholds that exist in one place but not the other:\n' +
           warnings.join('\n'),

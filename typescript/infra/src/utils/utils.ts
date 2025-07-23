@@ -2,7 +2,6 @@
 import asn1 from 'asn1.js';
 import { exec } from 'child_process';
 import { ethers } from 'ethers';
-// eslint-disable-next-line
 import fs from 'fs';
 import path, { dirname, join } from 'path';
 import { fileURLToPath } from 'url';

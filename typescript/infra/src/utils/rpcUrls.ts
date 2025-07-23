@@ -264,7 +264,7 @@ async function updateSecretAndDisablePrevious(
     try {
       await disableGCPSecretVersion(latestVersionName);
       console.log(`Disabled previous version of the secret!`);
-    } catch (e) {
+    } catch {
       console.log(`Could not disable previous version of the secret`);
     }
   }

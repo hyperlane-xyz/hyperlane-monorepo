@@ -111,7 +111,6 @@ async function main() {
       (v) => v.type === SafeConfigViolationType.thresholdMismatch,
     );
     if (thresholdViolations.length > 0) {
-      // eslint-disable-next-line no-console
       console.table(thresholdViolations, [
         'chain',
         'safeAddress',

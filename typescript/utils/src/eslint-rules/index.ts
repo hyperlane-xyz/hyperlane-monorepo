@@ -21,6 +21,8 @@ export const sortYamlArraysPlugin = {
 export const yamlEslintConfig = [
   ...eslintPluginYml.configs['flat/standard'],
   {
+    files: ['**/*.yml', '**/*.yaml'],
+    name: 'hyperlane-yaml-rules',
     languageOptions: {
       parser: yamlParser,
     },

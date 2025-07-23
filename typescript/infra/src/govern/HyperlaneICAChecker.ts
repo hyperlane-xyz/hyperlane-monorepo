@@ -1,16 +1,11 @@
 import {
   ChainMap,
   ChainName,
-  ConnectionClientViolationType,
   InterchainAccountChecker,
   RouterViolation,
   RouterViolationType,
 } from '@hyperlane-xyz/sdk';
-import {
-  AddressBytes32,
-  addressToBytes32,
-  eqAddress,
-} from '@hyperlane-xyz/utils';
+import { AddressBytes32, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 export class HyperlaneICAChecker extends InterchainAccountChecker {
   async checkMailboxClient(chain: ChainName): Promise<void> {

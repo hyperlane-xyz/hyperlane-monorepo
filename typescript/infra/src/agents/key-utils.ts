@@ -511,7 +511,7 @@ async function persistAddressesInGcp(
       );
       return;
     }
-  } catch (e) {
+  } catch {
     // If the secret doesn't exist, we'll create it below.
     debugLog(
       `No existing secret found for ${context} context in ${environment} environment`,
