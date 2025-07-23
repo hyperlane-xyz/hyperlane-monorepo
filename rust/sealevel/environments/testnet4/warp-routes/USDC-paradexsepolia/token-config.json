@@ -23,5 +23,12 @@
     "token": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
     "decimals": 6,
     "foreignDeployment": "0xFE5505d75890122A6624EEE2ce6C075c421e1849"
+  },
+  "modetestnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "foreignDeployment": "0x1e2de04727e50d3F40f5558461741ea503872B21",
+    "symbol": "USDC",
+    "name": "USDC"
   }
 }
