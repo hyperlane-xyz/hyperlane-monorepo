@@ -161,6 +161,7 @@ export const MINT_LIMITED_STANDARDS = [
   TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.EvmHypVSXERC20,
   TokenStandard.EvmHypVSXERC20Lockbox,
+  TokenStandard.EvmHypCollateralFiat,
 ];
 
 export const TOKEN_HYP_STANDARDS = [
