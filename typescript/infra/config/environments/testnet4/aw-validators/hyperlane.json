@@ -150,5 +150,8 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
+  },
+  "solanadevnet": {
+    "validators": ["0x6424142536c9e40b61076571cba83a255835b799"]
   }
 }
