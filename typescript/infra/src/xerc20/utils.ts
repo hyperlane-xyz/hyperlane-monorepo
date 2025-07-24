@@ -161,7 +161,7 @@ export async function addBridgeToChain({
   }
 }
 
-export async function addWLBridgeToChain({
+export async function addBridgeToChainWL({
   chain,
   bridgeConfig,
   multiProtocolProvider,
