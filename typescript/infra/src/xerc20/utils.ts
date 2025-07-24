@@ -646,13 +646,11 @@ export async function deriveBridgesConfig(
       throw new Error(`Missing "decimals" for chain: ${chainName}`);
     }
 
-    assert(
-      xERC20 && xERC20.warpRouteLimits.type === XERC20Type.Velo,
-      `Only supports ${XERC20Type.Velo}`,
-    );
+    if (!xERC20 || xERC20.warpRouteLimits.type !== XERC20Type.Velo) {
+      continue;
+    }
 
     if (
-      !xERC20 ||
       !xERC20.warpRouteLimits.bufferCap ||
       !xERC20.warpRouteLimits.rateLimitPerSecond
     ) {
