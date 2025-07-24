@@ -1,0 +1,10 @@
+{
+  "starknet": {
+    "hex": "0x020d2f21817b8813bf7fa691adf9f79e20984c2bb4151e9a52a81ca5f8eb705e",
+    "base58": "91UaXo93NfF8ednUMP3JruBJsSkAB8Yue37yQZCscrR"
+  },
+  "solanamainnet": {
+    "hex": "0x068981b72d07ebe020ed9e5b5d1436aacbd8044a1eed677c2345942e53d6e4e0",
+    "base58": "SX4MUUdCAjMHmFLjoCwioUdpkVpAmk7qaaQFopu3j7m"
+  }
+}
