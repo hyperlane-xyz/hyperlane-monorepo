@@ -184,10 +184,10 @@ export async function addBridgeToChainWL({
 
   try {
     const { mint, burn } = await xERC20Adapter.getRateLimits(bridgeAddress);
-    if (mint || burn) {
+    if (mint === mintInConfig || burn === burnInConfig) {
       rootLogger.warn(
         chalk.yellow(
-          `[${chain}][${bridgeAddress}] Skipping set mint/burn limit. Already set: ${humanReadableLimit(mint, decimals)} mint limit, ${humanReadableLimit(burn, decimals)} burn limit.`,
+          `[${chain}][${bridgeAddress}] Skipping set mint/burn limit. Actual and expected are the same: ${humanReadableLimit(mint, decimals)} mint limit, ${humanReadableLimit(burn, decimals)} burn limit.`,
         ),
       );
       return;
