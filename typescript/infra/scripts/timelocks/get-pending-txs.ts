@@ -13,6 +13,7 @@ import { Contexts } from '../../config/contexts.js';
 import { getGovernanceTimelocks } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
+import { logTable } from '../../src/utils/log.js';
 import {
   TimelockOperationStatus,
   getTimelockPendingTxs,
@@ -53,8 +54,8 @@ async function main() {
     rootLogger.info(chalk.green('No pending transactions found!'));
     process.exit(0);
   }
-  // eslint-disable-next-line no-console
-  console.table(pendingTxs, [
+
+  logTable(pendingTxs, [
     'chain',
     'id',
     'predecessorId',

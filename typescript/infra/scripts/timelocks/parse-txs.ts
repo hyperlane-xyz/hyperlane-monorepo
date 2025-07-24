@@ -17,6 +17,7 @@ import {
   GovernTransactionReader,
 } from '../../src/tx/govern-transaction-reader.js';
 import { processGovernorReaderResult } from '../../src/tx/utils.js';
+import { logTable } from '../../src/utils/log.js';
 import { getTimelockPendingTxs } from '../../src/utils/timelock.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
 import { withChains } from '../agent-utils.js';
@@ -59,8 +60,8 @@ async function main() {
     rootLogger.info(chalk.green('No pending transactions found!'));
     process.exit(0);
   }
-  // eslint-disable-next-line no-console
-  console.table(pendingTxs, [
+
+  logTable(pendingTxs, [
     'chain',
     'id',
     'predecessorId',
