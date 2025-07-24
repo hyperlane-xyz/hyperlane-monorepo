@@ -852,10 +852,10 @@ function humanReadableLimit(limit: bigint, decimals: number): string {
     .toString();
 }
 
-export function getAndValidateBridgesToUpdate(
+export function getAndValidateBridgesToUpdate<T extends BridgeConfigBase>(
   chains: string[] | undefined,
-  bridgesConfig: BridgeConfigVS[],
-): BridgeConfigVS[] {
+  bridgesConfig: T[],
+): T[] {
   // if no chains are provided, return all configs
   if (!chains || chains.length === 0) {
     return bridgesConfig;
