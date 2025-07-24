@@ -115,22 +115,39 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
 export type CollateralTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
 export const isCollateralTokenConfig = isCompliant(CollateralTokenConfigSchema);
 
+export const XERC20Type = {
+  Velo: 'velo',
+  Wonderland: 'wonderland',
+} as const;
+
 const xERC20LimitConfigSchema = z.object({
+  type: z.literal(XERC20Type.Velo),
   bufferCap: z.string().optional(),
   rateLimitPerSecond: z.string().optional(),
 });
 export type XERC20LimitConfig = z.infer<typeof xERC20LimitConfigSchema>;
 
+const xERC20LimitWLConfigSchema = z.object({
+  type: z.literal(XERC20Type.Wonderland),
+  mint: z.string().optional(),
+  burn: z.string().optional(),
+});
+export type XERC20LimitWLConfig = z.infer<typeof xERC20LimitWLConfigSchema>;
+
+const xERC20Limits = z.discriminatedUnion('type', [
+  xERC20LimitConfigSchema,
+  xERC20LimitWLConfigSchema,
+]);
 const xERC20ExtraBridgesLimitConfigsSchema = z.object({
   lockbox: z.string(),
-  limits: xERC20LimitConfigSchema,
+  limits: xERC20Limits,
 });
 
 const xERC20TokenMetadataSchema = z.object({
   xERC20: z
     .object({
       extraBridges: z.array(xERC20ExtraBridgesLimitConfigsSchema).optional(),
-      warpRouteLimits: xERC20LimitConfigSchema,
+      warpRouteLimits: xERC20Limits,
     })
     .optional(),
 });

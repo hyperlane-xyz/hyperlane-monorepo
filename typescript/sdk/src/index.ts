@@ -712,6 +712,7 @@ export {
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
   XERC20LimitConfig,
+  XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
 } from './token/types.js';

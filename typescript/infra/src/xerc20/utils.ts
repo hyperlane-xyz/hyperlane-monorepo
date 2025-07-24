@@ -15,9 +15,16 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  XERC20Type,
   isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, CallData, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  CallData,
+  assert,
+  eqAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import {
@@ -35,16 +42,24 @@ export const XERC20_BRIDGES_CONFIG_PATH = join(
   'scripts/xerc20/config.yaml',
 );
 
-export interface BridgeConfig {
+type BridgeConfigBase = {
   chain: string;
   type: TokenType.XERC20Lockbox | TokenType.XERC20;
   xERC20Address: Address;
   bridgeAddress: Address;
   decimals: number;
   owner: Address;
+};
+
+type BridgeConfigVS = BridgeConfigBase & {
   bufferCap: number;
   rateLimitPerSecond: number;
-}
+};
+
+type BridgeConfigWL = BridgeConfigBase & {
+  mint: number;
+  burn: number;
+};
 
 export async function addBridgeToChain({
   chain,
@@ -54,7 +69,7 @@ export async function addBridgeToChain({
   dryRun,
 }: {
   chain: string;
-  bridgeConfig: BridgeConfig;
+  bridgeConfig: BridgeConfigVS;
   multiProtocolProvider: MultiProtocolProvider;
   envMultiProvider: MultiProvider;
   dryRun: boolean;
@@ -153,7 +168,7 @@ export async function updateChainLimits({
   dryRun,
 }: {
   chain: string;
-  bridgeConfig: BridgeConfig;
+  bridgeConfig: BridgeConfigVS;
   multiProtocolProvider: MultiProtocolProvider;
   envMultiProvider: MultiProvider;
   dryRun: boolean;
@@ -517,12 +532,12 @@ async function sendTransactions(
   );
 }
 
-export async function deriveBridgesConfig(
+export async function deriveWLBridgesConfig(
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfig: WarpCoreConfig,
   multiProvider: MultiProvider,
-): Promise<BridgeConfig[]> {
-  const bridgesConfig: BridgeConfig[] = [];
+): Promise<BridgeConfigWL[]> {
+  const bridgesConfig: BridgeConfigWL[] = [];
 
   for (const [chainName, chainConfig] of Object.entries(warpDeployConfig)) {
     if (!isXERC20TokenConfig(chainConfig)) {
@@ -578,16 +593,14 @@ export async function deriveBridgesConfig(
     if (xERC20.extraBridges) {
       for (const extraLockboxLimit of xERC20.extraBridges) {
         const { lockbox, limits } = extraLockboxLimit;
+        assert(
+          limits.type === XERC20Type.Velo,
+          `Only supports ${XERC20Type.Velo}`,
+        );
         const {
           bufferCap: extraBufferCap,
           rateLimitPerSecond: extraRateLimit,
         } = limits;
-
-        if (!extraBufferCap || !extraRateLimit) {
-          throw new Error(
-            `Missing "bufferCap" or "rateLimitPerSecond" limits for extra lockbox: ${lockbox} on chain: ${chainName}`,
-          );
-        }
 
         bridgesConfig.push({
           chain: chainName,
@@ -643,8 +656,8 @@ function humanReadableLimit(limit: bigint, decimals: number): string {
 
 export function getAndValidateBridgesToUpdate(
   chains: string[] | undefined,
-  bridgesConfig: BridgeConfig[],
-): BridgeConfig[] {
+  bridgesConfig: BridgeConfigVS[],
+): BridgeConfigVS[] {
   // if no chains are provided, return all configs
   if (!chains || chains.length === 0) {
     return bridgesConfig;
