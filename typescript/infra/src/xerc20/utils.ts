@@ -175,16 +175,6 @@ export async function addBridgeToChainWL({
   dryRun: boolean;
 }) {
   const { xERC20Address, bridgeAddress, mint, burn, decimals } = bridgeConfig;
-
-  if (mint === 0 && burn === 0) {
-    rootLogger.warn(
-      chalk.yellow(
-        `[${chain}][${bridgeAddress}] Skipping addBridge as buffer cap and rate limit are both 0.`,
-      ),
-    );
-    return;
-  }
-
   const xERC20Adapter = new EvmXERC20WLAdapter(chain, multiProtocolProvider, {
     token: xERC20Address,
   });
@@ -197,7 +187,7 @@ export async function addBridgeToChainWL({
     if (mint || burn) {
       rootLogger.warn(
         chalk.yellow(
-          `[${chain}][${bridgeAddress}] Skipping set mint/burn limit. Aleady set: ${humanReadableLimit(mint, decimals)} mint limit, ${humanReadableLimit(burn, decimals)} burn limit.`,
+          `[${chain}][${bridgeAddress}] Skipping set mint/burn limit. Already set: ${humanReadableLimit(mint, decimals)} mint limit, ${humanReadableLimit(burn, decimals)} burn limit.`,
         ),
       );
       return;
