@@ -5305,7 +5305,7 @@
       "index": {
         "from": 9688791
       },
-      "gnosisSafeTransactionServiceUrl": "https://txs.safe.metall2.com/"
+      "gnosisSafeTransactionServiceUrl": "https://metall2.superchain.safe.protofire.io"
     },
     "polynomialfi": {
       "blockExplorers": [
