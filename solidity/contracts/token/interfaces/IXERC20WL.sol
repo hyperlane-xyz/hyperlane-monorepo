@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.4 <0.9.0;
 
+// Taken from https://github.com/hyperlane-xyz/xERC20/blob/main/solidity/interfaces/IXERC20.sol
 interface IXERC20WL {
     /**
      * @notice Emits when a lockbox is set
