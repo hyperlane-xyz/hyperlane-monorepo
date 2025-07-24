@@ -10,6 +10,7 @@ import {
   TokenType,
   XERC20LimitConfig,
   XERC20TokenExtraBridgesLimits,
+  XERC20Type,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert } from '@hyperlane-xyz/utils';
 
@@ -239,6 +240,7 @@ const productionXERC20TokenAddress =
   '0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189';
 
 const zeroLimits: XERC20LimitConfig = {
+  type: XERC20Type.Velo,
   bufferCap: '0',
   rateLimitPerSecond: '0',
 };
@@ -255,6 +257,7 @@ const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
 };
 
 const productionCCIPTokenPoolLimits: XERC20LimitConfig = {
+  type: XERC20Type.Velo,
   bufferCap: upperBufferCap,
   rateLimitPerSecond: productionDefaultRateLimitPerSecond,
 };
@@ -264,6 +267,7 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
     {
       lockbox: productionEthereumXERC20LockboxAddress,
       limits: {
+        type: XERC20Type.Velo,
         bufferCap: productionBufferCapByChain.ethereum,
         rateLimitPerSecond: productionRateLimitByChain.ethereum,
       },
@@ -460,6 +464,7 @@ const stagingExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
     {
       lockbox: stagingEthereumXERC20LockboxAddress,
       limits: {
+        type: XERC20Type.Velo,
         bufferCap: stagingBufferCapByChain.ethereum,
         rateLimitPerSecond: stagingRateLimitByChain.ethereum,
       },
@@ -584,6 +589,7 @@ function generateoUSDTTokenConfig(
         token: xERC20AddressesByChain[chain],
         xERC20: {
           warpRouteLimits: {
+            type: XERC20Type.Velo,
             rateLimitPerSecond: rateLimitPerSecondPerChain[chain],
             bufferCap: bufferCapPerChain[chain],
           },
