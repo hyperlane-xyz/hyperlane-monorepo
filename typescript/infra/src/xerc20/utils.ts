@@ -10,6 +10,7 @@ import {
 import {
   ChainName,
   EvmXERC20VSAdapter,
+  EvmXERC20WLAdapter,
   MultiProtocolProvider,
   MultiProvider,
   TokenType,
@@ -129,6 +130,96 @@ export async function addBridgeToChain({
           BigInt(rateLimitPerSecond),
           decimals,
         )}`,
+      ),
+    );
+
+    if (!dryRun) {
+      rootLogger.info(
+        chalk.gray(
+          `[${chain}][${bridgeAddress}] Sending addBridge transaction to ${xERC20Address}...`,
+        ),
+      );
+      await sendTransactions(
+        envMultiProvider,
+        chain,
+        [tx],
+        xERC20Address,
+        bridgeAddress,
+      );
+    } else {
+      rootLogger.info(
+        chalk.gray(
+          `[${chain}][${bridgeAddress}] Dry run, no transactions sent, exiting...`,
+        ),
+      );
+    }
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(`[${chain}][${bridgeAddress}] Error adding bridge:`, error),
+    );
+    throw { chain, error };
+  }
+}
+
+export async function addWLBridgeToChain({
+  chain,
+  bridgeConfig,
+  multiProtocolProvider,
+  envMultiProvider,
+  dryRun,
+}: {
+  chain: string;
+  bridgeConfig: BridgeConfigWL;
+  multiProtocolProvider: MultiProtocolProvider;
+  envMultiProvider: MultiProvider;
+  dryRun: boolean;
+}) {
+  const { xERC20Address, bridgeAddress, mint, burn, decimals } = bridgeConfig;
+
+  if (mint === 0 && burn === 0) {
+    rootLogger.warn(
+      chalk.yellow(
+        `[${chain}][${bridgeAddress}] Skipping addBridge as buffer cap and rate limit are both 0.`,
+      ),
+    );
+    return;
+  }
+
+  const xERC20Adapter = new EvmXERC20WLAdapter(chain, multiProtocolProvider, {
+    token: xERC20Address,
+  });
+
+  const mintInConfig = BigInt(mint);
+  const burnInConfig = BigInt(burn);
+
+  try {
+    const { mint, burn } = await xERC20Adapter.getRateLimits(bridgeAddress);
+    if (mint || burn) {
+      rootLogger.warn(
+        chalk.yellow(
+          `[${chain}][${bridgeAddress}] Skipping set mint/burn limit. Aleady set: ${humanReadableLimit(mint, decimals)} mint limit, ${humanReadableLimit(burn, decimals)} burn limit.`,
+        ),
+      );
+      return;
+    }
+
+    const tx = await xERC20Adapter.populateSetLimitsTx(
+      bridgeAddress,
+      mintInConfig,
+      burnInConfig,
+    );
+
+    rootLogger.info(
+      chalk.gray(
+        `[${chain}][${bridgeAddress}] Preparing to add bridge to ${xERC20Address}`,
+      ),
+    );
+    rootLogger.info(
+      chalk.gray(
+        `[${chain}][${bridgeAddress}] Mint limit: ${humanReadableLimit(
+          mintInConfig,
+          decimals,
+        )}, burn limit: ${humanReadableLimit(mintInConfig, decimals)}`,
       ),
     );
 
@@ -664,10 +755,12 @@ export async function deriveWLBridgesConfig(
       throw new Error(`Missing "decimals" for chain: ${chainName}`);
     }
 
-    assert(
-      xERC20 && xERC20.warpRouteLimits.type === XERC20Type.Wonderland,
-      `Only supports ${XERC20Type.Wonderland}`,
-    );
+    if (!xERC20 || xERC20.warpRouteLimits.type !== XERC20Type.Wonderland) {
+      continue;
+    }
+    if (!xERC20.warpRouteLimits.mint || !xERC20.warpRouteLimits.burn) {
+      throw new Error(`Missing "limits" for chain: ${chainName}`);
+    }
 
     let xERC20Address = token;
     const bridgeAddress = warpCoreConfig.tokens.find(
@@ -702,6 +795,12 @@ export async function deriveWLBridgesConfig(
 
         const extraBridgeMint = Number(limits.mint);
         const extraBridgeBurn = Number(limits.burn);
+
+        if (!extraBridgeMint || !extraBridgeBurn) {
+          throw new Error(
+            `Missing "extraBridgeMint" or "extraBridgeBurn" limits for extra lockbox: ${lockbox} on chain: ${chainName}`,
+          );
+        }
 
         bridgesConfig.push({
           chain: chainName,
