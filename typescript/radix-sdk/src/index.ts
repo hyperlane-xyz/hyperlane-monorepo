@@ -1,5 +1,6 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { NetworkId } from '@radixdlt/radix-engine-toolkit';
+import { randomBytes } from 'crypto';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -7,10 +8,7 @@ import { RadixPopulate } from './modules/populate.js';
 import { RadixQuery } from './modules/query.js';
 import { RadixTx } from './modules/tx.js';
 import { Account, RadixSDKOptions } from './types.js';
-import {
-  generateNewEd25519VirtualAccount,
-  generateSecureRandomBytes,
-} from './utils.js';
+import { generateNewEd25519VirtualAccount } from './utils.js';
 
 const NETWORKS = {
   [NetworkId.Stokenet]: {
@@ -79,9 +77,7 @@ export class RadixSigningSDK extends RadixSDK {
   }
 
   public static async fromRandomPrivateKey(options?: RadixSDKOptions) {
-    const privateKey = Buffer.from(
-      await generateSecureRandomBytes(32),
-    ).toString('hex');
+    const privateKey = Buffer.from(randomBytes(32)).toString('hex');
     const account = await generateNewEd25519VirtualAccount(
       privateKey,
       options?.networkId ?? NetworkId.Mainnet,
@@ -103,12 +99,12 @@ export class RadixSigningSDK extends RadixSDK {
 
 // TODO: RADIX
 // const main = async () => {
-// const sdk = await RadixSigningSDK.fromPrivateKey(
-//   '4f61d7cd8c2bebd01ff86da87001cbe0a2349fa5ba43ef95eee5d0d817b035cc',
-//   {
-//     networkId: NetworkId.Stokenet,
-//   },
-// );
+//   const sdk = await RadixSigningSDK.fromPrivateKey(
+//     '4f61d7cd8c2bebd01ff86da87001cbe0a2349fa5ba43ef95eee5d0d817b035cc',
+//     {
+//       networkId: NetworkId.Stokenet,
+//     },
+//   );
 
 //   const address = sdk.getAddress();
 
@@ -190,13 +186,14 @@ export class RadixSigningSDK extends RadixSDK {
 //   const s = await sdk.query.getToken({ token: synthetic });
 //   console.log('synthetic token state', JSON.stringify(s));
 
-//   await sdk.tx.enrollRemoteRouter({
-//     token: synthetic,
-//     receiver_domain: 1337,
-//     receiver_address:
-//       '0000000000000000000000000000000000000000000000000000000000000001',
-//     gas: '100',
-//   });
+// await sdk.tx.enrollRemoteRouter({
+//   token:
+//     'component_tdx_2_1cqz8a07x8hmc2qyqg3glyut9te4lpcc2qelgn740lceasgwwv3dgjs',
+//   receiver_domain: 1337,
+//   receiver_address:
+//     '0000000000000000000000000000000000000000000000000000000000000001',
+//   gas: '100',
+// });
 
 //   const r = await sdk.query.getRemoteRouters({
 //     token: synthetic,
@@ -205,8 +202,8 @@ export class RadixSigningSDK extends RadixSDK {
 
 //   const result = await sdk.query.quoteRemoteTransfer({
 //     token:
-//       'component_tdx_2_1cq7jh99kkg9exmucxm3j5w4wru3qfpfxy3s3etar20c63dj37mh2cj',
-//     destination_domain: 1337,
+//       'component_tdx_2_1cqz8a07x8hmc2qyqg3glyut9te4lpcc2qelgn740lceasgwwv3dgjs',
+//     destination_domain: 1338,
 //   });
 
 //   console.log(result);

@@ -5,10 +5,9 @@ import {
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
 import BigNumber from 'bignumber.js';
+import { randomBytes } from 'crypto';
 
 import { assert, ensure0x } from '@hyperlane-xyz/utils';
-
-import { generateSecureRandomBytes } from '../utils.js';
 
 export class RadixQuery {
   protected networkId: number;
@@ -303,10 +302,10 @@ export class RadixQuery {
     mailbox: string;
     ism: string;
     origin_denom: string;
-    name?: string;
-    symbol?: string;
-    description?: string;
-    divisibility?: number;
+    name: string;
+    symbol: string;
+    description: string;
+    divisibility: number;
   }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(token);
@@ -347,7 +346,12 @@ export class RadixQuery {
       fields.find((f: any) => f.field_name === 'token_type')?.fields ?? [];
 
     let origin_denom;
-    let metadata = {};
+    let metadata = {
+      name: '',
+      symbol: '',
+      description: '',
+      divisibility: 0,
+    };
 
     if (token_type === 'Collateral') {
       origin_denom =
@@ -472,9 +476,7 @@ export class RadixQuery {
     token: string;
     destination_domain: number;
   }): Promise<{ resource: string; amount: bigint }> {
-    const pk = new PrivateKey.Ed25519(
-      new Uint8Array(await generateSecureRandomBytes(32)),
-    );
+    const pk = new PrivateKey.Ed25519(new Uint8Array(randomBytes(32)));
 
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
@@ -506,10 +508,15 @@ CALL_METHOD
         },
       });
 
-    const output = (response.receipt as any).output as any[];
-    const entries = output[0].programmatic_json.entries as any[];
+    assert(
+      !(response.receipt as any).error_message,
+      `${(response.receipt as any).error_message}`,
+    );
 
+    const output = (response.receipt as any).output as any[];
     assert(output.length, `found no output for quote_remote_transfer method`);
+
+    const entries = output[0].programmatic_json.entries as any[];
     assert(entries.length > 0, `quote_remote_transfer returned no resources`);
     assert(
       entries.length < 2,

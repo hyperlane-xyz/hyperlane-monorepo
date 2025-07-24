@@ -7,7 +7,6 @@ import {
   array,
   u8,
 } from '@radixdlt/radix-engine-toolkit';
-import { getRandomValues } from 'crypto';
 
 import { Account } from './types.js';
 
@@ -39,14 +38,6 @@ export const getAccountPrefix = (networkId: number) => {
   }
 
   return prefix;
-};
-
-export const generateSecureRandomBytes = async (
-  count: number,
-): Promise<Uint8Array> => {
-  const byteArray = new Uint8Array(count);
-  getRandomValues(byteArray);
-  return byteArray;
 };
 
 export const generateNewEd25519VirtualAccount = async (

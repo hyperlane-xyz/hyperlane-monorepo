@@ -129,7 +129,7 @@ export function useRadixTransactionFns(
       const transactionManifest = (
         await RadixEngineToolkit.Instructions.convert(
           (tx.transaction as never as TransactionManifest).instructions,
-          NetworkId.Mainnet,
+          NetworkId.Stokenet,
           'String',
         )
       ).value as string;

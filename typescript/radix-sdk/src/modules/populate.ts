@@ -14,6 +14,7 @@ import {
   u32,
   u64,
 } from '@radixdlt/radix-engine-toolkit';
+import { BigNumber } from 'bignumber.js';
 import { Decimal } from 'decimal.js';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
@@ -485,7 +486,23 @@ export class RadixPopulate {
     custom_hook_metadata: string;
     max_fee: { denom: string; amount: string };
   }) {
-    const { origin_denom } = await this.query.getToken({ token });
+    const { origin_denom, divisibility: tokenDecimals } =
+      await this.query.getToken({ token });
+    const tokenAmount = new Decimal(
+      new BigNumber(amount)
+        .dividedBy(new BigNumber(10).pow(tokenDecimals))
+        .toFixed(tokenDecimals),
+    );
+
+    const { divisibility: feeDecimals } = await this.query.getMetadata({
+      resource: max_fee.denom,
+    });
+
+    const feeAmount = new Decimal(
+      new BigNumber(max_fee.amount)
+        .dividedBy(new BigNumber(10).pow(feeDecimals))
+        .toFixed(feeDecimals),
+    );
 
     assert(origin_denom, `no origin_denom found on token ${token}`);
 
@@ -497,11 +514,11 @@ export class RadixPopulate {
       )
       .callMethod(from_address, 'withdraw', [
         address(origin_denom),
-        decimal(amount),
+        decimal(tokenAmount),
       ])
       .callMethod(from_address, 'withdraw', [
         address(max_fee.denom),
-        decimal(max_fee.amount),
+        decimal(feeAmount),
       ])
       .takeFromWorktop(
         origin_denom,
@@ -509,7 +526,7 @@ export class RadixPopulate {
         (builder1, bucketId1) =>
           builder1.takeFromWorktop(
             max_fee.denom,
-            new Decimal(max_fee.amount),
+            new Decimal(feeAmount),
             (builder2, bucketId2) =>
               builder2
                 .callMethod(token, 'transfer_remote', [

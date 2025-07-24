@@ -1,13 +1,11 @@
 import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
-import { assert } from 'console';
 
 import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   Address,
   Domain,
-  ProtocolType,
   addressToBytes32,
-  convertToProtocolAddress,
+  assert,
 } from '@hyperlane-xyz/utils';
 
 import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
@@ -57,7 +55,11 @@ class RadixTokenAdapter
   }
 
   async getMetadata(): Promise<TokenMetadata> {
-    const { name, symbol, divisibility } = await this.provider.query.getToken({
+    const {
+      name,
+      symbol,
+      divisibility: decimals,
+    } = await this.provider.query.getToken({
       token: this.tokenId,
     });
 
@@ -70,14 +72,14 @@ class RadixTokenAdapter
       `symbol on radix token ${this.tokenId} is undefined`,
     );
     assert(
-      divisibility !== undefined,
+      decimals !== undefined,
       `divisibility on radix token ${this.tokenId} is undefined`,
     );
 
     return {
-      name: name!,
-      symbol: symbol!,
-      decimals: divisibility,
+      name,
+      symbol,
+      decimals,
     };
   }
 
@@ -227,10 +229,7 @@ export class RadixHypCollateralAdapter
 
     return this.provider.populate.remoteTransfer({
       from_address: params.fromAccountOwner!,
-      recipient: addressToBytes32(
-        convertToProtocolAddress(params.recipient, ProtocolType.Ethereum),
-        ProtocolType.Ethereum,
-      ),
+      recipient: addressToBytes32(params.recipient),
       amount: params.weiAmountOrId.toString(),
       token: this.tokenId,
       destination_domain: params.destination,
@@ -246,3 +245,9 @@ export class RadixHypCollateralAdapter
 }
 
 export class RadixHypSyntheticAdapter extends RadixHypCollateralAdapter {}
+
+export class RadixHypNativeAdapter extends RadixHypCollateralAdapter {
+  protected async getResourceAddress(): Promise<string> {
+    return this.tokenId;
+  }
+}
