@@ -31,6 +31,7 @@ import {
 } from '../token/TokenStandard.js';
 import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
+  EvmHypCollateralFiatAdapter,
   EvmHypXERC20LockboxAdapter,
 } from '../token/adapters/EvmTokenAdapter.js';
 import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
@@ -930,6 +931,13 @@ export class WarpCore {
           destinationMintLimit = max;
         }
       }
+    } else if (
+      destinationToken.standard === TokenStandard.EvmHypCollateralFiat
+    ) {
+      const adapter = destinationToken.getAdapter(
+        this.multiProvider,
+      ) as EvmHypCollateralFiatAdapter;
+      destinationMintLimit = await adapter.getMintLimit();
     }
 
     const destinationMintLimitInOriginDecimals = convertDecimalsToIntegerString(

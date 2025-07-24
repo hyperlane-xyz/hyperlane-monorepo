@@ -581,7 +581,7 @@ async fn submit_classic_task(
                 continue;
             }
             std::cmp::Ordering::Equal => {
-                let op = batch.pop().unwrap();
+                let op = batch.pop().expect("Should not happen");
                 submit_single_operation(op, &mut prepare_queue, &mut confirm_queue, &metrics).await;
             }
             std::cmp::Ordering::Greater => {

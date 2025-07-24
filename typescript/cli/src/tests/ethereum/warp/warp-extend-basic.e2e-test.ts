@@ -9,12 +9,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { deployOrUseExistingCore } from '../commands/core.js';
+import { getDomainId } from '../commands/helpers.js';
 import {
-  deployOrUseExistingCore,
   extendWarpConfig,
-  getDomainId,
-} from '../commands/helpers.js';
-import {
   hyperlaneWarpApply,
   hyperlaneWarpDeploy,
   readWarpConfig,

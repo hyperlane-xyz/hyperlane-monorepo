@@ -88,11 +88,10 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 ),
             )),
             SignerConf::Aws { id, region } => {
+                let http_client = utils::http_client_with_timeout()
+                    .map_err(|err| eyre::eyre!(err.to_string()))?;
                 let client = KmsClient::new_with_client(
-                    rusoto_core::Client::new_with(
-                        AwsChainCredentialsProvider::new(),
-                        utils::http_client_with_timeout().unwrap(),
-                    ),
+                    rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
                     region.clone(),
                 );
 

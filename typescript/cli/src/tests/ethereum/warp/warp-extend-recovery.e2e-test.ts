@@ -11,13 +11,14 @@ import {
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { deployOrUseExistingCore } from '../commands/core.js';
+import { getDomainId } from '../commands/helpers.js';
 import {
-  deployOrUseExistingCore,
   extendWarpConfig,
-  getDomainId,
+  hyperlaneWarpDeploy,
+  readWarpConfig,
   setupIncompleteWarpRouteExtension,
-} from '../commands/helpers.js';
-import { hyperlaneWarpDeploy, readWarpConfig } from '../commands/warp.js';
+} from '../commands/warp.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,

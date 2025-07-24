@@ -21,6 +21,7 @@ import {
   HypXERC20Lockbox,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
+  IFiatToken__factory,
   IXERC20,
   IXERC20VS,
   IXERC20VS__factory,
@@ -44,6 +45,7 @@ import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
 import {
+  IHypCollateralFiatAdapter,
   IHypTokenAdapter,
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
@@ -450,7 +452,7 @@ export class EvmHypCollateralAdapter
 
 export class EvmHypCollateralFiatAdapter
   extends EvmHypCollateralAdapter
-  implements IHypTokenAdapter<PopulatedTransaction>
+  implements IHypCollateralFiatAdapter<PopulatedTransaction>
 {
   /**
    * Note this may be inaccurate, as this returns the total supply
@@ -460,6 +462,17 @@ export class EvmHypCollateralFiatAdapter
   override async getBridgedSupply(): Promise<bigint> {
     const wrapped = await this.getWrappedTokenAdapter();
     return wrapped.getTotalSupply();
+  }
+
+  async getMintLimit(): Promise<bigint> {
+    const wrappedToken = await this.getWrappedTokenAddress();
+    const fiatToken = IFiatToken__factory.connect(
+      wrappedToken,
+      this.getProvider(),
+    );
+    const limit = await fiatToken.minterAllowance(this.addresses.token);
+
+    return limit.toBigInt();
   }
 }
 

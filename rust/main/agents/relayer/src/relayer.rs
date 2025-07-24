@@ -391,11 +391,26 @@ impl BaseAgent for Relayer {
                         continue;
                     }
                 };
+                let prover_sync = match prover_syncs.get(origin) {
+                    Some(p) => p.clone(),
+                    None => {
+                        tracing::error!(origin = origin.name(), "Missing prover sync");
+                        continue;
+                    }
+                };
+                let origin_gas_payment_enforcer = match gas_payment_enforcers.get(origin) {
+                    Some(p) => p.clone(),
+                    None => {
+                        tracing::error!(origin = origin.name(), "Missing gas payment enforcer");
+                        continue;
+                    }
+                };
+
                 // Extract optional Ethereum signer for CCIP-read authentication
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
                     destination_chain_setup.clone(),
-                    prover_syncs[origin].clone(),
+                    prover_sync,
                     validator_announce.clone(),
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
@@ -423,7 +438,7 @@ impl BaseAgent for Relayer {
                         origin_db: Arc::new(db),
                         cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),
-                        origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
+                        origin_gas_payment_enforcer,
                         transaction_gas_limit,
                         metrics: MessageSubmissionMetrics::new(&core_metrics, origin, destination),
                         application_operation_verifier: application_operation_verifier.cloned(),
@@ -1037,6 +1052,7 @@ impl Relayer {
         Ok(db_loader.spawn(span))
     }
 
+    #[allow(clippy::panic)]
     #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(skip(self, message_processor))]
     fn run_destination_processor(
