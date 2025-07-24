@@ -17,11 +17,7 @@
 //! to choose the correct implementation during the runtime, however it's not available yet, and
 //! not planned for a foreseeable future.
 
-use std::env;
-
-use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
-use tokio::fs;
-use tracing::warn;
+use hyperlane_core::{ChainResult, H256};
 
 pub mod ed25519;
 pub mod ethereum;
@@ -67,31 +63,5 @@ impl Signer {
     /// An edward based signer
     pub fn ed25519(&self) -> &impl Crypto {
         &self.ed25519
-    }
-
-    /// Get the key for sovereign signer if it was provided using `TOKEN_KEY_FILE` env var.
-    ///
-    /// This is kept for backward compatibility of old setups relying on this way of provisioning.
-    /// Should not be relied on otherwise, and `--chains.<sov-rollup-name>.signer.key=<hex>` should be used instead
-    // TODO: delete this after sov side audit is completed / upstream to hyperlane-xyz happens
-    pub async fn get_key_override() -> ChainResult<Option<H256>> {
-        const KEY_FILE_VAR: &str = "TOKEN_KEY_FILE";
-
-        let Ok(key_file) = env::var(KEY_FILE_VAR) else {
-            return Ok(None);
-        };
-
-        warn!("Getting sovereign key from {key_file}; this behaviour is deprecated and will be removed");
-
-        let data = fs::read_to_string(&key_file).await.map_err(|e| {
-            ChainCommunicationError::CustomError(format!(
-                "Failed to read file at {key_file}: {e:?}"
-            ))
-        })?;
-        let outer_value: serde_json::Value = serde_json::from_str(&data)?;
-        let inner_value = outer_value["private_key"]["key_pair"].clone();
-        let bytes: [u8; 32] = serde_json::from_value(inner_value)?;
-
-        Ok(Some(H256(bytes)))
     }
 }
