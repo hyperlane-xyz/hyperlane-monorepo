@@ -537,6 +537,29 @@ export class GovernTransactionReader {
 
     if (
       decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
+        'executeBatch(address[],uint256[],bytes[],bytes32,bytes32)'
+      ].name
+    ) {
+      const [targets, values, data, _predecessor, _salt] = decoded.args;
+
+      const innerTxs = [];
+      const numOfTxs = targets.length;
+      for (let i = 0; i < numOfTxs; i++) {
+        innerTxs.push(
+          await this.read(chain, {
+            to: targets[i],
+            data: data[i],
+            value: values[i],
+          }),
+        );
+      }
+
+      insight = `Execute batch on ${targets}:\n ${JSON.stringify(innerTxs, null, 2)}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
       timelockControllerInterface.functions['cancel(bytes32)'].name
     ) {
       const [id] = decoded.args;
