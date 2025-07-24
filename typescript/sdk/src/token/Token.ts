@@ -60,6 +60,10 @@ import type {
   ITokenAdapter,
 } from './adapters/ITokenAdapter.js';
 import {
+  RadixHypCollateralAdapter,
+  RadixHypSyntheticAdapter,
+} from './adapters/RadixTokenAdapter.js';
+import {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
@@ -318,6 +322,14 @@ export class Token implements IToken {
     } else if (standard === TokenStandard.StarknetHypCollateral) {
       return new StarknetHypCollateralAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.RadixHypCollateral) {
+      return new RadixHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.RadixHypSynthetic) {
+      return new RadixHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
       });
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
