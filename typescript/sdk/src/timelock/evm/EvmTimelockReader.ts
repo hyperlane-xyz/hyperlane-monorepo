@@ -165,10 +165,10 @@ export class EvmTimelockReader {
   async getPendingOperationIds(operationIds: string[]): Promise<Set<string>> {
     const pendingOperationIds = new Set<string>();
     for (const operationId of operationIds) {
-      const isReady =
+      const isPending =
         await this.timelockInstance.isOperationPending(operationId);
 
-      if (isReady) {
+      if (isPending) {
         pendingOperationIds.add(operationId);
       }
     }
