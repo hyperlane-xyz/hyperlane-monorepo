@@ -155,6 +155,10 @@
     "amount": "0.003089873",
     "decimals": 9
   },
+  "solanadevnet": {
+    "amount": "0.01",
+    "decimals": 1
+  },
   "solanatestnet": {
     "amount": "0.01",
     "decimals": 1
