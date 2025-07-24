@@ -8,14 +8,16 @@ import {
   LogLevel,
   configureRootLogger,
   rootLogger,
-  stringifyObject,
 } from '@hyperlane-xyz/utils';
 
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
-import { GovernTransactionReader } from '../../src/tx/govern-transaction-reader.js';
+import {
+  GovernTransaction,
+  GovernTransactionReader,
+} from '../../src/tx/govern-transaction-reader.js';
+import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { getPendingTxsForChains, getSafeTx } from '../../src/utils/safe.js';
-import { writeYamlAtPath } from '../../src/utils/utils.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -63,52 +65,43 @@ async function main() {
   ]);
 
   const chainResultEntries = await Promise.all(
-    pendingTxs.map(async ({ chain, nonce, fullTxHash }) => {
-      rootLogger.info(
-        chalk.gray.italic(`Reading tx ${fullTxHash} on ${chain}`),
-      );
-      const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
-      const tx: AnnotatedEV5Transaction = {
-        to: safeTx.to,
-        data: safeTx.data,
-        value: BigNumber.from(safeTx.value),
-      };
-
-      try {
-        const results = await reader.read(chain, tx);
+    pendingTxs.map(
+      async ({
+        chain,
+        nonce,
+        fullTxHash,
+      }): Promise<[string, GovernTransaction]> => {
         rootLogger.info(
-          chalk.blue(`Finished reading tx ${fullTxHash} on ${chain}`),
+          chalk.gray.italic(`Reading tx ${fullTxHash} on ${chain}`),
         );
-        return [`${chain}-${nonce}-${fullTxHash}`, results];
-      } catch (err) {
-        rootLogger.error(
-          chalk.red('Error reading transaction', err, chain, tx),
-        );
-        process.exit(1);
-      }
-    }),
+        const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
+        const tx: AnnotatedEV5Transaction = {
+          to: safeTx.to,
+          data: safeTx.data,
+          value: BigNumber.from(safeTx.value),
+        };
+
+        try {
+          const results = await reader.read(chain, tx);
+          rootLogger.info(
+            chalk.blue(`Finished reading tx ${fullTxHash} on ${chain}`),
+          );
+          return [`${chain}-${nonce}-${fullTxHash}`, results];
+        } catch (err) {
+          rootLogger.error(
+            chalk.red('Error reading transaction', err, chain, tx),
+          );
+          process.exit(1);
+        }
+      },
+    ),
   );
 
-  if (reader.errors.length) {
-    rootLogger.error(
-      chalk.red('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌'),
-    );
-    rootLogger.info(stringifyObject(reader.errors, 'yaml', 2));
-    rootLogger.error(
-      chalk.red('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌'),
-    );
-  } else {
-    rootLogger.info(chalk.green('✅✅✅✅✅ No fatal errors ✅✅✅✅✅'));
-  }
-
-  const chainResults = Object.fromEntries(chainResultEntries);
-  const resultsPath = `safe-tx-results-${Date.now()}.yaml`;
-  writeYamlAtPath(resultsPath, chainResults);
-  rootLogger.info(`Results written to ${resultsPath}`);
-
-  if (reader.errors.length) {
-    process.exit(1);
-  }
+  processGovernorReaderResult(
+    chainResultEntries,
+    reader.errors,
+    'safe-tx-parse-results',
+  );
 }
 
 main().catch((err) => {

@@ -58,6 +58,7 @@ async function main() {
     'chain',
     'id',
     'predecessorId',
+    'salt',
     'status',
     'canSignerExecute',
   ]);

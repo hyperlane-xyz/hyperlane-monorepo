@@ -1,5 +1,4 @@
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
 import yargs from 'yargs';
 
 import { AnnotatedEV5Transaction } from '@hyperlane-xyz/sdk';
@@ -13,7 +12,11 @@ import {
 
 import { getGovernanceTimelocks } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
-import { GovernTransactionReader } from '../../src/tx/govern-transaction-reader.js';
+import {
+  GovernTransaction,
+  GovernTransactionReader,
+} from '../../src/tx/govern-transaction-reader.js';
+import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { getTimelockPendingTxs } from '../../src/utils/timelock.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
 import { withChains } from '../agent-utils.js';
@@ -61,13 +64,20 @@ async function main() {
     'chain',
     'id',
     'predecessorId',
+    'salt',
     'status',
     'canSignerExecute',
   ]);
 
   const chainResultEntries = await Promise.all(
     pendingTxs.map(
-      async ({ chain, timelockAddress, executeTransactionData, id }) => {
+      async ({
+        chain,
+        timelockAddress,
+        executeTransactionData,
+        id,
+        salt,
+      }): Promise<[string, GovernTransaction]> => {
         rootLogger.info(chalk.gray.italic(`Reading tx ${id} on ${chain}`));
         const tx: AnnotatedEV5Transaction = {
           to: timelockAddress,
@@ -77,7 +87,7 @@ async function main() {
         try {
           const results = await reader.read(chain, tx);
           rootLogger.info(chalk.blue(`Finished reading tx ${id} on ${chain}`));
-          return [`${chain}-${id}`, results];
+          return [`${chain}-${salt}-${id}`, results];
         } catch (err) {
           rootLogger.error(
             chalk.red('Error reading transaction', err, chain, tx),
@@ -88,26 +98,11 @@ async function main() {
     ),
   );
 
-  if (reader.errors.length) {
-    rootLogger.error(
-      chalk.red('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌'),
-    );
-    rootLogger.info(stringifyObject(reader.errors, 'yaml', 2));
-    rootLogger.error(
-      chalk.red('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌'),
-    );
-  } else {
-    rootLogger.info(chalk.green('✅✅✅✅✅ No fatal errors ✅✅✅✅✅'));
-  }
-
-  const chainResults = Object.fromEntries(chainResultEntries);
-  const resultsPath = `safe-tx-results-${Date.now()}.yaml`;
-  writeYamlAtPath(resultsPath, chainResults);
-  rootLogger.info(`Results written to ${resultsPath}`);
-
-  if (reader.errors.length) {
-    process.exit(1);
-  }
+  processGovernorReaderResult(
+    chainResultEntries,
+    reader.errors,
+    'timelock-tx-parse-result',
+  );
 }
 
 main().catch((err) => {

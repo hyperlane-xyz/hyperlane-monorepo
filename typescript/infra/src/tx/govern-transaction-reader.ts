@@ -73,7 +73,7 @@ import {
 } from '../governance.js';
 import { getSafeTx, parseSafeTx } from '../utils/safe.js';
 
-interface GovernTransaction extends Record<string, any> {
+export interface GovernTransaction extends Record<string, any> {
   chain: ChainName;
   nestedTx?: GovernTransaction;
 }
