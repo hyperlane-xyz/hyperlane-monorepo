@@ -532,6 +532,115 @@ async function sendTransactions(
   );
 }
 
+export async function deriveBridgesConfig(
+  warpDeployConfig: WarpRouteDeployConfig,
+  warpCoreConfig: WarpCoreConfig,
+  multiProvider: MultiProvider,
+): Promise<BridgeConfigVS[]> {
+  const bridgesConfig: BridgeConfigVS[] = [];
+
+  for (const [chainName, chainConfig] of Object.entries(warpDeployConfig)) {
+    if (!isXERC20TokenConfig(chainConfig)) {
+      throw new Error(
+        `Chain "${chainName}" is not an xERC20 compliant deployment`,
+      );
+    }
+
+    const { token, type, owner, xERC20 } = chainConfig;
+
+    const decimals = warpCoreConfig.tokens.find(
+      (t) => t.chainName === chainName,
+    )?.decimals;
+    if (!decimals) {
+      throw new Error(`Missing "decimals" for chain: ${chainName}`);
+    }
+
+    assert(
+      xERC20 && xERC20.warpRouteLimits.type === XERC20Type.Velo,
+      `Only supports ${XERC20Type.Velo}`,
+    );
+
+    if (
+      !xERC20 ||
+      !xERC20.warpRouteLimits.bufferCap ||
+      !xERC20.warpRouteLimits.rateLimitPerSecond
+    ) {
+      throw new Error(`Missing "limits" for chain: ${chainName}`);
+    }
+
+    let xERC20Address = token;
+    const bridgeAddress = warpCoreConfig.tokens.find(
+      (t) => t.chainName === chainName,
+    )?.addressOrDenom;
+    if (!bridgeAddress) {
+      throw new Error(
+        `Missing router address for chain ${chainName} and type ${type}`,
+      );
+    }
+
+    const {
+      bufferCap: bufferCapStr,
+      rateLimitPerSecond: rateLimitPerSecondStr,
+    } = xERC20.warpRouteLimits;
+    const bufferCap = Number(bufferCapStr);
+    const rateLimitPerSecond = Number(rateLimitPerSecondStr);
+
+    if (type === TokenType.XERC20Lockbox) {
+      const provider = multiProvider.getProvider(chainName);
+      const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
+        bridgeAddress,
+        provider,
+      );
+
+      xERC20Address = await hypXERC20Lockbox.xERC20();
+    }
+
+    if (xERC20.extraBridges) {
+      for (const extraLockboxLimit of xERC20.extraBridges) {
+        const { lockbox, limits } = extraLockboxLimit;
+        assert(
+          limits.type === XERC20Type.Velo,
+          `Only supports ${XERC20Type.Velo}`,
+        );
+        const {
+          bufferCap: extraBufferCap,
+          rateLimitPerSecond: extraRateLimit,
+        } = limits;
+
+        if (!extraBufferCap || !extraRateLimit) {
+          throw new Error(
+            `Missing "bufferCap" or "rateLimitPerSecond" limits for extra lockbox: ${lockbox} on chain: ${chainName}`,
+          );
+        }
+
+        bridgesConfig.push({
+          chain: chainName,
+          type,
+          xERC20Address,
+          bridgeAddress: lockbox,
+          owner,
+          decimals,
+          bufferCap: Number(extraBufferCap),
+          rateLimitPerSecond: Number(extraRateLimit),
+        });
+      }
+    }
+
+    bridgesConfig.push({
+      chain: chainName as ChainName,
+      type,
+      xERC20Address,
+      bridgeAddress,
+      owner,
+      decimals,
+      bufferCap,
+      rateLimitPerSecond,
+    });
+  }
+
+  return bridgesConfig;
+}
+
 export async function deriveWLBridgesConfig(
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfig: WarpCoreConfig,
@@ -616,101 +725,6 @@ export async function deriveWLBridgesConfig(
       decimals,
       mint,
       burn,
-    });
-  }
-
-  return bridgesConfig;
-}
-
-export async function deriveBridgesConfig(
-  warpDeployConfig: WarpRouteDeployConfig,
-  warpCoreConfig: WarpCoreConfig,
-  multiProvider: MultiProvider,
-): Promise<BridgeConfigVS[]> {
-  const bridgesConfig: BridgeConfigVS[] = [];
-
-  for (const [chainName, chainConfig] of Object.entries(warpDeployConfig)) {
-    if (!isXERC20TokenConfig(chainConfig)) {
-      throw new Error(
-        `Chain "${chainName}" is not an xERC20 compliant deployment`,
-      );
-    }
-
-    const { token, type, owner, xERC20 } = chainConfig;
-
-    const decimals = warpCoreConfig.tokens.find(
-      (t) => t.chainName === chainName,
-    )?.decimals;
-    if (!decimals) {
-      throw new Error(`Missing "decimals" for chain: ${chainName}`);
-    }
-
-    assert(
-      xERC20 && xERC20.warpRouteLimits.type === XERC20Type.Velo,
-      `Only supports ${XERC20Type.Velo}`,
-    );
-
-    let xERC20Address = token;
-    const bridgeAddress = warpCoreConfig.tokens.find(
-      (t) => t.chainName === chainName,
-    )?.addressOrDenom;
-    if (!bridgeAddress) {
-      throw new Error(
-        `Missing router address for chain ${chainName} and type ${type}`,
-      );
-    }
-
-    const {
-      bufferCap: bufferCapStr,
-      rateLimitPerSecond: rateLimitPerSecondStr,
-    } = xERC20.warpRouteLimits;
-    const bufferCap = Number(bufferCapStr);
-    const rateLimitPerSecond = Number(rateLimitPerSecondStr);
-
-    if (type === TokenType.XERC20Lockbox) {
-      const provider = multiProvider.getProvider(chainName);
-      const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
-        bridgeAddress,
-        provider,
-      );
-
-      xERC20Address = await hypXERC20Lockbox.xERC20();
-    }
-
-    if (xERC20.extraBridges) {
-      for (const extraLockboxLimit of xERC20.extraBridges) {
-        const { lockbox, limits } = extraLockboxLimit;
-        assert(
-          limits.type === XERC20Type.Velo,
-          `Only supports ${XERC20Type.Velo}`,
-        );
-        const {
-          bufferCap: extraBufferCap,
-          rateLimitPerSecond: extraRateLimit,
-        } = limits;
-
-        bridgesConfig.push({
-          chain: chainName,
-          type,
-          xERC20Address,
-          bridgeAddress: lockbox,
-          owner,
-          decimals,
-          bufferCap: Number(extraBufferCap),
-          rateLimitPerSecond: Number(extraRateLimit),
-        });
-      }
-    }
-
-    bridgesConfig.push({
-      chain: chainName as ChainName,
-      type,
-      xERC20Address,
-      bridgeAddress,
-      owner,
-      decimals,
-      bufferCap,
-      rateLimitPerSecond,
     });
   }
 
