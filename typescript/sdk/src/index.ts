@@ -597,6 +597,7 @@ export {
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
   EvmXERC20VSAdapter,
+  EvmXERC20WLAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,

@@ -25,6 +25,8 @@ import {
   IXERC20,
   IXERC20VS,
   IXERC20VS__factory,
+  IXERC20WL,
+  IXERC20WL__factory,
   IXERC20__factory,
   ValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
@@ -52,8 +54,10 @@ import {
   IMovableCollateralRouterAdapter,
   ITokenAdapter,
   IXERC20VSAdapter,
+  IXERC20WLAdapter,
   InterchainGasQuote,
   RateLimitMidPoint,
+  RateLimitXERC20WL,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -828,6 +832,50 @@ export class EvmHypNativeAdapter
       {
         value,
       },
+    );
+  }
+}
+
+export class EvmXERC20WLAdapter
+  extends EvmTokenAdapter
+  implements IXERC20WLAdapter<PopulatedTransaction>
+{
+  xERC20WL: IXERC20WL;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.xERC20WL = IXERC20WL__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  async getRateLimits(bridge: Address): Promise<RateLimitXERC20WL> {
+    const mint = await this.xERC20WL.mintingMaxLimitOf(bridge);
+    const burn = await this.xERC20WL.burningMaxLimitOf(bridge);
+
+    const rateLimits: RateLimitXERC20WL = {
+      mint: BigInt(mint.toString()),
+      burn: BigInt(burn.toString()),
+    };
+
+    return rateLimits;
+  }
+
+  async populateSetLimitsTx(
+    bridge: Address,
+    mint: bigint,
+    burn: bigint,
+  ): Promise<PopulatedTransaction> {
+    return this.xERC20WL.populateTransaction.setLimits(
+      bridge,
+      mint.toString(),
+      burn.toString(),
     );
   }
 }
