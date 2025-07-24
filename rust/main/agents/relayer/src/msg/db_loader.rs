@@ -768,11 +768,11 @@ pub mod test {
             .await;
 
             // Set some retry counts. This should update HyperlaneDB entries too.
-            let msg_retries_to_set = [3, 0, 10];
+            let msg_retries_to_set: [u32; 3] = [3, 0, 10];
             pending_messages
                 .into_iter()
-                .enumerate()
-                .for_each(|(i, mut pm)| pm.set_retries(msg_retries_to_set[i]));
+                .zip(msg_retries_to_set.into_iter())
+                .for_each(|(mut pm, retry_count)| pm.set_retries(retry_count));
 
             // Run parser again
             let pending_messages = get_first_n_operations_from_db_loader(
