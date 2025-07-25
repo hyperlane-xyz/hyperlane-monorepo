@@ -3396,7 +3396,7 @@
         "url": "https://www.hyperlane.xyz"
       },
       "displayName": "Solana Devnet",
-      "displayNameShort": "Sol Devnet",
+      "displayNameShort": "Solana Devnet",
       "domainId": 1399811151,
       "index": {
         "from": 1,
@@ -3420,7 +3420,8 @@
       "interchainSecurityModule": "5V7qEbBrVXaviTrkhhqJshfAcS7dEe91oj2QRU7kMiNH",
       "mailbox": "5MhSYXV2wZPLv21h1xiaG8R9Ddq9Nw5n1sfwDxVaErDt",
       "merkleTreeHook": "5MhSYXV2wZPLv21h1xiaG8R9Ddq9Nw5n1sfwDxVaErDt",
-      "validatorAnnounce": "ADk5MbBDn6AZ94qmca4QWjCKNHUPbFreiGuav8VnhZnQ"
+      "validatorAnnounce": "ADk5MbBDn6AZ94qmca4QWjCKNHUPbFreiGuav8VnhZnQ",
+      "gasCurrencyCoinGeckoId": "solana"
     }
   }
 }
