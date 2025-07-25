@@ -637,6 +637,9 @@ export async function deriveBridgesConfig(
     }
 
     if (!xERC20 || xERC20.warpRouteLimits.type !== XERC20Type.Velo) {
+      rootLogger.warn(
+        `Skip deriving bridges config because ${XERC20Type.Velo} type is expected`,
+      );
       continue;
     }
 
@@ -720,7 +723,7 @@ export async function deriveBridgesConfig(
   return bridgesConfig;
 }
 
-export async function deriveWLBridgesConfig(
+export async function deriveStandardBridgesConfig(
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfig: WarpCoreConfig,
   multiProvider: MultiProvider,
@@ -744,6 +747,9 @@ export async function deriveWLBridgesConfig(
     }
 
     if (!xERC20 || xERC20.warpRouteLimits.type !== XERC20Type.Standard) {
+      rootLogger.warn(
+        `Skip deriving bridges config because ${XERC20Type.Standard} type is expected`,
+      );
       continue;
     }
     if (!xERC20.warpRouteLimits.mint || !xERC20.warpRouteLimits.burn) {
