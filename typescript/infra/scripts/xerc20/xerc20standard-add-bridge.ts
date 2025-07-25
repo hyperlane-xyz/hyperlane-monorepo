@@ -36,6 +36,7 @@ async function main() {
   const envMultiProvider = await envConfig.getMultiProvider();
 
   const bridgesConfig = await deriveStandardBridgesConfig(
+    chains,
     warpDeployConfig,
     warpCoreConfig,
     envMultiProvider,
