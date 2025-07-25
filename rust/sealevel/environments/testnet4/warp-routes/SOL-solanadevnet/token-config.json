@@ -1,0 +1,14 @@
+{
+  "solanatestnet": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB"
+  },
+  "solanadevnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Solana (solanatestnet)",
+    "symbol": "SOL",
+    "interchainGasPaymaster": "254Aisi2cNsehJkfagbxrdvPEUbojJPsU5FfmrEFF41C"
+  }
+}

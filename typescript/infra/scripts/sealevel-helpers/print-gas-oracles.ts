@@ -137,6 +137,13 @@ function getChainConnections(
       ['solanatestnet', 'connextsepolia'],
       ['solanatestnet', 'infinityvmmonza'],
       ['solanatestnet', 'basesepolia'],
+      ['solanatestnet', 'starknetsepolia'],
+      ['solanatestnet', 'sepolia'],
+      ['solanatestnet', 'paradexsepolia'],
+
+      // Solanadevnet
+      ['solanadevnet', 'sepolia'],
+      ['solanadevnet', 'solanatestnet'],
     ];
   } else {
     throw new Error(`Unknown environment: ${environment}`);

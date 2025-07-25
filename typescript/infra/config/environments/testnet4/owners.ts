@@ -20,6 +20,9 @@ export const owners: ChainMap<OwnableConfig> = {
   solanatestnet: {
     owner: 'n/a - SVM not supported here',
   },
+  solanadevnet: {
+    owner: 'n/a - SVM not supported here',
+  },
   sonicsvmtestnet: {
     owner: 'n/a - SVM not supported here',
   },

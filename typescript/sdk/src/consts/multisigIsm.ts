@@ -2110,18 +2110,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   solanadevnet: {
-    threshold: 2,
+    threshold: 1,
     validators: [
       {
-        address: '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
+        address: '0x6424142536c9e40b61076571cba83a255835b799',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
