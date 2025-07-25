@@ -8,8 +8,8 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
-  addBridgeToChainXERC20VS,
-  deriveBridgesConfig,
+  addBridgeToChainForXERC20Standard,
+  deriveStandardBridgesConfig,
   getAndValidateBridgesToUpdate,
   getWarpConfigsAndArtifacts,
 } from '../../src/xerc20/utils.js';
@@ -17,14 +17,15 @@ import {
   getArgs,
   withChains,
   withDryRun,
-  withKnownWarpRouteIdRequired,
+  withWarpRouteIdRequired,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+// Designed to work with Standard variant of xERC20: https://github.com/hyperlane-xyz/xERC20
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { environment, warpRouteId, chains, dryRun } = await withChains(
-    withKnownWarpRouteIdRequired(withDryRun(getArgs())),
+    withWarpRouteIdRequired(withDryRun(getArgs())),
   ).argv;
 
   const { warpDeployConfig, warpCoreConfig } =
@@ -34,7 +35,8 @@ async function main() {
   const multiProtocolProvider = await envConfig.getMultiProtocolProvider();
   const envMultiProvider = await envConfig.getMultiProvider();
 
-  const bridgesConfig = await deriveBridgesConfig(
+  const bridgesConfig = await deriveStandardBridgesConfig(
+    chains,
     warpDeployConfig,
     warpCoreConfig,
     envMultiProvider,
@@ -48,7 +50,7 @@ async function main() {
 
   for (const bridgeConfig of bridgesToUpdate) {
     try {
-      await addBridgeToChainXERC20VS({
+      await addBridgeToChainForXERC20Standard({
         chain: bridgeConfig.chain,
         bridgeConfig,
         multiProtocolProvider,
