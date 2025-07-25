@@ -637,7 +637,7 @@ export async function deriveBridgesConfig(
     }
 
     if (!xERC20 || xERC20.warpRouteLimits.type !== XERC20Type.Velo) {
-      rootLogger.warn(
+      rootLogger.debug(
         `Skip deriving bridges config because ${XERC20Type.Velo} type is expected`,
       );
       continue;
@@ -724,6 +724,7 @@ export async function deriveBridgesConfig(
 }
 
 export async function deriveStandardBridgesConfig(
+  chains: ChainName[] = [],
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfig: WarpCoreConfig,
   multiProvider: MultiProvider,
@@ -731,6 +732,13 @@ export async function deriveStandardBridgesConfig(
   const bridgesConfig: BridgeConfigWL[] = [];
 
   for (const [chainName, chainConfig] of Object.entries(warpDeployConfig)) {
+    if (chains.length > 0 && !chains.includes(chainName)) {
+      rootLogger.debug(
+        `Skipping ${chainName} because its not included in chains`,
+      );
+      continue;
+    }
+
     if (!isXERC20TokenConfig(chainConfig)) {
       throw new Error(
         `Chain "${chainName}" is not an xERC20 compliant deployment`,
@@ -747,7 +755,7 @@ export async function deriveStandardBridgesConfig(
     }
 
     if (!xERC20 || xERC20.warpRouteLimits.type !== XERC20Type.Standard) {
-      rootLogger.warn(
+      rootLogger.debug(
         `Skip deriving bridges config because ${XERC20Type.Standard} type is expected`,
       );
       continue;
