@@ -14,9 +14,7 @@ import {
 import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { awIcas } from '../../governance/ica/aw.js';
-import { awSafes } from '../../governance/safe/aw.js';
-import { ousdtSafes } from '../../governance/safe/ousdt.js';
+import { awTimelocks } from '../../governance/timelock/aw.js';
 import { DEPLOYER } from '../../owners.js';
 
 // Environment-independent configuration
@@ -113,22 +111,15 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   botanix: middleRateLimitPerSecond,
 };
 
-const ICA_OWNED_CHAINS: oUSDTTokenChainName[] = [
-  'bob',
-  'hashkey',
-  'swell',
-  'botanix',
-];
 const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = [];
 const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
   deploymentChains.reduce((acc, chain) => {
     if (DPL_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
       acc[chain] = DEPLOYER;
-    } else if (ICA_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
-      assert(awIcas[chain], `ICA for ${chain} not found`);
-      acc[chain] = awIcas[chain];
     } else {
-      acc[chain] = ousdtSafes[chain] ?? awSafes[chain] ?? DEPLOYER;
+      const timelock = awTimelocks[chain];
+      assert(timelock, `Timelock for ${chain} not found`);
+      acc[chain] = timelock;
     }
     return acc;
   }, {} as TypedoUSDTTokenChainMap<string>);
