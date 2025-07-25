@@ -1,7 +1,4 @@
-import {
-  GatewayApiClient,
-  TransactionStatusResponse,
-} from '@radixdlt/babylon-gateway-api-sdk';
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import {
   NotarizedTransaction,
   RadixEngineToolkit,
@@ -20,21 +17,25 @@ import { assert } from '@hyperlane-xyz/utils';
 import { Account } from '../types.js';
 
 import { RadixPopulate } from './populate.js';
+import { RadixQuery } from './query.js';
 
 export class RadixTx {
   private account: Account;
 
+  protected query: RadixQuery;
   protected populate: RadixPopulate;
   protected networkId: number;
   protected gateway: GatewayApiClient;
 
   constructor(
     account: Account,
+    query: RadixQuery,
     populate: RadixPopulate,
     networkId: number,
     gateway: GatewayApiClient,
   ) {
     this.account = account;
+    this.query = query;
     this.populate = populate;
     this.networkId = networkId;
     this.gateway = gateway;
@@ -431,7 +432,7 @@ export class RadixTx {
         ).toString('hex'),
       },
     });
-    await this.pollForCommit(intentHashTransactionId.id);
+    await this.query.pollForCommit(intentHashTransactionId.id);
 
     return intentHashTransactionId;
   }
@@ -455,7 +456,7 @@ export class RadixTx {
         notarized_transaction_hex: freeXrdForAccountTransaction.toHex(),
       },
     });
-    await this.pollForCommit(intentHashTransactionId);
+    await this.query.pollForCommit(intentHashTransactionId);
 
     return intentHashTransactionId;
   }
@@ -488,46 +489,4 @@ export class RadixTx {
   private notarizeIntent = (hashToSign: Uint8Array): Signature => {
     return this.account.privateKey.signToSignature(hashToSign);
   };
-
-  private async pollForCommit(intentHashTransactionId: string): Promise<void> {
-    const pollAttempts = 200;
-    const pollDelayMs = 5000;
-
-    for (let i = 0; i < pollAttempts; i++) {
-      let statusOutput: TransactionStatusResponse;
-
-      try {
-        statusOutput =
-          await this.gateway.transaction.innerClient.transactionStatus({
-            transactionStatusRequest: { intent_hash: intentHashTransactionId },
-          });
-      } catch (err) {
-        await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
-        continue;
-      }
-
-      switch (statusOutput.intent_status) {
-        case 'CommittedSuccess':
-          return;
-        case 'CommittedFailure':
-          // You will typically wish to build a new transaction and try again.
-          throw new Error(
-            `Transaction ${intentHashTransactionId} was not committed successfully - instead it resulted in: ${statusOutput.intent_status} with description: ${statusOutput.error_message}`,
-          );
-        case 'CommitPendingOutcomeUnknown':
-          // We keep polling
-          if (i < pollAttempts) {
-            await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
-          } else {
-            throw new Error(
-              `Transaction ${intentHashTransactionId} was not committed successfully within ${pollAttempts} poll attempts over ${
-                pollAttempts * pollDelayMs
-              }ms - instead it resulted in STATUS: ${
-                statusOutput.intent_status
-              } DESCRIPTION: ${statusOutput.intent_status_description}`,
-            );
-          }
-      }
-    }
-  }
 }

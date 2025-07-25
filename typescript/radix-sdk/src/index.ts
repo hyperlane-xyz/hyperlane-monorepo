@@ -69,7 +69,13 @@ export class RadixSigningSDK extends RadixSDK {
     super(options);
 
     this.account = account;
-    this.tx = new RadixTx(account, this.populate, this.networkId, this.gateway);
+    this.tx = new RadixTx(
+      account,
+      this.query,
+      this.populate,
+      this.networkId,
+      this.gateway,
+    );
   }
 
   public getAddress() {

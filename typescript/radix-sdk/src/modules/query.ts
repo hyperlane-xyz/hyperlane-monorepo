@@ -1,4 +1,7 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import {
+  GatewayApiClient,
+  TransactionStatusResponse,
+} from '@radixdlt/babylon-gateway-api-sdk';
 import {
   LTSRadixEngineToolkit,
   PrivateKey,
@@ -183,6 +186,48 @@ export class RadixQuery {
   public async getXrdTotalSupply(): Promise<bigint> {
     const xrdAddress = await this.getXrdAddress();
     return this.getTotalSupply({ resource: xrdAddress });
+  }
+
+  public async pollForCommit(intentHashTransactionId: string): Promise<void> {
+    const pollAttempts = 200;
+    const pollDelayMs = 5000;
+
+    for (let i = 0; i < pollAttempts; i++) {
+      let statusOutput: TransactionStatusResponse;
+
+      try {
+        statusOutput =
+          await this.gateway.transaction.innerClient.transactionStatus({
+            transactionStatusRequest: { intent_hash: intentHashTransactionId },
+          });
+      } catch (err) {
+        await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
+        continue;
+      }
+
+      switch (statusOutput.intent_status) {
+        case 'CommittedSuccess':
+          return;
+        case 'CommittedFailure':
+          // You will typically wish to build a new transaction and try again.
+          throw new Error(
+            `Transaction ${intentHashTransactionId} was not committed successfully - instead it resulted in: ${statusOutput.intent_status} with description: ${statusOutput.error_message}`,
+          );
+        case 'CommitPendingOutcomeUnknown':
+          // We keep polling
+          if (i < pollAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
+          } else {
+            throw new Error(
+              `Transaction ${intentHashTransactionId} was not committed successfully within ${pollAttempts} poll attempts over ${
+                pollAttempts * pollDelayMs
+              }ms - instead it resulted in STATUS: ${
+                statusOutput.intent_status
+              } DESCRIPTION: ${statusOutput.intent_status_description}`,
+            );
+          }
+      }
+    }
   }
 
   public async getMailbox({ mailbox }: { mailbox: string }): Promise<{
