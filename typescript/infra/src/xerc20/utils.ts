@@ -709,7 +709,7 @@ export async function deriveBridgesConfig(
     }
 
     bridgesConfig.push({
-      chain: chainName as ChainName,
+      chain: chainName,
       type,
       xERC20Address,
       bridgeAddress,
@@ -810,7 +810,7 @@ export async function deriveStandardBridgesConfig(
     }
 
     bridgesConfig.push({
-      chain: chainName as ChainName,
+      chain: chainName,
       type,
       xERC20Address,
       bridgeAddress,
