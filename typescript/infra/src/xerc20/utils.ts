@@ -62,7 +62,7 @@ type BridgeConfigWL = BridgeConfigBase & {
   burn: number;
 };
 
-export async function addBridgeToChain({
+export async function addBridgeToChainXERC20VS({
   chain,
   bridgeConfig,
   multiProtocolProvider,
@@ -161,7 +161,7 @@ export async function addBridgeToChain({
   }
 }
 
-export async function addBridgeToChainWL({
+export async function addBridgeToChainForXERC20Standard({
   chain,
   bridgeConfig,
   multiProtocolProvider,

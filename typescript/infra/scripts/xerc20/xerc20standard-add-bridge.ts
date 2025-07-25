@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
-  addBridgeToChainWL,
+  addBridgeToChainForXERC20Standard,
   deriveStandardBridgesConfig,
   getAndValidateBridgesToUpdate,
   getWarpConfigsAndArtifacts,
@@ -50,7 +50,7 @@ async function main() {
 
   for (const bridgeConfig of bridgesToUpdate) {
     try {
-      await addBridgeToChainWL({
+      await addBridgeToChainForXERC20Standard({
         chain: bridgeConfig.chain,
         bridgeConfig,
         multiProtocolProvider,
