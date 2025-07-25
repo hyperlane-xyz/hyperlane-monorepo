@@ -1,12 +1,12 @@
 {
   "solanatestnet": {
-    "sonicsvmtestnet": {
+    "basesepolia": {
       "oracleConfig": {
-        "tokenExchangeRate": "1500000000000000",
-        "gasPrice": "1000",
-        "tokenDecimals": 9
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "1000068",
+        "tokenDecimals": 18
       },
-      "overhead": 600000
+      "overhead": 151966
     },
     "connextsepolia": {
       "oracleConfig": {
@@ -24,13 +24,63 @@
       },
       "overhead": 151966
     },
-    "basesepolia": {
+    "paradexsepolia": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
-        "gasPrice": "1000378",
+        "gasPrice": "10000000",
+        "tokenDecimals": 18
+      },
+      "overhead": 50000000
+    },
+    "sepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "3089873",
         "tokenDecimals": 18
       },
       "overhead": 151966
+    },
+    "solanadevnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1500000000000000",
+        "gasPrice": "1000",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
+    },
+    "sonicsvmtestnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1500000000000000",
+        "gasPrice": "1000",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
+    },
+    "starknetsepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "10000000",
+        "tokenDecimals": 18
+      },
+      "overhead": 50000000
+    }
+  },
+  "solanadevnet": {
+    "sepolia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "3089873",
+        "tokenDecimals": 18
+      },
+      "overhead": 151966
+    },
+    "solanatestnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1500000000000000",
+        "gasPrice": "1000",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
     }
   },
   "sonicsvmtestnet": {
