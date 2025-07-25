@@ -190,6 +190,7 @@ export {
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
 export { CosmosNativeIsmReader } from './ism/CosmosNativeIsmReader.js';
+export { CosmosNativeWarpModule } from './token/CosmosNativeWarpModule.js';
 export { CosmosNativeWarpRouteReader } from './token/CosmosNativeWarpRouteReader.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
@@ -384,6 +385,7 @@ export {
   ViemProvider,
   ViemTransaction,
   ViemTransactionReceipt,
+  GroupedTransactions,
   ProtocolTypedTransaction,
 } from './providers/ProviderType.js';
 export {
