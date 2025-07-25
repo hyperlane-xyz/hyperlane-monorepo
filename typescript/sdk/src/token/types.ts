@@ -121,25 +121,25 @@ export enum XERC20Type {
 }
 
 // Velo variant
-const xERC20LimitConfigSchema = z.object({
+const XERC20VSLimitConfigSchema = z.object({
   type: z.literal(XERC20Type.Velo),
   bufferCap: z.string().optional(),
   rateLimitPerSecond: z.string().optional(),
 });
-export type XERC20LimitConfig = z.infer<typeof xERC20LimitConfigSchema>;
+export type XERC20VSLimitConfig = z.infer<typeof XERC20VSLimitConfigSchema>;
 
-const xERC20LimitStandardConfigSchema = z.object({
+const XERC20StandardLimitConfigSchema = z.object({
   type: z.literal(XERC20Type.Standard),
   mint: z.string().optional(),
   burn: z.string().optional(),
 });
-export type XERC20LimitWLConfig = z.infer<
-  typeof xERC20LimitStandardConfigSchema
+export type XERC20StandardLimitConfig = z.infer<
+  typeof XERC20StandardLimitConfigSchema
 >;
 
 const xERC20Limits = z.discriminatedUnion('type', [
-  xERC20LimitConfigSchema,
-  xERC20LimitStandardConfigSchema,
+  XERC20VSLimitConfigSchema,
+  XERC20StandardLimitConfigSchema,
 ]);
 const xERC20ExtraBridgesLimitConfigsSchema = z.object({
   lockbox: z.string(),

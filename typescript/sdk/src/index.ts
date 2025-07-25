@@ -712,7 +712,7 @@ export {
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
-  XERC20LimitConfig,
+  XERC20VSLimitConfig,
   XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
