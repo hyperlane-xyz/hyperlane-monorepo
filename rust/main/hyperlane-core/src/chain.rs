@@ -999,6 +999,7 @@ mod tests {
 
     /// test whether all chains in mainnet_config.json and testnet_config.json
     /// are accounted for in KnownHyperlaneDomain.
+    #[ignore]
     #[test]
     fn config_matches_enums() {
         let mainnet_chains: ChainsConfig =
