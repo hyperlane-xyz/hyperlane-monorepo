@@ -10,6 +10,7 @@ import {
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
+  RadixCoreModule,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -117,6 +118,25 @@ export async function runCoreDeploy(params: DeployParams) {
       }
       break;
 
+    case ProtocolType.Radix:
+      {
+        await multiProtocolSigner?.initSigner(chain);
+        const signer = multiProtocolSigner?.getRadixSigner(chain) ?? null;
+        assert(signer, 'Radix signer failed!');
+
+        logBlue('🚀 All systems ready, captain! Beginning deployment...');
+
+        const radixCoreModule = await RadixCoreModule.create({
+          chain,
+          config,
+          multiProvider,
+          signer,
+        });
+
+        deployedAddresses = radixCoreModule.serialize();
+      }
+      break;
+
     default:
       throw new Error('Chain protocol is not supported yet!');
   }
@@ -164,6 +184,7 @@ export async function runCoreApply(params: ApplyParams) {
       }
       break;
     }
+
     case ProtocolType.CosmosNative: {
       await multiProtocolSigner?.initSigner(chain);
       const signer = multiProtocolSigner?.getCosmosNativeSigner(chain) ?? null;
@@ -202,5 +223,37 @@ export async function runCoreApply(params: ApplyParams) {
       }
       break;
     }
+
+    case ProtocolType.Radix: {
+      await multiProtocolSigner?.initSigner(chain);
+      const signer = multiProtocolSigner?.getRadixSigner(chain) ?? null;
+      assert(signer, 'Radix signer failed!');
+
+      const radixCoreModule = new RadixCoreModule(multiProvider, signer, {
+        chain,
+        config,
+        addresses: deployedCoreAddresses,
+      });
+
+      const transactions = await radixCoreModule.update(config);
+
+      if (transactions.length) {
+        logGray('Updating deployed core contracts');
+
+        for (const transaction of transactions) {
+          await signer.tx.signAndBroadcast(transaction);
+        }
+
+        logGreen(`Core config updated on ${chain}.`);
+      } else {
+        logGreen(
+          `Core config on ${chain} is the same as target. No updates needed.`,
+        );
+      }
+      break;
+    }
+
+    default:
+      throw new Error('Chain protocol is not supported yet!');
   }
 }

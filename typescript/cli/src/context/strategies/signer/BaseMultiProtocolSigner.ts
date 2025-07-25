@@ -1,12 +1,16 @@
 import { Signer } from 'ethers';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 
-export type TypedSigner = Signer | SigningHyperlaneModuleClient;
+export type TypedSigner =
+  | Signer
+  | SigningHyperlaneModuleClient
+  | RadixSigningSDK;
 
 export interface SignerConfig {
   privateKey: string;
