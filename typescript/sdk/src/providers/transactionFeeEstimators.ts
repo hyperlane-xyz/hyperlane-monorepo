@@ -5,6 +5,7 @@ import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
+import { transaction } from 'starknet';
 
 import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 
@@ -366,7 +367,11 @@ export function estimateTransactionFee({
     transaction.type === ProviderType.Radix &&
     provider.type === ProviderType.Radix
   ) {
-    return estimateTransactionFeeRadix({ transaction, provider, sender });
+    return estimateTransactionFeeRadix({
+      transaction,
+      provider,
+      sender,
+    });
   } else {
     throw new Error(
       `Unsupported transaction type ${transaction.type} or provider type ${provider.type} for gas estimation`,

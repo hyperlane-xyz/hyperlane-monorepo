@@ -26,6 +26,8 @@ import {
   WalletDetails,
 } from './types.js';
 
+// TODO: RADIX
+// get public key from account address
 export function useRadixAccount(
   _multiProvider: MultiProtocolProvider,
 ): AccountInfo {

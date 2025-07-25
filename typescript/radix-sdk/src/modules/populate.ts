@@ -486,22 +486,12 @@ export class RadixPopulate {
     custom_hook_metadata: string;
     max_fee: { denom: string; amount: string };
   }) {
-    const { origin_denom, divisibility: tokenDecimals } =
-      await this.query.getToken({ token });
+    const { origin_denom, divisibility } = await this.query.getToken({ token });
+
     const tokenAmount = new Decimal(
       new BigNumber(amount)
-        .dividedBy(new BigNumber(10).pow(tokenDecimals))
-        .toFixed(tokenDecimals),
-    );
-
-    const { divisibility: feeDecimals } = await this.query.getMetadata({
-      resource: max_fee.denom,
-    });
-
-    const feeAmount = new Decimal(
-      new BigNumber(max_fee.amount)
-        .dividedBy(new BigNumber(10).pow(feeDecimals))
-        .toFixed(feeDecimals),
+        .dividedBy(new BigNumber(10).pow(divisibility))
+        .toFixed(divisibility),
     );
 
     assert(origin_denom, `no origin_denom found on token ${token}`);
@@ -518,28 +508,27 @@ export class RadixPopulate {
       ])
       .callMethod(from_address, 'withdraw', [
         address(max_fee.denom),
-        decimal(feeAmount),
+        decimal(max_fee.amount),
       ])
-      .takeFromWorktop(
-        origin_denom,
-        new Decimal(amount),
-        (builder1, bucketId1) =>
-          builder1.takeFromWorktop(
-            max_fee.denom,
-            new Decimal(feeAmount),
-            (builder2, bucketId2) =>
-              builder2
-                .callMethod(token, 'transfer_remote', [
-                  u32(destination_domain),
-                  bytes(recipient),
-                  bucket(bucketId1),
-                  array(ValueKind.Bucket, bucket(bucketId2)),
-                ])
-                .callMethod(from_address, 'try_deposit_batch_or_refund', [
-                  expression('EntireWorktop'),
-                  enumeration(0),
-                ]),
-          ),
+      .takeFromWorktop(origin_denom, tokenAmount, (builder1, bucketId1) =>
+        builder1.takeFromWorktop(
+          max_fee.denom,
+          new Decimal(max_fee.amount),
+          (builder2, bucketId2) =>
+            builder2
+              .callMethod(token, 'transfer_remote', [
+                u32(destination_domain),
+                bytes(recipient),
+                bucket(bucketId1),
+                array(ValueKind.Bucket, bucket(bucketId2)),
+                enumeration(0),
+                enumeration(0),
+              ])
+              .callMethod(from_address, 'try_deposit_batch_or_refund', [
+                expression('EntireWorktop'),
+                enumeration(0),
+              ]),
+        ),
       )
       .build();
   }

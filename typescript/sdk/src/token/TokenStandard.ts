@@ -56,7 +56,7 @@ export enum TokenStandard {
   StarknetHypSynthetic = 'StarknetHypSynthetic',
 
   // Radix
-  RadixHypNative = 'RadixHypNative',
+  RadixNative = 'RadixNative',
   RadixHypCollateral = 'RadixHypCollateral',
   RadixHypSynthetic = 'RadixHypSynthetic',
 }
@@ -111,8 +111,8 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   StarknetHypSynthetic: ProtocolType.Starknet,
 
   // Radix
+  RadixNative: ProtocolType.Radix,
   RadixHypCollateral: ProtocolType.Radix,
-  RadixHypNative: ProtocolType.Radix,
   RadixHypSynthetic: ProtocolType.Radix,
 };
 
@@ -187,7 +187,6 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.StarknetHypNative,
   TokenStandard.StarknetHypCollateral,
   TokenStandard.StarknetHypSynthetic,
-  TokenStandard.RadixHypNative,
   TokenStandard.RadixHypCollateral,
   TokenStandard.RadixHypSynthetic,
 ];
@@ -300,5 +299,5 @@ export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
     [ProtocolType.CosmosNative]: TokenStandard.CosmosNative,
     [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
     [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
-    [ProtocolType.Radix]: TokenStandard.RadixHypNative,
+    [ProtocolType.Radix]: TokenStandard.RadixNative,
   };

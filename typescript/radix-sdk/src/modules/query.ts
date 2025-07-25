@@ -2,12 +2,14 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import {
   LTSRadixEngineToolkit,
   PrivateKey,
+  RadixEngineToolkit,
+  TransactionManifest,
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
 import BigNumber from 'bignumber.js';
 import { randomBytes } from 'crypto';
 
-import { assert, ensure0x } from '@hyperlane-xyz/utils';
+import { HexString, assert, ensure0x } from '@hyperlane-xyz/utils';
 
 export class RadixQuery {
   protected networkId: number;
@@ -23,6 +25,60 @@ export class RadixQuery {
       this.networkId,
     );
     return knownAddresses.resources.xrdResource;
+  }
+
+  public async isGatewayHealthy(): Promise<boolean> {
+    const status = await this.gateway.status.getCurrent();
+    return status.ledger_state.state_version > 0;
+  }
+
+  public async estimateTransactionFee({
+    transactionManifest,
+    senderPubKey,
+  }: {
+    transactionManifest: TransactionManifest;
+    senderPubKey: HexString;
+  }): Promise<{ amount: bigint }> {
+    const constructionMetadata =
+      await this.gateway.transaction.innerClient.transactionConstruction();
+
+    const manifest = (
+      await RadixEngineToolkit.Instructions.convert(
+        transactionManifest.instructions,
+        this.networkId,
+        'String',
+      )
+    ).value as string;
+
+    const response =
+      await this.gateway.transaction.innerClient.transactionPreview({
+        transactionPreviewRequest: {
+          manifest,
+          nonce: generateRandomNonce(),
+          signer_public_keys: [
+            {
+              key_type: 'EddsaEd25519',
+              key_hex: senderPubKey,
+            },
+          ],
+          flags: {
+            use_free_credit: true,
+          },
+          start_epoch_inclusive: constructionMetadata.ledger_state.epoch,
+          end_epoch_exclusive: constructionMetadata.ledger_state.epoch + 2,
+        },
+      });
+
+    assert(
+      !(response.receipt as any).error_message,
+      `${(response.receipt as any).error_message}`,
+    );
+
+    console.log('response', JSON.stringify(response));
+
+    return {
+      amount: BigInt(0),
+    };
   }
 
   public async getMetadata({ resource }: { resource: string }): Promise<{

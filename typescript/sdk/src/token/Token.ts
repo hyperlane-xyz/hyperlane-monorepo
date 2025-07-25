@@ -61,8 +61,8 @@ import type {
 } from './adapters/ITokenAdapter.js';
 import {
   RadixHypCollateralAdapter,
-  RadixHypNativeAdapter,
   RadixHypSyntheticAdapter,
+  RadixNativeTokenAdapter,
 } from './adapters/RadixTokenAdapter.js';
 import {
   SealevelHypCollateralAdapter,
@@ -161,6 +161,10 @@ export class Token implements IToken {
         {},
         addressOrDenom,
       );
+    } else if (standard === TokenStandard.RadixNative) {
+      return new RadixNativeTokenAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
     } else if (this.isHypToken()) {
       return this.getHypAdapter(multiProvider);
     } else if (this.isIbcToken()) {
@@ -323,10 +327,6 @@ export class Token implements IToken {
     } else if (standard === TokenStandard.StarknetHypCollateral) {
       return new StarknetHypCollateralAdapter(chainName, multiProvider, {
         warpRouter: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.RadixHypNative) {
-      return new RadixHypNativeAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
       });
     } else if (standard === TokenStandard.RadixHypCollateral) {
       return new RadixHypCollateralAdapter(chainName, multiProvider, {

@@ -6,6 +6,7 @@ import {
   Domain,
   addressToBytes32,
   assert,
+  strip0x,
 } from '@hyperlane-xyz/utils';
 
 import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
@@ -21,7 +22,7 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
-class RadixTokenAdapter
+export class RadixNativeTokenAdapter
   extends BaseRadixAdapter
   implements ITokenAdapter<TransactionManifest>
 {
@@ -29,10 +30,7 @@ class RadixTokenAdapter
   protected tokenId: string;
 
   protected async getResourceAddress(): Promise<string> {
-    const { origin_denom } = await this.provider.query.getToken({
-      token: this.tokenId,
-    });
-    return origin_denom;
+    return this.tokenId;
   }
 
   constructor(
@@ -125,7 +123,7 @@ class RadixTokenAdapter
 }
 
 export class RadixHypCollateralAdapter
-  extends RadixTokenAdapter
+  extends RadixNativeTokenAdapter
   implements IHypTokenAdapter<TransactionManifest>
 {
   constructor(
@@ -134,6 +132,13 @@ export class RadixHypCollateralAdapter
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
+  }
+
+  protected async getResourceAddress(): Promise<string> {
+    const { origin_denom } = await this.provider.query.getToken({
+      token: this.tokenId,
+    });
+    return origin_denom;
   }
 
   async getDomains(): Promise<Domain[]> {
@@ -229,7 +234,7 @@ export class RadixHypCollateralAdapter
 
     return this.provider.populate.remoteTransfer({
       from_address: params.fromAccountOwner!,
-      recipient: addressToBytes32(params.recipient),
+      recipient: strip0x(addressToBytes32(params.recipient)),
       amount: params.weiAmountOrId.toString(),
       token: this.tokenId,
       destination_domain: params.destination,
@@ -245,9 +250,3 @@ export class RadixHypCollateralAdapter
 }
 
 export class RadixHypSyntheticAdapter extends RadixHypCollateralAdapter {}
-
-export class RadixHypNativeAdapter extends RadixHypCollateralAdapter {
-  protected async getResourceAddress(): Promise<string> {
-    return this.tokenId;
-  }
-}
