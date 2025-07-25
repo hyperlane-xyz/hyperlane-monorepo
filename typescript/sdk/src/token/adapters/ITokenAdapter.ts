@@ -30,7 +30,7 @@ export interface RateLimitMidPoint {
   midPoint: bigint;
 }
 
-export interface RateLimitXERC20WL {
+export interface xERC20Limits {
   mint: bigint;
   burn: bigint;
 }
@@ -121,8 +121,8 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
   ): Promise<Tx>;
 }
 
-export interface IXERC20WLAdapter<Tx> extends ITokenAdapter<Tx> {
-  getRateLimits(bridge: Address): Promise<RateLimitXERC20WL>;
+export interface IXERC20Adapter<Tx> extends ITokenAdapter<Tx> {
+  getLimits(bridge: Address): Promise<xERC20Limits>;
 }
 
 export interface IHypCollateralFiatAdapter<Tx> extends IHypTokenAdapter<Tx> {

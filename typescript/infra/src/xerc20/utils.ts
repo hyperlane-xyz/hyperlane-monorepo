@@ -9,8 +9,8 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   ChainName,
+  EvmXERC20Adapter,
   EvmXERC20VSAdapter,
-  EvmXERC20WLAdapter,
   MultiProtocolProvider,
   MultiProvider,
   TokenType,
@@ -175,7 +175,7 @@ export async function addBridgeToChainWL({
   dryRun: boolean;
 }) {
   const { xERC20Address, bridgeAddress, mint, burn, decimals } = bridgeConfig;
-  const xERC20Adapter = new EvmXERC20WLAdapter(chain, multiProtocolProvider, {
+  const xERC20Adapter = new EvmXERC20Adapter(chain, multiProtocolProvider, {
     token: xERC20Address,
   });
 
@@ -183,7 +183,7 @@ export async function addBridgeToChainWL({
   const burnInConfig = BigInt(burn);
 
   try {
-    const { mint, burn } = await xERC20Adapter.getRateLimits(bridgeAddress);
+    const { mint, burn } = await xERC20Adapter.getLimits(bridgeAddress);
     if (mint === mintInConfig || burn === burnInConfig) {
       rootLogger.warn(
         chalk.yellow(
@@ -743,7 +743,7 @@ export async function deriveWLBridgesConfig(
       throw new Error(`Missing "decimals" for chain: ${chainName}`);
     }
 
-    if (!xERC20 || xERC20.warpRouteLimits.type !== XERC20Type.Wonderland) {
+    if (!xERC20 || xERC20.warpRouteLimits.type !== XERC20Type.Standard) {
       continue;
     }
     if (!xERC20.warpRouteLimits.mint || !xERC20.warpRouteLimits.burn) {
@@ -777,8 +777,8 @@ export async function deriveWLBridgesConfig(
       for (const extraLockboxLimit of xERC20.extraBridges) {
         const { lockbox, limits } = extraLockboxLimit;
         assert(
-          limits.type === XERC20Type.Wonderland,
-          `Only supports ${XERC20Type.Wonderland}`,
+          limits.type === XERC20Type.Standard,
+          `Only supports ${XERC20Type.Standard}`,
         );
 
         const extraBridgeMint = Number(limits.mint);

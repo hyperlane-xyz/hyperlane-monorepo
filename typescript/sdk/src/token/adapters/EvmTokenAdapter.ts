@@ -25,8 +25,6 @@ import {
   IXERC20,
   IXERC20VS,
   IXERC20VS__factory,
-  IXERC20WL,
-  IXERC20WL__factory,
   IXERC20__factory,
   ValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
@@ -53,13 +51,13 @@ import {
   IHypXERC20Adapter,
   IMovableCollateralRouterAdapter,
   ITokenAdapter,
+  IXERC20Adapter,
   IXERC20VSAdapter,
-  IXERC20WLAdapter,
   InterchainGasQuote,
   RateLimitMidPoint,
-  RateLimitXERC20WL,
   TransferParams,
   TransferRemoteParams,
+  xERC20Limits,
 } from './ITokenAdapter.js';
 
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
@@ -836,11 +834,11 @@ export class EvmHypNativeAdapter
   }
 }
 
-export class EvmXERC20WLAdapter
+export class EvmXERC20Adapter
   extends EvmTokenAdapter
-  implements IXERC20WLAdapter<PopulatedTransaction>
+  implements IXERC20Adapter<PopulatedTransaction>
 {
-  xERC20WL: IXERC20WL;
+  xERC20: IXERC20;
 
   constructor(
     public readonly chainName: ChainName,
@@ -849,22 +847,17 @@ export class EvmXERC20WLAdapter
   ) {
     super(chainName, multiProvider, addresses);
 
-    this.xERC20WL = IXERC20WL__factory.connect(
-      addresses.token,
-      this.getProvider(),
-    );
+    this.xERC20 = IXERC20__factory.connect(addresses.token, this.getProvider());
   }
 
-  async getRateLimits(bridge: Address): Promise<RateLimitXERC20WL> {
-    const mint = await this.xERC20WL.mintingMaxLimitOf(bridge);
-    const burn = await this.xERC20WL.burningMaxLimitOf(bridge);
+  async getLimits(bridge: Address): Promise<xERC20Limits> {
+    const mint = await this.xERC20.mintingMaxLimitOf(bridge);
+    const burn = await this.xERC20.burningMaxLimitOf(bridge);
 
-    const rateLimits: RateLimitXERC20WL = {
+    return {
       mint: BigInt(mint.toString()),
       burn: BigInt(burn.toString()),
     };
-
-    return rateLimits;
   }
 
   async populateSetLimitsTx(
@@ -872,7 +865,7 @@ export class EvmXERC20WLAdapter
     mint: bigint,
     burn: bigint,
   ): Promise<PopulatedTransaction> {
-    return this.xERC20WL.populateTransaction.setLimits(
+    return this.xERC20.populateTransaction.setLimits(
       bridge,
       mint.toString(),
       burn.toString(),

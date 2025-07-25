@@ -21,7 +21,7 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-// Designed to work with Wonderland variant of xERC20: https://github.com/hyperlane-xyz/xERC20
+// Designed to work with Standard variant of xERC20: https://github.com/hyperlane-xyz/xERC20
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { environment, warpRouteId, chains, dryRun } = await withChains(
