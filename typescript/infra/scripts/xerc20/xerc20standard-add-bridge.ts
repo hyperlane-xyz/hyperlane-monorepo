@@ -9,7 +9,7 @@ import {
 
 import {
   addBridgeToChainWL,
-  deriveWLBridgesConfig,
+  deriveStandardBridgesConfig,
   getAndValidateBridgesToUpdate,
   getWarpConfigsAndArtifacts,
 } from '../../src/xerc20/utils.js';
@@ -35,7 +35,7 @@ async function main() {
   const multiProtocolProvider = await envConfig.getMultiProtocolProvider();
   const envMultiProvider = await envConfig.getMultiProvider();
 
-  const bridgesConfig = await deriveWLBridgesConfig(
+  const bridgesConfig = await deriveStandardBridgesConfig(
     warpDeployConfig,
     warpCoreConfig,
     envMultiProvider,
