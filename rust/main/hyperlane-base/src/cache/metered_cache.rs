@@ -93,7 +93,7 @@ where
             "status" => if result.is_ok() { "success" } else { "failure" }
         };
 
-        let is_hit = result.is_ok() && result.as_ref().unwrap().is_some();
+        let is_hit = result.as_ref().map(|r| r.is_some()).unwrap_or(false);
         if is_hit {
             if let Some(hit_count) = &self.metrics.hit_count {
                 hit_count.with(&labels).inc();

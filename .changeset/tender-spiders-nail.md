@@ -2,4 +2,4 @@
 "@hyperlane-xyz/sdk": patch
 ---
 
-Fix Starknet Adapter: balance_of
+Handle etherscan v2 api migration

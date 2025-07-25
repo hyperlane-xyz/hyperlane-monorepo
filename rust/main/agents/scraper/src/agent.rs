@@ -190,8 +190,9 @@ impl Scraper {
 
         Ok(tokio::spawn(
             async move {
-                // If any of the tasks panic, we want to propagate it, so we unwrap
-                try_join_all(tasks).await.unwrap();
+                try_join_all(tasks)
+                    .await
+                    .expect("Some scraper tasks failed");
             }
             .instrument(info_span!("Scraper Tasks")),
         ))
