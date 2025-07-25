@@ -433,46 +433,86 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     }
   }
 
-  async fetchXERC20Config(
+  // Derives the xERC20 warp route and extra bridge limits for a Velo xERC20
+  async deriveXERC20VeloLimits(
     xERC20Address: Address,
     warpRouteAddress: Address,
   ): Promise<XERC20TokenMetadata> {
-    // fetch the limits if possible
     const rateLimitsABI = [
       'function rateLimitPerSecond(address) external view returns (uint128)',
       'function bufferCap(address) external view returns (uint112)',
     ];
     const xERC20 = new Contract(xERC20Address, rateLimitsABI, this.provider);
+    const extraBridgesLimits = await getExtraLockBoxConfigs({
+      chain: this.chain,
+      multiProvider: this.multiProvider,
+      xERC20Address,
+      logger: this.logger,
+    });
 
-    try {
-      const extraBridgesLimits = await getExtraLockBoxConfigs({
-        chain: this.chain,
-        multiProvider: this.multiProvider,
-        xERC20Address,
-        logger: this.logger,
-      });
-
-      // TODO: fix this such that it fetches from WL's values too
-      return {
-        xERC20: {
-          warpRouteLimits: {
-            type: XERC20Type.Velo,
-            rateLimitPerSecond: (
-              await xERC20.rateLimitPerSecond(warpRouteAddress)
-            ).toString(),
-            bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
-          },
-          extraBridges:
-            extraBridgesLimits.length > 0 ? extraBridgesLimits : undefined,
+    // TODO: fix this such that it fetches from WL's values too
+    return {
+      xERC20: {
+        warpRouteLimits: {
+          type: XERC20Type.Velo,
+          rateLimitPerSecond: (
+            await xERC20.rateLimitPerSecond(warpRouteAddress)
+          ).toString(),
+          bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
         },
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error fetching xERC20 limits for token at ${xERC20Address} on chain ${this.chain}`,
-        error,
-      );
-      return {};
+        extraBridges:
+          extraBridgesLimits.length > 0 ? extraBridgesLimits : undefined,
+      },
+    };
+  }
+
+  async deriveXERC20StandardConfig(
+    xERC20Address: Address,
+    warpRouteAddress: Address,
+  ): Promise<XERC20TokenMetadata> {
+    const xERC20 = IXERC20__factory.connect(xERC20Address, this.provider);
+    const mint = await xERC20.mintingMaxLimitOf(warpRouteAddress);
+    const burn = await xERC20.burningMaxLimitOf(warpRouteAddress);
+    return {
+      xERC20: {
+        warpRouteLimits: {
+          type: XERC20Type.Standard,
+          mint: mint.toString(),
+          burn: burn.toString(),
+        },
+      },
+    };
+  }
+
+  async fetchXERC20Config(
+    xERC20Address: Address,
+    warpRouteAddress: Address,
+  ): Promise<XERC20TokenMetadata> {
+    // Naively attempt to derive the xERC20 type
+    const deriveXERC20TypeFunctions = {
+      [XERC20Type.Velo]: this.deriveXERC20VeloLimits.bind(this),
+      [XERC20Type.Standard]: this.deriveXERC20StandardConfig.bind(this),
+    };
+
+    let metadata: XERC20TokenMetadata = {};
+    for (const [xERC20Type, deriveXERC20TypeFunction] of Object.entries(
+      deriveXERC20TypeFunctions,
+    )) {
+      try {
+        metadata = await deriveXERC20TypeFunction(
+          xERC20Address,
+          warpRouteAddress,
+        );
+
+        return metadata;
+      } catch (error) {
+        this.logger.debug(`xERC20 not a ${xERC20Type} type: ${error}`);
+      }
     }
+    this.logger.error(
+      `Unable to fetch xERC20 limits for token at ${xERC20Address} on chain ${this.chain}`,
+    );
+    return metadata;
   }
 
   /**
