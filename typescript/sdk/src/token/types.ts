@@ -33,8 +33,8 @@ export const contractVersionMatchesDependency = (version: string) => {
 export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane-xyz/core dependency version (${CONTRACTS_PACKAGE_VERSION})`;
 
 export const TokenMetadataSchema = z.object({
-  name: z.string(),
-  symbol: z.string(),
+  name: z.string().min(1),
+  symbol: z.string().min(1),
   decimals: z.number().gt(0).optional(),
   scale: z.number().optional(),
   isNft: z.boolean().optional(),
@@ -75,7 +75,7 @@ export const OpL2TokenConfigSchema = NativeTokenConfigSchema.omit({
   type: true,
 }).extend({
   type: z.literal(TokenType.nativeOpL2),
-  l2Bridge: z.string(),
+  l2Bridge: ZHash,
 });
 
 export const OpL1TokenConfigSchema = NativeTokenConfigSchema.omit({
@@ -103,11 +103,9 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       TokenType.collateralFiat,
       TokenType.collateralUri,
     ]),
-    token: z
-      .string()
-      .describe(
-        'Existing token address to extend with Warp Route functionality',
-      ),
+    token: ZHash.describe(
+      'Existing token address to extend with Warp Route functionality',
+    ),
     ...BaseMovableTokenConfigSchema.shape,
   },
 );
