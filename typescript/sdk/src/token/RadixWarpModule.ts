@@ -101,7 +101,7 @@ export class RadixWarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       )),
-      ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
+      ...(await this.createOwnershipUpdateTxs(actualConfig, expectedConfig)),
     );
 
     return transactions;
@@ -176,7 +176,13 @@ export class RadixWarpModule extends HyperlaneModule<
 
     // If a new ISM is deployed, push the setInterchainSecurityModule tx
     if (actualDeployedIsm !== expectedDeployedIsm) {
-      // TODO: RADIX
+      updateTransactions.push(
+        await this.signer.populate.setTokenIsm({
+          from_address: this.signer.getAddress(),
+          token: this.args.addresses.deployedTokenRoute,
+          ism: expectedDeployedIsm,
+        }),
+      );
     }
 
     return updateTransactions;
@@ -189,16 +195,21 @@ export class RadixWarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns Radix transaction that need to be executed to update the owner.
    */
-  createOwnershipUpdateTxs(
+  async createOwnershipUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): TransactionManifest[] {
+  ): Promise<TransactionManifest[]> {
     if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
       return [];
     }
 
-    // TODO: RADIX
-    return [];
+    return [
+      await this.signer.populate.setTokenOwner({
+        from_address: this.signer.getAddress(),
+        token: this.args.addresses.deployedTokenRoute,
+        new_owner: expectedConfig.owner,
+      }),
+    ];
   }
 
   /**

@@ -149,7 +149,7 @@ export class RadixHookModule extends HyperlaneModule<
   }
 
   protected async deployIgpHook({
-    config,
+    config: _config,
   }: {
     config: IgpHookConfig;
   }): Promise<Address> {

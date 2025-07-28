@@ -155,8 +155,7 @@ export class RadixCoreModule extends HyperlaneModule<
     await signer.tx.setDefaultIsm({ mailbox, ism: defaultIsm });
     await signer.tx.setDefaultHook({ mailbox, hook: defaultHook });
     await signer.tx.setRequiredHook({ mailbox, hook: requiredHook });
-
-    // TODO: RADIX update owner
+    await signer.tx.setMailboxOwner({ mailbox, new_owner: config.owner });
 
     const addresses: DeployedCoreAddresses = {
       mailbox,
@@ -236,23 +235,29 @@ export class RadixCoreModule extends HyperlaneModule<
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createDefaultHookUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createRequiredHookUpdateTxs(actualConfig, expectedConfig)),
-      ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
+      ...(await this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig)),
     );
 
     return transactions;
   }
 
-  private createMailboxOwnerUpdateTxs(
+  private async createMailboxOwnerUpdateTxs(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
-  ): AnnotatedRadixTransaction[] {
+  ): Promise<AnnotatedRadixTransaction[]> {
     if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
       return [];
     }
 
-    // TODO: RADIX
-    // add update owner txs
-    return [];
+    const { mailbox } = this.serialize();
+
+    return [
+      await this.signer.populate.setMailboxOwner({
+        from_address: this.signer.getAddress(),
+        mailbox,
+        new_owner: expectedConfig.owner,
+      }),
+    ];
   }
 
   /**
