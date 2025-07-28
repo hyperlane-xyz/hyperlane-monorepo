@@ -1,11 +1,24 @@
-import { Address, HexString } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  assert,
+  ensure0x,
+  messageId,
+} from '@hyperlane-xyz/utils';
 
 import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { TypedTransactionReceipt } from '../../providers/ProviderType.js';
+import {
+  ProviderType,
+  TypedTransactionReceipt,
+} from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 
 import { ICoreAdapter } from './types.js';
+
+const MESSAGE_DISPATCH_EVENT_TYPE = 'DispatchEvent';
+const MESSAGE_FIELD_KEY = 'message';
+const MESSAGE_DESTINATION_FIELD_KEY = 'destination';
 
 export class RadixCoreAdapter
   extends BaseCosmosAdapter
@@ -20,11 +33,35 @@ export class RadixCoreAdapter
   }
 
   extractMessageIds(
-    _sourceTx: TypedTransactionReceipt,
+    sourceTx: TypedTransactionReceipt,
   ): Array<{ messageId: string; destination: ChainName }> {
-    // TODO: RADIX
+    assert(
+      sourceTx.type === ProviderType.Radix,
+      `Unsupported provider type for RadixCoreAdapter ${sourceTx.type}`,
+    );
 
-    return [];
+    const events = sourceTx.receipt.transaction.receipt?.events ?? [];
+    const dispatchEvents = events.filter(
+      (e) => e.name === MESSAGE_DISPATCH_EVENT_TYPE,
+    );
+
+    return dispatchEvents.map((event) => {
+      const findField = (key: string) =>
+        ((event.data as any)?.fields ?? []).find(
+          (f: any) => f.field_name === key,
+        );
+
+      const messageField = findField(MESSAGE_FIELD_KEY);
+      const destField = findField(MESSAGE_DESTINATION_FIELD_KEY);
+
+      assert(messageField, 'No message field found in dispatch event');
+      assert(destField, 'No destination field found in dispatch event');
+
+      return {
+        messageId: ensure0x(messageId(ensure0x(messageField.hex))),
+        destination: this.multiProvider.getChainName(destField.value),
+      };
+    });
   }
 
   async waitForMessageProcessed(
