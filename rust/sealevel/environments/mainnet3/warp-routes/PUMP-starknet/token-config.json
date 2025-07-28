@@ -3,7 +3,7 @@
     "type": "collateral",
     "decimals": 6,
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
-    "owner": "",
+    "owner": "71S39xUrJCKmZEG5xugLLVTtp37Jy1F8oyrv1fQ4PYJK",
     "token": "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn"
   },
   "starknet": {
