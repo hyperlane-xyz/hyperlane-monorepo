@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
-use crate::traits::CheckpointSyncer;
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
+
+use crate::traits::CheckpointSyncer;
 
 #[derive(Debug, Clone)]
 /// Type for reading/write to LocalStorage
@@ -116,7 +117,7 @@ impl CheckpointSyncer for LocalStorage {
     }
 
     fn announcement_location(&self) -> String {
-        format!("file://{}", self.path.to_str().unwrap())
+        format!("file://{}", self.path.as_os_str().to_string_lossy())
     }
 
     async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {

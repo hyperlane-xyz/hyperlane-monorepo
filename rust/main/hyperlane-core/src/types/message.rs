@@ -88,11 +88,11 @@ impl From<RawHyperlaneMessage> for HyperlaneMessage {
 impl From<&RawHyperlaneMessage> for HyperlaneMessage {
     fn from(m: &RawHyperlaneMessage) -> Self {
         let version = m[0];
-        let nonce: [u8; 4] = m[1..5].try_into().unwrap();
-        let origin: [u8; 4] = m[5..9].try_into().unwrap();
-        let sender: [u8; 32] = m[9..41].try_into().unwrap();
-        let destination: [u8; 4] = m[41..45].try_into().unwrap();
-        let recipient: [u8; 32] = m[45..77].try_into().unwrap();
+        let nonce: [u8; 4] = m[1..5].try_into().expect("Failed to parse nonce");
+        let origin: [u8; 4] = m[5..9].try_into().expect("Failed to parse origin");
+        let sender: [u8; 32] = m[9..41].try_into().expect("Failed to parse sender");
+        let destination: [u8; 4] = m[41..45].try_into().expect("Failed to parse destination");
+        let recipient: [u8; 32] = m[45..77].try_into().expect("Failed to parse recipient");
         let body = m[77..].into();
         Self {
             version,

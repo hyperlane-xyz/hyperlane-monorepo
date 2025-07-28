@@ -353,13 +353,16 @@ pub mod test {
         pub fn push<T: Debug>(&self, method: &str, params: T) {
             self.requests
                 .lock()
-                .unwrap()
+                .expect("Failed to acquire mutex")
                 .push((method.to_owned(), format!("{:?}", params)));
         }
 
         /// Get the stored requests
         pub fn requests(&self) -> Vec<(String, String)> {
-            self.requests.lock().unwrap().clone()
+            self.requests
+                .lock()
+                .expect("Failed to acquire mutex")
+                .clone()
         }
 
         /// Set the sleep duration
