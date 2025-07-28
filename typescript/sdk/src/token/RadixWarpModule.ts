@@ -6,8 +6,12 @@ import {
   Address,
   Domain,
   ProtocolType,
+  addressToBytes32,
   assert,
+  deepEquals,
+  difference,
   eqAddress,
+  objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -92,11 +96,14 @@ export class RadixWarpModule extends HyperlaneModule<
      */
     transactions.push(
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
-      ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
-      ...this.createUnenrollRemoteRoutersUpdateTxs(
+      ...(await this.createEnrollRemoteRoutersUpdateTxs(
         actualConfig,
         expectedConfig,
-      ),
+      )),
+      ...(await this.createUnenrollRemoteRoutersUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      )),
       ...(await this.createSetDestinationGasUpdateTxs(
         actualConfig,
         expectedConfig,
@@ -114,18 +121,93 @@ export class RadixWarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns An array with Radix transactions that need to be executed to enroll the routers
    */
-  createEnrollRemoteRoutersUpdateTxs(
+  async createEnrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): TransactionManifest[] {
-    return [];
+  ): Promise<TransactionManifest[]> {
+    const updateTransactions: TransactionManifest[] = [];
+    if (!expectedConfig.remoteRouters) {
+      return [];
+    }
+
+    assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
+    assert(expectedConfig.remoteRouters, 'expectedRemoteRouters is undefined');
+
+    const { remoteRouters: actualRemoteRouters } = actualConfig;
+    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
+
+    const routesToEnroll = Object.entries(expectedRemoteRouters)
+      .filter(([domain, expectedRouter]) => {
+        const actualRouter = actualRemoteRouters[domain];
+        // Enroll if router doesn't exist for domain or has different address
+        return (
+          !actualRouter ||
+          !eqAddress(actualRouter.address, expectedRouter.address)
+        );
+      })
+      .map(([domain]) => domain);
+
+    if (routesToEnroll.length === 0) {
+      return updateTransactions;
+    }
+
+    // in cosmos the gas is attached to the remote router. we set
+    // it to zero for now and set the real value later during the
+    // createSetDestinationGasUpdateTxs step
+    for (const domainId of routesToEnroll) {
+      updateTransactions.push(
+        await this.signer.populate.enrollRemoteRouter({
+          from_address: this.signer.getAddress(),
+          token: this.args.addresses.deployedTokenRoute,
+          receiver_domain: parseInt(domainId),
+          receiver_address: addressToBytes32(
+            expectedRemoteRouters[domainId].address,
+          ),
+          gas: '0',
+        }),
+      );
+    }
+
+    return updateTransactions;
   }
 
-  createUnenrollRemoteRoutersUpdateTxs(
+  async createUnenrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): TransactionManifest[] {
-    return [];
+  ): Promise<TransactionManifest[]> {
+    const updateTransactions: TransactionManifest[] = [];
+    if (!expectedConfig.remoteRouters) {
+      return [];
+    }
+
+    assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
+    assert(expectedConfig.remoteRouters, 'expectedRemoteRouters is undefined');
+
+    const { remoteRouters: actualRemoteRouters } = actualConfig;
+    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
+
+    const routesToUnenroll = Array.from(
+      difference(
+        new Set(Object.keys(actualRemoteRouters)),
+        new Set(Object.keys(expectedRemoteRouters)),
+      ),
+    );
+
+    if (routesToUnenroll.length === 0) {
+      return updateTransactions;
+    }
+
+    for (const domainId of routesToUnenroll) {
+      updateTransactions.push(
+        await this.signer.populate.unrollRemoteRouter({
+          from_address: this.signer.getAddress(),
+          token: this.args.addresses.deployedTokenRoute,
+          receiver_domain: parseInt(domainId),
+        }),
+      );
+    }
+
+    return updateTransactions;
   }
 
   /**
@@ -139,7 +221,48 @@ export class RadixWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<TransactionManifest[]> {
-    return [];
+    const updateTransactions: TransactionManifest[] = [];
+    if (!expectedConfig.destinationGas) {
+      return [];
+    }
+
+    assert(actualConfig.destinationGas, 'actualDestinationGas is undefined');
+    assert(
+      expectedConfig.destinationGas,
+      'expectedDestinationGas is undefined',
+    );
+    assert(expectedConfig.remoteRouters, 'expectedRemoteRouters is undefined');
+
+    const { destinationGas: actualDestinationGas } = actualConfig;
+    const { destinationGas: expectedDestinationGas } = expectedConfig;
+    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
+
+    if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
+      // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
+      const gasRouterConfigs: { domain: string; gas: string }[] = [];
+      objMap(expectedDestinationGas, (domain: string, gas: string) => {
+        gasRouterConfigs.push({
+          domain,
+          gas,
+        });
+      });
+
+      for (const { domain, gas } of gasRouterConfigs) {
+        updateTransactions.push(
+          await this.signer.populate.enrollRemoteRouter({
+            from_address: this.signer.getAddress(),
+            token: this.args.addresses.deployedTokenRoute,
+            receiver_domain: parseInt(domain),
+            receiver_address: addressToBytes32(
+              expectedRemoteRouters[domain].address,
+            ),
+            gas,
+          }),
+        );
+      }
+    }
+
+    return updateTransactions;
   }
 
   /**
