@@ -1,10 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 use ethers::utils::hex;
 use ethers_prometheus::middleware::PrometheusMiddlewareConf;
 use eyre::eyre;
+use hyperlane_base::db::DB;
 use prometheus::{opts, IntGaugeVec, Registry};
 use reqwest::Url;
 use tokio::time::error::Elapsed;
@@ -139,7 +141,7 @@ fn generate_test_relayer_settings(
 
 #[tokio::test]
 #[tracing_test::traced_test]
-async fn test_failed_build_mailboxes() {
+async fn test_build_origins() {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path();
 
@@ -198,89 +200,14 @@ async fn test_failed_build_mailboxes() {
         .unwrap(),
     };
 
-    let mailboxes = Relayer::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
+    let db = DB::from_path(&settings.db).expect("Failed to read db");
 
-    assert_eq!(mailboxes.len(), 2);
-    assert!(mailboxes.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
-    assert!(mailboxes.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum)));
+    let origins =
+        Relayer::build_origins(&settings, db, Arc::new(core_metrics), &chain_metrics).await;
 
-    // Arbitrum chain should not have any errors because it's ChainConf exists
-    let metric = chain_metrics
-        .critical_error
-        .get_metric_with_label_values(&["arbitrum"])
-        .unwrap();
-    assert_eq!(metric.get(), 0);
-
-    // Ethereum chain should error because it is missing ChainConf
-    let metric = chain_metrics
-        .critical_error
-        .get_metric_with_label_values(&["ethereum"])
-        .unwrap();
-    assert_eq!(metric.get(), 0);
-
-    // Optimism chain should error because it is missing ChainConf
-    let metric = chain_metrics
-        .critical_error
-        .get_metric_with_label_values(&["optimism"])
-        .unwrap();
-    assert_eq!(metric.get(), 1);
-}
-
-#[tokio::test]
-#[tracing_test::traced_test]
-async fn test_failed_build_validator_announces() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let db_path = temp_dir.path();
-
-    let chains = vec![(
-        KnownHyperlaneDomain::Arbitrum.to_string(),
-        generate_test_chain_conf(
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-            None,
-            // these urls are not expected to be live
-            "http://localhost:8545",
-        ),
-    )];
-    let origin_chains = &[
-        HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-        HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-        HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-    ];
-    let destination_chains = &[
-        HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-        HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-        HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-    ];
-    let metrics_port = 27002;
-    let settings = generate_test_relayer_settings(
-        db_path,
-        chains,
-        origin_chains,
-        destination_chains,
-        metrics_port,
-    );
-
-    let registry = Registry::new();
-    let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
-    let chain_metrics = ChainMetrics {
-        block_height: IntGaugeVec::new(
-            opts!("block_height", BLOCK_HEIGHT_HELP),
-            BLOCK_HEIGHT_LABELS,
-        )
-        .unwrap(),
-        gas_price: None,
-        critical_error: IntGaugeVec::new(
-            opts!("critical_error", CRITICAL_ERROR_HELP),
-            CRITICAL_ERROR_LABELS,
-        )
-        .unwrap(),
-    };
-
-    let mailboxes =
-        Relayer::build_validator_announces(&settings, &core_metrics, &chain_metrics).await;
-
-    assert_eq!(mailboxes.len(), 1);
-    assert!(mailboxes.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
+    assert_eq!(origins.len(), 2);
+    assert!(origins.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
+    assert!(origins.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum)));
 
     // Arbitrum chain should not have any errors because it's ChainConf exists
     let metric = chain_metrics
@@ -294,14 +221,7 @@ async fn test_failed_build_validator_announces() {
         .critical_error
         .get_metric_with_label_values(&["ethereum"])
         .unwrap();
-    assert_eq!(metric.get(), 1);
-
-    // Optimism chain should error because it is missing ChainConf
-    let metric = chain_metrics
-        .critical_error
-        .get_metric_with_label_values(&["optimism"])
-        .unwrap();
-    assert_eq!(metric.get(), 1);
+    assert_eq!(metric.get(), 0);
 }
 
 async fn build_relayer(settings: RelayerSettings) -> eyre::Result<Relayer> {

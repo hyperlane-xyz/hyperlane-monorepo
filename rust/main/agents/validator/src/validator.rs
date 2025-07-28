@@ -144,17 +144,10 @@ impl BaseAgent for Validator {
             .expect("Failed to build checkpoint syncer")
             .into();
 
-        let mailbox = settings
-            .build_mailbox(&settings.origin_chain, &metrics)
-            .await?;
-
-        let merkle_tree_hook = settings
-            .build_merkle_tree_hook(&settings.origin_chain, &metrics)
-            .await?;
-
-        let validator_announce = settings
-            .build_validator_announce(&settings.origin_chain, &metrics)
-            .await?;
+        let chain_setup = settings.chain_setup(&settings.origin_chain)?;
+        let mailbox = chain_setup.build_mailbox(&metrics).await?;
+        let merkle_tree_hook = chain_setup.build_merkle_tree_hook(&metrics).await?;
+        let validator_announce = chain_setup.build_validator_announce(&metrics).await?;
 
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
 

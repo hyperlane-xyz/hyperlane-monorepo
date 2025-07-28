@@ -1,14 +1,11 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
 
 use eyre::{eyre, Context, Result};
-use futures_util::future::join_all;
 
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
-    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
-    Mailbox, MerkleTreeHook, MultisigIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
+    HyperlaneDomain, HyperlaneLogStore, HyperlaneSequenceAwareIndexerStoreReader,
+    HyperlaneWatermarkedLogStore, MultisigIsm, SequenceAwareIndexer, H256,
 };
-use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use crate::{
     cursors::{CursorType, Indexable},
@@ -119,45 +116,10 @@ impl Settings {
     }
 }
 
-/// Generate a call to ChainSetup for the given builder
-macro_rules! build_chain_conf_fns {
-    ($singular:ident, $plural:ident -> $ret:ty) => {
-        /// Delegates building to ChainSetup
-        pub async fn $singular(
-            &self,
-            domain: &HyperlaneDomain,
-            metrics: &CoreMetrics,
-        ) -> eyre::Result<Box<$ret>> {
-            let setup = self.chain_setup(domain)?;
-            setup.$singular(metrics).await
-        }
-
-        /// Builds a contract for each domain
-        pub async fn $plural(
-            &self,
-            domains: impl Iterator<Item = &HyperlaneDomain>,
-            metrics: &CoreMetrics,
-        ) -> HashMap<HyperlaneDomain, eyre::Result<Arc<$ret>>> {
-            join_all(domains.map(|d| async { (d.clone(), self.$singular(d, metrics).await) }))
-                .await
-                .into_iter()
-                .map(|(d, future)| (d, future.map(|f| Arc::from(f))))
-                .collect()
-        }
-    };
-}
-
 /// Arc SequenceAwareIndexer
 pub type SequenceIndexer<T> = Arc<dyn SequenceAwareIndexer<T>>;
 
 impl Settings {
-    build_chain_conf_fns!(build_application_operation_verifier, build_application_operation_verifiers -> dyn ApplicationOperationVerifier);
-    build_chain_conf_fns!(build_interchain_gas_paymaster, build_interchain_gas_paymasters -> dyn InterchainGasPaymaster);
-    build_chain_conf_fns!(build_mailbox, build_mailboxes -> dyn Mailbox);
-    build_chain_conf_fns!(build_merkle_tree_hook, build_merkle_tree_hooks -> dyn MerkleTreeHook);
-    build_chain_conf_fns!(build_provider, build_providers -> dyn HyperlaneProvider);
-    build_chain_conf_fns!(build_validator_announce, build_validator_announces -> dyn ValidatorAnnounce);
-
     /// Build a contract sync for type `T` using log store `S`
     pub async fn sequenced_contract_sync<T, S>(
         &self,
