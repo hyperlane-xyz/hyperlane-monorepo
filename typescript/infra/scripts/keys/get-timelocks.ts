@@ -1,15 +1,13 @@
-import { ChainMap, EvmTimelockDeployer } from '@hyperlane-xyz/sdk';
+import { EvmTimelockDeployer } from '@hyperlane-xyz/sdk';
 import {
-  Address,
   LogFormat,
   LogLevel,
   configureRootLogger,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { awIcasV2 } from '../../config/environments/mainnet3/governance/ica/aw2.js';
-import { regularIcasV2 } from '../../config/environments/mainnet3/governance/ica/regular2.js';
 import {
+  getGovernanceIcas,
   getGovernanceSafes,
   getGovernanceTimelocks,
 } from '../../config/environments/mainnet3/governance/utils.js';
@@ -85,17 +83,7 @@ async function main() {
 
   const timelockDeployer = new EvmTimelockDeployer(multiProvider, true);
 
-  let governanceIcas: ChainMap<Address>;
-  switch (governanceType) {
-    case GovernanceType.AbacusWorks:
-      governanceIcas = awIcasV2;
-      break;
-    case GovernanceType.Regular:
-      governanceIcas = regularIcasV2;
-      break;
-    default:
-      throw new Error(`Governance type ${governanceType} not supported.`);
-  }
+  const governanceIcas = getGovernanceIcas(governanceType);
 
   const governanceTimelocks = getGovernanceTimelocks(governanceType);
 
