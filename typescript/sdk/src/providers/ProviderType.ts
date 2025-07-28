@@ -271,11 +271,16 @@ export interface EthersV5Transaction
   transaction: EV5Transaction;
 }
 
+export interface RTransaction {
+  networkId: number;
+  manifest: TransactionManifest;
+}
+
 export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
 export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
 
-export type AnnotatedRadixTransaction = Annotated<TransactionManifest>;
+export type AnnotatedRadixTransaction = Annotated<RTransaction>;
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
   type: ProviderType.Viem;
@@ -311,10 +316,9 @@ export interface StarknetJsTransaction
   transaction: StarknetInvocation;
 }
 
-export interface RadixTransaction
-  extends TypedTransactionBase<TransactionManifest> {
+export interface RadixTransaction extends TypedTransactionBase<RTransaction> {
   type: ProviderType.Radix;
-  transaction: TransactionManifest;
+  transaction: RTransaction;
 }
 
 export interface ZKSyncTransaction

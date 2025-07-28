@@ -1,9 +1,5 @@
 import { DataRequestBuilder } from '@radixdlt/radix-dapp-toolkit';
-import {
-  NetworkId,
-  RadixEngineToolkit,
-  TransactionManifest,
-} from '@radixdlt/radix-engine-toolkit';
+import { RadixEngineToolkit } from '@radixdlt/radix-engine-toolkit';
 import { useCallback, useMemo } from 'react';
 
 import {
@@ -14,6 +10,8 @@ import {
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+
+import { RTransaction } from '../../../sdk/dist/providers/ProviderType.js';
 
 import { useAccount } from './radix/AccountContext.js';
 import { usePopup } from './radix/WalletPopupProvider.js';
@@ -126,12 +124,12 @@ export function useRadixTransactionFns(
       assert(rdt, `radix dapp toolkit is not defined`);
       assert(gatewayApi, `gateway api is not defined`);
 
-      // TODO: RADIX
-      // network id
+      const transaction = tx.transaction as never as RTransaction;
+
       const transactionManifest = (
         await RadixEngineToolkit.Instructions.convert(
-          (tx.transaction as never as TransactionManifest).instructions,
-          NetworkId.Stokenet,
+          transaction.manifest.instructions,
+          transaction.networkId,
           'String',
         )
       ).value as string;

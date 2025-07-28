@@ -1,4 +1,3 @@
-import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
 import { zeroAddress } from 'viem';
 
 import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
@@ -23,6 +22,7 @@ import { RadixIsmModule } from '../ism/RadixIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedRadixTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import { RadixWarpRouteReader } from './RadixWarpRouteReader.js';
@@ -82,7 +82,7 @@ export class RadixWarpModule extends HyperlaneModule<
    */
   async update(
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<TransactionManifest[]> {
+  ): Promise<AnnotatedRadixTransaction[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
@@ -124,8 +124,8 @@ export class RadixWarpModule extends HyperlaneModule<
   async createEnrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<TransactionManifest[]> {
-    const updateTransactions: TransactionManifest[] = [];
+  ): Promise<AnnotatedRadixTransaction[]> {
+    const updateTransactions: AnnotatedRadixTransaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -155,8 +155,10 @@ export class RadixWarpModule extends HyperlaneModule<
     // it to zero for now and set the real value later during the
     // createSetDestinationGasUpdateTxs step
     for (const domainId of routesToEnroll) {
-      updateTransactions.push(
-        await this.signer.populate.enrollRemoteRouter({
+      updateTransactions.push({
+        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.enrollRemoteRouter({
           from_address: this.signer.getAddress(),
           token: this.args.addresses.deployedTokenRoute,
           receiver_domain: parseInt(domainId),
@@ -165,7 +167,7 @@ export class RadixWarpModule extends HyperlaneModule<
           ),
           gas: '0',
         }),
-      );
+      });
     }
 
     return updateTransactions;
@@ -174,8 +176,8 @@ export class RadixWarpModule extends HyperlaneModule<
   async createUnenrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<TransactionManifest[]> {
-    const updateTransactions: TransactionManifest[] = [];
+  ): Promise<AnnotatedRadixTransaction[]> {
+    const updateTransactions: AnnotatedRadixTransaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -198,13 +200,15 @@ export class RadixWarpModule extends HyperlaneModule<
     }
 
     for (const domainId of routesToUnenroll) {
-      updateTransactions.push(
-        await this.signer.populate.unrollRemoteRouter({
+      updateTransactions.push({
+        annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.unrollRemoteRouter({
           from_address: this.signer.getAddress(),
           token: this.args.addresses.deployedTokenRoute,
           receiver_domain: parseInt(domainId),
         }),
-      );
+      });
     }
 
     return updateTransactions;
@@ -220,8 +224,8 @@ export class RadixWarpModule extends HyperlaneModule<
   async createSetDestinationGasUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<TransactionManifest[]> {
-    const updateTransactions: TransactionManifest[] = [];
+  ): Promise<AnnotatedRadixTransaction[]> {
+    const updateTransactions: AnnotatedRadixTransaction[] = [];
     if (!expectedConfig.destinationGas) {
       return [];
     }
@@ -248,8 +252,10 @@ export class RadixWarpModule extends HyperlaneModule<
       });
 
       for (const { domain, gas } of gasRouterConfigs) {
-        updateTransactions.push(
-          await this.signer.populate.enrollRemoteRouter({
+        updateTransactions.push({
+          annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+          networkId: this.signer.getNetworkId(),
+          manifest: await this.signer.populate.enrollRemoteRouter({
             from_address: this.signer.getAddress(),
             token: this.args.addresses.deployedTokenRoute,
             receiver_domain: parseInt(domain),
@@ -258,7 +264,7 @@ export class RadixWarpModule extends HyperlaneModule<
             ),
             gas,
           }),
-        );
+        });
       }
     }
 
@@ -275,8 +281,8 @@ export class RadixWarpModule extends HyperlaneModule<
   async createIsmUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<TransactionManifest[]> {
-    const updateTransactions: TransactionManifest[] = [];
+  ): Promise<AnnotatedRadixTransaction[]> {
+    const updateTransactions: AnnotatedRadixTransaction[] = [];
     if (
       !expectedConfig.interchainSecurityModule ||
       expectedConfig.interchainSecurityModule === zeroAddress
@@ -299,13 +305,15 @@ export class RadixWarpModule extends HyperlaneModule<
 
     // If a new ISM is deployed, push the setInterchainSecurityModule tx
     if (actualDeployedIsm !== expectedDeployedIsm) {
-      updateTransactions.push(
-        await this.signer.populate.setTokenIsm({
+      updateTransactions.push({
+        annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.setTokenIsm({
           from_address: this.signer.getAddress(),
           token: this.args.addresses.deployedTokenRoute,
           ism: expectedDeployedIsm,
         }),
-      );
+      });
     }
 
     return updateTransactions;
@@ -321,17 +329,21 @@ export class RadixWarpModule extends HyperlaneModule<
   async createOwnershipUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<TransactionManifest[]> {
+  ): Promise<AnnotatedRadixTransaction[]> {
     if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
       return [];
     }
 
     return [
-      await this.signer.populate.setTokenOwner({
-        from_address: this.signer.getAddress(),
-        token: this.args.addresses.deployedTokenRoute,
-        new_owner: expectedConfig.owner,
-      }),
+      {
+        annotation: `Transferring ownership of ${this.args.addresses.deployedTokenRoute} from ${actualConfig.owner} to ${expectedConfig.owner}`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.setTokenOwner({
+          from_address: this.signer.getAddress(),
+          token: this.args.addresses.deployedTokenRoute,
+          new_owner: expectedConfig.owner,
+        }),
+      },
     ];
   }
 
@@ -345,7 +357,7 @@ export class RadixWarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<{
     deployedIsm: Address;
-    updateTransactions: TransactionManifest[];
+    updateTransactions: AnnotatedRadixTransaction[];
   }> {
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 

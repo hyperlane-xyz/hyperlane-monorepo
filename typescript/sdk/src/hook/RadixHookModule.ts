@@ -1,4 +1,3 @@
-import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
 import { zeroAddress } from 'viem';
 
 import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
@@ -18,6 +17,7 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedRadixTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -70,7 +70,7 @@ export class RadixHookModule extends HyperlaneModule<
 
   public async update(
     targetConfig: HookConfig,
-  ): Promise<TransactionManifest[]> {
+  ): Promise<AnnotatedRadixTransaction[]> {
     if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }

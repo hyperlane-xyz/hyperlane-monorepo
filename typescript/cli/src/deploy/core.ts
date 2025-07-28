@@ -241,7 +241,7 @@ export async function runCoreApply(params: ApplyParams) {
         logGray('Updating deployed core contracts');
 
         for (const transaction of transactions) {
-          await signer.tx.signAndBroadcast(transaction);
+          await signer.tx.signAndBroadcast(transaction.manifest);
         }
 
         logGreen(`Core config updated on ${chain}.`);

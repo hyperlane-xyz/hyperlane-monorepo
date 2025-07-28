@@ -1,5 +1,3 @@
-import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
-
 import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   Address,
@@ -17,6 +15,7 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedRadixTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -73,7 +72,7 @@ export class RadixIsmModule extends HyperlaneModule<
   // whoever calls update() needs to ensure that targetConfig has a valid owner
   public async update(
     expectedConfig: IsmConfig,
-  ): Promise<TransactionManifest[]> {
+  ): Promise<AnnotatedRadixTransaction[]> {
     expectedConfig = IsmConfigSchema.parse(expectedConfig);
 
     // Do not support updating to a custom ISM address

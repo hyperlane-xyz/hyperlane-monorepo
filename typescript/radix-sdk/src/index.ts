@@ -14,7 +14,7 @@ const NETWORKS = {
   [NetworkId.Stokenet]: {
     applicationName: 'hyperlane',
     packageAddress:
-      'package_tdx_2_1pkwm6pc3yvjuh482nkp7p276t7f3kuw92vqzfy6a4urfvp3ep9tdpk',
+      'package_tdx_2_1p5nv6fml873lzwzs04fjv9w7venw8xn8xyjlsa4t7mxgkvnurkq24p',
   },
   [NetworkId.Mainnet]: {
     applicationName: 'hyperlane',
@@ -57,6 +57,10 @@ export class RadixSDK {
       this.packageAddress,
       options?.gasAmount ?? 5000,
     );
+  }
+
+  public getNetworkId() {
+    return this.networkId;
   }
 }
 

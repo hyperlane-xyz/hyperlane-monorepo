@@ -252,11 +252,15 @@ export class RadixCoreModule extends HyperlaneModule<
     const { mailbox } = this.serialize();
 
     return [
-      await this.signer.populate.setMailboxOwner({
-        from_address: this.signer.getAddress(),
-        mailbox,
-        new_owner: expectedConfig.owner,
-      }),
+      {
+        annotation: `Transferring ownership of Mailbox from ${actualConfig.owner} to ${expectedConfig.owner}`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.setMailboxOwner({
+          from_address: this.signer.getAddress(),
+          mailbox,
+          new_owner: expectedConfig.owner,
+        }),
+      },
     ];
   }
 
@@ -288,13 +292,15 @@ export class RadixCoreModule extends HyperlaneModule<
     const newIsmDeployed = actualDefaultIsmConfig.address !== deployedIsm;
     if (newIsmDeployed) {
       const { mailbox } = this.serialize();
-      updateTransactions.push(
-        await this.signer.populate.setDefaultIsm({
+      updateTransactions.push({
+        annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm}`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.setDefaultIsm({
           from_address: this.signer.getAddress(),
           mailbox,
           ism: deployedIsm,
         }),
-      );
+      });
     }
 
     return updateTransactions;
@@ -364,13 +370,15 @@ export class RadixCoreModule extends HyperlaneModule<
     const newHookDeployed = actualDefaultHookConfig.address !== deployedHook;
     if (newHookDeployed) {
       const { mailbox } = this.serialize();
-      updateTransactions.push(
-        await this.signer.populate.setDefaultHook({
+      updateTransactions.push({
+        annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook}`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.setDefaultHook({
           from_address: this.signer.getAddress(),
           mailbox,
           hook: deployedHook,
         }),
-      );
+      });
     }
 
     return updateTransactions;
@@ -405,13 +413,15 @@ export class RadixCoreModule extends HyperlaneModule<
     const newHookDeployed = actualRequiredHookConfig.address !== deployedHook;
     if (newHookDeployed) {
       const { mailbox } = this.serialize();
-      updateTransactions.push(
-        await this.signer.populate.setRequiredHook({
+      updateTransactions.push({
+        annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook}`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.setRequiredHook({
           from_address: this.signer.getAddress(),
           mailbox,
           hook: deployedHook,
         }),
-      );
+      });
     }
 
     return updateTransactions;

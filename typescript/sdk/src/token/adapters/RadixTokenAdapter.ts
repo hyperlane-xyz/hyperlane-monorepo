@@ -1,5 +1,3 @@
-import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
-
 import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   Address,
@@ -11,6 +9,7 @@ import {
 
 import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { RTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
@@ -24,7 +23,7 @@ import {
 
 export class RadixNativeTokenAdapter
   extends BaseRadixAdapter
-  implements ITokenAdapter<TransactionManifest>
+  implements ITokenAdapter<RTransaction>
 {
   protected provider: RadixSDK;
   protected tokenId: string;
@@ -89,9 +88,7 @@ export class RadixNativeTokenAdapter
     return false;
   }
 
-  populateApproveTx(
-    _transferParams: TransferParams,
-  ): Promise<TransactionManifest> {
+  populateApproveTx(_transferParams: TransferParams): Promise<RTransaction> {
     throw new Error('Approve not required for native tokens');
   }
 
@@ -101,17 +98,20 @@ export class RadixNativeTokenAdapter
 
   async populateTransferTx(
     transferParams: TransferParams,
-  ): Promise<TransactionManifest> {
+  ): Promise<RTransaction> {
     const resource = await this.getResourceAddress();
 
     assert(transferParams.fromAccountOwner, `no sender in transfer params`);
 
-    return this.provider.populate.transfer({
-      from_address: transferParams.fromAccountOwner!,
-      to_address: transferParams.recipient,
-      resource_address: resource,
-      amount: transferParams.weiAmountOrId.toString(),
-    });
+    return {
+      networkId: this.provider.getNetworkId(),
+      manifest: this.provider.populate.transfer({
+        from_address: transferParams.fromAccountOwner!,
+        to_address: transferParams.recipient,
+        resource_address: resource,
+        amount: transferParams.weiAmountOrId.toString(),
+      }),
+    };
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
@@ -124,7 +124,7 @@ export class RadixNativeTokenAdapter
 
 export class RadixHypCollateralAdapter
   extends RadixNativeTokenAdapter
-  implements IHypTokenAdapter<TransactionManifest>
+  implements IHypTokenAdapter<RTransaction>
 {
   constructor(
     public readonly chainName: ChainName,
@@ -201,7 +201,7 @@ export class RadixHypCollateralAdapter
 
   async populateTransferRemoteTx(
     params: TransferRemoteParams,
-  ): Promise<TransactionManifest> {
+  ): Promise<RTransaction> {
     assert(params.fromAccountOwner, `no sender in remote transfer params`);
 
     if (!params.interchainGas) {
@@ -232,20 +232,23 @@ export class RadixHypCollateralAdapter
       );
     }
 
-    return this.provider.populate.remoteTransfer({
-      from_address: params.fromAccountOwner!,
-      recipient: strip0x(addressToBytes32(params.recipient)),
-      amount: params.weiAmountOrId.toString(),
-      token: this.tokenId,
-      destination_domain: params.destination,
-      gas_limit: router.gas,
-      custom_hook_id: '',
-      custom_hook_metadata: '',
-      max_fee: {
-        denom: params.interchainGas.addressOrDenom || '',
-        amount: params.interchainGas.amount.toString(),
-      },
-    });
+    return {
+      networkId: this.provider.getNetworkId(),
+      manifest: await this.provider.populate.remoteTransfer({
+        from_address: params.fromAccountOwner!,
+        recipient: strip0x(addressToBytes32(params.recipient)),
+        amount: params.weiAmountOrId.toString(),
+        token: this.tokenId,
+        destination_domain: params.destination,
+        gas_limit: router.gas,
+        custom_hook_id: '',
+        custom_hook_metadata: '',
+        max_fee: {
+          denom: params.interchainGas.addressOrDenom || '',
+          amount: params.interchainGas.amount.toString(),
+        },
+      }),
+    };
   }
 }
 
