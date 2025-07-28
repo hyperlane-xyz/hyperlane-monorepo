@@ -1,46 +1,52 @@
-use std::sync::Arc;
+use hyperlane_core::H256;
+use kaspa_addresses::{Address, Prefix, Version};
+use kaspa_consensus_core::hashing::sighash_type::{
+    SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
+};
+use kaspa_consensus_core::tx::ScriptPublicKey;
+use kaspa_txscript::pay_to_address_script;
+use std::collections::HashSet;
+use std::hash::Hash;
 
-use kaspa_wallet_core::prelude::*;
-
-use kaspa_rpc_core::api::rpc::RpcApi;
-
-use kaspa_core::info;
-
-use kaspa_addresses::Address;
-use kaspa_wallet_core::error::Error;
-
-pub async fn check_balance<T: RpcApi + ?Sized>(
-    source: &str,
-    rpc: &T,
-    addr: &Address,
-) -> Result<u64, Error> {
-    let balance = rpc
-        .get_balance_by_address(addr.clone())
-        .await
-        .map_err(|e| Error::Custom(format!("Getting balance for escrow address: {}", e)))?;
-
-    info!("{} balance: {}", source, balance);
-    Ok(balance)
+pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> Address {
+    Address::new(
+        prefix,
+        Version::PubKey, // should always be PubKey
+        recipient.as_bytes(),
+    )
 }
 
-// TODO: needed?
-pub async fn check_balance_wallet(w: Arc<Wallet>) -> Result<(), Error> {
-    let a = w.account()?;
-    for _ in 0..10 {
-        if a.balance().is_some() {
-            break;
-        }
-        workflow_core::task::sleep(std::time::Duration::from_millis(200)).await;
-    }
+pub fn get_recipient_script_pubkey(recipient: H256, prefix: Prefix) -> ScriptPublicKey {
+    pay_to_address_script(&get_recipient_address(recipient, prefix))
+}
 
-    if let Some(b) = a.balance() {
-        info!("Wallet account balance:");
-        info!("  Mature:   {} KAS", sompi_to_kaspa_string(b.mature));
-        info!("  Pending:  {} KAS", sompi_to_kaspa_string(b.pending));
-        info!("  Outgoing: {} KAS", sompi_to_kaspa_string(b.outgoing));
-    } else {
-        info!("Wallet account has no balance or is still syncing.");
-    }
+pub fn get_recipient_script_pubkey_address(address: &Address) -> ScriptPublicKey {
+    pay_to_address_script(address)
+}
 
-    Ok(())
+pub fn input_sighash_type() -> SigHashType {
+    SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap()
+}
+
+pub fn is_valid_sighash_type(t: SigHashType) -> bool {
+    t.to_u8() == input_sighash_type().to_u8()
+}
+
+/// Find the first duplicate if any.
+pub fn find_duplicate<T>(v: &[T]) -> Option<T>
+where
+    T: Eq + Hash + Clone,
+{
+    let mut seen = HashSet::new();
+    v.iter().find(|&item| !seen.insert(item)).cloned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_input_sighash_type() {
+        assert!(is_valid_sighash_type(input_sighash_type()));
+    }
 }

@@ -287,6 +287,8 @@ pub enum HyperlaneDomainProtocol {
     Starknet,
     /// A Cosmos based chain with uses a module instead of a contract.
     CosmosNative,
+    /// A Kaspa-based chain type which uses hyperlane-kaspa.
+    Kaspa,
 }
 
 impl HyperlaneDomainProtocol {
@@ -336,7 +338,7 @@ impl KnownHyperlaneDomain {
                 InEvm, Injective, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin,
                 Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis, Polygon, ProofOfPlay,
                 ReAl, Redstone, Sanko, Sei, SolanaMainnet, StarknetMainnet, Taiko, Tangle, Treasure, Viction, Worldchain, Xai,
-                Xlayer, Zeronetwork, Zetachain, Zircuit, Zklink, Zksync, ZoraMainnet,
+                Xlayer, Zeronetwork, Zetachain, Zircuit, Zklink, Zksync, ZoraMainnet
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
@@ -382,7 +384,8 @@ impl KnownHyperlaneDomain {
                 CosmosTestNative1,
                 CosmosTestNative2,
                 KyveAlpha
-            ]
+            ],
+            HyperlaneDomainProtocol::Kaspa: []
         })
     }
 
@@ -610,7 +613,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         many_to_one!(match protocol {
-            IndexMode::Block: [Ethereum, Cosmos, CosmosNative, Starknet],
+            IndexMode::Block: [Ethereum, Cosmos, CosmosNative, Starknet, Kaspa], // TODO: check kaspa
             IndexMode::Sequence : [Sealevel, Fuel],
         })
     }

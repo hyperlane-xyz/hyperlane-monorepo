@@ -53,7 +53,7 @@
       },
       "displayName": "Dymension Hub Local",
       "gasCurrencyCoinGeckoId": "dymension",
-      "domainId": 1260813472,
+      "domainId": 587907060,
       "gasPrice": {
         "amount": "100000000000.0",
         "denom": "adym"

@@ -42,6 +42,8 @@ pub enum ModuleType {
     Null,
     /// Ccip Read ISM (accepts offchain signature information)
     CcipRead,
+    /// Kaspa ISM (used for kaspa)
+    KaspaMultisig,
 }
 
 /// Interface for the InterchainSecurityModule chain contract. Allows abstraction over

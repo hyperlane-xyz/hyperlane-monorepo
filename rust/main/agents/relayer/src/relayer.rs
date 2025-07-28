@@ -43,6 +43,11 @@ use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
+use super::msg::metadata::dymension_kaspa::PendingMessageMetadataGetter;
+use dymension_kaspa::{is_dym, is_kas, KaspaProvider};
+use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
+use hyperlane_cosmos_native::CosmosNativeMailbox;
+
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     metrics::message_submission::MessageSubmissionMetrics,
@@ -112,6 +117,7 @@ pub struct Relayer {
     pub tokio_console_server: Option<console_subscriber::Server>,
     payload_dispatcher_entrypoints: HashMap<HyperlaneDomain, DispatcherEntrypoint>,
     payload_dispatchers: HashMap<HyperlaneDomain, Dispatcher>,
+    dymension_kaspa_args: Option<DymensionKaspaArgs>,
 }
 
 impl Debug for Relayer {
@@ -186,6 +192,9 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         let mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
+
+        let dymension_args = Self::get_dymension_kaspa_args(&mailboxes).await?;
+
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized mailbox", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
@@ -462,6 +471,7 @@ impl BaseAgent for Relayer {
             tokio_console_server: Some(tokio_console_server),
             payload_dispatcher_entrypoints: dispatcher_entrypoints,
             payload_dispatchers: dispatchers,
+            dymension_kaspa_args: dymension_args,
         })
     }
 
@@ -561,6 +571,16 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
+            if is_kas(origin) && self.dymension_kaspa_args.is_some() {
+                self.launch_dymension_kaspa_tasks(
+                    origin,
+                    &mut tasks,
+                    task_monitor.clone(),
+                    send_channels.clone(),
+                )
+                .await;
+                continue;
+            }
             let maybe_broadcaster = self
                 .message_syncs
                 .get(origin)
@@ -1407,5 +1427,58 @@ mod test {
             .get_metric_with_label_values(&["optimism"])
             .unwrap();
         assert_eq!(metric.get(), 1);
+    }
+}
+
+impl Relayer {
+    async fn launch_dymension_kaspa_tasks(
+        &self,
+        origin: &HyperlaneDomain,
+        tasks: &mut Vec<JoinHandle<()>>,
+        task_monitor: TaskMonitor,
+        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    ) {
+        let args = self.dymension_kaspa_args.as_ref().unwrap();
+
+        let kas_provider = args.kas_provider.clone();
+        let hub_mailbox = args.dym_mailbox.clone();
+
+        let metadata_getter = PendingMessageMetadataGetter::new();
+
+        let b = KaspaBridgeFoo::new(kas_provider.clone(), hub_mailbox.clone(), metadata_getter);
+
+        // sync relayer before starting other tasks
+        b.sync_hub_if_needed().await.unwrap();
+
+        tasks.push(b.run_loops(task_monitor.clone()));
+        // it observes the local db and makes sure messages are eventually written to the destination chain
+        tasks.push(self.run_message_processor(origin, send_channels.clone(), task_monitor.clone()));
+    }
+}
+
+#[derive(Debug, Clone)]
+struct DymensionKaspaArgs {
+    kas_provider: Box<KaspaProvider>,
+    dym_mailbox: Arc<CosmosNativeMailbox>,
+}
+
+impl Relayer {
+    async fn get_dymension_kaspa_args(
+        mailboxes: &HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
+    ) -> Result<Option<DymensionKaspaArgs>> {
+        let kas_mailbox_trait = { mailboxes.iter().find(|(d, _)| is_kas(d)).unwrap().1.clone() };
+        let kas_provider_trait = kas_mailbox_trait.provider();
+        let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
+
+        let dym_mailbox_trait = { mailboxes.iter().find(|(d, _)| is_dym(d)).unwrap().1.clone() };
+
+        let dym_mailbox = dym_mailbox_trait
+            .downcast_arc::<CosmosNativeMailbox>()
+            .unwrap();
+
+        Ok(Some(DymensionKaspaArgs {
+            kas_provider,
+            dym_mailbox,
+        }))
     }
 }

@@ -97,7 +97,9 @@ impl LatestCheckpointReorgReporter {
         settings: &ValidatorSettings,
         origin: &HyperlaneDomain,
     ) -> Vec<(Url, ValidatorSettings)> {
-        use ChainConnectionConf::{Cosmos, CosmosNative, Ethereum, Fuel, Sealevel, Starknet};
+        use ChainConnectionConf::{
+            Cosmos, CosmosNative, Ethereum, Fuel, Kaspa, Sealevel, Starknet,
+        };
 
         let chain_conf = settings
             .chains
@@ -137,6 +139,12 @@ impl LatestCheckpointReorgReporter {
             Starknet(conn) => {
                 // Starknet only has a single RPC URL, so we can use it directly
                 vec![(conn.url.clone(), ChainConnectionConf::Starknet(conn))]
+            }
+            Kaspa(conn) => {
+                vec![(
+                    Url::parse("http://localhost:16200").unwrap(),
+                    ChainConnectionConf::Kaspa(conn),
+                )] // TODO:
             }
         };
 

@@ -7,6 +7,7 @@ export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff
 
 cp /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/ethereum_test/configs/core-config.yaml configs
 
+# deploy to anvil 0
 hyperlane core deploy
 
 # run steps from ethereum_test/commands.sh, up to but not including token

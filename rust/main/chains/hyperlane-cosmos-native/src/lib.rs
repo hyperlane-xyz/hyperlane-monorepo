@@ -7,10 +7,12 @@ mod error;
 mod indexers;
 mod ism;
 mod libs;
-mod mailbox;
+/// mailbox
+pub mod mailbox;
 mod prometheus;
 mod providers;
-mod signers;
+/// signers
+pub mod signers;
 mod trait_builder;
 mod validator_announce;
 

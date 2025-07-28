@@ -1,18 +1,31 @@
 #![allow(unused)] // TODO: remove
+use eyre::{eyre, Result};
 
 mod x;
 
-use core::deposit::*;
-use core::escrow::*;
-use core::util::*;
-use core::wallet::*;
-use relayer::withdraw::*;
-use validator::withdraw::*;
+use corelib::balance::*;
+use corelib::deposit::*;
+use corelib::escrow::*;
+use corelib::user::deposit::deposit_with_payload as deposit;
+use corelib::wallet::*;
+use hardcode::e2e::{
+    get_tn10_config as e2e_config, ADDRESS_PREFIX as e2e_address_prefix,
+    DEPOSIT_AMOUNT as e2e_deposit_amount, NETWORK_ID as e2e_network_id,
+    RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
+};
+use relayer::withdraw::demo::*;
+use relayer::withdraw::hub_to_kaspa::{
+    build_withdrawal_pskt, combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee,
+    fetch_input_utxos,
+};
+use validator::withdraw::safe_bundle as validator_safe_bundle;
+use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
 use x::args::Args;
-use x::consts::*;
 
 use std::sync::Arc;
 
+use corelib::withdraw::WithdrawFXG;
+use hyperlane_core::{HyperlaneMessage, H256};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
     constants::TX_VERSION,
@@ -37,11 +50,12 @@ use kaspa_txscript::{
     pay_to_script_hash_script,
 };
 
-use secp256k1::{Keypair, rand::thread_rng};
+use secp256k1::{rand::thread_rng, Keypair};
 
+use corelib::payload::MessageIDs;
+use corelib::util::get_recipient_script_pubkey_address;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
-
 /*
 Demo:
 The purpose is to test out using a multisig for securing an escrow address.
@@ -63,68 +77,168 @@ Always, we want to get confirmation that everything has worked, been accepted by
 
 We will test against testnet 10. The wallet has 200'000 KAS available.
 
+*/
+async fn load_wallet(args: &Args, url: Option<&str>) -> Result<EasyKaspaWallet> {
+    // if url is none will try to build one
+    // nslookup n-testnet-10.kaspa.ws
+    for u in vec![
+        "65.109.145.174",
+        "152.53.18.176",
+        "57.129.49.28",
+        "95.217.61.211",
+        "185.69.54.99",
+        "23.88.70.20",
+        "122.116.168.37",
+        "152.53.21.111",
+        "152.53.54.29",
+        "89.58.46.206",
+        "79.137.67.110",
+        "38.242.150.130",
+        "167.235.98.225",
+        "144.76.19.91",
+        "184.190.99.128",
+        "157.90.201.188",
+    ] {
+        for pre in ["", "http://", "https://", "ws://", "wss://"] {
+            for suf in ["", ":16210", ":17210"] {
+                let full_url: String = match url {
+                    Some(url) => url.to_string(),
+                    None => format!("{pre}{u}{suf}"),
+                };
+                let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
+                    wallet_secret: args.wallet_secret.as_ref().unwrap().clone(),
+                    rpc_url: full_url.clone(),
+                    net: Network::KaspaTest10,
+                    storage_folder: None,
+                })
+                .await;
+                if w.is_ok() {
+                    println!("Connected to wallet at {full_url}");
+                    return w;
+                }
+            }
+        }
+    }
+    Err(eyre::eyre!("Failed to connect to wallet"))
+}
 
- */
-async fn demo() -> Result<(), Error> {
+async fn demo() -> Result<()> {
     kaspa_core::log::init_logger(None, "");
 
     let args = Args::parse();
 
-    let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
-    let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
+    let w = load_wallet(&args, Some(e2e_url)).await?;
 
-    let rpc = w.rpc_api();
+    let rpc = w.api();
 
-    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
 
-    let e = Escrow::new(2);
-    info!("Created escrow address: {}", e.public(ADDRESS_PREFIX).addr);
+    let e = Escrow::new(2, 3);
+    info!(
+        "Created escrow address: {}",
+        e.public(e2e_address_prefix).addr
+    );
 
-    let amt = DEPOSIT_AMOUNT;
-    let tx_id = deposit(&w, &s, &e, amt, ADDRESS_PREFIX).await?;
+    let amt = e2e_deposit_amount;
+    let escrow_addr = e.public(e2e_address_prefix).addr;
+    let tx_id = deposit(&w.wallet, &w.secret, escrow_addr, 2 * amt, vec![]).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public(ADDRESS_PREFIX).addr).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
+    check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
 
-    let user_addr = w.account()?.receive_address()?;
+    let user_addr = w.account().receive_address()?;
 
-    let pskt_unsigned = build_withdrawal_tx(
-        rpc.as_ref(),
-        &e.public(ADDRESS_PREFIX),
-        user_addr,
-        &w.account()?,
-        amt,
-        RELAYER_NETWORK_FEE,
+    let hl_msg = HyperlaneMessage::default();
+
+    let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes();
+
+    let current_anchor = TransactionOutpoint::new(tx_id, 0);
+
+    let inputs = fetch_input_utxos(
+        &rpc,
+        &e.public(e2e_address_prefix),
+        &w.account().change_address().unwrap(),
+        &current_anchor,
+        e2e_network_id,
     )
-    .await?;
+    .await
+    .map_err(|e| eyre::eyre!("Fetch input utxos: {}", e))?;
 
-    let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
+    let pskt = build_withdrawal_pskt(
+        inputs,
+        vec![TransactionOutput::new(
+            amt,
+            get_recipient_script_pubkey_address(&user_addr),
+        )],
+        payload,
+        &e.public(e2e_address_prefix),
+        &w.account().change_address().unwrap(),
+        e2e_network_id,
+    )
+    .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
-    let tx_id = send_tx(
-        rpc.as_ref(),
-        pskt_signed_vals,
-        pskt_unsigned,
-        &e.public(ADDRESS_PREFIX),
+    info!("Constructed withdrawal PSKT");
+
+    let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
+
+    let fxg = WithdrawFXG::new(
+        Bundle::from(pskt),
+        vec![vec![hl_msg]],
+        vec![current_anchor, new_anchor],
+    );
+
+    let safe_b = validator_safe_bundle(&fxg.bundle)?;
+
+    let input_selector = |i: &Input| match i.redeem_script.clone() {
+        Some(rs) => rs == e.public(e2e_address_prefix).redeem_script,
+        None => false,
+    };
+
+    let val_bundles = e
+        .keys
+        .iter()
+        .take(e.m())
+        .map(|k| validator_sign_withdrawal_fxg(&safe_b, k, Some(input_selector)))
+        .collect::<Result<Vec<_>>>()?;
+
+    info!("Signed withdrawal PSKT");
+
+    let finalized = relayer_combine_bundles_and_pay_fee(
+        val_bundles,
+        &fxg,
+        e.m(),
+        &e.public(e2e_address_prefix),
         &w,
-        &s,
     )
     .await?;
+
+    info!("Signed relayer fee and finalized withdrawal RPC TX");
+
+    finalized.iter().for_each(|tx| {
+        tx.outputs.iter().for_each(|o| {
+            info!("Output: {}", o.value);
+        });
+    });
+
+    let res = rpc
+        .submit_transaction(finalized.first().unwrap().clone(), false)
+        .await?;
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public(ADDRESS_PREFIX).addr).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
+    check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
 
-    w.stop().await?;
+    w.wallet.stop().await?;
     Ok(())
 }
 
 #[tokio::main]
 async fn main() {
     if let Err(e) = demo().await {
-        eprintln!("Error: {}", e);
+        eprintln!("Error: {e}");
     }
 }

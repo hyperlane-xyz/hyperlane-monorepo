@@ -11,6 +11,7 @@ use serde::Serialize;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
 
+use dymension_kaspa;
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
@@ -33,6 +34,7 @@ use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
 };
+use dymension_kaspa::{is_kas, KaspaProvider};
 
 /// A validator agent
 #[derive(Debug, AsRef)]
@@ -60,6 +62,7 @@ pub struct Validator {
     agent_metadata: ValidatorMetadata,
     max_sign_concurrency: usize,
     reorg_reporter: Arc<dyn ReorgReporter>,
+    dymension_kaspa_args: Option<DymensionKaspaArgs>,
 }
 
 /// Metadata for `validator`
@@ -148,6 +151,8 @@ impl BaseAgent for Validator {
             .build_mailbox(&settings.origin_chain, &metrics)
             .await?;
 
+        let dymension_args = Self::get_dymension_kaspa_args(&mailbox).await?;
+
         let merkle_tree_hook = settings
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
             .await?;
@@ -197,6 +202,7 @@ impl BaseAgent for Validator {
             agent_metadata,
             max_sign_concurrency: settings.max_sign_concurrency,
             reorg_reporter,
+            dymension_kaspa_args: dymension_args,
         })
     }
 
@@ -205,7 +211,7 @@ impl BaseAgent for Validator {
         let mut tasks = vec![];
 
         // run server
-        let router = Router::new()
+        let mut router = Router::new()
             .merge(validator_server::router(
                 self.origin_chain.clone(),
                 self.core.metrics.clone(),
@@ -216,6 +222,19 @@ impl BaseAgent for Validator {
                 )
                 .router(),
             );
+
+        warn!("is kaspa: {}", is_kas(&self.origin_chain));
+
+        if is_kas(&self.origin_chain) {
+            let prov = self.dymension_kaspa_args.clone().unwrap().kas_provider;
+            router = router.merge(
+                // TODO: config based
+                dymension_kaspa::router(dymension_kaspa::ValidatorServerResources::new(
+                    Arc::new(self.raw_signer.clone()),
+                    prov,
+                )),
+            )
+        }
 
         let server = self
             .core
@@ -494,5 +513,21 @@ impl Validator {
                 .report_with_reorg_period(&reorg_event.reorg_period)
                 .await;
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct DymensionKaspaArgs {
+    kas_provider: Box<KaspaProvider>,
+}
+
+impl Validator {
+    async fn get_dymension_kaspa_args(
+        kas_mailbox: &Box<dyn Mailbox>,
+    ) -> Result<Option<DymensionKaspaArgs>> {
+        let kas_provider_trait = kas_mailbox.provider();
+        let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
+
+        Ok(Some(DymensionKaspaArgs { kas_provider }))
     }
 }

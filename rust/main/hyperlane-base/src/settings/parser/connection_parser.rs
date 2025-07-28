@@ -7,12 +7,13 @@ use url::Url;
 use h_eth::TransactionOverrides;
 
 use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
+use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken, H256};
 
 use hyperlane_starknet as h_starknet;
 
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
+use std::str::FromStr;
 
 use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
 
@@ -304,6 +305,194 @@ pub fn build_cosmos_native_connection_conf(
     }
 }
 
+pub fn build_kaspa_connection_conf(
+    _rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let wallet_secret = chain
+        .chain(err)
+        .get_opt_key("walletSecret")
+        .parse_string()
+        .end()?;
+
+    let wallet_dir = {
+        chain
+            .chain(err)
+            .get_opt_key("walletDir")
+            .parse_string()
+            .end()
+            .map(|s| s.to_string())
+    };
+
+    let rpc_url_s = chain
+        .chain(err)
+        .get_opt_key("kaspaRpcUrl")
+        .parse_string()
+        .end()?;
+
+    let rest_url_s = chain
+        .chain(err)
+        .get_opt_key("kaspaRestUrl")
+        .parse_string()
+        .end()?;
+
+    let rest_url = Url::parse(&rest_url_s).unwrap(); // TODO: avoid unwrap
+
+    let validator_hosts: Vec<String> = chain
+        .chain(err)
+        .get_key("validatorHosts")
+        .parse_string()
+        .end()?
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+
+    let validator_pubks: Vec<String> = chain
+        .chain(err)
+        .get_key("validatorPubsKaspa")
+        .parse_string()
+        .end()?
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+
+    // TODO: can technically be derived from pub keys
+    let escrow_address = chain
+        .chain(err)
+        .get_key("escrowAddress")
+        .parse_string()
+        .end();
+
+    let kaspa_escrow_private_key_s = chain
+        .chain(err)
+        .get_opt_key("kaspaEscrowPrivateKey")
+        .parse_string()
+        .end();
+
+    let kaspa_escrow_private_key = match kaspa_escrow_private_key_s {
+        Some(s) => Some(s.to_string()),
+        None => None,
+    };
+
+    let threshold_ism = chain
+        .chain(err)
+        .get_key("kaspaMultisigThresholdHubIsm")
+        .parse_u32()
+        .end()?;
+
+    let threshold_escrow = chain
+        .chain(err)
+        .get_key("kaspaMultisigThresholdEscrow")
+        .parse_u32()
+        .end()?;
+
+    let mut local_err = ConfigParsingError::default();
+    let grpcs =
+        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
+
+    let offset_relay_time_hours = chain
+        .chain(err)
+        .get_opt_key("depositLookBackMins")
+        .parse_u64()
+        .end();
+
+    let hub_mailbox_id = chain
+        .chain(err)
+        .get_key("hubMailboxId")
+        .parse_string()
+        .end()
+        .unwrap();
+
+    let validation_conf = {
+        let mut conf = dymension_kaspa::ValidationConf::default();
+        conf.deposit_enabled = chain
+            .chain(err)
+            .get_opt_key("validateDeposit")
+            .parse_bool()
+            .end()
+            .unwrap_or(conf.deposit_enabled);
+        conf.withdrawal_enabled = chain
+            .chain(err)
+            .get_opt_key("validateWithdrawal")
+            .parse_bool()
+            .end()
+            .unwrap_or(conf.withdrawal_enabled);
+        conf.withdrawal_confirmation_enabled = chain
+            .chain(err)
+            .get_opt_key("validateWithdrawalConfirmation")
+            .parse_bool()
+            .end()
+            .unwrap_or(conf.withdrawal_confirmation_enabled);
+        conf
+    };
+
+    let hub_domain = chain
+        .chain(err)
+        .get_opt_key("hubDomain")
+        .parse_u32()
+        .end()
+        .unwrap_or(0);
+
+    let hub_token_id = match chain
+        .chain(err)
+        .get_opt_key("hubTokenId")
+        .parse_string()
+        .end()
+    {
+        Some(s) => {
+            let ss: &String = &s.to_owned();
+            H256::from_str(ss).unwrap()
+        }
+        None => H256::default(),
+    };
+
+    let kas_domain = chain
+        .chain(err)
+        .get_opt_key("kasDomain")
+        .parse_u32()
+        .end()
+        .unwrap_or(0);
+
+    let kas_token_placeholder = match chain
+        .chain(err)
+        .get_opt_key("kasTokenId")
+        .parse_string()
+        .end()
+    {
+        Some(s) => {
+            let ss: &String = &s.to_owned();
+            H256::from_str(ss).unwrap()
+        }
+        None => H256::default(),
+    };
+
+    Some(ChainConnectionConf::Kaspa(
+        dymension_kaspa::ConnectionConf::new(
+            wallet_secret.to_owned(),
+            wallet_dir,
+            rpc_url_s.to_owned(),
+            rest_url,
+            validator_hosts,
+            validator_pubks,
+            escrow_address.unwrap().to_string(),
+            kaspa_escrow_private_key,
+            threshold_ism as usize,
+            threshold_escrow as usize,
+            grpcs,
+            offset_relay_time_hours,
+            hub_mailbox_id.to_owned(),
+            operation_batch,
+            validation_conf,
+            hub_domain,
+            hub_token_id,
+            kas_domain,
+            kas_token_placeholder,
+        ),
+    ))
+}
+
 fn build_sealevel_connection_conf(
     urls: &[Url],
     chain: &ValueParser,
@@ -530,6 +719,9 @@ pub fn build_connection_conf(
         }),
         HyperlaneDomainProtocol::CosmosNative => {
             build_cosmos_native_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        HyperlaneDomainProtocol::Kaspa => {
+            build_kaspa_connection_conf(rpcs, chain, err, operation_batch)
         }
     }
 }

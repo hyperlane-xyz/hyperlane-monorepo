@@ -1,12 +1,13 @@
 [package]
 name = "demo-multisig"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-core = { path = "../../lib/core" }
+corelib = { path = "../../lib/core", package = "core" }
 relayer = { path = "../../lib/relayer" }
 validator = { path = "../../lib/validator" }
+hardcode = { path = "../../lib/hardcode" }
 kaspa-addresses = { workspace = true }
 kaspa-consensus-core = { workspace = true }
 kaspa-core = { workspace = true }
@@ -20,3 +21,5 @@ workflow-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
 clap = { workspace = true }
+eyre = { workspace = true }
+hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }

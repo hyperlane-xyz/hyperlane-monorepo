@@ -22,21 +22,35 @@ rustc -V
 ### Resources
 
 TN10 is running v1.0.0 https://wiki.kaspa.org/en/testnets
+
 Endpoint: https://api-tn10.kaspa.org/
+
 Faucet: https://faucet-tn10.kaspanet.io/
 
+Kaspa Sources: https://github.com/kaspanet/rusty-kaspa
+
 ### Node
+
+The node should be run with argumetns from `kaspad.toml`. If built from sources:
 
 ```bash
 # launch a node which can be used as an RPC server
 cargo run --release --bin kaspad -- -C /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/libs/kaspa/demo-multisig/kaspad.toml
 ```
 
+Using binary: 
+
+```bash
+kaspad -C kaspad.toml
+```
+
+The node will take around 30 mins to 2 hours to sync. Find more about stages: https://wiki.kaspa.org/en/setting-up-a-cli-node
+
 ### Program
 
 ```bash
 cargo run # it will generate a private key, then fund it
-cargo run -- -k $PRIVATE_KEY
+cargo run -- -r 
 ```
 
 ## Multisig Theory
