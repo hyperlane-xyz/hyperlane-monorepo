@@ -176,6 +176,8 @@ export {
   MerkleProof,
   MessageStatus,
   Numberish,
+  OperatorChain,
+  OperatorChainValue,
   ParsedLegacyMultisigIsmMetadata,
   ParsedMessage,
   ProtocolSmallestUnit,
