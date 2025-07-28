@@ -21,6 +21,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { RadixIsmReader } from './RadixIsmReader.js';
 import {
+  DomainRoutingIsmConfig,
   IsmConfig,
   IsmConfigSchema,
   IsmType,
@@ -155,6 +156,9 @@ export class RadixIsmModule extends HyperlaneModule<
       case IsmType.MESSAGE_ID_MULTISIG: {
         return this.deployMessageIdMultisigIsm(config);
       }
+      case IsmType.ROUTING: {
+        return this.deployRoutingIsm(config);
+      }
       case IsmType.TEST_ISM: {
         return this.deployNoopIsm();
       }
@@ -186,6 +190,33 @@ export class RadixIsmModule extends HyperlaneModule<
     return this.signer.tx.createMessageIdMultisigIsm({
       validators: config.validators,
       threshold: config.threshold,
+    });
+  }
+
+  protected async deployRoutingIsm(
+    config: DomainRoutingIsmConfig,
+  ): Promise<Address> {
+    const routes = [];
+
+    // deploy ISMs for each domain
+    for (const chainName of Object.keys(config.domains)) {
+      const domainId = this.metadataManager.tryGetDomainId(chainName);
+      if (!domainId) {
+        this.logger.warn(
+          `Unknown chain ${chainName}, skipping ISM configuration`,
+        );
+        continue;
+      }
+
+      const address = await this.deploy({ config: config.domains[chainName] });
+      routes.push({
+        ism: address,
+        domain: domainId,
+      });
+    }
+
+    return this.signer.tx.createRoutingIsm({
+      routes,
     });
   }
 

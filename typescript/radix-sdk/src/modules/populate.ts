@@ -203,6 +203,27 @@ export class RadixPopulate {
     );
   }
 
+  public createRoutingIsm({
+    from_address,
+    routes,
+  }: {
+    from_address: string;
+    routes: { ism: string; domain: number }[];
+  }) {
+    return this.createCallFunctionManifest(
+      from_address,
+      this.packageAddress,
+      'RoutingIsm',
+      'instantiate',
+      [
+        array(
+          ValueKind.Tuple,
+          ...routes.map((r) => tuple(u32(r.domain), address(r.ism))),
+        ),
+      ],
+    );
+  }
+
   public createNoopIsm({ from_address }: { from_address: string }) {
     return this.createCallFunctionManifest(
       from_address,

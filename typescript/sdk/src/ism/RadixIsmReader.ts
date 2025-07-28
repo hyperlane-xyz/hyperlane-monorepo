@@ -3,7 +3,12 @@ import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 
-import { DerivedIsmConfig, IsmType, MultisigIsmConfig } from './types.js';
+import {
+  DerivedIsmConfig,
+  DomainRoutingIsmConfig,
+  IsmType,
+  MultisigIsmConfig,
+} from './types.js';
 
 export class RadixIsmReader {
   protected readonly logger = rootLogger.child({
@@ -17,19 +22,21 @@ export class RadixIsmReader {
 
   async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
     try {
-      const ism = await this.sdk.query.getIsm({ ism: address });
+      const ismType = await this.sdk.query.getIsmType({ ism: address });
 
-      assert(ism, `ISM with id ${address} not found`);
+      assert(ismType, `ISM with id ${address} not found`);
 
-      switch (ism.type) {
+      switch (ismType) {
         case 'MerkleRootMultisigIsm':
           return this.deriveMerkleRootMultisigConfig(address);
         case 'MessageIdMultisigIsm':
           return this.deriveMessageIdMultisigConfig(address);
+        case 'RoutingIsm':
+          return this.deriveRoutingIsmConfig(address);
         case 'NoopIsm':
           return this.deriveTestConfig(address);
         default:
-          throw new Error(`Unknown ISM ModuleType: ${ism.type}`);
+          throw new Error(`Unknown ISM ModuleType: ${ismType}`);
       }
     } catch (error) {
       this.logger.error(`Failed to derive ISM config for ${address}`, error);
@@ -40,7 +47,7 @@ export class RadixIsmReader {
   private async deriveMerkleRootMultisigConfig(
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
-    const ism = await this.sdk.query.getIsm({ ism: address });
+    const ism = await this.sdk.query.getMultisigIsm({ ism: address });
 
     return {
       type: IsmType.MERKLE_ROOT_MULTISIG,
@@ -53,13 +60,40 @@ export class RadixIsmReader {
   private async deriveMessageIdMultisigConfig(
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
-    const ism = await this.sdk.query.getIsm({ ism: address });
+    const ism = await this.sdk.query.getMultisigIsm({ ism: address });
 
     return {
       type: IsmType.MESSAGE_ID_MULTISIG,
       address,
       validators: ism.validators,
       threshold: ism.threshold,
+    };
+  }
+
+  private async deriveRoutingIsmConfig(
+    address: Address,
+  ): Promise<WithAddress<DomainRoutingIsmConfig>> {
+    const ism = await this.sdk.query.getRoutingIsm({ ism: address });
+
+    const domains: DomainRoutingIsmConfig['domains'] = {};
+
+    for (const route of ism.routes) {
+      const chainName = this.metadataManager.tryGetChainName(route.domain);
+      if (!chainName) {
+        this.logger.warn(
+          `Unknown domain ID ${route.domain}, skipping domain configuration`,
+        );
+        continue;
+      }
+
+      domains[chainName] = await this.deriveIsmConfig(route.ism);
+    }
+
+    return {
+      type: IsmType.ROUTING,
+      address,
+      owner: ism.owner,
+      domains,
     };
   }
 

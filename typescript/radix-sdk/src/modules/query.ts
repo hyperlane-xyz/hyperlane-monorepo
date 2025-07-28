@@ -274,11 +274,24 @@ export class RadixQuery {
     return result;
   }
 
-  public async getIsm({ ism }: { ism: string }): Promise<{
+  public async getIsmType({
+    ism,
+  }: {
+    ism: string;
+  }): Promise<
+    'MerkleRootMultisigIsm' | 'MessageIdMultisigIsm' | 'RoutingIsm' | 'NoopIsm'
+  > {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(ism);
+
+    return (details.details as any).blueprint_name;
+  }
+
+  public async getMultisigIsm({ ism }: { ism: string }): Promise<{
     address: string;
     type: 'MerkleRootMultisigIsm' | 'MessageIdMultisigIsm' | 'NoopIsm';
-    validators: string[];
     threshold: number;
+    validators: string[];
   }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(ism);
@@ -297,6 +310,81 @@ export class RadixQuery {
     };
 
     return result;
+  }
+
+  public async getRoutingIsm({ ism }: { ism: string }): Promise<{
+    address: string;
+    owner: string;
+    routes: {
+      domain: number;
+      ism: string;
+    }[];
+  }> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(ism);
+
+    const ownerResource = (details.details as any).role_assignments.owner.rule
+      .access_rule.proof_rule.requirement.resource;
+
+    const { items: holders } =
+      await this.gateway.extensions.getResourceHolders(ownerResource);
+
+    const resourceHolders = [
+      ...new Set(holders.map((item) => item.holder_address)),
+    ];
+
+    assert(
+      resourceHolders.length === 1,
+      `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
+    );
+
+    const type = (details.details as any).blueprint_name;
+    assert(
+      type === 'RoutingIsm',
+      `ism is not a RoutingIsm, instead got ${type}`,
+    );
+
+    const fields = (details.details as any).state.fields;
+
+    const routesKeyValueStore =
+      fields.find((f: any) => f.field_name === 'routes')?.value ?? '';
+    assert(routesKeyValueStore, `found no routes on RoutingIsm ${ism}`);
+
+    const { items } = await this.gateway.state.innerClient.keyValueStoreKeys({
+      stateKeyValueStoreKeysRequest: {
+        key_value_store_address: routesKeyValueStore,
+      },
+    });
+
+    const routes = [];
+
+    for (const { key } of items) {
+      const { entries } =
+        await this.gateway.state.innerClient.keyValueStoreData({
+          stateKeyValueStoreDataRequest: {
+            key_value_store_address: routesKeyValueStore,
+            keys: [
+              {
+                key_hex: key.raw_hex,
+              },
+            ],
+          },
+        });
+
+      const domain = parseInt((key.programmatic_json as any)?.value ?? '0');
+      const ism = (entries[0].value.programmatic_json as any).value;
+
+      routes.push({
+        domain,
+        ism,
+      });
+    }
+
+    return {
+      address: ism,
+      owner: resourceHolders[0],
+      routes,
+    };
   }
 
   public async getIgpHook({ hook }: { hook: string }): Promise<{

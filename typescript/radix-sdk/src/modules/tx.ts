@@ -122,6 +122,22 @@ export class RadixTx {
     return await this.getNewComponent(intentHashTransactionId);
   }
 
+  public async createRoutingIsm({
+    routes,
+  }: {
+    routes: { ism: string; domain: number }[];
+  }) {
+    const transactionManifest = this.populate.createRoutingIsm({
+      from_address: this.account.address,
+      routes,
+    });
+
+    const intentHashTransactionId =
+      await this.signAndBroadcast(transactionManifest);
+
+    return await this.getNewComponent(intentHashTransactionId);
+  }
+
   public async createNoopIsm() {
     const transactionManifest = this.populate.createNoopIsm({
       from_address: this.account.address,
