@@ -2,7 +2,6 @@ import { RadixSDK, RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { NativeToken } from '../metadata/chainMetadataTypes.js';
 
 import {
   DerivedHookConfig,
@@ -46,19 +45,11 @@ export class RadixHookReader {
     const overhead: IgpHookConfig['overhead'] = {};
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
 
-    Object.keys(igp.destination_gas_configs).forEach((domainId) => {
-      let name = '';
-      let nativeToken = {} as NativeToken;
+    Object.keys(igp.destination_gas_configs).forEach((remoteDomain) => {
+      const { name, nativeToken } =
+        this.metadataManager.getChainMetadata(remoteDomain);
 
-      // TODO: RADIX
-      // domain id 1337 does not exist but is hardcoded in the contracts for testing
-      if (domainId === '1337') {
-        const metadata = this.metadataManager.getChainMetadata('11155111');
-        name = metadata.name;
-        nativeToken = metadata.nativeToken || ({} as NativeToken);
-      }
-
-      const gasConfig = igp.destination_gas_configs[domainId];
+      const gasConfig = igp.destination_gas_configs[remoteDomain];
 
       overhead[name] = parseInt(gasConfig.gas_overhead);
       oracleConfig[name] = {
@@ -67,9 +58,6 @@ export class RadixHookReader {
         tokenDecimals: nativeToken?.decimals,
       };
     });
-
-    // TODO: RADIX
-    // get beneficiary and oracleKey once implemented
 
     return {
       type: HookType.INTERCHAIN_GAS_PAYMASTER,

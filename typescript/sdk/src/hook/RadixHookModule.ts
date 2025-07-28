@@ -8,6 +8,7 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -149,7 +150,7 @@ export class RadixHookModule extends HyperlaneModule<
   }
 
   protected async deployIgpHook({
-    config: _config,
+    config,
   }: {
     config: IgpHookConfig;
   }): Promise<Address> {
@@ -162,9 +163,36 @@ export class RadixHookModule extends HyperlaneModule<
       `found no native token denom for chain ${this.chain}`,
     );
 
-    // TODO: RADIX
-    // set destination gas configs
-    return this.signer.tx.createIgp({ denom: nativeToken.denom });
+    const igp = await this.signer.tx.createIgp({ denom: nativeToken.denom });
+
+    for (const [remote, c] of Object.entries(config.oracleConfig)) {
+      const remoteDomain = this.metadataManager.tryGetDomainId(remote);
+      if (remoteDomain === null) {
+        this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
+        continue;
+      }
+
+      await this.signer.tx.setDestinationGasConfig({
+        igp,
+        destination_gas_config: {
+          remote_domain: remoteDomain.toString(),
+          gas_oracle: {
+            token_exchange_rate: c.tokenExchangeRate,
+            gas_price: c.gasPrice,
+          },
+          gas_overhead: config.overhead[remote].toString(),
+        },
+      });
+    }
+
+    if (!eqAddress(this.signer.getAddress(), config.owner)) {
+      await this.signer.tx.setIgpOwner({
+        igp,
+        new_owner: config.owner,
+      });
+    }
+
+    return igp;
   }
 
   protected async deployMerkleTreeHook(): Promise<Address> {

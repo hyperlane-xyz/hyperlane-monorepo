@@ -10,9 +10,11 @@ import {
   enumeration,
   expression,
   str,
+  tuple,
   u8,
   u32,
   u64,
+  u128,
 } from '@radixdlt/radix-engine-toolkit';
 import { BigNumber } from 'bignumber.js';
 import { Decimal } from 'decimal.js';
@@ -121,6 +123,7 @@ export class RadixPopulate {
         (builder, bucketId) =>
           builder.callMethod(to_address, 'try_deposit_or_abort', [
             bucket(bucketId),
+            enumeration(0),
           ]),
       )
       .build();
@@ -140,29 +143,6 @@ export class RadixPopulate {
       'mailbox_instantiate',
       [u32(domain_id)],
     );
-  }
-
-  public async setIgpOwner({
-    from_address,
-    igp,
-    new_owner,
-  }: {
-    from_address: string;
-    igp: string;
-    new_owner: string;
-  }) {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(igp);
-
-    const resource = (details.details as any).role_assignments.owner.rule
-      .access_rule.proof_rule.requirement.resource;
-
-    return this.transfer({
-      from_address,
-      to_address: new_owner,
-      resource_address: resource,
-      amount: '1',
-    });
   }
 
   public createMerkleTreeHook({
@@ -246,6 +226,67 @@ export class RadixPopulate {
       'InterchainGasPaymaster',
       'instantiate',
       [address(denom)],
+    );
+  }
+
+  public async setIgpOwner({
+    from_address,
+    igp,
+    new_owner,
+  }: {
+    from_address: string;
+    igp: string;
+    new_owner: string;
+  }) {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(igp);
+
+    const resource = (details.details as any).role_assignments.owner.rule
+      .access_rule.proof_rule.requirement.resource;
+
+    return this.transfer({
+      from_address,
+      to_address: new_owner,
+      resource_address: resource,
+      amount: '1',
+    });
+  }
+
+  public async setDestinationGasConfig({
+    from_address,
+    igp,
+    destination_gas_config,
+  }: {
+    from_address: string;
+    igp: string;
+    destination_gas_config: {
+      remote_domain: string;
+      gas_oracle: {
+        token_exchange_rate: string;
+        gas_price: string;
+      };
+      gas_overhead: string;
+    };
+  }) {
+    return this.createCallMethodManifestWithOwner(
+      from_address,
+      igp,
+      'set_destination_gas_configs',
+      [
+        array(
+          ValueKind.Tuple,
+          tuple(
+            u32(destination_gas_config.remote_domain),
+            tuple(
+              tuple(
+                u128(destination_gas_config.gas_oracle.token_exchange_rate),
+                u128(destination_gas_config.gas_oracle.gas_price),
+              ),
+              u128(destination_gas_config.gas_overhead),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

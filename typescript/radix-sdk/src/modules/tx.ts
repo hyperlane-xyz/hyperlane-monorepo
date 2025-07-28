@@ -57,35 +57,13 @@ export class RadixTx {
       amount,
     });
 
-    const intentHashTransactionId =
-      await this.signAndBroadcast(transactionManifest);
-
-    return await this.getNewComponent(intentHashTransactionId);
+    await this.signAndBroadcast(transactionManifest);
   }
 
   public async createMailbox({ domain_id }: { domain_id: number }) {
     const transactionManifest = this.populate.createMailbox({
       from_address: this.account.address,
       domain_id,
-    });
-
-    const intentHashTransactionId =
-      await this.signAndBroadcast(transactionManifest);
-
-    return await this.getNewComponent(intentHashTransactionId);
-  }
-
-  public async setIgpOwner({
-    igp,
-    new_owner,
-  }: {
-    igp: string;
-    new_owner: string;
-  }) {
-    const transactionManifest = await this.populate.setIgpOwner({
-      from_address: this.account.address,
-      igp,
-      new_owner,
     });
 
     const intentHashTransactionId =
@@ -167,6 +145,45 @@ export class RadixTx {
     return await this.getNewComponent(intentHashTransactionId);
   }
 
+  public async setIgpOwner({
+    igp,
+    new_owner,
+  }: {
+    igp: string;
+    new_owner: string;
+  }) {
+    const transactionManifest = await this.populate.setIgpOwner({
+      from_address: this.account.address,
+      igp,
+      new_owner,
+    });
+
+    await this.signAndBroadcast(transactionManifest);
+  }
+
+  public async setDestinationGasConfig({
+    igp,
+    destination_gas_config,
+  }: {
+    igp: string;
+    destination_gas_config: {
+      remote_domain: string;
+      gas_oracle: {
+        token_exchange_rate: string;
+        gas_price: string;
+      };
+      gas_overhead: string;
+    };
+  }) {
+    const transactionManifest = await this.populate.setDestinationGasConfig({
+      from_address: this.account.address,
+      igp,
+      destination_gas_config,
+    });
+
+    await this.signAndBroadcast(transactionManifest);
+  }
+
   public async setMailboxOwner({
     mailbox,
     new_owner,
@@ -180,10 +197,7 @@ export class RadixTx {
       new_owner,
     });
 
-    const intentHashTransactionId =
-      await this.signAndBroadcast(transactionManifest);
-
-    return await this.getNewComponent(intentHashTransactionId);
+    await this.signAndBroadcast(transactionManifest);
   }
 
   public async createValidatorAnnounce({ mailbox }: { mailbox: string }) {
@@ -306,10 +320,7 @@ export class RadixTx {
       new_owner,
     });
 
-    const intentHashTransactionId =
-      await this.signAndBroadcast(transactionManifest);
-
-    return await this.getNewComponent(intentHashTransactionId);
+    await this.signAndBroadcast(transactionManifest);
   }
 
   public async setTokenIsm({ token, ism }: { token: string; ism: string }) {

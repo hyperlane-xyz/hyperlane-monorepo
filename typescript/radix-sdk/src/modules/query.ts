@@ -77,8 +77,6 @@ export class RadixQuery {
       `${(response.receipt as any).error_message}`,
     );
 
-    console.log('response', JSON.stringify(response));
-
     return {
       amount: BigInt(0),
     };
@@ -325,11 +323,11 @@ export class RadixQuery {
     const ownerResource = (details.details as any).role_assignments.owner.rule
       .access_rule.proof_rule.requirement.resource;
 
-    const { items } =
+    const { items: holders } =
       await this.gateway.extensions.getResourceHolders(ownerResource);
 
     const resourceHolders = [
-      ...new Set(items.map((item) => item.holder_address)),
+      ...new Set(holders.map((item) => item.holder_address)),
     ];
 
     assert(
@@ -338,37 +336,60 @@ export class RadixQuery {
     );
 
     const fields = (details.details as any).state.fields;
+
+    const destinationGasConfigsKeyValueStore =
+      fields.find((f: any) => f.field_name === 'destination_gas_configs')
+        ?.value ?? '';
+
+    assert(
+      destinationGasConfigsKeyValueStore,
+      `found no destination gas configs on hook ${hook}`,
+    );
+
     const destination_gas_configs = {};
 
-    const entries: any[] =
-      fields.find((f: any) => f.field_name === 'destination_gas_configs')
-        ?.entries ?? [];
+    const { items } = await this.gateway.state.innerClient.keyValueStoreKeys({
+      stateKeyValueStoreKeysRequest: {
+        key_value_store_address: destinationGasConfigsKeyValueStore,
+      },
+    });
 
-    for (const entry of entries) {
-      const domainId = entry.key.value;
+    for (const { key } of items) {
+      const { entries } =
+        await this.gateway.state.innerClient.keyValueStoreData({
+          stateKeyValueStoreDataRequest: {
+            key_value_store_address: destinationGasConfigsKeyValueStore,
+            keys: [
+              {
+                key_hex: key.raw_hex,
+              },
+            ],
+          },
+        });
 
-      const gas_overhead =
-        entry.value.fields.find((f: any) => f.field_name === 'gas_overhead')
-          ?.value ?? '0';
+      const remoteDomain = (key.programmatic_json as any)?.value ?? '0';
 
-      const gas_oracle =
-        entry.value.fields.find((f: any) => f.field_name === 'gas_oracle')
+      const gasConfigFields = (entries[0].value.programmatic_json as any)
+        .fields;
+
+      const gasOracleFields =
+        gasConfigFields.find((r: any) => r.field_name === 'gas_oracle')
           ?.fields ?? [];
 
-      const token_exchange_rate =
-        gas_oracle.find((f: any) => f.field_name === 'token_exchange_rate')
-          ?.value ?? '0';
-
-      const gas_price =
-        gas_oracle.find((f: any) => f.field_name === 'gas_price')?.value ?? '0';
-
       Object.assign(destination_gas_configs, {
-        [domainId]: {
+        [remoteDomain]: {
           gas_oracle: {
-            token_exchange_rate,
-            gas_price,
+            token_exchange_rate:
+              gasOracleFields.find(
+                (r: any) => r.field_name === 'token_exchange_rate',
+              )?.value ?? '0',
+            gas_price:
+              gasOracleFields.find((r: any) => r.field_name === 'gas_price')
+                ?.value ?? '0',
           },
-          gas_overhead,
+          gas_overhead:
+            gasConfigFields.find((r: any) => r.field_name === 'gas_overhead')
+              ?.value ?? '0',
         },
       });
     }

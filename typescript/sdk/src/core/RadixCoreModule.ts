@@ -155,7 +155,10 @@ export class RadixCoreModule extends HyperlaneModule<
     await signer.tx.setDefaultIsm({ mailbox, ism: defaultIsm });
     await signer.tx.setDefaultHook({ mailbox, hook: defaultHook });
     await signer.tx.setRequiredHook({ mailbox, hook: requiredHook });
-    await signer.tx.setMailboxOwner({ mailbox, new_owner: config.owner });
+
+    if (!eqAddress(signer.getAddress(), config.owner)) {
+      await signer.tx.setMailboxOwner({ mailbox, new_owner: config.owner });
+    }
 
     const addresses: DeployedCoreAddresses = {
       mailbox,
