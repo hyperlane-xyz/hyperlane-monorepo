@@ -131,6 +131,7 @@ export class EvmEventLogsReader {
     protected readonly multiProvider: MultiProvider,
     protected logReaderStrategy: IEvmEventLogsReaderStrategy,
     protected readonly logger: Logger,
+    protected fallbackLogReaderSrategy?: IEvmEventLogsReaderStrategy,
   ) {}
 
   static fromConfig(
@@ -143,10 +144,17 @@ export class EvmEventLogsReader {
     const explorer = multiProvider.tryGetEvmExplorerMetadata(config.chain);
 
     let logReaderStrategy: IEvmEventLogsReaderStrategy;
+    let fallbackLogReaderSrategy: IEvmEventLogsReaderStrategy | undefined;
     if (explorer && !config.useRPC) {
       logReaderStrategy = new EvmEtherscanLikeEventLogsReader(
         config.chain,
         explorer,
+        multiProvider,
+      );
+
+      fallbackLogReaderSrategy = new EvmRpcEventLogsReader(
+        config.chain,
+        { paginationBlockRange: config.paginationBlockRange },
         multiProvider,
       );
     } else {
@@ -162,14 +170,13 @@ export class EvmEventLogsReader {
       multiProvider,
       logReaderStrategy,
       logger,
+      fallbackLogReaderSrategy,
     );
   }
 
   async getLogsByTopic(
     options: GetLogByTopicOptions,
   ): Promise<GetEventLogsResponse[]> {
-    const parsedOptions = GetLogByTopicOptionsSchema.parse(options);
-
     const provider = this.multiProvider.getProvider(this.config.chain);
     await assertIsContractAddress(
       this.multiProvider,
@@ -177,14 +184,50 @@ export class EvmEventLogsReader {
       options.contractAddress,
     );
 
+    try {
+      // do NOT remove the await here it is on purpose to catch any error
+      // here to fallback to the rpc if any is set.
+      // Removing the await will cause the caller to handle the error if any
+      // and the fallback logic won't run
+      const res = await this.getLogsByTopicWithStrategy(
+        options,
+        provider,
+        this.logReaderStrategy,
+      );
+
+      return res;
+    } catch (err) {
+      if (!this.fallbackLogReaderSrategy) {
+        throw err;
+      }
+
+      this.logger.debug(
+        `Failed to read logs on chain "${this.config.chain}": ${err}. Falling back to using the RPC`,
+      );
+
+      return this.getLogsByTopicWithStrategy(
+        options,
+        provider,
+        this.fallbackLogReaderSrategy,
+      );
+    }
+  }
+
+  private async getLogsByTopicWithStrategy(
+    options: GetLogByTopicOptions,
+    provider: ReturnType<MultiProvider['getProvider']>,
+    logReaderStrategy: IEvmEventLogsReaderStrategy,
+  ): Promise<GetEventLogsResponse[]> {
+    const parsedOptions = GetLogByTopicOptionsSchema.parse(options);
+
     const fromBlock =
       parsedOptions.fromBlock ??
-      (await this.logReaderStrategy.getContractDeploymentBlockNumber(
+      (await logReaderStrategy.getContractDeploymentBlockNumber(
         parsedOptions.contractAddress,
       ));
     const toBlock = parsedOptions.toBlock ?? (await provider.getBlockNumber());
 
-    return this.logReaderStrategy.getContractLogs({
+    return logReaderStrategy.getContractLogs({
       contractAddress: parsedOptions.contractAddress,
       eventTopic: parsedOptions.eventTopic,
       fromBlock,
