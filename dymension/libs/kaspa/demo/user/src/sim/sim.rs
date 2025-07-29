@@ -19,6 +19,7 @@ use std::time::SystemTime;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
+use tracing::debug;
 
 use crate::x::args::{SimulateTrafficCli, WalletCli};
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
@@ -265,6 +266,7 @@ async fn fund_hub_addr(
     amount: u64,
 ) -> Result<()> {
     let hub_addr = hub_key.signer().address_string.clone();
+    debug!("funding hub address: {}", hub_addr);
     let rpc = hub.rpc();
     let msg = MsgSend {
         from_address: rpc.get_signer()?.address_string.clone(),

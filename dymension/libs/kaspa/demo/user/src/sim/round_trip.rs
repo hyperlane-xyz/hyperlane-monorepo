@@ -178,6 +178,22 @@ impl RoundTrip {
                 .res
                 .hub
                 .rpc()
+                .get_balance_denom(a.clone(), "adym".to_string())
+                .await?;
+            if balance == U256::from(0) {
+                if self.cancel.is_cancelled() {
+                    return Err(RoundTripError::Cancelled.into());
+                }
+                tokio::time::sleep(Duration::from_millis(1000)).await;
+                continue;
+            }
+            break;
+        }
+        loop {
+            let balance = self
+                .res
+                .hub
+                .rpc()
                 .get_balance_denom(a.clone(), self.res.args.hub_denom())
                 .await?;
             if balance == U256::from(0) {
@@ -221,7 +237,7 @@ impl RoundTrip {
             recipient,
             amount,
             custom_hook_id: "".to_string(),
-            gas_limit: "".to_string(),
+            gas_limit: "0".to_string(),
             max_fee: Some(Coin {
                 denom: "adym".to_string(),
                 amount: "1000".to_string(),
