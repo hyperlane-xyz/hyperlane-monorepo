@@ -11,6 +11,7 @@ use derive_more::AsRef;
 use eyre::Result;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
+use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
@@ -32,7 +33,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment, Mailbox,
     MerkleTreeInsertion, QueueOperation, H512, U256,
 };
 
@@ -171,6 +172,16 @@ impl BaseAgent for Relayer {
         let db = DB::from_path(&settings.db)?;
 
         start_entity_init = Instant::now();
+        let application_operation_verifiers =
+            Self::build_application_operation_verifiers(&settings, &core_metrics, &chain_metrics)
+                .await;
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized application operation verifiers", "Relayer startup duration measurement");
+
+        start_entity_init = Instant::now();
+        let mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
+        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized mailbox", "Relayer startup duration measurement");
+
+        start_entity_init = Instant::now();
         let origins =
             Self::build_origins(&settings, db.clone(), core_metrics.clone(), &chain_metrics).await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized origin chains", "Relayer startup duration measurement");
@@ -250,28 +261,28 @@ impl BaseAgent for Relayer {
         let mut msg_ctxs = HashMap::new();
         let mut destination_chains = HashMap::new();
 
-        //
-        for (dest_domain, destination) in origins.iter() {
-            let destination_chain_setup = match core.settings.chain_setup(dest_domain) {
+        for (destination, dest_mailbox) in mailboxes.iter() {
+            let destination_chain_setup = match core.settings.chain_setup(destination) {
                 Ok(setup) => setup.clone(),
                 Err(err) => {
-                    tracing::error!(domain=?dest_domain, ?err, "Destination chain setup failed");
+                    tracing::error!(?destination, ?err, "Destination chain setup failed");
                     continue;
                 }
             };
-            destination_chains.insert(dest_domain.clone(), destination_chain_setup.clone());
+            destination_chains.insert(destination.clone(), destination_chain_setup.clone());
             let transaction_gas_limit: Option<U256> =
-                if skip_transaction_gas_limit_for.contains(&dest_domain.id()) {
+                if skip_transaction_gas_limit_for.contains(&destination.id()) {
                     None
                 } else {
                     transaction_gas_limit
                 };
 
+            let application_operation_verifier = application_operation_verifiers.get(destination);
+
             // only iterate through origin chains that were successfully instantiated
             for (origin_domain, origin) in origins.iter() {
                 let db = &origin.database;
 
-                let dest_mailbox = &destination.mailbox;
                 let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
                 let origin_chain_setup = match core.settings.chain_setup(origin_domain) {
                     Ok(chain_setup) => chain_setup.clone(),
@@ -280,16 +291,15 @@ impl BaseAgent for Relayer {
                         continue;
                     }
                 };
-                let application_operation_verifier = &origin.application_operation_verifier;
-                let prover_sync = &origin.prover_sync;
-                let origin_gas_payment_enforcer = &origin.gas_payment_enforcer;
-                let validator_announce = &origin.validator_announce;
+                let prover_sync = origin.prover_sync.clone();
+                let origin_gas_payment_enforcer = origin.gas_payment_enforcer.clone();
+                let validator_announce = origin.validator_announce.clone();
 
                 // Extract optional Ethereum signer for CCIP-read authentication
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin_domain.clone(),
                     destination_chain_setup.clone(),
-                    prover_sync.clone(),
+                    prover_sync,
                     validator_announce.clone(),
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
@@ -303,30 +313,28 @@ impl BaseAgent for Relayer {
                         default_ism_getter.clone(),
                         settings.ism_cache_configs.clone(),
                     ),
-                    ccip_signers.get(dest_domain).cloned().flatten(),
+                    ccip_signers.get(destination).cloned().flatten(),
                     origin_chain_setup.ignore_reorg_reports,
                 );
 
                 msg_ctxs.insert(
                     ContextKey {
                         origin: origin_domain.clone(),
-                        destination: dest_domain.clone(),
+                        destination: destination.clone(),
                     },
                     Arc::new(MessageContext {
                         destination_mailbox: dest_mailbox.clone(),
                         origin_db: Arc::new(db.clone()),
                         cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),
-                        origin_gas_payment_enforcer: origin_gas_payment_enforcer.clone(),
+                        origin_gas_payment_enforcer,
                         transaction_gas_limit,
                         metrics: MessageSubmissionMetrics::new(
                             &core_metrics,
                             origin_domain,
-                            dest_domain,
+                            destination,
                         ),
-                        application_operation_verifier: Some(
-                            application_operation_verifier.clone(),
-                        ),
+                        application_operation_verifier: application_operation_verifier.cloned(),
                     }),
                 );
             }
@@ -1023,6 +1031,64 @@ impl Relayer {
                 }
             })
             .collect::<HashMap<_, _>>()
+    }
+
+    /// Helper function to build and return a hashmap of mailboxes.
+    /// Any chains that fail to build mailbox will not be included
+    /// in the hashmap. Errors will be logged and chain metrics
+    /// will be updated for chains that fail to build mailbox.
+    pub async fn build_mailboxes(
+        settings: &RelayerSettings,
+        core_metrics: &CoreMetrics,
+        chain_metrics: &ChainMetrics,
+    ) -> HashMap<HyperlaneDomain, Arc<dyn Mailbox>> {
+        settings
+            .build_mailboxes(settings.destination_chains.iter(), core_metrics)
+            .await
+            .into_iter()
+            .filter_map(|(origin, mailbox_res)| match mailbox_res {
+                Ok(mailbox) => Some((origin, mailbox)),
+                Err(err) => {
+                    Self::record_critical_error(
+                        &origin,
+                        chain_metrics,
+                        &err,
+                        "Critical error when building mailbox",
+                    );
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Helper function to build and return a hashmap of application operation verifiers.
+    /// Any chains that fail to build application operation verifier will not be included
+    /// in the hashmap. Errors will be logged and chain metrics
+    /// will be updated for chains that fail to build application operation verifier.
+    pub async fn build_application_operation_verifiers(
+        settings: &RelayerSettings,
+        core_metrics: &CoreMetrics,
+        chain_metrics: &ChainMetrics,
+    ) -> HashMap<HyperlaneDomain, Arc<dyn ApplicationOperationVerifier>> {
+        settings
+            .build_application_operation_verifiers(settings.destination_chains.iter(), core_metrics)
+            .await
+            .into_iter()
+            .filter_map(
+                |(origin, app_context_verifier_res)| match app_context_verifier_res {
+                    Ok(app_context_verifier) => Some((origin, app_context_verifier)),
+                    Err(err) => {
+                        Self::record_critical_error(
+                            &origin,
+                            chain_metrics,
+                            &err,
+                            "Critical error when building application operation verifier",
+                        );
+                        None
+                    }
+                },
+            )
+            .collect()
     }
 
     fn reset_critical_errors(settings: &RelayerSettings, chain_metrics: &ChainMetrics) {

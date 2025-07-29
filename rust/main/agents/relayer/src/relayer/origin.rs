@@ -5,10 +5,8 @@ use hyperlane_base::db::{HyperlaneRocksDB, DB};
 use hyperlane_base::settings::{ChainConf, IndexSettings};
 use hyperlane_base::{ContractSyncMetrics, ContractSyncer, CoreMetrics};
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, Mailbox, MerkleTreeInsertion,
-    ValidatorAnnounce,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, ValidatorAnnounce,
 };
-use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use tokio::sync::RwLock;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
@@ -24,8 +22,6 @@ pub struct Origin {
     pub database: HyperlaneRocksDB,
     pub domain: HyperlaneDomain,
     pub index_settings: IndexSettings,
-    pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
-    pub mailbox: Arc<dyn Mailbox>,
     pub validator_announce: Arc<dyn ValidatorAnnounce>,
     pub gas_payment_enforcer: Arc<RwLock<GasPaymentEnforcer>>,
     pub prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
@@ -44,10 +40,6 @@ impl std::fmt::Debug for Origin {
 pub enum FactoryError {
     #[error("Failed to create chain setup for domain {0}: {1}")]
     ChainSetupCreationFailed(String, String),
-    #[error("Failed to create application operation verifier for domain {0}: {1}")]
-    ApplicationOperationVerifierCreationFailed(String, String),
-    #[error("Failed to create mailbox for domain {0}: {1}")]
-    MailboxCreationFailed(String, String),
     #[error("Failed to create validator announce for domain {0}: {1}")]
     ValidatorAnnounceCreationFailed(String, String),
     #[error("Failed to create message sync for domain {0}: {1}")]
@@ -107,20 +99,6 @@ impl Factory for OriginFactory {
             .index_settings();
 
         let start_entity_init = Instant::now();
-        let application_operation_verifier = self
-            .init_application_operation_verifier(settings, &domain)
-            .await?;
-        self.measure(
-            &domain,
-            "application_operation_verifier",
-            start_entity_init.elapsed(),
-        );
-
-        let start_entity_init = Instant::now();
-        let mailbox = self.init_mailbox(settings, &domain).await?;
-        self.measure(&domain, "mailbox", start_entity_init.elapsed());
-
-        let start_entity_init = Instant::now();
         let validator_announce = self.init_validator_announce(settings, &domain).await?;
         self.measure(&domain, "validator_announce", start_entity_init.elapsed());
 
@@ -171,8 +149,6 @@ impl Factory for OriginFactory {
             database: db,
             domain,
             index_settings,
-            application_operation_verifier,
-            mailbox,
             validator_announce,
             gas_payment_enforcer: Arc::new(RwLock::new(gas_payment_enforcer)),
             prover_sync: Arc::new(RwLock::new(prover_sync)),
@@ -201,39 +177,6 @@ impl OriginFactory {
             FactoryError::ChainSetupCreationFailed(domain.to_string(), err.to_string())
         })?;
         Ok(setup)
-    }
-
-    async fn init_application_operation_verifier(
-        &self,
-        settings: &RelayerSettings,
-        domain: &HyperlaneDomain,
-    ) -> Result<Arc<dyn ApplicationOperationVerifier>, FactoryError> {
-        let setup = Self::init_chain_setup(settings, domain)?;
-        let application_operation_verifier = setup
-            .build_application_operation_verifier(&self.core_metrics)
-            .await
-            .map_err(|err| {
-                FactoryError::ApplicationOperationVerifierCreationFailed(
-                    domain.to_string(),
-                    err.to_string(),
-                )
-            })?;
-        Ok(application_operation_verifier.into())
-    }
-
-    async fn init_mailbox(
-        &self,
-        settings: &RelayerSettings,
-        domain: &HyperlaneDomain,
-    ) -> Result<Arc<dyn Mailbox>, FactoryError> {
-        let setup = Self::init_chain_setup(settings, domain)?;
-        let mailbox = setup
-            .build_mailbox(&self.core_metrics)
-            .await
-            .map_err(|err| {
-                FactoryError::MailboxCreationFailed(domain.to_string(), err.to_string())
-            })?;
-        Ok(mailbox.into())
     }
 
     async fn init_validator_announce(
