@@ -215,12 +215,7 @@ export class MultiProtocolSignerManager {
       protocolType === ProtocolType.Ethereum,
       `Chain ${chain} is not an Ethereum chain`,
     );
-    const signer = this.getSpecificSigner<Signer>(chain);
-    assert(
-      signer instanceof Signer,
-      `got invalid EVM signer for chain ${chain}`,
-    );
-    return signer;
+    return this.getSpecificSigner<Signer>(chain);
   }
 
   getCosmosNativeSigner(chain: ChainName): SigningHyperlaneModuleClient {
@@ -229,12 +224,7 @@ export class MultiProtocolSignerManager {
       protocolType === ProtocolType.CosmosNative,
       `Chain ${chain} is not a Cosmos Native chain`,
     );
-    const signer = this.getSpecificSigner<SigningHyperlaneModuleClient>(chain);
-    assert(
-      signer instanceof SigningHyperlaneModuleClient,
-      `got invalid EVM signer for chain ${chain}`,
-    );
-    return signer;
+    return this.getSpecificSigner<SigningHyperlaneModuleClient>(chain);
   }
 
   async getSignerAddress(chain: ChainName): Promise<Address> {
