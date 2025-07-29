@@ -238,7 +238,9 @@ pub fn build_withdrawal_pskt(
 }
 
 fn is_dust(tx_out: &TransactionOutput) -> bool {
-    tx_out.value < DUST_AMOUNT || is_transaction_output_dust(tx_out)
+    tx_out.value < DUST_AMOUNT
+        || is_transaction_output_dust(tx_out)
+        || tx_out.value < MINIMUM_WITHDRAWAL_ACCEPTED
 }
 
 /// CONTRACT:
@@ -296,18 +298,7 @@ pub fn filter_outputs_from_msgs(
     let mut outputs: Vec<TransactionOutput> = Vec::new();
     for m in messages {
         let tm = match parse_hyperlane_metadata(&m) {
-            Ok(tm) => {
-                if tm.amount() < U256::from(MINIMUM_WITHDRAWAL_ACCEPTED) {
-                    info!(
-                        "Kaspa relayer, withdrawal amount is less than minimum accepted, skipping, amount: {}, minimum: {}, message id: {:?}",
-                        tm.amount(),
-                        MINIMUM_WITHDRAWAL_ACCEPTED,
-                        m.id()
-                    );
-                    continue;
-                }
-                tm
-            }
+            Ok(tm) => tm,
             Err(e) => {
                 info!(
                     "Kaspa relayer, can't get TokenMessage from HyperlaneMessage body, skipping: {}",
