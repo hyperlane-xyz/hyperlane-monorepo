@@ -236,7 +236,10 @@ async fn metadata_build(
         // if we fail, we want to try the other urls
         match fetch_offchain_data(ism_builder, &info, url).await {
             Ok(data) => return Ok(data),
-            Err(_) => continue,
+            Err(err) => {
+                tracing::warn!(?ism_address, url, ?err, "Failed to fetch offchain data");
+                continue;
+            }
         }
     }
 
