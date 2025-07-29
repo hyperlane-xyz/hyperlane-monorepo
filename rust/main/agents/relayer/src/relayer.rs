@@ -39,6 +39,7 @@ use hyperlane_core::{
     MerkleTreeInsertion, QueueOperation, ValidatorAnnounce, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
+use lander::DispatcherMetrics;
 
 use crate::{db_loader::DbLoader, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
@@ -63,9 +64,7 @@ use crate::{
     settings::{matching_list::MatchingList, RelayerSettings},
 };
 
-use crate::relayer::destination::FactoryError;
-use destination::Destination;
-use lander::DispatcherMetrics;
+use destination::{Destination, FactoryError};
 
 mod destination;
 
