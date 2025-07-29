@@ -38,6 +38,9 @@ export const owners: ChainMap<OwnableConfig> = {
   paradexsepolia: {
     owner: 'n/a - Starknet not supported here',
   },
+  celestiatestnet: {
+    owner: 'n/a - CSDK not supported here',
+  },
 };
 
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(

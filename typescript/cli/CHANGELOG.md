@@ -1,5 +1,42 @@
 # @hyperlane-xyz/cli
 
+## 16.0.0
+
+### Minor Changes
+
+- 3fac22334: Fix FileSubmitterStrategy to correctly append a transaction file
+- a2596f0d9: Add GET `warp-route/core` to HTTP Registry Server
+
+## 15.0.0
+
+### Minor Changes
+
+- 2bc17e200: Update submit command to be able to handle transaction file of multiple chains
+- 87213a66d: Update `warp fork` to start up an HttpRegistry
+- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additional updates to types related to these changes.
+
+### Patch Changes
+
+- e407e8bae: Gracefully continue checking delivery of all messages even if one delivery check fails.
+
+## 14.4.0
+
+## 14.3.0
+
+### Patch Changes
+
+- b5174ada7: Fix strategy flag propagation
+
+## 14.2.0
+
+## 14.1.0
+
+## 14.0.0
+
+### Major Changes
+
+- 66c13b539: Updated ICA transaction support for allowing the CLI to send them when provided with the appropriate strategy config
+
 ## 13.4.0
 
 ### Minor Changes

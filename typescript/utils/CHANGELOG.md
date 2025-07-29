@@ -1,5 +1,28 @@
 # @hyperlane-xyz/utils
 
+## 16.0.0
+
+## 15.0.0
+
+### Minor Changes
+
+- 451f3f6c3: Support pino-pretty in development
+- a33c8abd4: Implement `convertToScaledAmount` for amounts that need scaling
+
+## 14.4.0
+
+## 14.3.0
+
+## 14.2.0
+
+## 14.1.0
+
+## 14.0.0
+
+### Patch Changes
+
+- 7ad8e394c: fix starknet token adapter
+
 ## 13.4.0
 
 ### Minor Changes

@@ -230,7 +230,7 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[instrument(fields(domain=domain.name()), skip(indexer, store, stored_logs_metric, indexed_height_metric, liveness_metric))]
+    #[instrument(fields(domain=domain.name()), skip(indexer, store, cursor, broadcast_sender, stored_logs_metric, indexed_height_metric, liveness_metric))]
     async fn cursor_indexer_task(
         domain: HyperlaneDomain,
         indexer: I,
@@ -404,22 +404,6 @@ where
         // we can configure the cursor to start from a specific block height, if
         // RPC provider does not provide historical blocks.
         // It should be used with care since it can lead to missing events.
-        let from = index_settings.from;
-        let from = watermark
-            .map(|w| if w <= from {
-                warn!(
-                    ?w,
-                    ?from,
-                    "Watermark from database is lower than the configured lowest block height, using the configured block height"
-                );
-                from
-            } else { w })
-            .unwrap_or(from);
-        let index_settings = IndexSettings {
-            from,
-            chunk_size: index_settings.chunk_size,
-            mode: index_settings.mode,
-        };
         Ok(Box::new(
             RateLimitedContractSyncCursor::new(
                 Arc::new(self.indexer.clone()),
@@ -428,6 +412,7 @@ where
                 self.store.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
+                watermark,
             )
             .await?,
         ))

@@ -55,7 +55,7 @@ export class StarknetTokenAdapter
   }
 
   async getBalance(address: Address): Promise<bigint> {
-    return this.contract.balanceOf(address);
+    return this.contract.balance_of(address);
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
@@ -104,7 +104,7 @@ export class StarknetTokenAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
-    return undefined;
+    return this.contract.total_supply();
   }
 }
 
@@ -152,7 +152,7 @@ export class StarknetHypSyntheticAdapter
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
-    return undefined;
+    return this.getTotalSupply();
   }
 
   async quoteTransferRemoteGas(

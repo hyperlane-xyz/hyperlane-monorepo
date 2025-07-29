@@ -63,6 +63,12 @@ pub struct CoreMetrics {
     metadata_build_count: IntCounterVec,
     metadata_build_duration: CounterVec,
 
+    // ism building metrics
+    ism_build_count: IntCounterVec,
+
+    /// Chain initialization metrics
+    chain_init_latency: IntGaugeVec,
+
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
     /// quorum provider.
     client_metrics: OnceLock<PrometheusClientMetrics>,
@@ -269,7 +275,7 @@ impl CoreMetrics {
         let metadata_build_count = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("metadata_build_count"),
-                "Total number of times metadata was build",
+                "Total number of times metadata was built",
                 const_labels_ref
             ),
             &["app_context", "origin", "remote", "status"],
@@ -283,6 +289,26 @@ impl CoreMetrics {
                 const_labels_ref
             ),
             &["app_context", "origin", "remote", "status"],
+            registry
+        )?;
+
+        let ism_build_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("ism_build_count"),
+                "Total number of times ism was built",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote", "ism_type", "status"],
+            registry
+        )?;
+
+        let chain_init_latency = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("chain_init_latency"),
+                "Chain initialization latency in milliseconds",
+                const_labels_ref
+            ),
+            &["chain", "role", "entity"],
             registry
         )?;
 
@@ -316,6 +342,10 @@ impl CoreMetrics {
 
             metadata_build_count,
             metadata_build_duration,
+
+            ism_build_count,
+
+            chain_init_latency,
 
             client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
@@ -548,7 +578,7 @@ impl CoreMetrics {
     /// Labels:
     /// - `remote`: Remote chain the queue is for.
     /// - `queue_name`: Which queue the message is in.
-    pub fn submitter_queue_length(&self) -> IntGaugeVec {
+    pub fn processor_queue_length(&self) -> IntGaugeVec {
         self.submitter_queue_length.clone()
     }
 
@@ -638,6 +668,29 @@ impl CoreMetrics {
     /// - `status`: success or failure
     pub fn metadata_build_duration(&self) -> CounterVec {
         self.metadata_build_duration.clone()
+    }
+
+    /// The number of ism built by this process during its
+    /// lifetime.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the message came from.
+    /// - `remote`: Chain we delivered the message to.
+    /// - `ism_type`: ISM type.
+    /// - `status`: success or failure
+    pub fn ism_build_count(&self) -> IntCounterVec {
+        self.ism_build_count.clone()
+    }
+
+    /// The latency of chain initialization in milliseconds.
+    ///
+    /// Labels:
+    /// - `chain`: chain
+    /// - `role`: `origin` or `destination`
+    /// - `entity`: initialized entity, e.g. `dispatcher`, `submitter`, `processor`, etc.
+    pub fn chain_init_latency(&self) -> IntGaugeVec {
+        self.chain_init_latency.clone()
     }
 
     /// Counts of tracing (logging framework) span events.
@@ -738,7 +791,7 @@ impl ValidatorObservabilityMetricManager {
         destination: &HyperlaneDomain,
         app_context: String,
         latest_checkpoints: &HashMap<H160, Option<u32>>,
-    ) {
+    ) -> Result<(), prometheus::Error> {
         let key = AppContextKey {
             origin: origin.clone(),
             destination: destination.clone(),
@@ -767,14 +820,12 @@ impl ValidatorObservabilityMetricManager {
                 // We unwrap because an error here occurs if the # of labels
                 // provided is incorrect, and we'd like to loudly fail in e2e if that
                 // happens.
-                self.observed_validator_latest_index
-                    .remove_label_values(&[
-                        origin.as_ref(),
-                        destination.as_ref(),
-                        &format!("0x{:x}", validator).to_lowercase(),
-                        &app_context,
-                    ])
-                    .unwrap();
+                self.observed_validator_latest_index.remove_label_values(&[
+                    origin.as_ref(),
+                    destination.as_ref(),
+                    &format!("0x{:x}", validator).to_lowercase(),
+                    &app_context,
+                ])?;
             }
         }
 
@@ -793,6 +844,8 @@ impl ValidatorObservabilityMetricManager {
             new_set.insert(*validator, time::Instant::now());
         }
         app_context_validators.insert(key, new_set);
+
+        Ok(())
     }
 
     /// Gauge for reporting recently observed latest checkpoint indices for validator sets.

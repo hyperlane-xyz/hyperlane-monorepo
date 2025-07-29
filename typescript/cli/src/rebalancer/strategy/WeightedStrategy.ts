@@ -1,3 +1,5 @@
+import { Logger } from 'pino';
+
 import type { WeightedStrategyConfig } from '@hyperlane-xyz/sdk';
 
 import type { RawBalances } from '../interfaces/IStrategy.js';
@@ -12,20 +14,25 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
 export class WeightedStrategy extends BaseStrategy {
   private readonly config: WeightedStrategyConfig;
   private readonly totalWeight: bigint;
+  protected readonly logger: Logger;
 
-  constructor(config: WeightedStrategyConfig, metrics?: Metrics) {
+  constructor(
+    config: WeightedStrategyConfig,
+    logger: Logger,
+    metrics?: Metrics,
+  ) {
     const chains = Object.keys(config);
-    super(chains, metrics);
+    const log = logger.child({ class: WeightedStrategy.name });
+    super(chains, log, metrics);
+    this.logger = log;
 
     let totalWeight = 0n;
 
     for (const chain of chains) {
       const { weight, tolerance } = config[chain].weighted;
 
-      if (weight <= 0n) {
-        throw new Error(
-          `Weight (${weight}) must be greater than 0 for ${chain}`,
-        );
+      if (weight < 0n) {
+        throw new Error(`Weight (${weight}) must not be negative for ${chain}`);
       }
 
       if (tolerance < 0n || tolerance > 100n) {
@@ -37,8 +44,13 @@ export class WeightedStrategy extends BaseStrategy {
       totalWeight += weight;
     }
 
+    if (totalWeight <= 0n) {
+      throw new Error('The total weight for all chains must be greater than 0');
+    }
+
     this.config = config;
     this.totalWeight = totalWeight;
+    this.logger.info('WeightedStrategy created');
   }
 
   /**

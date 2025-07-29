@@ -4,8 +4,9 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import { Address, eqAddressEvm } from '@hyperlane-xyz/utils';
 
 import {
-  getGovernanceIcas,
   getGovernanceSafes,
+  getGovernanceTimelocks,
+  getLegacyGovernanceIcas,
 } from '../config/environments/mainnet3/governance/utils.js';
 
 import { DeployEnvironment } from './config/environment.js';
@@ -21,6 +22,7 @@ export enum Owner {
   ICA = 'ICA',
   SAFE = 'SAFE',
   DEPLOYER = 'DEPLOYER KEY',
+  TIMELOCK = 'TIMELOCK',
   UNKNOWN = 'UNKNOWN',
 }
 
@@ -56,12 +58,16 @@ export async function determineGovernanceType(
   }
 
   for (const governanceType of Object.values(GovernanceType)) {
-    const icas = getGovernanceIcas(governanceType);
-    if (icas[chain] && icas[chain].includes(address)) {
+    const timelocks = getGovernanceTimelocks(governanceType);
+    if (timelocks[chain] && eqAddressEvm(timelocks[chain], address)) {
+      return { ownerType: Owner.TIMELOCK, governanceType };
+    }
+    const icas = getLegacyGovernanceIcas(governanceType);
+    if (icas[chain] && eqAddressEvm(icas[chain], address)) {
       return { ownerType: Owner.ICA, governanceType };
     }
     const safes = getGovernanceSafes(governanceType);
-    if (safes[chain] && safes[chain].includes(address)) {
+    if (safes[chain] && eqAddressEvm(safes[chain], address)) {
       return { ownerType: Owner.SAFE, governanceType };
     }
   }

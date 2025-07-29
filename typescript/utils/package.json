@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "13.4.0",
+  "version": "16.0.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
     "@solana/web3.js": "^1.95.4",
@@ -12,8 +12,20 @@
     "starknet": "^7.4.0",
     "yaml": "2.4.5"
   },
+  "peerDependencies": {
+    "@google-cloud/pino-logging-gcp-config": "^1.0.6",
+    "pino-pretty": ">=10.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@google-cloud/pino-logging-gcp-config": {
+      "optional": true
+    },
+    "pino-pretty": {
+      "optional": true
+    }
+  },
   "devDependencies": {
-    "@eslint/js": "^9.15.0",
+    "@eslint/js": "^9.31.0",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/lodash-es": "^4.17.12",
     "@types/mocha": "^10.0.1",
@@ -22,10 +34,10 @@
     "@typescript-eslint/eslint-plugin": "^8.1.6",
     "@typescript-eslint/parser": "^8.1.6",
     "chai": "^4.5.0",
-    "eslint": "^9.15.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-import-resolver-typescript": "^3.6.3",
-    "eslint-plugin-import": "^2.31.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
     "mocha": "^11.5.0",
     "prettier": "^3.5.3",
     "sinon": "^13.0.2",

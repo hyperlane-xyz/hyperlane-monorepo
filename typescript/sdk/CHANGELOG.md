@@ -1,5 +1,126 @@
 # @hyperlane-xyz/sdk
 
+## 16.0.0
+
+### Major Changes
+
+- d200acfa8: Add support for submitting transactions using Timelock contracts
+- 1f4412909: Remove a circular import dependency between the sdk and registry package by not importing the IRegistry interface in the sdk
+
+### Minor Changes
+
+- 9f3222962: Add limit check for EvmCollateralFiat tokens
+- a71193486: Implemented class for deploying timelocks
+- af783be54: Updated the timelock deployer class to allow configuration of cancellers on contract deployment
+
+### Patch Changes
+
+- 966ad8440: Fix Starknet Adapter: balance_of
+- fabb4a5af: Introduced a shared eslint configuration that is applied to the SDK
+  - @hyperlane-xyz/starknet-core@16.0.0
+  - @hyperlane-xyz/cosmos-sdk@16.0.0
+  - @hyperlane-xyz/utils@16.0.0
+  - @hyperlane-xyz/core@9.0.2
+
+## 15.0.0
+
+### Minor Changes
+
+- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additional updates to types related to these changes.
+
+### Patch Changes
+
+- 23861b70a: Don't `handleTx` for zksync, since the zksync deployer itself will handle it.
+- a33c8abd4: Use `convertToScaledAmount` in WarpCore
+- d16a853c0: Update paradex AW validator address.
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [a33c8abd4]
+  - @hyperlane-xyz/utils@15.0.0
+  - @hyperlane-xyz/core@9.0.1
+  - @hyperlane-xyz/starknet-core@15.0.0
+  - @hyperlane-xyz/cosmos-sdk@15.0.0
+
+## 14.4.0
+
+### Minor Changes
+
+- dce47e7b6: Update getSubmitter() to be return the default set of submitters, and also allow an extension to it.
+
+### Patch Changes
+
+- Updated dependencies [155f5a5e8]
+  - @hyperlane-xyz/core@9.0.0
+  - @hyperlane-xyz/starknet-core@14.4.0
+  - @hyperlane-xyz/cosmos-sdk@14.4.0
+  - @hyperlane-xyz/utils@14.4.0
+
+## 14.3.0
+
+### Minor Changes
+
+- 9cc7ef6fd: Add `scale` to Token Schema and account for scaling in `WarpCore.isDestinationCollateralSufficient`
+- ae0771d9e: Minor refactoring to deduplicate ism/router overrides passed into the InterchainAccount app.
+
+### Patch Changes
+
+- ae0771d9e: InterchainAccount.getCallRemote now respects the localRouter override if passed in.
+  - @hyperlane-xyz/starknet-core@14.3.0
+  - @hyperlane-xyz/cosmos-sdk@14.3.0
+  - @hyperlane-xyz/utils@14.3.0
+  - @hyperlane-xyz/core@8.1.2
+
+## 14.2.0
+
+### Minor Changes
+
+- 3122bae93: Add support for updating the required and default hooks in core deployments
+- 3e50bd7f0: Modify IGP schema to include the optional typical cost in the schema
+- 147dd360a: add cosmosnative warp deploy sdk logic
+- 8bde1544e: Add helper function for determining if a given address is a ProxyAdmin.
+
+### Patch Changes
+
+- a7d5941c1: Fix Starknet total_supply.
+- Updated dependencies [c177c4733]
+  - @hyperlane-xyz/core@8.1.1
+  - @hyperlane-xyz/starknet-core@14.2.0
+  - @hyperlane-xyz/cosmos-sdk@14.2.0
+  - @hyperlane-xyz/utils@14.2.0
+
+## 14.1.0
+
+### Minor Changes
+
+- ecaa4ef90: Add ownerStatus virtual config to `warp check`, which checks the proxy, implementation, and proxy admin owners. Add ISafe and IOwnerManager. Also, refactor contractVerificationStatus slightly
+
+### Patch Changes
+
+- bd91094c3: Remove package.json imports and use CONTRACTS_PACKAGE_VERSION directly where necessary.
+- Updated dependencies [bd91094c3]
+- Updated dependencies [04fc563f4]
+- Updated dependencies [ecaa4ef90]
+  - @hyperlane-xyz/core@8.1.0
+  - @hyperlane-xyz/starknet-core@14.1.0
+  - @hyperlane-xyz/cosmos-sdk@14.1.0
+  - @hyperlane-xyz/utils@14.1.0
+
+## 14.0.0
+
+### Major Changes
+
+- 66c13b539: Updated ICA transaction support for allowing the CLI to send them when provided with the appropriate strategy config
+
+### Patch Changes
+
+- 929708c1f: Respect the expectedRemoteChains arg when checking enrolled routers in HyperlaneRouterChecker.
+- 88134de1f: Enable backwards-compatible ISM derivation with legacy ICAs.
+- 7ad8e394c: fix starknet token adapter
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/utils@14.0.0
+  - @hyperlane-xyz/core@8.0.2
+  - @hyperlane-xyz/starknet-core@14.0.0
+  - @hyperlane-xyz/cosmos-sdk@14.0.0
+
 ## 13.4.0
 
 ### Minor Changes

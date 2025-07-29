@@ -198,7 +198,26 @@ export function useCosmosTransactionFns(
     [onSwitchNetwork, chainToContext],
   );
 
-  return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
+  const onMultiSendTx = useCallback(
+    async ({
+      txs: _,
+      chainName: __,
+      activeChainName: ___,
+    }: {
+      txs: WarpTypedTransaction[];
+      chainName: ChainName;
+      activeChainName?: ChainName;
+    }) => {
+      throw new Error('Multi Transactions not supported on Cosmos');
+    },
+    [onSwitchNetwork, multiProvider],
+  );
+
+  return {
+    sendTransaction: onSendTx,
+    sendMultiTransaction: onMultiSendTx,
+    switchNetwork: onSwitchNetwork,
+  };
 }
 
 function getCosmosChains(

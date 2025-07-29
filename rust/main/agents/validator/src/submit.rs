@@ -192,40 +192,38 @@ impl ValidatorSubmitter {
         // tree.index() will panic if the tree is empty, so we use tree.count() instead
         // and convert the correctness_checkpoint.index to a count by adding 1.
         while tree.count() as u32 <= correctness_checkpoint.index {
-            if let Some(insertion) = self
+            let res = self
                 .db
                 .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))
-                .unwrap_or_else(|err| {
-                    panic!(
-                        "Error fetching merkle tree insertion for leaf index {}: {}",
-                        tree.count(),
-                        err
-                    )
-                })
-            {
-                let message_id = insertion.message_id();
-                tree.ingest(message_id);
-                info!(
-                    index = insertion.index(),
-                    root = ?tree.root(),
-                    message_id = ?message_id,
-                    queue_length = checkpoint_queue.len(),
-                    "Ingested leaf to in-memory merkle tree"
-                );
+                .expect("Failed to fetch merkle tree insertion");
 
-                let checkpoint = self.checkpoint(tree);
+            let insertion = match res {
+                Some(insertion) => insertion,
+                None => {
+                    // If we haven't yet indexed the next merkle tree insertion but know that
+                    // it will soon exist (because we know the correctness checkpoint), wait a bit and
+                    // try again.
+                    sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+            };
 
-                checkpoint_queue.push(CheckpointWithMessageId {
-                    checkpoint,
-                    message_id,
-                });
-            } else {
-                // If we haven't yet indexed the next merkle tree insertion but know that
-                // it will soon exist (because we know the correctness checkpoint), wait a bit and
-                // try again.
-                sleep(Duration::from_millis(100)).await
-            }
+            let message_id = insertion.message_id();
+            tree.ingest(message_id);
+
+            let checkpoint = self.checkpoint(tree);
+
+            checkpoint_queue.push(CheckpointWithMessageId {
+                checkpoint,
+                message_id,
+            });
         }
+
+        info!(
+            root = ?tree.root(),
+            queue_length = checkpoint_queue.len(),
+            "Ingested leaves into in-memory merkle tree"
+        );
 
         // At this point we know that correctness_checkpoint.index == tree.index().
         assert_eq!(
@@ -379,8 +377,6 @@ impl ValidatorSubmitter {
             "Stored checkpoint",
         );
 
-        debug!(index = checkpoint.index, "Signed and submitted checkpoint");
-
         // TODO: move these into S3 implementations
         // small sleep before signing next checkpoint to avoid rate limiting
         sleep(Duration::from_millis(100)).await;
@@ -423,8 +419,10 @@ impl ValidatorSubmitter {
                     let self_clone = self_clone.clone();
                     Box::pin(async move {
                         let start = Instant::now();
+                        let checkpoint_index = checkpoint.index;
                         self_clone.sign_and_submit_checkpoint(checkpoint).await?;
                         tracing::info!(
+                            index = checkpoint_index,
                             elapsed=?start.elapsed(),
                             "Signed and submitted checkpoint",
                         );

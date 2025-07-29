@@ -8,6 +8,7 @@ import {
   assert,
   convertDecimalsToIntegerString,
   convertToProtocolAddress,
+  convertToScaledAmount,
   isValidAddress,
   isZeroishAddress,
   rootLogger,
@@ -30,6 +31,7 @@ import {
 } from '../token/TokenStandard.js';
 import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
+  EvmHypCollateralFiatAdapter,
   EvmHypXERC20LockboxAdapter,
 } from '../token/adapters/EvmTokenAdapter.js';
 import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
@@ -584,6 +586,26 @@ export class WarpCore {
       destinationBalance.toString(),
     );
 
+    // check for scaling factor
+    if (
+      originToken.scale &&
+      destinationToken.scale &&
+      originToken.scale !== destinationToken.scale
+    ) {
+      const precisionFactor = 100_000;
+      const scaledAmount = convertToScaledAmount({
+        fromScale: originToken.scale,
+        toScale: destinationToken.scale,
+        amount,
+        precisionFactor,
+      });
+
+      return (
+        BigInt(destinationBalanceInOriginDecimals) * BigInt(precisionFactor) >=
+        scaledAmount
+      );
+    }
+
     const isSufficient = BigInt(destinationBalanceInOriginDecimals) >= amount;
     this.logger.debug(
       `${originTokenAmount.token.symbol} to ${destination} has ${
@@ -909,6 +931,13 @@ export class WarpCore {
           destinationMintLimit = max;
         }
       }
+    } else if (
+      destinationToken.standard === TokenStandard.EvmHypCollateralFiat
+    ) {
+      const adapter = destinationToken.getAdapter(
+        this.multiProvider,
+      ) as EvmHypCollateralFiatAdapter;
+      destinationMintLimit = await adapter.getMintLimit();
     }
 
     const destinationMintLimitInOriginDecimals = convertDecimalsToIntegerString(

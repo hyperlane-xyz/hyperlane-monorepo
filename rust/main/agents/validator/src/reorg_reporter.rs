@@ -101,7 +101,7 @@ impl LatestCheckpointReorgReporter {
 
         let chain_conf = settings
             .chains
-            .get(origin.name())
+            .get(origin)
             .expect("Chain configuration is not found")
             .clone();
 
@@ -149,13 +149,11 @@ impl LatestCheckpointReorgReporter {
                 let mut updated_settings = settings.clone();
                 let mut chain_conf = settings
                     .chains
-                    .get(origin.name())
+                    .get(origin)
                     .expect("Chain configuration is not found")
                     .clone();
                 chain_conf.connection = conn;
-                updated_settings
-                    .chains
-                    .insert(origin.name().to_string(), chain_conf);
+                updated_settings.chains.insert(origin.clone(), chain_conf);
                 (url, updated_settings)
             })
             .collect::<Vec<_>>()

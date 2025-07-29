@@ -220,7 +220,7 @@ pub struct CoreContractAddresses {
 pub struct IndexSettings {
     /// The height at which to start indexing contracts for watermark synchs.
     /// The lowest sequence to index for sequence-aware synchs.
-    pub from: u32,
+    pub from: i64,
     /// The number of blocks to query at once when indexing contracts.
     pub chunk_size: u32,
     /// The indexing mode.
@@ -1143,7 +1143,7 @@ impl ChainConf {
                     name: Some(name.into()),
                     functions: fns
                         .into_iter()
-                        .map(|s| (Selector::try_from(s.0).unwrap(), s.1))
+                        .map(|s| (Selector::try_from(s.0).expect("Failed to parse bytes"), s.1))
                         .collect(),
                 });
         };
@@ -1230,7 +1230,7 @@ fn build_sealevel_tx_submitter(
     connection_conf: &h_sealevel::ConnectionConf,
     locator: &ContractLocator,
     metrics: &CoreMetrics,
-) -> Box<dyn TransactionSubmitter> {
+) -> Arc<dyn TransactionSubmitter> {
     let middleware_metrics = chain_conf.metrics_conf();
     let client_metrics = metrics.client_metrics();
     connection_conf.transaction_submitter.create_submitter(

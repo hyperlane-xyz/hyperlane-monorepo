@@ -75,7 +75,7 @@ export enum WarpRouteIds {
   SolanaSonicsvmSSOL = 'sSOL/solanamainnet-sonicsvm',
   SolanaSonicsvmLrtsSOL = 'lrtsSOL/solanamainnet-sonicsvm',
   SolanaSonicsvmSonicSOL = 'sonicSOL/solanamainnet-sonicsvm',
-  EclipseEthereumES = 'ES/eclipsemainnet-ethereum',
+  EclipseEthereumES = 'ES/eclipse',
   BaseSolanaSophonCDX = 'CDX/base-solanamainnet-sophon',
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
   oUSDT = 'oUSDT/production',
@@ -97,8 +97,12 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
-  // Not present in the registry
-  // TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
+  LumiaUSDC = 'USDC/lumia',
+  SubtensorUSDC = 'USDC/subtensor',
+  ParadexUSDC = 'USDC/paradex',
+
+  MainnetCCTP = 'USDC/mainnet-cctp',
+  TestnetCCTP = 'USDC/testnet-cctp',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
