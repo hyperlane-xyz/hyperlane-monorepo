@@ -15,7 +15,7 @@ serde_json = { workspace = true }
 hex = "0.4.3"
 clap = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
-tokio-util = { version = "0.7.15"}
+tokio-util = { version = "0.7.15" }
 eyre = { workspace = true }
 kaspa-wallet-core = { workspace = true }
 kaspa-wallet-keys = { workspace = true }
@@ -25,13 +25,14 @@ hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
 hyperlane-metric = { path = "../../../../../rust/main/hyperlane-metric" }
 rand = { version = "0.9" }
-rand_08 = { version = "0.8.5" , package = "rand"}
+rand_08 = { version = "0.8.5", package = "rand" }
 rand_distr = "0.5"
 rand_core = { version = "0.6.4" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false }
 tracing-error = "0.2"
 tracing-futures = "0.2"
+chrono = { version = "0.4" }
 hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", rev = "d7fcf4b" }
 cosmrs = { version = "0.21.0", default-features = false, features = [
     "cosmwasm",

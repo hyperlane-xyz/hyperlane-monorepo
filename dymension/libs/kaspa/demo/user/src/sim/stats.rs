@@ -32,6 +32,7 @@ pub fn write_stats(file_path: &str, stats: Vec<RoundTripStats>, total_spend: u64
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct RoundTripStats {
     pub op_id: u64,
+    pub value: u64,
     pub kaspa_deposit_tx_id: Option<TransactionId>,
     pub kaspa_deposit_tx_time: Option<SystemTime>,
     pub deposit_credit_time: Option<SystemTime>,
@@ -54,9 +55,10 @@ enum Stage {
 }
 
 impl RoundTripStats {
-    pub fn new(op_id: u64) -> Self {
+    pub fn new(op_id: u64, value: u64) -> Self {
         let mut d = RoundTripStats::default();
         d.op_id = op_id;
+        d.value = value;
         d
     }
     pub fn deposit_time(&self) -> Duration {

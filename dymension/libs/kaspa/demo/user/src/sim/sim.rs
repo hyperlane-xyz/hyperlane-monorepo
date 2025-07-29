@@ -5,6 +5,7 @@ use super::round_trip::TaskResources;
 use super::stats::render_stats;
 use super::stats::write_stats;
 use super::util::som_to_kas;
+use chrono::{DateTime, Utc};
 use corelib::api::base::RateLimitConfig;
 use corelib::api::client::HttpClient;
 use corelib::wallet::EasyKaspaWallet;
@@ -14,6 +15,7 @@ use hardcode;
 use hyperlane_cosmos_native::ConnectionConf as CosmosConnectionConf;
 use hyperlane_cosmos_native::CosmosNativeProvider;
 use rand_distr::{Distribution, Exp};
+use std::time::SystemTime;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -241,7 +243,14 @@ impl TrafficSim {
         render_stats(final_stats.clone(), total_spend, total_ops);
 
         let random_filename = H256::random();
-        let file_path = format!("{}/stats_{}.json", self.output_dir, random_filename);
+        let now = SystemTime::now();
+        let datetime: DateTime<Utc> = now.into();
+        let file_path = format!(
+            "{}/stats_{}_{}.json",
+            self.output_dir,
+            random_filename,
+            datetime.format("%Y-%m-%d_%H-%M-%S")
+        );
         info!("Writing stats to {}", file_path);
         write_stats(&file_path, final_stats, total_spend, total_ops);
 

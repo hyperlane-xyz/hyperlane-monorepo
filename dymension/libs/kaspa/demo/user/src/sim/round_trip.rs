@@ -129,7 +129,7 @@ impl RoundTrip {
         Self {
             res,
             value,
-            stats: RoundTripStats::new(task_id),
+            stats: RoundTripStats::new(task_id, value),
             hub_key: hub_k,
             task_id,
             cancel: cancel_token,
@@ -159,8 +159,11 @@ impl RoundTrip {
     }
 
     async fn await_hub_credit(&self) -> Result<()> {
-        debug!("start await_hub_credit, task_id: {}", self.task_id);
         let a = self.hub_key.signer().address_string;
+        debug!(
+            "start await_hub_credit, task_id: {}, addr: {}",
+            self.task_id, a
+        );
         loop {
             let balance = self
                 .res
