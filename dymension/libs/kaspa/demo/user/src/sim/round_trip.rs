@@ -24,6 +24,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::error;
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
@@ -41,6 +42,12 @@ pub struct TaskArgs {
     pub token_hub: H256,
     pub escrow_address: Address,
     pub hl_token_denom: String,
+}
+
+impl TaskArgs {
+    pub fn hub_denom(&self) -> String {
+        format!("hyperlane/{}", self.token_hub.to_string())
+    }
 }
 
 /*
@@ -280,4 +287,24 @@ pub enum RoundTripError {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::TaskArgs;
+    use hyperlane_core::H256;
+    use kaspa_addresses::Address;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_hub_denom() {
+        let token_hub = H256::from_slice(&hex::decode("726f757465725f61707000000000000000000000000000020000000000000000").unwrap());
+        let args = TaskArgs {
+            domain_kas: 0,
+            token_kas_placeholder: H256::zero(),
+            domain_hub: 0,
+            token_hub,
+            escrow_address: Address::try_from("kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr").unwrap(),
+            hl_token_denom: String::new(),
+        };
+        let denom = args.hub_denom();
+        assert_eq!(denom, "hyperlane/0x726f757465725f61707000000000000000000000000000020000000000000000");
+    }
+}
