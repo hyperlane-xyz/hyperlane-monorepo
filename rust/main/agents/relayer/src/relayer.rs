@@ -1304,6 +1304,43 @@ impl Relayer {
             dym_mailbox,
         }))
     }
+
+    async fn launch_dymension_kaspa_tasks(
+        &self,
+        origin: &HyperlaneDomain,
+        tasks: &mut Vec<JoinHandle<()>>,
+        task_monitor: TaskMonitor,
+        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    ) {
+        let args = self.dymension_kaspa_args.as_ref().unwrap();
+
+        let kas_provider = args.kas_provider.clone();
+        let hub_mailbox = args.dym_mailbox.clone();
+
+        let metadata_getter = PendingMessageMetadataGetter::new();
+
+        let b = KaspaBridgeFoo::new(kas_provider.clone(), hub_mailbox.clone(), metadata_getter);
+
+        // sync relayer before starting other tasks
+        b.sync_hub_if_needed().await.unwrap();
+
+        tasks.push(b.run_loops(task_monitor.clone()));
+        // it observes the local db and makes sure messages are eventually written to the destination chain
+        let message_db_loader =
+            match self.run_message_db_loader(origin, send_channels.clone(), task_monitor.clone()) {
+                Ok(task) => task,
+                Err(err) => {
+                    Self::record_critical_error(
+                        origin,
+                        &self.chain_metrics,
+                        &err,
+                        "Failed to run message db loader",
+                    );
+                    return;
+                }
+            };
+        tasks.push(message_db_loader);
+    }
 }
 
 #[cfg(test)]
