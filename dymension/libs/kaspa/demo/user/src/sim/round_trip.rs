@@ -61,6 +61,11 @@ pub async fn do_round_trip(
     cancel_token: CancellationToken,
 ) {
     let mut rt = RoundTrip::new(res, value, task_id, hub_key.clone(), cancel_token);
+    do_round_trip_inner(hub_key.clone(), &mut rt).await;
+    tx.send(rt.stats).await.unwrap();
+}
+
+async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
     rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
     match rt.deposit().await {
         Ok((tx_id, deposit_time)) => {
@@ -100,7 +105,6 @@ pub async fn do_round_trip(
             return;
         }
     };
-    tx.send(rt.stats).await.unwrap();
 }
 
 struct RoundTrip {
