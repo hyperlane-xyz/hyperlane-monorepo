@@ -1,7 +1,7 @@
 import {
   ChainMap,
   ChainName,
-  ProtocolAgnositicGasOracleConfig,
+  ProtocolAgnositicGasOracleConfigWithTypicalCost,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
@@ -21,7 +21,7 @@ import { getEnvironmentConfig } from '../core-utils.js';
 // so they can easily be copied into the Sealevel tooling. :'(
 
 interface GasOracleConfigWithOverhead {
-  oracleConfig: ProtocolAgnositicGasOracleConfig;
+  oracleConfig: ProtocolAgnositicGasOracleConfigWithTypicalCost;
   overhead?: number;
 }
 
@@ -48,7 +48,7 @@ async function main() {
     if (!connectedChainsSet) {
       return undefined;
     }
-    const connectedChains = [...connectedChainsSet];
+    const connectedChains = [...connectedChainsSet].sort();
 
     return connectedChains.reduce((agg, destination) => {
       const oracleConfig = igpConfig.oracleConfig[destination];
@@ -57,6 +57,9 @@ async function main() {
           `Token decimals not defined for ${origin} -> ${destination}`,
         );
       }
+      // Strip out the typical cost that may or may not be defined
+      delete oracleConfig.typicalCost;
+
       agg[destination] = {
         oracleConfig,
         overhead: igpConfig?.overhead?.[destination],
@@ -106,6 +109,9 @@ function getChainConnections(
       ['solanamainnet', 'abstract'],
       ['solanamainnet', 'apechain'],
       ['solanamainnet', 'subtensor'],
+      // For Starknet / Paradex
+      ['solanamainnet', 'starknet'],
+      ['solanamainnet', 'paradex'],
       // for svmBNB routes solana<>bsc<>svmbnb<>soon
       ['solanamainnet', 'bsc'],
       ['svmbnb', 'solanamainnet'],
@@ -116,6 +122,10 @@ function getChainConnections(
       // for eclipse routes
       ['eclipsemainnet', 'sonicsvm'],
       ['eclipsemainnet', 'soon'],
+      ['eclipsemainnet', 'katana'],
+      // for solaxy routes
+      ['solaxy', 'solanamainnet'],
+      ['solaxy', 'ethereum'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];

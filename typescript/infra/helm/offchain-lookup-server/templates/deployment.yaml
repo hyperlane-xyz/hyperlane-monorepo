@@ -1,0 +1,52 @@
+# Container Deployment
+# The offchain-lookup typescript server, started with yarn.
+# It is used for the ccip-read ISM
+# And can expose multiple endpoints depending on its ENV.
+# The server code can be found in /typescript/ccip-server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        prometheus.io/port: "{{ .Values.prometheus_port }}"
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          imagePullPolicy: IfNotPresent
+          command: ["yarn"]
+          args: ["--cwd", "typescript/ccip-server", "run", "start"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+            - name: metrics
+              containerPort: {{ .Values.prometheus_port }}
+          env:
+            {{- range .Values.secrets.secret_envs }}
+            - name: {{ . }}
+              valueFrom:
+                secretKeyRef:
+                 name: {{ $.Values.secrets.name }}
+                 key: {{ . }}
+            {{- end }}
+{{- with .Values.env }}
+{{ toYaml . | indent 12 }}
+{{- end }}

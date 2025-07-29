@@ -8,6 +8,7 @@ import {
   assert,
   convertDecimalsToIntegerString,
   convertToProtocolAddress,
+  convertToScaledAmount,
   isValidAddress,
   isZeroishAddress,
   rootLogger,
@@ -30,6 +31,7 @@ import {
 } from '../token/TokenStandard.js';
 import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
+  EvmHypCollateralFiatAdapter,
   EvmHypXERC20LockboxAdapter,
 } from '../token/adapters/EvmTokenAdapter.js';
 import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
@@ -157,6 +159,7 @@ export class WarpCore {
       const quote = await hypAdapter.quoteTransferRemoteGas(
         destinationDomainId,
         sender,
+        originToken.igpTokenAddressOrDenom,
       );
       gasAmount = BigInt(quote.amount);
       gasAddressOrDenom = quote.addressOrDenom;
@@ -388,6 +391,45 @@ export class WarpCore {
       });
     }
 
+    // if the interchain fee is of protocol starknet we also have
+    // to approve the transfer of this fee token
+    if (interchainFee.token.protocol === ProtocolType.Starknet) {
+      const interchainFeeAdapter = interchainFee.token.getAdapter(
+        this.multiProvider,
+      );
+      const isRequired = await interchainFeeAdapter.isApproveRequired(
+        sender,
+        token.addressOrDenom,
+        interchainFee.amount,
+      );
+      this.logger.debug(
+        `Approval is${isRequired ? '' : ' not'} required for interchain fee of ${
+          interchainFee.token.symbol
+        }`,
+      );
+
+      if (isRequired) {
+        const txCategory = WarpTxCategory.Approval;
+
+        this.logger.info(
+          `${txCategory} required for transfer of ${interchainFee.token.symbol}`,
+        );
+        const approveTxReq = await interchainFeeAdapter.populateApproveTx({
+          weiAmountOrId: interchainFee.amount,
+          recipient: token.addressOrDenom,
+        });
+        this.logger.debug(
+          `${txCategory} tx for ${interchainFee.token.symbol} populated`,
+        );
+        const approveTx = {
+          category: txCategory,
+          type: providerType,
+          transaction: approveTxReq,
+        } as WarpTypedTransaction;
+        transactions.push(approveTx);
+      }
+    }
+
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
       destination: destinationDomainId,
@@ -397,6 +439,7 @@ export class WarpCore {
         amount: interchainFee.amount,
         addressOrDenom: interchainFee.token.addressOrDenom,
       },
+      customHook: token.igpTokenAddressOrDenom,
     });
     this.logger.debug(`Remote transfer tx for ${token.symbol} populated`);
 
@@ -542,6 +585,26 @@ export class WarpCore {
       originToken.decimals,
       destinationBalance.toString(),
     );
+
+    // check for scaling factor
+    if (
+      originToken.scale &&
+      destinationToken.scale &&
+      originToken.scale !== destinationToken.scale
+    ) {
+      const precisionFactor = 100_000;
+      const scaledAmount = convertToScaledAmount({
+        fromScale: originToken.scale,
+        toScale: destinationToken.scale,
+        amount,
+        precisionFactor,
+      });
+
+      return (
+        BigInt(destinationBalanceInOriginDecimals) * BigInt(precisionFactor) >=
+        scaledAmount
+      );
+    }
 
     const isSufficient = BigInt(destinationBalanceInOriginDecimals) >= amount;
     this.logger.debug(
@@ -868,6 +931,13 @@ export class WarpCore {
           destinationMintLimit = max;
         }
       }
+    } else if (
+      destinationToken.standard === TokenStandard.EvmHypCollateralFiat
+    ) {
+      const adapter = destinationToken.getAdapter(
+        this.multiProvider,
+      ) as EvmHypCollateralFiatAdapter;
+      destinationMintLimit = await adapter.getMintLimit();
     }
 
     const destinationMintLimitInOriginDecimals = convertDecimalsToIntegerString(

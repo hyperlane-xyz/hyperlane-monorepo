@@ -16,7 +16,7 @@ use solana_sdk::{
     transaction::Transaction as SealevelTransaction,
 };
 use tokio::sync::Mutex;
-use tracing::{info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -45,14 +45,15 @@ use crate::{
         core::TxBuildingResult,
         AdaptsChain, GasLimit,
     },
-    error,
-    error::LanderError,
+    error::{self, LanderError},
     payload::{FullPayload, PayloadDetails},
-    transaction::{SignerAddress, Transaction, TransactionId, TransactionStatus, VmSpecificTxData},
-    TransactionDropReason,
+    transaction::{
+        SignerAddress, Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData,
+    },
+    DispatcherMetrics, TransactionDropReason,
 };
 
-const TX_RESUBMISSION_MIN_DELAY_SECS: u64 = 15;
+const TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER: f32 = 3.0;
 
 #[derive(Default, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum EstimateFreshnessCache {
@@ -65,11 +66,11 @@ pub struct SealevelAdapter {
     estimated_block_time: Duration,
     max_batch_size: u32,
     keypair: SealevelKeypair,
-    client: Box<dyn SubmitSealevelRpc>,
-    provider: Box<dyn SealevelProviderForLander>,
-    oracle: Box<dyn PriorityFeeOracle>,
-    submitter: Box<dyn TransactionSubmitter>,
-    estimate_freshness_cache: Arc<Mutex<HashMap<TransactionId, EstimateFreshnessCache>>>,
+    client: Arc<dyn SubmitSealevelRpc>,
+    provider: Arc<dyn SealevelProviderForLander>,
+    oracle: Arc<dyn PriorityFeeOracle>,
+    submitter: Arc<dyn TransactionSubmitter>,
+    estimate_freshness_cache: Arc<Mutex<HashMap<TransactionUuid, EstimateFreshnessCache>>>,
 }
 
 impl SealevelAdapter {
@@ -109,8 +110,8 @@ impl SealevelAdapter {
         Self::new_internal(
             conf,
             raw_conf,
-            Box::new(client),
-            Box::new(provider),
+            Arc::new(client),
+            Arc::new(provider),
             oracle,
             submitter,
         )
@@ -119,10 +120,10 @@ impl SealevelAdapter {
     fn new_internal(
         conf: ChainConf,
         _raw_conf: RawChainConf,
-        client: Box<dyn SubmitSealevelRpc>,
-        provider: Box<dyn SealevelProviderForLander>,
-        oracle: Box<dyn PriorityFeeOracle>,
-        submitter: Box<dyn TransactionSubmitter>,
+        client: Arc<dyn SubmitSealevelRpc>,
+        provider: Arc<dyn SealevelProviderForLander>,
+        oracle: Arc<dyn PriorityFeeOracle>,
+        submitter: Arc<dyn TransactionSubmitter>,
     ) -> eyre::Result<Self> {
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
@@ -144,13 +145,31 @@ impl SealevelAdapter {
     #[allow(unused)]
     #[cfg(test)]
     fn new_internal_default(
-        client: Box<dyn SubmitSealevelRpc>,
-        provider: Box<dyn SealevelProviderForLander>,
-        oracle: Box<dyn PriorityFeeOracle>,
-        submitter: Box<dyn TransactionSubmitter>,
+        client: Arc<dyn SubmitSealevelRpc>,
+        provider: Arc<dyn SealevelProviderForLander>,
+        oracle: Arc<dyn PriorityFeeOracle>,
+        submitter: Arc<dyn TransactionSubmitter>,
+    ) -> Self {
+        Self::new_internal_with_block_time(
+            Duration::from_secs(1),
+            client,
+            provider,
+            oracle,
+            submitter,
+        )
+    }
+
+    #[allow(unused)]
+    #[cfg(test)]
+    pub fn new_internal_with_block_time(
+        estimated_block_time: Duration,
+        client: Arc<dyn SubmitSealevelRpc>,
+        provider: Arc<dyn SealevelProviderForLander>,
+        oracle: Arc<dyn PriorityFeeOracle>,
+        submitter: Arc<dyn TransactionSubmitter>,
     ) -> Self {
         Self {
-            estimated_block_time: Duration::from_secs(1),
+            estimated_block_time,
             max_batch_size: 1,
             keypair: SealevelKeypair::default(),
             provider,
@@ -178,8 +197,8 @@ impl SealevelAdapter {
             .get_estimated_costs_for_instruction(
                 precursor.instruction.clone(),
                 &self.keypair,
-                &*self.submitter,
-                &*self.oracle,
+                self.submitter.clone(),
+                self.oracle.clone(),
             )
             .await?;
         Ok(SealevelTxPrecursor::new(
@@ -218,7 +237,7 @@ impl SealevelAdapter {
                 estimate.compute_unit_price_micro_lamports,
                 instruction.clone(),
                 &self.keypair,
-                &*self.submitter,
+                self.submitter.clone(),
                 sign,
             )
             .await
@@ -267,6 +286,12 @@ impl SealevelAdapter {
             }
         }
     }
+
+    /// wait some blocks before resubmitting a transaction
+    fn time_before_resubmission(&self) -> Duration {
+        self.estimated_block_time
+            .mul_f32(TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER)
+    }
 }
 
 #[async_trait]
@@ -303,17 +328,19 @@ impl AdaptsChain for SealevelAdapter {
         transactions
     }
 
-    async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, LanderError> {
+    async fn simulate_tx(&self, tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError> {
         info!(?tx, "simulating transaction");
         let precursor = tx.precursor();
         let svm_transaction = self.create_unsigned_transaction(precursor).await?;
-        let success = self
-            .client
+        self.client
             .simulate_transaction(&svm_transaction)
             .await
-            .is_ok();
-        info!(?tx, success, "simulated transaction");
-        Ok(success)
+            .map_err(|e| {
+                error!(?tx, ?e, "failed to simulate transaction");
+                LanderError::SimulationFailed(vec![e.to_string()])
+            })?;
+        info!(?tx, "simulated transaction successfully");
+        Ok(vec![])
     }
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
@@ -326,8 +353,8 @@ impl AdaptsChain for SealevelAdapter {
         // If cache does not contain estimate type, insert Simulation type so that it can be used on the first submission
         {
             let mut guard = self.estimate_freshness_cache.lock().await;
-            if guard.get(&tx.id).copied().unwrap_or_default() == Stale {
-                guard.insert(tx.id.clone(), Fresh);
+            if guard.get(&tx.uuid).copied().unwrap_or_default() == Stale {
+                guard.insert(tx.uuid.clone(), Fresh);
             }
         };
 
@@ -344,10 +371,10 @@ impl AdaptsChain for SealevelAdapter {
         let previous = tx.precursor();
         let estimated = {
             let mut guard = self.estimate_freshness_cache.lock().await;
-            match guard.get(&tx.id).copied().unwrap_or_default() {
+            match guard.get(&tx.uuid).copied().unwrap_or_default() {
                 Stale => self.estimate(previous).await?,
                 Fresh => {
-                    guard.insert(tx.id.clone(), Stale);
+                    guard.insert(tx.uuid.clone(), Stale);
                     previous.clone()
                 }
             }
@@ -364,12 +391,6 @@ impl AdaptsChain for SealevelAdapter {
 
         info!(?tx, "submitted transaction");
 
-        self.submitter
-            .wait_for_transaction_confirmation(&svm_transaction)
-            .await?;
-
-        info!(?tx, "confirmed transaction by signature status");
-
         Ok(())
     }
 
@@ -381,13 +402,16 @@ impl AdaptsChain for SealevelAdapter {
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
+        let time_before_resubmission = self.time_before_resubmission();
         if let Some(ref last_submission_time) = tx.last_submission_attempt {
             let seconds_since_last_submission =
-                (Utc::now() - last_submission_time).num_seconds() as u64;
-            return seconds_since_last_submission >= TX_RESUBMISSION_MIN_DELAY_SECS;
+                (Utc::now() - last_submission_time).num_milliseconds() as u64;
+            return seconds_since_last_submission >= time_before_resubmission.as_millis() as u64;
         }
         true
     }
+
+    fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics) {}
 
     fn estimated_block_time(&self) -> &Duration {
         &self.estimated_block_time
@@ -399,4 +423,4 @@ impl AdaptsChain for SealevelAdapter {
 }
 
 #[cfg(test)]
-mod tests;
+pub mod tests;

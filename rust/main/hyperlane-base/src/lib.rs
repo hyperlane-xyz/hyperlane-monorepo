@@ -5,6 +5,7 @@
 // Forbid unsafe code outside of tests
 #![cfg_attr(not(test), forbid(unsafe_code))]
 #![warn(missing_docs)]
+#![deny(clippy::unwrap_used, clippy::panic)]
 
 pub mod settings;
 
@@ -39,3 +40,5 @@ pub mod oneline_eyre;
 
 #[allow(missing_docs)]
 pub mod kas_hack;
+/// code related to testing
+pub mod tests;

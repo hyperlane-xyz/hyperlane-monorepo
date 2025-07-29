@@ -20,6 +20,7 @@ ethers.workspace = true
 ethers-core.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
+itertools.workspace = true
 prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -28,6 +29,7 @@ solana-sdk.workspace = true
 solana-transaction-status.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
+tokio-metrics.workspace = true
 tracing.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
 

@@ -20,8 +20,9 @@ import {DomainRoutingHook} from "./DomainRoutingHook.sol";
 contract DestinationRecipientRoutingHook is DomainRoutingHook {
     using Message for bytes;
 
-    /// @notice destination => recipient =>custom hook
-    mapping(uint32 => mapping(bytes32 => address)) public customHooks;
+    /// @notice destination => recipient => custom hook
+    mapping(uint32 destinationDomain => mapping(bytes32 recipient => address hook))
+        public customHooks;
 
     constructor(
         address mailbox,

@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use axum::Router;
@@ -161,11 +161,7 @@ impl BaseAgent for Validator {
             .build_validator_announce(&settings.origin_chain, &metrics)
             .await?;
 
-        let origin_chain_conf = core
-            .settings
-            .chain_setup(&settings.origin_chain)
-            .unwrap()
-            .clone();
+        let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
@@ -258,7 +254,7 @@ impl BaseAgent for Validator {
             ));
         }
 
-        let metrics_updater = ChainSpecificMetricsUpdater::new(
+        let metrics_updater = match ChainSpecificMetricsUpdater::new(
             &self.origin_chain_conf,
             self.core_metrics.clone(),
             self.agent_metrics.clone(),
@@ -266,13 +262,16 @@ impl BaseAgent for Validator {
             Self::AGENT_NAME.to_string(),
         )
         .await
-        .unwrap();
-        tasks.push(tokio::spawn(
-            async move {
-                metrics_updater.spawn().await.unwrap();
+        {
+            Ok(task) => task,
+            Err(err) => {
+                tracing::error!(?err, "Failed to build metrics updater");
+                return;
             }
-            .instrument(info_span!("MetricsUpdater")),
-        ));
+        };
+
+        let task = metrics_updater.spawn();
+        tasks.push(task);
 
         // report agent metadata
         self.metadata()
@@ -291,15 +290,22 @@ impl BaseAgent for Validator {
                     sleep(self.interval).await;
                 }
                 Ok(_) => {
-                    tasks.push(self.run_merkle_tree_hook_sync().await);
+                    let merkle_tree_hook_sync = match self.run_merkle_tree_hook_sync().await {
+                        Ok(handle) => handle,
+                        Err(err) => {
+                            tracing::error!(?err, "Failed to run merkle tree hook sync");
+                            return;
+                        }
+                    };
+                    tasks.push(merkle_tree_hook_sync);
                     for checkpoint_sync_task in self.run_checkpoint_submitters().await {
                         tasks.push(checkpoint_sync_task);
                     }
                     break;
                 }
-                _ => {
-                    // Future that immediately resolves
-                    return;
+                Err(err) => {
+                    error!(?err, "Error getting merkle tree hook count");
+                    sleep(self.interval).await;
                 }
             }
         }
@@ -313,28 +319,27 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
-    async fn run_merkle_tree_hook_sync(&self) -> JoinHandle<()> {
-        let index_settings =
-            self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
+    async fn run_merkle_tree_hook_sync(&self) -> eyre::Result<JoinHandle<()>> {
+        let index_settings = self
+            .as_ref()
+            .settings
+            .chains
+            .get(&self.origin_chain)
+            .map(|chain| chain.index_settings())
+            .ok_or_else(|| eyre::eyre!("No index setting found"))?;
         let contract_sync = self.merkle_tree_hook_sync.clone();
-        let cursor = contract_sync
-            .cursor(index_settings)
-            .await
-            .unwrap_or_else(|err| {
-                panic!(
-                    "Error getting merkle tree hook cursor for origin {0}: {err}",
-                    self.origin_chain
-                )
-            });
+        let cursor = contract_sync.cursor(index_settings).await?;
         let origin = self.origin_chain.name().to_string();
-        tokio::spawn(
+
+        let handle = tokio::spawn(
             async move {
                 let label = "merkle_tree_hook";
                 contract_sync.clone().sync(label, cursor.into()).await;
                 info!(chain = origin, label, "contract sync task exit");
             }
             .instrument(info_span!("MerkleTreeHookSyncer")),
-        )
+        );
+        Ok(handle)
     }
 
     async fn run_checkpoint_submitters(&self) -> Vec<JoinHandle<()>> {
@@ -464,7 +469,7 @@ impl Validator {
                     "Validator has not announced signature storage location"
                 );
 
-                if let Some(chain_signer) = self.core.settings.chains[self.origin_chain.name()]
+                if let Some(chain_signer) = self.core.settings.chains[&self.origin_chain]
                     .chain_signer()
                     .await?
                 {

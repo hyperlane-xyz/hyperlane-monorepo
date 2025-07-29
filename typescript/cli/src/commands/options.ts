@@ -271,3 +271,23 @@ export const warpRouteIdCommandOption: Options = {
   description: 'Warp route ID to specify the warp route',
   alias: 'id',
 };
+
+export const forkCommandOptions: Record<string, Options> = {
+  port: {
+    type: 'number',
+    description:
+      'Port to be used as initial port from which assign port numbers to all anvil instances',
+    default: 8545,
+  },
+  'fork-config': {
+    type: 'string',
+    description:
+      'The path to a configuration file that specifies how to build the forked chains',
+  },
+  kill: {
+    type: 'boolean',
+    default: false,
+    description:
+      'If set, it will stop the forked chains once the forked config has been applied',
+  },
+};

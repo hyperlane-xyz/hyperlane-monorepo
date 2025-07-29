@@ -27,11 +27,11 @@ mod types;
 mod utils;
 
 const STARKNET_DEVNET_IMAGE: &str = "shardlabs/starknet-devnet-rs";
-const STARKNET_DEVNET_TAG: &str = "0.3.0-rc.1-seed0";
+const STARKNET_DEVNET_TAG: &str = "0.4.2";
 const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
-const STARKNET_CLI_VERSION: &str = "0.3.8"; // we need 0.3.8 because the latest version breaks the rpc schema
-const CAIRO_HYPERLANE_GIT: &str = "https://github.com/hyperlane-xyz/hyperlane_starknet";
-const CAIRO_HYPERLANE_VERSION: &str = "0.3.2";
+const STARKNET_CLI_VERSION: &str = "0.4.1"; // we need 0.3.8 because the latest version breaks the rpc schema
+const CAIRO_HYPERLANE_GIT: &str = "https://github.com/hyperlane-xyz/hyperlane-starknet";
+const CAIRO_HYPERLANE_VERSION: &str = "0.3.9";
 
 #[allow(dead_code)]
 pub fn install_starknet(
@@ -135,6 +135,7 @@ fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
         .cmd(format!("{STARKNET_DEVNET_IMAGE}:{STARKNET_DEVNET_TAG}"))
         .arg("state-archive-capacity", "full")
         .arg("block-generation-on", "5")
+        .arg("seed", "0")
         .spawn("STAKNET", None);
 
     let endpoint: StarknetEndpoint = StarknetEndpoint {
@@ -292,7 +293,7 @@ fn run_locally() {
                     node_port_base: port_start + (i * 20),
                     ..default_config.clone()
                 }),
-                format!("KATANA"),
+                format!("STARKNETTEST{}", domain_start + i),
                 metrics_port_start + i,
                 domain_start + i,
             )
@@ -301,7 +302,7 @@ fn run_locally() {
 
     let domains = nodes.iter().map(|v| v.3).collect::<Vec<_>>();
 
-    let deployer = "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"; // 1st katana account
+    let deployer = "0x064b48806902a367c8598f4f95c305e8c1a1acba5f082d294a43793113115691"; // 1st starknet account
     let _linker = "validator";
     let validator = &ValidatorConfig {
         private_key: "0x0000000000000000000000000000000071d7bb07b9a64f6f78ac4c816aff4da9"
@@ -454,7 +455,7 @@ fn run_locally() {
         }
 
         for target in targets {
-            dispatched_messages += 2;
+            dispatched_messages += 10;
             let mut cli = StarknetCLI::new(starklid.clone());
 
             let msg_body: &[u8] = b"hello world";
@@ -492,21 +493,13 @@ fn run_locally() {
                 .chain(options_args)
                 .collect();
 
-            cli.send_tx(
-                node.deployments.mailbox.clone(),
-                "dispatch".to_string(),
-                args.clone(),
-            );
-
-            sleep(Duration::from_secs(5));
-
-            cli.send_tx(
-                node.deployments.mailbox.clone(),
-                "dispatch".to_string(),
-                args.clone(),
-            );
-
-            sleep(Duration::from_secs(5));
+            for _ in 0..10 {
+                cli.send_tx(
+                    node.deployments.mailbox.clone(),
+                    "dispatch".to_string(),
+                    args.clone(),
+                );
+            }
         }
     }
 

@@ -3,8 +3,10 @@ use std::fmt::{Debug, Display, Formatter};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 
-use crate::utils::{fmt_address_for_domain, fmt_domain};
-use crate::{Decode, Encode, HyperlaneProtocolError, H256};
+use crate::{
+    utils::{fmt_address_for_domain, fmt_domain},
+    Decode, Encode, HyperlaneProtocolError, H256,
+};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
 
@@ -60,15 +62,13 @@ impl Debug for HyperlaneMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "HyperlaneMessage {{ id: {:?}, version: {}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {}, body: 0x{} }}",
+            "HyperlaneMessage {{ id: {:?}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {} }}",
             self.id(),
-            self.version,
             self.nonce,
             fmt_domain(self.origin),
             fmt_address_for_domain(self.origin, self.sender),
             fmt_domain(self.destination),
             fmt_address_for_domain(self.destination, self.recipient),
-            hex::encode(&self.body)
         )
     }
 }
@@ -88,11 +88,11 @@ impl From<RawHyperlaneMessage> for HyperlaneMessage {
 impl From<&RawHyperlaneMessage> for HyperlaneMessage {
     fn from(m: &RawHyperlaneMessage) -> Self {
         let version = m[0];
-        let nonce: [u8; 4] = m[1..5].try_into().unwrap();
-        let origin: [u8; 4] = m[5..9].try_into().unwrap();
-        let sender: [u8; 32] = m[9..41].try_into().unwrap();
-        let destination: [u8; 4] = m[41..45].try_into().unwrap();
-        let recipient: [u8; 32] = m[45..77].try_into().unwrap();
+        let nonce: [u8; 4] = m[1..5].try_into().expect("Failed to parse nonce");
+        let origin: [u8; 4] = m[5..9].try_into().expect("Failed to parse origin");
+        let sender: [u8; 32] = m[9..41].try_into().expect("Failed to parse sender");
+        let destination: [u8; 4] = m[41..45].try_into().expect("Failed to parse destination");
+        let recipient: [u8; 32] = m[45..77].try_into().expect("Failed to parse recipient");
         let body = m[77..].into();
         Self {
             version,

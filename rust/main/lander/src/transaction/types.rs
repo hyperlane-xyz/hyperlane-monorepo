@@ -13,14 +13,14 @@ use crate::{
     LanderError,
 };
 
-pub type TransactionId = UniqueIdentifier;
+pub type TransactionUuid = UniqueIdentifier;
 pub type SignerAddress = H256;
 
 /// Full details about a transaction
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct Transaction {
     /// unique tx identifier. Used as primary key in the db.
-    pub id: TransactionId,
+    pub uuid: TransactionUuid,
     /// all historic tx identifiers this transaction has had, obtained by hashing its contents.
     /// a `Transaction` may have had more than one hash because this changes
     /// when gas price is escalated

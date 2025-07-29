@@ -57,7 +57,10 @@ impl From<ethers_core::types::TransactionReceipt> for TxOutcome {
     fn from(t: ethers_core::types::TransactionReceipt) -> Self {
         Self {
             transaction_id: t.transaction_hash.into(),
-            executed: t.status.unwrap().low_u32() == 1,
+            executed: t
+                .status
+                .map(|status| status.low_u32() == 1)
+                .unwrap_or(false),
             gas_used: t.gas_used.map(Into::into).unwrap_or(U256::zero()),
             gas_price: t
                 .effective_gas_price

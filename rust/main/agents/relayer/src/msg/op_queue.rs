@@ -54,7 +54,8 @@ impl OpQueue {
                 break;
             }
         }
-        // This function is called very often by the op_submitter tasks, so only log when there are operations to pop
+
+        // This function is called very often by the message processor tasks, so only log when there are operations to pop
         // to avoid spamming the logs
         if !popped.is_empty() {
             debug!(
@@ -298,6 +299,10 @@ pub mod test {
             &self.recipient_address
         }
 
+        fn body(&self) -> &[u8] {
+            &[]
+        }
+
         fn get_metric(&self) -> Option<Arc<IntGauge>> {
             None
         }
@@ -353,7 +358,7 @@ pub mod test {
             todo!()
         }
 
-        fn set_operation_outcome(
+        async fn set_operation_outcome(
             &mut self,
             _submission_outcome: TxOutcome,
             _submission_estimated_cost: U256,
@@ -662,6 +667,7 @@ pub mod test {
                     Filter::Wildcard,
                     Filter::Wildcard,
                     Filter::Wildcard,
+                    None,
                 )])),
                 transmitter: transmitter.clone(),
             })
@@ -718,6 +724,7 @@ pub mod test {
                     Filter::Wildcard,
                     Filter::Enumerated(vec![KnownHyperlaneDomain::Optimism as u32]),
                     Filter::Wildcard,
+                    None,
                 )])),
                 transmitter: transmitter.clone(),
             })
@@ -775,6 +782,7 @@ pub mod test {
                         Filter::Wildcard,
                         Filter::Wildcard,
                         Filter::Wildcard,
+                        None,
                     ),
                     ListElement::new(
                         Filter::Wildcard,
@@ -782,6 +790,7 @@ pub mod test {
                         Filter::Wildcard,
                         Filter::Enumerated(vec![KnownHyperlaneDomain::Arbitrum as u32]),
                         Filter::Wildcard,
+                        None,
                     ),
                 ])),
                 transmitter: transmitter.clone(),
@@ -839,6 +848,7 @@ pub mod test {
                     Filter::Wildcard,
                     Filter::Wildcard,
                     Filter::Wildcard,
+                    None,
                 ),
                 ListElement::new(
                     Filter::Wildcard,
@@ -846,6 +856,7 @@ pub mod test {
                     Filter::Wildcard,
                     Filter::Enumerated(vec![KnownHyperlaneDomain::Arbitrum as u32]),
                     Filter::Wildcard,
+                    None,
                 ),
             ])),
             transmitter: transmitter.clone(),

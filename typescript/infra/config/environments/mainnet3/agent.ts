@@ -25,6 +25,7 @@ import {
   MetricAppContext,
   chainMapMatchingList,
   consistentSenderRecipientMatchingList,
+  matchingList,
   routerMatchingList,
   senderMatchingList,
   warpRouteMatchingList,
@@ -32,7 +33,7 @@ import {
 import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts, mustBeValidContext } from '../../contexts.js';
-import { getDomainId } from '../../registry.js';
+import { getDomainId, getWarpAddresses } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
@@ -75,7 +76,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumnova: true,
     arcadia: true,
     artela: true,
-    arthera: false,
     astar: true,
     aurora: true,
     avalanche: true,
@@ -86,6 +86,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    botanix: true,
     bouncebit: true,
     bsc: true,
     bsquared: true,
@@ -95,7 +96,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conflux: true,
     conwai: true,
     coredao: true,
-    corn: true,
     coti: true,
     cyber: true,
     deepbrainchain: true,
@@ -116,11 +116,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // fractal: false,
     fraxtal: true,
     fusemainnet: true,
+    galactica: true,
     game7: true,
-    glue: true,
     gnosis: true,
     gravity: true,
-    guru: true,
     harmony: true,
     hashkey: true,
     hemi: true,
@@ -131,7 +130,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     injective: true,
     ink: true,
     kaia: true,
-    kroma: true,
+    katana: true,
     kyve: true,
     linea: true,
     lisk: true,
@@ -154,12 +153,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nero: true,
     neutron: true,
     nibiru: true,
+    noble: true,
     oortmainnet: true,
     ontology: true,
     opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
+    paradex: true,
     peaq: true,
     plume: true,
     polygon: true,
@@ -169,7 +170,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     proofofplay: true,
     rarichain: true,
     reactive: true,
-    real: true,
     redstone: true,
     rivalz: true,
     ronin: true,
@@ -180,6 +180,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
+    solaxy: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -193,12 +194,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositionmainnet: true,
     svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -207,6 +207,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xai: true,
     xlayer: true,
     xpla: true,
+    xrplevm: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
@@ -225,7 +226,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrum: true,
     arbitrumnova: true,
     artela: true,
-    arthera: false,
     astar: true,
     aurora: true,
     avalanche: true,
@@ -236,6 +236,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    botanix: true,
     bouncebit: true,
     bsc: true,
     bsquared: true,
@@ -245,7 +246,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conflux: true,
     conwai: true,
     coredao: true,
-    corn: true,
     coti: true,
     cyber: true,
     deepbrainchain: true,
@@ -266,11 +266,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // fractal: false,
     fraxtal: true,
     fusemainnet: true,
+    galactica: true,
     game7: true,
-    glue: true,
     gnosis: true,
     gravity: true,
-    guru: true,
     harmony: true,
     hashkey: true,
     hemi: true,
@@ -281,7 +280,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     injective: true,
     ink: true,
     kaia: true,
-    kroma: true,
+    katana: true,
     kyve: true,
     linea: true,
     lisk: true,
@@ -304,12 +303,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nero: true,
     neutron: true,
     nibiru: true,
+    noble: true,
     oortmainnet: true,
     ontology: true,
     opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
+    paradex: true,
     peaq: true,
     plume: true,
     polygon: true,
@@ -319,7 +320,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     proofofplay: true,
     rarichain: true,
     reactive: true,
-    real: true,
     redstone: true,
     rivalz: true,
     ronin: true,
@@ -330,6 +330,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
+    solaxy: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -343,12 +344,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositionmainnet: true,
     svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -357,6 +357,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xai: true,
     xlayer: true,
     xpla: true,
+    xrplevm: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
@@ -375,7 +376,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arbitrumnova: true,
     arcadia: true,
     artela: true,
-    arthera: false,
     astar: true,
     aurora: true,
     avalanche: true,
@@ -386,6 +386,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     blast: true,
     bob: true,
     boba: true,
+    botanix: true,
     bouncebit: true,
     bsc: true,
     bsquared: true,
@@ -395,7 +396,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     conflux: true,
     conwai: true,
     coredao: true,
-    corn: true,
     coti: true,
     cyber: true,
     deepbrainchain: true,
@@ -416,11 +416,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // fractal: false,
     fraxtal: true,
     fusemainnet: true,
+    galactica: true,
     game7: true,
-    glue: true,
     gnosis: true,
     gravity: true,
-    guru: true,
     harmony: true,
     hashkey: true,
     hemi: true,
@@ -431,7 +430,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     injective: true,
     kaia: true,
-    kroma: true,
+    katana: true,
     kyve: true,
     linea: true,
     lisk: true,
@@ -454,12 +453,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     nero: true,
     neutron: true,
     nibiru: true,
+    noble: true,
     oortmainnet: true,
     ontology: true,
     opbnb: true,
     optimism: true,
     orderly: true,
     osmosis: true,
+    paradex: true,
     peaq: true,
     plume: true,
     polygon: true,
@@ -469,7 +470,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     proofofplay: true,
     rarichain: true,
     reactive: true,
-    real: true,
     redstone: true,
     rivalz: true,
     ronin: true,
@@ -480,6 +480,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     snaxchain: true,
     solanamainnet: true,
+    solaxy: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
@@ -493,12 +494,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositionmainnet: true,
     svmbnb: true,
     swell: true,
+    tac: true,
     taiko: true,
     tangle: true,
     telos: true,
     torus: true,
-    treasure: true,
-    trumpchain: true,
     unichain: true,
     unitzero: true,
     vana: true,
@@ -508,6 +508,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xai: true,
     xlayer: true,
     xpla: true,
+    xrplevm: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
@@ -520,6 +521,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 // Chains not in our core set of supported chains, and supported ONLY by the scraper
 export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
   forma: true,
+  edgenchain: true,
 };
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
@@ -590,6 +592,27 @@ const contextBase = {
   },
 } as const;
 
+const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
+  '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
+);
+
+// ICA v2 deploys that superswaps make use of
+const superswapIcaV2MatchingList = chainMapMatchingList({
+  base: '0x44647Cd983E80558793780f9a0c7C2aa9F384D07',
+  bob: '0xA6f0A37DFDe9C2c8F46F010989C47d9edB3a9FA8',
+  celo: '0x1eA7aC243c398671194B7e2C51d76d1a1D312953',
+  fraxtal: '0xD59a200cCEc5b3b1bF544dD7439De452D718f594',
+  ink: '0x55Ba00F1Bac2a47e0A73584d7c900087642F9aE3',
+  lisk: '0xE59592a179c4f436d5d2e4caA6e2750beA4E3166',
+  metal: '0x0b2d429acccAA411b867d57703F88Ed208eC35E4',
+  mode: '0x860ec58b115930EcbC53EDb8585C1B16AFFF3c50',
+  optimism: '0x3E343D07D024E657ECF1f8Ae8bb7a12f08652E75',
+  soneium: '0xc08C1451979e9958458dA3387E92c9Feb1571f9C',
+  superseed: '0x3CA0e8AEfC14F962B13B40c6c4b9CEE3e4927Ae3',
+  swell: '0x95Fb6Ca1BBF441386b119ad097edcAca3b1C35B7',
+  unichain: '0x43320f6B410322Bf5ca326a0DeAaa6a2FC5A021B',
+});
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -599,7 +622,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         originDomain: getDomainId('infinityvmmainnet'),
         destinationDomain: getDomainId('solanamainnet'),
       },
+      { originDomain: getDomainId('noble') },
       { originDomain: getDomainId('starknet') },
+      { originDomain: getDomainId('paradex') },
     ],
   },
   {
@@ -617,8 +642,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround during testing of MilkyWay.
       { originDomain: getDomainId('milkyway') },
-      // Temporary workaround for some high gas amount estimates on Treasure
-      ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
+      // Being more generous with some Velo message module messages, which occasionally underpay
+      ...veloMessageModuleMatchingList,
+      // ICA v2 deploys that superswaps make use of, once we have body regex MatchingList support this
+      // can be made more specific
+      ...superswapIcaV2MatchingList,
     ],
   },
   {
@@ -669,9 +697,24 @@ const vanguardMatchingList = [
 // - misc important applications not defined in the registry, e.g. merkly
 const metricAppContextsGetter = (): MetricAppContext[] => {
   const warpContexts = Object.values(WarpRouteIds).map((warpRouteId) => {
+    let warpMatchingList = undefined;
+
+    // oUSDT has some remote routers but that don't have any limits set yet.
+    // Some people have been sending to e.g. Ink outside the UI, so to reduce alert noise
+    // we remove these from the matching list.
+    // TODO: once Ink or Worldchain have limits set, we should remove this.
+    if (warpRouteId === WarpRouteIds.oUSDT) {
+      const ousdtAddresses = getWarpAddresses(warpRouteId);
+      delete ousdtAddresses['ink'];
+      delete ousdtAddresses['worldchain'];
+      warpMatchingList = matchingList(ousdtAddresses);
+    } else {
+      warpMatchingList = warpRouteMatchingList(warpRouteId);
+    }
+
     return {
       name: warpRouteId,
-      matchingList: warpRouteMatchingList(warpRouteId),
+      matchingList: warpMatchingList,
     };
   });
 
@@ -701,15 +744,13 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       // The only exception is Metal, which had an initial misconfiguration that the Velo
       // team resolved with a different contract deploy. We can still only match on this address
       // as Metal is the only exception, so it's always receiving from or sending messages to this address.
-      matchingList: consistentSenderRecipientMatchingList(
-        '0xF385603a12Be8b7B885222329c581FDD1C30071D',
-      ),
+      matchingList: veloMessageModuleMatchingList,
     },
     {
       name: 'velo_token_bridge',
       // All messages to / from this address relate to the Velo Token Bridge.
       matchingList: consistentSenderRecipientMatchingList(
-        '0xA7287a56C01ac8Baaf8e7B662bDB41b10889C7A6',
+        '0x1A9d17828897d6289C6dff9DC9F5cc3bAEa17814',
       ),
     },
     {
@@ -742,6 +783,10 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     {
       name: 'stHYPER-STAGING/bsc-ethereum',
       matchingList: stagingStHyperMatchingList,
+    },
+    {
+      name: 'superswap_ica_v2',
+      matchingList: superswapIcaV2MatchingList,
     },
   ];
 };
@@ -803,12 +848,18 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '2fe58b3-20250718-114304',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -817,7 +868,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '5291797-20250701-134531',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -828,7 +879,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2903fe1-20250602-134907',
+      tag: '5291797-20250701-134531',
     },
     resources: scraperResources,
   },
@@ -843,7 +894,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '2fe58b3-20250718-114304',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -852,6 +903,12 @@ const releaseCandidate: RootAgentConfig = {
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -860,7 +917,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '5291797-20250701-134531',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -881,12 +938,18 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '5291797-20250701-134531',
     },
     blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknet: 16,
+        paradex: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -908,7 +971,7 @@ const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
     docker: {
       repo,
       // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
-      tag: '24fe342-20250424-164437',
+      tag: '420c950-20250612-172436',
     },
     whitelist: vanguardMatchingList,
     // Not specifying a blacklist for optimization purposes -- all the message IDs

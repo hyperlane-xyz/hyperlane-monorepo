@@ -56,6 +56,10 @@ contract FiatTokenTest is ERC20Test, IFiatToken {
         _mint(account, amount);
         return true;
     }
+
+    function minterAllowance(address _minter) public pure returns (uint256) {
+        return type(uint256).max;
+    }
 }
 
 contract XERC20Test is ERC20Test, Ownable, IXERC20 {
@@ -253,6 +257,10 @@ contract XERC20VSTest is ERC20Test, Ownable, IXERC20VS {
 
     function bufferCap(address from) public view returns (uint256) {
         return _rateLimits[from].bufferCap;
+    }
+
+    function mintOnlyOwner(address account, uint256 amount) public onlyOwner {
+        _mint(account, amount);
     }
 }
 
