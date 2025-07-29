@@ -11,7 +11,6 @@ use hyperlane_base::cache::FunctionCallCache;
 use regex::{Regex, RegexSet, RegexSetBuilder};
 use reqwest::{header::CONTENT_TYPE, Client};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
 
@@ -32,6 +31,13 @@ use super::{
 mod cache_types;
 
 pub const DEFAULT_TIMEOUT: u64 = 30;
+
+#[derive(Clone, Debug, Serialize)]
+struct OffchainLookupRequestBody {
+    pub data: String,
+    pub sender: String,
+    pub signature: Option<String>,
+}
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
@@ -227,76 +233,91 @@ async fn metadata_build(
             continue;
         }
 
-        // Compute relayer authentication signature via EIP-191
-        let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer()
-        {
-            Some(CcipReadIsmMetadataBuilder::generate_signature_hex(signer, &info, url).await?)
-        } else {
-            None
-        };
-
-        // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
-        // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
-        // the full address)
-        let sender_as_bytes = &bytes_to_hex(info.sender.as_bytes());
-        let data_as_bytes = &info.call_data.to_string();
-        let interpolated_url = url
-            .replace("{sender}", sender_as_bytes)
-            .replace("{data}", data_as_bytes);
-        let res = if !url.contains("{data}") {
-            let mut body = json!({
-                "sender": sender_as_bytes,
-                "data": data_as_bytes
-            });
-            if let Some(signature_hex) = &maybe_signature_hex {
-                body["signature"] = json!(signature_hex);
-            }
-            Client::new()
-                .post(interpolated_url)
-                .header(CONTENT_TYPE, "application/json")
-                .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
-                .json(&body)
-                .send()
-                .await
-                .map_err(|err| {
-                    let msg = format!(
-                        "Failed to request offchain lookup server with post method: {}",
-                        err
-                    );
-                    MetadataBuildError::FailedToBuild(msg)
-                })?
-        } else {
-            reqwest::get(interpolated_url).await.map_err(|err| {
-                let msg = format!(
-                    "Failed to request offchain lookup server with get method: {}",
-                    err
-                );
-                MetadataBuildError::FailedToBuild(msg)
-            })?
-        };
-
-        let json: Result<OffchainResponse, reqwest::Error> = res.json().await;
-
-        match json {
-            Ok(result) => {
-                // remove leading 0x which hex_decode doesn't like
-                let metadata = hex_decode(&result.data[2..]).map_err(|err| {
-                    let msg = format!(
-                        "Failed to decode hex from offchain lookup server response: err: ({}), data: ({})",
-                        err, result.data
-                    );
-                    MetadataBuildError::FailedToBuild(msg)
-                })?;
-                return Ok(Metadata::new(metadata));
-            }
-            Err(_err) => {
-                // try the next URL
-            }
+        // if we fail, we want to try the other urls
+        match fetch_offchain_data(ism_builder, &info, url).await {
+            Ok(data) => return Ok(data),
+            Err(_) => continue,
         }
     }
 
     // No metadata endpoints or endpoints down
     Err(MetadataBuildError::CouldNotFetch)
+}
+
+/// Fetch data from offchain lookup server
+async fn fetch_offchain_data(
+    ism_builder: &CcipReadIsmMetadataBuilder,
+    info: &OffchainLookup,
+    url: &str,
+) -> Result<Metadata, MetadataBuildError> {
+    // Compute relayer authentication signature via EIP-191
+    let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer() {
+        Some(CcipReadIsmMetadataBuilder::generate_signature_hex(signer, &info, url).await?)
+    } else {
+        None
+    };
+
+    // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
+    // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
+    // the full address)
+    let sender_as_bytes = bytes_to_hex(info.sender.as_bytes());
+    let data_as_bytes = info.call_data.to_string();
+    let interpolated_url = url
+        .replace("{sender}", &sender_as_bytes)
+        .replace("{data}", &data_as_bytes);
+    let res = if !url.contains("{data}") {
+        let body = OffchainLookupRequestBody {
+            sender: sender_as_bytes,
+            data: data_as_bytes,
+            signature: maybe_signature_hex,
+        };
+        Client::new()
+            .post(interpolated_url)
+            .header(CONTENT_TYPE, "application/json")
+            .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|err| {
+                let msg = format!(
+                    "Failed to request offchain lookup server with post method: {}",
+                    err
+                );
+                MetadataBuildError::FailedToBuild(msg)
+            })?
+    } else {
+        reqwest::get(interpolated_url).await.map_err(|err| {
+            let msg = format!(
+                "Failed to request offchain lookup server with get method: {}",
+                err
+            );
+            MetadataBuildError::FailedToBuild(msg)
+        })?
+    };
+
+    let json: OffchainResponse = res.json().await.map_err(|err| {
+        let error_msg = format!(
+            "Failed to parse offchain lookup server json response: ({})",
+            err.to_string()
+        );
+        MetadataBuildError::FailedToBuild(error_msg)
+    })?;
+
+    // remove leading if exists 0x, which hex_decode doesn't like
+    let hex_data = if json.data.starts_with("0x") {
+        &json.data[2..]
+    } else {
+        &json.data
+    };
+
+    let metadata = hex_decode(hex_data).map_err(|err| {
+        let msg = format!(
+            "Failed to decode hex from offchain lookup server response: err: ({}), data: ({})",
+            err, json.data
+        );
+        MetadataBuildError::FailedToBuild(msg)
+    })?;
+    return Ok(Metadata::new(metadata));
 }
 
 fn create_ccip_url_regex() -> RegexSet {
@@ -320,6 +341,8 @@ mod test {
     use std::{str::FromStr, vec};
 
     use ethers::types::H160;
+    use serde_json::json;
+
     use hyperlane_core::SignedType;
 
     use super::*;
@@ -451,5 +474,38 @@ mod test {
         for (actual, expected) in filtered.into_iter().zip(expected.into_iter()) {
             assert_eq!(actual, expected);
         }
+    }
+
+    /// test to make sure new body is 1:1 with old body
+    #[ignore]
+    #[test]
+    fn test_bodies_match() {
+        let sender_as_bytes =
+            "0x000000000000000000000000ff0247f72b0d7ced319d8457dd30622a2bed78b5".to_string();
+        let data_as_bytes = "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000008d0300009ea400000082000000000000000000000000ff0247f72b0d7ced319d8457dd30622a2bed78b5000021050000000000000000000000002552516453368e42705d791f674b312b8b87cd9e000000000000000000000000c37239fcfaf54f6d34b7f3f2a5fc30e8d32ebfa5000000000000000000000000000000000000000000000000000cca2e5131000000000000000000000000000000000000000000".to_string();
+        let maybe_signature_hex =
+            Some("0xe5d816562bddf8a9e36628b3f8689d0ce3f6f3328b99835fb5d6c7e3c4b84714".to_string());
+        let mut body = json!({
+            "sender": &sender_as_bytes,
+            "data": &data_as_bytes
+        });
+        if let Some(signature_hex) = &maybe_signature_hex {
+            body["signature"] = json!(signature_hex);
+        }
+
+        let json_str1 = serde_json::to_string(&body).expect("Failed to serialize body");
+
+        let body = OffchainLookupRequestBody {
+            sender: sender_as_bytes,
+            data: data_as_bytes,
+            signature: maybe_signature_hex,
+        };
+
+        let json_str2 = serde_json::to_string(&body).expect("Failed to serialize body");
+
+        println!("{json_str1}");
+        println!("{json_str2}");
+
+        assert_eq!(json_str1, json_str2);
     }
 }
