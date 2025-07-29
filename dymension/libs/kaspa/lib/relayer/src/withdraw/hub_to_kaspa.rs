@@ -7,11 +7,8 @@ use corelib::wallet::SigningResources;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
-use hardcode::tx::{
-    DUST_AMOUNT, MINIMUM_WITHDRAWAL_ACCEPTED, MIN_ESCROW_BALANCE, MIN_RELAY_BALANCE,
-};
-use hyperlane_core::{Decode, HyperlaneMessage, U256};
-use hyperlane_warp_route::TokenMessage;
+use hardcode::tx::{DUST_AMOUNT, MIN_DEPOSIT_AMOUNT};
+use hyperlane_core::HyperlaneMessage;
 use kaspa_addresses::Prefix;
 use kaspa_consensus_core::config::params::Params;
 use kaspa_consensus_core::constants::TX_VERSION;
@@ -30,7 +27,6 @@ use kaspa_wallet_core::tx::is_transaction_output_dust;
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
-use std::io::Cursor;
 use std::sync::Arc;
 use tracing::{info, warn};
 
@@ -164,11 +160,11 @@ pub fn build_withdrawal_pskt(
         ));
     }
 
-    if escrow_balance < MIN_ESCROW_BALANCE {
+    if escrow_balance < MIN_DEPOSIT_AMOUNT {
         warn!(
             "Escrow balance is low: balance: {}, recommended: {}. Please deposit to escrow address to avoid high mass txs.",
             escrow_balance,
-            MIN_ESCROW_BALANCE
+            MIN_DEPOSIT_AMOUNT
         );
     }
     //////////////////
@@ -188,11 +184,11 @@ pub fn build_withdrawal_pskt(
         ));
     }
 
-    if relayer_balance < MIN_RELAY_BALANCE {
+    if relayer_balance < MIN_DEPOSIT_AMOUNT {
         warn!(
             "Relayer balance is low: balance: {}, recommended: {}. Please deposit to relayer address to avoid high mass txs.",
             relayer_balance,
-            MIN_RELAY_BALANCE
+            MIN_DEPOSIT_AMOUNT
         );
     }
 
@@ -240,7 +236,7 @@ pub fn build_withdrawal_pskt(
 fn is_dust(tx_out: &TransactionOutput) -> bool {
     tx_out.value < DUST_AMOUNT
         || is_transaction_output_dust(tx_out)
-        || tx_out.value < MINIMUM_WITHDRAWAL_ACCEPTED
+        || tx_out.value < MIN_DEPOSIT_AMOUNT
 }
 
 /// CONTRACT:
@@ -600,11 +596,9 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PS
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use corelib::payload::MessageIDs;
     use corelib::util::is_valid_sighash_type;
     use corelib::withdraw::WithdrawFXG;
     use hyperlane_core::H256;
-    use std::collections::BTreeMap;
 
     #[test]
     fn test_kaspa_address_conversion() {

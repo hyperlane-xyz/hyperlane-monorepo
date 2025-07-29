@@ -202,9 +202,12 @@ impl RoundTrip {
 
         let amount = self.value.to_string();
         let recipient = x::addr::hl_recipient(&kaspa_recipient.address.to_string());
+        let token_id = self.res.args.token_hub.to_string();
+        debug!("withdraw token_id: {}, recipient: {}", token_id, recipient);
+
         let req = MsgRemoteTransfer {
             sender: rpc.get_signer()?.address_string.clone(),
-            token_id: self.res.args.token_hub.to_string(),
+            token_id,
             destination_domain: self.res.args.domain_hub,
             recipient,
             amount,

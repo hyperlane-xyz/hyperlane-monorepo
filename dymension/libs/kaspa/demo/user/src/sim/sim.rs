@@ -44,7 +44,6 @@ const DEFAULT_DENOM: &str = "adym";
 const DEFAULT_DECIMALS: u32 = 18;
 const DEFAULT_WRPC_URL: &str = "localhost:17210";
 const DEFAULT_REST_URL: &str = "https://api-tn10.kaspa.org/";
-const MAX_WAIT_FOR_CANCEL: Duration = Duration::from_secs(60);
 
 async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosNativeProvider> {
     let conf = CosmosConnectionConf::new(
@@ -78,10 +77,10 @@ pub struct Params {
     pub time_limit: Duration,          // total target simulation time
     pub budget: u64,                   // in sompi
     pub ops_per_minute: u64,           // osmosis does 90 per minute
-    pub max_ops: u64,                  // max number of ops to run, disregarding distributions
     pub min_value: u64,                // in sompi
     pub hub_fund_amount: u64,          // in adym
     pub max_wait_for_cancel: Duration, // max time to wait for cancel
+    pub simple_mode: bool,
 }
 
 impl Params {
@@ -92,6 +91,9 @@ impl Params {
     }
     /// Sample deposit value
     pub fn sample_value(&self) -> u64 {
+        if self.simple_mode {
+            return self.min_value;
+        }
         // TODO: use proper clamping, or this will blow the budget
         let v = self.distr_value().sample(&mut rand::rng()) as u64;
         if v < self.min_value {
@@ -133,10 +135,10 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 time_limit: std::time::Duration::from_secs(cli.time_limit),
                 budget: cli.budget,
                 ops_per_minute: cli.ops_per_minute,
-                max_ops: cli.max_ops,
+                simple_mode: cli.simple,
                 min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
                 hub_fund_amount: cli.hub_fund_amount,
-                max_wait_for_cancel: MAX_WAIT_FOR_CANCEL,
+                max_wait_for_cancel: std::time::Duration::from_secs(cli.cancel_wait),
             },
             task_args: TaskArgs {
                 domain_kas: cli.domain_kas,
@@ -222,9 +224,6 @@ impl TrafficSim {
             total_spend += nominal_value;
             total_ops += 1;
             let sleep_millis = self.params.distr_time().sample(&mut rng) as u64;
-            if self.params.max_ops > 0 && total_ops >= self.params.max_ops {
-                break;
-            }
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
             info!(
                 "elasped millis {}, interval {}, value {}",
@@ -232,6 +231,9 @@ impl TrafficSim {
                 sleep_millis,
                 som_to_kas(nominal_value)
             );
+            if self.params.simple_mode {
+                break;
+            }
         }
         info!("Waiting for tasks to finish");
 
