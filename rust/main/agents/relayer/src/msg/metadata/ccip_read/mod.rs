@@ -349,8 +349,6 @@ mod test {
     use std::{str::FromStr, vec};
 
     use ethers::types::H160;
-    use serde_json::json;
-
     use hyperlane_core::SignedType;
 
     use super::*;
@@ -482,38 +480,5 @@ mod test {
         for (actual, expected) in filtered.into_iter().zip(expected.into_iter()) {
             assert_eq!(actual, expected);
         }
-    }
-
-    /// test to make sure new body is 1:1 with old body
-    #[ignore]
-    #[test]
-    fn test_bodies_match() {
-        let sender_as_bytes =
-            "0x000000000000000000000000ff0247f72b0d7ced319d8457dd30622a2bed78b5".to_string();
-        let data_as_bytes = "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000008d0300009ea400000082000000000000000000000000ff0247f72b0d7ced319d8457dd30622a2bed78b5000021050000000000000000000000002552516453368e42705d791f674b312b8b87cd9e000000000000000000000000c37239fcfaf54f6d34b7f3f2a5fc30e8d32ebfa5000000000000000000000000000000000000000000000000000cca2e5131000000000000000000000000000000000000000000".to_string();
-        let maybe_signature_hex =
-            Some("0xe5d816562bddf8a9e36628b3f8689d0ce3f6f3328b99835fb5d6c7e3c4b84714".to_string());
-        let mut body = json!({
-            "sender": &sender_as_bytes,
-            "data": &data_as_bytes
-        });
-        if let Some(signature_hex) = &maybe_signature_hex {
-            body["signature"] = json!(signature_hex);
-        }
-
-        let json_str1 = serde_json::to_string(&body).expect("Failed to serialize body");
-
-        let body = OffchainLookupRequestBody {
-            sender: sender_as_bytes,
-            data: data_as_bytes,
-            signature: maybe_signature_hex,
-        };
-
-        let json_str2 = serde_json::to_string(&body).expect("Failed to serialize body");
-
-        println!("{json_str1}");
-        println!("{json_str2}");
-
-        assert_eq!(json_str1, json_str2);
     }
 }
