@@ -309,7 +309,6 @@ mod tests {
                 "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr",
             )
             .unwrap(),
-            hl_token_denom: String::new(),
         };
         let denom = args.hub_denom();
         assert_eq!(
