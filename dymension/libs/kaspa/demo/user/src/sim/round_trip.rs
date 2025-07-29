@@ -217,7 +217,7 @@ impl RoundTrip {
         let req = MsgRemoteTransfer {
             sender: rpc.get_signer()?.address_string.clone(),
             token_id,
-            destination_domain: self.res.args.domain_hub,
+            destination_domain: self.res.args.domain_kas,
             recipient,
             amount,
             custom_hook_id: "".to_string(),
