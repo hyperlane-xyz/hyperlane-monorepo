@@ -112,16 +112,16 @@ pub struct SimulateTrafficCli {
     #[arg(long, required = true)]
     pub escrow_address: String,
 
-    /// The hub balances denom (.e.g hyperlane/0x726f757465725f61707000000000000000000000000000020000000000000000)
-    #[arg(long, required = true)]
-    pub hl_token_denom: String,
-
     #[command(flatten)]
     pub wallet: WalletCli,
 
-    #[arg(long, required = false, default_value = "0")]
-    /// Optional maximum number of deposits to simulate before exiting the simulation
-    pub max_ops: u64,
+    #[arg(long, required = false, default_value = "false")]
+    /// If true, just simply does one round trip and then exists, ignoring time and budget etc
+    pub simple: bool,
+
+    #[arg(long, required = true, default_value = "180")]
+    /// The number of seconds to wait for the simulation to cancel
+    pub cancel_wait: u64,
 }
 
 #[derive(Args, Debug, Clone)]

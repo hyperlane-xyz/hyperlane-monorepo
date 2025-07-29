@@ -2,11 +2,7 @@ use kaspa_consensus_core::constants::SOMPI_PER_KASPA;
 use std::time::Duration;
 
 pub const DUST_AMOUNT: u64 = 20_000_001;
-pub const MIN_DEPOSIT_AMOUNT: u64 = 2_000_000_000; // 20 KAS, approx USD 2, allows 200 withdrawals per tx
-pub const RELAYER_FEE: u64 = 20_000; // HARDCODED: empirically saw at least 10500 needed TODO: dynamic
-pub const MINIMUM_WITHDRAWAL_ACCEPTED: u64 = 40 * SOMPI_PER_KASPA; // MIN is 40 KAS, which is 4_000_000_000 sompi
-pub const MIN_ESCROW_BALANCE: u64 = 100 * SOMPI_PER_KASPA; // recommended minimum balance for the escrow address, to avoid small change with high mass txs.
-pub const MIN_RELAY_BALANCE: u64 = 100 * SOMPI_PER_KASPA; // recommended minimum balance for the relayer address, to avoid small change with high mass txs.
+pub const MIN_DEPOSIT_AMOUNT: u64 = 20 * SOMPI_PER_KASPA; // 20 KAS, approx USD 2, allows 200 withdrawals per tx
 
 /*
 In Kaspa, every node has a different and eventually converging view of the network.
