@@ -275,3 +275,43 @@ export async function getTimelockPendingTxs(
 
   return Object.values(timelockTransactions).flatMap((txs) => txs);
 }
+
+export async function deleteTimelockTx(
+  chain: ChainName,
+  timelockAddress: Address,
+  operationId: HexString,
+  multiProvider: MultiProvider,
+): Promise<void> {
+  const timelockInstance = TimelockController__factory.connect(
+    timelockAddress,
+    multiProvider.getSigner(chain),
+  );
+
+  const isPendingOperation =
+    await timelockInstance.isOperationPending(operationId);
+  if (!isPendingOperation) {
+    rootLogger.error(
+      `Timelock operation with id ${operationId} on chain ${chain} does not exist or is not pending`,
+    );
+    return;
+  }
+
+  const signerAddress = await multiProvider.getSignerAddress(chain);
+  const canCancel = await timelockInstance.hasRole(
+    CANCELLER_ROLE,
+    signerAddress,
+  );
+  if (!canCancel) {
+    rootLogger.error(
+      `Current signer "${signerAddress}" does not have permission to cancel transaction on timelock "${timelockAddress}" on chain "${chain}"`,
+    );
+    return;
+  }
+
+  const cancelTx = await timelockInstance.cancel(operationId);
+  await cancelTx.wait();
+
+  rootLogger.info(
+    `Successfully cancelled timelock operation "${operationId}" on chain ${chain} at tx "${cancelTx.hash}"`,
+  );
+}
