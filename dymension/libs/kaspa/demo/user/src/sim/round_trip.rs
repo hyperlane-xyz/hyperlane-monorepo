@@ -16,6 +16,7 @@ use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
+use std::str::FromStr;
 use std::time::Duration;
 use std::time::{Instant, SystemTime};
 use tendermint::abci::Code;
@@ -24,7 +25,6 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::error;
-use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
@@ -41,12 +41,14 @@ pub struct TaskArgs {
     pub domain_hub: u32,
     pub token_hub: H256,
     pub escrow_address: Address,
-    pub hl_token_denom: String,
 }
 
 impl TaskArgs {
+    pub fn token_hub_str(&self) -> String {
+        format!("0x{}", hex::encode(self.token_hub.as_bytes()))
+    }
     pub fn hub_denom(&self) -> String {
-        format!("hyperlane/{}", self.token_hub.to_string())
+        format!("hyperlane/{}", self.token_hub_str())
     }
 }
 
@@ -176,7 +178,7 @@ impl RoundTrip {
                 .res
                 .hub
                 .rpc()
-                .get_balance_denom(a.clone(), self.res.args.hl_token_denom.clone())
+                .get_balance_denom(a.clone(), self.res.args.hub_denom())
                 .await?;
             if balance == U256::from(0) {
                 if self.cancel.is_cancelled() {
@@ -209,7 +211,7 @@ impl RoundTrip {
 
         let amount = self.value.to_string();
         let recipient = x::addr::hl_recipient(&kaspa_recipient.address.to_string());
-        let token_id = self.res.args.token_hub.to_string();
+        let token_id = self.res.args.token_hub_str();
         debug!("withdraw token_id: {}, recipient: {}", token_id, recipient);
 
         let req = MsgRemoteTransfer {
@@ -295,16 +297,24 @@ mod tests {
 
     #[test]
     fn test_hub_denom() {
-        let token_hub = H256::from_slice(&hex::decode("726f757465725f61707000000000000000000000000000020000000000000000").unwrap());
+        let token_hub =
+            H256::from_str("0x726f757465725f61707000000000000000000000000000020000000000000000")
+                .unwrap();
         let args = TaskArgs {
             domain_kas: 0,
             token_kas_placeholder: H256::zero(),
             domain_hub: 0,
             token_hub,
-            escrow_address: Address::try_from("kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr").unwrap(),
+            escrow_address: Address::try_from(
+                "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr",
+            )
+            .unwrap(),
             hl_token_denom: String::new(),
         };
         let denom = args.hub_denom();
-        assert_eq!(denom, "hyperlane/0x726f757465725f61707000000000000000000000000000020000000000000000");
+        assert_eq!(
+            denom,
+            "hyperlane/0x726f757465725f61707000000000000000000000000000020000000000000000"
+        );
     }
 }

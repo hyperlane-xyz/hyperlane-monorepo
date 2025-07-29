@@ -146,7 +146,6 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 domain_hub: cli.domain_hub,
                 token_hub: cli.token_hub,
                 escrow_address: addr,
-                hl_token_denom: cli.hl_token_denom,
             },
             wallet: cli.wallet,
             hub_whale_priv_key: cli.hub_whale_priv_key,

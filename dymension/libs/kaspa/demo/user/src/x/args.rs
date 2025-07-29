@@ -112,10 +112,6 @@ pub struct SimulateTrafficCli {
     #[arg(long, required = true)]
     pub escrow_address: String,
 
-    /// The hub balances denom (.e.g hyperlane/0x726f757465725f61707000000000000000000000000000020000000000000000)
-    #[arg(long, required = true)]
-    pub hl_token_denom: String,
-
     #[command(flatten)]
     pub wallet: WalletCli,
 
