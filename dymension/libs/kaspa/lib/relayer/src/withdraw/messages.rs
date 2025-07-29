@@ -28,7 +28,7 @@ pub async fn on_new_withdrawals(
     let (valid_msgs, outputs) = filter_outputs_from_msgs(pending_msgs, relayer.net.address_prefix);
 
     if outputs.is_empty() {
-        info!("Kaspa relayer, no pending withdrawals, all in batch are already processed and confirmed on hub");
+        info!("Kaspa relayer, no valid pending withdrawals, all in batch are already processed and confirmed on hub");
         return Ok(None); // nothing to process
     }
     info!(
