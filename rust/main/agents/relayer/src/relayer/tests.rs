@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 use ethers::utils::hex;
@@ -9,6 +10,7 @@ use prometheus::{opts, IntGaugeVec, Registry};
 use reqwest::Url;
 use tokio::time::error::Elapsed;
 
+use hyperlane_base::db::DB;
 use hyperlane_base::settings::{
     ChainConf, ChainConnectionConf, CoreContractAddresses, IndexSettings, Settings, SignerConf,
     TracingConfig,
@@ -21,6 +23,7 @@ use hyperlane_core::{
     config::OpSubmissionConfig, HyperlaneDomain, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
 };
 use hyperlane_ethereum as h_eth;
+use lander::DispatcherMetrics;
 
 use crate::settings::{matching_list::MatchingList, RelayerSettings};
 
@@ -139,7 +142,7 @@ fn generate_test_relayer_settings(
 
 #[tokio::test]
 #[tracing_test::traced_test]
-async fn test_failed_build_mailboxes() {
+async fn test_failed_build_destinations() {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path();
 
@@ -183,7 +186,7 @@ async fn test_failed_build_mailboxes() {
     );
 
     let registry = Registry::new();
-    let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
+    let core_metrics = Arc::new(CoreMetrics::new("relayer", 4000, registry).unwrap());
     let chain_metrics = ChainMetrics {
         block_height: IntGaugeVec::new(
             opts!("block_height", BLOCK_HEIGHT_HELP),
@@ -198,11 +201,23 @@ async fn test_failed_build_mailboxes() {
         .unwrap(),
     };
 
-    let mailboxes = Relayer::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
+    let db = DB::from_path(db_path).unwrap();
 
-    assert_eq!(mailboxes.len(), 2);
-    assert!(mailboxes.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
-    assert!(mailboxes.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum)));
+    let dispatcher_metrics = DispatcherMetrics::new(core_metrics.registry())
+        .expect("Creating dispatcher metrics is infallible");
+
+    let destinations = Relayer::build_destinations(
+        &settings,
+        db,
+        core_metrics,
+        &chain_metrics,
+        dispatcher_metrics,
+    )
+    .await;
+
+    assert_eq!(destinations.len(), 2);
+    assert!(destinations.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
+    assert!(destinations.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum)));
 
     // Arbitrum chain should not have any errors because it's ChainConf exists
     let metric = chain_metrics
@@ -211,7 +226,7 @@ async fn test_failed_build_mailboxes() {
         .unwrap();
     assert_eq!(metric.get(), 0);
 
-    // Ethereum chain should error because it is missing ChainConf
+    // Ethereum chain should not have any errors because it's ChainConf exists
     let metric = chain_metrics
         .critical_error
         .get_metric_with_label_values(&["ethereum"])
