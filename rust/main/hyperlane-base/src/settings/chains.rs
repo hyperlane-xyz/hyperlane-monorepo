@@ -32,7 +32,7 @@ use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel::{
     self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
 };
-use hyperlane_starknet as h_starknet;
+use hyperlane_starknet::{self as h_starknet};
 
 use crate::{
     metrics::AgentMetricsConf,
@@ -201,6 +201,7 @@ impl ChainConnectionConf {
             Self::Cosmos(conf) => Some(&conf.op_submission_config),
             Self::Sealevel(conf) => Some(&conf.op_submission_config),
             Self::Kaspa(conf) => Some(&conf.op_submission_config),
+            Self::Starknet(config) => Some(&config.op_submission_config),
             _ => None,
         }
     }
@@ -224,7 +225,7 @@ pub struct CoreContractAddresses {
 pub struct IndexSettings {
     /// The height at which to start indexing contracts for watermark synchs.
     /// The lowest sequence to index for sequence-aware synchs.
-    pub from: u32,
+    pub from: i64,
     /// The number of blocks to query at once when indexing contracts.
     pub chunk_size: u32,
     /// The indexing mode.
@@ -427,8 +428,7 @@ impl ChainConf {
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let signer = self.starknet_signer().await.context(ctx)?;
-                let hook = h_starknet::StarknetMerkleTreeHook::new(conf, &locator, signer).await?;
+                let hook = h_starknet::StarknetMerkleTreeHook::new(conf, &locator)?;
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -930,11 +930,9 @@ impl ChainConf {
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let signer = self.starknet_signer().await.context(ctx)?;
-                let ism = Box::new(
-                    h_starknet::StarknetInterchainSecurityModule::new(conf, &locator, signer)
-                        .await?,
-                );
+                let ism = Box::new(h_starknet::StarknetInterchainSecurityModule::new(
+                    conf, &locator,
+                )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -986,9 +984,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let signer = self.starknet_signer().await.context(ctx)?;
-                let ism =
-                    Box::new(h_starknet::StarknetMultisigIsm::new(conf, &locator, signer).await?);
+                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(conf, &locator)?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -1036,9 +1032,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let signer = self.starknet_signer().await.context(ctx)?;
-                let ism =
-                    Box::new(h_starknet::StarknetRoutingIsm::new(conf, &locator, signer).await?);
+                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(conf, &locator)?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -1089,10 +1083,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn AggregationIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let signer = self.starknet_signer().await.context(ctx)?;
-                let ism = Box::new(
-                    h_starknet::StarknetAggregationIsm::new(conf, &locator, signer).await?,
-                );
+                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(conf, &locator)?);
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }
@@ -1197,10 +1188,8 @@ impl ChainConf {
         self.signer().await
     }
 
-    async fn starknet_signer(&self) -> Result<h_starknet::Signer> {
-        self.signer()
-            .await?
-            .ok_or_else(|| eyre!("Starknet requires a signer to construct contract instances"))
+    async fn starknet_signer(&self) -> Result<Option<h_starknet::Signer>> {
+        self.signer().await
     }
 
     async fn cosmos_native_signer(&self) -> Result<Option<h_cosmos_native::Signer>> {
@@ -1239,7 +1228,7 @@ impl ChainConf {
                     name: Some(name.into()),
                     functions: fns
                         .into_iter()
-                        .map(|s| (Selector::try_from(s.0).unwrap(), s.1))
+                        .map(|s| (Selector::try_from(s.0).expect("Failed to parse bytes"), s.1))
                         .collect(),
                 });
         };
@@ -1326,7 +1315,7 @@ fn build_sealevel_tx_submitter(
     connection_conf: &h_sealevel::ConnectionConf,
     locator: &ContractLocator,
     metrics: &CoreMetrics,
-) -> Box<dyn TransactionSubmitter> {
+) -> Arc<dyn TransactionSubmitter> {
     let middleware_metrics = chain_conf.metrics_conf();
     let client_metrics = metrics.client_metrics();
     connection_conf.transaction_submitter.create_submitter(

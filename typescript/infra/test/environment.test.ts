@@ -36,9 +36,9 @@ describe('Environment', () => {
         );
 
         for (const chain of Object.keys(ethereumCoreConfigs)) {
-          // Skip testing rometestnet because its non-standard gas metering
+          // Skip testing rometestnet2 because its non-standard gas metering
           // requires custom configuration
-          if (chain === 'rometestnet') {
+          if (chain === 'rometestnet2') {
             continue;
           }
 

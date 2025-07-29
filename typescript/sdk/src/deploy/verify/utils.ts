@@ -337,6 +337,7 @@ export async function getProxyAndAdminInput({
 }): Promise<{
   proxyAdminInput: ContractVerificationInput;
   transparentUpgradeableProxyInput: ContractVerificationInput;
+  transparentUpgradeableImplementationInput: ContractVerificationInput;
 }> {
   const provider = multiProvider.getProvider(chainName);
 
@@ -359,6 +360,7 @@ export async function getProxyAndAdminInput({
     contractAddress: proxyAddress,
     bytecode: TransparentUpgradeableProxy__factory.bytecode,
   });
+
   const transparentUpgradeableProxyInput = buildVerificationInput(
     'TransparentUpgradeableProxy',
     proxyAddress,
@@ -367,7 +369,21 @@ export async function getProxyAndAdminInput({
     await proxyImplementation(provider, proxyAddress),
   );
 
-  return { proxyAdminInput, transparentUpgradeableProxyInput };
+  // Input for TUP as an implementation (isProxy = false).
+  // Strangely this is needed to verify the proxy on etherscan.
+  const transparentUpgradeableImplementationInput = buildVerificationInput(
+    'TransparentUpgradeableProxy',
+    proxyAddress,
+    proxyConstructorArgs,
+    false,
+    await proxyImplementation(provider, proxyAddress),
+  );
+
+  return {
+    proxyAdminInput,
+    transparentUpgradeableProxyInput,
+    transparentUpgradeableImplementationInput,
+  };
 }
 
 export async function getImplementationInput({

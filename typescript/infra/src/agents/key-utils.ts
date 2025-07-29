@@ -1,7 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { join } from 'path';
-import { Pair } from 'yaml';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import {
@@ -14,9 +13,9 @@ import {
 
 import { Contexts } from '../../config/contexts.js';
 import { helloworld } from '../../config/environments/helloworld.js';
-import localKathyAddresses from '../../config/kathy.json';
+import localKathyAddresses from '../../config/kathy.json' with { type: 'json' };
 import { getChain } from '../../config/registry.js';
-import localRelayerAddresses from '../../config/relayer.json';
+import localRelayerAddresses from '../../config/relayer.json' with { type: 'json' };
 import { getAWValidatorsPath } from '../../scripts/agent-utils.js';
 import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils.js';
 import { AgentContextConfig, RootAgentConfig } from '../config/agent/agent.js';
@@ -159,6 +158,19 @@ function getRoleKeyMapPerChain(
     }
   };
 
+  const setRebalancerKeys = () => {
+    const rebalancerKey = getRebalancerKey(agentConfig);
+    // Assign the single rebalancer key to all chains that have a relayer configured
+    for (const chainName of agentConfig.contextChainNames.relayer) {
+      keysPerChain[chainName] = {
+        ...keysPerChain[chainName],
+        [Role.Rebalancer]: {
+          [rebalancerKey.identifier]: rebalancerKey,
+        },
+      };
+    }
+  };
+
   for (const role of agentConfig.rolesWithKeys) {
     switch (role) {
       case Role.Validator:
@@ -172,6 +184,9 @@ function getRoleKeyMapPerChain(
         break;
       case Role.Deployer:
         setDeployerKeys();
+        break;
+      case Role.Rebalancer:
+        setRebalancerKeys();
         break;
       default:
         throw Error(`Unsupported role with keys ${role}`);
@@ -240,6 +255,8 @@ export function getCloudAgentKey(
       return getKathyKeyForChain(agentConfig, chainName);
     case Role.Deployer:
       return getDeployerKey(agentConfig);
+    case Role.Rebalancer:
+      return getRebalancerKey(agentConfig);
     default:
       throw Error(`Unsupported role ${role}`);
   }
@@ -292,6 +309,19 @@ export function getKathyKeyForChain(
 export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
   debugLog('Retrieving deployer key');
   return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
+}
+
+// Returns the rebalancer key. This is always a GCP key, not chain specific
+// and in the Hyperlane context
+export function getRebalancerKey(
+  agentConfig: AgentContextConfig,
+): CloudAgentKey {
+  debugLog('Retrieving rebalancer key');
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    Contexts.Hyperlane,
+    Role.Rebalancer,
+  );
 }
 
 // Helper function to determine if a chain is Starknet
@@ -353,8 +383,9 @@ export async function createAgentKeysIfNotExistsWithPrompt(
   agentConfig: AgentContextConfig,
 ) {
   const agentKeysToCreate = await agentKeysToBeCreated(agentConfig);
+  const shouldCreateKeys = agentKeysToCreate.length > 0;
 
-  if (agentKeysToCreate.length > 0) {
+  if (shouldCreateKeys) {
     const shouldContinue = await confirm({
       message: chalk.yellow.bold(
         `Warning: New agent keys will be created: ${agentKeysToCreate.join(', ')}. Are you sure you want to continue?`,
@@ -368,18 +399,20 @@ export async function createAgentKeysIfNotExistsWithPrompt(
 
     console.log(chalk.blue.bold('Creating new agent keys if needed.'));
     await createAgentKeys(agentConfig, agentKeysToCreate);
-    return true;
   } else {
     console.log(chalk.gray.bold('No new agent keys will be created.'));
-    return false;
+    // Persist all keys, even if no new ones were created
+    await persistAddresses(agentConfig);
   }
+  return shouldCreateKeys;
 }
 
 // We can create or delete keys if they are not Starknet keys.
 function getModifiableKeys(agentConfig: AgentContextConfig): CloudAgentKey[] {
   const keys = getAllCloudAgentKeys(agentConfig);
+  // if the key has a chainName and it is a Starknet chain, filter it out
   return keys.filter(
-    (key) => !key.chainName || !isStarknetChain(key.chainName),
+    (key) => !(key.chainName && isStarknetChain(key.chainName)),
   );
 }
 
@@ -403,13 +436,22 @@ async function createAgentKeys(
     }),
   );
 
-  // We still need to persist addresses, but this handles both Starknet and non-Starknet keys
-  await persistAddressesLocally(agentConfig, keysToCreate);
-  // Key funder expects the serialized addresses in GCP
+  await persistAddresses(agentConfig);
+}
+
+async function persistAddresses(agentConfig: AgentContextConfig) {
+  const keys = getModifiableKeys(agentConfig);
+  const addresses = await Promise.all(
+    keys.map(async (key) => {
+      await key.fetch();
+      return key.serializeAsAddress();
+    }),
+  );
+  await persistAddressesLocally(agentConfig, keys);
   await persistAddressesInGcp(
     agentConfig.runEnv,
     agentConfig.context,
-    keysToCreate.map((key) => key.serializeAsAddress()),
+    addresses,
   );
   return;
 }
@@ -418,7 +460,6 @@ async function agentKeysToBeCreated(
   agentConfig: AgentContextConfig,
 ): Promise<string[]> {
   const keysToCreateIfNotExist = getModifiableKeys(agentConfig);
-
   return (
     await Promise.all(
       keysToCreateIfNotExist.map(async (key) =>

@@ -8,17 +8,18 @@ import {
   ChainName,
   ChainTechnicalStack,
   CheckerViolation,
+  GetCallRemoteSettings,
   HyperlaneApp,
   HyperlaneAppChecker,
   InterchainAccount,
   OwnableConfig,
   OwnerViolation,
   ProxyAdminViolation,
-  canProposeSafeTransactions,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   CallData,
+  assert,
   bytes32ToAddress,
   eqAddress,
   objMap,
@@ -27,7 +28,12 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
-import { GovernanceType, determineGovernanceType } from '../governance.js';
+import { legacyEthIcaRouter, legacyIcaChainRouters } from '../config/chain.js';
+import {
+  GovernanceType,
+  Owner,
+  determineGovernanceType,
+} from '../governance.js';
 
 import {
   ManualMultiSend,
@@ -46,7 +52,7 @@ export type AnnotatedCallData = CallData & {
   submissionType?: SubmissionType;
   description: string;
   expandedDescription?: string;
-  icaTargetChain?: ChainName;
+  callRemoteArgs?: GetCallRemoteSettings;
   governanceType?: GovernanceType;
 };
 
@@ -54,7 +60,7 @@ export type InferredCall = {
   type: SubmissionType;
   chain: ChainName;
   call: AnnotatedCallData;
-  icaTargetChain?: ChainName;
+  callRemoteArgs?: GetCallRemoteSettings;
 };
 
 export abstract class HyperlaneAppGovernor<
@@ -131,15 +137,15 @@ export abstract class HyperlaneAppGovernor<
         `${SubmissionType[submissionType]} calls: ${callsForSubmissionType.length}`,
       );
       callsForSubmissionType.map(
-        ({ icaTargetChain, description, expandedDescription, ...call }) => {
+        ({ callRemoteArgs, description, expandedDescription, ...call }) => {
           // Print a blank line to separate calls
           rootLogger.info('');
 
           // Print the ICA call header if it exists
-          if (icaTargetChain) {
+          if (callRemoteArgs) {
             rootLogger.info(
               chalk.bold(
-                `> INTERCHAIN ACCOUNT CALL: ${chain} -> ${icaTargetChain}`,
+                `> INTERCHAIN ACCOUNT CALL: ${chain} -> ${callRemoteArgs.destination}`,
               ),
             );
           }
@@ -192,7 +198,7 @@ export abstract class HyperlaneAppGovernor<
           );
           try {
             // Process calls in batches up to max size of 100
-            const maxBatchSize = 100;
+            const maxBatchSize = 120;
             for (
               let i = 0;
               i < callsForSubmissionType.length;
@@ -293,7 +299,7 @@ export abstract class HyperlaneAppGovernor<
       newCalls[inferredCall.chain] = newCalls[inferredCall.chain] || [];
       newCalls[inferredCall.chain].push({
         submissionType: inferredCall.type,
-        icaTargetChain: inferredCall.icaTargetChain,
+        callRemoteArgs: inferredCall.callRemoteArgs,
         ...inferredCall.call,
       });
     };
@@ -375,14 +381,52 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
-    // Get the account's config
-    const accountConfig = await this.interchainAccount.getAccountConfig(
+    let accountConfig = this.interchainAccount.knownAccounts[account.address];
+
+    if (!accountConfig) {
+      const { ownerType, governanceType: icaGovernanceType } =
+        await determineGovernanceType(chain, account.address);
+      // verify that we expect it to be an ICA
+      assert(ownerType === Owner.ICA, 'ownerType should be ICA');
+      // get the set of safes for this governance type
+      const safes = getGovernanceSafes(icaGovernanceType);
+      const origin = 'ethereum';
+      const remoteOwner = safes[origin];
+      accountConfig = {
+        origin,
+        owner: remoteOwner,
+        ...(legacyIcaChainRouters[chain]
+          ? {
+              localRouter: legacyEthIcaRouter,
+              routerOverride:
+                legacyIcaChainRouters[chain].interchainAccountRouter,
+            }
+          : {}),
+      };
+    }
+
+    // WARNING: origin is a reserved word in TypeScript
+    const origin = accountConfig.origin;
+
+    // Check that it derives to the ICA
+    const derivedIca = await this.interchainAccount.getAccount(
       chain,
-      account.address,
+      accountConfig,
     );
-    const origin = this.interchainAccount.multiProvider.getChainName(
-      accountConfig.origin,
-    );
+
+    if (!eqAddress(derivedIca, account.address)) {
+      console.info(
+        chalk.gray(
+          `Account ${account.address} is not the expected ICA ${derivedIca}. Defaulting to manual submission.`,
+        ),
+      );
+      return {
+        type: SubmissionType.MANUAL,
+        chain,
+        call,
+      };
+    }
+
     rootLogger.info(
       chalk.gray(
         `Inferred call for ICA remote owner ${bytes32ToAddress(
@@ -392,7 +436,7 @@ export abstract class HyperlaneAppGovernor<
     );
 
     // Get the encoded call to the remote ICA
-    const callRemote = await this.interchainAccount.getCallRemote({
+    const callRemoteArgs: GetCallRemoteSettings = {
       chain: origin,
       destination: chain,
       innerCalls: [
@@ -403,7 +447,9 @@ export abstract class HyperlaneAppGovernor<
         },
       ],
       config: accountConfig,
-    });
+    };
+    const callRemote =
+      await this.interchainAccount.getCallRemote(callRemoteArgs);
 
     // If the call to the remote ICA is not valid, default to manual submission
     if (!callRemote.to || !callRemote.data) {
@@ -438,7 +484,7 @@ export abstract class HyperlaneAppGovernor<
         // Require the submitter to be the owner of the ICA on the origin chain.
         return (
           chain === origin &&
-          eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
+          eqAddress(bytes32ToAddress(accountConfig!.owner), submitterAddress)
         );
       },
       true, // Flag this as an ICA call
@@ -451,7 +497,7 @@ export abstract class HyperlaneAppGovernor<
         type: subType,
         chain: origin,
         call: encodedCall,
-        icaTargetChain: chain,
+        callRemoteArgs,
       };
     }
 

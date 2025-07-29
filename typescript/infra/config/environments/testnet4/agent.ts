@@ -57,6 +57,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bepolia: true,
     bsctestnet: true,
     carrchaintestnet: true,
+    celestiatestnet: true,
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
@@ -82,8 +83,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    // Rome started their testnet with a different chain id
-    rometestnet: false,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -109,6 +108,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bepolia: true,
     bsctestnet: true,
     carrchaintestnet: true,
+    celestiatestnet: true,
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: true,
@@ -120,7 +120,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     hyperliquidevmtestnet: true,
-    infinityvmmonza: true,
+    infinityvmmonza: false,
     inksepolia: true,
     kyvetestnet: false,
     megaethtestnet: true,
@@ -134,8 +134,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    // Rome started their testnet with a different chain id
-    rometestnet: false,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -161,6 +159,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bepolia: true,
     bsctestnet: true,
     carrchaintestnet: true,
+    celestiatestnet: true,
     chronicleyellowstone: true,
     citreatestnet: true,
     connextsepolia: false,
@@ -186,8 +185,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    // Rome started their testnet with a different chain id
-    rometestnet: false,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -253,6 +250,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       {
         originDomain: getDomainId('bsctestnet'),
         destinationDomain: getDomainId('milkywaytestnet'),
+      },
+      // Workaround for gas price fluctuations
+      // Works in tandem with increased igp overhead
+      {
+        destinationDomain: getDomainId('somniatestnet'),
       },
     ],
   },
@@ -408,12 +410,18 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: 'ac07f38-20250716-204548',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -423,7 +431,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '373482a-20250707-140617',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -432,7 +440,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b23399a-20250603-075344',
+      tag: '373482a-20250707-140617',
     },
     resources: scraperResources,
   },
@@ -447,12 +455,18 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: 'ac07f38-20250716-204548',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -462,7 +476,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cedc8e1-20250603-094703',
+      tag: '33b3649-20250612-161513',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
@@ -476,6 +490,11 @@ export const kesselRunnerNetworks = [
   'bsctestnet',
   'optimismsepolia',
 ];
+
+// Relayer Neutron Testnet is not running at the moment, but we keep the config
+// If you would like to run it for testing purposes, you should configure it
+// only for chains you would like to run it.
+// Relayer Neutron Testnet should not relay messages for `infinityvmmonza`.
 const neutron: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Neutron,
@@ -485,12 +504,18 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '761d140-20250526-120715',
+      tag: '33b3649-20250612-161513',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -500,7 +525,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '385b307-20250418-150728',
+      tag: '33b3649-20250612-161513',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,

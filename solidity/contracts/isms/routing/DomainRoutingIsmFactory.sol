@@ -3,7 +3,6 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {DomainRoutingIsm} from "./DomainRoutingIsm.sol";
-import {DefaultFallbackRoutingIsm} from "./DefaultFallbackRoutingIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {MinimalProxy} from "../../libs/MinimalProxy.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";

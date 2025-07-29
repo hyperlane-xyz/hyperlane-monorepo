@@ -63,7 +63,7 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
   abstract update(): Promise<string>;
 
   abstract getSigner(
-    provider?: ethers.providers.Provider | ZkProvider,
+    provider: ethers.providers.Provider | ZkProvider,
   ): Promise<ethers.Signer | ZkWallet>;
 
   abstract privateKey: string;

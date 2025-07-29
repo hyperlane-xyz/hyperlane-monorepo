@@ -46,8 +46,10 @@ use super::TryFromWithMetrics;
 /// ```
 #[derive(Debug, Default, Clone)]
 pub struct Settings {
+    /// Mapping from chain name to domain
+    pub domains: HashMap<String, HyperlaneDomain>,
     /// Configuration for contracts on each chain
-    pub chains: HashMap<String, ChainConf>,
+    pub chains: HashMap<HyperlaneDomain, ChainConf>,
     /// Port to listen for prometheus scrape requests
     pub metrics_port: u16,
     /// The tracing configuration
@@ -79,16 +81,16 @@ impl Settings {
     /// Try to get the chain configuration for the given domain.
     pub fn chain_setup(&self, domain: &HyperlaneDomain) -> Result<&ChainConf> {
         self.chains
-            .get(domain.name())
+            .get(domain)
             .ok_or_else(|| eyre!("No chain setup found for {domain}"))
     }
 
     /// Try to get the domain for a given chain by name.
     pub fn lookup_domain(&self, chain_name: &str) -> Result<HyperlaneDomain> {
-        self.chains
+        self.domains
             .get(chain_name)
             .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
-            .map(|c| c.domain.clone())
+            .cloned()
     }
 
     /// Create the core metrics from the settings given the name of the agent.
@@ -109,6 +111,7 @@ impl Settings {
     /// agent consumes the settings.
     fn clone(&self) -> Self {
         Self {
+            domains: self.domains.clone(),
             chains: self.chains.clone(),
             metrics_port: self.metrics_port,
             tracing: self.tracing.clone(),

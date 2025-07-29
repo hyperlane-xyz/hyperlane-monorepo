@@ -2,11 +2,11 @@ use std::{collections::HashMap, ops::Deref, sync::Arc};
 
 use tokio::sync::Mutex;
 
-use crate::transaction::{Transaction, TransactionId};
+use crate::transaction::{Transaction, TransactionUuid};
 
 #[derive(Debug, Clone)]
 pub struct FinalityStagePool {
-    pool: Arc<Mutex<HashMap<TransactionId, Transaction>>>,
+    pool: Arc<Mutex<HashMap<TransactionUuid, Transaction>>>,
 }
 
 impl FinalityStagePool {
@@ -18,17 +18,17 @@ impl FinalityStagePool {
 
     pub async fn insert(&self, transaction: Transaction) -> usize {
         let mut pool = self.pool.lock().await;
-        pool.insert(transaction.id.clone(), transaction);
+        pool.insert(transaction.uuid.clone(), transaction);
         pool.len()
     }
 
-    pub async fn remove(&self, id: &TransactionId) -> usize {
+    pub async fn remove(&self, tx_uuid: &TransactionUuid) -> usize {
         let mut pool = self.pool.lock().await;
-        pool.remove(id);
+        pool.remove(tx_uuid);
         pool.len()
     }
 
-    pub async fn snapshot(&self) -> HashMap<TransactionId, Transaction> {
+    pub async fn snapshot(&self) -> HashMap<TransactionUuid, Transaction> {
         let pool = self.pool.lock().await;
         pool.clone()
     }
@@ -36,7 +36,7 @@ impl FinalityStagePool {
 
 #[cfg(test)]
 impl Deref for FinalityStagePool {
-    type Target = Arc<Mutex<HashMap<TransactionId, Transaction>>>;
+    type Target = Arc<Mutex<HashMap<TransactionUuid, Transaction>>>;
 
     fn deref(&self) -> &Self::Target {
         &self.pool

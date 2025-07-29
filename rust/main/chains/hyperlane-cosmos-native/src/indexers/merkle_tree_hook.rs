@@ -214,7 +214,6 @@ impl CosmosEventIndexer<MerkleTreeInsertion> for CosmosNativeMerkleTreeHook {
 
 #[async_trait]
 impl Indexer<MerkleTreeInsertion> for CosmosNativeMerkleTreeHook {
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
@@ -244,12 +243,12 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for CosmosNativeMerkleTreeHook {
             .grpc()
             .merkle_tree_hook(self.address.encode_hex(), Some(tip))
             .await?;
-        match merkle_tree.merkle_tree_hook {
-            Some(merkle_tree) if merkle_tree.merkle_tree.is_some() => {
-                let count = merkle_tree.merkle_tree.unwrap().count;
-                Ok((Some(count), tip))
-            }
-            _ => Ok((None, tip)),
-        }
+
+        let merkle_tree_count = merkle_tree
+            .merkle_tree_hook
+            .as_ref()
+            .and_then(|m| m.merkle_tree.as_ref())
+            .map(|merkle_tree| merkle_tree.count);
+        Ok((merkle_tree_count, tip))
     }
 }

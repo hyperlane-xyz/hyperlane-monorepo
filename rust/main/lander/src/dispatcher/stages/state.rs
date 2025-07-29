@@ -7,7 +7,7 @@ use chrono::format;
 use derive_new::new;
 use eyre::Result;
 use tokio::{sync::Mutex, task::JoinHandle};
-use tracing::{error, info, instrument::Instrumented, warn};
+use tracing::{error, info, instrument, instrument::Instrumented, warn};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
@@ -65,8 +65,9 @@ impl DispatcherState {
         let adapter = AdapterFactory::build(
             &settings.chain_conf,
             &settings.raw_chain_conf,
-            &settings.metrics,
             rocksdb.clone(),
+            &settings.metrics,
+            metrics.clone(),
         )
         .await?;
         let payload_db = rocksdb.clone() as Arc<dyn PayloadDb>;
@@ -83,7 +84,7 @@ impl DispatcherState {
         for d in details {
             if let Err(err) = self
                 .payload_db
-                .store_new_payload_status(&d.id, status.clone())
+                .store_new_payload_status(&d.uuid, status.clone())
                 .await
             {
                 error!(
@@ -114,8 +115,13 @@ impl DispatcherState {
         }
     }
 
+    #[instrument(
+        skip_all,
+        name = "DispatcherState::store_tx",
+        fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
+    )]
     pub(crate) async fn store_tx(&self, tx: &Transaction) {
-        if let Err(err) = self.tx_db.store_transaction_by_id(tx).await {
+        if let Err(err) = self.tx_db.store_transaction_by_uuid(tx).await {
             error!(
                 ?err,
                 payload_details = ?tx.payload_details,
@@ -130,13 +136,13 @@ impl DispatcherState {
         for payload_detail in &tx.payload_details {
             if let Err(err) = self
                 .payload_db
-                .store_tx_id_by_payload_id(&payload_detail.id, &tx.id)
+                .store_tx_uuid_by_payload_uuid(&payload_detail.uuid, &tx.uuid)
                 .await
             {
                 error!(
                     ?err,
                     payload_details = ?tx.payload_details,
-                    "Error storing to the payload_id to tx_id mapping in the database"
+                    "Error storing to the payload_uuid to tx_uuid mapping in the database"
                 );
             }
         }

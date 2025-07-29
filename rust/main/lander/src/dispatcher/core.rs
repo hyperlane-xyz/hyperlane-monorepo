@@ -29,7 +29,7 @@ use super::{metrics::DispatcherMetrics, DispatcherState, TransactionDbLoader};
 const SUBMITTER_CHANNEL_SIZE: usize = 1_000;
 
 /// Settings for `PayloadDispatcher`
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DispatcherSettings {
     // settings needed for the protocol-specific adapter
     pub chain_conf: ChainConf,
@@ -40,12 +40,13 @@ pub struct DispatcherSettings {
     pub metrics: Arc<CoreMetrics>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum DatabaseOrPath {
     Database(DB),
     Path(PathBuf),
 }
 
+#[derive(Clone)]
 pub struct Dispatcher {
     pub(crate) inner: DispatcherState,
     /// the name of the destination chain
@@ -71,7 +72,7 @@ impl Dispatcher {
     #[instrument(skip(self), fields(domain = %self.domain))]
     pub async fn spawn(self) -> JoinHandle<()> {
         let mut tasks = vec![];
-        let building_stage_queue: BuildingStageQueue = Arc::new(Mutex::new(VecDeque::new()));
+        let building_stage_queue = BuildingStageQueue::new();
         let (inclusion_stage_sender, inclusion_stage_receiver) =
             tokio::sync::mpsc::channel::<Transaction>(SUBMITTER_CHANNEL_SIZE);
         let (finality_stage_sender, finality_stage_receiver) =

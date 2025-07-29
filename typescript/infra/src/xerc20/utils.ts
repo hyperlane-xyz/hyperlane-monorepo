@@ -521,8 +521,8 @@ export async function deriveBridgesConfig(
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfig: WarpCoreConfig,
   multiProvider: MultiProvider,
-): Promise<Record<string, BridgeConfig>> {
-  const bridgesConfig: Record<string, BridgeConfig> = {};
+): Promise<BridgeConfig[]> {
+  const bridgesConfig: BridgeConfig[] = [];
 
   for (const [chainName, chainConfig] of Object.entries(warpDeployConfig)) {
     if (!isXERC20TokenConfig(chainConfig)) {
@@ -589,7 +589,7 @@ export async function deriveBridgesConfig(
           );
         }
 
-        bridgesConfig[lockbox] = {
+        bridgesConfig.push({
           chain: chainName,
           type,
           xERC20Address,
@@ -598,11 +598,11 @@ export async function deriveBridgesConfig(
           decimals,
           bufferCap: Number(extraBufferCap),
           rateLimitPerSecond: Number(extraRateLimit),
-        };
+        });
       }
     }
 
-    bridgesConfig[bridgeAddress] = {
+    bridgesConfig.push({
       chain: chainName as ChainName,
       type,
       xERC20Address,
@@ -611,7 +611,7 @@ export async function deriveBridgesConfig(
       decimals,
       bufferCap,
       rateLimitPerSecond,
-    };
+    });
   }
 
   return bridgesConfig;
@@ -643,18 +643,16 @@ function humanReadableLimit(limit: bigint, decimals: number): string {
 
 export function getAndValidateBridgesToUpdate(
   chains: string[] | undefined,
-  bridgesConfig: Record<string, BridgeConfig>,
+  bridgesConfig: BridgeConfig[],
 ): BridgeConfig[] {
   // if no chains are provided, return all configs
   if (!chains || chains.length === 0) {
-    return Object.values(bridgesConfig);
+    return bridgesConfig;
   }
 
   // check that all provided chains are in the warp config
   // throw an error if any are not
-  const configChains = Object.values(bridgesConfig).map(
-    (config) => config.chain,
-  );
+  const configChains = bridgesConfig.map((config) => config.chain);
   const nonConfigChains = chains.filter(
     (chain) => !configChains.includes(chain),
   );
@@ -667,7 +665,5 @@ export function getAndValidateBridgesToUpdate(
   }
 
   // return only the configs that are in the chains array
-  return Object.values(bridgesConfig).filter((config) =>
-    chains.includes(config.chain),
-  );
+  return bridgesConfig.filter((config) => chains.includes(config.chain));
 }

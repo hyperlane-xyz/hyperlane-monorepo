@@ -24,11 +24,18 @@ const NATIVE_WARP_ROUTE_PREFIX: &str = "SOL/";
 lazy_static! {
     static ref NATIVE_WARP_ROUTES: HashSet<H256> = {
         HashSet::from([
-            hex_or_base58_to_h256("8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc").unwrap(),
-            hex_or_base58_to_h256("BXKDfnNkgUNVT5uCfk36sv2GDtK6RwAt9SLbGiKzZkih").unwrap(),
-            hex_or_base58_to_h256("7KD647mgysBeEt6PSrv2XYktkSNLzear124oaMENp8SY").unwrap(),
-            hex_or_base58_to_h256("GPFwRQ5Cw6dTWnmappUKJt76DD8yawxPx28QugfCaGaA").unwrap(),
-            hex_or_base58_to_h256("4CMbJtieJ7EboZZGSbXTQjW5i2sL638jFvE3dWTYG3SK").unwrap(),
+            hex_or_base58_to_h256("8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc")
+                .expect("Invalid sealevel address"),
+            hex_or_base58_to_h256("BXKDfnNkgUNVT5uCfk36sv2GDtK6RwAt9SLbGiKzZkih")
+                .expect("Invalid sealevel address"),
+            hex_or_base58_to_h256("7KD647mgysBeEt6PSrv2XYktkSNLzear124oaMENp8SY")
+                .expect("Invalid sealevel address"),
+            hex_or_base58_to_h256("GPFwRQ5Cw6dTWnmappUKJt76DD8yawxPx28QugfCaGaA")
+                .expect("Invalid sealevel address"),
+            hex_or_base58_to_h256("4CMbJtieJ7EboZZGSbXTQjW5i2sL638jFvE3dWTYG3SK")
+                .expect("Invalid sealevel address"),
+            hex_or_base58_to_h256("EfSiyLayPpfZ7uGetjmjxYh6r3LjoJjmHkkxRJmDpgaT")
+                .expect("Invalid sealevel address"),
         ])
     };
 }

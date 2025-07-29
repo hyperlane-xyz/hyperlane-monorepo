@@ -1,0 +1,5 @@
+apiVersion: v2
+name: rebalancer
+type: application
+version: 0.1.0
+description: A Helm chart for deploying the Hyperlane rebalancer as a long-running service

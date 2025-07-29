@@ -13,5 +13,8 @@ pub(crate) use base::{
     IsmCachePolicy, IsmCachePolicyClassifier, MessageMetadataBuildParams, Metadata,
     MetadataBuildError, MetadataBuilder,
 };
-pub(crate) use base_builder::{BaseMetadataBuilder, BuildsBaseMetadata, DummyBuildsBaseMetadata};
+#[allow(unused_imports)]
+pub(crate) use base_builder::{
+    BaseMetadataBuilder, BuildsBaseMetadata, DummyBuildsBaseMetadata, IsmBuildMetricsParams,
+};
 pub(crate) use message_builder::MessageMetadataBuilder;

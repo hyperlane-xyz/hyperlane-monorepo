@@ -4,6 +4,7 @@ export default [
   ...MonorepoDefaults,
   {
     ignores: [
+      '**/lib/**/*',
       '**/test/**/*',
       '**/dist/**/*',
       '**/lib/**/*',

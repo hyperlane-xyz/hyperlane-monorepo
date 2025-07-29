@@ -10,12 +10,16 @@ COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn/plugins ./.yarn/plugins
 COPY .yarn/releases ./.yarn/releases
 COPY .yarn/patches ./.yarn/patches
+
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
+COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 COPY typescript/cli/package.json ./typescript/cli/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
+COPY typescript/eslint-config/package.json ./typescript/eslint-config/
 COPY typescript/github-proxy/package.json ./typescript/github-proxy/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
+COPY typescript/http-registry-server/package.json ./typescript/http-registry-server/
 COPY typescript/infra/package.json ./typescript/infra/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/

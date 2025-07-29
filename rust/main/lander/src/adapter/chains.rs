@@ -6,5 +6,5 @@ mod factory;
 
 // chains modules below
 mod cosmos;
-mod ethereum;
-mod sealevel;
+pub mod ethereum;
+pub mod sealevel;
