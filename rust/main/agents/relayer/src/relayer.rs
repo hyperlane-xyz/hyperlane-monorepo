@@ -219,8 +219,8 @@ impl BaseAgent for Relayer {
 
         // only iterate through destination chains that were successfully instantiated
         start_entity_init = Instant::now();
-        let mut ccip_signer_futures: Vec<_> = Vec::with_capacity(origins.len());
-        for destination in origins.keys() {
+        let mut ccip_signer_futures: Vec<_> = Vec::with_capacity(mailboxes.len());
+        for destination in mailboxes.keys() {
             let destination_chain_setup = match core.settings.chain_setup(destination) {
                 Ok(setup) => setup.clone(),
                 Err(err) => {
