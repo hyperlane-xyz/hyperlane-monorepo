@@ -166,7 +166,7 @@ fn parse_chain(
         .chain(&mut err)
         .get_opt_key("index")
         .get_opt_key("from")
-        .parse_u32()
+        .parse_i64()
         .unwrap_or(0);
     let chunk_size = chain
         .chain(&mut err)
@@ -471,8 +471,13 @@ pub fn recase_json_value(mut val: Value, case: Case) -> Value {
         Value::Object(obj) => {
             let keys = obj.keys().cloned().collect_vec();
             for key in keys {
-                let val = obj.remove(&key).unwrap();
-                obj.insert(key.to_case(case), recase_json_value(val, case));
+                let val = match obj.remove(&key) {
+                    Some(v) => v,
+                    None => continue,
+                };
+
+                let cased_key = key.to_case(case);
+                obj.insert(cased_key, recase_json_value(val, case));
             }
         }
         _ => {}

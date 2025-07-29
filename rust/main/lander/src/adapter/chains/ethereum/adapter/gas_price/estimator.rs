@@ -190,12 +190,14 @@ async fn zksync_estimate_fee(
     tx: &TypedTransaction,
 ) -> ChainResult<ZksyncEstimateFeeResponse> {
     let mut tx = tx.clone();
-    tx.set_from(
-        // use the sender in the provider if one is set, otherwise default to the EVM relayer address
-        provider
-            .get_signer()
-            .unwrap_or(H160::from_str(EVM_RELAYER_ADDRESS).unwrap()),
-    );
+
+    // use the sender in the provider if one is set, otherwise default to the EVM relayer address
+    let signer = match provider.get_signer() {
+        Some(s) => s,
+        None => H160::from_str(EVM_RELAYER_ADDRESS)
+            .map_err(|err| ChainCommunicationError::CustomError(err.to_string()))?,
+    };
+    tx.set_from(signer);
 
     let result = provider.zk_estimate_fee(&tx).await?;
     Ok(result)

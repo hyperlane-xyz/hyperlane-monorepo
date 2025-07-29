@@ -162,9 +162,11 @@ pub trait BuildableWithProvider {
     ) -> PrometheusJsonRpcClient<C> {
         PrometheusJsonRpcClient::new(
             client,
-            client_metrics
-                .clone()
-                .unwrap_or_else(|| PrometheusClientMetricsBuilder::default().build().unwrap()),
+            client_metrics.clone().unwrap_or_else(|| {
+                PrometheusClientMetricsBuilder::default()
+                    .build()
+                    .expect("Failed to build PrometheusJsonRpcClient")
+            }),
             PrometheusConfig {
                 connection_type: ClientConnectionType::Rpc,
                 node: Some(NodeInfo {

@@ -1,4 +1,8 @@
-export { isAddressActive } from './contracts/contracts.js';
+export {
+  isAddressActive,
+  isContractAddress,
+  assertIsContractAddress,
+} from './contracts/contracts.js';
 export { MUTABLE_HOOK_TYPE } from './hook/types.js';
 export { MUTABLE_ISM_TYPE } from './ism/types.js';
 
@@ -782,6 +786,7 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export { EvmTimelockReader } from './timelock/evm/EvmTimelockReader.js';
 export { EvmTimelockDeployer } from './timelock/evm/EvmTimelockDeployer.js';
 export {
   TimelockConfig,
@@ -794,3 +799,4 @@ export {
   EXECUTOR_ROLE,
   PROPOSER_ROLE,
 } from './timelock/evm/constants.js';
+export { EvmEventLogsReader } from './rpc/evm/EvmEventLogsReader.js';

@@ -1,6 +1,20 @@
 import { z } from 'zod';
 
+import { CallData, HexString } from '@hyperlane-xyz/utils';
+
 import { ZChainName, ZHash, ZNzUint } from '../metadata/customZodTypes.js';
+
+export type TimelockTx = {
+  id: HexString;
+  delay: number;
+  predecessor: HexString;
+  salt: HexString;
+  data: [CallData, ...CallData[]];
+};
+
+export type ExecutableTimelockTx = TimelockTx & {
+  encodedExecuteTransaction: HexString;
+};
 
 export const TimelockConfigSchema = z.object({
   minimumDelay: ZNzUint,
