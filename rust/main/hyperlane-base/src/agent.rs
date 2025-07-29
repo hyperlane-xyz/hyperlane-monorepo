@@ -27,7 +27,7 @@ pub struct HyperlaneAgentCore {
 pub trait LoadableFromSettings: AsRef<Settings> + Sized {
     /// Create a new instance of these settings by reading the configs and env
     /// vars.
-    fn load() -> ConfigResult<Self>;
+    fn load(agent_name: &str) -> ConfigResult<Self>;
 }
 
 /// Metadata of an agent defined from configuration
@@ -93,7 +93,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
         git_sha()
     );
 
-    let settings = A::Settings::load()?;
+    let settings = A::Settings::load(A::AGENT_NAME)?;
     let agent_metadata = A::Metadata::build_metadata(&settings);
     let core_settings: &Settings = settings.as_ref();
 

@@ -348,9 +348,9 @@ where
     let mut tx = tx.clone();
     tx.set_from(
         // use the sender in the provider if one is set, otherwise default to the EVM relayer address
-        provider
-            .default_sender()
-            .unwrap_or(H160::from_str(EVM_RELAYER_ADDRESS).unwrap()),
+        provider.default_sender().unwrap_or_else(|| {
+            H160::from_str(EVM_RELAYER_ADDRESS).expect("Invalid EVM_RELAYER_ADDRESS value")
+        }),
     );
 
     let result = provider
@@ -419,22 +419,18 @@ where
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(
-    call: ethers::contract::builders::ContractCall<M, T>,
+    call: ContractCall<M, T>,
     provider: &M,
     reorg_period: &ReorgPeriod,
-) -> ChainResult<ethers::contract::builders::ContractCall<M, T>>
+) -> ChainResult<ContractCall<M, T>>
 where
     M: Middleware + 'static,
     T: Detokenize,
 {
-    if !reorg_period.is_none() {
-        let block_id = EthereumReorgPeriod::try_from(reorg_period)?
-            .into_block_id(provider)
-            .await?;
-        Ok(call.block(block_id))
-    } else {
-        Ok(call)
-    }
+    let block_id = EthereumReorgPeriod::try_from(reorg_period)?
+        .into_block_id(provider)
+        .await?;
+    Ok(call.block(block_id))
 }
 
 #[cfg(test)]

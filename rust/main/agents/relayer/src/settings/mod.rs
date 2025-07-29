@@ -19,7 +19,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, U256};
 use itertools::Itertools;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
@@ -87,7 +87,7 @@ pub struct GasPaymentEnforcementConf {
 }
 
 /// Config for a GasPaymentEnforcementPolicy
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 pub enum GasPaymentEnforcementPolicy {
     /// No requirement - all messages are processed regardless of gas payment
     /// and regardless of whether a payment for the message was processed by the specified IGP.
@@ -120,6 +120,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
         raw: RawRelayerSettings,
         cwp: &ConfigPath,
         _filter: (),
+        agent_name: &str,
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
@@ -136,14 +137,17 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 relay_chain_names.as_ref(),
                 "Parsing base config",
+                agent_name.to_string(),
             )
             .take_config_err(&mut err);
+
+        let current_dir = std::env::current_dir().expect("Failed to get current directory");
 
         let db = p
             .chain(&mut err)
             .get_opt_key("db")
             .parse_from_str("Expected database path")
-            .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
+            .unwrap_or_else(|| current_dir.join("hyperlane_db"));
 
         // is_gas_payment_enforcement_set determines if we should be checking for the correct gas payment enforcement policy has been provided with "gasPaymentEnforcement" key
         let (
@@ -182,8 +186,8 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             && gas_payment_enforcement_parser
                 .val
                 .as_array()
-                .unwrap()
-                .is_empty()
+                .map(|v| v.is_empty())
+                .unwrap_or(true)
         {
             Err::<(), eyre::Report>(eyre!("GASPAYMENTENFORCEMENT policy cannot be parsed"))
                 .take_err(&mut err, || cwp + "gas_payment_enforcement");
@@ -504,9 +508,9 @@ mod test {
         ]
         "#;
 
-        let value = serde_json::from_str::<Value>(raw).unwrap();
+        let value = serde_json::from_str::<Value>(raw).expect("Failed to parse json");
         let p = ValueParser::new(ConfigPath::default(), &value);
-        let configs = parse_ism_cache_configs(p).unwrap();
+        let configs = parse_ism_cache_configs(p).expect("Failed to parse ism cache config");
         assert_eq!(configs.len(), 2);
     }
 }

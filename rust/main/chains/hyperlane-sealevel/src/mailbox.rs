@@ -37,7 +37,7 @@ use hyperlane_core::{
 use crate::priority_fee::PriorityFeeOracle;
 use crate::tx_submitter::TransactionSubmitter;
 use crate::utils::sanitize_dynamic_accounts;
-use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, SealevelProviderForSubmitter};
+use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, SealevelProviderForLander};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
@@ -69,15 +69,18 @@ pub struct SealevelMailbox {
     pub(crate) outbox: (Pubkey, u8),
     pub(crate) provider: Arc<SealevelProvider>,
     payer: Option<SealevelKeypair>,
-    priority_fee_oracle: Box<dyn PriorityFeeOracle>,
-    tx_submitter: Box<dyn TransactionSubmitter>,
+    priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
+    tx_submitter: Arc<dyn TransactionSubmitter>,
+
+    system_program: Pubkey,
+    spl_noop: Pubkey,
 }
 
 impl SealevelMailbox {
     /// Create a new sealevel mailbox
     pub fn new(
         provider: Arc<SealevelProvider>,
-        tx_submitter: Box<dyn TransactionSubmitter>,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
         conf: &ConnectionConf,
         locator: &ContractLocator,
         payer: Option<SealevelKeypair>,
@@ -92,6 +95,11 @@ impl SealevelMailbox {
             domain, program_id, inbox.0, inbox.1, outbox.0, outbox.1,
         );
 
+        let system_program = Pubkey::from_str(SYSTEM_PROGRAM)
+            .map_err(|err| ChainCommunicationError::CustomError(err.to_string()))?;
+        let spl_noop = Pubkey::from_str(SPL_NOOP)
+            .map_err(|err| ChainCommunicationError::CustomError(err.to_string()))?;
+
         Ok(SealevelMailbox {
             program_id,
             inbox,
@@ -100,6 +108,9 @@ impl SealevelMailbox {
             priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
             tx_submitter,
             provider,
+
+            system_program,
+            spl_noop,
         })
     }
 
@@ -280,7 +291,9 @@ impl SealevelMailbox {
     ) -> ChainResult<Instruction> {
         let recipient: Pubkey = message.recipient.0.into();
         let mut encoded_message = vec![];
-        message.write_to(&mut encoded_message).unwrap();
+        message
+            .write_to(&mut encoded_message)
+            .map_err(|err| ChainCommunicationError::CustomError(err.to_string()))?;
 
         let payer = self.get_payer()?;
 
@@ -324,14 +337,14 @@ impl SealevelMailbox {
         // Craft the accounts for the transaction.
         let mut accounts: Vec<AccountMeta> = vec![
             AccountMeta::new_readonly(payer.pubkey(), true),
-            AccountMeta::new_readonly(Pubkey::from_str(SYSTEM_PROGRAM).unwrap(), false),
+            AccountMeta::new_readonly(self.system_program, false),
             AccountMeta::new(self.inbox.0, false),
             AccountMeta::new_readonly(process_authority_key, false),
             AccountMeta::new(processed_message_account_key, false),
         ];
         accounts.extend(ism_getter_account_metas);
         accounts.extend([
-            AccountMeta::new_readonly(Pubkey::from_str(SPL_NOOP).unwrap(), false),
+            AccountMeta::new_readonly(self.spl_noop, false),
             AccountMeta::new_readonly(ism, false),
         ]);
 
@@ -469,8 +482,8 @@ impl Mailbox for SealevelMailbox {
             .build_estimated_tx_for_instruction(
                 process_instruction,
                 payer,
-                &*self.tx_submitter,
-                &*self.priority_fee_oracle,
+                self.tx_submitter.clone(),
+                self.priority_fee_oracle.clone(),
             )
             .await?;
 
@@ -528,8 +541,8 @@ impl Mailbox for SealevelMailbox {
             .get_estimated_costs_for_instruction(
                 process_instruction,
                 payer,
-                &*self.tx_submitter,
-                &*self.priority_fee_oracle,
+                self.tx_submitter.clone(),
+                self.priority_fee_oracle.clone(),
             )
             .await?;
 

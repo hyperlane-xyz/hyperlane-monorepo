@@ -4,7 +4,7 @@ use std::{env, error::Error, fmt::Debug, path::PathBuf};
 
 use config::{Config, File};
 use convert_case::Case;
-use eyre::{eyre, Context, Result};
+use eyre::{eyre, Context};
 use hyperlane_core::config::*;
 use serde::de::DeserializeOwned;
 
@@ -17,7 +17,7 @@ mod case_adapter;
 mod environment;
 
 /// Deserialize a settings object from the configs.
-pub fn load_settings<T, R>() -> ConfigResult<R>
+pub fn load_settings<T, R>(agent_name: &str) -> ConfigResult<R>
 where
     T: DeserializeOwned + Debug,
     R: FromRawConf<T>,
@@ -35,9 +35,18 @@ where
         .read_dir()
         .context("Failed to open config directory")
         .into_config_result(|| root_path.clone())?
-        .map(Result::unwrap)
     {
-        if !entry.file_type().unwrap().is_file() {
+        let entry = entry.map_err(|err| {
+            let mut config_err = ConfigParsingError::default();
+            let config_path = ConfigPath::default() + "./config";
+            config_err.push(config_path, eyre::eyre!(err.to_string()));
+            config_err
+        })?;
+        if entry
+            .file_type()
+            .map(|file_type| !file_type.is_file())
+            .unwrap_or(true)
+        {
             continue;
         }
 
@@ -127,7 +136,7 @@ where
         })
         .into_config_result(|| root_path.clone())?;
 
-    let res = raw_config.parse_config(&root_path);
+    let res = raw_config.parse_config(&root_path, agent_name);
     if res.is_err() {
         eprintln!("Loaded config for debugging: {formatted_config}");
     }

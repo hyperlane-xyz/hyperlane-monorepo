@@ -1,5 +1,183 @@
 # @hyperlane-xyz/widgets
 
+## 16.0.0
+
+### Patch Changes
+
+- Updated dependencies [9f3222962]
+- Updated dependencies [d200acfa8]
+- Updated dependencies [966ad8440]
+- Updated dependencies [fabb4a5af]
+- Updated dependencies [a71193486]
+- Updated dependencies [1f4412909]
+- Updated dependencies [af783be54]
+  - @hyperlane-xyz/sdk@16.0.0
+  - @hyperlane-xyz/cosmos-sdk@16.0.0
+  - @hyperlane-xyz/utils@16.0.0
+
+## 15.0.0
+
+### Patch Changes
+
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [23861b70a]
+- Updated dependencies [a33c8abd4]
+- Updated dependencies [a33c8abd4]
+- Updated dependencies [e0ea8910c]
+- Updated dependencies [d16a853c0]
+  - @hyperlane-xyz/utils@15.0.0
+  - @hyperlane-xyz/sdk@15.0.0
+  - @hyperlane-xyz/cosmos-sdk@15.0.0
+
+## 14.4.0
+
+### Patch Changes
+
+- daea40b35: Change argentX wallet name to Ready Wallet for `useStarknetWalletDetails`
+- Updated dependencies [dce47e7b6]
+  - @hyperlane-xyz/sdk@14.4.0
+  - @hyperlane-xyz/cosmos-sdk@14.4.0
+  - @hyperlane-xyz/utils@14.4.0
+
+## 14.3.0
+
+### Minor Changes
+
+- 112d99ff2: Catch onSwitchNetwork for starknet
+
+### Patch Changes
+
+- Updated dependencies [ae0771d9e]
+- Updated dependencies [9cc7ef6fd]
+- Updated dependencies [ae0771d9e]
+  - @hyperlane-xyz/sdk@14.3.0
+  - @hyperlane-xyz/cosmos-sdk@14.3.0
+  - @hyperlane-xyz/utils@14.3.0
+
+## 14.2.0
+
+### Patch Changes
+
+- Updated dependencies [3122bae93]
+- Updated dependencies [a7d5941c1]
+- Updated dependencies [3e50bd7f0]
+- Updated dependencies [147dd360a]
+- Updated dependencies [8bde1544e]
+  - @hyperlane-xyz/sdk@14.2.0
+  - @hyperlane-xyz/cosmos-sdk@14.2.0
+  - @hyperlane-xyz/utils@14.2.0
+
+## 14.1.0
+
+### Patch Changes
+
+- Updated dependencies [ecaa4ef90]
+- Updated dependencies [bd91094c3]
+  - @hyperlane-xyz/sdk@14.1.0
+  - @hyperlane-xyz/cosmos-sdk@14.1.0
+  - @hyperlane-xyz/utils@14.1.0
+
+## 14.0.0
+
+### Minor Changes
+
+- fbca68f8a: add starknet multi tx signing support
+
+### Patch Changes
+
+- Updated dependencies [929708c1f]
+- Updated dependencies [88134de1f]
+- Updated dependencies [66c13b539]
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/sdk@14.0.0
+  - @hyperlane-xyz/utils@14.0.0
+  - @hyperlane-xyz/cosmos-sdk@14.0.0
+
+## 13.4.0
+
+### Minor Changes
+
+- 83c628e2e: Update registry dependency.
+
+### Patch Changes
+
+- Updated dependencies [5f60deed3]
+- Updated dependencies [0ec92f775]
+- Updated dependencies [e48e5346f]
+- Updated dependencies [779df446d]
+- Updated dependencies [fe1d8ab2d]
+- Updated dependencies [19384e74b]
+- Updated dependencies [ec8d196d9]
+- Updated dependencies [bacf16a80]
+- Updated dependencies [1efce4979]
+- Updated dependencies [64092311c]
+  - @hyperlane-xyz/sdk@13.4.0
+  - @hyperlane-xyz/utils@13.4.0
+  - @hyperlane-xyz/cosmos-sdk@13.4.0
+
+## 13.3.0
+
+### Patch Changes
+
+- Updated dependencies [509a0dc]
+- Updated dependencies [119a1a8]
+- Updated dependencies [f8fd7b4]
+- Updated dependencies [1e137df]
+- Updated dependencies [6fa767e]
+  - @hyperlane-xyz/sdk@13.3.0
+  - @hyperlane-xyz/cosmos-sdk@13.3.0
+  - @hyperlane-xyz/utils@13.3.0
+
+## 13.2.1
+
+### Patch Changes
+
+- Updated dependencies [72887f7]
+  - @hyperlane-xyz/utils@13.2.1
+  - @hyperlane-xyz/sdk@13.2.1
+  - @hyperlane-xyz/cosmos-sdk@13.2.1
+
+## 13.2.0
+
+### Minor Changes
+
+- 4d66b73: Update warp deploy to output WarpCoreConfig to specified --warpRouteId. Bump Registry to v16.0.0
+
+### Patch Changes
+
+- 4d66b73: Bump Registry to version 15.10.1 to patch addWarpRouteConfig to no longer throw when a warpRouteId exists
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+- Updated dependencies [4d66b73]
+  - @hyperlane-xyz/sdk@13.2.0
+  - @hyperlane-xyz/cosmos-sdk@13.2.0
+  - @hyperlane-xyz/utils@13.2.0
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/cosmos-sdk@13.1.1
+  - @hyperlane-xyz/sdk@13.1.1
+  - @hyperlane-xyz/utils@13.1.1
+
+## 13.1.0
+
+### Patch Changes
+
+- Updated dependencies [6e86efa]
+- Updated dependencies [c42ea09]
+- Updated dependencies [f41f766]
+  - @hyperlane-xyz/sdk@13.1.0
+  - @hyperlane-xyz/utils@13.1.0
+  - @hyperlane-xyz/cosmos-sdk@13.1.0
+
 ## 13.0.0
 
 ### Patch Changes

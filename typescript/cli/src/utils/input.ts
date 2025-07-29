@@ -19,7 +19,12 @@ import ansiEscapes from 'ansi-escapes';
 import chalk from 'chalk';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { ChainName, DeployedOwnableConfig } from '@hyperlane-xyz/sdk';
+import { BaseRegistry, IRegistry } from '@hyperlane-xyz/registry';
+import {
+  ChainName,
+  DeployedOwnableConfig,
+  WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
 import { isAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
@@ -32,13 +37,16 @@ export async function detectAndConfirmOrPrompt(
   prompt: string,
   label: string,
   source?: string,
+  validate?:
+    | ((value: string) => string | boolean | Promise<string | boolean>)
+    | undefined,
 ): Promise<string> {
   let detectedValue: string | undefined;
   try {
     detectedValue = await detect();
     if (detectedValue) {
       const confirmed = await confirm({
-        message: `Detected ${label} as ${detectedValue}${
+        message: `Using ${label} as ${detectedValue}${
           source ? ` from ${source}` : ''
         }, is this correct?`,
       });
@@ -49,7 +57,11 @@ export async function detectAndConfirmOrPrompt(
   } catch {
     // Fallback to input prompt
   }
-  return input({ message: `${prompt} ${label}:`, default: detectedValue });
+  return input({
+    message: `${prompt} ${label}:`,
+    default: detectedValue,
+    validate,
+  });
 }
 
 const INFO_COMMAND: string = 'i';
@@ -126,6 +138,56 @@ export async function setProxyAdminConfig(
       `Failed to read owner address from ProxyAdmin contract at ${proxy.address}. Are you sure this is a ProxyAdmin contract?`,
     );
   }
+}
+
+/**
+ * Retrieves the warp route ID for a given WarpRouteDeployConfig and symbol.
+ *
+ * This function prompts the user to confirm or input the desired warp route ID
+ * based on the provided WarpRouteDeployConfig and symbol. It uses the
+ * `detectAndConfirmOrPrompt` utility to handle detection, confirmation, and input.
+ *
+ * @param registry The registry used to check for existing warp route configurations
+ * @param warpRouteDeployConfig The configuration for the warp route deployment
+ * @param symbol The symbol associated with the warp route
+ * @returns A Promise resolving to the unique warp route ID
+ * @throws Error if a warp route ID already exists or cannot be generated
+ */
+export async function getWarpRouteIdFromWarpDeployConfig(
+  registry: IRegistry,
+  warpRouteDeployConfig: WarpRouteDeployConfig,
+  symbol: string,
+): Promise<string> {
+  return detectAndConfirmOrPrompt(
+    // First Proposes the short or long warp route id
+    async () =>
+      BaseRegistry.warpDeployConfigToId(warpRouteDeployConfig, {
+        symbol,
+      }),
+    'Enter the desired',
+    'warp route ID',
+    'warp deployment config',
+    // Validates the user defined warpRouteId by 1) checking if its unique, and 2) check if its formatted correctly
+    async (warpRouteId) => {
+      try {
+        const idExists = !!(await registry.getWarpDeployConfig(warpRouteId));
+        if (idExists) {
+          throw Error(`Warp deploy config already exists for: ${warpRouteId}.`);
+        }
+
+        // Will throw if incorrectly formatted
+        const isIdCorrectFormat = !!BaseRegistry.warpDeployConfigToId(
+          warpRouteDeployConfig,
+          {
+            warpRouteId,
+          },
+        );
+        return isIdCorrectFormat;
+      } catch (e) {
+        return (e as Error).toString();
+      }
+    },
+  );
 }
 
 /**

@@ -12,10 +12,10 @@ use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 use crate::{
     cursors::{CursorType, Indexable},
+    server::Server,
     settings::{chains::ChainConf, trace::TracingConfig},
     ContractSync, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
-    SequenceAwareLogStore, SequencedDataContractSync, Server, WatermarkContractSync,
-    WatermarkLogStore,
+    SequenceAwareLogStore, SequencedDataContractSync, WatermarkContractSync, WatermarkLogStore,
 };
 
 use super::TryFromWithMetrics;
@@ -44,10 +44,12 @@ use super::TryFromWithMetrics;
 ///     }
 /// }
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Settings {
+    /// Mapping from chain name to domain
+    pub domains: HashMap<String, HyperlaneDomain>,
     /// Configuration for contracts on each chain
-    pub chains: HashMap<String, ChainConf>,
+    pub chains: HashMap<HyperlaneDomain, ChainConf>,
     /// Port to listen for prometheus scrape requests
     pub metrics_port: u16,
     /// The tracing configuration
@@ -79,16 +81,16 @@ impl Settings {
     /// Try to get the chain configuration for the given domain.
     pub fn chain_setup(&self, domain: &HyperlaneDomain) -> Result<&ChainConf> {
         self.chains
-            .get(domain.name())
+            .get(domain)
             .ok_or_else(|| eyre!("No chain setup found for {domain}"))
     }
 
     /// Try to get the domain for a given chain by name.
     pub fn lookup_domain(&self, chain_name: &str) -> Result<HyperlaneDomain> {
-        self.chains
+        self.domains
             .get(chain_name)
             .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
-            .map(|c| c.domain.clone())
+            .cloned()
     }
 
     /// Create the core metrics from the settings given the name of the agent.
@@ -109,6 +111,7 @@ impl Settings {
     /// agent consumes the settings.
     fn clone(&self) -> Self {
         Self {
+            domains: self.domains.clone(),
             chains: self.chains.clone(),
             metrics_port: self.metrics_port,
             tracing: self.tracing.clone(),
@@ -144,7 +147,8 @@ macro_rules! build_chain_conf_fns {
     };
 }
 
-type SequenceIndexer<T> = Arc<dyn SequenceAwareIndexer<T>>;
+/// Arc SequenceAwareIndexer
+pub type SequenceIndexer<T> = Arc<dyn SequenceAwareIndexer<T>>;
 
 impl Settings {
     build_chain_conf_fns!(build_application_operation_verifier, build_application_operation_verifiers -> dyn ApplicationOperationVerifier);
@@ -215,13 +219,12 @@ impl Settings {
     /// watermark trait bounds
     pub async fn contract_syncs<T, S>(
         &self,
-        domains: impl Iterator<Item = &HyperlaneDomain>,
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         stores: HashMap<HyperlaneDomain, Arc<S>>,
         advanced_log_meta: bool,
         broadcast_sender_enabled: bool,
-    ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>>
+    ) -> HashMap<HyperlaneDomain, eyre::Result<Arc<dyn ContractSyncer<T>>>>
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
@@ -231,26 +234,21 @@ impl Settings {
             + 'static,
     {
         // TODO: parallelize these calls again
-        let mut syncs = vec![];
-        for domain in domains {
-            let store = stores.get(domain).unwrap().clone();
+        let mut syncs = HashMap::new();
+        for (domain, store) in stores {
             let sync = self
                 .contract_sync(
-                    domain,
+                    &domain,
                     metrics,
                     sync_metrics,
                     store,
                     advanced_log_meta,
                     broadcast_sender_enabled,
                 )
-                .await?;
-            syncs.push(sync);
+                .await;
+            syncs.insert(domain, sync);
         }
-
         syncs
-            .into_iter()
-            .map(|i| Ok((i.domain().clone(), i)))
-            .collect()
     }
 
     /// Build single contract sync.

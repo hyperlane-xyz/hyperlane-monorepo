@@ -373,6 +373,12 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     const helmValues = await super.helmValues();
     const cfg = await this.config.buildConfig();
 
+    // Only care about the origin chain for the helm values. This
+    // prevents getting secret endpoints for all chains in the environment.
+    helmValues.hyperlane.chains = helmValues.hyperlane.chains.filter(
+      (chain) => chain.name === cfg.originChainName,
+    );
+
     helmValues.hyperlane.validator = {
       enabled: true,
       configs: cfg.validators.map((c) => ({

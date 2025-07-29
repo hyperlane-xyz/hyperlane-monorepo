@@ -1,5 +1,5 @@
 {
-  "extends": "../tsconfig.json",
+  "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
   "compilerOptions": {
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true,

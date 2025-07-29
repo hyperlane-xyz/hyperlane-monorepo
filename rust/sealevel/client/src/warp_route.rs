@@ -35,9 +35,9 @@ use hyperlane_sealevel_token_lib::{
 use crate::{
     cmd_utils::account_exists,
     core::CoreProgramIds,
+    registry::ChainMetadata,
     router::{
-        deploy_routers, ChainMetadata, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter,
-        RouterDeployer,
+        deploy_routers, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter, RouterDeployer,
     },
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
@@ -154,7 +154,7 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 "warp-routes",
                 &deploy.warp_route_name,
                 deploy.token_config_file,
-                deploy.chain_config_file,
+                deploy.registry,
                 deploy.env_args.environments_dir,
                 &deploy.env_args.environment,
                 deploy.built_so_dir,
@@ -213,7 +213,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         ctx: &mut Context,
         client: &RpcClient,
         core_program_ids: &CoreProgramIds,
-        chain_config: &ChainMetadata,
+        chain_metadata: &ChainMetadata,
         app_config: &TokenConfig,
         program_id: Pubkey,
     ) {
@@ -239,7 +239,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             return;
         }
 
-        let domain_id = chain_config.domain_id();
+        let domain_id = chain_metadata.domain_id;
 
         // TODO: consider pulling the setting of defaults into router.rs,
         // and possibly have a more distinct connection client abstraction.
@@ -442,7 +442,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         _ctx: &mut Context,
         _app_configs: &HashMap<String, TokenConfig>,
         app_configs_to_deploy: &HashMap<&String, &TokenConfig>,
-        chain_configs: &HashMap<String, ChainMetadata>,
+        chain_metadatas: &HashMap<String, ChainMetadata>,
     ) {
         // We only have validations for SVM tokens at the moment.
         for (chain, config) in app_configs_to_deploy.iter() {
@@ -451,7 +451,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 let metadata_uri = match synthetic.uri.as_ref() {
                     Some(uri) => uri,
                     None => {
-                        if chain_configs
+                        if chain_metadatas
                             .get(*chain)
                             .unwrap()
                             .is_testnet
@@ -490,29 +490,29 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         ctx: &mut Context,
         app_configs: &HashMap<String, TokenConfig>,
         app_configs_to_deploy: &HashMap<&String, &TokenConfig>,
-        chain_configs: &HashMap<String, ChainMetadata>,
+        chain_metadatas: &HashMap<String, ChainMetadata>,
         routers: &HashMap<u32, H256>,
     ) {
         // Set gas amounts for each destination chain
         for chain_name in app_configs_to_deploy.keys() {
-            let chain_config = chain_configs
+            let chain_metadata = chain_metadatas
                 .get(*chain_name)
                 .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));
 
-            let domain_id = chain_config.domain_id();
+            let domain_id = chain_metadata.domain_id;
             let program_id: Pubkey =
                 Pubkey::new_from_array(*routers.get(&domain_id).unwrap().as_fixed_bytes());
 
             // And set destination gas
             let configured_destination_gas =
-                get_destination_gas(&chain_config.client(), &program_id).unwrap();
+                get_destination_gas(&chain_metadata.client(), &program_id).unwrap();
 
             let expected_destination_gas = app_configs
                 .iter()
                 // filter out local chain
                 .filter(|(dest_chain_name, _)| dest_chain_name != chain_name)
                 .map(|(dest_chain_name, app_config)| {
-                    let domain = chain_configs.get(dest_chain_name).unwrap().domain_id();
+                    let domain = chain_metadatas.get(dest_chain_name).unwrap().domain_id;
                     (
                         domain,
                         GasRouterConfig {
@@ -545,26 +545,31 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 .chain(destination_gas_to_unset)
                 .collect::<Vec<GasRouterConfig>>();
 
-            if !destination_gas_configs.is_empty() {
-                let description = format!(
+            let owner = self.get_owner(&chain_metadata.client(), &program_id);
+
+            if let Some(owner) = owner {
+                if !destination_gas_configs.is_empty() {
+                    let description = format!(
                     "Setting destination gas amounts for chain: {}, program_id {}, destination gas: {:?}",
                     chain_name, program_id, destination_gas_configs,
                 );
-                ctx.new_txn()
-                    .add_with_description(
-                        set_destination_gas_configs(
-                            program_id,
-                            ctx.payer_pubkey,
-                            destination_gas_configs,
+                    ctx.new_txn()
+                        .add_with_description(
+                            set_destination_gas_configs(program_id, owner, destination_gas_configs)
+                                .unwrap(),
+                            description,
                         )
-                        .unwrap(),
-                        description,
-                    )
-                    .with_client(&chain_config.client())
-                    .send_with_payer();
+                        .with_client(&chain_metadata.client())
+                        .send_with_pubkey_signer(&owner);
+                } else {
+                    println!(
+                        "No destination gas amount changes for chain: {}, program_id {}",
+                        chain_name, program_id
+                    );
+                }
             } else {
                 println!(
-                    "No destination gas amount changes for chain: {}, program_id {}",
+                    "Cannot set destination gas amounts for chain: {}, program_id {} because owner is None",
                     chain_name, program_id
                 );
             }

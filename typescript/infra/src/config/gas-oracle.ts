@@ -7,7 +7,7 @@ import {
   ChainName,
   GasPriceConfig,
   ProtocolAgnositicGasOracleConfig,
-  StorageGasOracleConfig,
+  ProtocolAgnositicGasOracleConfigWithTypicalCost,
   defaultMultisigConfigs,
   getLocalStorageGasOracleConfig,
   getProtocolExchangeRateScale,
@@ -28,17 +28,13 @@ import { mustGetChainNativeToken } from '../utils/utils.js';
 // gas oracle configs for each chain, which includes
 // a map for each chain's remote chains
 export type AllStorageGasOracleConfigs = ChainMap<
-  ChainMap<StorageGasOracleConfig>
+  ChainMap<ProtocolAgnositicGasOracleConfigWithTypicalCost>
 >;
 
 // Overcharge by 50% to account for market making risk
 export const EXCHANGE_RATE_MARGIN_PCT = 50;
 
-// Arbitrarily chosen as a typical amount of gas used in a message's handle function.
-// Used for determining typical gas costs for a message.
-export const TYPICAL_HANDLE_GAS_USAGE = 50_000;
-
-// Gets the StorageGasOracleConfig for each remote chain for a particular local chain.
+// Gets the StorageGasOracleConfigWithTypicalCost for each remote chain for a particular local chain.
 // Accommodates small non-integer gas prices by scaling up the gas price
 // and scaling down the exchange rate by the same factor.
 function getLocalStorageGasOracleConfigOverride(
@@ -48,7 +44,7 @@ function getLocalStorageGasOracleConfigOverride(
   gasPrices: ChainMap<GasPriceConfig>,
   getOverhead: (local: ChainName, remote: ChainName) => number,
   applyMinUsdCost: boolean,
-): ChainMap<StorageGasOracleConfig> {
+): ChainMap<ProtocolAgnositicGasOracleConfigWithTypicalCost> {
   const localProtocolType = getChain(local).protocol;
   const localExchangeRateScale =
     getProtocolExchangeRateScale(localProtocolType);
@@ -66,6 +62,35 @@ function getLocalStorageGasOracleConfigOverride(
     return agg;
   }, {} as ChainMap<ChainGasOracleParams>);
 
+  const typicalCostGetter = (
+    local: ChainName,
+    remote: ChainName,
+    gasOracleConfig: ProtocolAgnositicGasOracleConfig,
+  ) => {
+    const remoteProtocolType = getChain(remote).protocol;
+
+    const typicalRemoteGasAmount = getTypicalRemoteGasAmount(
+      local,
+      remote,
+      remoteProtocolType,
+      getOverhead,
+    );
+    const localTokenUsdPrice = parseFloat(tokenPrices[local]);
+    const typicalIgpQuoteUsd = getUsdQuote(
+      localTokenUsdPrice,
+      localExchangeRateScale,
+      localNativeTokenDecimals,
+      localProtocolType,
+      gasOracleConfig,
+      typicalRemoteGasAmount,
+    );
+    return {
+      handleGasAmount: getTypicalHandleGasAmount(remoteProtocolType),
+      totalGasAmount: typicalRemoteGasAmount,
+      totalUsdCost: typicalIgpQuoteUsd,
+    };
+  };
+
   // Modifier to adjust the gas price to meet minimum USD cost requirements.
   const gasPriceModifier = (
     local: ChainName,
@@ -79,6 +104,7 @@ function getLocalStorageGasOracleConfigOverride(
     const typicalRemoteGasAmount = getTypicalRemoteGasAmount(
       local,
       remote,
+      getChain(remote).protocol,
       getOverhead,
     );
     const localTokenUsdPrice = parseFloat(tokenPrices[local]);
@@ -141,15 +167,31 @@ function getLocalStorageGasOracleConfigOverride(
     gasOracleParams,
     exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
     gasPriceModifier,
+    typicalCostGetter,
   });
+}
+
+export function getTypicalHandleGasAmount(
+  remoteProtocolType: ProtocolType,
+): number {
+  if (remoteProtocolType === ProtocolType.Starknet) {
+    return 5_000_000;
+  }
+
+  // A fairly arbitrary amount of gas used in a message's handle function,
+  // generally fits most VMs.
+  return 50_000;
 }
 
 export function getTypicalRemoteGasAmount(
   local: ChainName,
   remote: ChainName,
+  remoteProtocolType: ProtocolType,
   getOverhead: (local: ChainName, remote: ChainName) => number,
 ): number {
-  return getOverhead(local, remote) + TYPICAL_HANDLE_GAS_USAGE;
+  return (
+    getOverhead(local, remote) + getTypicalHandleGasAmount(remoteProtocolType)
+  );
 }
 
 function getMinUsdCost(local: ChainName, remote: ChainName): number {
@@ -167,8 +209,6 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
   }
 
   const remoteMinCostOverrides: ChainMap<number> = {
-    ethereum: 0.5,
-
     // For Ethereum L2s, we need to account for the L1 DA costs that
     // aren't accounted for directly in the gas price.
     arbitrum: 0.5,
@@ -181,11 +221,11 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     polygonzkevm: 0.5,
 
     // op stack chains
-    base: 0.5,
+    base: 0.2,
     fraxtal: 0.2,
     lisk: 0.2,
     mode: 0.2,
-    optimism: 0.5,
+    optimism: 0.2,
     soneium: 0.2,
     superseed: 0.2,
     unichain: 0.2,
@@ -197,8 +237,13 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     neutron: 0.5,
     // For Solana, special min cost
     solanamainnet: 1.2,
-    bsc: 0.5,
   };
+
+  if (local === 'ethereum' && remote === 'solanamainnet') {
+    minUsdCost = 0.5;
+    remoteMinCostOverrides['solanamainnet'] = 0.9;
+  }
+
   const override = remoteMinCostOverrides[remote];
   if (override !== undefined) {
     minUsdCost = Math.max(minUsdCost, override);
@@ -242,17 +287,22 @@ function getUsdQuote(
 const FOREIGN_DEFAULT_OVERHEAD = 600_000;
 
 // Overhead for interchain messaging
-export function getOverhead(
-  local: ChainName,
-  remote: ChainName,
-  ethereumChainNames: ChainName[],
-): number {
-  return ethereumChainNames.includes(remote as any)
-    ? multisigIsmVerificationCost(
-        defaultMultisigConfigs[local].threshold,
-        defaultMultisigConfigs[local].validators.length,
-      )
-    : FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
+export function getOverhead(local: ChainName, remote: ChainName): number {
+  const remoteProtocol = getChain(remote).protocol;
+
+  if (remoteProtocol === ProtocolType.Ethereum) {
+    return multisigIsmVerificationCost(
+      defaultMultisigConfigs[local].threshold,
+      defaultMultisigConfigs[local].validators.length,
+    );
+  }
+
+  if (remoteProtocol === ProtocolType.Starknet) {
+    return 10_000_000 + 40_000_000 * defaultMultisigConfigs[local].threshold;
+  }
+
+  // Default non-EVM overhead
+  return FOREIGN_DEFAULT_OVERHEAD;
 }
 
 // Gets the map of remote gas oracle configs for each local chain

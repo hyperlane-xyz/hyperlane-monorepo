@@ -1,5 +1,7 @@
 import { Address, HexString } from '@hyperlane-xyz/utils';
 
+import { GetEventLogsResponse } from '../rpc/evm/types.js';
+
 interface EtherscanLikeAPIOptions {
   // Explorers like Blockscout don't require an API key for requests
   apiKey?: string;
@@ -38,7 +40,12 @@ async function handleEtherscanResponse<T>(response: Response): Promise<T> {
   const body = await response.json();
 
   const explorerUrl = new URL(response.url);
-  if (body.status === '0') {
+  // Avoid throwing if no logs are found for the current address
+  if (
+    body.status === '0' &&
+    body.message !== 'No records found' &&
+    body.message !== 'No logs found'
+  ) {
     throw new Error(
       `Error while performing request to Etherscan like API at ${explorerUrl.host}: ${body.message} ${body.result}`,
     );
@@ -105,7 +112,7 @@ interface GetEventLogs extends BaseEtherscanLikeAPIParams<'logs', 'getLogs'> {
   topic0: string;
 }
 
-export type GetEventLogsResponse = {
+type RawEtherscanGetEventLogsResponse = {
   address: Address;
   blockNumber: HexString;
   data: HexString;
@@ -135,5 +142,18 @@ export async function getLogsFromEtherscanLikeExplorerAPI(
 
   const response = await fetch(requestUrl);
 
-  return handleEtherscanResponse(response);
+  const rawLogs: RawEtherscanGetEventLogsResponse[] =
+    await handleEtherscanResponse(response);
+
+  return rawLogs.map(
+    (rawLogs): GetEventLogsResponse => ({
+      address: rawLogs.address,
+      blockNumber: Number(rawLogs.blockNumber),
+      data: rawLogs.data,
+      logIndex: Number(rawLogs.logIndex),
+      topics: rawLogs.topics,
+      transactionHash: rawLogs.transactionHash,
+      transactionIndex: Number(rawLogs.transactionIndex),
+    }),
+  );
 }

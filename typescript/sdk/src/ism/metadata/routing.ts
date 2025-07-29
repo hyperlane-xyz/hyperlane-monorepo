@@ -1,8 +1,8 @@
 import {
   DefaultFallbackRoutingIsm__factory,
-  InterchainAccountIsm__factory,
+  IRoutingIsm__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
+import { WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import { ChainName } from '../../types.js';
 import { EvmIsmReader } from '../EvmIsmReader.js';
@@ -11,6 +11,7 @@ import {
   DomainRoutingIsmConfig,
   IsmType,
   RoutingIsmConfig,
+  isDynamicallyRoutedIsmType,
 } from '../types.js';
 
 import type { BaseMetadataBuilder } from './builder.js';
@@ -27,7 +28,7 @@ export type RoutingMetadata<T> = {
   metadata: T;
 };
 
-export class RoutingMetadataBuilder implements MetadataBuilder {
+export class StaticRoutingMetadataBuilder implements MetadataBuilder {
   constructor(protected baseMetadataBuilder: BaseMetadataBuilder) {}
 
   public async build(
@@ -69,80 +70,63 @@ export class RoutingMetadataBuilder implements MetadataBuilder {
   }
 }
 
-export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilder {
+export class DynamicRoutingMetadataBuilder extends StaticRoutingMetadataBuilder {
+  constructor(protected baseMetadataBuilder: BaseMetadataBuilder) {
+    super(baseMetadataBuilder);
+  }
+
   public async build(
     context: MetadataContext<WithAddress<RoutingIsmConfig>>,
     maxDepth = 10,
   ): Promise<string> {
+    const { message, ism } = context;
     const originChain = this.baseMetadataBuilder.multiProvider.getChainName(
-      context.message.parsed.origin,
+      message.parsed.origin,
     );
+    const destination = message.parsed.destination;
+    const provider =
+      this.baseMetadataBuilder.multiProvider.getProvider(destination);
 
-    const isRouted =
-      context.ism.type === IsmType.ICA_ROUTING ||
-      context.ism.type === IsmType.AMOUNT_ROUTING
-        ? false
-        : !!context.ism.domains[originChain];
-    // If the chain is routed then we are 100% sure that the ism is not an ICA ISM
-    if (isRouted && context.ism.type !== IsmType.ICA_ROUTING) {
+    // Helper to derive new ISM config and recurse
+    const deriveAndRecurse = async (moduleAddress: string) => {
+      const ismReader = new EvmIsmReader(
+        this.baseMetadataBuilder.multiProvider,
+        destination,
+      );
+      const nextConfig = await ismReader.deriveIsmConfig(moduleAddress);
+      return this.baseMetadataBuilder.build(
+        { ...context, ism: nextConfig },
+        maxDepth - 1,
+      );
+    };
+
+    // 1) Dynamic routing (AmountRouting or ICA): always route via .route(message)
+    if (isDynamicallyRoutedIsmType(ism.type)) {
+      const router = IRoutingIsm__factory.connect(ism.address, provider);
+      const moduleAddr = await router.route(message.message);
+      return deriveAndRecurse(moduleAddr);
+    }
+
+    // 2) Static domain routing: if origin is enrolled, delegate to super
+    if ((ism as DomainRoutingIsmConfig).domains?.[originChain]) {
       return super.build(
-        // Typescript is not clever enough to understand that after the conditional check
-        // the ism type will be of the same expected type
         context as MetadataContext<WithAddress<DomainRoutingIsmConfig>>,
         maxDepth,
       );
     }
 
-    if (
-      context.ism.type !== IsmType.FALLBACK_ROUTING &&
-      context.ism.type !== IsmType.ICA_ROUTING &&
-      context.ism.type !== IsmType.AMOUNT_ROUTING
-    ) {
-      throw new Error(
-        `Origin domain ${originChain} is not enrolled in DomainRoutingIsm`,
+    // 3) Fallback routing: use .module(origin)
+    if (ism.type === IsmType.FALLBACK_ROUTING) {
+      const fallback = DefaultFallbackRoutingIsm__factory.connect(
+        ism.address,
+        provider,
       );
+      const moduleAddr = await fallback.module(message.parsed.origin);
+      return deriveAndRecurse(moduleAddr);
     }
 
-    const destinationProvider =
-      this.baseMetadataBuilder.multiProvider.getProvider(
-        context.message.parsed.destination,
-      );
-
-    let ismAddress: Address;
-    if (context.ism.type === IsmType.ICA_ROUTING) {
-      const icaFallbackRoutingIsm = InterchainAccountIsm__factory.connect(
-        context.ism.address,
-        destinationProvider,
-      );
-
-      ismAddress = await icaFallbackRoutingIsm.route(context.message.message);
-    } else if (context.ism.type === IsmType.AMOUNT_ROUTING) {
-      const amountFallbackRoutingIsm =
-        DefaultFallbackRoutingIsm__factory.connect(
-          context.ism.address,
-          destinationProvider,
-        );
-      ismAddress = await amountFallbackRoutingIsm.route(
-        context.message.message,
-      );
-    } else {
-      const fallbackIsm = DefaultFallbackRoutingIsm__factory.connect(
-        context.ism.address,
-        destinationProvider,
-      );
-      ismAddress = await fallbackIsm.module(context.message.parsed.origin);
-    }
-
-    const ismReader = new EvmIsmReader(
-      this.baseMetadataBuilder.multiProvider,
-      context.message.parsed.destination,
+    throw new Error(
+      `DefaultFallbackRoutingMetadataBuilder: unexpected ISM type ${ism.type}`,
     );
-    const defaultIsmConfig = await ismReader.deriveIsmConfig(ismAddress);
-
-    const originContext = {
-      ...context,
-      ism: defaultIsmConfig,
-    };
-    return this.baseMetadataBuilder.build(originContext, maxDepth - 1);
   }
 }

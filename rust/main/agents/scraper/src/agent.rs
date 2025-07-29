@@ -190,8 +190,9 @@ impl Scraper {
 
         Ok(tokio::spawn(
             async move {
-                // If any of the tasks panic, we want to propagate it, so we unwrap
-                try_join_all(tasks).await.unwrap();
+                try_join_all(tasks)
+                    .await
+                    .expect("Some scraper tasks failed");
             }
             .instrument(info_span!("Scraper Tasks")),
         ))
@@ -461,12 +462,24 @@ mod test {
                     chunk_size: 1,
                     mode: IndexMode::Block,
                 },
+                ignore_reorg_reports: false,
             },
         )];
 
+        let chains = chains
+            .into_iter()
+            .map(|(_, conf)| (conf.domain.clone(), conf))
+            .collect::<HashMap<_, _>>();
+
+        let domains = chains
+            .keys()
+            .map(|domain| (domain.name().to_string(), domain.clone()))
+            .collect();
+
         ScraperSettings {
             base: Settings {
-                chains: chains.into_iter().collect(),
+                domains,
+                chains,
                 metrics_port: 5000,
                 tracing: TracingConfig::default(),
             },
