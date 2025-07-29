@@ -205,7 +205,7 @@ export class MultiProtocolSignerManager {
     return strategy;
   }
 
-  protected getSpecificSigner<T>(chain: ChainName): T {
+  getSpecificSigner<T>(chain: ChainName): T {
     return this.signers.get(chain) as T;
   }
 
@@ -215,7 +215,12 @@ export class MultiProtocolSignerManager {
       protocolType === ProtocolType.Ethereum,
       `Chain ${chain} is not an Ethereum chain`,
     );
-    return this.getSpecificSigner<Signer>(chain);
+    const signer = this.getSpecificSigner<Signer>(chain);
+    assert(
+      signer instanceof Signer,
+      `got invalid EVM signer for chain ${chain}`,
+    );
+    return signer;
   }
 
   getCosmosNativeSigner(chain: ChainName): SigningHyperlaneModuleClient {
@@ -224,10 +229,15 @@ export class MultiProtocolSignerManager {
       protocolType === ProtocolType.CosmosNative,
       `Chain ${chain} is not a Cosmos Native chain`,
     );
-    return this.getSpecificSigner<SigningHyperlaneModuleClient>(chain);
+    const signer = this.getSpecificSigner<SigningHyperlaneModuleClient>(chain);
+    assert(
+      signer instanceof SigningHyperlaneModuleClient,
+      `got invalid EVM signer for chain ${chain}`,
+    );
+    return signer;
   }
 
-  async getAddress(chain: ChainName): Promise<Address> {
+  async getSignerAddress(chain: ChainName): Promise<Address> {
     const metadata = this.multiProvider.getChainMetadata(chain);
 
     switch (metadata.protocol) {
@@ -257,30 +267,46 @@ export class MultiProtocolSignerManager {
 
     switch (metadata.protocol) {
       case ProtocolType.Ethereum: {
-        const provider = params.isDryRun
-          ? getLocalProvider({
-              anvilIPAddr: ENV.ANVIL_IP_ADDR,
-              anvilPort: ENV.ANVIL_PORT,
-            })
-          : this.multiProvider.getProvider(params.chain);
-        const balance = await provider.getBalance(params.address);
-        return balance;
+        try {
+          const provider = params.isDryRun
+            ? getLocalProvider({
+                anvilIPAddr: ENV.ANVIL_IP_ADDR,
+                anvilPort: ENV.ANVIL_PORT,
+              })
+            : this.multiProvider.getProvider(params.chain);
+          const balance = await provider.getBalance(params.address);
+          return balance;
+        } catch (err) {
+          throw new Error(
+            `failed to get balance of address ${params.address} on EVM chain ${params.chain}`,
+          );
+        }
       }
       case ProtocolType.CosmosNative: {
         assert(
           params.denom,
           `need denom to get balance of Cosmos Native chain ${params.chain}`,
         );
-        const provider =
-          await this.multiProtocolProvider.getCosmJsNativeProvider(
-            params.chain,
+
+        try {
+          const provider =
+            await this.multiProtocolProvider.getCosmJsNativeProvider(
+              params.chain,
+            );
+          const balance = await provider.getBalance(
+            params.address,
+            params.denom,
           );
-        const balance = await provider.getBalance(params.address, params.denom);
-        return BigNumber.from(balance.amount);
+          return BigNumber.from(balance.amount);
+        } catch (err) {
+          throw new Error(
+            `failed to get balance of address ${params.address} on Cosmos Native chain ${params.chain}`,
+          );
+        }
       }
       default: {
         throw new Error(
-          `Retrieving balance for account of protocol type ${metadata.protocol} not supported on chain ${params.chain}`,
+          `Retrieving balance for account of protocol type ${metadata.protocol} not supported chain ${params.chain}`,
         );
       }
     }

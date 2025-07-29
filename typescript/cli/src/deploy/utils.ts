@@ -14,7 +14,7 @@ import {
   WarpRouteDeployConfig,
   isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
@@ -60,20 +60,7 @@ export async function runPreflightChecksForChains({
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
 
-    let signer: TypedSigner;
-
-    switch (metadata.protocol) {
-      case ProtocolType.Ethereum:
-        signer = multiProtocolSigner.getEVMSigner(chain);
-        break;
-      case ProtocolType.CosmosNative:
-        signer = multiProtocolSigner.getCosmosNativeSigner(chain);
-        break;
-      default:
-        throw new Error(
-          'Only Ethereum and Cosmos Native chains are supported for now',
-        );
-    }
+    const signer = multiProtocolSigner.getSpecificSigner<TypedSigner>(chain);
 
     if (!signer) {
       throw new Error('signer is invalid');
@@ -164,19 +151,19 @@ export async function prepareDeploy(
 ): Promise<Record<string, BigNumber>> {
   const { multiProvider, multiProtocolSigner, isDryRun } = context;
   const initialBalances: Record<string, BigNumber> = {};
-  await Promise.all(
-    chains.map(async (chain: ChainName) => {
-      const { nativeToken } = multiProvider.getChainMetadata(chain);
-      const address =
-        userAddress ?? (await multiProtocolSigner!.getAddress(chain));
-      initialBalances[chain] = await multiProtocolSigner!.getBalance({
-        isDryRun: isDryRun || false,
-        address,
-        chain,
-        denom: nativeToken?.denom,
-      });
-    }),
-  );
+
+  for (const chain of chains) {
+    const { nativeToken } = multiProvider.getChainMetadata(chain);
+    const address =
+      userAddress ?? (await multiProtocolSigner!.getSignerAddress(chain));
+    initialBalances[chain] = await multiProtocolSigner!.getBalance({
+      isDryRun: isDryRun || false,
+      address,
+      chain,
+      denom: nativeToken?.denom,
+    });
+  }
+
   return initialBalances;
 }
 
@@ -195,7 +182,7 @@ export async function completeDeploy(
     const { nativeToken } = multiProvider.getChainMetadata(chain);
     const address = userAddress
       ? userAddress
-      : await multiProtocolSigner.getAddress(chain);
+      : await multiProtocolSigner.getSignerAddress(chain);
     const currentBalance = await multiProtocolSigner!.getBalance({
       isDryRun: isDryRun || false,
       address,

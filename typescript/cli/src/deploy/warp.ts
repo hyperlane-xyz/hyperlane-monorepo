@@ -465,7 +465,6 @@ async function createWarpIsm({
         chain,
         multiProvider: context.multiProvider,
         addresses: {
-          deployedIsm: '',
           mailbox: chainAddresses.mailbox,
         },
         config: interchainSecurityModule,

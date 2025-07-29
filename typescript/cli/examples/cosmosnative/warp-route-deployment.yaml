@@ -1,5 +1,5 @@
 # A config for a Warp Route deployment
-# Typically used with the 'hyperlane deploy warp' command
+# Typically used with the 'hyperlane warp deploy' command
 #
 # Token Types:
 #   native
