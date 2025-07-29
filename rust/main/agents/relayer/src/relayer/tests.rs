@@ -1,12 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::sync::Arc;
 use std::time::Duration;
 
 use ethers::utils::hex;
 use ethers_prometheus::middleware::PrometheusMiddlewareConf;
 use eyre::eyre;
-use hyperlane_base::db::DB;
 use prometheus::{opts, IntGaugeVec, Registry};
 use reqwest::Url;
 use tokio::time::error::Elapsed;
@@ -141,7 +139,7 @@ fn generate_test_relayer_settings(
 
 #[tokio::test]
 #[tracing_test::traced_test]
-async fn test_build_origins() {
+async fn test_failed_build_mailboxes() {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path();
 
@@ -200,14 +198,11 @@ async fn test_build_origins() {
         .unwrap(),
     };
 
-    let db = DB::from_path(&settings.db).expect("Failed to read db");
+    let mailboxes = Relayer::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
 
-    let origins =
-        Relayer::build_origins(&settings, db, Arc::new(core_metrics), &chain_metrics).await;
-
-    assert_eq!(origins.len(), 2);
-    assert!(origins.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
-    assert!(origins.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum)));
+    assert_eq!(mailboxes.len(), 2);
+    assert!(mailboxes.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
+    assert!(mailboxes.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum)));
 
     // Arbitrum chain should not have any errors because it's ChainConf exists
     let metric = chain_metrics
@@ -222,6 +217,13 @@ async fn test_build_origins() {
         .get_metric_with_label_values(&["ethereum"])
         .unwrap();
     assert_eq!(metric.get(), 0);
+
+    // Optimism chain should error because it is missing ChainConf
+    let metric = chain_metrics
+        .critical_error
+        .get_metric_with_label_values(&["optimism"])
+        .unwrap();
+    assert_eq!(metric.get(), 1);
 }
 
 async fn build_relayer(settings: RelayerSettings) -> eyre::Result<Relayer> {
@@ -336,6 +338,51 @@ async fn test_from_settings_and_run_happy_path() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
+async fn test_from_settings_and_run_missing_chain_configs() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path();
+    let chains = vec![(
+        "arbitrum".to_string(),
+        generate_test_chain_conf(
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            None,
+            // these urls are not expected to be live
+            "http://localhost:8545",
+        ),
+    )];
+    let origin_chains = &[
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+    ];
+    let destination_chains = &[
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+    ];
+    let metrics_port = 27004;
+    let settings = generate_test_relayer_settings(
+        db_path,
+        chains,
+        origin_chains,
+        destination_chains,
+        metrics_port,
+    );
+
+    let agent = build_relayer(settings)
+        .await
+        .expect("Failed to build relayer");
+
+    let failed_chain_count = 3;
+    assert!(
+        test_relayer_started_successfully(agent, metrics_port, failed_chain_count)
+            .await
+            .is_ok()
+    );
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
 async fn test_from_settings_and_run_bad_rpc() {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path();
@@ -365,6 +412,59 @@ async fn test_from_settings_and_run_bad_rpc() {
         .expect("Failed to build relayer");
 
     let failed_chain_count = 1;
+    assert!(
+        test_relayer_started_successfully(agent, metrics_port, failed_chain_count)
+            .await
+            .is_ok()
+    );
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_from_settings_and_run_less_destinations() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path();
+
+    let chains = vec![
+        (
+            KnownHyperlaneDomain::Arbitrum.to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                None,
+                // these urls are not expected to be live
+                "http://localhost:8545",
+            ),
+        ),
+        (
+            KnownHyperlaneDomain::Ethereum.to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+                None,
+                // these urls are not expected to be live
+                "http://localhost:8545",
+            ),
+        ),
+    ];
+    let origin_chains = &[
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+    ];
+    let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+    let metrics_port = 27006;
+    let settings = generate_test_relayer_settings(
+        db_path,
+        chains,
+        origin_chains,
+        destination_chains,
+        metrics_port,
+    );
+
+    let agent = build_relayer(settings)
+        .await
+        .expect("Failed to build relayer");
+
+    let failed_chain_count = 3;
     assert!(
         test_relayer_started_successfully(agent, metrics_port, failed_chain_count)
             .await
