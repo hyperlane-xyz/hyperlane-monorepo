@@ -120,7 +120,8 @@ export function useStarknetSwitchNetwork(multiProvider: MultiProtocolProvider) {
         // Some wallets seem to require a brief pause after switch
         await sleep(4000);
       } catch {
-        logger.warn('Failed to switch chain');
+        // some wallets like braavos do not support chain switching
+        logger.warn('Failed to switch chain.');
       }
     },
     [multiProvider, switchChainAsync],
