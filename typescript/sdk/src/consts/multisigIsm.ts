@@ -490,6 +490,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  celestia: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x6dbc192c06907784fb0af0c0c2d8809ea50ba675',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   celestiatestnet: {
     threshold: 1,
     validators: [

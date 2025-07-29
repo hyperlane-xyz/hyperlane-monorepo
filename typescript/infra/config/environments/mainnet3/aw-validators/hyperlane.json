@@ -487,5 +487,8 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+  },
+  "celestia": {
+    "validators": ["0x6dbc192c06907784fb0af0c0c2d8809ea50ba675"]
   }
 }
