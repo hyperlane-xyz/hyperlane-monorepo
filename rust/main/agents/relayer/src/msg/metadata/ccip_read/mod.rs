@@ -9,7 +9,7 @@ use derive_new::new;
 use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
 use hyperlane_base::cache::FunctionCallCache;
 use regex::{Regex, RegexSet, RegexSetBuilder};
-use reqwest::{header::CONTENT_TYPE, Client};
+use reqwest::{header::CONTENT_TYPE, Client, Method};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
@@ -272,7 +272,7 @@ async fn fetch_offchain_data(
             signature: maybe_signature_hex,
         };
         Client::new()
-            .post(interpolated_url)
+            .request(Method::POST, interpolated_url)
             .header(CONTENT_TYPE, "application/json")
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
             .json(&body)
@@ -286,13 +286,18 @@ async fn fetch_offchain_data(
                 MetadataBuildError::FailedToBuild(msg)
             })?
     } else {
-        reqwest::get(interpolated_url).await.map_err(|err| {
-            let msg = format!(
-                "Failed to request offchain lookup server with get method: {}",
-                err
-            );
-            MetadataBuildError::FailedToBuild(msg)
-        })?
+        Client::new()
+            .request(Method::GET, interpolated_url)
+            .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
+            .send()
+            .await
+            .map_err(|err| {
+                let msg = format!(
+                    "Failed to request offchain lookup server with get method: {}",
+                    err
+                );
+                MetadataBuildError::FailedToBuild(msg)
+            })?
     };
 
     let json: OffchainResponse = res.json().await.map_err(|err| {
