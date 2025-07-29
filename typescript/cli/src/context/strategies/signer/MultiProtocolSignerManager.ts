@@ -278,7 +278,7 @@ export class MultiProtocolSignerManager {
           return balance;
         } catch (err) {
           throw new Error(
-            `failed to get balance of address ${params.address} on EVM chain ${params.chain}`,
+            `failed to get balance of address ${params.address} on EVM chain ${params.chain}: ${err}`,
           );
         }
       }
@@ -300,7 +300,7 @@ export class MultiProtocolSignerManager {
           return BigNumber.from(balance.amount);
         } catch (err) {
           throw new Error(
-            `failed to get balance of address ${params.address} on Cosmos Native chain ${params.chain}`,
+            `failed to get balance of address ${params.address} on Cosmos Native chain ${params.chain}: ${err}`,
           );
         }
       }
