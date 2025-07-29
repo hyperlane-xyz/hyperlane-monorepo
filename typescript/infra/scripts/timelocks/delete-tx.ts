@@ -1,6 +1,11 @@
 import yargs from 'yargs';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import {
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getGovernanceTimelocks } from '../../config/environments/mainnet3/governance/utils.js';
@@ -11,6 +16,8 @@ import { withChain } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
+
   const { chain, tx, governanceType } = await withGovernanceType(
     withChain(
       yargs(process.argv.slice(2)).option('tx', {
@@ -51,7 +58,7 @@ async function main() {
     await deleteTimelockTx(chain, currentChainTimelock, tx, multiProvider);
   } catch (error) {
     rootLogger.error(
-      `Error deleting timelock operation "${tx}" for "${chain}":`,
+      `Error deleting timelock operation "${tx}" on "${chain}":`,
       error,
     );
   }
