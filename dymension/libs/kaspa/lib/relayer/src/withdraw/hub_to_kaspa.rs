@@ -1,13 +1,16 @@
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
+use corelib::message::parse_hyperlane_metadata;
 use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::SigningResources;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
-use hardcode::tx::DUST_AMOUNT;
-use hyperlane_core::{Decode, HyperlaneMessage};
+use hardcode::tx::{
+    DUST_AMOUNT, MINIMUM_WITHDRAWAL_ACCEPTED, MIN_ESCROW_BALANCE, MIN_RELAY_BALANCE,
+};
+use hyperlane_core::{Decode, HyperlaneMessage, U256};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Prefix;
 use kaspa_consensus_core::config::params::Params;
@@ -29,7 +32,7 @@ use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use std::io::Cursor;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Fetches escrow and relayer balances and a combined list of all inputs
 pub async fn fetch_input_utxos(
@@ -161,6 +164,13 @@ pub fn build_withdrawal_pskt(
         ));
     }
 
+    if escrow_balance < MIN_ESCROW_BALANCE {
+        warn!(
+            "Escrow balance is low: balance: {}, recommended: {}. Please deposit to escrow address to avoid high mass txs.",
+            escrow_balance,
+            MIN_ESCROW_BALANCE
+        );
+    }
     //////////////////
     //     Fee      //
     //////////////////
@@ -176,6 +186,14 @@ pub fn build_withdrawal_pskt(
             relayer_balance,
             tx_fee
         ));
+    }
+
+    if relayer_balance < MIN_RELAY_BALANCE {
+        warn!(
+            "Relayer balance is low: balance: {}, recommended: {}. Please deposit to relayer address to avoid high mass txs.",
+            relayer_balance,
+            MIN_RELAY_BALANCE
+        );
     }
 
     ////////////////
@@ -220,7 +238,9 @@ pub fn build_withdrawal_pskt(
 }
 
 fn is_dust(tx_out: &TransactionOutput) -> bool {
-    tx_out.value < DUST_AMOUNT || is_transaction_output_dust(tx_out)
+    tx_out.value < DUST_AMOUNT
+        || is_transaction_output_dust(tx_out)
+        || tx_out.value < MINIMUM_WITHDRAWAL_ACCEPTED
 }
 
 /// CONTRACT:
@@ -277,7 +297,7 @@ pub fn filter_outputs_from_msgs(
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();
     for m in messages {
-        let tm = match TokenMessage::read_from(&mut Cursor::new(&m.body)) {
+        let tm = match parse_hyperlane_metadata(&m) {
             Ok(tm) => tm,
             Err(e) => {
                 info!(
