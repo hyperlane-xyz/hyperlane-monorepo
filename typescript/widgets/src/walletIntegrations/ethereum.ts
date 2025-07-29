@@ -4,6 +4,7 @@ import {
   sendTransaction,
   switchChain,
   waitForTransactionReceipt,
+  watchAsset,
 } from '@wagmi/core';
 import { useCallback, useMemo } from 'react';
 import { Chain as ViemChain } from 'viem';
@@ -11,6 +12,7 @@ import { useAccount, useConfig, useDisconnect } from 'wagmi';
 
 import {
   ChainName,
+  IToken,
   MultiProtocolProvider,
   ProviderType,
   TypedTransactionReceipt,
@@ -26,6 +28,7 @@ import {
   ActiveChainInfo,
   ChainTransactionFns,
   WalletDetails,
+  WatchAssetFns,
 } from './types.js';
 import { ethers5TxToWagmiTx, getChainsForProtocol } from './utils.js';
 
@@ -86,9 +89,7 @@ export function useEthereumActiveChain(
   );
 }
 
-export function useEthereumTransactionFns(
-  multiProvider: MultiProtocolProvider,
-): ChainTransactionFns {
+export function useEthereumSwitchNetwork(multiProvider: MultiProtocolProvider) {
   const config = useConfig();
 
   const onSwitchNetwork = useCallback(
@@ -101,6 +102,44 @@ export function useEthereumTransactionFns(
     },
     [config, multiProvider],
   );
+
+  return { onSwitchNetwork };
+}
+
+export function useEthereumWatchAsset(
+  multiProvider: MultiProtocolProvider,
+): WatchAssetFns {
+  const { onSwitchNetwork } = useEthereumSwitchNetwork(multiProvider);
+  const config = useConfig();
+
+  const onAddAsset = useCallback(
+    async (token: IToken, activeChainName: ChainName) => {
+      const chainName = token.chainName;
+      // If the active chain is different from tx origin chain, try to switch network first
+      if (activeChainName && activeChainName !== chainName)
+        await onSwitchNetwork(chainName);
+
+      return watchAsset(config, {
+        type: 'ERC20',
+        options: {
+          address: token.collateralAddressOrDenom || token.addressOrDenom,
+          decimals: token.decimals,
+          symbol: token.symbol,
+        },
+      });
+    },
+    [config, onSwitchNetwork],
+  );
+
+  return { addAsset: onAddAsset };
+}
+
+export function useEthereumTransactionFns(
+  multiProvider: MultiProtocolProvider,
+): ChainTransactionFns {
+  const config = useConfig();
+  const { onSwitchNetwork } = useEthereumSwitchNetwork(multiProvider);
+
   // Note, this doesn't use wagmi's prepare + send pattern because we're potentially sending two transactions
   // The prepare hooks are recommended to use pre-click downtime to run async calls, but since the flow
   // may require two serial txs, the prepare hooks aren't useful and complicate hook architecture considerably.
@@ -168,7 +207,7 @@ export function useEthereumTransactionFns(
     }) => {
       throw new Error('Multi Transactions not supported on EVM');
     },
-    [config, onSwitchNetwork, multiProvider],
+    [],
   );
 
   return {

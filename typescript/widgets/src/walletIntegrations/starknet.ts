@@ -13,6 +13,7 @@ import { StarknetkitConnector, useStarknetkitConnectModal } from 'starknetkit';
 
 import {
   ChainName,
+  IToken,
   MultiProtocolProvider,
   ProviderType,
   TypedTransactionReceipt,
@@ -28,6 +29,7 @@ import {
   ActiveChainInfo,
   ChainTransactionFns,
   WalletDetails,
+  WatchAssetFns,
 } from './types.js';
 import { getChainsForProtocol } from './utils.js';
 
@@ -105,12 +107,7 @@ export function useStarknetActiveChain(
   );
 }
 
-export function useStarknetTransactionFns(
-  multiProvider: MultiProtocolProvider,
-): ChainTransactionFns {
-  const { account } = useAccount();
-
-  const { sendAsync } = useSendTransaction({});
+export function useStarknetSwitchNetwork(multiProvider: MultiProtocolProvider) {
   const { switchChainAsync } = useSwitchChain({});
 
   const onSwitchNetwork = useCallback(
@@ -121,13 +118,37 @@ export function useStarknetTransactionFns(
           chainId: chainId.toString(),
         });
         // Some wallets seem to require a brief pause after switch
-        await sleep(2000);
+        await sleep(4000);
       } catch {
         logger.warn('Failed to switch chain');
       }
     },
     [multiProvider, switchChainAsync],
   );
+
+  return { onSwitchNetwork };
+}
+
+export function useStarknetWatchAsset(
+  _multiProvider: MultiProtocolProvider,
+): WatchAssetFns {
+  const onAddAsset = useCallback(
+    async (_token: IToken, _activeChainName: ChainName) => {
+      throw new Error('Watch asset not available for starknet');
+    },
+    [],
+  );
+
+  return { addAsset: onAddAsset };
+}
+
+export function useStarknetTransactionFns(
+  multiProvider: MultiProtocolProvider,
+): ChainTransactionFns {
+  const { account } = useAccount();
+
+  const { sendAsync } = useSendTransaction({});
+  const { onSwitchNetwork } = useStarknetSwitchNetwork(multiProvider);
 
   const onSendTx = useCallback(
     async ({

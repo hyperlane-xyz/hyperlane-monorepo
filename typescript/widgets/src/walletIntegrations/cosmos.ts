@@ -13,6 +13,7 @@ import { cosmoshub } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
   ChainName,
+  IToken,
   MultiProtocolProvider,
   ProviderType,
   TypedTransactionReceipt,
@@ -29,6 +30,7 @@ import {
   ChainAddress,
   ChainTransactionFns,
   WalletDetails,
+  WatchAssetFns,
 } from './types.js';
 import { getChainsForProtocol } from './utils.js';
 
@@ -100,12 +102,7 @@ export function useCosmosActiveChain(
   return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
-export function useCosmosTransactionFns(
-  multiProvider: MultiProtocolProvider,
-): ChainTransactionFns {
-  const cosmosChains = getCosmosChainNames(multiProvider);
-  const chainToContext = useChains(cosmosChains);
-
+export function useCosmosSwitchNetwork(multiProvider: MultiProtocolProvider) {
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
       const displayName =
@@ -117,6 +114,29 @@ export function useCosmosTransactionFns(
     },
     [multiProvider],
   );
+
+  return { onSwitchNetwork };
+}
+
+export function useCosmosWatchAsset(
+  _multiProvider: MultiProtocolProvider,
+): WatchAssetFns {
+  const onAddAsset = useCallback(
+    async (_token: IToken, _activeChainName: ChainName) => {
+      throw new Error('Watch asset not available for cosmos');
+    },
+    [],
+  );
+
+  return { addAsset: onAddAsset };
+}
+
+export function useCosmosTransactionFns(
+  multiProvider: MultiProtocolProvider,
+): ChainTransactionFns {
+  const cosmosChains = getCosmosChainNames(multiProvider);
+  const chainToContext = useChains(cosmosChains);
+  const { onSwitchNetwork } = useCosmosSwitchNetwork(multiProvider);
 
   const onSendTx = useCallback(
     async ({

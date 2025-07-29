@@ -5,6 +5,7 @@ import { useCallback, useMemo } from 'react';
 
 import {
   ChainName,
+  IToken,
   MultiProtocolProvider,
   ProviderType,
   TypedTransactionReceipt,
@@ -19,6 +20,7 @@ import {
   ActiveChainInfo,
   ChainTransactionFns,
   WalletDetails,
+  WatchAssetFns,
 } from './types.js';
 import { findChainByRpcUrl } from './utils.js';
 
@@ -85,14 +87,32 @@ export function useSolanaActiveChain(
   }, [connectionEndpoint, multiProvider]);
 }
 
+export function useSolanaSwitchNetwork() {
+  const onSwitchNetwork = useCallback(async (chainName: ChainName) => {
+    logger.warn(`Solana wallet must be connected to origin chain ${chainName}`);
+  }, []);
+
+  return { onSwitchNetwork };
+}
+
+export function useSolanaWatchAsset(
+  _multiProvider: MultiProtocolProvider,
+): WatchAssetFns {
+  const onAddAsset = useCallback(
+    async (_token: IToken, _activeChainName: ChainName) => {
+      throw new Error('Watch asset not available for solana');
+    },
+    [],
+  );
+
+  return { addAsset: onAddAsset };
+}
+
 export function useSolanaTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
   const { sendTransaction: sendSolTransaction } = useWallet();
-
-  const onSwitchNetwork = useCallback(async (chainName: ChainName) => {
-    logger.warn(`Solana wallet must be connected to origin chain ${chainName}`);
-  }, []);
+  const { onSwitchNetwork } = useSolanaSwitchNetwork();
 
   const onSendTx = useCallback(
     async ({
