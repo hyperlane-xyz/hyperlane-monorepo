@@ -2695,6 +2695,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-token-cctp"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh",
+ "hyperlane-core",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-test-ism",
+ "hyperlane-sealevel-token-collateral",
+ "hyperlane-sealevel-token-lib",
+ "hyperlane-test-utils",
+ "hyperlane-warp-route",
+ "num-derive 0.4.2",
+ "num-traits",
+ "serializable-account-meta",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-associated-token-account",
+ "spl-noop",
+ "spl-token",
+ "spl-token-2022",
+ "thiserror",
+]
+
+[[package]]
 name = "hyperlane-sealevel-token-collateral"
 version = "0.1.0"
 dependencies = [
