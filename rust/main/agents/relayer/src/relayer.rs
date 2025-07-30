@@ -957,16 +957,28 @@ impl Relayer {
         use origin::OriginFactory;
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
-        let factory =
-            OriginFactory::new(db, core_metrics, contract_sync_metrics, ADVANCED_LOG_META);
+        let factory = OriginFactory::new(
+            db,
+            core_metrics,
+            contract_sync_metrics,
+            ADVANCED_LOG_META,
+            settings.tx_id_indexing_enabled,
+            settings.igp_indexing_enabled,
+        );
 
         let origin_futures: Vec<_> = settings
-            .origin_chains
+            .chains
             .iter()
-            .map(|domain| async {
+            .map(|(domain, chain)| async {
                 (
                     domain.clone(),
-                    factory.create(settings, domain.clone()).await,
+                    factory
+                        .create(
+                            domain.clone(),
+                            chain,
+                            settings.gas_payment_enforcement.clone(),
+                        )
+                        .await,
                 )
             })
             .collect();

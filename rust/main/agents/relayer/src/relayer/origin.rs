@@ -1,17 +1,23 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use hyperlane_base::cursors::{CursorType, Indexable};
 use hyperlane_base::db::{HyperlaneRocksDB, DB};
-use hyperlane_base::settings::{ChainConf, IndexSettings};
-use hyperlane_base::{ContractSyncMetrics, ContractSyncer, CoreMetrics};
+use hyperlane_base::settings::{ChainConf, IndexSettings, SequenceIndexer, TryFromWithMetrics};
+use hyperlane_base::{
+    ContractSync, ContractSyncMetrics, ContractSyncer, CoreMetrics, SequenceAwareLogStore,
+    SequencedDataContractSync, WatermarkContractSync, WatermarkLogStore,
+};
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, ValidatorAnnounce,
+    HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
+    HyperlaneWatermarkedLogStore, InterchainGasPayment, MerkleTreeInsertion, ValidatorAnnounce,
 };
 use tokio::sync::RwLock;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
-use crate::settings::RelayerSettings;
+use crate::settings::GasPaymentEnforcementConf;
 
 type MessageSync = Arc<dyn ContractSyncer<HyperlaneMessage>>;
 type InterchainGasPaymentSync = Arc<dyn ContractSyncer<InterchainGasPayment>>;
@@ -38,8 +44,6 @@ impl std::fmt::Debug for Origin {
 
 #[derive(Debug, thiserror::Error)]
 pub enum FactoryError {
-    #[error("Failed to create chain setup for domain {0}: {1}")]
-    ChainSetupCreationFailed(String, String),
     #[error("Failed to create validator announce for domain {0}: {1}")]
     ValidatorAnnounceCreationFailed(String, String),
     #[error("Failed to create message sync for domain {0}: {1}")]
@@ -48,15 +52,14 @@ pub enum FactoryError {
     InterchainGasPaymentSyncCreationFailed(String, String),
     #[error("Failed to create merkle tree hook sync for domain {0}: {1}")]
     MerkleTreeHookSyncCreationFailed(String, String),
-    #[error("Missing index settings for domain {0}")]
-    IndexSettingsNotFound(String),
 }
 
 pub trait Factory {
     async fn create(
         &self,
-        settings: &RelayerSettings,
         domain: HyperlaneDomain,
+        chain_conf: &ChainConf,
+        gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
     ) -> Result<Origin, FactoryError>;
 }
 
@@ -66,6 +69,8 @@ pub struct OriginFactory {
     core_metrics: Arc<CoreMetrics>,
     sync_metrics: Arc<ContractSyncMetrics>,
     advanced_log_meta: bool,
+    tx_id_indexing_enabled: bool,
+    igp_indexing_enabled: bool,
 }
 
 impl OriginFactory {
@@ -74,12 +79,16 @@ impl OriginFactory {
         core_metrics: Arc<CoreMetrics>,
         sync_metrics: Arc<ContractSyncMetrics>,
         advanced_log_meta: bool,
+        tx_id_indexing_enabled: bool,
+        igp_indexing_enabled: bool,
     ) -> Self {
         Self {
             db,
             core_metrics,
             sync_metrics,
             advanced_log_meta,
+            tx_id_indexing_enabled,
+            igp_indexing_enabled,
         }
     }
 }
@@ -87,26 +96,23 @@ impl OriginFactory {
 impl Factory for OriginFactory {
     async fn create(
         &self,
-        settings: &RelayerSettings,
         domain: HyperlaneDomain,
+        chain_conf: &ChainConf,
+        gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
     ) -> Result<Origin, FactoryError> {
         let db = HyperlaneRocksDB::new(&domain, self.db.clone());
 
-        let index_settings = settings
-            .chains
-            .get(&domain)
-            .ok_or_else(|| FactoryError::IndexSettingsNotFound(domain.to_string()))?
-            .index_settings();
-
         let start_entity_init = Instant::now();
-        let validator_announce = self.init_validator_announce(settings, &domain).await?;
+        let validator_announce = self.init_validator_announce(chain_conf, &domain).await?;
         self.measure(&domain, "validator_announce", start_entity_init.elapsed());
 
         // need one of these per origin chain due to the database scoping even though
         // the config itself is the same
         // TODO: maybe use a global one moving forward?
         let start_entity_init = Instant::now();
-        let gas_payment_enforcer = self.init_gas_payment_enforcer(settings, db.clone()).await?;
+        let gas_payment_enforcer = self
+            .init_gas_payment_enforcer(gas_payment_enforcement, db.clone())
+            .await?;
         self.measure(&domain, "gas_payment_enforcer", start_entity_init.elapsed());
 
         let start_entity_init = Instant::now();
@@ -116,14 +122,14 @@ impl Factory for OriginFactory {
         let hyperlane_db = Arc::new(db.clone());
         let start_entity_init = Instant::now();
         let message_sync = self
-            .init_message_sync(settings, &domain, hyperlane_db.clone())
+            .init_message_sync(&domain, chain_conf, hyperlane_db.clone())
             .await?;
         self.measure(&domain, "message_sync", start_entity_init.elapsed());
 
-        let interchain_gas_payment_sync = if settings.igp_indexing_enabled {
+        let interchain_gas_payment_sync = if self.igp_indexing_enabled {
             let start_entity_init = Instant::now();
             let igp_sync = self
-                .init_igp_sync(settings, &domain, hyperlane_db.clone())
+                .init_igp_sync(&domain, chain_conf, hyperlane_db.clone())
                 .await?;
             self.measure(
                 &domain,
@@ -137,7 +143,7 @@ impl Factory for OriginFactory {
 
         let start_entity_init = Instant::now();
         let merkle_tree_hook_sync = self
-            .init_merkle_tree_hook_sync(settings, &domain, hyperlane_db.clone())
+            .init_merkle_tree_hook_sync(&domain, chain_conf, hyperlane_db.clone())
             .await?;
         self.measure(
             &domain,
@@ -148,7 +154,7 @@ impl Factory for OriginFactory {
         let origin = Origin {
             database: db,
             domain,
-            index_settings,
+            index_settings: chain_conf.index.clone(),
             validator_announce,
             gas_payment_enforcer: Arc::new(RwLock::new(gas_payment_enforcer)),
             prover_sync: Arc::new(RwLock::new(prover_sync)),
@@ -169,23 +175,12 @@ impl OriginFactory {
             .set(latency.as_millis() as i64);
     }
 
-    fn init_chain_setup<'a>(
-        settings: &'a RelayerSettings,
-        domain: &HyperlaneDomain,
-    ) -> Result<&'a ChainConf, FactoryError> {
-        let setup = settings.chain_setup(domain).map_err(|err| {
-            FactoryError::ChainSetupCreationFailed(domain.to_string(), err.to_string())
-        })?;
-        Ok(setup)
-    }
-
     async fn init_validator_announce(
         &self,
-        settings: &RelayerSettings,
+        chain_conf: &ChainConf,
         domain: &HyperlaneDomain,
     ) -> Result<Arc<dyn ValidatorAnnounce>, FactoryError> {
-        let setup = Self::init_chain_setup(settings, domain)?;
-        let validator_announce = setup
+        let validator_announce = chain_conf
             .build_validator_announce(&self.core_metrics)
             .await
             .map_err(|err| {
@@ -201,75 +196,77 @@ impl OriginFactory {
 
     async fn init_gas_payment_enforcer(
         &self,
-        settings: &RelayerSettings,
+        gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
         db: HyperlaneRocksDB,
     ) -> Result<GasPaymentEnforcer, FactoryError> {
-        Ok(GasPaymentEnforcer::new(
-            settings.gas_payment_enforcement.clone(),
-            db,
-        ))
+        Ok(GasPaymentEnforcer::new(gas_payment_enforcement, db))
     }
 
     async fn init_message_sync(
         &self,
-        settings: &RelayerSettings,
         domain: &HyperlaneDomain,
+        chain_conf: &ChainConf,
         db: Arc<HyperlaneRocksDB>,
     ) -> Result<MessageSync, FactoryError> {
-        let sync = settings
-            .contract_sync(
+        match HyperlaneMessage::indexing_cursor(domain.domain_protocol()) {
+            CursorType::SequenceAware => Self::build_sequenced_contract_sync(
                 domain,
+                chain_conf,
                 &self.core_metrics,
                 &self.sync_metrics,
                 db,
                 self.advanced_log_meta,
-                settings.tx_id_indexing_enabled,
+                self.tx_id_indexing_enabled,
             )
             .await
+            .map(|r| r as Arc<dyn ContractSyncer<_>>)
             .map_err(|err| {
                 FactoryError::MessageSyncCreationFailed(domain.to_string(), err.to_string())
-            })?;
-
-        Ok(sync)
+            }),
+            CursorType::RateLimited => Self::watermark_contract_sync(
+                domain,
+                chain_conf,
+                &self.core_metrics,
+                &self.sync_metrics,
+                db,
+                self.advanced_log_meta,
+                self.tx_id_indexing_enabled,
+            )
+            .await
+            .map(|r| r as Arc<dyn ContractSyncer<_>>)
+            .map_err(|err| {
+                FactoryError::MessageSyncCreationFailed(domain.to_string(), err.to_string())
+            }),
+        }
     }
 
     async fn init_igp_sync(
         &self,
-        settings: &RelayerSettings,
         domain: &HyperlaneDomain,
+        chain_conf: &ChainConf,
         db: Arc<HyperlaneRocksDB>,
     ) -> Result<InterchainGasPaymentSync, FactoryError> {
-        let sync = settings
-            .contract_sync(
+        match InterchainGasPayment::indexing_cursor(domain.domain_protocol()) {
+            CursorType::SequenceAware => Self::build_sequenced_contract_sync(
                 domain,
+                chain_conf,
                 &self.core_metrics,
                 &self.sync_metrics,
                 db,
                 self.advanced_log_meta,
-                // We currently don't use any of the broadcasted messages
-                // from this. So we don't need it enabled
                 false,
             )
             .await
+            .map(|r| r as Arc<dyn ContractSyncer<_>>)
             .map_err(|err| {
                 FactoryError::InterchainGasPaymentSyncCreationFailed(
                     domain.to_string(),
                     err.to_string(),
                 )
-            })?;
-
-        Ok(sync)
-    }
-
-    async fn init_merkle_tree_hook_sync(
-        &self,
-        settings: &RelayerSettings,
-        domain: &HyperlaneDomain,
-        db: Arc<HyperlaneRocksDB>,
-    ) -> Result<MerkleTreeHookSync, FactoryError> {
-        let sync = settings
-            .contract_sync(
+            }),
+            CursorType::RateLimited => Self::watermark_contract_sync(
                 domain,
+                chain_conf,
                 &self.core_metrics,
                 &self.sync_metrics,
                 db,
@@ -277,10 +274,104 @@ impl OriginFactory {
                 false,
             )
             .await
+            .map(|r| r as Arc<dyn ContractSyncer<_>>)
+            .map_err(|err| {
+                FactoryError::InterchainGasPaymentSyncCreationFailed(
+                    domain.to_string(),
+                    err.to_string(),
+                )
+            }),
+        }
+    }
+
+    async fn init_merkle_tree_hook_sync(
+        &self,
+        domain: &HyperlaneDomain,
+        chain_conf: &ChainConf,
+        db: Arc<HyperlaneRocksDB>,
+    ) -> Result<MerkleTreeHookSync, FactoryError> {
+        match MerkleTreeInsertion::indexing_cursor(domain.domain_protocol()) {
+            CursorType::SequenceAware => Self::build_sequenced_contract_sync(
+                domain,
+                chain_conf,
+                &self.core_metrics,
+                &self.sync_metrics,
+                db,
+                self.advanced_log_meta,
+                false,
+            )
+            .await
+            .map(|r| r as Arc<dyn ContractSyncer<_>>)
             .map_err(|err| {
                 FactoryError::MerkleTreeHookSyncCreationFailed(domain.to_string(), err.to_string())
-            })?;
+            }),
+            CursorType::RateLimited => Self::watermark_contract_sync(
+                domain,
+                chain_conf,
+                &self.core_metrics,
+                &self.sync_metrics,
+                db,
+                self.advanced_log_meta,
+                false,
+            )
+            .await
+            .map(|r| r as Arc<dyn ContractSyncer<_>>)
+            .map_err(|err| {
+                FactoryError::MerkleTreeHookSyncCreationFailed(domain.to_string(), err.to_string())
+            }),
+        }
+    }
 
-        Ok(sync)
+    pub async fn build_sequenced_contract_sync<T, S>(
+        domain: &HyperlaneDomain,
+        chain_conf: &ChainConf,
+        metrics: &CoreMetrics,
+        sync_metrics: &ContractSyncMetrics,
+        store: Arc<S>,
+        advanced_log_meta: bool,
+        broadcast_sender_enabled: bool,
+    ) -> eyre::Result<Arc<SequencedDataContractSync<T>>>
+    where
+        T: Indexable + Debug,
+        SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
+        S: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + 'static,
+    {
+        // Currently, all indexers are of the `SequenceIndexer` type
+        let indexer =
+            SequenceIndexer::<T>::try_from_with_metrics(chain_conf, metrics, advanced_log_meta)
+                .await?;
+        Ok(Arc::new(ContractSync::new(
+            domain.clone(),
+            store.clone() as SequenceAwareLogStore<_>,
+            indexer,
+            sync_metrics.clone(),
+            broadcast_sender_enabled,
+        )))
+    }
+
+    pub async fn watermark_contract_sync<T, S>(
+        domain: &HyperlaneDomain,
+        chain_conf: &ChainConf,
+        metrics: &CoreMetrics,
+        sync_metrics: &ContractSyncMetrics,
+        store: Arc<S>,
+        advanced_log_meta: bool,
+        broadcast_sender_enabled: bool,
+    ) -> eyre::Result<Arc<WatermarkContractSync<T>>>
+    where
+        T: Indexable + Debug,
+        SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
+        S: HyperlaneLogStore<T> + HyperlaneWatermarkedLogStore<T> + 'static,
+    {
+        let indexer =
+            SequenceIndexer::<T>::try_from_with_metrics(chain_conf, metrics, advanced_log_meta)
+                .await?;
+        Ok(Arc::new(ContractSync::new(
+            domain.clone(),
+            store.clone() as WatermarkLogStore<_>,
+            indexer,
+            sync_metrics.clone(),
+            broadcast_sender_enabled,
+        )))
     }
 }
