@@ -1,0 +1,16 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "71S39xUrJCKmZEG5xugLLVTtp37Jy1F8oyrv1fQ4PYJK",
+    "token": "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn"
+  },
+  "starknet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "symbol": "PUMP",
+    "name": "Pump",
+    "foreignDeployment": "0x062b7d46189cc075a100c468d529f06aa7fe6e4b55e58991744cee1b8548c5bc"
+  }
+}
