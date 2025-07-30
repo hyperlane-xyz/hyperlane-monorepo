@@ -961,8 +961,8 @@ impl Relayer {
             OriginFactory::new(db, core_metrics, contract_sync_metrics, ADVANCED_LOG_META);
 
         let origin_futures: Vec<_> = settings
-            .chains
-            .keys()
+            .origin_chains
+            .iter()
             .map(|domain| async {
                 (
                     domain.clone(),
