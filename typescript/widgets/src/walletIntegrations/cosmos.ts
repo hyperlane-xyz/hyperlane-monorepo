@@ -29,6 +29,7 @@ import {
   ActiveChainInfo,
   ChainAddress,
   ChainTransactionFns,
+  SwitchNetworkFns,
   WalletDetails,
   WatchAssetFns,
 } from './types.js';
@@ -102,7 +103,9 @@ export function useCosmosActiveChain(
   return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
-export function useCosmosSwitchNetwork(multiProvider: MultiProtocolProvider) {
+export function useCosmosSwitchNetwork(
+  multiProvider: MultiProtocolProvider,
+): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
       const displayName =
@@ -115,7 +118,7 @@ export function useCosmosSwitchNetwork(multiProvider: MultiProtocolProvider) {
     [multiProvider],
   );
 
-  return { onSwitchNetwork };
+  return { switchNetwork: onSwitchNetwork };
 }
 
 export function useCosmosWatchAsset(
@@ -136,7 +139,7 @@ export function useCosmosTransactionFns(
 ): ChainTransactionFns {
   const cosmosChains = getCosmosChainNames(multiProvider);
   const chainToContext = useChains(cosmosChains);
-  const { onSwitchNetwork } = useCosmosSwitchNetwork(multiProvider);
+  const { switchNetwork } = useCosmosSwitchNetwork(multiProvider);
 
   const onSendTx = useCallback(
     async ({
@@ -153,7 +156,7 @@ export function useCosmosTransactionFns(
         throw new Error(`Cosmos wallet not connected for ${chainName}`);
 
       if (activeChainName && activeChainName !== chainName)
-        await onSwitchNetwork(chainName);
+        await switchNetwork(chainName);
 
       logger.debug(`Sending tx on chain ${chainName}`);
       const {
@@ -215,7 +218,7 @@ export function useCosmosTransactionFns(
       };
       return { hash: result.transactionHash, confirm };
     },
-    [onSwitchNetwork, chainToContext],
+    [switchNetwork, chainToContext],
   );
 
   const onMultiSendTx = useCallback(
@@ -230,13 +233,13 @@ export function useCosmosTransactionFns(
     }) => {
       throw new Error('Multi Transactions not supported on Cosmos');
     },
-    [onSwitchNetwork, multiProvider],
+    [],
   );
 
   return {
     sendTransaction: onSendTx,
     sendMultiTransaction: onMultiSendTx,
-    switchNetwork: onSwitchNetwork,
+    switchNetwork,
   };
 }
 

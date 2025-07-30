@@ -19,6 +19,7 @@ import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
+  SwitchNetworkFns,
   WalletDetails,
   WatchAssetFns,
 } from './types.js';
@@ -87,12 +88,12 @@ export function useSolanaActiveChain(
   }, [connectionEndpoint, multiProvider]);
 }
 
-export function useSolanaSwitchNetwork() {
+export function useSolanaSwitchNetwork(): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(async (chainName: ChainName) => {
     logger.warn(`Solana wallet must be connected to origin chain ${chainName}`);
   }, []);
 
-  return { onSwitchNetwork };
+  return { switchNetwork: onSwitchNetwork };
 }
 
 export function useSolanaWatchAsset(
@@ -112,7 +113,7 @@ export function useSolanaTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
   const { sendTransaction: sendSolTransaction } = useWallet();
-  const { onSwitchNetwork } = useSolanaSwitchNetwork();
+  const { switchNetwork } = useSolanaSwitchNetwork();
 
   const onSendTx = useCallback(
     async ({
@@ -127,7 +128,7 @@ export function useSolanaTransactionFns(
       if (tx.type !== ProviderType.SolanaWeb3)
         throw new Error(`Unsupported tx type: ${tx.type}`);
       if (activeChainName && activeChainName !== chainName)
-        await onSwitchNetwork(chainName);
+        await switchNetwork(chainName);
       const rpcUrl = multiProvider.getRpcUrl(chainName);
       const connection = new Connection(rpcUrl, 'confirmed');
       const {
@@ -151,7 +152,7 @@ export function useSolanaTransactionFns(
 
       return { hash: signature, confirm };
     },
-    [onSwitchNetwork, sendSolTransaction, multiProvider],
+    [switchNetwork, sendSolTransaction, multiProvider],
   );
 
   const onMultiSendTx = useCallback(
@@ -166,12 +167,12 @@ export function useSolanaTransactionFns(
     }) => {
       throw new Error('Multi Transactions not supported on Solana');
     },
-    [onSwitchNetwork, sendSolTransaction, multiProvider],
+    [],
   );
 
   return {
     sendTransaction: onSendTx,
     sendMultiTransaction: onMultiSendTx,
-    switchNetwork: onSwitchNetwork,
+    switchNetwork,
   };
 }

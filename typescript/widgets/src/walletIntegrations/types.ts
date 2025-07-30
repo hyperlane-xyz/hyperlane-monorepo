@@ -58,6 +58,10 @@ export interface ChainTransactionFns {
   switchNetwork?: SwitchNetworkFn;
 }
 
+export interface SwitchNetworkFns {
+  switchNetwork: SwitchNetworkFn;
+}
+
 export interface WatchAssetFns {
   addAsset: (token: IToken, activeChainName: ChainName) => Promise<boolean>;
 }

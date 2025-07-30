@@ -27,6 +27,7 @@ import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
+  SwitchNetworkFns,
   WalletDetails,
   WatchAssetFns,
 } from './types.js';
@@ -89,7 +90,9 @@ export function useEthereumActiveChain(
   );
 }
 
-export function useEthereumSwitchNetwork(multiProvider: MultiProtocolProvider) {
+export function useEthereumSwitchNetwork(
+  multiProvider: MultiProtocolProvider,
+): SwitchNetworkFns {
   const config = useConfig();
 
   const onSwitchNetwork = useCallback(
@@ -103,13 +106,13 @@ export function useEthereumSwitchNetwork(multiProvider: MultiProtocolProvider) {
     [config, multiProvider],
   );
 
-  return { onSwitchNetwork };
+  return { switchNetwork: onSwitchNetwork };
 }
 
 export function useEthereumWatchAsset(
   multiProvider: MultiProtocolProvider,
 ): WatchAssetFns {
-  const { onSwitchNetwork } = useEthereumSwitchNetwork(multiProvider);
+  const { switchNetwork } = useEthereumSwitchNetwork(multiProvider);
   const config = useConfig();
 
   const onAddAsset = useCallback(
@@ -117,7 +120,7 @@ export function useEthereumWatchAsset(
       const chainName = token.chainName;
       // If the active chain is different from tx origin chain, try to switch network first
       if (activeChainName && activeChainName !== chainName)
-        await onSwitchNetwork(chainName);
+        await switchNetwork(chainName);
 
       return watchAsset(config, {
         type: 'ERC20',
@@ -128,7 +131,7 @@ export function useEthereumWatchAsset(
         },
       });
     },
-    [config, onSwitchNetwork],
+    [config, switchNetwork],
   );
 
   return { addAsset: onAddAsset };
@@ -138,7 +141,7 @@ export function useEthereumTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
   const config = useConfig();
-  const { onSwitchNetwork } = useEthereumSwitchNetwork(multiProvider);
+  const { switchNetwork } = useEthereumSwitchNetwork(multiProvider);
 
   // Note, this doesn't use wagmi's prepare + send pattern because we're potentially sending two transactions
   // The prepare hooks are recommended to use pre-click downtime to run async calls, but since the flow
@@ -160,7 +163,7 @@ export function useEthereumTransactionFns(
 
       // If the active chain is different from tx origin chain, try to switch network first
       if (activeChainName && activeChainName !== chainName)
-        await onSwitchNetwork(chainName);
+        await switchNetwork(chainName);
 
       // Since the network switching is not foolproof, we also force a network check here
       const chainId = multiProvider.getChainMetadata(chainName)
@@ -192,7 +195,7 @@ export function useEthereumTransactionFns(
 
       return { hash, confirm };
     },
-    [config, onSwitchNetwork, multiProvider],
+    [config, switchNetwork, multiProvider],
   );
 
   const onMultiSendTx = useCallback(
@@ -213,7 +216,7 @@ export function useEthereumTransactionFns(
   return {
     sendTransaction: onSendTx,
     sendMultiTransaction: onMultiSendTx,
-    switchNetwork: onSwitchNetwork,
+    switchNetwork,
   };
 }
 

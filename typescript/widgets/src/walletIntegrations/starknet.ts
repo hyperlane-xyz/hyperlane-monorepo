@@ -28,6 +28,7 @@ import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
+  SwitchNetworkFns,
   WalletDetails,
   WatchAssetFns,
 } from './types.js';
@@ -107,7 +108,9 @@ export function useStarknetActiveChain(
   );
 }
 
-export function useStarknetSwitchNetwork(multiProvider: MultiProtocolProvider) {
+export function useStarknetSwitchNetwork(
+  multiProvider: MultiProtocolProvider,
+): SwitchNetworkFns {
   const { switchChainAsync } = useSwitchChain({});
 
   const onSwitchNetwork = useCallback(
@@ -127,7 +130,7 @@ export function useStarknetSwitchNetwork(multiProvider: MultiProtocolProvider) {
     [multiProvider, switchChainAsync],
   );
 
-  return { onSwitchNetwork };
+  return { switchNetwork: onSwitchNetwork };
 }
 
 export function useStarknetWatchAsset(
@@ -149,7 +152,7 @@ export function useStarknetTransactionFns(
   const { account } = useAccount();
 
   const { sendAsync } = useSendTransaction({});
-  const { onSwitchNetwork } = useStarknetSwitchNetwork(multiProvider);
+  const { switchNetwork } = useStarknetSwitchNetwork(multiProvider);
 
   const onSendTx = useCallback(
     async ({
@@ -167,7 +170,7 @@ export function useStarknetTransactionFns(
         activeChainName,
       });
     },
-    [account, multiProvider, onSwitchNetwork, sendAsync],
+    [account, multiProvider, switchNetwork, sendAsync],
   );
 
   const onMultiSendTx = useCallback(
@@ -187,7 +190,7 @@ export function useStarknetTransactionFns(
       }
 
       if (activeChainName && activeChainName !== chainName) {
-        await onSwitchNetwork(chainName);
+        await switchNetwork(chainName);
       }
 
       if (!account) {
@@ -219,13 +222,13 @@ export function useStarknetTransactionFns(
         throw error;
       }
     },
-    [account, multiProvider, onSwitchNetwork, sendAsync],
+    [account, multiProvider, switchNetwork, sendAsync],
   );
 
   return {
     sendTransaction: onSendTx,
     sendMultiTransaction: onMultiSendTx,
-    switchNetwork: onSwitchNetwork,
+    switchNetwork,
   };
 }
 

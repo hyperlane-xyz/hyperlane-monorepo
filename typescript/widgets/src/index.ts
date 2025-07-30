@@ -158,6 +158,7 @@ export type {
   ChainTransactionFns,
   SendTransactionFn,
   SwitchNetworkFn,
+  SwitchNetworkFns,
   WalletDetails,
   SendMultiTransactionFn,
   WatchAssetFns,
