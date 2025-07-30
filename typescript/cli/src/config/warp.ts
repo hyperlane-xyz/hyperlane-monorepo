@@ -17,19 +17,14 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
-  isMovableCollateralTokenConfig,
-  resolveRouterMapConfig,
-} from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  assert,
   indentYamlOrJson,
   isFile,
-  objMap,
-  promiseObjAll,
+  isMovableCollateralTokenConfig,
   readYamlOrJson,
+  resolveRouterMapConfig,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';

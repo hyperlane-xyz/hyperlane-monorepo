@@ -3,13 +3,6 @@ import { Logger } from 'pino';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
-  ChainName,
-  MultiProtocolProvider,
-  MultiProvider,
-  ProtocolMap,
-  getLocalProvider,
-} from '@hyperlane-xyz/sdk';
-import {
   Address,
   CLI_ENV,
   ProtocolType,
@@ -17,7 +10,11 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
+import { ChainName, ProtocolMap } from '../types.js';
+import { getLocalProvider } from '../utils/fork.js';
 
 import {
   IMultiProtocolSigner,

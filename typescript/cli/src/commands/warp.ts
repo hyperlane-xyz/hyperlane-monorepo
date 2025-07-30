@@ -10,16 +10,12 @@ import {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
-} from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  assert,
   indentYamlOrJson,
-  objFilter,
   readYamlOrJson,
   removeEndingSlash,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';

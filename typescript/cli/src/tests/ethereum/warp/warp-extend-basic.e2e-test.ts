@@ -6,8 +6,9 @@ import {
   HypTokenRouterConfig,
   TokenType,
   WarpRouteDeployConfig,
+  readYamlOrJson,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
-import { readYamlOrJson, writeYamlOrJson } from '@hyperlane-xyz/utils';
 
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { getDomainId } from '../commands/helpers.js';

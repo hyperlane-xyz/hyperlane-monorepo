@@ -3,13 +3,13 @@ import { GasPrice } from '@cosmjs/stargate';
 import { expect } from 'chai';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import { ChainMetadata, CoreConfig, IgpConfig } from '@hyperlane-xyz/sdk';
 import {
-  Address,
-  ProtocolType,
-  assert,
+  ChainMetadata,
+  CoreConfig,
+  IgpConfig,
   readYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {

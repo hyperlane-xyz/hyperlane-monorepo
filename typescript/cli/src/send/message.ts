@@ -1,11 +1,12 @@
 import { stringify as yamlStringify } from 'yaml';
 
-import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
 import {
-  addressToBytes32,
+  ChainName,
+  HyperlaneCore,
+  HyperlaneRelayer,
   indentYamlOrJson,
-  timeout,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';

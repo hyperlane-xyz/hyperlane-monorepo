@@ -5,8 +5,9 @@ import {
   ChainMetadata,
   CoreConfig,
   ProtocolFeeHookConfig,
+  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, readYamlOrJson } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {

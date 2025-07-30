@@ -10,8 +10,10 @@ import {
   Token,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  readYamlOrJson,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
-import { Address, readYamlOrJson, writeYamlOrJson } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { deploy4626Vault, deployToken } from '../commands/helpers.js';

@@ -19,14 +19,10 @@ import {
   TokenType,
   TxSubmitterType,
   WarpRouteDeployConfig,
-} from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  Domain,
-  assert,
   readYamlOrJson,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
 import {
   deployOrUseExistingCore,

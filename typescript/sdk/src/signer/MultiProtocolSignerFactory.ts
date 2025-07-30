@@ -8,15 +8,13 @@ import { Signer, Wallet, ethers } from 'ethers';
 import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import {
-  ChainName,
-  ChainTechnicalStack,
-  MultiProvider,
-  TxSubmitterType,
-} from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, ensure0x } from '@hyperlane-xyz/utils';
 
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { TxSubmitterType } from '../providers/transactions/submitter/TxSubmitterTypes.js';
 import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
+import { ChainName } from '../types.js';
 
 import {
   BaseMultiProtocolSigner,

@@ -16,13 +16,13 @@ import {
   MultiProtocolProvider,
   getGasPrice,
   getLocalStorageGasOracleConfig,
+  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   normalizeAddressEvm,
   objFilter,
   objMap,
-  readYamlOrJson,
   toWei,
 } from '@hyperlane-xyz/utils';
 

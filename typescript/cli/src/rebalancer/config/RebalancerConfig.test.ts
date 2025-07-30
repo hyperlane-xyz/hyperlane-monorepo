@@ -6,8 +6,8 @@ import {
   RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
-import { writeYamlOrJson } from '@hyperlane-xyz/utils';
 
 import { REBALANCER_CONFIG_PATH } from '../../tests/ethereum/consts.js';
 

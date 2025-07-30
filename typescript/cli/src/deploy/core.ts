@@ -11,8 +11,9 @@ import {
   EvmCoreModule,
   ExplorerLicenseType,
   MultiProtocolSignerManager,
+  indentYamlOrJson,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, indentYamlOrJson } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';

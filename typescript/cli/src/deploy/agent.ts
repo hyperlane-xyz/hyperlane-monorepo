@@ -1,6 +1,7 @@
 import terminalLink from 'terminal-link';
 
-import { readJson, runFileSelectionStep, toBase64 } from '@hyperlane-xyz/utils';
+import { readJson, runFileSelectionStep } from '@hyperlane-xyz/sdk';
+import { toBase64 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logBlue, logGreen } from '../logger.js';

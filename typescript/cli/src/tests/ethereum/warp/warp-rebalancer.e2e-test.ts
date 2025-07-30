@@ -18,16 +18,16 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  readYamlOrJson,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   Domain,
   addressToBytes32,
   bytes32ToAddress,
-  readYamlOrJson,
   sleep,
   toWei,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/utils';
 
 import { deployOrUseExistingCore } from '../commands/core.js';

@@ -6,12 +6,10 @@ import {
   HookConfig,
   IsmConfig,
   OwnableConfig,
-} from '@hyperlane-xyz/sdk';
-import {
   indentYamlOrJson,
   readYamlOrJson,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';

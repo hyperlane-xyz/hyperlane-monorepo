@@ -26,14 +26,14 @@ import {
   randomAddress,
   randomHookConfig,
   randomIsmConfig,
+  readYamlOrJson,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   addressToBytes32,
   assert,
   deepCopy,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/utils';
 
 import { deployOrUseExistingCore } from '../commands/core.js';

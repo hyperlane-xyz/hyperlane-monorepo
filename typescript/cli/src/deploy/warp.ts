@@ -44,22 +44,22 @@ import {
   getRouterAddressesFromWarpCoreConfig,
   getSubmitterBuilder,
   getTokenConnectionId,
+  indentYamlOrJson,
   isCollateralTokenConfig,
   isXERC20TokenConfig,
+  readYamlOrJson,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
   assert,
-  indentYamlOrJson,
   objFilter,
   objMap,
   promiseObjAll,
-  readYamlOrJson,
   retryAsync,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';

@@ -8,8 +8,9 @@ import {
   ChainName,
   TokenType,
   WarpRouteDeployConfig,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, writeYamlOrJson } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {

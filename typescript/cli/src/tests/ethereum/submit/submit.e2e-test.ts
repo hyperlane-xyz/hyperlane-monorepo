@@ -6,13 +6,10 @@ import {
   CustomTxSubmitterType,
   TxSubmitterType,
   randomAddress,
-} from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  randomInt,
   readYamlOrJson,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { deployXERC20VSToken, hyperlaneSubmit } from '../commands/helpers.js';
 import {

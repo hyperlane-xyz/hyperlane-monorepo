@@ -1,13 +1,13 @@
 import { stringify as yamlStringify } from 'yaml';
 
-import { AnnotatedEV5Transaction, ChainName } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
-  errorToString,
+  AnnotatedEV5Transaction,
+  ChainName,
   indentYamlOrJson,
   readYamlOrJson,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, errorToString } from '@hyperlane-xyz/utils';
 
 import { WriteCommandContext } from '../context/types.js';
 import { getSubmitterByStrategy } from '../deploy/warp.js';

@@ -9,13 +9,9 @@ import {
   HyperlaneCore,
   HyperlaneDeploymentArtifacts,
   buildAgentConfig,
-} from '@hyperlane-xyz/sdk';
-import {
-  objMap,
-  pick,
-  promiseObjAll,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { objMap, pick, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, warnYellow } from '../logger.js';

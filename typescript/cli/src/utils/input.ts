@@ -24,8 +24,9 @@ import {
   ChainName,
   DeployedOwnableConfig,
   WarpRouteDeployConfig,
+  indentYamlOrJson,
 } from '@hyperlane-xyz/sdk';
-import { indentYamlOrJson, isAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { isAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logGray } from '../logger.js';

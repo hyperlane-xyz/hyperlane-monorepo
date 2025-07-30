@@ -7,13 +7,9 @@ import {
   MerkleTreeHookConfig,
   ProtocolFeeHookConfig,
   randomAddress,
-} from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
-  normalizeAddress,
   readYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { Address, ProtocolType, normalizeAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {

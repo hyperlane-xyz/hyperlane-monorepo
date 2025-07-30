@@ -26,13 +26,10 @@ import {
   WarpRouteDeployConfig,
   normalizeConfig,
   randomAddress,
-} from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  normalizeAddressEvm,
   readYamlOrJson,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { Address, normalizeAddressEvm } from '@hyperlane-xyz/utils';
 
 import {
   KeyBoardKeys,

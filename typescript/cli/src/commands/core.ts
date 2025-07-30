@@ -7,12 +7,10 @@ import {
   DeployedCoreAddressesSchema,
   MultiProtocolSignerManager,
   normalizeConfig,
-} from '@hyperlane-xyz/sdk';
-import {
-  diffObjMerge,
   readYamlOrJson,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { diffObjMerge } from '@hyperlane-xyz/utils';
 
 import {
   createCoreDeployConfig,

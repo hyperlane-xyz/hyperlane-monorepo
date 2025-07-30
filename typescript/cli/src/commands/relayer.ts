@@ -3,8 +3,10 @@ import {
   HyperlaneCore,
   HyperlaneRelayer,
   RelayerCacheSchema,
+  tryReadJson,
+  writeJson,
 } from '@hyperlane-xyz/sdk';
-import { Address, tryReadJson, writeJson } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { CommandModuleWithContext } from '../context/types.js';
 import { log } from '../logger.js';

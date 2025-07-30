@@ -8,14 +8,14 @@ import {
   DerivedCoreConfig,
   ProtocolFeeHookConfig,
   randomAddress,
+  readYamlOrJson,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   Domain,
   ProtocolType,
   addressToBytes32,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';

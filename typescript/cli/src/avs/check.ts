@@ -10,14 +10,10 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
+  indentYamlOrJson,
   isValidValidatorStorageLocation,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
-  indentYamlOrJson,
-  isObjEmpty,
-} from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import {

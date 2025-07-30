@@ -1,7 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
-import { indentYamlOrJson } from '@hyperlane-xyz/utils';
+import { indentYamlOrJson } from '@hyperlane-xyz/sdk';
 
 import {
   createStrategyConfig,

@@ -11,8 +11,8 @@ import {
   MultisigIsmConfigSchema,
   TrustedRelayerIsmConfig,
   isStaticIsm,
+  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
-import { readYamlOrJson } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import {

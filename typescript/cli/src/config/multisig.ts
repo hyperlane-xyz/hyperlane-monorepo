@@ -1,14 +1,18 @@
 import { confirm, input } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { ChainMap, MultisigIsmConfig, ZHash } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  MultisigIsmConfig,
+  ZHash,
+  mergeYamlOrJson,
+  readYamlOrJson,
+} from '@hyperlane-xyz/sdk';
 import {
   Address,
   isValidAddress,
-  mergeYamlOrJson,
   normalizeAddressEvm,
   objMap,
-  readYamlOrJson,
 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';

@@ -15,14 +15,10 @@ import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
-} from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  assert,
-  inCIMode,
   readYamlOrJson,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { Address, assert, inCIMode } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { KeyBoardKeys, TestPromptAction } from '../../commands/helpers.js';

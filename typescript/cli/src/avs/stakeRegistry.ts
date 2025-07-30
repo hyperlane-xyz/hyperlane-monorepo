@@ -5,8 +5,8 @@ import {
   ECDSAStakeRegistry__factory,
   TestAVSDirectory__factory,
 } from '@hyperlane-xyz/core';
-import { ChainName } from '@hyperlane-xyz/sdk';
-import { Address, readFileAtPath, resolvePath } from '@hyperlane-xyz/utils';
+import { ChainName, readFileAtPath, resolvePath } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue } from '../logger.js';

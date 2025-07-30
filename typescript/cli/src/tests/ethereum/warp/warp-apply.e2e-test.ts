@@ -12,13 +12,13 @@ import {
   WarpRouteDeployConfig,
   normalizeConfig,
   randomAddress,
+  readYamlOrJson,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   addressToBytes32,
   assert,
   normalizeAddressEvm,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/utils';
 
 import { deployOrUseExistingCore } from '../commands/core.js';

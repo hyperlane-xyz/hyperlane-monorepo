@@ -7,8 +7,9 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  readYamlOrJson,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
-import { readYamlOrJson, writeYamlOrJson } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { deployOrUseExistingCore } from '../commands/core.js';

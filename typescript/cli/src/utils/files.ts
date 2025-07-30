@@ -1,6 +1,6 @@
 import { LineCounter, stringify as yamlStringify } from 'yaml';
 
-import { MAX_READ_LINE_OUTPUT, yamlParse } from '@hyperlane-xyz/utils';
+import { MAX_READ_LINE_OUTPUT, yamlParse } from '@hyperlane-xyz/sdk';
 
 import { log } from '../logger.js';
 

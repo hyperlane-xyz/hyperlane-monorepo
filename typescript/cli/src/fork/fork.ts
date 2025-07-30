@@ -17,13 +17,13 @@ import {
   RevertAssertion,
   TransactionDataType,
   forkedChainConfigByChainFromRaw,
+  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
   assert,
   deepEquals,
-  readYamlOrJson,
   retryAsync,
 } from '@hyperlane-xyz/utils';
 

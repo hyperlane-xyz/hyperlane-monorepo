@@ -1,13 +1,15 @@
 import { z } from 'zod';
 
+import { ZChainName } from '../metadata/customZodTypes.js';
+import { TxSubmitterType } from '../providers/transactions/submitter/TxSubmitterTypes.js';
+import {
+  preprocessChainSubmissionStrategy,
+  refineChainSubmissionStrategy,
+} from '../providers/transactions/submitter/builder/types.js';
 import {
   SubmitterMetadata,
   SubmitterMetadataSchema,
-  TxSubmitterType,
-  ZChainName,
-  preprocessChainSubmissionStrategy,
-  refineChainSubmissionStrategy,
-} from '@hyperlane-xyz/sdk';
+} from '../providers/transactions/submitter/types.js';
 
 export const CustomTxSubmitterType = {
   ...TxSubmitterType,

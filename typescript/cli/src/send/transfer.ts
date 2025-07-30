@@ -10,12 +10,9 @@ import {
   TokenAmount,
   WarpCore,
   WarpCoreConfig,
-} from '@hyperlane-xyz/sdk';
-import {
   indentYamlOrJson,
-  parseWarpRouteMessage,
-  timeout,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';

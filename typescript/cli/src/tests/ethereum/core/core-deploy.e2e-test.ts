@@ -7,13 +7,10 @@ import {
   HookType,
   ProtocolFeeHookConfig,
   randomAddress,
-} from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
   readYamlOrJson,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {

@@ -1,11 +1,10 @@
-import { ChainName, EvmIsmReader } from '@hyperlane-xyz/sdk';
 import {
-  Address,
-  ProtocolType,
+  ChainName,
+  EvmIsmReader,
   resolveFileFormat,
-  stringifyObject,
   writeFileAtPath,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { log, logBlue, logRed } from '../logger.js';

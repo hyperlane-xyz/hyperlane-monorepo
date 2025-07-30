@@ -9,14 +9,10 @@ import {
   HookType,
   IgpConfig,
   randomCosmosAddress,
-} from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
-  assert,
   readYamlOrJson,
   writeYamlOrJson,
-} from '@hyperlane-xyz/utils';
+} from '@hyperlane-xyz/sdk';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {

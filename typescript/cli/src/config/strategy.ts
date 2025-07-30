@@ -6,15 +6,15 @@ import {
   ExtendedChainSubmissionStrategy,
   ExtendedChainSubmissionStrategySchema,
   TxSubmitterType,
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
   assert,
-  indentYamlOrJson,
   isAddress,
   isPrivateKeyEvm,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
