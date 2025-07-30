@@ -23,12 +23,12 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  readYamlOrJson,
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed } from '../logger.js';
-import { readYamlOrJson } from '../utils/files.js';
 
 const LOCAL_HOST = 'http://127.0.0.1';
 

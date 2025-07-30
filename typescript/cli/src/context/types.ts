@@ -6,13 +6,12 @@ import type {
   ChainMap,
   ChainMetadata,
   MultiProtocolProvider,
+  MultiProtocolSignerManager,
   MultiProvider,
   ProtocolMap,
   WarpCoreConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
-
-import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 
 export interface ContextSettings {
   registryUris: string[];

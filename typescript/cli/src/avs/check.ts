@@ -12,7 +12,12 @@ import {
   MultiProvider,
   isValidValidatorStorageLocation,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  indentYamlOrJson,
+  isObjEmpty,
+} from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import {
@@ -25,7 +30,6 @@ import {
   logGreen,
   warnYellow,
 } from '../logger.js';
-import { indentYamlOrJson } from '../utils/files.js';
 import {
   getLatestMerkleTreeCheckpointIndex,
   getLatestValidatorCheckpointIndexAndUrl,

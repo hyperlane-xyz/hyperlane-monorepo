@@ -416,6 +416,22 @@ export {
 } from './test/testUtils.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
+export {
+  BaseMultiProtocolSigner,
+  TypedSigner,
+} from './signer/BaseMultiProtocolSigner.js';
+export { MultiProtocolSignerFactory } from './signer/MultiProtocolSignerFactory.js';
+export { MultiProtocolSignerManager } from './signer/MultiProtocolSignerManager.js';
+export { EV5FileSubmitter } from './submitters/EV5FileSubmitter.js';
+export {
+  CustomTxSubmitterType,
+  EV5FileTxSubmitterPropsSchema,
+  ExtendedSubmissionStrategySchema,
+  ExtendedSubmissionStrategy,
+  ExtendedChainSubmissionStrategySchema,
+  ExtendedChainSubmissionStrategy,
+  EV5FileTxSubmitterProps,
+} from './submitters/types.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
 export {
   SubmitterMetadata,

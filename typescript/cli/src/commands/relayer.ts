@@ -4,11 +4,10 @@ import {
   HyperlaneRelayer,
   RelayerCacheSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, tryReadJson, writeJson } from '@hyperlane-xyz/utils';
 
 import { CommandModuleWithContext } from '../context/types.js';
 import { log } from '../logger.js';
-import { tryReadJson, writeJson } from '../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
 import {

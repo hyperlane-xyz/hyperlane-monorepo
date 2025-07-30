@@ -20,17 +20,20 @@ import {
   isMovableCollateralTokenConfig,
   resolveRouterMapConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  indentYamlOrJson,
+  isFile,
+  objMap,
+  promiseObjAll,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import {
-  indentYamlOrJson,
-  isFile,
-  readYamlOrJson,
-  writeYamlOrJson,
-} from '../utils/files.js';
 import {
   detectAndConfirmOrPrompt,
   getWarpRouteIdFromWarpDeployConfig,

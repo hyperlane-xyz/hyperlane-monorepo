@@ -5,15 +5,19 @@ import {
   CoreConfig,
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
+  MultiProtocolSignerManager,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
-import { diffObjMerge } from '@hyperlane-xyz/utils';
+import {
+  diffObjMerge,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '@hyperlane-xyz/utils';
 
 import {
   createCoreDeployConfig,
   readCoreDeployConfigs,
 } from '../config/core.js';
-import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
@@ -22,11 +26,7 @@ import { runCoreApply, runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { log, logCommandHeader, logGreen } from '../logger.js';
 import { executeCoreRead } from '../read/core.js';
-import {
-  logYamlIfUnderMaxLines,
-  readYamlOrJson,
-  writeYamlOrJson,
-} from '../utils/files.js';
+import { logYamlIfUnderMaxLines } from '../utils/files.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
 import {

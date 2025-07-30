@@ -11,13 +11,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  CLI_ENV,
   ProtocolType,
   assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
-import { ENV } from '../../../utils/env.js';
+import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
 import {
   IMultiProtocolSigner,
@@ -180,9 +180,9 @@ export class MultiProtocolSignerManager {
     }
 
     if (protocol === ProtocolType.Ethereum) {
-      if (ENV.HYP_KEY) {
+      if (CLI_ENV.HYP_KEY) {
         this.logger.debug(`Using private key from .env for chain ${chain}`);
-        return { privateKey: ENV.HYP_KEY };
+        return { privateKey: CLI_ENV.HYP_KEY };
       }
     }
 
@@ -260,8 +260,8 @@ export class MultiProtocolSignerManager {
         try {
           const provider = params.isDryRun
             ? getLocalProvider({
-                anvilIPAddr: ENV.ANVIL_IP_ADDR,
-                anvilPort: ENV.ANVIL_PORT,
+                anvilIPAddr: CLI_ENV.ANVIL_IP_ADDR,
+                anvilPort: CLI_ENV.ANVIL_PORT,
               })
             : this.multiProvider.getProvider(params.chain);
           const balance = await provider.getBalance(params.address);

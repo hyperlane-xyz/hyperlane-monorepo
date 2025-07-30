@@ -4,13 +4,22 @@ import { CommandModule } from 'yargs';
 
 import {
   ChainName,
+  ExtendedChainSubmissionStrategySchema,
   RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  indentYamlOrJson,
+  objFilter,
+  readYamlOrJson,
+  removeEndingSlash,
+  writeYamlOrJson,
+} from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
@@ -33,14 +42,7 @@ import {
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { RebalancerRunner } from '../rebalancer/runner.js';
 import { sendTestTransfer } from '../send/transfer.js';
-import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
-import {
-  indentYamlOrJson,
-  readYamlOrJson,
-  removeEndingSlash,
-  writeYamlOrJson,
-} from '../utils/files.js';
 import {
   filterWarpConfigsToMatchingChains,
   getWarpConfigs,

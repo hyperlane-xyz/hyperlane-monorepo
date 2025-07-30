@@ -25,12 +25,10 @@ import {
   DeployedOwnableConfig,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { isAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { indentYamlOrJson, isAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logGray } from '../logger.js';
-
-import { indentYamlOrJson } from './files.js';
 
 export async function detectAndConfirmOrPrompt(
   detect: () => Promise<string | undefined>,

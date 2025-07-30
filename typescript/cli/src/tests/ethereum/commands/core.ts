@@ -2,10 +2,9 @@ import { $, ProcessPromise } from 'zx';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { DerivedCoreConfig } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, readYamlOrJson } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
-import { readYamlOrJson } from '../../../utils/files.js';
 import { ANVIL_KEY, REGISTRY_PATH } from '../consts.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';

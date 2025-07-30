@@ -11,6 +11,7 @@ import {
   IsmConfig,
   IsmType,
   MultisigConfig,
+  TypedSigner,
   WarpRouteDeployConfig,
   isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
@@ -18,7 +19,6 @@ import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
-import { TypedSigner } from '../context/strategies/signer/BaseMultiProtocolSigner.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
 import {
   log,

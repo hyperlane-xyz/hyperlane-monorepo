@@ -20,9 +20,14 @@ import {
   TxSubmitterType,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, Domain, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  Domain,
+  assert,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
   deployOrUseExistingCore,
   hyperlaneCoreApply,

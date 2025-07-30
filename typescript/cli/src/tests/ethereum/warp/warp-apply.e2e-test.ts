@@ -17,9 +17,10 @@ import {
   addressToBytes32,
   assert,
   normalizeAddressEvm,
+  readYamlOrJson,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   exportWarpConfigsToFilePaths,

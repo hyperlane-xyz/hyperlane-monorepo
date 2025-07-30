@@ -22,6 +22,7 @@ import {
   normalizeAddressEvm,
   objFilter,
   objMap,
+  readYamlOrJson,
   toWei,
 } from '@hyperlane-xyz/utils';
 
@@ -31,7 +32,6 @@ import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../utils/chains.js';
-import { readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt, inputWithInfo } from '../utils/input.js';
 
 import { callWithConfigCreationLogs } from './utils.js';

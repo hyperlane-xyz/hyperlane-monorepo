@@ -2,9 +2,8 @@ import { expect } from 'chai';
 import { $ } from 'zx';
 
 import { randomCosmosAddress } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, writeYamlOrJson } from '@hyperlane-xyz/utils';
 
-import { writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   CHAIN_NAME_1,

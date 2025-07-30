@@ -2,10 +2,9 @@ import { $, ProcessPromise } from 'zx';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { ChainName, DerivedCoreConfig } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, readYamlOrJson } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
-import { readYamlOrJson } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 

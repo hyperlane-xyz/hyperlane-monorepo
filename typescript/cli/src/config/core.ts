@@ -7,14 +7,14 @@ import {
   IsmConfig,
   OwnableConfig,
 } from '@hyperlane-xyz/sdk';
-
-import { CommandContext } from '../context/types.js';
-import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
   writeYamlOrJson,
-} from '../utils/files.js';
+} from '@hyperlane-xyz/utils';
+
+import { CommandContext } from '../context/types.js';
+import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 import {

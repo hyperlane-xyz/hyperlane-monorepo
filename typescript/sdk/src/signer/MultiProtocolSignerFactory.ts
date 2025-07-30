@@ -16,7 +16,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, ensure0x } from '@hyperlane-xyz/utils';
 
-import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
+import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
 import {
   BaseMultiProtocolSigner,

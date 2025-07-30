@@ -9,9 +9,8 @@ import {
   TokenType,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, writeYamlOrJson } from '@hyperlane-xyz/utils';
 
-import { writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,

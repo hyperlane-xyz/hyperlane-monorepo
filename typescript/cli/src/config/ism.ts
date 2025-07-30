@@ -12,6 +12,7 @@ import {
   TrustedRelayerIsmConfig,
   isStaticIsm,
 } from '@hyperlane-xyz/sdk';
+import { readYamlOrJson } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import {
@@ -22,7 +23,6 @@ import {
   logRed,
 } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import { readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 import { callWithConfigCreationLogs } from './utils.js';

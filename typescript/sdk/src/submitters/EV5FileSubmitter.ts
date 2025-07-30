@@ -9,10 +9,10 @@ import {
   Annotated,
   ProtocolType,
   assert,
+  readYamlOrJson,
   rootLogger,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/utils';
-
-import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import { CustomTxSubmitterType, EV5FileTxSubmitterProps } from './types.js';
 

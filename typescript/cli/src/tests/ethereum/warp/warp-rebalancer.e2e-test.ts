@@ -24,11 +24,12 @@ import {
   Domain,
   addressToBytes32,
   bytes32ToAddress,
+  readYamlOrJson,
   sleep,
   toWei,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   createSnapshot,

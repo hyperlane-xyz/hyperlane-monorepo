@@ -2,10 +2,10 @@ import {
   RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
 } from '@hyperlane-xyz/sdk';
+import { readYamlOrJson } from '@hyperlane-xyz/utils';
 
 import { CommandModuleWithContext } from '../context/types.js';
 import { runForkCommand } from '../fork/fork.js';
-import { readYamlOrJson } from '../utils/files.js';
 
 import { forkCommandOptions } from './options.js';
 

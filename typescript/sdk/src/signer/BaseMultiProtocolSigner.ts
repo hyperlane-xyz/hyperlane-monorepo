@@ -4,7 +4,7 @@ import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
+import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
 export type TypedSigner = Signer | SigningHyperlaneModuleClient;
 

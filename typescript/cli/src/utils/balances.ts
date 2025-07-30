@@ -6,12 +6,12 @@ import {
   ChainMetadataManager,
   ChainName,
   MultiProtocolProvider,
+  MultiProtocolSignerManager,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { autoConfirm } from '../config/prompts.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
-import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { logBlue, logGray, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(

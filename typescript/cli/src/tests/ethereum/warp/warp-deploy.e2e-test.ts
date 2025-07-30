@@ -27,9 +27,13 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, normalizeAddressEvm } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  normalizeAddressEvm,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
   KeyBoardKeys,
   TestPromptAction,

@@ -10,14 +10,13 @@ import {
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
+  MultiProtocolSignerManager,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, indentYamlOrJson } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
-import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
-import { indentYamlOrJson } from '../utils/files.js';
 
 import {
   completeDeploy,

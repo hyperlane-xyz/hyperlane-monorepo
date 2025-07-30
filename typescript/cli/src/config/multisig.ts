@@ -5,14 +5,15 @@ import { ChainMap, MultisigIsmConfig, ZHash } from '@hyperlane-xyz/sdk';
 import {
   Address,
   isValidAddress,
+  mergeYamlOrJson,
   normalizeAddressEvm,
   objMap,
+  readYamlOrJson,
 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 const MultisigConfigMapSchema = z.object({}).catchall(
   z.object({

@@ -10,11 +10,14 @@ import {
   ExplorerFamily,
   ZChainName,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  indentYamlOrJson,
+  readYamlOrJson,
+} from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
-import { indentYamlOrJson, readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 export function readChainConfigs(filePath: string) {

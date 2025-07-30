@@ -1,7 +1,6 @@
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import { TokenType } from '@hyperlane-xyz/sdk';
-
-import { writeYamlOrJson } from '../../utils/files.js';
+import { writeYamlOrJson } from '@hyperlane-xyz/utils';
 
 import { hyperlaneCoreDeploy } from './commands/core.js';
 import { hyperlaneRelayer, hyperlaneSendMessage } from './commands/helpers.js';

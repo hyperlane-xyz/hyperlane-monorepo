@@ -9,6 +9,7 @@ import {
   ChainName,
   ExplorerFamily,
   MultiProtocolProvider,
+  MultiProtocolSignerManager,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
@@ -22,7 +23,6 @@ import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
 import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
-import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandContext,
   ContextSettings,

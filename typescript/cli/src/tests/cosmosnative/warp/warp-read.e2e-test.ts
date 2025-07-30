@@ -3,9 +3,13 @@ import { expect } from 'chai';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,

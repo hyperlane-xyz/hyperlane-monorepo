@@ -6,9 +6,8 @@ import {
   TokenType,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, readYamlOrJson } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../../utils/files.js';
 import {
   CONFIRM_DETECTED_OWNER_STEP,
   KeyBoardKeys,

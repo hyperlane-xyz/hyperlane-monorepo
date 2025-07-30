@@ -14,9 +14,10 @@ import {
   Domain,
   ProtocolType,
   addressToBytes32,
+  readYamlOrJson,
+  writeYamlOrJson,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   ANVIL_KEY,
