@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use hyperlane_base::db::DB;
 use hyperlane_base::settings::ChainConf;
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::{HyperlaneDomain, SubmitterType};
+use hyperlane_core::{HyperlaneDomain, Mailbox, SubmitterType};
 use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
@@ -13,6 +13,7 @@ pub struct Destination {
     pub domain: HyperlaneDomain,
     pub dispatcher_entrypoint: Option<DispatcherEntrypoint>,
     pub dispatcher: Option<Dispatcher>,
+    pub mailbox: Arc<dyn Mailbox>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -21,6 +22,10 @@ pub enum FactoryError {
     DispatcherCreationFailed(String, String),
     #[error("Failed to create dispatcher entrypoint for domain {0}: {1}")]
     DispatcherEntrypointCreationFailed(String, String),
+    #[error("Failed to create mailbox for domain {0}: {1}")]
+    MailboxCreationFailed(String, String),
+    #[error("Failed to create destination for domain {0} due to missing configuration")]
+    MissingConfiguration(String),
 }
 
 pub trait Factory {
@@ -51,13 +56,16 @@ impl Factory for DestinationFactory {
         dispatcher_metrics: DispatcherMetrics,
     ) -> Result<Destination, FactoryError> {
         let (dispatcher_entrypoint, dispatcher) = self
-            .init_dispatcher_and_entrypoint(&domain, chain_conf, dispatcher_metrics)
+            .init_dispatcher_and_entrypoint(&domain, chain_conf.clone(), dispatcher_metrics)
             .await?;
+
+        let mailbox = self.init_mailbox(&domain, &chain_conf).await?;
 
         let destination = Destination {
             domain,
             dispatcher_entrypoint,
             dispatcher,
+            mailbox,
         };
 
         Ok(destination)
@@ -105,6 +113,20 @@ impl DestinationFactory {
         self.measure(domain, "dispatcher", start_entity_init.elapsed());
 
         Ok((Some(dispatcher_entrypoint), Some(dispatcher)))
+    }
+
+    async fn init_mailbox(
+        &self,
+        domain: &HyperlaneDomain,
+        chain_conf: &ChainConf,
+    ) -> Result<Arc<dyn Mailbox>, FactoryError> {
+        let mailbox = chain_conf
+            .build_mailbox(self.core_metrics.as_ref())
+            .await
+            .map_err(|e| FactoryError::MailboxCreationFailed(domain.to_string(), e.to_string()))?
+            .into();
+
+        Ok(mailbox)
     }
 
     fn measure(&self, domain: &HyperlaneDomain, entity: &str, latency: Duration) {
