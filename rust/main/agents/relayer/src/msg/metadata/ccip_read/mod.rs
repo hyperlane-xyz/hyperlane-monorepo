@@ -255,7 +255,7 @@ async fn fetch_offchain_data(
 ) -> Result<Metadata, MetadataBuildError> {
     // Compute relayer authentication signature via EIP-191
     let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer() {
-        Some(CcipReadIsmMetadataBuilder::generate_signature_hex(signer, &info, url).await?)
+        Some(CcipReadIsmMetadataBuilder::generate_signature_hex(signer, info, url).await?)
     } else {
         None
     };
@@ -306,17 +306,13 @@ async fn fetch_offchain_data(
     let json: OffchainResponse = res.json().await.map_err(|err| {
         let error_msg = format!(
             "Failed to parse offchain lookup server json response: ({})",
-            err.to_string()
+            err
         );
         MetadataBuildError::FailedToBuild(error_msg)
     })?;
 
-    // remove leading if exists 0x, which hex_decode doesn't like
-    let hex_data = if json.data.starts_with("0x") {
-        &json.data[2..]
-    } else {
-        &json.data
-    };
+    // remove leading 0x which hex_decode doesn't like
+    let hex_data = &json.data[2..];
 
     let metadata = hex_decode(hex_data).map_err(|err| {
         let msg = format!(
@@ -325,7 +321,7 @@ async fn fetch_offchain_data(
         );
         MetadataBuildError::FailedToBuild(msg)
     })?;
-    return Ok(Metadata::new(metadata));
+    Ok(Metadata::new(metadata))
 }
 
 fn create_ccip_url_regex() -> RegexSet {
