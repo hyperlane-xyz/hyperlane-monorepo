@@ -45,13 +45,13 @@ impl std::fmt::Debug for Origin {
 #[derive(Debug, thiserror::Error)]
 pub enum FactoryError {
     #[error("Failed to create validator announce for domain {0}: {1}")]
-    ValidatorAnnounceCreationFailed(String, String),
+    ValidatorAnnounce(String, String),
     #[error("Failed to create message sync for domain {0}: {1}")]
-    MessageSyncCreationFailed(String, String),
+    MessageSync(String, String),
     #[error("Failed to create igp sync for domain {0}: {1}")]
-    InterchainGasPaymentSyncCreationFailed(String, String),
+    InterchainGasPaymentSync(String, String),
     #[error("Failed to create merkle tree hook sync for domain {0}: {1}")]
-    MerkleTreeHookSyncCreationFailed(String, String),
+    MerkleTreeHookSync(String, String),
 }
 
 pub trait Factory {
@@ -183,9 +183,7 @@ impl OriginFactory {
         let validator_announce = chain_conf
             .build_validator_announce(&self.core_metrics)
             .await
-            .map_err(|err| {
-                FactoryError::ValidatorAnnounceCreationFailed(domain.to_string(), err.to_string())
-            })?;
+            .map_err(|err| FactoryError::ValidatorAnnounce(domain.to_string(), err.to_string()))?;
         Ok(validator_announce.into())
     }
 
@@ -220,9 +218,7 @@ impl OriginFactory {
             )
             .await
             .map(|r| r as Arc<dyn ContractSyncer<_>>)
-            .map_err(|err| {
-                FactoryError::MessageSyncCreationFailed(domain.to_string(), err.to_string())
-            }),
+            .map_err(|err| FactoryError::MessageSync(domain.to_string(), err.to_string())),
             CursorType::RateLimited => Self::watermark_contract_sync(
                 domain,
                 chain_conf,
@@ -234,9 +230,7 @@ impl OriginFactory {
             )
             .await
             .map(|r| r as Arc<dyn ContractSyncer<_>>)
-            .map_err(|err| {
-                FactoryError::MessageSyncCreationFailed(domain.to_string(), err.to_string())
-            }),
+            .map_err(|err| FactoryError::MessageSync(domain.to_string(), err.to_string())),
         }
     }
 
@@ -259,10 +253,7 @@ impl OriginFactory {
             .await
             .map(|r| r as Arc<dyn ContractSyncer<_>>)
             .map_err(|err| {
-                FactoryError::InterchainGasPaymentSyncCreationFailed(
-                    domain.to_string(),
-                    err.to_string(),
-                )
+                FactoryError::InterchainGasPaymentSync(domain.to_string(), err.to_string())
             }),
             CursorType::RateLimited => Self::watermark_contract_sync(
                 domain,
@@ -276,10 +267,7 @@ impl OriginFactory {
             .await
             .map(|r| r as Arc<dyn ContractSyncer<_>>)
             .map_err(|err| {
-                FactoryError::InterchainGasPaymentSyncCreationFailed(
-                    domain.to_string(),
-                    err.to_string(),
-                )
+                FactoryError::InterchainGasPaymentSync(domain.to_string(), err.to_string())
             }),
         }
     }
@@ -302,9 +290,7 @@ impl OriginFactory {
             )
             .await
             .map(|r| r as Arc<dyn ContractSyncer<_>>)
-            .map_err(|err| {
-                FactoryError::MerkleTreeHookSyncCreationFailed(domain.to_string(), err.to_string())
-            }),
+            .map_err(|err| FactoryError::MerkleTreeHookSync(domain.to_string(), err.to_string())),
             CursorType::RateLimited => Self::watermark_contract_sync(
                 domain,
                 chain_conf,
@@ -316,9 +302,7 @@ impl OriginFactory {
             )
             .await
             .map(|r| r as Arc<dyn ContractSyncer<_>>)
-            .map_err(|err| {
-                FactoryError::MerkleTreeHookSyncCreationFailed(domain.to_string(), err.to_string())
-            }),
+            .map_err(|err| FactoryError::MerkleTreeHookSync(domain.to_string(), err.to_string())),
         }
     }
 
