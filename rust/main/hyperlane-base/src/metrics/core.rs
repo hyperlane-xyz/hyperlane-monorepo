@@ -4,6 +4,7 @@ use std::sync::OnceLock;
 use std::time;
 
 use eyre::Result;
+use maplit::hashmap;
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
     register_gauge_vec_with_registry, register_histogram_vec_with_registry,
@@ -52,6 +53,7 @@ pub struct CoreMetrics {
 
     operations_processed_count: IntCounterVec,
     messages_processed_count: IntCounterVec,
+    merkle_root_mismatch: IntGaugeVec,
 
     latest_checkpoint: IntGaugeVec,
 
@@ -272,6 +274,16 @@ impl CoreMetrics {
             registry
         )?;
 
+        let merkle_root_mismatch = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("merkle_root_mismatch"),
+                "Number of merkle root mismatch",
+                const_labels_ref
+            ),
+            &["origin"],
+            registry
+        )?;
+
         let metadata_build_count = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("metadata_build_count"),
@@ -333,6 +345,7 @@ impl CoreMetrics {
 
             operations_processed_count,
             messages_processed_count,
+            merkle_root_mismatch,
 
             latest_checkpoint,
 
@@ -624,6 +637,24 @@ impl CoreMetrics {
     /// - `remote`: Chain we delivered the message to.
     pub fn messages_processed_count(&self) -> IntCounterVec {
         self.messages_processed_count.clone()
+    }
+
+    /// Indicate when a merkle root mismatch occurs.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the merkle root is for.
+    pub fn merkle_root_mismatch(&self) -> IntGaugeVec {
+        self.merkle_root_mismatch.clone()
+    }
+
+    /// Set merkle root mismatch
+    pub fn set_merkle_root_mismatch(&self, origin: &HyperlaneDomain) {
+        self.merkle_root_mismatch
+            .with(&hashmap! {
+                "origin" => origin.name(),
+            })
+            .set(1);
     }
 
     /// Measure of span durations provided by tracing.

@@ -1038,6 +1038,13 @@ impl PendingMessage {
                 warn!(count, "Max validator count reached");
                 self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
             }
+            MetadataBuildError::MerkleRootMismatch {
+                root,
+                canonical_root,
+            } => {
+                warn!(?root, ?canonical_root, "Nerkle root mismatch");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
         });
         let build_metadata_end = Instant::now();
 
