@@ -87,6 +87,7 @@ impl DestinationFactory {
         domain: &HyperlaneDomain,
         chain_conf: &ChainConf,
     ) -> Result<Arc<dyn ApplicationOperationVerifier>, FactoryError> {
+        let start_entity_init = Instant::now();
         let verifier = chain_conf
             .build_application_operation_verifier(self.core_metrics.as_ref())
             .await
@@ -97,6 +98,11 @@ impl DestinationFactory {
                 )
             })?
             .into();
+        self.measure(
+            domain,
+            "applictaion_operation_verifier",
+            start_entity_init.elapsed(),
+        );
 
         Ok(verifier)
     }
@@ -148,11 +154,13 @@ impl DestinationFactory {
         domain: &HyperlaneDomain,
         chain_conf: &ChainConf,
     ) -> Result<Arc<dyn Mailbox>, FactoryError> {
+        let start_entity_init = Instant::now();
         let mailbox = chain_conf
             .build_mailbox(self.core_metrics.as_ref())
             .await
             .map_err(|e| FactoryError::MailboxCreationFailed(domain.to_string(), e.to_string()))?
             .into();
+        self.measure(domain, "mailbox", start_entity_init.elapsed());
 
         Ok(mailbox)
     }
