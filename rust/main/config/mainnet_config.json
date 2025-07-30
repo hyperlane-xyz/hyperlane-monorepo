@@ -10055,6 +10055,12 @@
       "bech32Prefix": "celestia",
       "blockExplorers": [
         {
+          "apiUrl": "https://celenium.io",
+          "family": "other",
+          "name": "Celenium",
+          "url": "https://celenium.io"
+        },
+        {
           "apiUrl": "https://www.mintscan.io/celestia",
           "family": "other",
           "name": "Mintscan",
