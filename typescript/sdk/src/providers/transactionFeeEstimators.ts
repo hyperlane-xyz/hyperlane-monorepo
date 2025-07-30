@@ -272,17 +272,21 @@ export async function estimateTransactionFeeStarknet({
   return { gasUnits: 0, gasPrice: 0, fee: 0 };
 }
 
-// TODO: RADIX
 export async function estimateTransactionFeeRadix({
-  transaction: _transaction,
-  provider: _provider,
+  transaction,
+  provider,
   sender: _sender,
+  senderPubKey,
 }: {
   transaction: RadixTransaction;
   provider: RadixProvider;
   sender: Address;
+  senderPubKey: HexString;
 }): Promise<TransactionFeeEstimate> {
-  return { gasUnits: 0, gasPrice: 0, fee: 0 };
+  return provider.provider.query.estimateTransactionFee({
+    transactionManifest: transaction.transaction.manifest,
+    senderPubKey,
+  });
 }
 
 export function estimateTransactionFee({
@@ -367,10 +371,12 @@ export function estimateTransactionFee({
     transaction.type === ProviderType.Radix &&
     provider.type === ProviderType.Radix
   ) {
+    assert(senderPubKey, 'senderPubKey required for Radix gas estimation');
     return estimateTransactionFeeRadix({
       transaction,
       provider,
       sender,
+      senderPubKey,
     });
   } else {
     throw new Error(

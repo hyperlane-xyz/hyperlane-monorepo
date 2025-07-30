@@ -41,7 +41,7 @@ export class RadixQuery {
   }: {
     transactionManifest: TransactionManifest;
     senderPubKey: HexString;
-  }): Promise<{ amount: bigint }> {
+  }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
 
@@ -77,8 +77,24 @@ export class RadixQuery {
       `${(response.receipt as any).error_message}`,
     );
 
+    const gasUnits = BigInt(
+      (response.receipt as any).fee_summary.execution_cost_units_consumed,
+    );
+    const fee = BigInt(
+      new BigNumber(
+        (response.receipt as any).fee_summary.xrd_total_execution_cost,
+      )
+        .times(new BigNumber(10).exponentiatedBy(18))
+        .toFixed(0),
+    );
+    const gasPrice = parseFloat(
+      (response.receipt as any).costing_parameters.execution_cost_unit_price,
+    );
+
     return {
-      amount: BigInt(0),
+      gasUnits,
+      fee,
+      gasPrice,
     };
   }
 
@@ -137,10 +153,9 @@ export class RadixQuery {
       (r) => r.resource_address === resource,
     );
 
-    assert(
-      fungibleResource,
-      `account with address ${address} has no resource with address ${resource}`,
-    );
+    if (!fungibleResource) {
+      return BigInt(0);
+    }
 
     if (fungibleResource.vaults.items.length !== 1) {
       return BigInt(0);

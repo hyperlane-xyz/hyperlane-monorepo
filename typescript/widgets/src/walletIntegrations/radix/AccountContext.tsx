@@ -1,14 +1,13 @@
-import {
-  DataRequestBuilder,
-  WalletDataStateAccount,
-} from '@radixdlt/radix-dapp-toolkit';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
-import { useRdt } from './hooks/useRdt.js';
+export type RadixAccount = {
+  address: string;
+  publicKey: string;
+};
 
 interface AccountContextType {
-  accounts: WalletDataStateAccount[];
-  setAccounts: (accounts: WalletDataStateAccount[]) => void;
+  accounts: RadixAccount[];
+  setAccounts: (accounts: RadixAccount[]) => void;
   selectedAccount: string;
   setSelectedAccount: (account: string) => void;
 }
@@ -27,21 +26,8 @@ export const AccountProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const [accounts, setAccounts] = useState<WalletDataStateAccount[]>([]);
+  const [accounts, setAccounts] = useState<RadixAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string>('');
-
-  const rdt = useRdt();
-
-  useEffect(() => {
-    rdt?.walletApi.setRequestData(DataRequestBuilder.accounts().atLeast(1));
-
-    const subscription = rdt?.walletApi.walletData$.subscribe((walletData) => {
-      console.log('subscription wallet data: ', walletData);
-      setAccounts(walletData && walletData.accounts ? walletData.accounts : []);
-    });
-
-    return () => subscription?.unsubscribe();
-  }, [rdt]);
 
   return (
     <AccountContext.Provider

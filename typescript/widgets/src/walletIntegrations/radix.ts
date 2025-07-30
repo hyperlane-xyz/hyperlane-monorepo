@@ -1,4 +1,7 @@
-import { DataRequestBuilder } from '@radixdlt/radix-dapp-toolkit';
+import {
+  DataRequestBuilder,
+  generateRolaChallenge,
+} from '@radixdlt/radix-dapp-toolkit';
 import { RadixEngineToolkit } from '@radixdlt/radix-engine-toolkit';
 import { useCallback, useMemo } from 'react';
 
@@ -24,8 +27,6 @@ import {
   WalletDetails,
 } from './types.js';
 
-// TODO: RADIX
-// get public key from account address
 export function useRadixAccount(
   _multiProvider: MultiProtocolProvider,
 ): AccountInfo {
@@ -36,6 +37,7 @@ export function useRadixAccount(
     addresses: accounts.map((account) => ({
       address: account.address,
     })),
+    publicKey: new Promise((resolve) => resolve(accounts[0]?.publicKey ?? '')),
     isReady: !!accounts.length,
   };
 }
@@ -63,12 +65,23 @@ export function useRadixConnectFn(): () => void {
 
   const { setAccounts } = useAccount();
 
+  rdt.walletApi.provideChallengeGenerator(async () => {
+    return generateRolaChallenge();
+  });
+
   const connect = async () => {
     popUp.setShowPopUp(true);
-    rdt.walletApi.setRequestData(DataRequestBuilder.accounts().reset());
+    rdt.walletApi.setRequestData(
+      DataRequestBuilder.accounts().exactly(1).withProof().reset(),
+    );
     const result = await rdt.walletApi.sendRequest();
     if (result.isOk()) {
-      setAccounts(result.value.accounts);
+      setAccounts(
+        result.value.proofs.map((p) => ({
+          address: p.address,
+          publicKey: p.proof.publicKey,
+        })),
+      );
     }
     popUp.setShowPopUp(false);
   };
