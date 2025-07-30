@@ -126,7 +126,7 @@ export {
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
-export { executeWarpDeploy } from './deploy/warp.js';
+export { resolveWarpIsmAndHook } from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
   SealevelOverheadIgpAdapter,
