@@ -15,7 +15,6 @@ import {
   ChainMap,
   ChainName,
   ContractVerifier,
-  CosmosNativeDeployer,
   EV5FileSubmitter,
   EvmERC20WarpModule,
   ExplorerLicenseType,
@@ -23,10 +22,6 @@ import {
   ExtendedChainSubmissionStrategySchema,
   ExtendedSubmissionStrategy,
   HypERC20Deployer,
-  HypERC20Factories,
-  HypERC721Deployer,
-  HyperlaneContracts,
-  HyperlaneContractsMap,
   IsmType,
   MultiProvider,
   MultisigIsmConfig,
@@ -43,15 +38,14 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
   enrollCrossChainRouters,
+  executeWarpDeploy,
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
   getRouterAddressesFromWarpCoreConfig,
   getSubmitterBuilder,
   getTokenConnectionId,
-  hypERC20factories,
   isCollateralTokenConfig,
   isXERC20TokenConfig,
-  resolveWarpIsmAndHook,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
 } from '@hyperlane-xyz/sdk';
@@ -60,9 +54,7 @@ import {
   ProtocolType,
   assert,
   indentYamlOrJson,
-  isObjEmpty,
   objFilter,
-  objKeys,
   objMap,
   promiseObjAll,
   readYamlOrJson,
@@ -255,78 +247,17 @@ async function executeDeploy(
 
   const registryAddresses = await registry.getAddresses();
 
-  // For each chain in WarpRouteConfig, deploy each Ism Factory, if it's not in the registry
-  // Then return a modified config with the ism and/or hook address as a string
-  const modifiedConfig = await resolveWarpIsmAndHook(
+  const deployedContracts = await executeWarpDeploy(
     config,
     multiProvider,
     multiProtocolSigner,
     registryAddresses,
     apiKeys,
   );
-
-  let deployedContracts: ChainMap<Address> = {};
   const deployments: WarpCoreConfig = { tokens: [] };
 
-  // get unique list of protocols
-  const protocols = Array.from(
-    new Set(
-      Object.keys(modifiedConfig).map((chainName) =>
-        multiProvider.getProtocol(chainName),
-      ),
-    ),
-  );
-
-  for (const protocol of protocols) {
-    const protocolSpecificConfig = objFilter(
-      modifiedConfig,
-      (chainName, _): _ is any =>
-        multiProvider.getProtocol(chainName) === protocol,
-    );
-
-    if (isObjEmpty(protocolSpecificConfig)) {
-      continue;
-    }
-
-    switch (protocol) {
-      case ProtocolType.Ethereum: {
-        const deployer = warpDeployConfig.isNft
-          ? new HypERC721Deployer(multiProvider)
-          : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
-
-        const evmContracts = await deployer.deploy(protocolSpecificConfig);
-        deployedContracts = {
-          ...deployedContracts,
-          ...objMap(
-            evmContracts as HyperlaneContractsMap<HypERC20Factories>,
-            (_, contracts) => getRouter(contracts).address,
-          ),
-        };
-
-        break;
-      }
-      case ProtocolType.CosmosNative: {
-        const signersMap = objMap(
-          protocolSpecificConfig,
-          (chain, _) => multiProtocolSigner.getCosmosNativeSigner(chain)!,
-        );
-
-        const deployer = new CosmosNativeDeployer(multiProvider, signersMap);
-        deployedContracts = {
-          ...deployedContracts,
-          ...(await deployer.deploy(protocolSpecificConfig)),
-        };
-
-        break;
-      }
-      default: {
-        throw new Error(`Protocol type ${protocol} not supported`);
-      }
-    }
-  }
-
   const { warpCoreConfig } = await getWarpCoreConfig(
-    { context: params.context, warpDeployConfig: modifiedConfig },
+    { context: params.context, warpDeployConfig },
     deployedContracts,
   );
 
@@ -1052,11 +983,4 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     }),
     config: submissionStrategy,
   };
-}
-
-function getRouter(contracts: HyperlaneContracts<HypERC20Factories>) {
-  for (const key of objKeys(hypERC20factories)) {
-    if (contracts[key]) return contracts[key];
-  }
-  throw new Error('No matching contract found.');
 }
