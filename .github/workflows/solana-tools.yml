@@ -1,0 +1,39 @@
+name: Build Solana Tool Images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'rust/sealevel/images/solana-cli/**'
+  pull_request:
+    paths:
+      - 'rust/sealevel/images/solana-cli/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: depot-ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        solana-version:
+          - 1.18.18
+          - 1.14.20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Depot CLI
+        uses: depot/setup-action@v1
+
+      - name: Build and push image
+        uses: depot/build-push-action@v1
+        with:
+          project: m6cdwcw0qj
+          platforms: linux/amd64,linux/arm64
+          context: ./rust/sealevel/images/solana-cli
+          build-args: |
+            SOLANA_VERSION=${{ matrix.solana-version }}
+          tags: hyperlane/solana-tools:${{ matrix.solana-version }}
