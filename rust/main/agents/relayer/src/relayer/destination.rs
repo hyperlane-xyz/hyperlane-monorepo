@@ -5,12 +5,14 @@ use hyperlane_base::db::DB;
 use hyperlane_base::settings::ChainConf;
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{HyperlaneDomain, Mailbox, SubmitterType};
+use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
 pub struct Destination {
     pub domain: HyperlaneDomain,
+    pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
     pub dispatcher_entrypoint: Option<DispatcherEntrypoint>,
     pub dispatcher: Option<Dispatcher>,
     pub mailbox: Arc<dyn Mailbox>,
@@ -18,6 +20,8 @@ pub struct Destination {
 
 #[derive(Debug, thiserror::Error)]
 pub enum FactoryError {
+    #[error("Failed to create application operation verifier for domain {0}: {1}")]
+    ApplicationOperationVerifierCreationFailed(String, String),
     #[error("Failed to create dispatcher for domain {0}: {1}")]
     DispatcherCreationFailed(String, String),
     #[error("Failed to create dispatcher entrypoint for domain {0}: {1}")]
@@ -55,6 +59,10 @@ impl Factory for DestinationFactory {
         chain_conf: ChainConf,
         dispatcher_metrics: DispatcherMetrics,
     ) -> Result<Destination, FactoryError> {
+        let application_operation_verifier = self
+            .init_application_operation_verifier(&domain, &chain_conf)
+            .await?;
+
         let (dispatcher_entrypoint, dispatcher) = self
             .init_dispatcher_and_entrypoint(&domain, chain_conf.clone(), dispatcher_metrics)
             .await?;
@@ -63,6 +71,7 @@ impl Factory for DestinationFactory {
 
         let destination = Destination {
             domain,
+            application_operation_verifier,
             dispatcher_entrypoint,
             dispatcher,
             mailbox,
@@ -73,6 +82,25 @@ impl Factory for DestinationFactory {
 }
 
 impl DestinationFactory {
+    async fn init_application_operation_verifier(
+        &self,
+        domain: &HyperlaneDomain,
+        chain_conf: &ChainConf,
+    ) -> Result<Arc<dyn ApplicationOperationVerifier>, FactoryError> {
+        let verifier = chain_conf
+            .build_application_operation_verifier(self.core_metrics.as_ref())
+            .await
+            .map_err(|e| {
+                FactoryError::ApplicationOperationVerifierCreationFailed(
+                    domain.to_string(),
+                    e.to_string(),
+                )
+            })?
+            .into();
+
+        Ok(verifier)
+    }
+
     async fn init_dispatcher_and_entrypoint(
         &self,
         domain: &HyperlaneDomain,

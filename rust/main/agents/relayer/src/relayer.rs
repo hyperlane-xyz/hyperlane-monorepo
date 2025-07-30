@@ -38,7 +38,6 @@ use hyperlane_core::{
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
     MerkleTreeInsertion, QueueOperation, ValidatorAnnounce, H512, U256,
 };
-use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use lander::DispatcherMetrics;
 
 use crate::{db_loader::DbLoader, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
@@ -184,12 +183,6 @@ impl BaseAgent for Relayer {
             .map(|origin| (origin.clone(), HyperlaneRocksDB::new(origin, db.clone())))
             .collect::<HashMap<_, _>>();
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized databases", "Relayer startup duration measurement");
-
-        start_entity_init = Instant::now();
-        let application_operation_verifiers =
-            Self::build_application_operation_verifiers(&settings, &core_metrics, &chain_metrics)
-                .await;
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized application operation verifiers", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
         let validator_announces =
@@ -354,6 +347,8 @@ impl BaseAgent for Relayer {
         let mut destination_chains = HashMap::new();
         for (destination_domain, destination) in destinations.iter() {
             let destination_mailbox = destination.mailbox.clone();
+            let application_operation_verifier = destination.application_operation_verifier.clone();
+
             let destination_chain_setup = match core.settings.chain_setup(destination_domain) {
                 Ok(setup) => setup.clone(),
                 Err(err) => {
@@ -368,9 +363,6 @@ impl BaseAgent for Relayer {
                 } else {
                     transaction_gas_limit
                 };
-
-            let application_operation_verifier =
-                application_operation_verifiers.get(destination_domain);
 
             // only iterate through origin chains that were successfully instantiated
             for (origin, validator_announce) in validator_announces.iter() {
@@ -443,7 +435,7 @@ impl BaseAgent for Relayer {
                             origin,
                             destination_domain,
                         ),
-                        application_operation_verifier: application_operation_verifier.cloned(),
+                        application_operation_verifier: application_operation_verifier.clone(),
                     }),
                 );
             }
@@ -1166,36 +1158,6 @@ impl Relayer {
                     None
                 }
             })
-            .collect()
-    }
-
-    /// Helper function to build and return a hashmap of application operation verifiers.
-    /// Any chains that fail to build application operation verifier will not be included
-    /// in the hashmap. Errors will be logged and chain metrics
-    /// will be updated for chains that fail to build application operation verifier.
-    pub async fn build_application_operation_verifiers(
-        settings: &RelayerSettings,
-        core_metrics: &CoreMetrics,
-        chain_metrics: &ChainMetrics,
-    ) -> HashMap<HyperlaneDomain, Arc<dyn ApplicationOperationVerifier>> {
-        settings
-            .build_application_operation_verifiers(settings.destination_chains.iter(), core_metrics)
-            .await
-            .into_iter()
-            .filter_map(
-                |(origin, app_context_verifier_res)| match app_context_verifier_res {
-                    Ok(app_context_verifier) => Some((origin, app_context_verifier)),
-                    Err(err) => {
-                        Self::record_critical_error(
-                            &origin,
-                            chain_metrics,
-                            &err,
-                            "Critical error when building application operation verifier",
-                        );
-                        None
-                    }
-                },
-            )
             .collect()
     }
 
