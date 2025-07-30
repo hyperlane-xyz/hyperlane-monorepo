@@ -102,6 +102,8 @@ export {
   useCosmosDisconnectFn,
   useCosmosTransactionFns,
   useCosmosWalletDetails,
+  useCosmosSwitchNetwork,
+  useCosmosWatchAsset,
 } from './walletIntegrations/cosmos.js';
 export {
   getWagmiChainConfigs,
@@ -111,6 +113,8 @@ export {
   useEthereumDisconnectFn,
   useEthereumTransactionFns,
   useEthereumWalletDetails,
+  useEthereumSwitchNetwork,
+  useEthereumWatchAsset,
 } from './walletIntegrations/ethereum.js';
 export {
   getAccountAddressAndPubKey,
@@ -123,6 +127,7 @@ export {
   useDisconnectFns,
   useTransactionFns,
   useWalletDetails,
+  useWatchAsset,
 } from './walletIntegrations/multiProtocol.js';
 export { MultiProtocolWalletModal } from './walletIntegrations/MultiProtocolWalletModal.js';
 export {
@@ -132,6 +137,8 @@ export {
   useSolanaDisconnectFn,
   useSolanaTransactionFns,
   useSolanaWalletDetails,
+  useSolanaSwitchNetwork,
+  useSolanaWatchAsset,
 } from './walletIntegrations/solana.js';
 export {
   getStarknetChains,
@@ -141,6 +148,8 @@ export {
   useStarknetDisconnectFn,
   useStarknetTransactionFns,
   useStarknetWalletDetails,
+  useStarknetSwitchNetwork,
+  useStarknetWatchAsset,
 } from './walletIntegrations/starknet.js';
 export type {
   AccountInfo,
@@ -149,7 +158,10 @@ export type {
   ChainTransactionFns,
   SendTransactionFn,
   SwitchNetworkFn,
+  SwitchNetworkFns,
   WalletDetails,
+  SendMultiTransactionFn,
+  WatchAssetFns,
 } from './walletIntegrations/types.js';
 export {
   ethers5TxToWagmiTx,
