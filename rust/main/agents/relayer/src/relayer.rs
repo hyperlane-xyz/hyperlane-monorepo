@@ -33,9 +33,10 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment, Mailbox,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment,
     MerkleTreeInsertion, QueueOperation, H512, U256,
 };
+use lander::DispatcherMetrics;
 
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
@@ -58,8 +59,7 @@ use crate::{
     settings::{matching_list::MatchingList, RelayerSettings},
 };
 
-use destination::Destination;
-use lander::DispatcherMetrics;
+use destination::{Destination, FactoryError};
 
 mod destination;
 mod origin;
@@ -178,10 +178,6 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized application operation verifiers", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
-        let mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized mailbox", "Relayer startup duration measurement");
-
-        start_entity_init = Instant::now();
         let origins =
             Self::build_origins(&settings, db.clone(), core_metrics.clone(), &chain_metrics).await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized origin chains", "Relayer startup duration measurement");
@@ -219,8 +215,8 @@ impl BaseAgent for Relayer {
 
         // only iterate through destination chains that were successfully instantiated
         start_entity_init = Instant::now();
-        let mut ccip_signer_futures: Vec<_> = Vec::with_capacity(mailboxes.len());
-        for destination in mailboxes.keys() {
+        let mut ccip_signer_futures: Vec<_> = Vec::with_capacity(destinations.len());
+        for destination in destinations.keys() {
             let destination_chain_setup = match core.settings.chain_setup(destination) {
                 Ok(setup) => setup.clone(),
                 Err(err) => {
@@ -260,30 +256,31 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         let mut msg_ctxs = HashMap::new();
         let mut destination_chains = HashMap::new();
-
-        for (destination, dest_mailbox) in mailboxes.iter() {
-            let destination_chain_setup = match core.settings.chain_setup(destination) {
+        for (destination_domain, destination) in destinations.iter() {
+            let destination_mailbox = destination.mailbox.clone();
+            let destination_chain_setup = match core.settings.chain_setup(destination_domain) {
                 Ok(setup) => setup.clone(),
                 Err(err) => {
-                    tracing::error!(?destination, ?err, "Destination chain setup failed");
+                    error!(?destination_domain, ?err, "Destination chain setup failed");
                     continue;
                 }
             };
-            destination_chains.insert(destination.clone(), destination_chain_setup.clone());
+            destination_chains.insert(destination_domain.clone(), destination_chain_setup.clone());
             let transaction_gas_limit: Option<U256> =
-                if skip_transaction_gas_limit_for.contains(&destination.id()) {
+                if skip_transaction_gas_limit_for.contains(&destination_domain.id()) {
                     None
                 } else {
                     transaction_gas_limit
                 };
 
-            let application_operation_verifier = application_operation_verifiers.get(destination);
+            let application_operation_verifier =
+                application_operation_verifiers.get(destination_domain);
 
             // only iterate through origin chains that were successfully instantiated
             for (origin_domain, origin) in origins.iter() {
                 let db = &origin.database;
 
-                let default_ism_getter = DefaultIsmCache::new(dest_mailbox.clone());
+                let default_ism_getter = DefaultIsmCache::new(destination_mailbox.clone());
                 let origin_chain_setup = match core.settings.chain_setup(origin_domain) {
                     Ok(chain_setup) => chain_setup.clone(),
                     Err(err) => {
@@ -313,17 +310,17 @@ impl BaseAgent for Relayer {
                         default_ism_getter.clone(),
                         settings.ism_cache_configs.clone(),
                     ),
-                    ccip_signers.get(destination).cloned().flatten(),
+                    ccip_signers.get(destination_domain).cloned().flatten(),
                     origin_chain_setup.ignore_reorg_reports,
                 );
 
                 msg_ctxs.insert(
                     ContextKey {
                         origin: origin_domain.clone(),
-                        destination: destination.clone(),
+                        destination: destination_domain.clone(),
                     },
                     Arc::new(MessageContext {
-                        destination_mailbox: dest_mailbox.clone(),
+                        destination_mailbox: destination_mailbox.clone(),
                         origin_db: Arc::new(db.clone()),
                         cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),
@@ -332,7 +329,7 @@ impl BaseAgent for Relayer {
                         metrics: MessageSubmissionMetrics::new(
                             &core_metrics,
                             origin_domain,
-                            destination,
+                            destination_domain,
                         ),
                         application_operation_verifier: application_operation_verifier.cloned(),
                     }),
@@ -1016,7 +1013,7 @@ impl Relayer {
             })
             .collect();
         let results = futures::future::join_all(destination_futures).await;
-        results
+        let destinations = results
             .into_iter()
             .filter_map(|(domain, result)| match result {
                 Ok(destination) => Some((domain, destination)),
@@ -1030,35 +1027,22 @@ impl Relayer {
                     None
                 }
             })
-            .collect::<HashMap<_, _>>()
-    }
+            .collect::<HashMap<_, _>>();
 
-    /// Helper function to build and return a hashmap of mailboxes.
-    /// Any chains that fail to build mailbox will not be included
-    /// in the hashmap. Errors will be logged and chain metrics
-    /// will be updated for chains that fail to build mailbox.
-    pub async fn build_mailboxes(
-        settings: &RelayerSettings,
-        core_metrics: &CoreMetrics,
-        chain_metrics: &ChainMetrics,
-    ) -> HashMap<HyperlaneDomain, Arc<dyn Mailbox>> {
         settings
-            .build_mailboxes(settings.destination_chains.iter(), core_metrics)
-            .await
-            .into_iter()
-            .filter_map(|(origin, mailbox_res)| match mailbox_res {
-                Ok(mailbox) => Some((origin, mailbox)),
-                Err(err) => {
-                    Self::record_critical_error(
-                        &origin,
-                        chain_metrics,
-                        &err,
-                        "Critical error when building mailbox",
-                    );
-                    None
-                }
-            })
-            .collect()
+            .destination_chains
+            .iter()
+            .filter(|domain| !destinations.contains_key(domain))
+            .for_each(|domain| {
+                Self::record_critical_error(
+                    domain,
+                    chain_metrics,
+                    &FactoryError::MissingConfiguration(domain.name().to_string()),
+                    "Critical error when building chain as destination",
+                );
+            });
+
+        destinations
     }
 
     /// Helper function to build and return a hashmap of application operation verifiers.
