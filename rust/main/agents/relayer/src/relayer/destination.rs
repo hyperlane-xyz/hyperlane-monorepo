@@ -1,10 +1,11 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use hyperlane_base::db::DB;
-use hyperlane_base::settings::ChainConf;
-use hyperlane_base::CoreMetrics;
-use hyperlane_core::{HyperlaneDomain, Mailbox, SubmitterType};
+use tracing::warn;
+
+use hyperlane_base::{db::DB, settings::ChainConf, CoreMetrics};
+use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol, Mailbox, SubmitterType};
+use hyperlane_ethereum::Signers;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
@@ -16,6 +17,7 @@ pub struct Destination {
     pub dispatcher_entrypoint: Option<DispatcherEntrypoint>,
     pub dispatcher: Option<Dispatcher>,
     pub mailbox: Arc<dyn Mailbox>,
+    pub ccip_signer: Option<Signers>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -63,6 +65,8 @@ impl Factory for DestinationFactory {
             .init_application_operation_verifier(&domain, &chain_conf)
             .await?;
 
+        let ccip_signer = self.init_ccip_signer(&domain, &chain_conf).await;
+
         let (dispatcher_entrypoint, dispatcher) = self
             .init_dispatcher_and_entrypoint(&domain, chain_conf.clone(), dispatcher_metrics)
             .await?;
@@ -75,6 +79,7 @@ impl Factory for DestinationFactory {
             dispatcher_entrypoint,
             dispatcher,
             mailbox,
+            ccip_signer,
         };
 
         Ok(destination)
@@ -105,6 +110,33 @@ impl DestinationFactory {
         );
 
         Ok(verifier)
+    }
+
+    async fn init_ccip_signer(
+        &self,
+        domain: &HyperlaneDomain,
+        chain_conf: &ChainConf,
+    ) -> Option<Signers> {
+        let start_entity_init = Instant::now();
+
+        if !matches!(domain.domain_protocol(), HyperlaneDomainProtocol::Ethereum) {
+            return None;
+        }
+
+        let signer_conf = chain_conf.signer.clone()?;
+
+        let signer = signer_conf
+            .build::<Signers>()
+            .await
+            .map_err(|e| {
+                warn!(error = ?e, "Failed to build Ethereum signer for CCIP-read ISM.");
+                e
+            })
+            .ok();
+
+        self.measure(domain, "ccip_signers", start_entity_init.elapsed());
+
+        signer
     }
 
     async fn init_dispatcher_and_entrypoint(

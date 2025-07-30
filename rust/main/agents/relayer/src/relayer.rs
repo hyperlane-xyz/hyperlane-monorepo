@@ -9,7 +9,6 @@ use std::{
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
-use futures::future::join_all;
 use futures_util::future::try_join_all;
 use tokio::{
     sync::{
@@ -34,9 +33,9 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
-    MerkleTreeInsertion, QueueOperation, ValidatorAnnounce, H512, U256,
+    HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
+    HyperlaneWatermarkedLogStore, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
+    ValidatorAnnounce, H512, U256,
 };
 use lander::DispatcherMetrics;
 
@@ -302,52 +301,13 @@ impl BaseAgent for Relayer {
             .collect();
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized gas payment enforcers", "Relayer startup duration measurement");
 
-        // only iterate through destination chains that were successfully instantiated
-        start_entity_init = Instant::now();
-        let mut ccip_signer_futures: Vec<_> = Vec::with_capacity(destinations.len());
-        for destination in destinations.keys() {
-            let destination_chain_setup = match core.settings.chain_setup(destination) {
-                Ok(setup) => setup.clone(),
-                Err(err) => {
-                    tracing::error!(?destination, ?err, "Destination chain setup failed");
-                    continue;
-                }
-            };
-            let signer = destination_chain_setup.signer.clone();
-            let future = async move {
-                if !matches!(
-                    destination.domain_protocol(),
-                    HyperlaneDomainProtocol::Ethereum
-                ) {
-                    return (destination, None);
-                }
-                let signer = if let Some(builder) = signer {
-                    match builder.build::<hyperlane_ethereum::Signers>().await {
-                        Ok(signer) => Some(signer),
-                        Err(err) => {
-                            warn!(error = ?err, "Failed to build Ethereum signer for CCIP-read ISM. ");
-                            None
-                        }
-                    }
-                } else {
-                    None
-                };
-                (destination, signer)
-            };
-            ccip_signer_futures.push(future);
-        }
-        let ccip_signers = join_all(ccip_signer_futures)
-            .await
-            .into_iter()
-            .collect::<HashMap<_, _>>();
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized ccip signers", "Relayer startup duration measurement");
-
         start_entity_init = Instant::now();
         let mut msg_ctxs = HashMap::new();
         let mut destination_chains = HashMap::new();
         for (destination_domain, destination) in destinations.iter() {
             let destination_mailbox = destination.mailbox.clone();
             let application_operation_verifier = destination.application_operation_verifier.clone();
+            let ccip_signer = destination.ccip_signer.clone();
 
             let destination_chain_setup = match core.settings.chain_setup(destination_domain) {
                 Ok(setup) => setup.clone(),
@@ -414,7 +374,7 @@ impl BaseAgent for Relayer {
                         default_ism_getter.clone(),
                         settings.ism_cache_configs.clone(),
                     ),
-                    ccip_signers.get(destination_domain).cloned().flatten(),
+                    ccip_signer.clone(),
                     origin_chain_setup.ignore_reorg_reports,
                 );
 
