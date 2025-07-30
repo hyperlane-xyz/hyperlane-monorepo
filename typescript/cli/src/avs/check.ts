@@ -10,7 +10,6 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
-  indentYamlOrJson,
   isValidValidatorStorageLocation,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
@@ -26,6 +25,7 @@ import {
   logGreen,
   warnYellow,
 } from '../logger.js';
+import { indentYamlOrJson } from '../utils/files.js';
 import {
   getLatestMerkleTreeCheckpointIndex,
   getLatestValidatorCheckpointIndexAndUrl,

@@ -6,13 +6,15 @@ import {
   HookConfig,
   IsmConfig,
   OwnableConfig,
-  indentYamlOrJson,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import {
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 import {

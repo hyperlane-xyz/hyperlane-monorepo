@@ -1,5 +1,6 @@
 import {
   ANVIL_RPC_METHODS,
+  ENV,
   MultiProvider,
   getLocalProvider,
   resetFork,
@@ -8,7 +9,6 @@ import {
 import { toUpperCamelCase } from '@hyperlane-xyz/utils';
 
 import { logGray, logGreen, warnYellow } from '../logger.js';
-import { ENV } from '../utils/env.js';
 
 /**
  * Forks a provided network onto MultiProvider

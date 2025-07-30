@@ -10,10 +10,6 @@ import {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
-  indentYamlOrJson,
-  readYamlOrJson,
-  removeEndingSlash,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
 
@@ -39,6 +35,12 @@ import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { RebalancerRunner } from '../rebalancer/runner.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import {
+  indentYamlOrJson,
+  readYamlOrJson,
+  removeEndingSlash,
+  writeYamlOrJson,
+} from '../utils/files.js';
 import {
   filterWarpConfigsToMatchingChains,
   getWarpConfigs,

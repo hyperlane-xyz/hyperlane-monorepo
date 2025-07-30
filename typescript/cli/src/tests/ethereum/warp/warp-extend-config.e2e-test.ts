@@ -8,11 +8,10 @@ import {
   WarpRouteDeployConfig,
   normalizeConfig,
   randomAddress,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { getDomainId } from '../commands/helpers.js';
 import {

@@ -6,11 +6,10 @@ import {
   CustomTxSubmitterType,
   TxSubmitterType,
   randomAddress,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { Address, randomInt } from '@hyperlane-xyz/utils';
 
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployXERC20VSToken, hyperlaneSubmit } from '../commands/helpers.js';
 import {
   ANVIL_KEY,

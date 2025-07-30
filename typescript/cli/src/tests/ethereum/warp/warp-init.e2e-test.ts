@@ -5,10 +5,10 @@ import {
   ChainName,
   TokenType,
   WarpRouteDeployConfig,
-  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
+import { readYamlOrJson } from '../../../utils/files.js';
 import {
   CONFIRM_DETECTED_OWNER_STEP,
   KeyBoardKeys,

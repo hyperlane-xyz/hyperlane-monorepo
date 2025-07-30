@@ -1,10 +1,10 @@
 import { BigNumber, Signer } from 'ethers';
 import { Logger } from 'pino';
+import { z } from 'zod';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
   Address,
-  CLI_ENV,
   ProtocolType,
   assert,
   rootLogger,
@@ -27,6 +27,21 @@ export interface MultiProtocolSignerOptions {
   logger?: Logger;
   key?: string | ProtocolMap<string>;
 }
+
+const envScheme = z.object({
+  HYP_KEY: z.string().optional(),
+  ANVIL_IP_ADDR: z.string().optional(),
+  ANVIL_PORT: z.number().optional(),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  AWS_REGION: z.string().optional(),
+  GH_AUTH_TOKEN: z.string().optional(),
+  COINGECKO_API_KEY: z.string().optional(),
+});
+
+const parsedEnv = envScheme.safeParse(process.env);
+
+export const ENV = parsedEnv.success ? parsedEnv.data : {};
 
 /**
  * @title MultiProtocolSignerManager
@@ -177,9 +192,9 @@ export class MultiProtocolSignerManager {
     }
 
     if (protocol === ProtocolType.Ethereum) {
-      if (CLI_ENV.HYP_KEY) {
+      if (ENV.HYP_KEY) {
         this.logger.debug(`Using private key from .env for chain ${chain}`);
-        return { privateKey: CLI_ENV.HYP_KEY };
+        return { privateKey: ENV.HYP_KEY };
       }
     }
 
@@ -257,8 +272,8 @@ export class MultiProtocolSignerManager {
         try {
           const provider = params.isDryRun
             ? getLocalProvider({
-                anvilIPAddr: CLI_ENV.ANVIL_IP_ADDR,
-                anvilPort: CLI_ENV.ANVIL_PORT,
+                anvilIPAddr: ENV.ANVIL_IP_ADDR,
+                anvilPort: ENV.ANVIL_PORT,
               })
             : this.multiProvider.getProvider(params.chain);
           const balance = await provider.getBalance(params.address);

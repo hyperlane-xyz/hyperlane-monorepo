@@ -1,6 +1,5 @@
 import terminalLink from 'terminal-link';
 
-import { readJson, runFileSelectionStep } from '@hyperlane-xyz/sdk';
 import { toBase64 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
@@ -9,6 +8,7 @@ import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../utils/chains.js';
+import { readJson, runFileSelectionStep } from '../utils/files.js';
 
 export async function runKurtosisAgentDeploy({
   context,

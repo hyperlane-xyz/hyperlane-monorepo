@@ -16,7 +16,6 @@ import {
   MultiProtocolProvider,
   getGasPrice,
   getLocalStorageGasOracleConfig,
-  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -32,6 +31,7 @@ import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../utils/chains.js';
+import { readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt, inputWithInfo } from '../utils/input.js';
 
 import { callWithConfigCreationLogs } from './utils.js';

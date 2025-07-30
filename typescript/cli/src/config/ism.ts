@@ -11,7 +11,6 @@ import {
   MultisigIsmConfigSchema,
   TrustedRelayerIsmConfig,
   isStaticIsm,
-  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
@@ -23,6 +22,7 @@ import {
   logRed,
 } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
+import { readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 import { callWithConfigCreationLogs } from './utils.js';

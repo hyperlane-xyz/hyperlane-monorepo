@@ -3,13 +3,13 @@ import { groupBy } from 'lodash-es';
 import {
   SubmissionStrategy,
   SubmissionStrategySchema,
-  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getTransactions, runSubmit } from '../config/submit.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
 import { logBlue, logGray } from '../logger.js';
+import { readYamlOrJson } from '../utils/files.js';
 
 import {
   outputFileCommandOption,

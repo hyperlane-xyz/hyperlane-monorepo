@@ -6,9 +6,6 @@ import {
   ExtendedChainSubmissionStrategy,
   ExtendedChainSubmissionStrategySchema,
   TxSubmitterType,
-  indentYamlOrJson,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
@@ -20,6 +17,11 @@ import {
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import {
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
 import { maskSensitiveData } from '../utils/output.js';
 
 /**

@@ -1,13 +1,9 @@
-import {
-  ChainName,
-  EvmHookReader,
-  resolveFileFormat,
-  writeFileAtPath,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { log, logBlue, logRed } from '../logger.js';
+import { resolveFileFormat, writeFileAtPath } from '../utils/files.js';
 
 /**
  * Read Hook config for a specified chain and address, logging or writing result to file.

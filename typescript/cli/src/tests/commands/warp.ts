@@ -4,9 +4,10 @@ import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfigMailboxRequired,
-  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
+
+import { readYamlOrJson } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 

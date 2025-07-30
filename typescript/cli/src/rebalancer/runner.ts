@@ -1,10 +1,9 @@
 import { Logger } from 'pino';
 
-import { Token } from '@hyperlane-xyz/sdk';
+import { ENV, Token } from '@hyperlane-xyz/sdk';
 import { assert, createServiceLogger, toWei } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../context/types.js';
-import { ENV } from '../utils/env.js';
 import { VERSION } from '../version.js';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';

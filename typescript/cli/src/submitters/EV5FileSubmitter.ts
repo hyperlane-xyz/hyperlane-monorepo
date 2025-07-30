@@ -1,18 +1,20 @@
 import { Logger } from 'pino';
 
 import {
+  CustomTxSubmitterType,
+  EV5FileTxSubmitterProps,
+  ProtocolTypedTransaction,
+  TxSubmitterInterface,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
+import {
   Annotated,
   ProtocolType,
   assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
-import { TxSubmitterInterface } from '../providers/transactions/submitter/TxSubmitterInterface.js';
-import { TxSubmitterType } from '../providers/transactions/submitter/TxSubmitterTypes.js';
 import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
-
-import { CustomTxSubmitterType, EV5FileTxSubmitterProps } from './types.js';
 
 export class EV5FileSubmitter
   implements TxSubmitterInterface<ProtocolType.Ethereum>

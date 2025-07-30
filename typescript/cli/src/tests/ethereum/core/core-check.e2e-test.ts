@@ -1,9 +1,10 @@
 import { expect } from 'chai';
 import { $ } from 'zx';
 
-import { randomAddress, writeYamlOrJson } from '@hyperlane-xyz/sdk';
+import { randomAddress } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   ANVIL_KEY,

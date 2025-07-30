@@ -12,8 +12,6 @@ import {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -21,6 +19,7 @@ import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { getContext } from '../../../context/context.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,

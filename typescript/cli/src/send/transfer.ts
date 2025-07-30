@@ -10,7 +10,6 @@ import {
   TokenAmount,
   WarpCore,
   WarpCoreConfig,
-  indentYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
 
@@ -18,6 +17,7 @@ import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
+import { indentYamlOrJson } from '../utils/files.js';
 import { runSelfRelay } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
 

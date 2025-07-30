@@ -1,13 +1,7 @@
 import { confirm, input } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import {
-  ChainMap,
-  MultisigIsmConfig,
-  ZHash,
-  mergeYamlOrJson,
-  readYamlOrJson,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, MultisigIsmConfig, ZHash } from '@hyperlane-xyz/sdk';
 import {
   Address,
   isValidAddress,
@@ -18,6 +12,7 @@ import {
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
+import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 const MultisigConfigMapSchema = z.object({}).catchall(
   z.object({

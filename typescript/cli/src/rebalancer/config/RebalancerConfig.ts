@@ -4,9 +4,10 @@ import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
   type StrategyConfig,
-  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
+
+import { readYamlOrJson } from '../../utils/files.js';
 
 export class RebalancerConfig {
   constructor(

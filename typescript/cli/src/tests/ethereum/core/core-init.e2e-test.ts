@@ -7,10 +7,10 @@ import {
   MerkleTreeHookConfig,
   ProtocolFeeHookConfig,
   randomAddress,
-  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, normalizeAddress } from '@hyperlane-xyz/utils';
 
+import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   CONFIRM_DETECTED_OWNER_STEP,

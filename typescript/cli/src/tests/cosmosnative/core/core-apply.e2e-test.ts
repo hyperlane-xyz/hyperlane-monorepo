@@ -8,11 +8,10 @@ import {
   CoreConfig,
   IgpConfig,
   randomCosmosAddress,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   CHAIN_1_METADATA_PATH,

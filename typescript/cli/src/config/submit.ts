@@ -1,17 +1,16 @@
 import { stringify as yamlStringify } from 'yaml';
 
-import {
-  AnnotatedEV5Transaction,
-  ChainName,
-  indentYamlOrJson,
-  readYamlOrJson,
-  writeYamlOrJson,
-} from '@hyperlane-xyz/sdk';
+import { AnnotatedEV5Transaction, ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType, errorToString } from '@hyperlane-xyz/utils';
 
 import { WriteCommandContext } from '../context/types.js';
 import { getSubmitterByStrategy } from '../deploy/warp.js';
 import { logGray, logRed } from '../logger.js';
+import {
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
 
 export async function runSubmit({
   context,

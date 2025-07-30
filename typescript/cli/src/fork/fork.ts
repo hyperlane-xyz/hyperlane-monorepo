@@ -17,7 +17,6 @@ import {
   RevertAssertion,
   TransactionDataType,
   forkedChainConfigByChainFromRaw,
-  readYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -29,6 +28,7 @@ import {
 
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed } from '../logger.js';
+import { readYamlOrJson } from '../utils/files.js';
 
 const LOCAL_HOST = 'http://127.0.0.1';
 

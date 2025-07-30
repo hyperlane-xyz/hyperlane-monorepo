@@ -18,8 +18,6 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -30,6 +28,7 @@ import {
   toWei,
 } from '@hyperlane-xyz/utils';
 
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   createSnapshot,

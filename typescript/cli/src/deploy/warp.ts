@@ -15,7 +15,6 @@ import {
   ChainMap,
   ChainName,
   ContractVerifier,
-  EV5FileSubmitter,
   EvmERC20WarpModule,
   ExplorerLicenseType,
   ExtendedChainSubmissionStrategy,
@@ -44,13 +43,10 @@ import {
   getRouterAddressesFromWarpCoreConfig,
   getSubmitterBuilder,
   getTokenConnectionId,
-  indentYamlOrJson,
   isCollateralTokenConfig,
   isXERC20TokenConfig,
-  readYamlOrJson,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -74,6 +70,12 @@ import {
   warnYellow,
 } from '../logger.js';
 import { WarpSendLogs } from '../send/transfer.js';
+import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
+import {
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
 import { canSelfRelay, runSelfRelay } from '../utils/relay.js';
 
 import {

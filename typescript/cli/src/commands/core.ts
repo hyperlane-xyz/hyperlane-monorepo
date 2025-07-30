@@ -7,8 +7,6 @@ import {
   DeployedCoreAddressesSchema,
   MultiProtocolSignerManager,
   normalizeConfig,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { diffObjMerge } from '@hyperlane-xyz/utils';
 
@@ -24,7 +22,11 @@ import { runCoreApply, runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { log, logCommandHeader, logGreen } from '../logger.js';
 import { executeCoreRead } from '../read/core.js';
-import { logYamlIfUnderMaxLines } from '../utils/files.js';
+import {
+  logYamlIfUnderMaxLines,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
 
 import {

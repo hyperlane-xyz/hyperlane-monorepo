@@ -15,12 +15,11 @@ import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
-  readYamlOrJson,
-  writeYamlOrJson,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, inCIMode } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { KeyBoardKeys, TestPromptAction } from '../../commands/helpers.js';
 import {
   ANVIL_KEY,
