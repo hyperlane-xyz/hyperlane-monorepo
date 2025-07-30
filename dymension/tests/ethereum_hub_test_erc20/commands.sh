@@ -10,7 +10,7 @@ cp /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/ethereum_test
 # deploy to anvil 0
 hyperlane core deploy
 
-# run steps from ethereum_test/commands.sh, up to but not including token
+# !! run steps from ethereum_hub_test_dym/commands.sh, up to but not including hub token object creation !!
 
 hub tx hyperlane-transfer create-synthetic-token $MAILBOX "${HUB_FLAGS[@]}"
 sleep 7;

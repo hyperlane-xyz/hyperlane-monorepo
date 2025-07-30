@@ -110,10 +110,13 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralCctpTokenConfig.bind(this),
       [TokenType.collateralVaultRebase]:
         this.deriveHypCollateralVaultRebaseTokenConfig.bind(this),
+      [TokenType.collateralMemo]: null,
       [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
+      [TokenType.nativeMemo]: null,
       [TokenType.nativeOpL2]: this.deriveOpL2TokenConfig.bind(this),
       [TokenType.nativeOpL1]: this.deriveOpL1TokenConfig.bind(this),
       [TokenType.synthetic]: this.deriveHypSyntheticTokenConfig.bind(this),
+      [TokenType.syntheticMemo]: null,
       [TokenType.syntheticRebase]:
         this.deriveHypSyntheticRebaseConfig.bind(this),
       [TokenType.nativeScaled]: null,

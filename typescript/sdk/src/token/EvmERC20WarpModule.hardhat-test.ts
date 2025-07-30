@@ -197,6 +197,17 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         type: TokenType.nativeScaled,
         allowedRebalancers,
       },
+      [TokenType.collateralMemo]: {
+        ...baseConfig,
+        type: TokenType.collateralMemo,
+        token: token.address,
+        allowedRebalancers,
+      },
+      [TokenType.nativeMemo]: {
+        ...baseConfig,
+        type: TokenType.nativeMemo,
+        allowedRebalancers,
+      },
     };
   };
 
