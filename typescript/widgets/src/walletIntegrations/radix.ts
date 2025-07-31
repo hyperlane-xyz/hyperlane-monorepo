@@ -7,6 +7,7 @@ import { useCallback, useMemo } from 'react';
 
 import {
   ChainName,
+  IToken,
   MultiProtocolProvider,
   ProviderType,
   TypedTransactionReceipt,
@@ -24,7 +25,9 @@ import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
+  SwitchNetworkFns,
   WalletDetails,
+  WatchAssetFns,
 } from './types.js';
 
 export function useRadixAccount(
@@ -107,22 +110,43 @@ export function useRadixActiveChain(
   return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
-export function useRadixTransactionFns(
+export function useRadixSwitchNetwork(
   multiProvider: MultiProtocolProvider,
-): ChainTransactionFns {
-  const rdt = useRdt();
-  const gatewayApi = useGatewayApi();
-
+): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
       const displayName =
         multiProvider.getChainMetadata(chainName).displayName || chainName;
+      // Radix does not have switch capability
       throw new Error(
         `Radix wallet must be connected to origin chain ${displayName}}`,
       );
     },
     [multiProvider],
   );
+
+  return { switchNetwork: onSwitchNetwork };
+}
+
+export function useRadixWatchAsset(
+  _multiProvider: MultiProtocolProvider,
+): WatchAssetFns {
+  const onAddAsset = useCallback(
+    async (_token: IToken, _activeChainName: ChainName) => {
+      throw new Error('Watch asset not available for Radix');
+    },
+    [],
+  );
+
+  return { addAsset: onAddAsset };
+}
+
+export function useRadixTransactionFns(
+  multiProvider: MultiProtocolProvider,
+): ChainTransactionFns {
+  const rdt = useRdt();
+  const gatewayApi = useGatewayApi();
+  const { switchNetwork } = useRadixSwitchNetwork(multiProvider);
 
   const onSendTx = useCallback(
     async ({
@@ -176,7 +200,7 @@ export function useRadixTransactionFns(
       };
       return { hash: transactionResult.value.transactionIntentHash, confirm };
     },
-    [onSwitchNetwork],
+    [switchNetwork],
   );
 
   const onMultiSendTx = useCallback(
@@ -191,12 +215,12 @@ export function useRadixTransactionFns(
     }) => {
       throw new Error('Multi Transactions not supported on Radix');
     },
-    [onSwitchNetwork, multiProvider],
+    [],
   );
 
   return {
     sendTransaction: onSendTx,
     sendMultiTransaction: onMultiSendTx,
-    switchNetwork: onSwitchNetwork,
+    switchNetwork,
   };
 }

@@ -31,6 +31,7 @@ import {
   useRadixDisconnectFn,
   useRadixTransactionFns,
   useRadixWalletDetails,
+  useRadixWatchAsset,
 } from './radix.js';
 import {
   useSolanaAccount,
@@ -427,6 +428,7 @@ export function useWatchAsset(
   const { addAsset: solanaAddAsset } = useSolanaWatchAsset(multiProvider);
   const { addAsset: cosmosAddAsset } = useCosmosWatchAsset(multiProvider);
   const { addAsset: starknetAddAsset } = useStarknetWatchAsset(multiProvider);
+  const { addAsset: radixAddAsset } = useRadixWatchAsset(multiProvider);
 
   return useMemo(
     () => ({
@@ -444,6 +446,9 @@ export function useWatchAsset(
       },
       [ProtocolType.Starknet]: {
         addAsset: starknetAddAsset,
+      },
+      [ProtocolType.Radix]: {
+        addAsset: radixAddAsset,
       },
     }),
     [evmAddAsset, solanaAddAsset, cosmosAddAsset, starknetAddAsset],
