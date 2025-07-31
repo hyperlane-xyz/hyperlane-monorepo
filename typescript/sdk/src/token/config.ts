@@ -47,6 +47,10 @@ export type MovableTokenType = {
     : never;
 }[keyof typeof isMovableCollateralTokenTypeMap];
 
+export type EverclearTokenBridgeTokenType =
+  | TokenType.ethEverclear
+  | TokenType.collateralEverclear;
+
 export function isMovableCollateralTokenType(type: TokenType): boolean {
   return !!isMovableCollateralTokenTypeMap[type];
 }

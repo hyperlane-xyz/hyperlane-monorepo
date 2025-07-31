@@ -19,6 +19,8 @@ import {
   Mailbox,
   MailboxClient__factory,
   Mailbox__factory,
+  MockEverclearAdapter,
+  MockEverclearAdapter__factory,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -61,6 +63,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import {
+  EverclearTokenBridgeTokenType,
   MovableTokenType,
   TokenType,
   isMovableCollateralTokenType,
@@ -100,6 +103,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   let vault: ERC4626Test;
   let token: ERC20Test;
   let feeToken: ERC20Test;
+  let everclearBridgeAdapterMockFactory: MockEverclearAdapter__factory;
+  let everclearBridgeAdapterMock: MockEverclearAdapter;
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
@@ -150,6 +155,12 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
     ismAddress = await mailbox.defaultIsm();
+
+    everclearBridgeAdapterMockFactory = new MockEverclearAdapter__factory(
+      signer,
+    );
+    everclearBridgeAdapterMock =
+      await everclearBridgeAdapterMockFactory.deploy();
   });
 
   const movableCollateralTypes = Object.values(TokenType).filter(
@@ -194,6 +205,36 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         ...baseConfig,
         type: TokenType.nativeScaled,
         allowedRebalancers,
+      },
+    };
+  };
+
+  const getEverclearTokenBridgeTokenConfig = (): Record<
+    EverclearTokenBridgeTokenType,
+    HypTokenRouterConfig
+  > => {
+    const everclearFeeParams = {
+      deadline: Date.now(),
+      fee: randomInt(1000),
+      signature: '',
+    };
+
+    return {
+      [TokenType.collateralEverclear]: {
+        type: TokenType.collateralEverclear,
+        token: token.address,
+        ...baseConfig,
+        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearFeeParams,
+        outputAssets: {},
+      },
+      [TokenType.ethEverclear]: {
+        type: TokenType.ethEverclear,
+        wethAddress: token.address,
+        ...baseConfig,
+        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearFeeParams,
+        outputAssets: {},
       },
     };
   };
@@ -352,6 +393,27 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       });
 
       await assertAllowedRebalancers(evmERC20WarpModule, expectedRebalancers);
+    });
+  }
+
+  for (const tokenType of [
+    TokenType.ethEverclear,
+    TokenType.collateralEverclear,
+  ] as EverclearTokenBridgeTokenType[]) {
+    it.only(`should create ${tokenType} token`, async () => {
+      const config: HypTokenRouterConfig =
+        getEverclearTokenBridgeTokenConfig()[tokenType];
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      // TODO: update this once there is reader support
+      await expect(evmERC20WarpModule).not.to.rejected;
     });
   }
 

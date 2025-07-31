@@ -240,6 +240,7 @@ export const isEverclearCollateralTokenConfig = isCompliant(
 
 export const EverclearEthBridgeTokenConfigSchema = z.object({
   type: z.literal(TokenType.ethEverclear),
+  wethAddress: ZHash,
   ...NativeTokenConfigSchema.omit({ type: true }).shape,
   ...BaseEverclearTokenBridgeConfigSchema.shape,
 });
