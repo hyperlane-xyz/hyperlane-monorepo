@@ -13,6 +13,8 @@ on:
 
 jobs:
   build:
+    env:
+      DOCKER_REGISTRY: us-east1-docker.pkg.dev
     runs-on: depot-ubuntu-24.04
     permissions:
       contents: read
@@ -32,12 +34,14 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v3
         with:
-          registry: us-east1-docker.pkg.dev
+          registry: ${{ env.DOCKER_REGISTRY }}
           username: _json_key
           password: ${{ secrets.GCLOUD_SERVICE_KEY }}
 
       - name: Build and push image
         uses: depot/build-push-action@v1
+        env:
+          IMAGE_TAG: hyperlane/solana-tools:${{ matrix.solana-version }}
         with:
           push: ${{ github.ref == 'refs/heads/main' }}
           save: ${{ github.ref != 'refs/heads/main' }}
@@ -46,6 +50,6 @@ jobs:
           context: ./rust/sealevel/images/solana-cli
           build-args: |
             SOLANA_VERSION=${{ matrix.solana-version }}
-          save-tag: ${{ github.ref == 'refs/heads/main' && format('hyperlane/solana-tools:{0}', matrix.solana-version) || '' }}
+          save-tag: ${{ github.ref == 'refs/heads/main' && env.IMAGE_TAG || '' }}
           tags: |
-            us-east1-docker.pkg.dev/abacus-labs-dev/hyperlane/solana-tools:${{ matrix.solana-version }}
+            ${{ env.DOCKER_REGISTRY }}/abacus-labs-dev/${{ env.IMAGE_TAG }}
