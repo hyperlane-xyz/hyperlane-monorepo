@@ -9,9 +9,7 @@ use std::{
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
-use futures::future::join_all;
 use futures_util::future::try_join_all;
-use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
@@ -33,8 +31,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment,
-    MerkleTreeInsertion, QueueOperation, H512, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
+    H512, U256,
 };
 use lander::DispatcherMetrics;
 
@@ -172,12 +170,6 @@ impl BaseAgent for Relayer {
         let db = DB::from_path(&settings.db)?;
 
         start_entity_init = Instant::now();
-        let application_operation_verifiers =
-            Self::build_application_operation_verifiers(&settings, &core_metrics, &chain_metrics)
-                .await;
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized application operation verifiers", "Relayer startup duration measurement");
-
-        start_entity_init = Instant::now();
         let origins =
             Self::build_origins(&settings, db.clone(), core_metrics.clone(), &chain_metrics).await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized origin chains", "Relayer startup duration measurement");
@@ -210,51 +202,14 @@ impl BaseAgent for Relayer {
             "Whitelist configuration"
         );
 
-        // only iterate through destination chains that were successfully instantiated
-        start_entity_init = Instant::now();
-        let mut ccip_signer_futures: Vec<_> = Vec::with_capacity(destinations.len());
-        for destination in destinations.keys() {
-            let destination_chain_setup = match core.settings.chain_setup(destination) {
-                Ok(setup) => setup.clone(),
-                Err(err) => {
-                    tracing::error!(?destination, ?err, "Destination chain setup failed");
-                    continue;
-                }
-            };
-            let signer = destination_chain_setup.signer.clone();
-            let future = async move {
-                if !matches!(
-                    destination.domain_protocol(),
-                    HyperlaneDomainProtocol::Ethereum
-                ) {
-                    return (destination, None);
-                }
-                let signer = if let Some(builder) = signer {
-                    match builder.build::<hyperlane_ethereum::Signers>().await {
-                        Ok(signer) => Some(signer),
-                        Err(err) => {
-                            warn!(error = ?err, "Failed to build Ethereum signer for CCIP-read ISM. ");
-                            None
-                        }
-                    }
-                } else {
-                    None
-                };
-                (destination, signer)
-            };
-            ccip_signer_futures.push(future);
-        }
-        let ccip_signers = join_all(ccip_signer_futures)
-            .await
-            .into_iter()
-            .collect::<HashMap<_, _>>();
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized ccip signers", "Relayer startup duration measurement");
-
         start_entity_init = Instant::now();
         let mut msg_ctxs = HashMap::new();
         let mut destination_chains = HashMap::new();
         for (destination_domain, destination) in destinations.iter() {
             let destination_mailbox = destination.mailbox.clone();
+            let application_operation_verifier = destination.application_operation_verifier.clone();
+            let ccip_signer = destination.ccip_signer.clone();
+
             let destination_chain_setup = match core.settings.chain_setup(destination_domain) {
                 Ok(setup) => setup.clone(),
                 Err(err) => {
@@ -269,9 +224,6 @@ impl BaseAgent for Relayer {
                 } else {
                     transaction_gas_limit
                 };
-
-            let application_operation_verifier =
-                application_operation_verifiers.get(destination_domain);
 
             // only iterate through origin chains that were successfully instantiated
             for (origin_domain, origin) in origins.iter() {
@@ -307,7 +259,7 @@ impl BaseAgent for Relayer {
                         default_ism_getter.clone(),
                         settings.ism_cache_configs.clone(),
                     ),
-                    ccip_signers.get(destination_domain).cloned().flatten(),
+                    ccip_signer.clone(),
                     origin_chain_setup.ignore_reorg_reports,
                 );
 
@@ -328,7 +280,7 @@ impl BaseAgent for Relayer {
                             origin_domain,
                             destination_domain,
                         ),
-                        application_operation_verifier: application_operation_verifier.cloned(),
+                        application_operation_verifier: application_operation_verifier.clone(),
                     }),
                 );
             }
@@ -1069,36 +1021,6 @@ impl Relayer {
             });
 
         destinations
-    }
-
-    /// Helper function to build and return a hashmap of application operation verifiers.
-    /// Any chains that fail to build application operation verifier will not be included
-    /// in the hashmap. Errors will be logged and chain metrics
-    /// will be updated for chains that fail to build application operation verifier.
-    pub async fn build_application_operation_verifiers(
-        settings: &RelayerSettings,
-        core_metrics: &CoreMetrics,
-        chain_metrics: &ChainMetrics,
-    ) -> HashMap<HyperlaneDomain, Arc<dyn ApplicationOperationVerifier>> {
-        settings
-            .build_application_operation_verifiers(settings.destination_chains.iter(), core_metrics)
-            .await
-            .into_iter()
-            .filter_map(
-                |(origin, app_context_verifier_res)| match app_context_verifier_res {
-                    Ok(app_context_verifier) => Some((origin, app_context_verifier)),
-                    Err(err) => {
-                        Self::record_critical_error(
-                            &origin,
-                            chain_metrics,
-                            &err,
-                            "Critical error when building application operation verifier",
-                        );
-                        None
-                    }
-                },
-            )
-            .collect()
     }
 
     fn reset_critical_errors(settings: &RelayerSettings, chain_metrics: &ChainMetrics) {
