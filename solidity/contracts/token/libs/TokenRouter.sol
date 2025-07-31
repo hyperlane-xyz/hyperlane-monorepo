@@ -61,62 +61,45 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     function token() public view virtual returns (address);
 
     /**
-     * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
+     * @notice Transfers `_amount` token to `_recipient` on `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
      * @dev Emits `SentTransferRemote` event on the origin chain.
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
-     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient.
      * @return messageId The identifier of the dispatched message.
      */
     function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amountOrId
+        uint256 _amount
     ) public payable virtual returns (bytes32 messageId) {
-        (uint256 _dispatchValue, bytes memory _tokenMessage) = _beforeDispatch(
-            _destination,
-            _recipient,
-            _amountOrId
-        );
-
-        // effects
-        emit SentTransferRemote(_destination, _recipient, _amountOrId);
-
-        // interactions
-        // TODO: Consider flattening with GasRouter
-        messageId = _GasRouter_dispatch(
-            _destination,
-            _dispatchValue,
-            _tokenMessage,
-            address(hook)
-        );
-    }
-
-    function _beforeDispatch(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal virtual returns (uint256 dispatchValue, bytes memory message) {
-        dispatchValue = _chargeSender(_destination, _recipient, _amount);
-        message = TokenMessage.format(_recipient, _outboundAmount(_amount));
-    }
-
-    function _chargeSender(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal virtual returns (uint256 dispatchValue) {
         uint256 fee = _feeAmount(_destination, _recipient, _amount);
         _transferFromSender(_amount + fee);
         if (fee > 0) {
             _transferTo(feeRecipient(), fee);
         }
-        return msg.value;
+
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            _outboundAmount(_amount)
+        );
+
+        // effects
+        emit SentTransferRemote(_destination, _recipient, _amount);
+
+        // interactions
+        // TODO: Consider flattening with GasRouter
+        messageId = _GasRouter_dispatch(
+            _destination,
+            msg.value,
+            _tokenMessage,
+            address(hook)
+        );
     }
 
     /**
-     * @dev Should transfer `_amountOrId` of tokens from `msg.sender` to this token router.
+     * @dev Should transfer `_amount` of tokens from `msg.sender` to this token router.
      * @dev Called by `transferRemote` before message dispatch.
      */
     function _transferFromSender(uint256 _amountOrId) internal virtual;
@@ -196,6 +179,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         return quotes;
     }
 
+    // TODO: add documentation, that this is the fee amount for token bridging purposes but only for the feeRecipient, unlike quoteTransferRemote which quotes the total amount (including fee + gas payment)
+    // Have to figure this out how this overlaps with fees for underlying bridges
     function _feeAmount(
         uint32 _destination,
         bytes32 _recipient,

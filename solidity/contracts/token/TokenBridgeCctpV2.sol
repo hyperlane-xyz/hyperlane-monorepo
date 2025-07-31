@@ -162,35 +162,42 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         return (amount * maxFeeBps) / 10_000;
     }
 
-    function _beforeDispatch(
-        uint32 destination,
-        bytes32 recipient,
-        uint256 amount
-    )
-        internal
-        virtual
-        override
-        returns (uint256 dispatchValue, bytes memory message)
-    {
-        uint256 burnAmount = amount +
-            _feeAmount(destination, recipient, amount);
+    // TODO: Consider deduping with v1
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public payable virtual override returns (bytes32 messageId) {
+        uint256 burnAmount = _amount +
+            _feeAmount(_destination, _recipient, _amount);
 
         _transferFromSender(burnAmount);
 
-        uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
+        uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
 
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
             burnAmount,
             circleDomain,
-            recipient,
+            _recipient,
             address(wrappedToken),
             bytes32(0), // allow anyone to relay
             maxFeeBps,
             minFinalityThreshold
         );
 
-        dispatchValue = msg.value;
-        message = TokenMessage.format(recipient, burnAmount);
-        _validateTokenMessageLength(message);
+        bytes memory _message = TokenMessage.format(_recipient, burnAmount);
+        _validateTokenMessageLength(_message);
+
+        // effects
+        emit SentTransferRemote(_destination, _recipient, _amount);
+
+        // interactions
+        // TODO: Consider flattening with GasRouter
+        messageId = _GasRouter_dispatch(
+            _destination,
+            msg.value,
+            _message,
+            address(hook)
+        );
     }
 }
