@@ -24,6 +24,8 @@ export enum TokenStandard {
   EvmHypVSXERC20 = 'EvmHypVSXERC20',
   EvmHypVSXERC20Lockbox = 'EvmHypVSXERC20Lockbox',
   EvmM0PortalLite = 'EvmM0PortalLite',
+  EvmHypEverclearCollateral = 'EvmHypEverclearCollateral',
+  EvmHypEverclearEth = 'EvmHypEverclearEth',
 
   // Sealevel (Solana)
   SealevelSpl = 'SealevelSpl',
@@ -80,6 +82,8 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   EvmHypVSXERC20: ProtocolType.Ethereum,
   EvmHypVSXERC20Lockbox: ProtocolType.Ethereum,
   EvmM0PortalLite: ProtocolType.Ethereum,
+  [TokenStandard.EvmHypEverclearCollateral]: ProtocolType.Ethereum,
+  [TokenStandard.EvmHypEverclearEth]: ProtocolType.Ethereum,
 
   // Sealevel (Solana)
   SealevelSpl: ProtocolType.Sealevel,
@@ -289,6 +293,8 @@ export const EVM_TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.collateralCctp]: TokenStandard.EvmHypCollateral,
   [TokenType.nativeOpL1]: TokenStandard.EvmHypNative,
   [TokenType.nativeOpL2]: TokenStandard.EvmHypNative,
+  [TokenType.ethEverclear]: TokenStandard.EvmHypEverclearEth,
+  [TokenType.collateralEverclear]: TokenStandard.EvmHypEverclearCollateral,
 };
 
 // Cosmos Native supported token types

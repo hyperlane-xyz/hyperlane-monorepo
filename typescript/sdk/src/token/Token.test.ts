@@ -132,6 +132,8 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'mUSD',
     name: 'MetaMask USD',
   },
+  [TokenStandard.EvmHypEverclearCollateral]: null,
+  [TokenStandard.EvmHypEverclearEth]: null,
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
