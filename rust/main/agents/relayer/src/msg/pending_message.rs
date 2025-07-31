@@ -1042,7 +1042,7 @@ impl PendingMessage {
                 root,
                 canonical_root,
             } => {
-                warn!(?root, ?canonical_root, "Nerkle root mismatch");
+                warn!(?root, ?canonical_root, "Merkle root mismatch");
                 self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
             }
         });

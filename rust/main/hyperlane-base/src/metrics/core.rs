@@ -277,7 +277,7 @@ impl CoreMetrics {
         let merkle_root_mismatch = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("merkle_root_mismatch"),
-                "Number of merkle root mismatch",
+                "Merkle root mismatch",
                 const_labels_ref
             ),
             &["origin"],
