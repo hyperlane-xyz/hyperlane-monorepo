@@ -47,6 +47,6 @@ jobs:
           context: ./rust/sealevel/images/solana-cli
           build-args: |
             SOLANA_VERSION=${{ matrix.solana-version }}
-          save-tag: hyperlane/solana-tools:${{ matrix.solana-version }}
+          save-tag: ${{ github.ref == 'refs/heads/main' && format('hyperlane/solana-tools:{0}', matrix.solana-version) || '' }}
           tags: |
-            us-central1-docker.pkg.dev/abacus-labs-dev/hyperlane/solana-tools:${{ matrix.solana-version }}
+            us-east1-docker.pkg.dev/abacus-labs-dev/hyperlane/solana-tools:${{ matrix.solana-version }}
