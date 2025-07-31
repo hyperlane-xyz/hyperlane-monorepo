@@ -160,8 +160,13 @@ export class RadixCoreModule extends HyperlaneModule<
       await signer.tx.setMailboxOwner({ mailbox, new_owner: config.owner });
     }
 
+    const validatorAnnounce = await signer.tx.createValidatorAnnounce({
+      mailbox,
+    });
+
     const addresses: DeployedCoreAddresses = {
       mailbox,
+      validatorAnnounce,
       staticMerkleRootMultisigIsmFactory: '',
       proxyAdmin: '',
       staticMerkleRootWeightedMultisigIsmFactory: '',
@@ -169,7 +174,6 @@ export class RadixCoreModule extends HyperlaneModule<
       staticAggregationIsmFactory: '',
       staticMessageIdMultisigIsmFactory: '',
       staticMessageIdWeightedMultisigIsmFactory: '',
-      validatorAnnounce: '',
       testRecipient: '',
       interchainAccountRouter: '',
       domainRoutingIsmFactory: '',
