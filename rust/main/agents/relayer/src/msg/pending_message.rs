@@ -80,7 +80,7 @@ pub struct MessageContext {
     pub transaction_gas_limit: Option<U256>,
     pub metrics: MessageSubmissionMetrics,
     /// Application operation verifier
-    pub application_operation_verifier: Option<Arc<dyn ApplicationOperationVerifier>>,
+    pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
 }
 
 /// A message that is pending processing and submission.
@@ -965,7 +965,6 @@ impl PendingMessage {
         match self
             .ctx
             .application_operation_verifier
-            .as_ref()?
             .verify(&self.app_context, &self.message)
             .await
         {

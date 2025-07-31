@@ -1,5 +1,14 @@
 # @hyperlane-xyz/cli
 
+## 16.1.0
+
+## 16.0.0
+
+### Minor Changes
+
+- 3fac22334: Fix FileSubmitterStrategy to correctly append a transaction file
+- a2596f0d9: Add GET `warp-route/core` to HTTP Registry Server
+
 ## 15.0.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/http-registry-server",
-  "version": "15.0.0",
+  "version": "16.1.0",
   "private": true,
   "description": "An HTTP server for the Hyperlane registry",
   "license": "Apache-2.0",
@@ -25,9 +25,9 @@
     "test:unit": "mocha --config .mocharc.json './test/**/*.ts' --exit"
   },
   "dependencies": {
-    "@hyperlane-xyz/registry": "19.2.0",
-    "@hyperlane-xyz/sdk": "15.0.0",
-    "@hyperlane-xyz/utils": "15.0.0",
+    "@hyperlane-xyz/registry": "20.0.0",
+    "@hyperlane-xyz/sdk": "16.1.0",
+    "@hyperlane-xyz/utils": "16.1.0",
     "express": "^5.1.0",
     "pino": "^8.19.0",
     "zod": "^3.21.2",
@@ -45,7 +45,7 @@
     "@types/yargs": "^17.0.24",
     "chai": "^4.5.0",
     "chai-as-promised": "^8.0.1",
-    "eslint": "^9.15.0",
+    "eslint": "^9.31.0",
     "mocha": "^11.5.0",
     "pino-pretty": "^13.0.0",
     "prettier": "^3.5.3",

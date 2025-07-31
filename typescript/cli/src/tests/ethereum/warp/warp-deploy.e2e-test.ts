@@ -35,10 +35,10 @@ import {
   TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
+import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH,
   deploy4626Vault,
-  deployOrUseExistingCore,
   deployToken,
 } from '../commands/helpers.js';
 import {

@@ -490,6 +490,11 @@ export const kesselRunnerNetworks = [
   'bsctestnet',
   'optimismsepolia',
 ];
+
+// Relayer Neutron Testnet is not running at the moment, but we keep the config
+// If you would like to run it for testing purposes, you should configure it
+// only for chains you would like to run it.
+// Relayer Neutron Testnet should not relay messages for `infinityvmmonza`.
 const neutron: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Neutron,

@@ -2,9 +2,10 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { IRegistry } from '@hyperlane-xyz/registry';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
+import { EMPTY_BYTES_32 } from '../../../../timelock/evm/constants.js';
+import { ChainMap } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import {
   AnnotatedEV5Transaction,
@@ -24,9 +25,6 @@ type EvmTimelockControllerSubmitterConstructorConfig = Required<
   >
 >;
 
-const ZERO_32_BYTES =
-  '0x0000000000000000000000000000000000000000000000000000000000000000';
-
 export class EV5TimelockSubmitter
   implements TxSubmitterInterface<ProtocolType.Ethereum>
 {
@@ -43,7 +41,7 @@ export class EV5TimelockSubmitter
   static async fromConfig(
     config: EvmTimelockControllerSubmitterProps,
     multiProvider: MultiProvider,
-    registry: Readonly<IRegistry>,
+    coreAddressesByChain: ChainMap<Record<string, string>>,
   ): Promise<EV5TimelockSubmitter> {
     const provider = multiProvider.getProvider(config.chain);
     const timelockInstance = TimelockController__factory.connect(
@@ -61,15 +59,15 @@ export class EV5TimelockSubmitter
     const proposerSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
       config.proposerSubmitter,
-      registry,
+      coreAddressesByChain,
     );
 
     return new EV5TimelockSubmitter(
       {
         chain: config.chain,
         delay,
-        predecessor: config.predecessor ?? ZERO_32_BYTES,
-        salt: config.salt ?? ZERO_32_BYTES,
+        predecessor: config.predecessor ?? EMPTY_BYTES_32,
+        salt: config.salt ?? EMPTY_BYTES_32,
       },
       multiProvider,
       proposerSubmitter,
