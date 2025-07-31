@@ -1,5 +1,20 @@
 # @hyperlane-xyz/widgets
 
+## 16.1.0
+
+### Minor Changes
+
+- b9753277e: Add useWatchAsset fns and refactor switchNetwork
+
+### Patch Changes
+
+- Updated dependencies [2a2c29c39]
+- Updated dependencies [e69ac9f62]
+- Updated dependencies [d9b8a7551]
+  - @hyperlane-xyz/sdk@16.1.0
+  - @hyperlane-xyz/cosmos-sdk@16.1.0
+  - @hyperlane-xyz/utils@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes
