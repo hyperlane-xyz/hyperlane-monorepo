@@ -305,8 +305,9 @@ impl BaseAgent for Relayer {
         let mut msg_ctxs = HashMap::new();
         let mut destination_chains = HashMap::new();
         for (destination_domain, destination) in destinations.iter() {
-            let destination_mailbox = destination.mailbox.clone();
             let application_operation_verifier = destination.application_operation_verifier.clone();
+            let destination_mailbox = destination.mailbox.clone();
+            let default_ism_getter = DefaultIsmCache::new(destination_mailbox.clone());
             let ccip_signer = destination.ccip_signer.clone();
 
             let destination_chain_setup = match core.settings.chain_setup(destination_domain) {
@@ -333,7 +334,6 @@ impl BaseAgent for Relayer {
                         continue;
                     }
                 };
-                let default_ism_getter = DefaultIsmCache::new(destination_mailbox.clone());
                 let origin_chain_setup = match core.settings.chain_setup(origin) {
                     Ok(chain_setup) => chain_setup.clone(),
                     Err(err) => {
