@@ -12,6 +12,10 @@ import {
   FiatTokenTest__factory,
   Mailbox,
   Mailbox__factory,
+  MockEverclearAdapter,
+  MockEverclearAdapter__factory,
+  MockWETH,
+  MockWETH__factory,
   XERC20LockboxTest__factory,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
@@ -22,7 +26,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   test3,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -33,9 +37,9 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
-import { TokenType } from './config.js';
+import { EverclearTokenBridgeTokenType, TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { derivedIsmAddress } from './types.js';
+import { HypTokenRouterConfig, derivedIsmAddress } from './types.js';
 
 describe('ERC20WarpRouterReader', async () => {
   const TOKEN_NAME = 'fake';
@@ -47,6 +51,8 @@ describe('ERC20WarpRouterReader', async () => {
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
   let erc20Factory: ERC20Test__factory;
   let token: ERC20Test;
+  let wethMockFactory: MockWETH__factory;
+  let weth: MockWETH;
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
   let multiProvider: MultiProvider;
@@ -57,6 +63,9 @@ describe('ERC20WarpRouterReader', async () => {
   let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
   let vault: ERC4626;
   let collateralFiatToken: FiatTokenTest;
+  let everclearBridgeAdapterMockFactory: MockEverclearAdapter__factory;
+  let everclearBridgeAdapterMock: MockEverclearAdapter;
+
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -76,6 +85,9 @@ describe('ERC20WarpRouterReader', async () => {
       TOKEN_DECIMALS,
     );
 
+    wethMockFactory = new MockWETH__factory(signer);
+    weth = await wethMockFactory.deploy();
+
     baseConfig = routerConfigMap[chain];
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
     evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chain);
@@ -91,6 +103,12 @@ describe('ERC20WarpRouterReader', async () => {
       TOKEN_SUPPLY,
       TOKEN_DECIMALS,
     );
+
+    everclearBridgeAdapterMockFactory = new MockEverclearAdapter__factory(
+      signer,
+    );
+    everclearBridgeAdapterMock =
+      await everclearBridgeAdapterMockFactory.deploy();
   });
 
   beforeEach(async () => {
@@ -449,6 +467,73 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.owner).to.equal(config[chain].owner);
     expect(derivedConfig.token).to.equal(collateralFiatToken.address);
   });
+
+  const getEverclearTokenBridgeConfig = (): Record<
+    EverclearTokenBridgeTokenType,
+    HypTokenRouterConfig
+  > => {
+    return {
+      [TokenType.ethEverclear]: {
+        type: TokenType.ethEverclear,
+        wethAddress: weth.address,
+        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearFeeParams: {
+          deadline: Date.now(),
+          fee: randomInt(10000000),
+          signature: '0x',
+        },
+        outputAssets: {},
+        ...baseConfig,
+      },
+      [TokenType.collateralEverclear]: {
+        type: TokenType.collateralEverclear,
+        token: token.address,
+        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearFeeParams: {
+          deadline: Date.now(),
+          fee: randomInt(10000000),
+          signature: '0x',
+        },
+        outputAssets: {},
+        ...baseConfig,
+      },
+    };
+  };
+
+  for (const tokenType of [
+    TokenType.ethEverclear,
+    TokenType.collateralEverclear,
+  ] as EverclearTokenBridgeTokenType[]) {
+    it.only(`should derive ${tokenType} token correctly`, async () => {
+      // Create config
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: getEverclearTokenBridgeConfig()[tokenType],
+      };
+      // Deploy with config
+      const warpRoute = await deployer.deploy(config);
+
+      // Derive config and check if each value matches
+      const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+        warpRoute[chain][tokenType].address,
+      );
+
+      assert(derivedConfig.type === tokenType, `Must be ${tokenType}`);
+      expect(derivedConfig.type).to.equal(config[chain].type);
+      expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
+      expect(derivedConfig.owner).to.equal(config[chain].owner);
+      expect(derivedConfig.everclearBridgeAddress).to.equal(
+        everclearBridgeAdapterMock.address,
+      );
+
+      if (derivedConfig.type === TokenType.collateralEverclear) {
+        expect(derivedConfig.token).to.equal(token.address);
+      }
+
+      if (derivedConfig.type === TokenType.ethEverclear) {
+        expect(derivedConfig.wethAddress).to.equal(weth.address);
+      }
+    });
+  }
 
   it('should return 0x0 if ism is not set onchain', async () => {
     // Create config
