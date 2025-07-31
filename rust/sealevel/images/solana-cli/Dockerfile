@@ -26,14 +26,14 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     cargo install --locked sccache
 ENV RUSTC_WRAPPER=sccache SCCACHE_DIR=/sccache
-ENV GIT_ADVICE=0
 
 # Build Solana
 
 FROM base AS builder
-WORKDIR /usr/local/src/solana
+ENV GIT_ADVICE=0
 ARG SOLANA_VERSION=1.18.26
 ARG SPL_TOKEN_VERSION=3.4.1
+WORKDIR /usr/local/src/solana
 RUN git clone --depth 1 --branch v$SOLANA_VERSION https://github.com/solana-labs/solana.git .
 RUN test -f scripts/spl-token-cli-version.sh && \
 sed -i "s/^splTokenCliVersion=.*/splTokenCliVersion=$SPL_TOKEN_VERSION/" scripts/spl-token-cli-version.sh || true
