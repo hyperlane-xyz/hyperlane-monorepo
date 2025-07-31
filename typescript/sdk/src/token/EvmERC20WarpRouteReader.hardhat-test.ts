@@ -673,4 +673,32 @@ describe('ERC20WarpRouterReader', async () => {
     connectStub.restore();
     isLocalRpcStub.restore();
   });
+
+  it.only('should derive xERC20 warp route limits for a standard xERC20', async () => {
+    // Create token
+    const xerc20Token = await new XERC20Test__factory(signer).deploy(
+      TOKEN_NAME,
+      TOKEN_NAME,
+      TOKEN_SUPPLY,
+      TOKEN_DECIMALS,
+    );
+    // Create config
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.XERC20,
+        token: xerc20Token.address,
+        hook: await mailbox.defaultHook(),
+        interchainSecurityModule: await mailbox.defaultIsm(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].xERC20.address,
+    );
+    console.log('derivedConfig', derivedConfig);
+  });
 });
