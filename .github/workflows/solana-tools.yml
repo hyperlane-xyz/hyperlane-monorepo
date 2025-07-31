@@ -39,9 +39,8 @@ jobs:
       - name: Build and push image
         uses: depot/build-push-action@v1
         with:
-          # push: ${{ github.ref == 'refs/heads/main' }}
-          # save: ${{ github.ref != 'refs/heads/main' }}
-          push: true
+          push: ${{ github.ref == 'refs/heads/main' }}
+          save: ${{ github.ref != 'refs/heads/main' }}
           project: m6cdwcw0qj
           platforms: linux/amd64,linux/arm64
           context: ./rust/sealevel/images/solana-cli
