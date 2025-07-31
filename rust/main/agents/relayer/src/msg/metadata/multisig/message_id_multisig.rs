@@ -108,7 +108,8 @@ mod tests {
         MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder, MultisigMetadata,
     };
     use crate::msg::metadata::{
-        IsmBuildMetricsParams, MessageMetadataBuildParams, MessageMetadataBuilder, MetadataBuilder,
+        IsmBuildMetricsParams, MessageMetadataBuildParams, MessageMetadataBuilder,
+        MetadataBuildError, MetadataBuilder,
     };
     use crate::test_utils::mock_base_builder::build_mock_base_builder;
 
@@ -197,7 +198,9 @@ mod tests {
             .get_proof
             .lock()
             .unwrap()
-            .push_back(Err(eyre::eyre!("No Proof")));
+            .push_back(Err(MetadataBuildError::FailedToBuild(
+                "No proof found".into(),
+            )));
 
         let ism_address = H256::zero();
         let message_builder = {
@@ -276,7 +279,9 @@ mod tests {
             .get_proof
             .lock()
             .unwrap()
-            .push_back(Err(eyre::eyre!("No Proof")));
+            .push_back(Err(MetadataBuildError::FailedToBuild(
+                "No proof found".into(),
+            )));
 
         let multisig_syncer = MultisigCheckpointSyncer::new(syncers_dyn, None);
 
@@ -386,7 +391,9 @@ mod tests {
             .get_proof
             .lock()
             .unwrap()
-            .push_back(Err(eyre::eyre!("No Proof")));
+            .push_back(Err(MetadataBuildError::FailedToBuild(
+                "No proof found".into(),
+            )));
 
         let multisig_syncer = MultisigCheckpointSyncer::new(syncers_dyn, None);
 
