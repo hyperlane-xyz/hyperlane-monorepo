@@ -2,6 +2,8 @@ import { compareVersions } from 'compare-versions';
 import { Contract, constants } from 'ethers';
 
 import {
+  EverclearTokenBridge,
+  EverclearTokenBridge__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
@@ -12,6 +14,7 @@ import {
   IFiatToken__factory,
   IMessageTransmitter__factory,
   ISafe__factory,
+  IWETH__factory,
   IXERC20__factory,
   MovableCollateralRouter__factory,
   OpL1NativeTokenBridge__factory,
@@ -58,6 +61,8 @@ import {
   CollateralTokenConfig,
   ContractVerificationStatus,
   DerivedTokenRouterConfig,
+  EverclearCollateralTokenConfig,
+  EverclearEthBridgeTokenConfig,
   HypTokenConfig,
   HypTokenConfigSchema,
   HypTokenRouterVirtualConfig,
@@ -125,9 +130,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       [TokenType.nativeScaled]: null,
       [TokenType.collateralUri]: null,
       [TokenType.syntheticUri]: null,
-      // TODO: add everclear token derivation
-      [TokenType.ethEverclear]: null,
-      [TokenType.collateralEverclear]: null,
+      [TokenType.ethEverclear]:
+        this.deriveEverclearEthTokenBridgeConfig.bind(this),
+      [TokenType.collateralEverclear]:
+        this.deriveEverclearTokenbridgeConfig.bind(this),
     };
 
     this.contractVerifier =
@@ -456,7 +462,45 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
               error,
             );
           }
+
+          try {
+            const maybeEverclearTokenBridge =
+              EverclearTokenBridge__factory.connect(
+                warpRouteAddress,
+                this.provider,
+              );
+
+            await maybeEverclearTokenBridge.callStatic.feeParams();
+
+            let everclearTokenType = TokenType.collateralEverclear;
+            try {
+              // if simulating an ETH transfer works this should be the WETH contract
+              await this.provider.estimateGas({
+                from: NON_ZERO_SENDER_ADDRESS,
+                to: wrappedToken,
+                data: IWETH__factory.createInterface().encodeFunctionData(
+                  'deposit',
+                ),
+                value: 1,
+              });
+
+              everclearTokenType = TokenType.ethEverclear;
+            } catch (error) {
+              this.logger.debug(
+                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
+                error,
+              );
+            }
+
+            return everclearTokenType;
+          } catch (error) {
+            this.logger.debug(
+              `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
+              error,
+            );
+          }
         }
+
         return tokenType as TokenType;
       } catch {
         continue;
@@ -808,6 +852,87 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       ...erc20TokenMetadata,
       type: TokenType.syntheticRebase,
       collateralChainName,
+    };
+  }
+
+  private async deriveEverclearbridgeConfig(
+    everclearTokenbridgeInstance: EverclearTokenBridge,
+  ): Promise<
+    Pick<
+      EverclearEthBridgeTokenConfig,
+      'everclearBridgeAddress' | 'outputAssets' | 'everclearFeeParams'
+    >
+  > {
+    const [[deadline, fee, signature], everclearBridgeAddress, domains] =
+      await Promise.all([
+        everclearTokenbridgeInstance.feeParams(),
+        everclearTokenbridgeInstance.everclearAdapter(),
+        everclearTokenbridgeInstance.domains(),
+      ]);
+
+    const outputAssets = await promiseObjAll(
+      objMap(arrayToObject(domains.map(String)), async (domainId, _) =>
+        everclearTokenbridgeInstance.outputAssets(domainId),
+      ),
+    );
+
+    return {
+      everclearBridgeAddress,
+      outputAssets,
+      everclearFeeParams: {
+        deadline: deadline.toNumber(),
+        fee: fee.toNumber(),
+        signature,
+      },
+    };
+  }
+
+  private async deriveEverclearEthTokenBridgeConfig(
+    hypTokenAddress: Address,
+  ): Promise<EverclearEthBridgeTokenConfig> {
+    const everclearTokenbridgeInstance = EverclearTokenBridge__factory.connect(
+      hypTokenAddress,
+      this.provider,
+    );
+
+    const wethAddress = await everclearTokenbridgeInstance.wrappedToken();
+    const { everclearBridgeAddress, everclearFeeParams, outputAssets } =
+      await this.deriveEverclearbridgeConfig(everclearTokenbridgeInstance);
+
+    return {
+      type: TokenType.ethEverclear,
+      wethAddress,
+      everclearBridgeAddress,
+      everclearFeeParams,
+      outputAssets,
+    };
+  }
+
+  private async deriveEverclearTokenbridgeConfig(
+    hypTokenAddress: Address,
+  ): Promise<EverclearCollateralTokenConfig> {
+    const everclearTokenbridgeInstance = EverclearTokenBridge__factory.connect(
+      hypTokenAddress,
+      this.provider,
+    );
+
+    const collateralTokenAddress =
+      await everclearTokenbridgeInstance.wrappedToken();
+    const [
+      erc20TokenMetadata,
+      { everclearBridgeAddress, everclearFeeParams, outputAssets },
+    ] = await Promise.all([
+      this.fetchERC20Metadata(collateralTokenAddress),
+      this.deriveEverclearbridgeConfig(everclearTokenbridgeInstance),
+    ]);
+
+    return {
+      type: TokenType.collateralEverclear,
+      ...erc20TokenMetadata,
+      token: collateralTokenAddress,
+      everclearBridgeAddress,
+      everclearFeeParams,
+      outputAssets,
     };
   }
 

@@ -276,7 +276,10 @@ abstract class TokenDeployer<
         continue;
       }
 
-      if (isNativeTokenConfig(config)) {
+      if (
+        isNativeTokenConfig(config) ||
+        isEverclearEthBridgeTokenConfig(config)
+      ) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
           metadataMap.update(
@@ -292,7 +295,8 @@ abstract class TokenDeployer<
       if (
         isCollateralTokenConfig(config) ||
         isXERC20TokenConfig(config) ||
-        isCctpTokenConfig(config)
+        isCctpTokenConfig(config) ||
+        isEverclearCollateralTokenConfig(config)
       ) {
         const provider = multiProvider.getProvider(chain);
 

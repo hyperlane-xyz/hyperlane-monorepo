@@ -234,6 +234,10 @@ export const EverclearCollateralTokenConfigSchema = z.object({
   ...CollateralTokenConfigSchema.omit({ type: true }).shape,
   ...BaseEverclearTokenBridgeConfigSchema.shape,
 });
+
+export type EverclearCollateralTokenConfig = z.infer<
+  typeof EverclearCollateralTokenConfigSchema
+>;
 export const isEverclearCollateralTokenConfig = isCompliant(
   EverclearCollateralTokenConfigSchema,
 );
@@ -244,6 +248,10 @@ export const EverclearEthBridgeTokenConfigSchema = z.object({
   ...NativeTokenConfigSchema.omit({ type: true }).shape,
   ...BaseEverclearTokenBridgeConfigSchema.shape,
 });
+
+export type EverclearEthBridgeTokenConfig = z.infer<
+  typeof EverclearEthBridgeTokenConfigSchema
+>;
 export const isEverclearEthBridgeTokenConfig = isCompliant(
   EverclearEthBridgeTokenConfigSchema,
 );
