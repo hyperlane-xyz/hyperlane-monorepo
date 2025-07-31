@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use hyperlane_base::cursors::{CursorType, Indexable};
 use hyperlane_base::db::{HyperlaneRocksDB, DB};
-use hyperlane_base::settings::{ChainConf, IndexSettings, SequenceIndexer, TryFromWithMetrics};
+use hyperlane_base::settings::{ChainConf, SequenceIndexer, TryFromWithMetrics};
 use hyperlane_base::{
     ContractSync, ContractSyncMetrics, ContractSyncer, CoreMetrics, SequenceAwareLogStore,
     SequencedDataContractSync, WatermarkContractSync, WatermarkLogStore,
@@ -26,7 +26,7 @@ type MerkleTreeHookSync = Arc<dyn ContractSyncer<MerkleTreeInsertion>>;
 pub struct Origin {
     pub database: HyperlaneRocksDB,
     pub domain: HyperlaneDomain,
-    pub index_settings: IndexSettings,
+    pub chain_conf: ChainConf,
     pub validator_announce: Arc<dyn ValidatorAnnounce>,
     pub gas_payment_enforcer: Arc<RwLock<GasPaymentEnforcer>>,
     pub prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
@@ -171,7 +171,7 @@ impl Factory for OriginFactory {
         let origin = Origin {
             database: db,
             domain,
-            index_settings: chain_conf.index.clone(),
+            chain_conf: chain_conf.clone(),
             validator_announce,
             gas_payment_enforcer: Arc::new(RwLock::new(gas_payment_enforcer)),
             prover_sync: Arc::new(RwLock::new(prover_sync)),

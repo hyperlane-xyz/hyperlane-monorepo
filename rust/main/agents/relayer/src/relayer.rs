@@ -589,6 +589,13 @@ impl BaseAgent for Relayer {
             .origins
             .iter()
             .map(|(origin_domain, origin)| (origin_domain.id(), origin.database.clone()))
+            /*
+            .chain(
+                self.destinations
+                    .iter()
+                    .map(|(dest_domain, dest)| (dest_domain.id(), dest.database.clone())),
+            )
+             */
             .collect();
 
         let gas_enforcers: HashMap<_, _> = self
@@ -668,7 +675,7 @@ impl Relayer {
         let origin_domain = origin.domain.clone();
         let contract_sync = origin.message_sync.clone();
 
-        let index_settings = origin.index_settings.clone();
+        let index_settings = origin.chain_conf.index_settings().clone();
         let chain_metrics = self.chain_metrics.clone();
 
         let name = Self::contract_sync_task_name("message::", origin_domain.name());
@@ -725,7 +732,7 @@ impl Relayer {
         let chain_metrics = self.chain_metrics.clone();
 
         let origin_domain = origin.domain.clone();
-        let index_settings = origin.index_settings.clone();
+        let index_settings = origin.chain_conf.index_settings().clone();
 
         let name = Self::contract_sync_task_name("gas_payment::", origin_domain.name());
 
@@ -785,7 +792,7 @@ impl Relayer {
         let chain_metrics = self.chain_metrics.clone();
 
         let origin_domain = origin.domain.clone();
-        let index_settings = origin.index_settings.clone();
+        let index_settings = origin.chain_conf.index_settings().clone();
         let contract_sync = origin.merkle_tree_hook_sync.clone();
 
         let name = Self::contract_sync_task_name("merkle_tree::", origin_domain.name());
@@ -1000,7 +1007,7 @@ impl Relayer {
                     domain,
                     chain_metrics,
                     &FactoryError::MissingConfiguration(domain.name().to_string()),
-                    "Critical error when building chain as destination",
+                    "Critical error when building chain as origin",
                 );
             });
 
