@@ -60,6 +60,16 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      */
     function token() public view virtual returns (address);
 
+    function dispatchValue(
+        uint256 msgValue,
+        uint256 amountWithFee
+    ) internal view virtual returns (uint256) {
+        if (token() == address(0)) {
+            return msgValue - amountWithFee;
+        }
+        return msgValue;
+    }
+
     /**
      * @notice Transfers `_amount` token to `_recipient` on `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
@@ -92,7 +102,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         // TODO: Consider flattening with GasRouter
         messageId = _GasRouter_dispatch(
             _destination,
-            msg.value,
+            dispatchValue(msg.value, _amount + fee),
             _tokenMessage,
             address(hook)
         );

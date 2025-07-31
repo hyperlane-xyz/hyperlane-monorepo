@@ -86,36 +86,6 @@ contract HypNative is LpCollateralRouter {
         Address.sendValue(payable(_recipient), _amount);
     }
 
-    // TODO: only diff is msg.value for dispatch
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) public payable virtual override returns (bytes32 messageId) {
-        uint256 fee = _feeAmount(_destination, _recipient, _amount);
-        _transferFromSender(_amount + fee);
-        if (fee > 0) {
-            _transferTo(feeRecipient(), fee);
-        }
-
-        bytes memory _tokenMessage = TokenMessage.format(
-            _recipient,
-            _outboundAmount(_amount)
-        );
-
-        // effects
-        emit SentTransferRemote(_destination, _recipient, _amount);
-
-        // interactions
-        // TODO: Consider flattening with GasRouter
-        messageId = _GasRouter_dispatch(
-            _destination,
-            msg.value - (_amount + fee),
-            _tokenMessage,
-            address(hook)
-        );
-    }
-
     receive() external payable {
         donate(msg.value);
     }
