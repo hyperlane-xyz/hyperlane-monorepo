@@ -212,7 +212,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
         // TODO: Consider flattening with GasRouter
         messageId = _GasRouter_dispatch(
             _destination,
-            msg.value,
+            dispatchValue(msg.value, _amount + fee),
             // TODO: Using specific EverClearTokenMessage lib
             bytes.concat(_tokenMessage, abi.encode(intent)),
             address(hook)
