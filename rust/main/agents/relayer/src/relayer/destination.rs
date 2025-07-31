@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -14,10 +15,17 @@ use lander::{
 pub struct Destination {
     pub domain: HyperlaneDomain,
     pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
+    pub chain_conf: ChainConf,
     pub dispatcher_entrypoint: Option<DispatcherEntrypoint>,
     pub dispatcher: Option<Dispatcher>,
     pub mailbox: Arc<dyn Mailbox>,
     pub ccip_signer: Option<Signers>,
+}
+
+impl Debug for Destination {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Destination {{ domain: {} }}", self.domain.name())
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -76,6 +84,7 @@ impl Factory for DestinationFactory {
         let destination = Destination {
             domain,
             application_operation_verifier,
+            chain_conf,
             dispatcher_entrypoint,
             dispatcher,
             mailbox,
