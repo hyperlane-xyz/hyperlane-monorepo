@@ -51,8 +51,7 @@ contract HypNative is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
-        quotes = new Quote[](3);
+    ) external view virtual override returns (Quote[3] memory quotes) {
         uint256 scaledAmount = DecimalScaleable.scaleOutbound(_amount, scale);
         bytes memory message = TokenMessage.format(_recipient, scaledAmount);
         uint256 dispatchValue = _GasRouter_quoteDispatch(_destination, message);

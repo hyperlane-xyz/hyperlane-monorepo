@@ -64,8 +64,7 @@ contract HypERC20 is GasRouter, ERC20Upgradeable, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
-        quotes = new Quote[](2);
+    ) external view virtual override returns (Quote[3] memory quotes) {
         quotes[0] = Quote({
             token: address(0),
             amount: _GasRouter_quoteDispatch(
@@ -73,15 +72,14 @@ contract HypERC20 is GasRouter, ERC20Upgradeable, ITokenBridge {
                 TokenMessage.format(_recipient, _amount)
             )
         });
-        quotes[1] = Quote({
-            token: address(this),
-            amount: FeeChargeable.calculateFeeAmount(
-                address(this),
-                _destination,
-                _recipient,
-                _amount
-            ) + _amount
-        });
+        quotes[1] = Quote({token: address(this), amount: _amount});
+        uint256 fee = FeeChargeable.calculateFeeAmount(
+            address(this),
+            _destination,
+            _recipient,
+            _amount
+        );
+        quotes[2] = Quote({token: address(this), amount: fee});
         return quotes;
     }
 

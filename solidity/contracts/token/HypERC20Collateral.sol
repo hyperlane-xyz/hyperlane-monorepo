@@ -68,16 +68,11 @@ contract HypERC20Collateral is GasRouter, ITokenBridge {
         return address(wrappedToken);
     }
 
-    function asset() public view virtual override returns (address) {
-        return address(wrappedToken);
-    }
-
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
-        quotes = new Quote[](3);
+    ) external view virtual override returns (Quote[3] memory quotes) {
         uint256 scaledAmount = DecimalScaleable.scaleOutbound(_amount, scale);
         bytes memory message = TokenMessage.format(_recipient, scaledAmount);
         quotes[0] = Quote({
@@ -99,7 +94,7 @@ contract HypERC20Collateral is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external payable virtual returns (bytes32 messageId) {
+    ) public payable virtual returns (bytes32 messageId) {
         uint256 fee = FeeChargeable.calculateFeeAmount(
             address(wrappedToken),
             _destination,
