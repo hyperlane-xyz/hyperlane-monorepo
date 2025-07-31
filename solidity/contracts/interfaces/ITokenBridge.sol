@@ -26,6 +26,36 @@ interface ITokenFee {
 
 interface ITokenBridge is ITokenFee {
     /**
+     * @dev Emitted on `transferRemote` when a transfer message is dispatched.
+     * @param destination The identifier of the destination chain.
+     * @param recipient The address of the recipient on the destination chain.
+     * @param amountOrId The amount or ID of tokens sent to the remote recipient.
+     */
+    event SentTransferRemote(
+        uint32 indexed destination,
+        bytes32 indexed recipient,
+        uint256 amountOrId
+    );
+
+    /**
+     * @dev Emitted on `_handle` when a transfer message is processed.
+     * @param origin The identifier of the origin chain.
+     * @param recipient The address of the recipient on the destination chain.
+     * @param amountOrId The amount or ID of tokens received from the remote sender.
+     */
+    event ReceivedTransferRemote(
+        uint32 indexed origin,
+        bytes32 indexed recipient,
+        uint256 amountOrId
+    );
+
+    /**
+     * @notice Returns the address of the token being bridged.
+     * @return The address of the token being bridged.
+     */
+    function token() external view returns (address);
+
+    /**
      * @notice Transfer value to another domain
      * @param _destination The destination domain of the message
      * @param _recipient The message recipient address on `destination`

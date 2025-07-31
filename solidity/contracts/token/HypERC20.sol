@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TokenRouter} from "./libs/TokenRouter.sol";
-import {Quote} from "../interfaces/ITokenBridge.sol";
-import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
+import {GasRouter} from "../client/GasRouter.sol";
+import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
+import {TokenMessage} from "./libs/TokenMessage.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
+import {DecimalScaleable} from "./libs/mixins/DecimalScaleable.sol";
+import {FeeChargeable} from "./libs/mixins/FeeChargeable.sol";
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
@@ -12,15 +15,21 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
+contract HypERC20 is GasRouter, ERC20Upgradeable, ITokenBridge {
+    using TypeCasts for bytes32;
+    using TypeCasts for address;
+    using TokenMessage for bytes;
+
     uint8 private immutable _decimals;
+    uint256 public immutable scale;
 
     constructor(
         uint8 __decimals,
         uint256 _scale,
         address _mailbox
-    ) FungibleTokenRouter(_scale, _mailbox) {
+    ) GasRouter(_mailbox) {
         _decimals = __decimals;
+        scale = _scale;
     }
 
     /**
@@ -51,22 +60,67 @@ contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
         return address(this);
     }
 
-    /**
-     * @dev Burns `_amount` of token from `msg.sender` balance.
-     * @inheritdoc TokenRouter
-     */
-    function _transferFromSender(uint256 _amount) internal virtual override {
-        _burn(msg.sender, _amount);
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) external view virtual override returns (Quote[] memory quotes) {
+        quotes = new Quote[](2);
+        quotes[0] = Quote({
+            token: address(0),
+            amount: _GasRouter_quoteDispatch(
+                _destination,
+                TokenMessage.format(_recipient, _amount)
+            )
+        });
+        quotes[1] = Quote({
+            token: address(this),
+            amount: FeeChargeable.calculateFeeAmount(
+                address(this),
+                _destination,
+                _recipient,
+                _amount
+            ) + _amount
+        });
+        return quotes;
     }
 
-    /**
-     * @dev Mints `_amount` of token to `_recipient` balance.
-     * @inheritdoc TokenRouter
-     */
-    function _transferTo(
-        address _recipient,
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
         uint256 _amount
+    ) external payable virtual returns (bytes32 messageId) {
+        uint256 fee = FeeChargeable.calculateFeeAmount(
+            address(this),
+            _destination,
+            _recipient,
+            _amount
+        );
+        _burn(msg.sender, _amount + fee);
+        if (fee > 0) {
+            _mint(FeeChargeable.getFeeRecipient(), fee);
+        }
+
+        uint256 scaledAmount = DecimalScaleable.scaleOutbound(_amount, scale);
+        emit SentTransferRemote(_destination, _recipient, scaledAmount);
+
+        bytes memory message = TokenMessage.format(_recipient, scaledAmount);
+
+        return _GasRouter_dispatch(_destination, msg.value, message);
+    }
+
+    function _handle(
+        uint32 _origin,
+        bytes32,
+        bytes calldata _message
     ) internal virtual override {
-        _mint(_recipient, _amount);
+        bytes32 recipient = _message.recipient();
+        uint256 amount = _message.amount();
+
+        emit ReceivedTransferRemote(_origin, recipient, amount);
+
+        uint256 scaledAmount = DecimalScaleable.scaleInbound(amount, scale);
+
+        _mint(recipient.bytes32ToAddress(), scaledAmount);
     }
 }
