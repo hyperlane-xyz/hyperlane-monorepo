@@ -90,6 +90,20 @@ abstract contract GasRouter is Router {
             );
     }
 
+    function _GasRouter_dispatch(
+        uint32 _destination,
+        uint256 _value,
+        bytes memory _messageBody
+    ) internal returns (bytes32) {
+        return
+            _GasRouter_dispatch(
+                _destination,
+                _value,
+                _messageBody,
+                address(hook)
+            );
+    }
+
     function _GasRouter_quoteDispatch(
         uint32 _destination,
         bytes memory _messageBody,
@@ -101,6 +115,19 @@ abstract contract GasRouter is Router {
                 _messageBody,
                 _GasRouter_hookMetadata(_destination),
                 _hook
+            );
+    }
+
+    function _GasRouter_quoteDispatch(
+        uint32 _destination,
+        bytes memory _messageBody
+    ) internal view returns (uint256) {
+        return
+            _Router_quoteDispatch(
+                _destination,
+                _messageBody,
+                _GasRouter_hookMetadata(_destination),
+                address(hook)
             );
     }
 }
