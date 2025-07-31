@@ -19,7 +19,6 @@ import {Message} from "../../libs/Message.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
 import {Router} from "../../client/Router.sol";
-import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 
 // ============ External Imports ============
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -97,13 +96,12 @@ contract HypERC4626 is HypERC20 {
         HypERC20._transferFromSender(assetsToShares(_amount));
     }
 
-    // @inheritdoc FungibleTokenRouter
+    // @inheritdoc TokenRouter
     // @dev Amount specified by user is in assets, but the message accounting is in shares
     function _outboundAmount(
         uint256 _localAmount
     ) internal view virtual override returns (uint256) {
-        return
-            FungibleTokenRouter._outboundAmount(assetsToShares(_localAmount));
+        return TokenRouter._outboundAmount(assetsToShares(_localAmount));
     }
 
     // @inheritdoc ERC20Upgradeable
@@ -116,7 +114,7 @@ contract HypERC4626 is HypERC20 {
         super._transfer(_from, _to, assetsToShares(_amount));
     }
 
-    // `_inboundAmount` implementation reused from `FungibleTokenRouter` unchanged because message
+    // `_inboundAmount` implementation reused from `TokenRouter` unchanged because message
     // accounting is in shares
 
     // ========== TokenRouter extensions ============
