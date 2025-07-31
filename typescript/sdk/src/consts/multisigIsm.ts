@@ -480,6 +480,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  camp: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x066dacbcae6f1ad0dbf944dd50272065fb1146ca',
+        alias: 'AW_VALIDATOR_ALIAS',
+      },
+    ],
+  },
+
   carrchaintestnet: {
     threshold: 1,
     validators: [

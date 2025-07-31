@@ -85,6 +85,17 @@ export const validatorChainConfig = (
       ),
     },
 
+    camp: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('camp'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x066dacbcae6f1ad0dbf944dd50272065fb1146ca'],
+        },
+        'camp',
+      ),
+    },
+
     cheesechain: {
       interval: 5,
       reorgPeriod: getReorgPeriod('cheesechain'),

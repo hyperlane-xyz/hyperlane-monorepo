@@ -150,6 +150,7 @@ pub enum KnownHyperlaneDomain {
     BounceBit = 6001,
     BSquared = 223,
     B3 = 8333,
+    Camp = 484,
     Celo = 42220,
     Cheesechain = 383353,
     ChilizMainnet = 1000088888,
