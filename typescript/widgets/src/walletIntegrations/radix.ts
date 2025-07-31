@@ -96,8 +96,11 @@ export function useRadixDisconnectFn(): () => Promise<void> {
   const rdt = useRdt();
   assert(rdt, `radix dapp toolkit not defined`);
 
+  const { setAccounts } = useAccount();
+
   const safeDisconnect = async () => {
     rdt.disconnect();
+    setAccounts([]);
   };
 
   return safeDisconnect;
