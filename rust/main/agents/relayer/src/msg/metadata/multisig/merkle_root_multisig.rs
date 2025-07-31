@@ -40,7 +40,6 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
-        const CTX: &str = "When fetching MerkleRootMultisig metadata";
         let highest_leaf_index = unwrap_or_none_result!(
             self.base_builder().highest_known_leaf_index().await,
             debug!("Couldn't get highest known leaf index")
