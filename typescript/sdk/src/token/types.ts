@@ -54,6 +54,16 @@ const MovableTokenRebalancingBridgeConfigSchema = z.object({
     .optional(),
 });
 
+const BaseEverclearTokenBridgeConfigSchema = z.object({
+  everclearBridgeAddress: ZHash,
+  outputAssets: z.record(RemoteRouterDomainOrChainNameSchema, ZHash),
+  everclearFeeParams: z.object({
+    fee: z.number().int(),
+    deadline: z.number().int(),
+    signature: z.string(),
+  }),
+});
+
 export const BaseMovableTokenConfigSchema = z.object({
   allowedRebalancingBridges: z
     .record(
@@ -200,6 +210,24 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
 );
 
+export const EverclearCollateralTokenConfigSchema = z.object({
+  type: z.literal(TokenType.collateralEverclear),
+  ...CollateralTokenConfigSchema.omit({ type: true }).shape,
+  ...BaseEverclearTokenBridgeConfigSchema.shape,
+});
+export const isEverclearCollateralTokenConfig = isCompliant(
+  EverclearCollateralTokenConfigSchema,
+);
+
+export const EverclearEthBridgeTokenConfigSchema = z.object({
+  type: z.literal(TokenType.ethEverclear),
+  ...NativeTokenConfigSchema.omit({ type: true }).shape,
+  ...BaseEverclearTokenBridgeConfigSchema.shape,
+});
+export const isEverclearEthBridgeTokenConfig = isCompliant(
+  EverclearEthBridgeTokenConfigSchema,
+);
+
 export enum ContractVerificationStatus {
   Verified = 'verified',
   Unverified = 'unverified',
@@ -234,6 +262,8 @@ export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
   CctpTokenConfigSchema,
+  EverclearCollateralTokenConfigSchema,
+  EverclearEthBridgeTokenConfigSchema,
 ]);
 export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 

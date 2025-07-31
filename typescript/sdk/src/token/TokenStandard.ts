@@ -23,6 +23,8 @@ export enum TokenStandard {
   EvmHypXERC20Lockbox = 'EvmHypXERC20Lockbox',
   EvmHypVSXERC20 = 'EvmHypVSXERC20',
   EvmHypVSXERC20Lockbox = 'EvmHypVSXERC20Lockbox',
+  EvmHypEverclearCollateral = 'EvmHypEverclearCollateral',
+  EvmHypEverclearEth = 'EvmHypEverclearEth',
 
   // Sealevel (Solana)
   SealevelSpl = 'SealevelSpl',
@@ -73,6 +75,8 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   EvmHypXERC20Lockbox: ProtocolType.Ethereum,
   EvmHypVSXERC20: ProtocolType.Ethereum,
   EvmHypVSXERC20Lockbox: ProtocolType.Ethereum,
+  [TokenStandard.EvmHypEverclearCollateral]: ProtocolType.Ethereum,
+  [TokenStandard.EvmHypEverclearEth]: ProtocolType.Ethereum,
 
   // Sealevel (Solana)
   SealevelSpl: ProtocolType.Sealevel,
@@ -210,6 +214,8 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.syntheticRebase]: TokenStandard.EvmHypSyntheticRebase,
   [TokenType.syntheticUri]: TokenStandard.EvmHypSynthetic,
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
+  [TokenType.ethEverclear]: TokenStandard.EvmHypEverclearEth,
+  [TokenType.collateralEverclear]: TokenStandard.EvmHypEverclearCollateral,
 };
 
 // Starknet supported token types
