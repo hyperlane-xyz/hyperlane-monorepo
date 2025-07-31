@@ -12,7 +12,7 @@ use hyperlane_core::{
 use crate::prover::{Prover, ProverError};
 
 /// Struct to sync prover.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct MerkleTreeBuilder {
     prover: Prover,
     incremental: IncrementalMerkle,

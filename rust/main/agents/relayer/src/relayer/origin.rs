@@ -23,7 +23,6 @@ type MessageSync = Arc<dyn ContractSyncer<HyperlaneMessage>>;
 type InterchainGasPaymentSync = Arc<dyn ContractSyncer<InterchainGasPayment>>;
 type MerkleTreeHookSync = Arc<dyn ContractSyncer<MerkleTreeInsertion>>;
 
-#[derive(Clone)]
 pub struct Origin {
     pub database: HyperlaneRocksDB,
     pub domain: HyperlaneDomain,

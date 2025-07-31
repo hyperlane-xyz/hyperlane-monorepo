@@ -241,6 +241,85 @@ async fn test_failed_build_destinations() {
     assert_eq!(metric.get(), 1);
 }
 
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_failed_build_origin() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path();
+
+    let chains = vec![(
+        KnownHyperlaneDomain::Arbitrum.to_string(),
+        generate_test_chain_conf(
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            None,
+            // these urls are not expected to be live
+            "http://localhost:8545",
+        ),
+    )];
+    let origin_chains = &[
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+    ];
+    let destination_chains = &[
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+    ];
+    let metrics_port = 27002;
+    let settings = generate_test_relayer_settings(
+        db_path,
+        chains,
+        origin_chains,
+        destination_chains,
+        metrics_port,
+    );
+
+    let registry = Registry::new();
+    let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
+    let chain_metrics = ChainMetrics {
+        block_height: IntGaugeVec::new(
+            opts!("block_height", BLOCK_HEIGHT_HELP),
+            BLOCK_HEIGHT_LABELS,
+        )
+        .unwrap(),
+        gas_price: None,
+        critical_error: IntGaugeVec::new(
+            opts!("critical_error", CRITICAL_ERROR_HELP),
+            CRITICAL_ERROR_LABELS,
+        )
+        .unwrap(),
+    };
+
+    let db = DB::from_path(db_path).expect("Failed to initialize database");
+    let origins =
+        Relayer::build_origins(&settings, db, Arc::new(core_metrics), &chain_metrics).await;
+
+    assert_eq!(origins.len(), 1);
+    assert!(origins.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
+
+    // Arbitrum chain should not have any errors because it's ChainConf exists
+    let metric = chain_metrics
+        .critical_error
+        .get_metric_with_label_values(&["arbitrum"])
+        .unwrap();
+    assert_eq!(metric.get(), 0);
+
+    // Ethereum chain should error because it is missing ChainConf
+    let metric = chain_metrics
+        .critical_error
+        .get_metric_with_label_values(&["ethereum"])
+        .unwrap();
+    assert_eq!(metric.get(), 1);
+
+    // Optimism chain should error because it is missing ChainConf
+    let metric = chain_metrics
+        .critical_error
+        .get_metric_with_label_values(&["optimism"])
+        .unwrap();
+    assert_eq!(metric.get(), 1);
+}
+
 async fn build_relayer(settings: RelayerSettings) -> eyre::Result<Relayer> {
     let agent_metadata = AgentMetadata::new("relayer_git_hash".into());
 
@@ -427,6 +506,59 @@ async fn test_from_settings_and_run_bad_rpc() {
         .expect("Failed to build relayer");
 
     let failed_chain_count = 1;
+    assert!(
+        test_relayer_started_successfully(agent, metrics_port, failed_chain_count)
+            .await
+            .is_ok()
+    );
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_from_settings_and_run_less_destinations() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path();
+
+    let chains = vec![
+        (
+            KnownHyperlaneDomain::Arbitrum.to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+                None,
+                // these urls are not expected to be live
+                "http://localhost:8545",
+            ),
+        ),
+        (
+            KnownHyperlaneDomain::Ethereum.to_string(),
+            generate_test_chain_conf(
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+                None,
+                // these urls are not expected to be live
+                "http://localhost:8545",
+            ),
+        ),
+    ];
+    let origin_chains = &[
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+    ];
+    let destination_chains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)];
+    let metrics_port = 27006;
+    let settings = generate_test_relayer_settings(
+        db_path,
+        chains,
+        origin_chains,
+        destination_chains,
+        metrics_port,
+    );
+
+    let agent = build_relayer(settings)
+        .await
+        .expect("Failed to build relayer");
+
+    let failed_chain_count = 3;
     assert!(
         test_relayer_started_successfully(agent, metrics_port, failed_chain_count)
             .await

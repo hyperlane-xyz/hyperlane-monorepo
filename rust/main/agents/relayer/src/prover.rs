@@ -11,7 +11,7 @@ use tracing::{error, instrument};
 
 /// A depth-32 sparse Merkle tree capable of producing proofs for arbitrary
 /// elements.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Prover {
     count: usize,
     tree: MerkleTree,
