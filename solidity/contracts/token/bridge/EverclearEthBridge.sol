@@ -77,19 +77,42 @@ contract EverclearEthBridge is EverclearTokenBridge {
         payable(_recipient).sendValue(_amount);
     }
 
-    function _chargeSender(
+    function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal virtual override returns (uint256 dispatchValue) {
+    ) public payable override returns (bytes32 messageId) {
         uint256 fee = _feeAmount(_destination, _recipient, _amount);
+        _transferFromSender(_amount + fee);
 
-        uint256 totalAmount = _amount + fee + feeParams.fee;
-        _transferFromSender(totalAmount);
-        dispatchValue = msg.value - totalAmount;
-        if (fee > 0) {
-            _transferTo(feeRecipient(), fee);
-        }
-        return dispatchValue;
+        /// @dev We can't use _feeAmount here because Everclear wants to pull tokens from this contract
+        /// and the amount from _feeAmount is sent to the fee recipient.
+        // if (fee > 0) {
+        //     _transferTo(feeRecipient(), fee);
+        // }
+
+        IEverclear.Intent memory intent = _createIntent(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            _outboundAmount(_amount)
+        );
+
+        // effects
+        emit SentTransferRemote(_destination, _recipient, _amount);
+
+        // interactions
+        // TODO: Consider flattening with GasRouter
+        messageId = _GasRouter_dispatch(
+            _destination,
+            msg.value - (_amount + fee),
+            // TODO: Using specific EverClearTokenMessage lib
+            bytes.concat(_tokenMessage, abi.encode(intent)),
+            address(hook)
+        );
     }
 }

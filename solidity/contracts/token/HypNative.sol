@@ -6,6 +6,7 @@ import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
 import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {TokenMessage} from "./libs/TokenMessage.sol";
 
 /**
  * @title Hyperlane Native Token Router that extends ERC20 with remote transfer functionality.
@@ -13,6 +14,8 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
 contract HypNative is LpCollateralRouter {
+    using TokenMessage for bytes;
+
     string internal constant INSUFFICIENT_NATIVE_AMOUNT =
         "Native: amount exceeds msg.value";
 
@@ -83,17 +86,34 @@ contract HypNative is LpCollateralRouter {
         Address.sendValue(payable(_recipient), _amount);
     }
 
-    function _chargeSender(
+    // TODO: only diff is msg.value for dispatch
+    function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal virtual override returns (uint256 dispatchValue) {
+    ) public payable virtual override returns (bytes32 messageId) {
         uint256 fee = _feeAmount(_destination, _recipient, _amount);
         _transferFromSender(_amount + fee);
-        dispatchValue = msg.value - (_amount + fee);
         if (fee > 0) {
             _transferTo(feeRecipient(), fee);
         }
+
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            _outboundAmount(_amount)
+        );
+
+        // effects
+        emit SentTransferRemote(_destination, _recipient, _amount);
+
+        // interactions
+        // TODO: Consider flattening with GasRouter
+        messageId = _GasRouter_dispatch(
+            _destination,
+            msg.value - (_amount + fee),
+            _tokenMessage,
+            address(hook)
+        );
     }
 
     receive() external payable {
