@@ -73,6 +73,9 @@ export {
 } from './core/contracts.js';
 export { HyperlaneLifecyleEvent } from './core/events.js';
 export { EvmCoreReader } from './core/EvmCoreReader.js';
+export { RadixCoreReader } from './core/RadixCoreReader.js';
+export { RadixIsmReader } from './ism/RadixIsmReader.js';
+export { RadixHookReader } from './hook/RadixHookReader.js';
 export { HyperlaneCore } from './core/HyperlaneCore.js';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker.js';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer.js';
@@ -500,6 +503,8 @@ export {
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
 export { CosmosNativeHookModule } from './hook/CosmosNativeHookModule.js';
+export { RadixHookModule } from './hook/RadixHookModule.js';
+export { RadixCoreModule } from './core/RadixCoreModule.js';
 export { CosmosNativeHookReader } from './hook/CosmosNativeHookReader.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
 export {
@@ -510,6 +515,7 @@ export {
   IcaRouterConfig as InterchainAccountConfig,
 } from './ica/types.js';
 export { CosmosNativeIsmModule } from './ism/CosmosNativeIsmModule.js';
+export { RadixIsmModule } from './ism/RadixIsmModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { offchainLookupRequestMessageHash } from './ism/metadata/ccipread.js';
 export {
