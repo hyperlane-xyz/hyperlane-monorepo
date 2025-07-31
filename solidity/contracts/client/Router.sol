@@ -222,6 +222,28 @@ abstract contract Router is MailboxClient, IMessageRecipient {
             );
     }
 
+    function _Router_quoteAndDispatch(
+        uint32 _destinationDomain,
+        bytes memory _messageBody,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal returns (bytes32) {
+        uint256 _value = _Router_quoteDispatch(
+            _destinationDomain,
+            _messageBody,
+            _hookMetadata,
+            _hook
+        );
+        return
+            _Router_dispatch(
+                _destinationDomain,
+                _value,
+                _messageBody,
+                _hookMetadata,
+                _hook
+            );
+    }
+
     /**
      * DEPRECATED: Use `_Router_quoteDispatch` instead
      * @dev For backward compatibility with v2 client contracts

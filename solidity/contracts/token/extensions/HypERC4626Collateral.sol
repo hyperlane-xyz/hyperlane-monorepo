@@ -126,18 +126,8 @@ contract HypERC4626Collateral is HypERC20Collateral {
      * @dev Update the exchange rate on the synthetic token by accounting for additional yield accrued to the underlying vault
      * @param _destinationDomain domain of the vault
      */
-    function rebase(
-        uint32 _destinationDomain,
-        bytes calldata _hookMetadata,
-        address _hook
-    ) public payable {
+    function rebase(uint32 _destinationDomain) public payable {
         // force a rebase with an empty transfer to 0x1
-        _transferRemote(
-            _destinationDomain,
-            NULL_RECIPIENT,
-            0,
-            _hookMetadata,
-            _hook
-        );
+        transferRemote(_destinationDomain, NULL_RECIPIENT, 0);
     }
 }
