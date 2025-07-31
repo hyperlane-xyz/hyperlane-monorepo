@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use tracing::warn;
 
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::{db::DB, settings::ChainConf, CoreMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol, Mailbox, SubmitterType};
 use hyperlane_ethereum::Signers;
@@ -16,6 +17,7 @@ pub struct Destination {
     pub domain: HyperlaneDomain,
     pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
     pub chain_conf: ChainConf,
+    pub database: HyperlaneRocksDB,
     pub dispatcher_entrypoint: Option<DispatcherEntrypoint>,
     pub dispatcher: Option<Dispatcher>,
     pub mailbox: Arc<dyn Mailbox>,
@@ -75,6 +77,8 @@ impl Factory for DestinationFactory {
 
         let ccip_signer = self.init_ccip_signer(&domain, &chain_conf).await;
 
+        let database = HyperlaneRocksDB::new(&domain, self.db.clone());
+
         let (dispatcher_entrypoint, dispatcher) = self
             .init_dispatcher_and_entrypoint(&domain, chain_conf.clone(), dispatcher_metrics)
             .await?;
@@ -85,6 +89,7 @@ impl Factory for DestinationFactory {
             domain,
             application_operation_verifier,
             chain_conf,
+            database,
             dispatcher_entrypoint,
             dispatcher,
             mailbox,

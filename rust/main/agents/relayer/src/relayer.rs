@@ -651,8 +651,11 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
 
         // create a db mapping for server handlers
-        let dbs: HashMap<u32, HyperlaneRocksDB> =
-            self.dbs.iter().map(|(k, v)| (k.id(), v.clone())).collect();
+        let dbs: HashMap<u32, HyperlaneRocksDB> = self
+            .destinations
+            .iter()
+            .map(|(k, v)| (k.id(), v.database.clone()))
+            .collect();
 
         let gas_enforcers: HashMap<_, _> = self
             .msg_ctxs
