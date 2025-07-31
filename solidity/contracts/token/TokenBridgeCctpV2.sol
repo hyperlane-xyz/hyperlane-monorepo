@@ -153,6 +153,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         );
     }
 
+    // TODO: this fee amount goes to Circle, not the configured fee recipient
     function _feeAmount(
         uint32 destination,
         bytes32 recipient,

@@ -2,7 +2,6 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
 import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
 
@@ -20,7 +19,7 @@ contract HypNative is LpCollateralRouter {
     constructor(
         uint256 _scale,
         address _mailbox
-    ) FungibleTokenRouter(_scale, _mailbox) {}
+    ) TokenRouter(_scale, _mailbox) {}
 
     /**
      * @notice Initializes the Hyperlane router

@@ -25,7 +25,7 @@ import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGas
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
-import {FungibleTokenRouter} from "../../contracts/token/libs/FungibleTokenRouter.sol";
+import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 
 import {Router} from "../../contracts/client/Router.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
@@ -63,7 +63,7 @@ abstract contract HypTokenTest is Test {
     address internal constant PROXY_ADMIN = address(0x37);
 
     ERC20Test internal primaryToken;
-    FungibleTokenRouter internal localToken;
+    TokenRouter internal localToken;
     HypERC20 internal remoteToken;
     MockMailbox internal localMailbox;
     MockMailbox internal remoteMailbox;

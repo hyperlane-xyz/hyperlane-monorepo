@@ -16,7 +16,6 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {TokenMessage} from "./libs/TokenMessage.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
 import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
 import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
@@ -45,7 +44,7 @@ contract HypERC20Collateral is LpCollateralRouter {
         address erc20,
         uint256 _scale,
         address _mailbox
-    ) FungibleTokenRouter(_scale, _mailbox) {
+    ) TokenRouter(_scale, _mailbox) {
         require(Address.isContract(erc20), "HypERC20Collateral: invalid token");
         wrappedToken = IERC20(erc20);
     }
