@@ -210,9 +210,6 @@ impl BaseAgent for Relayer {
             "Whitelist configuration"
         );
 
-        // provers by origin chain
-        info!(gas_enforcement_policies=?settings.gas_payment_enforcement, "Gas enforcement configuration");
-
         // only iterate through destination chains that were successfully instantiated
         start_entity_init = Instant::now();
         let mut ccip_signer_futures: Vec<_> = Vec::with_capacity(destinations.len());
@@ -670,12 +667,8 @@ impl Relayer {
     ) -> eyre::Result<JoinHandle<()>> {
         let origin_domain = origin.domain.clone();
         let contract_sync = origin.message_sync.clone();
-        let index_settings = match self.as_ref().settings.chains.get(&origin_domain) {
-            Some(s) => s.index_settings(),
-            None => {
-                return Err(eyre::eyre!("Missing index settings"));
-            }
-        };
+
+        let index_settings = origin.index_settings.clone();
         let chain_metrics = self.chain_metrics.clone();
 
         let name = Self::contract_sync_task_name("message::", origin_domain.name());
@@ -983,7 +976,7 @@ impl Relayer {
             })
             .collect();
         let results = futures::future::join_all(origin_futures).await;
-        results
+        let origins = results
             .into_iter()
             .filter_map(|(domain, result)| match result {
                 Ok(origin) => Some((domain, origin)),
@@ -997,7 +990,21 @@ impl Relayer {
                     None
                 }
             })
-            .collect::<HashMap<_, _>>()
+            .collect::<HashMap<_, _>>();
+        settings
+            .origin_chains
+            .iter()
+            .filter(|domain| !origins.contains_key(domain))
+            .for_each(|domain| {
+                Self::record_critical_error(
+                    domain,
+                    chain_metrics,
+                    &FactoryError::MissingConfiguration(domain.name().to_string()),
+                    "Critical error when building chain as destination",
+                );
+            });
+
+        origins
     }
 
     pub async fn build_destinations(

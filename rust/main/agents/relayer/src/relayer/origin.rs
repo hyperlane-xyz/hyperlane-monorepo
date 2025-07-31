@@ -102,54 +102,72 @@ impl Factory for OriginFactory {
     ) -> Result<Origin, FactoryError> {
         let db = HyperlaneRocksDB::new(&domain, self.db.clone());
 
-        let start_entity_init = Instant::now();
-        let validator_announce = self.init_validator_announce(chain_conf, &domain).await?;
-        self.measure(&domain, "validator_announce", start_entity_init.elapsed());
+        let validator_announce = {
+            let start_entity_init = Instant::now();
+            let res = self.init_validator_announce(chain_conf, &domain).await?;
+            self.measure(&domain, "validator_announce", start_entity_init.elapsed());
+            res
+        };
 
         // need one of these per origin chain due to the database scoping even though
         // the config itself is the same
         // TODO: maybe use a global one moving forward?
-        let start_entity_init = Instant::now();
-        let gas_payment_enforcer = self
-            .init_gas_payment_enforcer(gas_payment_enforcement, db.clone())
-            .await?;
-        self.measure(&domain, "gas_payment_enforcer", start_entity_init.elapsed());
+        let gas_payment_enforcer = {
+            let start_entity_init = Instant::now();
+            let res = self
+                .init_gas_payment_enforcer(gas_payment_enforcement, db.clone())
+                .await?;
+            self.measure(&domain, "gas_payment_enforcer", start_entity_init.elapsed());
+            res
+        };
 
-        let start_entity_init = Instant::now();
-        let prover_sync = Self::init_prover_sync().await?;
-        self.measure(&domain, "prover_sync", start_entity_init.elapsed());
+        let prover_sync = {
+            let start_entity_init = Instant::now();
+            let res = Self::init_prover_sync().await?;
+            self.measure(&domain, "prover_sync", start_entity_init.elapsed());
+            res
+        };
 
         let hyperlane_db = Arc::new(db.clone());
-        let start_entity_init = Instant::now();
-        let message_sync = self
-            .init_message_sync(&domain, chain_conf, hyperlane_db.clone())
-            .await?;
-        self.measure(&domain, "message_sync", start_entity_init.elapsed());
+        let message_sync = {
+            let start_entity_init = Instant::now();
+            let res = self
+                .init_message_sync(&domain, chain_conf, hyperlane_db.clone())
+                .await?;
+            self.measure(&domain, "message_sync", start_entity_init.elapsed());
+            res
+        };
 
         let interchain_gas_payment_sync = if self.igp_indexing_enabled {
-            let start_entity_init = Instant::now();
-            let igp_sync = self
-                .init_igp_sync(&domain, chain_conf, hyperlane_db.clone())
-                .await?;
-            self.measure(
-                &domain,
-                "interchain_gas_payment_sync",
-                start_entity_init.elapsed(),
-            );
+            let igp_sync = {
+                let start_entity_init = Instant::now();
+                let res = self
+                    .init_igp_sync(&domain, chain_conf, hyperlane_db.clone())
+                    .await?;
+                self.measure(
+                    &domain,
+                    "interchain_gas_payment_sync",
+                    start_entity_init.elapsed(),
+                );
+                res
+            };
             Some(igp_sync)
         } else {
             None
         };
 
-        let start_entity_init = Instant::now();
-        let merkle_tree_hook_sync = self
-            .init_merkle_tree_hook_sync(&domain, chain_conf, hyperlane_db.clone())
-            .await?;
-        self.measure(
-            &domain,
-            "merkle_tree_hook_sync",
-            start_entity_init.elapsed(),
-        );
+        let merkle_tree_hook_sync = {
+            let start_entity_init = Instant::now();
+            let res = self
+                .init_merkle_tree_hook_sync(&domain, chain_conf, hyperlane_db.clone())
+                .await?;
+            self.measure(
+                &domain,
+                "merkle_tree_hook_sync",
+                start_entity_init.elapsed(),
+            );
+            res
+        };
 
         let origin = Origin {
             database: db,
@@ -219,7 +237,7 @@ impl OriginFactory {
             .await
             .map(|r| r as Arc<dyn ContractSyncer<_>>)
             .map_err(|err| FactoryError::MessageSync(domain.to_string(), err.to_string())),
-            CursorType::RateLimited => Self::watermark_contract_sync(
+            CursorType::RateLimited => Self::build_watermark_contract_sync(
                 domain,
                 chain_conf,
                 &self.core_metrics,
@@ -255,7 +273,7 @@ impl OriginFactory {
             .map_err(|err| {
                 FactoryError::InterchainGasPaymentSync(domain.to_string(), err.to_string())
             }),
-            CursorType::RateLimited => Self::watermark_contract_sync(
+            CursorType::RateLimited => Self::build_watermark_contract_sync(
                 domain,
                 chain_conf,
                 &self.core_metrics,
@@ -291,7 +309,7 @@ impl OriginFactory {
             .await
             .map(|r| r as Arc<dyn ContractSyncer<_>>)
             .map_err(|err| FactoryError::MerkleTreeHookSync(domain.to_string(), err.to_string())),
-            CursorType::RateLimited => Self::watermark_contract_sync(
+            CursorType::RateLimited => Self::build_watermark_contract_sync(
                 domain,
                 chain_conf,
                 &self.core_metrics,
@@ -306,7 +324,7 @@ impl OriginFactory {
         }
     }
 
-    pub async fn build_sequenced_contract_sync<T, S>(
+    async fn build_sequenced_contract_sync<T, S>(
         domain: &HyperlaneDomain,
         chain_conf: &ChainConf,
         metrics: &CoreMetrics,
@@ -333,7 +351,7 @@ impl OriginFactory {
         )))
     }
 
-    pub async fn watermark_contract_sync<T, S>(
+    async fn build_watermark_contract_sync<T, S>(
         domain: &HyperlaneDomain,
         chain_conf: &ChainConf,
         metrics: &CoreMetrics,
