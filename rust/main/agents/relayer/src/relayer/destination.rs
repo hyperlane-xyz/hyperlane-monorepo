@@ -105,7 +105,7 @@ impl DestinationFactory {
             .into();
         self.measure(
             domain,
-            "applictaion_operation_verifier",
+            "application_operation_verifier",
             start_entity_init.elapsed(),
         );
 
