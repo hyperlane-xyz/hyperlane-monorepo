@@ -30,6 +30,7 @@ import {
   assert,
   eqAddress,
   getLogLevel,
+  isZeroish,
   isZeroishAddress,
   objFilter,
   objMap,
@@ -732,7 +733,11 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
     return {
       everclearBridgeAddress,
-      outputAssets,
+      outputAssets: objFilter(
+        outputAssets,
+        (_domainId, assetAddress): assetAddress is string =>
+          !isZeroish(assetAddress),
+      ),
       everclearFeeParams: {
         deadline: deadline.toNumber(),
         fee: fee.toNumber(),
