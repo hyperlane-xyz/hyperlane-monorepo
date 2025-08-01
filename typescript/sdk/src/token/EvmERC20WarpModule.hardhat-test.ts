@@ -223,7 +223,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     const everclearFeeParams = {
       deadline: Date.now(),
       fee: randomInt(1000),
-      signature: '',
+      signature: '0x',
     };
 
     return {
@@ -1371,6 +1371,79 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           `Expected token of type ${tokenType}`,
         );
         expect(currentConfig.outputAssets).to.deep.equal(expectedOutputAssets);
+      });
+
+      it(`should update the fee params if the token is of type ${tokenType}`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const expectedEverclearFeeParams = {
+          deadline: Date.now(),
+          fee: randomInt(100000000, 100),
+          signature: '0x42',
+        };
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          everclearFeeParams: expectedEverclearFeeParams,
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.everclearFeeParams).to.deep.equal(
+          expectedEverclearFeeParams,
+        );
+      });
+
+      it(`should not generate any update transactions for the fee params if the config did not change and the token is of type ${tokenType}`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const expectedEverclearFeeParams = {
+          deadline: Date.now(),
+          fee: randomInt(100000000, 100),
+          signature: '0x42',
+        };
+
+        const formattedConfig = {
+          ...config,
+          everclearFeeParams: expectedEverclearFeeParams,
+        };
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: formattedConfig,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update(formattedConfig);
+
+        expect(txs.length).to.equal(0);
+
+        const currentConfig = await evmERC20WarpModule.read();
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.everclearFeeParams).to.deep.equal(
+          expectedEverclearFeeParams,
+        );
       });
     }
 

@@ -864,7 +864,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       'everclearBridgeAddress' | 'outputAssets' | 'everclearFeeParams'
     >
   > {
-    const [[deadline, fee, signature], everclearBridgeAddress, domains] =
+    const [[fee, deadline, signature], everclearBridgeAddress, domains] =
       await Promise.all([
         everclearTokenbridgeInstance.feeParams(),
         everclearTokenbridgeInstance.everclearAdapter(),
