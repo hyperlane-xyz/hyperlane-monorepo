@@ -90,6 +90,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bouncebit: true,
     bsc: true,
     bsquared: true,
+    celestia: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -240,6 +241,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bouncebit: true,
     bsc: true,
     bsquared: true,
+    celestia: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -390,6 +392,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bouncebit: true,
     bsc: true,
     bsquared: true,
+    celestia: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -868,7 +871,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '5291797-20250701-134531',
+      tag: 'e3559a3-20250730-083713',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -879,7 +882,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5291797-20250701-134531',
+      tag: 'e3559a3-20250730-083713',
     },
     resources: scraperResources,
   },
@@ -894,7 +897,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2fe58b3-20250718-114304',
+      tag: 'e3559a3-20250730-083713',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
