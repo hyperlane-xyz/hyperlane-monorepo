@@ -20,55 +20,59 @@ pretty_print_json() {
 }
 
 # Check if start_index argument is provided
-if [ $# -eq 0 ]; then
-    echo "Usage: $0 <start_merkle_leaf_index>"
+if [ $# -lt 3 ]; then
+    echo "Usage: $0 <chain_name> <domain_id> <start_merkle_leaf_index>"
     exit 1
 fi
 
-start_index=$1
+chain=$1
+domain_id=$2
+start_index=$3
 current_index=$start_index
 mismatch_found=false
+
+url="https://hyperlane-mainnet3-${chain}-validator-0.s3.us-east-1.amazonaws.com"
 
 echo "Starting comparison from index $start_index..."
 echo "==============================================="
 
 while [ "$mismatch_found" = false ]; do
     echo "Checking index $current_index..."
-    
+
     # Fetch from checkpoint endpoint
-    checkpoint_url="https://hyperlane-validator-signatures-hyperevm.s3.ap-northeast-2.amazonaws.com/checkpoint_${current_index}_with_id.json"
+    checkpoint_url="$url/checkpoint_${current_index}_with_id.json"
     echo -e "\n🌐 API Call: GET $checkpoint_url"
     checkpoint_response=$(curl -s "$checkpoint_url")
     echo "📥 Response size: $(echo "$checkpoint_response" | wc -c) bytes"
-    
+
     # Check if checkpoint request was successful
     if [[ "$checkpoint_response" == *"message_id"* ]]; then
         # Debug: Print the relevant part of the response
         echo "🔍 Debugging checkpoint response:"
         echo "$checkpoint_response"
-        
+
         checkpoint_message_id=$(extract_checkpoint_message_id "$checkpoint_response")
         echo "📋 Extracted checkpoint message_id: $checkpoint_message_id"
-        
+
         # Fetch from merkle insertions endpoint
-        merkle_url="http://0.0.0.0:9090/merkle_tree_insertions?leaf_index_start=${current_index}&leaf_index_end=$((current_index + 1))"
+        merkle_url="http://0.0.0.0:9090/merkle_tree_insertions?domain_id=${domain_id}&leaf_index_start=${current_index}&leaf_index_end=$((current_index + 1))"
         echo -e "\n🌐 API Call: GET $merkle_url"
         merkle_response=$(curl -s "$merkle_url")
         echo "📥 Response size: $(echo "$merkle_response" | wc -c) bytes"
-        
+
         # Debug: Print the relevant part of the response
         echo "🔍 Debugging merkle response:"
         echo "$merkle_response" | grep -A 1 "message_id"
-        
+
         # Check if merkle request was successful
         if [[ "$merkle_response" == *"message_id"* ]]; then
             merkle_message_id=$(extract_merkle_message_id "$merkle_response")
             echo "📋 Extracted merkle message_id: $merkle_message_id"
-            
+
             echo -e "\n📊 Comparison for index $current_index:"
             echo "  Checkpoint message_id: $checkpoint_message_id"
             echo "  Merkle message_id:     $merkle_message_id"
-            
+
             # Compare the message IDs
             if [ "$checkpoint_message_id" != "$merkle_message_id" ]; then
                 echo -e "\n⚠️ MISMATCH FOUND at index $current_index:"
