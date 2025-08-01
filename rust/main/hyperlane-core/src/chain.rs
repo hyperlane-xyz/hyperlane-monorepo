@@ -329,6 +329,7 @@ pub enum KnownHyperlaneDomain {
     PragmaDevnet = 6363709,
     ScrollSepolia = 534351,
     Sepolia = 11155111,
+    SolanaDevnet = 1399811151,
     SolanaTestnet = 1399811150,
     SomniaTestnet = 50312,
     SoneiumTestnet = 1946,
@@ -511,6 +512,7 @@ impl KnownHyperlaneDomain {
             | PragmaDevnet
             | ScrollSepolia
             | Sepolia
+            | SolanaDevnet
             | SolanaTestnet
             | SomniaTestnet
             | SoneiumTestnet
@@ -552,6 +554,7 @@ impl KnownHyperlaneDomain {
             EclipseMainnet
             | EclipseTestnet
             | SolanaMainnet
+            | SolanaDevnet
             | SolanaTestnet
             | Solaxy
             | SonicSvm
