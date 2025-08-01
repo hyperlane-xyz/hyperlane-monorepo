@@ -45,6 +45,7 @@ import {
   deepCopy,
   eqAddress,
   normalizeAddressEvm,
+  objMap,
   randomInt,
 } from '@hyperlane-xyz/utils';
 
@@ -72,6 +73,7 @@ import {
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   derivedHookAddress,
+  isEverclearCollateralTokenConfig,
   isMovableCollateralTokenConfig,
 } from './types.js';
 
@@ -166,6 +168,11 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   const movableCollateralTypes = Object.values(TokenType).filter(
     isMovableCollateralTokenType,
   ) as MovableTokenType[];
+
+  const everclearTokenBridgeTypes = [
+    TokenType.ethEverclear,
+    TokenType.collateralEverclear,
+  ] as EverclearTokenBridgeTokenType[];
 
   const assertAllowedRebalancers = async (
     evmERC20WarpModule: EvmERC20WarpModule,
@@ -396,11 +403,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     });
   }
 
-  for (const tokenType of [
-    TokenType.ethEverclear,
-    TokenType.collateralEverclear,
-  ] as EverclearTokenBridgeTokenType[]) {
-    it.only(`should create ${tokenType} token`, async () => {
+  for (const tokenType of everclearTokenBridgeTypes) {
+    it(`should create ${tokenType} token`, async () => {
       const config: HypTokenRouterConfig =
         getEverclearTokenBridgeTokenConfig()[tokenType];
 
@@ -1181,6 +1185,192 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
           testCase++;
         }
+      });
+    }
+
+    for (const tokenType of everclearTokenBridgeTypes) {
+      it(`should add destination outputAssets if the token is of type ${tokenType}`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const domainId = 31337;
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            remoteRouters: {
+              [domainId]: {
+                address: randomAddress(),
+              },
+            },
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const remoteToken = randomAddress();
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+
+          outputAssets: {
+            [domainId]: remoteToken,
+          },
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.outputAssets[domainId]).to.equal(
+          addressToBytes32(remoteToken),
+        );
+      });
+
+      it(`should overwrite a destination outputAssets if the token is of type ${tokenType} and a destination token already exists for the given destination`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const domainId = 31337;
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            remoteRouters: {
+              [domainId]: {
+                address: randomAddress(),
+              },
+            },
+            outputAssets: {
+              [domainId]: randomAddress(),
+            },
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const expectedRemoteOuputToken = randomAddress();
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          outputAssets: {
+            [domainId]: expectedRemoteOuputToken,
+          },
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.outputAssets[domainId]).to.equal(
+          addressToBytes32(expectedRemoteOuputToken),
+        );
+      });
+
+      it(`should remove destination outputAssets if the token is of type ${tokenType} and a config is set`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const domainId = 31337;
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            remoteRouters: {
+              [domainId]: {
+                address: randomAddress(),
+              },
+            },
+            outputAssets: {
+              [domainId]: randomAddress(),
+            },
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          outputAssets: {},
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.outputAssets).to.deep.equal({});
+      });
+
+      it(`should remove 1 outputAsset and leave the others if the token is of type ${tokenType}`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const domainId = 31337;
+        const numOfRouters = randomInt(10, 0);
+        const remoteRoutersToKeep = randomRemoteRouters(numOfRouters);
+        const initialRemoteRouters = {
+          [domainId]: {
+            address: randomAddress(),
+          },
+          ...remoteRoutersToKeep,
+        };
+
+        const outputAssetsToKeep = objMap(remoteRoutersToKeep, (_domainId, _) =>
+          randomAddress(),
+        );
+
+        const expectedOutputAssets = objMap(
+          outputAssetsToKeep,
+          (_domainId, address) => addressToBytes32(address),
+        );
+        const initialOutputAddresses = {
+          [domainId]: randomAddress(),
+          ...outputAssetsToKeep,
+        };
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            remoteRouters: initialRemoteRouters,
+            outputAssets: initialOutputAddresses,
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          remoteRouters: initialRemoteRouters,
+          outputAssets: outputAssetsToKeep,
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.outputAssets).to.deep.equal(expectedOutputAssets);
       });
     }
 
