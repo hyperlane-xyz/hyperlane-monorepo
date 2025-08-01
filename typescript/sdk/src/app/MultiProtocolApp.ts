@@ -16,7 +16,9 @@ import {
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
+  EthersV5Signer,
   SolanaWeb3Provider,
+  SolanaWeb3Signer,
   StarknetJsProvider,
   TypedProvider,
 } from '../providers/ProviderType.js';
@@ -52,6 +54,10 @@ export class BaseEvmAdapter extends BaseAppAdapter {
   public getProvider(): EthersV5Provider['provider'] {
     return this.multiProvider.getEthersV5Provider(this.chainName);
   }
+
+  public getSigner(): EthersV5Signer['signer'] {
+    return this.multiProvider.getEthersV5Signer(this.chainName);
+  }
 }
 
 export class BaseCosmWasmAdapter extends BaseAppAdapter {
@@ -83,6 +89,10 @@ export class BaseSealevelAdapter extends BaseAppAdapter {
 
   public getProvider(): SolanaWeb3Provider['provider'] {
     return this.multiProvider.getSolanaWeb3Provider(this.chainName);
+  }
+
+  public getSigner(): SolanaWeb3Signer['signer'] {
+    return this.multiProvider.getSolanaWeb3Signer(this.chainName);
   }
 
   static derivePda(
