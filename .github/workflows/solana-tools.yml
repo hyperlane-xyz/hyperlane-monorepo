@@ -40,28 +40,15 @@ jobs:
           username: _json_key
           password: ${{ secrets.GCLOUD_SERVICE_KEY }}
 
-      - name: Build in Depot
+      - name: Build and push/save in Depot
         uses: depot/build-push-action@v1
         env:
           IMAGE_TAG: hyperlane/solana-tools:${{ matrix.solana-version }}
-        if: ${{ !env.SHOULD_PUSH }}
         with:
-          save: true
+          push: ${{ env.SHOULD_PUSH }}
+          save: ${{ !env.SHOULD_PUSH }}
           project: m6cdwcw0qj
           platforms: linux/amd64,linux/arm64
-          context: ./rust/sealevel/images/solana-cli
-          build-args: |
-            SOLANA_VERSION=${{ matrix.solana-version }}
-          save-tag: ${{ env.IMAGE_TAG }}
-      
-      - name: Build and push to GCP
-        env:
-          IMAGE_TAG: hyperlane/solana-tools:${{ matrix.solana-version }}
-        uses: depot/build-push-action@v1
-        if: ${{ env.SHOULD_PUSH }}
-        with:
-          push: true
-          project: m6cdwcw0qj
           context: ./rust/sealevel/images/solana-cli
           build-args: |
             SOLANA_VERSION=${{ matrix.solana-version }}
