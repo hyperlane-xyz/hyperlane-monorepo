@@ -543,7 +543,7 @@ describe('ERC20WarpRouterReader', async () => {
     TokenType.ethEverclear,
     TokenType.collateralEverclear,
   ] as EverclearTokenBridgeTokenType[]) {
-    it.only(`should derive ${tokenType} token correctly`, async () => {
+    it(`should derive ${tokenType} token correctly`, async () => {
       // Create config
       const config: WarpRouteDeployConfigMailboxRequired = {
         [chain]: getEverclearTokenBridgeConfig()[tokenType],
