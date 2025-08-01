@@ -64,6 +64,10 @@ const BaseEverclearTokenBridgeConfigSchema = z.object({
   }),
 });
 
+export const isEverclearTokenBridgeConfig = isCompliant(
+  BaseEverclearTokenBridgeConfigSchema,
+);
+
 export const BaseMovableTokenConfigSchema = z.object({
   allowedRebalancingBridges: z
     .record(

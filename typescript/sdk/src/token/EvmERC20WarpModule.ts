@@ -5,6 +5,7 @@ import { UINT_256_MAX } from 'starknet';
 import { zeroAddress } from 'viem';
 
 import {
+  EverclearTokenBridge__factory,
   GasRouter__factory,
   IERC20__factory,
   MailboxClient__factory,
@@ -18,6 +19,7 @@ import {
   Domain,
   EvmChainId,
   ProtocolType,
+  ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
   deepEquals,
@@ -25,6 +27,8 @@ import {
   eqAddress,
   isObjEmpty,
   normalizeAddressEvm,
+  objDiff,
+  objKeys,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -64,6 +68,7 @@ import {
   contractVersionMatchesDependency,
   derivedHookAddress,
   derivedIsmAddress,
+  isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
 } from './types.js';
 
@@ -171,6 +176,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         expectedConfig,
       )),
       ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
+      ...this.createAddRemoteOutputAddressTxs(actualConfig, expectedConfig),
+      ...this.createRemoveRemoteOutputAddressTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -550,6 +557,117 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         });
       },
     );
+  }
+
+  createAddRemoteOutputAddressTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isEverclearTokenBridgeConfig(expectedConfig) ||
+      !isEverclearTokenBridgeConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    const actualOutputAssets = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.outputAssets,
+    );
+    const expectedOutputAssets = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.outputAssets,
+    );
+
+    const outputAssetsToAdd = objDiff(
+      expectedOutputAssets,
+      actualOutputAssets,
+      (address, address2) =>
+        !!address &&
+        !!address2 &&
+        addressToBytes32(address) !== addressToBytes32(address2),
+    );
+    if (isObjEmpty(outputAssetsToAdd)) {
+      return [];
+    }
+
+    const assets = Object.entries(outputAssetsToAdd).map(
+      ([domainId, outputAsset]): {
+        destination: number;
+        outputAsset: string;
+      } => ({
+        destination: parseInt(domainId),
+        outputAsset: addressToBytes32(outputAsset),
+      }),
+    );
+
+    return [
+      {
+        chainId: this.multiProvider.getEvmChainId(this.chainId),
+        to: this.args.addresses.deployedTokenRoute,
+        annotation: `Adding "${Object.keys(assets)}" output assets for token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+        data: EverclearTokenBridge__factory.createInterface().encodeFunctionData(
+          'setOutputAssetsBatch((uint32,bytes32)[])',
+          [assets],
+        ),
+      },
+    ];
+  }
+
+  createRemoveRemoteOutputAddressTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isEverclearTokenBridgeConfig(expectedConfig) ||
+      !isEverclearTokenBridgeConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    const actualOutputAssets = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.outputAssets,
+    );
+    const expectedOutputAssets = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.outputAssets,
+    );
+
+    const outputAssetsToRemove = Array.from(
+      difference(
+        new Set(objKeys(actualOutputAssets)),
+        new Set(objKeys(expectedOutputAssets)),
+      ),
+    );
+
+    if (outputAssetsToRemove.length === 0) {
+      return [];
+    }
+
+    const assets = outputAssetsToRemove.map(
+      (
+        domainId,
+      ): {
+        destination: number;
+        outputAsset: string;
+      } => ({
+        destination: this.multiProvider.getDomainId(domainId),
+        outputAsset: ZERO_ADDRESS_HEX_32,
+      }),
+    );
+
+    return [
+      {
+        chainId: this.multiProvider.getEvmChainId(this.chainId),
+        to: this.args.addresses.deployedTokenRoute,
+        annotation: `Removing "${outputAssetsToRemove}" output assets from token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+        data: EverclearTokenBridge__factory.createInterface().encodeFunctionData(
+          'setOutputAssetsBatch((uint32,bytes32)[])',
+          [assets],
+        ),
+      },
+    ];
   }
 
   /**
@@ -1013,6 +1131,18 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       for (const tx of addBridgesTxs) {
         await multiProvider.sendTransaction(chain, tx);
       }
+    }
+
+    if (
+      isEverclearTokenBridgeConfig(config) &&
+      !isObjEmpty(config.outputAssets)
+    ) {
+      const addRemoteOutputTokens = warpModule.createAddRemoteOutputAddressTxs(
+        actualConfig,
+        config,
+      );
+
+      await multiProvider.sendTransaction(chain, addRemoteOutputTokens[0]);
     }
 
     return warpModule;
