@@ -14,7 +14,7 @@ const NETWORKS = {
   [NetworkId.Stokenet]: {
     applicationName: 'hyperlane',
     packageAddress:
-      'package_tdx_2_1p5nv6fml873lzwzs04fjv9w7venw8xn8xyjlsa4t7mxgkvnurkq24p',
+      'package_tdx_2_1p4hhy2zlsu9gv8m70fq8wvmul5wm6ae4c9fkvrh9xj80jgjdgmslx5',
   },
   [NetworkId.Mainnet]: {
     applicationName: 'hyperlane',

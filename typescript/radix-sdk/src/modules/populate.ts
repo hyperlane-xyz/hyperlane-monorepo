@@ -140,7 +140,7 @@ export class RadixPopulate {
       from_address,
       this.packageAddress,
       'Mailbox',
-      'mailbox_instantiate',
+      'instantiate',
       [u32(domain_id)],
     );
   }
