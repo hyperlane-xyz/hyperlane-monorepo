@@ -48,12 +48,12 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
 export const chainOwners: ChainMap<OwnableConfig> = {
   ...ethereumChainOwners,
   solanamainnet: {
-    // Squads multisig
-    owner: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ',
+    // Multisig A
+    owner: regularSafes.solanamainnet,
   },
   eclipsemainnet: {
-    // Squads multisig
-    owner: 'E4TncCw3WMqQZbkACVcomX3HqcSzLfNyhTnqKN1DimGr',
+    // Multisig A
+    owner: regularSafes.eclipsemainnet,
   },
   injective: {
     // Native multisig
@@ -81,18 +81,19 @@ export const chainOwners: ChainMap<OwnableConfig> = {
     owner: 'TODO: configure kyve owner',
   },
   soon: {
-    // Squads vault
-    owner: 'E3QPSn2Upk2EiidSsUqSQpRCc7BhzWZCKpVncemz3p62',
+    // Multisig A
+    owner: regularSafes.soon,
   },
   sonicsvm: {
-    // Will move to a Squads once it's live
-    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+    // Multisig A
+    owner: regularSafes.sonicsvm,
   },
   starknet: {
     owner: '0x06aE465e0c05735820a75500c40CB4dAbBe46eBF1F1665f9ba3f9a7Dcc78a6D1',
   },
   svmbnb: {
-    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+    // Multisig A
+    owner: regularSafes.svmbnb,
   },
   solaxy: {
     owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
