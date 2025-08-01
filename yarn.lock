@@ -8733,7 +8733,7 @@ __metadata:
     "@hyperlane-xyz/starknet-core": "npm:18.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:18.2.0"
-    "@lukso/lsp-hyperlane-token-routers": ./lukso-lsp-hyperlane-token-routers-0.1.0.tgz
+    "@lukso/lsp-hyperlane-token-routers": "npm:^0.1.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:1.3.0"
@@ -9963,15 +9963,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lukso/lsp-hyperlane-token-routers@file:./lukso-lsp-hyperlane-token-routers-0.1.0.tgz::locator=%40hyperlane-xyz%2Fsdk%40workspace%3Atypescript%2Fsdk":
-  version: 0.1.0
-  resolution: "@lukso/lsp-hyperlane-token-routers@file:./lukso-lsp-hyperlane-token-routers-0.1.0.tgz#./lukso-lsp-hyperlane-token-routers-0.1.0.tgz::hash=922c99&locator=%40hyperlane-xyz%2Fsdk%40workspace%3Atypescript%2Fsdk"
+"@lukso/lsp-hyperlane-token-routers@npm:^0.1.1":
+  version: 0.1.1
+  resolution: "@lukso/lsp-hyperlane-token-routers@npm:0.1.1"
   dependencies:
     "@erc725/smart-contracts-v8": "npm:@erc725/smart-contracts@8.0.0"
     "@hyperlane-xyz/core": "npm:^8.1.1"
     "@lukso/lsp7-contracts": "npm:^0.16.8"
     "@lukso/lsp8-contracts": "npm:^0.16.7"
-  checksum: 10/0eefe1001e15ef400a20cc6c4f9550ca66188a185b1da4e75d8a6483783fe04a279eeb6b12e25e48e02925076022b7e080ac761775e53d3cc003146745823256
+  checksum: 10/051580912eacbb2abf79030b285e388e0a165456f0d5dcc4ac156e82f4f8dd4627126153c38ac7cba7d42a1b455692e70682069898f248a383a1bafcd3e67204
   languageName: node
   linkType: hard
 
