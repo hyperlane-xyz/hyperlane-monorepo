@@ -73,7 +73,7 @@ import {
 } from '../governance.js';
 import { getSafeTx, parseSafeTx } from '../utils/safe.js';
 
-interface GovernTransaction extends Record<string, any> {
+export interface GovernTransaction extends Record<string, any> {
   chain: ChainName;
   nestedTx?: GovernTransaction;
 }
@@ -533,6 +533,29 @@ export class GovernTransactionReader {
     ) {
       const [target, value, data, executor] = decoded.args;
       insight = `Execute ${target} with ${value} ${data}. Executor: ${executor}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
+        'executeBatch(address[],uint256[],bytes[],bytes32,bytes32)'
+      ].name
+    ) {
+      const [targets, values, data, _predecessor, _salt] = decoded.args;
+
+      const innerTxs = [];
+      const numOfTxs = targets.length;
+      for (let i = 0; i < numOfTxs; i++) {
+        innerTxs.push(
+          await this.read(chain, {
+            to: targets[i],
+            data: data[i],
+            value: values[i],
+          }),
+        );
+      }
+
+      insight = `Execute batch on ${targets}:\n ${JSON.stringify(innerTxs, null, 2)}`;
     }
 
     if (
