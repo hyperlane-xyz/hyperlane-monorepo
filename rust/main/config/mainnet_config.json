@@ -71,8 +71,8 @@
       "aggregationHook": "0xe0cb37cFc47296f1c4eD77EFf92Aed478644d10c",
       "blockExplorers": [
         {
-          "apiKey": "QAI5SWBNHJSFAN6KMS9RC5JGFKV2IYD2Z5",
-          "apiUrl": "https://api.arbiscan.io/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=42161",
           "family": "etherscan",
           "name": "Arbiscan",
           "url": "https://arbiscan.io"
@@ -224,11 +224,23 @@
       "aggregationHook": "0x13f3d4B0Ee0a713430fded9E18f7fb6c91A6E41F",
       "blockExplorers": [
         {
-          "apiKey": "R8CVTG7HDJYD5JDV2GSD5TGQH3J2KJDSSY",
-          "apiUrl": "https://api.basescan.org/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=8453",
           "family": "etherscan",
           "name": "BaseScan",
           "url": "https://basescan.org"
+        },
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/8453/etherscan/api",
+          "family": "routescan",
+          "name": "Base Explorer",
+          "url": "https://base.thesuperscan.io"
+        },
+        {
+          "apiUrl": "https://base.blockscout.com/api",
+          "family": "blockscout",
+          "name": "Base Mainnet explorer",
+          "url": "https://base.blockscout.com"
         }
       ],
       "blocks": {
@@ -270,7 +282,7 @@
       "proxyAdmin": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "rpcUrls": [
         {
-          "http": "https://base.publicnode.com/"
+          "http": "https://base.publicnode.com"
         },
         {
           "http": "https://mainnet.base.org"
@@ -311,6 +323,13 @@
     "blast": {
       "aggregationHook": "0x012278333Ce0A845AE9bD7302867a59Bd5D3635d",
       "blockExplorers": [
+        {
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=81457",
+          "family": "etherscan",
+          "name": "BlastScan",
+          "url": "https://blastscan.io/"
+        },
         {
           "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan/api",
           "family": "routescan",
@@ -445,8 +464,8 @@
       "aggregationHook": "0x402Fc106576462a892355d69ACF03D46A888ae88",
       "blockExplorers": [
         {
-          "apiKey": "NXSXUUUAUDD5SYGQUIVS9TZTBCEG6X5THY",
-          "apiUrl": "https://api.bscscan.com/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=56",
           "family": "etherscan",
           "name": "BscScan",
           "url": "https://bscscan.com"
@@ -528,8 +547,8 @@
       "aggregationHook": "0xc65890329066FB20c339Bc5C22f1756e9D3a4fF5",
       "blockExplorers": [
         {
-          "apiKey": "IC1UCY8JWIYFWGPCEEE58HKFIFEVN73PVV",
-          "apiUrl": "https://api.celoscan.io/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=42220",
           "family": "etherscan",
           "name": "CeloScan",
           "url": "https://celoscan.io"
@@ -914,8 +933,8 @@
       "aggregationHook": "0xb87AC8EA4533AE017604E44470F7c1E550AC6F10",
       "blockExplorers": [
         {
-          "apiKey": "CYUPN3Q66JIMRGQWYUDXJKQH4SX8YIYZMW",
-          "apiUrl": "https://api.etherscan.io/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=1",
           "family": "etherscan",
           "name": "Etherscan",
           "url": "https://etherscan.io"
@@ -925,6 +944,12 @@
           "family": "blockscout",
           "name": "Blockscout",
           "url": "https://blockscout.com/eth/mainnet"
+        },
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/1/etherscan/api",
+          "family": "routescan",
+          "name": "Ethereum Explorer",
+          "url": "https://1.routescan.io"
         }
       ],
       "blocks": {
@@ -1002,11 +1027,17 @@
       "aggregationHook": "0xD7ff06cDd83642D648baF0d36f77e79349120dA4",
       "blockExplorers": [
         {
-          "apiKey": "X3G6FVJU5VEZXVNQFRX52EQ5FEVP8IPR6F",
-          "apiUrl": "https://api.fraxscan.com/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=252",
           "family": "etherscan",
           "name": "Fraxscan",
           "url": "https://fraxscan.com"
+        },
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/252/etherscan/api",
+          "family": "routescan",
+          "name": "Fraxtal Explorer",
+          "url": "https://252.thesuperscan.io"
         }
       ],
       "blocks": {
@@ -1145,8 +1176,8 @@
       "aggregationHook": "0xdD1FA1C12496474c1dDC67a658Ba81437F818861",
       "blockExplorers": [
         {
-          "apiKey": "98A32SWJE876CHG95TMFRC5H5SBBX9GHAG",
-          "apiUrl": "https://api.gnosisscan.io/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=100",
           "family": "etherscan",
           "name": "GnosisScan",
           "url": "https://gnosisscan.io"
@@ -1351,11 +1382,17 @@
       "aggregationHook": "0x43fF73dF1E170D076D9Ed30d4C6922A9D34322dE",
       "blockExplorers": [
         {
-          "apiKey": "ZCA9836XUX1XPAACHK4BMMYTIFMHIGU8VN",
-          "apiUrl": "https://api.lineascan.build/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=59144",
           "family": "etherscan",
           "name": "LineaScan",
           "url": "https://lineascan.build"
+        },
+        {
+          "apiUrl": "https://api-explorer.linea.build/api",
+          "family": "blockscout",
+          "name": "Linea Explorer",
+          "url": "https://explorer.linea.build"
         }
       ],
       "blocks": {
@@ -1427,6 +1464,12 @@
           "family": "blockscout",
           "name": "Lisk Explorer",
           "url": "https://blockscout.lisk.com"
+        },
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/1135/etherscan/api",
+          "family": "routescan",
+          "name": "Lisk Explorer",
+          "url": "https://1135.thesuperscan.io"
         }
       ],
       "blocks": {
@@ -1633,6 +1676,12 @@
           "family": "blockscout",
           "name": "Mantle Mainnet Explorer",
           "url": "https://explorer.mantle.xyz"
+        },
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan/api",
+          "family": "routescan",
+          "name": "Routescan",
+          "url": "https://routescan.io"
         }
       ],
       "blocks": {
@@ -1765,6 +1814,12 @@
           "family": "blockscout",
           "name": "Metis Andromeda Explorer",
           "url": "https://andromeda-explorer.metis.io"
+        },
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan/api",
+          "family": "routescan",
+          "name": "Metis Explorer",
+          "url": "https://explorer.metis.io"
         }
       ],
       "blocks": {
@@ -1894,6 +1949,12 @@
           "family": "blockscout",
           "name": "Mode Explorer",
           "url": "https://explorer.mode.network"
+        },
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan/api",
+          "family": "routescan",
+          "name": "Mode Explorer",
+          "url": "https://34443.thesuperscan.io"
         }
       ],
       "blocks": {
@@ -2106,11 +2167,23 @@
       "aggregationHook": "0x4ccC6d8eB79f2a1EC9bcb0f211fef7907631F91f",
       "blockExplorers": [
         {
-          "apiKey": "JMYR3W6HHVPQ1HH8T6W8HSZVG88IH3MHRU",
-          "apiUrl": "https://api-optimistic.etherscan.io/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=10",
           "family": "etherscan",
           "name": "Etherscan",
           "url": "https://optimistic.etherscan.io"
+        },
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/10/etherscan/api",
+          "family": "routescan",
+          "name": "Optimism Explorer",
+          "url": "https://mainnet.thesuperscan.io"
+        },
+        {
+          "apiUrl": "https://optimism.blockscout.com/api",
+          "family": "blockscout",
+          "name": "OP Mainnet explorer",
+          "url": "https://optimism.blockscout.com"
         }
       ],
       "blocks": {
@@ -2255,8 +2328,8 @@
       "aggregationHook": "0x34dAb05650Cf590088bA18aF9d597f3e081bCc47",
       "blockExplorers": [
         {
-          "apiKey": "ZPAHJ5A73MC45WJED98YJX4MKJE1UGN8D1",
-          "apiUrl": "https://api.polygonscan.com/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=137",
           "family": "etherscan",
           "name": "PolygonScan",
           "url": "https://polygonscan.com"
@@ -2331,8 +2404,8 @@
       "aggregationHook": "0x8464aF853363B8d6844070F68b0AB34Cb6523d0F",
       "blockExplorers": [
         {
-          "apiKey": "P8765WMUM4KAM9NPNAY49EACATYC4927HK",
-          "apiUrl": "https://api-zkevm.polygonscan.com/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=1101",
           "family": "etherscan",
           "name": "PolygonScan",
           "url": "https://zkevm.polygonscan.com"
@@ -2598,8 +2671,8 @@
       "aggregationHook": "0x9Bc0FAf446E128a618A88a2F28960Fb2Ca169faE",
       "blockExplorers": [
         {
-          "apiKey": "8MU9QJVN429TEYSCMB68NC5MG4VM542CFW",
-          "apiUrl": "https://api.scrollscan.com/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=534352",
           "family": "etherscan",
           "name": "Scroll Explorer",
           "url": "https://scrollscan.com/"
@@ -2797,8 +2870,8 @@
       "aggregationHook": "0x1175A31f66C5e3d0ce0ca3B7F80Abe72c6FcE272",
       "blockExplorers": [
         {
-          "apiKey": "1CDVSH9KFUVPSFGD1EUFNHD18FUH484IEK",
-          "apiUrl": "https://api.taikoscan.io/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=167000",
           "family": "etherscan",
           "name": "Taikoscan",
           "url": "https://taikoscan.io"
@@ -3000,11 +3073,17 @@
       "aggregationHook": "0x8007d1e60991fB9BE1be26f70A7cE284fdE7da97",
       "blockExplorers": [
         {
-          "apiKey": "BA89EI7MB9Z88UBURAYPRRRUKCQJB96KAE",
-          "apiUrl": "https://api.worldscan.org/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=480",
           "family": "etherscan",
           "name": "Worldscan",
           "url": "https://worldscan.org"
+        },
+        {
+          "apiUrl": "https://worldchain-mainnet.explorer.alchemy.com/api",
+          "family": "blockscout",
+          "name": "World Chain Explorer",
+          "url": "https://worldchain-mainnet.explorer.alchemy.com"
         }
       ],
       "blocks": {
@@ -5769,6 +5848,12 @@
           "family": "blockscout",
           "name": "Superseed Explorer",
           "url": "https://explorer.superseed.xyz"
+        },
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/5330/etherscan/api",
+          "family": "routescan",
+          "name": "Superseed Explorer",
+          "url": "https://5330.thesuperscan.io"
         }
       ],
       "blocks": {
@@ -5830,11 +5915,17 @@
     "unichain": {
       "blockExplorers": [
         {
-          "apiKey": "MUPHYQXB8A6GEEKKYA95N7WENSHYTU1UQQ",
-          "apiUrl": "https://api.uniscan.xyz/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=130",
           "family": "etherscan",
           "name": "Unichain Explorer",
           "url": "https://uniscan.xyz"
+        },
+        {
+          "apiUrl": "https://unichain.blockscout.com/api",
+          "family": "blockscout",
+          "name": "Unichain Blockscout",
+          "url": "https://unichain.blockscout.com"
         }
       ],
       "blocks": {
@@ -6701,6 +6792,12 @@
           "family": "blockscout",
           "name": "Ink Explorer",
           "url": "https://explorer.inkonchain.com"
+        },
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/57073/etherscan/api",
+          "family": "routescan",
+          "name": "Ink Explorer",
+          "url": "https://57073.routescan.io"
         }
       ],
       "blocks": {
@@ -6891,8 +6988,8 @@
     "sonic": {
       "blockExplorers": [
         {
-          "apiKey": "V9PP7AFQF5Q6GJSQQ5YS2UBN7GI8QCA443",
-          "apiUrl": "https://api.sonicscan.org/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=146",
           "family": "etherscan",
           "name": "Sonic Explorer",
           "url": "https://sonicscan.org"
@@ -7138,7 +7235,7 @@
     "torus": {
       "blockExplorers": [
         {
-          "apiUrl": "https://api.blockscout.torus.network/api",
+          "apiUrl": "https://blockscout.torus.network/api",
           "family": "blockscout",
           "name": "Torus Explorer",
           "url": "https://blockscout.torus.network"
@@ -8651,8 +8748,8 @@
     "opbnb": {
       "blockExplorers": [
         {
-          "apiKey": "GK47JUUDX17PHP8XQ947IYTTPHP6FTAQMK",
-          "apiUrl": "https://api-opbnb.bscscan.com/api",
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://api.etherscan.io/v2/api?chainid=204",
           "family": "etherscan",
           "name": "opBNB Scan",
           "url": "https://opbnb.bscscan.com"
