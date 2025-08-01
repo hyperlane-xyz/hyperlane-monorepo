@@ -182,11 +182,7 @@ export class RadixHypCollateralAdapter
 
   async quoteTransferRemoteGas(
     destination: Domain,
-    _?: Address,
-    _customHook?: Address,
   ): Promise<InterchainGasQuote> {
-    // TODO: RADIX
-    // add custom hook once implemented
     const { resource: addressOrDenom, amount } =
       await this.provider.query.quoteRemoteTransfer({
         token: this.tokenId,
@@ -207,8 +203,6 @@ export class RadixHypCollateralAdapter
     if (!params.interchainGas) {
       params.interchainGas = await this.quoteTransferRemoteGas(
         params.destination,
-        undefined,
-        params.customHook,
       );
     }
 
@@ -241,7 +235,7 @@ export class RadixHypCollateralAdapter
         token: this.tokenId,
         destination_domain: params.destination,
         gas_limit: router.gas,
-        custom_hook_id: '',
+        custom_hook_id: params.customHook || '',
         custom_hook_metadata: '',
         max_fee: {
           denom: params.interchainGas.addressOrDenom || '',
