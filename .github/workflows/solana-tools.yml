@@ -15,7 +15,7 @@ jobs:
   build:
     env:
       DOCKER_REGISTRY: us-east1-docker.pkg.dev
-      SHOULD_PUSH: ${{ github.ref == 'refs/heads/main' }}
+      SHOULD_PUSH: ${{ github.ref == 'refs/heads/main' && true || false }}
     runs-on: depot-ubuntu-24.04
     permissions:
       contents: read
