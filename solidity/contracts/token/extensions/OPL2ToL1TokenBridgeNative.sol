@@ -93,37 +93,36 @@ contract OpL2NativeTokenBridge is HypNative {
             });
     }
 
-    function _transferRemote(
+    function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount,
-        bytes memory _hookMetadata,
-        address _hook
-    ) internal virtual override returns (bytes32) {
+        uint256 _amount
+    ) public payable virtual override returns (bytes32) {
         require(
             _amount > 0,
             "OP L2 token bridge: amount must be greater than 0"
         );
 
-        // refund first message fees to address(this) to cover second message
-        bytes32 proveMessageId = super._transferRemote(
+        // Dispatch proof message (no token amount)
+        bytes32 proveMessageId = _Router_quoteAndDispatch(
             _destination,
-            _recipient,
-            0,
+            TokenMessage.format(_recipient, 0),
             _proveHookMetadata(),
-            _hook
+            address(hook)
         );
 
-        bytes32 withdrawMessageId = super._transferRemote(
+        // Dispatch withdrawal message (token + fee)
+        bytes32 withdrawMessageId = _Router_quoteAndDispatch(
             _destination,
-            _recipient,
-            _amount,
+            TokenMessage.format(_recipient, _amount),
             _finalizeHookMetadata(),
-            _hook
+            address(hook)
         );
 
         // include for legible error message
-        _transferFromSender(_amount);
+        HypNative._transferFromSender(_amount);
+
+        emit SentTransferRemote(_destination, _recipient, _amount);
 
         // used for mapping withdrawal to hyperlane prove and finalize messages
         bytes memory extraData = OPL2ToL1Withdrawal.encodeData(
@@ -137,12 +136,7 @@ contract OpL2NativeTokenBridge is HypNative {
         );
 
         if (address(this).balance > 0) {
-            address refundAddress = _hookMetadata.getRefundAddress(msg.sender);
-            require(
-                refundAddress != address(0),
-                "OP L2 token bridge: refund address is 0"
-            );
-            payable(refundAddress).sendValue(address(this).balance);
+            payable(msg.sender).sendValue(address(this).balance);
         }
 
         return withdrawMessageId;
@@ -168,13 +162,11 @@ abstract contract OpL1NativeTokenBridge is HypNative, OPL2ToL1CcipReadIsm {
         _MailboxClient_initialize(address(0), address(0), _owner);
     }
 
-    function _transferRemote(
+    function transferRemote(
         uint32,
         bytes32,
-        uint256,
-        bytes memory,
-        address
-    ) internal override returns (bytes32) {
+        uint256
+    ) public payable override returns (bytes32) {
         revert("OP L1 token bridge should not send messages");
     }
 

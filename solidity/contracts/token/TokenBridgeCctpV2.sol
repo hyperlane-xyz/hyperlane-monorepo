@@ -153,7 +153,8 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         );
     }
 
-    function _feeAmount(
+    // TODO: this fee amount goes to Circle, not the configured fee recipient
+    function _externalFeeAmount(
         uint32 destination,
         bytes32 recipient,
         uint256 amount
@@ -161,35 +162,24 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         return (amount * maxFeeBps) / 10_000;
     }
 
-    function _beforeDispatch(
-        uint32 destination,
-        bytes32 recipient,
-        uint256 amount
-    )
-        internal
-        virtual
-        override
-        returns (uint256 dispatchValue, bytes memory message)
-    {
-        uint256 burnAmount = amount +
-            _feeAmount(destination, recipient, amount);
-
-        _transferFromSender(burnAmount);
-
-        uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
-
+    function bridgeViaCircle(
+        uint32 circleDomain,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal override returns (bytes memory message) {
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
-            burnAmount,
+            _amount,
             circleDomain,
-            recipient,
+            _recipient,
             address(wrappedToken),
             bytes32(0), // allow anyone to relay
             maxFeeBps,
             minFinalityThreshold
         );
 
-        dispatchValue = msg.value;
-        message = TokenMessage.format(recipient, burnAmount);
+        message = TokenMessage.format(_recipient, _amount);
         _validateTokenMessageLength(message);
+
+        return message;
     }
 }

@@ -77,19 +77,11 @@ contract EverclearEthBridge is EverclearTokenBridge {
         payable(_recipient).sendValue(_amount);
     }
 
-    function _chargeSender(
-        uint32 _destination,
-        bytes32 _recipient,
+    function dispatchValue(
+        uint256 _msgValue,
         uint256 _amount
-    ) internal virtual override returns (uint256 dispatchValue) {
-        uint256 fee = _feeAmount(_destination, _recipient, _amount);
-
-        uint256 totalAmount = _amount + fee + feeParams.fee;
-        _transferFromSender(totalAmount);
-        dispatchValue = msg.value - totalAmount;
-        if (fee > 0) {
-            _transferTo(feeRecipient(), fee);
-        }
-        return dispatchValue;
+    ) internal view override returns (uint256) {
+        // The dispatch value is the msg.value minus the amount being sent. This is not detected normally since the token is being w
+        return _msgValue - _amount;
     }
 }

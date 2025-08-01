@@ -145,45 +145,52 @@ contract EverclearTokenBridge is HypERC20Collateral {
         }
     }
 
-    /**
-     * @notice Provides a quote for transferring tokens to a remote chain
-     * @dev Returns the gas payment quote and the total token amount needed (including fees)
-     * @param _destination The destination domain ID
-     * @param _recipient The recipient address on the destination chain
-     * @param _amount The amount of tokens to transfer
-     * @return quotes Array of quotes containing gas payment and token amount requirements
-     */
-    function quoteTransferRemote(
+    // To be overridden by derived contracts if they have additional fees
+    function _externalFeeAmount(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public view virtual override returns (Quote[] memory quotes) {
-        _destination; // Keep this to avoid solc's documentation warning (3881)
-        _recipient;
-
-        quotes = new Quote[](2);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount)
-        });
-        quotes[1] = Quote({
-            token: address(wrappedToken),
-            amount: _amount + feeParams.fee
-        });
+    ) internal view override returns (uint256 feeAmount) {
+        return feeParams.fee;
     }
 
-    /// @dev We can't use _feeAmount here because Everclear wants to pull tokens from this contract
-    /// and the amount from _feeAmount is sent to the fee recipient.
-    function _chargeSender(
+    function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal virtual override returns (uint256 dispatchValue) {
+    ) public payable virtual override returns (bytes32 messageId) {
+        (uint256 feeRecipientFee, uint256 externalFee) = calculateFeesAndCharge(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        /// @dev We can't use _feeAmount here because Everclear wants to pull tokens from this contract
+        /// and the amount from _feeAmount is sent to the fee recipient.
+        // if (fee > 0) {
+        //     _transferTo(feeRecipient(), fee);
+        // }
+
+        IEverclear.Intent memory intent = _createIntent(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            _outboundAmount(_amount),
+            abi.encode(intent)
+        );
+
         return
-            super._chargeSender(
+            emitAndDispatch(
                 _destination,
                 _recipient,
-                _amount + feeParams.fee
+                _amount,
+                _tokenMessage,
+                feeRecipientFee,
+                externalFee
             );
     }
 
@@ -235,31 +242,6 @@ contract EverclearTokenBridge is HypERC20Collateral {
         uint256 _amount
     ) internal view returns (bytes memory) {
         return abi.encode(_recipient, _amount);
-    }
-
-    function _beforeDispatch(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal virtual override returns (uint256, bytes memory) {
-        (uint256 _dispatchValue, bytes memory _msg) = super._beforeDispatch(
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        IEverclear.Intent memory intent = _createIntent(
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        // Add the intent to the `TokenMessage` as metadata
-        // The original `_msg` is abi.encodePacked(_recipient, _amount)
-        // We need can't use abi.encodePacked because the intent is a struct
-        _msg = bytes.concat(_msg, abi.encode(intent));
-
-        return (_dispatchValue, _msg);
     }
 
     function _handle(

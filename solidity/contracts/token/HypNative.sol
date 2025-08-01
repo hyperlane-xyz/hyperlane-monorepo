@@ -2,11 +2,11 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
 import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {TokenMessage} from "./libs/TokenMessage.sol";
 
 /**
  * @title Hyperlane Native Token Router that extends ERC20 with remote transfer functionality.
@@ -14,13 +14,15 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
 contract HypNative is LpCollateralRouter {
+    using TokenMessage for bytes;
+
     string internal constant INSUFFICIENT_NATIVE_AMOUNT =
         "Native: amount exceeds msg.value";
 
     constructor(
         uint256 _scale,
         address _mailbox
-    ) FungibleTokenRouter(_scale, _mailbox) {}
+    ) TokenRouter(_scale, _mailbox) {}
 
     /**
      * @notice Initializes the Hyperlane router
@@ -47,7 +49,8 @@ contract HypNative is LpCollateralRouter {
         quotes[0] = Quote({
             token: address(0),
             amount: _quoteGasPayment(_destination, _recipient, _amount) +
-                _feeAmount(_destination, _recipient, _amount) +
+                _feeRecipientAmount(_destination, _recipient, _amount) +
+                _externalFeeAmount(_destination, _recipient, _amount) +
                 _amount
         });
     }
@@ -82,19 +85,6 @@ contract HypNative is LpCollateralRouter {
         uint256 _amount
     ) internal virtual override {
         Address.sendValue(payable(_recipient), _amount);
-    }
-
-    function _chargeSender(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal virtual override returns (uint256 dispatchValue) {
-        uint256 fee = _feeAmount(_destination, _recipient, _amount);
-        _transferFromSender(_amount + fee);
-        dispatchValue = msg.value - (_amount + fee);
-        if (fee > 0) {
-            _transferTo(feeRecipient(), fee);
-        }
     }
 
     receive() external payable {

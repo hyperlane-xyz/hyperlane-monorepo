@@ -58,30 +58,16 @@ contract HypERC4626Collateral is HypERC20Collateral {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
-    function _chargeSender(
+    function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal virtual override returns (uint256 dispatchValue) {
-        uint256 fee = _feeAmount(_destination, _recipient, _amount);
+    ) public payable override returns (bytes32 messageId) {
+        uint256 fee = _feeRecipientAmount(_destination, _recipient, _amount);
         HypERC20Collateral._transferFromSender(_amount + fee);
         if (fee > 0) {
             HypERC20Collateral._transferTo(feeRecipient(), fee);
         }
-        return msg.value;
-    }
-
-    function _beforeDispatch(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    )
-        internal
-        virtual
-        override
-        returns (uint256 dispatchValue, bytes memory message)
-    {
-        dispatchValue = _chargeSender(_destination, _recipient, _amount);
 
         uint256 _shares = _depositIntoVault(_amount);
 
@@ -94,10 +80,22 @@ contract HypERC4626Collateral is HypERC20Collateral {
         );
 
         uint256 _outboundAmount = _outboundAmount(_shares);
-        message = TokenMessage.format(
+        bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
             _outboundAmount,
             _tokenMetadata
+        );
+
+        // effects
+        emit SentTransferRemote(_destination, _recipient, _amount);
+
+        // interactions
+        // TODO: Consider flattening with GasRouter
+        messageId = _GasRouter_dispatch(
+            _destination,
+            msg.value,
+            _tokenMessage,
+            address(hook)
         );
     }
 
@@ -126,18 +124,8 @@ contract HypERC4626Collateral is HypERC20Collateral {
      * @dev Update the exchange rate on the synthetic token by accounting for additional yield accrued to the underlying vault
      * @param _destinationDomain domain of the vault
      */
-    function rebase(
-        uint32 _destinationDomain,
-        bytes calldata _hookMetadata,
-        address _hook
-    ) public payable {
+    function rebase(uint32 _destinationDomain) public payable {
         // force a rebase with an empty transfer to 0x1
-        _transferRemote(
-            _destinationDomain,
-            NULL_RECIPIENT,
-            0,
-            _hookMetadata,
-            _hook
-        );
+        transferRemote(_destinationDomain, NULL_RECIPIENT, 0);
     }
 }
