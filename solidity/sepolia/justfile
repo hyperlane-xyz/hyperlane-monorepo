@@ -23,7 +23,7 @@ deploy-routing-ism ORIGIN_CHAIN_ID RPC_URL:
     export CHAIN_ID=$(just chain-id "{{RPC_URL}}") && \
     export LOCAL_MAILBOX_ADDRESS=$(just get-contract $CHAIN_ID Mailbox) && \
     export REMOTE_ORIGIN_DOMAIN_ID="{{ ORIGIN_CHAIN_ID }}" && \
-    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS=$(just get-contract {{ORIGIN_CHAIN_ID}} PolymerISM) && \
+    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS=$(just get-contract $CHAIN_ID PolymerISM) && \
     cd ../ && \
     forge script script/DeployDefaultFallbackRoutingIsm.s.sol:DeployDefaultFallbackRoutingIsm \
         --rpc-url "{{RPC_URL}}" \
@@ -36,6 +36,7 @@ deploy-polymerism ORIGIN_CHAIN_ID RPC_URL:
     POLYMER_PROVER_ADDRESS="${POLYMER_PROVER_ADDRESS:? polymer prover address must be set in the environment}" 
     echo "Using deployer account $(cast wallet address $PRIVATE_KEY)" 
     export ORIGIN_MAILBOX_ADDRESS=$(just get-contract {{ORIGIN_CHAIN_ID}} Mailbox) && \
+    export ORIGIN_CHAIN_ID={{ORIGIN_CHAIN_ID}} && \
     cd ../ && \
     forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
         --rpc-url "{{RPC_URL}}" \
@@ -93,6 +94,4 @@ get-contract CHAIN_ID CONTRACT_NAME:
 
 _get-latest-address CONTRACT_NAME:
     @grep -o "new {{CONTRACT_NAME}}@0x[a-fA-F0-9]*" /tmp/deploy-{{CONTRACT_NAME}}.txt | head -1 | cut -d'@' -f2 || echo "No {{CONTRACT_NAME}} address found. Run deploy-{{CONTRACT_NAME}} first."
-
-
 

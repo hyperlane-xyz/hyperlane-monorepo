@@ -1,1 +1,17 @@
-{}
+{
+  "84532": {
+    "Mailbox": "0x985c0b67E934ce355d869412a3b92e1F6e9A7594",
+    "PolymerISM": "0x537a69456c6FbE6C9BBfa107b759F20e127F137B",
+    "DefaultFallbackRoutingIsm": "0x870ef54e662eaD2CC1a3985a2E9aEf4f664d91B1"
+  },
+  "11155111": {
+    "Mailbox": "0xd9972e28123e6867592E89c9dd35a916aB2Ff58a",
+    "PolymerISM": "0x176a0d14401e4f3f923f6284af641bEfEA74cAA9",
+    "DefaultFallbackRoutingIsm": "0x80357119D2b3d698E886d9CB8e0473DbDF95eD88"
+  },
+  "25327": {
+    "Mailbox": "0xE02804ad43c2c76666BA2b5E0a0b58Eb9317952f",
+    "PolymerISM": "0xaAebC0f92049e4EBbeedD3F014D94257b46E16D2",
+    "DefaultFallbackRoutingIsm": "0xC366e4083E0522A1060372100FA6ACf39584a903"
+  }
+}
