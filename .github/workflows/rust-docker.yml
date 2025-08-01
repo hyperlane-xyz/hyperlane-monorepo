@@ -4,9 +4,12 @@ on:
     branches: [main]
     tags:
       - '**'
+    paths-ignore:
+      - 'rust/sealevel/images/**'
   pull_request:
     paths:
       - 'rust/**'
+      - '!rust/sealevel/images/**'
       - '.github/workflows/rust-docker.yml'
   workflow_dispatch:
     inputs:
