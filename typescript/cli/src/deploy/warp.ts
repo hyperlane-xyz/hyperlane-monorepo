@@ -258,18 +258,11 @@ async function executeDeploy(
     registryAddresses,
     apiKeys,
   );
-  const deployments: WarpCoreConfig = { tokens: [] };
 
-  const { warpCoreConfig } = await getWarpCoreConfig(
+  const { warpCoreConfig: deployments } = await getWarpCoreConfig(
     { context: params.context, warpDeployConfig },
     deployedContracts,
   );
-
-  deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
-  deployments.options = {
-    ...deployments.options,
-    ...warpCoreConfig.options,
-  };
 
   logGreen('✅ Warp contract deployments complete');
   return { deployedContracts, deployments };
