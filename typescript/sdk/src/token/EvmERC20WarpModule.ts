@@ -178,6 +178,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
       ...this.createAddRemoteOutputAddressTxs(actualConfig, expectedConfig),
       ...this.createRemoveRemoteOutputAddressTxs(actualConfig, expectedConfig),
+      ...this.createUpdateEverclearFeeParamsTx(actualConfig, expectedConfig),
+
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
         this.chainId,
@@ -670,6 +672,40 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     ];
   }
 
+  createUpdateEverclearFeeParamsTx(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    if (
+      !isEverclearTokenBridgeConfig(expectedConfig) ||
+      !isEverclearTokenBridgeConfig(actualConfig)
+    ) {
+      return [];
+    }
+
+    if (
+      deepEquals(
+        expectedConfig.everclearFeeParams,
+        actualConfig.everclearFeeParams,
+      )
+    ) {
+      return [];
+    }
+
+    const { deadline, fee, signature } = expectedConfig.everclearFeeParams;
+    return [
+      {
+        annotation: `Updating Everclear fee params for token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
+        chainId: this.multiProvider.getEvmChainId(this.chainName),
+        to: this.args.addresses.deployedTokenRoute,
+        data: EverclearTokenBridge__factory.createInterface().encodeFunctionData(
+          'setFeeParams',
+          [fee, deadline, signature],
+        ),
+      },
+    ];
+  }
+
   /**
    * Create a transaction to update the remote routers for the Warp Route contract.
    *
@@ -1143,6 +1179,15 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       );
 
       await multiProvider.sendTransaction(chain, addRemoteOutputTokens[0]);
+    }
+
+    if (isEverclearTokenBridgeConfig(config)) {
+      const updateEverclearFeeParams =
+        warpModule.createUpdateEverclearFeeParamsTx(actualConfig, config);
+
+      if (updateEverclearFeeParams.length !== 0) {
+        await multiProvider.sendTransaction(chain, updateEverclearFeeParams[0]);
+      }
     }
 
     return warpModule;
