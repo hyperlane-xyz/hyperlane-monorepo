@@ -25,7 +25,7 @@ use hyperlane_base::{
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
-    settings::{ChainConf, IndexSettings},
+    settings::IndexSettings,
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
@@ -76,7 +76,6 @@ struct ContextKey {
 #[derive(AsRef)]
 pub struct Relayer {
     origin_chains: HashSet<HyperlaneDomain>,
-    destination_chains: HashMap<HyperlaneDomain, ChainConf>,
     #[as_ref]
     core: HyperlaneAgentCore,
     /// Context data for each (origin, destination) chain pair a message can be
@@ -113,7 +112,7 @@ impl Debug for Relayer {
             f,
             "Relayer {{ origin_chains: {:?}, destination_chains: {:?}, message_whitelist: {:?}, message_blacklist: {:?}, address_blacklist: {:?}, transaction_gas_limit: {:?}, skip_transaction_gas_limit_for: {:?}, allow_local_checkpoint_syncers: {:?} }}",
             self.origin_chains,
-            self.destination_chains,
+            self.destinations.values(),
             self.message_whitelist,
             self.message_blacklist,
             self.address_blacklist,
@@ -204,20 +203,12 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         let mut msg_ctxs = HashMap::new();
-        let mut destination_chains = HashMap::new();
         for (destination_domain, destination) in destinations.iter() {
-            let destination_mailbox = destination.mailbox.clone();
             let application_operation_verifier = destination.application_operation_verifier.clone();
+            let destination_chain_setup = destination.chain_conf.clone();
+            let destination_mailbox = destination.mailbox.clone();
             let ccip_signer = destination.ccip_signer.clone();
 
-            let destination_chain_setup = match core.settings.chain_setup(destination_domain) {
-                Ok(setup) => setup.clone(),
-                Err(err) => {
-                    error!(?destination_domain, ?err, "Destination chain setup failed");
-                    continue;
-                }
-            };
-            destination_chains.insert(destination_domain.clone(), destination_chain_setup.clone());
             let transaction_gas_limit: Option<U256> =
                 if skip_transaction_gas_limit_for.contains(&destination_domain.id()) {
                     None
@@ -225,18 +216,13 @@ impl BaseAgent for Relayer {
                     transaction_gas_limit
                 };
 
+            let default_ism_getter = DefaultIsmCache::new(destination_mailbox.clone());
+
             // only iterate through origin chains that were successfully instantiated
             for (origin_domain, origin) in origins.iter() {
                 let db = &origin.database;
 
-                let default_ism_getter = DefaultIsmCache::new(destination_mailbox.clone());
-                let origin_chain_setup = match core.settings.chain_setup(origin_domain) {
-                    Ok(chain_setup) => chain_setup.clone(),
-                    Err(err) => {
-                        tracing::error!(origin=?origin_domain.name(), ?err, "Origin chain setup failed");
-                        continue;
-                    }
-                };
+                let origin_chain_setup = origin.chain_conf.clone();
                 let prover_sync = origin.prover_sync.clone();
                 let origin_gas_payment_enforcer = origin.gas_payment_enforcer.clone();
                 let validator_announce = origin.validator_announce.clone();
@@ -292,7 +278,6 @@ impl BaseAgent for Relayer {
         Ok(Self {
             _cache: cache,
             origin_chains: settings.origin_chains,
-            destination_chains,
             msg_ctxs,
             core,
             message_whitelist,
@@ -341,10 +326,12 @@ impl BaseAgent for Relayer {
 
         let sender = BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
-        let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
-        let mut prep_queues = HashMap::with_capacity(self.destination_chains.len());
+        let mut send_channels = HashMap::with_capacity(self.destinations.len());
+        let mut prep_queues = HashMap::with_capacity(self.destinations.len());
         start_entity_init = Instant::now();
-        for (dest_domain, dest_conf) in self.destination_chains.iter() {
+        for (dest_domain, destination) in &self.destinations {
+            let dest_conf = &destination.chain_conf;
+
             let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
 
@@ -541,13 +528,11 @@ impl BaseAgent for Relayer {
             .origins
             .iter()
             .map(|(origin_domain, origin)| (origin_domain.id(), origin.database.clone()))
-            /*
             .chain(
                 self.destinations
                     .iter()
                     .map(|(dest_domain, dest)| (dest_domain.id(), dest.database.clone())),
             )
-             */
             .collect();
 
         let gas_enforcers: HashMap<_, _> = self
@@ -555,7 +540,7 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|(key, ctx)| (key.origin.clone(), ctx.origin_gas_payment_enforcer.clone()))
             .collect();
-        let relayer_router = relayer_server::Server::new(self.destination_chains.len())
+        let relayer_router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
@@ -805,10 +790,10 @@ impl Relayer {
         let metrics = MessageDbLoaderMetrics::new(
             &self.core.metrics,
             &origin.domain,
-            self.destination_chains.keys(),
+            self.destinations.keys(),
         );
         let destination_ctxs: HashMap<_, _> = self
-            .destination_chains
+            .destinations
             .keys()
             .filter_map(|destination| {
                 let key = ContextKey {
