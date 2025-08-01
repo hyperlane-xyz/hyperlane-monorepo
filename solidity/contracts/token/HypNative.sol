@@ -49,7 +49,8 @@ contract HypNative is LpCollateralRouter {
         quotes[0] = Quote({
             token: address(0),
             amount: _quoteGasPayment(_destination, _recipient, _amount) +
-                _feeAmount(_destination, _recipient, _amount) +
+                _feeRecipientAmount(_destination, _recipient, _amount) +
+                _externalFeeAmount(_destination, _recipient, _amount) +
                 _amount
         });
     }

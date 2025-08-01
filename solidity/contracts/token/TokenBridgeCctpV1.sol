@@ -142,16 +142,11 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         );
     }
 
-    function transferRemote(
-        uint32 _destination,
+    function bridgeViaCircle(
+        uint32 circleDomain,
         bytes32 _recipient,
         uint256 _amount
-    ) public payable virtual override returns (bytes32 messageId) {
-        uint256 fee = _feeAmount(_destination, _recipient, _amount);
-        _transferFromSender(_amount + fee);
-
-        uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
-
+    ) internal override returns (bytes memory _message) {
         uint64 nonce = ITokenMessengerV1(address(tokenMessenger))
             .depositForBurn(
                 _amount,
@@ -160,23 +155,13 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
                 address(wrappedToken)
             );
 
-        bytes memory _message = TokenMessage.format(
+        _message = TokenMessage.format(
             _recipient,
             _outboundAmount(_amount),
             abi.encodePacked(nonce)
         );
         _validateTokenMessageLength(_message);
 
-        // effects
-        emit SentTransferRemote(_destination, _recipient, _amount);
-
-        // interactions
-        // TODO: Consider flattening with GasRouter
-        messageId = _GasRouter_dispatch(
-            _destination,
-            msg.value,
-            _message,
-            address(hook)
-        );
+        return _message;
     }
 }

@@ -63,7 +63,7 @@ contract HypERC4626Collateral is HypERC20Collateral {
         bytes32 _recipient,
         uint256 _amount
     ) public payable override returns (bytes32 messageId) {
-        uint256 fee = _feeAmount(_destination, _recipient, _amount);
+        uint256 fee = _feeRecipientAmount(_destination, _recipient, _amount);
         HypERC20Collateral._transferFromSender(_amount + fee);
         if (fee > 0) {
             HypERC20Collateral._transferTo(feeRecipient(), fee);
