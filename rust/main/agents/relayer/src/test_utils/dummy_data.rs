@@ -123,6 +123,6 @@ pub fn dummy_message_context(
         origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new([], db.clone()))),
         transaction_gas_limit: Default::default(),
         metrics: dummy_submission_metrics(),
-        application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),
+        application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
     }
 }
