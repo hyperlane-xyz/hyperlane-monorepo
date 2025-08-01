@@ -20,26 +20,23 @@ import {
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import {
-  ContractVerifier,
-  ExplorerLicenseType,
-  HyperlaneContractsMap,
-  RouterConfig,
-  TestChainName,
-  WarpRouteDeployConfigMailboxRequired,
-  proxyAdmin,
-  proxyImplementation,
-  test3,
-} from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert, randomInt } from '@hyperlane-xyz/utils';
 
+import { TestChainName, test3 } from '../consts/testChains.js';
+import { HyperlaneContractsMap } from '../contracts/types.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { VerifyContractTypes } from '../deploy/verify/types.js';
+import { proxyAdmin, proxyImplementation } from '../deploy/proxy.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import {
+  ExplorerLicenseType,
+  VerifyContractTypes,
+} from '../deploy/verify/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { RouterConfig } from '../router/types.js';
 import { ChainMap } from '../types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
@@ -48,6 +45,7 @@ import { HypERC20Deployer } from './deploy.js';
 import {
   ContractVerificationStatus,
   OwnerStatus,
+  WarpRouteDeployConfigMailboxRequired,
   derivedIsmAddress,
 } from './types.js';
 
