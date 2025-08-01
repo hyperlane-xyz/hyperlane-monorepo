@@ -1,0 +1,98 @@
+ADDRESS_PATH := "./sepolia-addresses.json"
+
+chain-id RPC_URL:
+  @echo "$(cast chain-id -r {{RPC_URL}})"
+
+cat-addrs:
+    @cat {{ADDRESS_PATH}}
+
+# The deploy-mailbox recipe now uses the variable
+deploy-mailbox RPC_URL:
+    echo "Using deployer account $(cast wallet address $PRIVATE_KEY)"
+    export HYPERLANE_DOMAIN_ID=$(just chain-id "{{RPC_URL}}") && \
+    cd ../ && \
+      forge script script/DeployMailbox.s.sol:DeployMailbox \
+        --rpc-url "{{RPC_URL}}" \
+        --broadcast \
+        -vvvv | tee /tmp/deploy-Mailbox.txt && \
+    export MAILBOX_ADDRESS=$(grep -o 'new Mailbox@0x[a-fA-F0-9]*' /tmp/deploy-Mailbox.txt | cut -d'@' -f2)
+    just save-mailbox-address "{{RPC_URL}}"
+
+
+deploy-routing-ism ORIGIN_CHAIN_ID RPC_URL:
+    export CHAIN_ID=$(just chain-id "{{RPC_URL}}") && \
+    export LOCAL_MAILBOX_ADDRESS=$(just get-contract $CHAIN_ID Mailbox) && \
+    export REMOTE_ORIGIN_DOMAIN_ID="{{ ORIGIN_CHAIN_ID }}" && \
+    export POLYMER_ISM_FOR_REMOTE_ORIGIN_ADDRESS=$(just get-contract {{ORIGIN_CHAIN_ID}} PolymerISM) && \
+    cd ../ && \
+    forge script script/DeployDefaultFallbackRoutingIsm.s.sol:DeployDefaultFallbackRoutingIsm \
+        --rpc-url "{{RPC_URL}}" \
+        --broadcast \
+        -vvvv | tee /tmp/deploy-DefaultFallbackRoutingIsm.txt && \
+    echo "DefaultFallbackRoutingIsm deployed at: $(grep -o 'new DefaultFallbackRoutingIsm@0x[a-fA-F0-9]*' /tmp/deploy-DefaultFallbackRoutingIsm.txt | cut -d'@' -f2)"
+    just save-contract-address "{{RPC_URL}}" DefaultFallbackRoutingIsm
+
+deploy-polymerism ORIGIN_CHAIN_ID RPC_URL:
+    POLYMER_PROVER_ADDRESS="${POLYMER_PROVER_ADDRESS:? polymer prover address must be set in the environment}" 
+    echo "Using deployer account $(cast wallet address $PRIVATE_KEY)" 
+    export ORIGIN_MAILBOX_ADDRESS=$(just get-contract {{ORIGIN_CHAIN_ID}} Mailbox) && \
+    cd ../ && \
+    forge script script/DeployPolymerIsm.s.sol:DeployPolymerIsm \
+        --rpc-url "{{RPC_URL}}" \
+        --broadcast \
+        -vvvv | tee /tmp/deploy-PolymerISM.txt && \
+    echo "Polymerism deployed at: $(grep -o 'new PolymerISM@0x[a-fA-F0-9]*' /tmp/deploy-PolymerISM.txt | cut -d'@' -f2)"
+    just save-polymerism-address "{{RPC_URL}}"
+
+deploy-simple-app RPC_URL:
+    export CHAIN_ID=$(just chain-id "{{RPC_URL}}") && \
+    export MAILBOX_ADDRESS=$(just get-contract $CHAIN_ID Mailbox) && \
+    export ISM_ADDRESS=$(just get-contract $CHAIN_ID PolymerISM) && \
+    cd ../ && \
+    forge script script/DeploySimpleMessageSenderReceiver.s.sol:DeploySimpleMessageSenderReceiver \
+        --rpc-url "{{RPC_URL}}" \
+        --broadcast \
+        -vvvv | tee /tmp/deploy-SimpleMessageSenderReceiver.txt && \
+    echo "Simple app deployed at: $(grep -o 'new SimpleMessageSenderReceiver@0x[a-fA-F0-9]*' /tmp/deploy-SimpleMessageSenderReceiver.txt | cut -d'@' -f2)"
+    just save-simple-app-address "{{RPC_URL}}"
+
+save-contract-address RPC_URL CONTRACT_NAME:
+    export CONTRACT_ADDRESS=$(just _get-latest-address {{CONTRACT_NAME}}) && \
+    export CHAIN_ID=$(just chain-id "{{RPC_URL}}") && \
+    jq --arg address "$CONTRACT_ADDRESS" \
+       --arg chain_id "$CHAIN_ID" \
+       --arg contract_name "{{CONTRACT_NAME}}" \
+       '.[$chain_id] |= ( . + {($contract_name): $address} )' "{{ADDRESS_PATH}}" > "{{ADDRESS_PATH}}.tmp" && mv "{{ADDRESS_PATH}}.tmp" "{{ADDRESS_PATH}}"
+
+save-mailbox-address RPC_URL:
+    export MAILBOX_ADDRESS=$(just _get-latest-address Mailbox) && \
+    export CHAIN_ID=$(just chain-id "{{RPC_URL}}") && \
+    jq --arg address "$MAILBOX_ADDRESS" \
+       --arg chain_id "$CHAIN_ID" \
+       --arg contract_name "Mailbox" \
+       '.[$chain_id] |= ( . + {($contract_name): $address} )' "{{ADDRESS_PATH}}" > "{{ADDRESS_PATH}}.tmp" && mv "{{ADDRESS_PATH}}.tmp" "{{ADDRESS_PATH}}"
+
+save-polymerism-address RPC_URL:
+    export POLYMERISM_ADDRESS=$(just _get-latest-address PolymerISM) && \
+    export CHAIN_ID=$(just chain-id "{{RPC_URL}}") && \
+    jq --arg address "$POLYMERISM_ADDRESS" \
+       --arg chain_id "$CHAIN_ID" \
+       --arg contract_name "PolymerISM" \
+       '.[$chain_id] |= ( . + {($contract_name): $address} )' "{{ADDRESS_PATH}}" > "{{ADDRESS_PATH}}.tmp" && mv "{{ADDRESS_PATH}}.tmp" "{{ADDRESS_PATH}}"
+
+save-simple-app-address RPC_URL:
+    export SIMPLE_APP_ADDRESS=$(just _get-latest-address SimpleMessageSenderReceiver) && \
+    export CHAIN_ID=$(just chain-id "{{RPC_URL}}") && \
+    jq --arg address "$SIMPLE_APP_ADDRESS" \
+       --arg chain_id "$CHAIN_ID" \
+       --arg contract_name "SimpleMessageSenderReceiver" \
+       '.[$chain_id] |= ( . + {($contract_name): $address} )' "{{ADDRESS_PATH}}" > "{{ADDRESS_PATH}}.tmp" && mv "{{ADDRESS_PATH}}.tmp" "{{ADDRESS_PATH}}"
+
+get-contract CHAIN_ID CONTRACT_NAME:
+    @cat {{ADDRESS_PATH}} | jq -r --arg chain_id "{{CHAIN_ID}}" '.[$chain_id].{{CONTRACT_NAME}}'
+
+_get-latest-address CONTRACT_NAME:
+    @grep -o "new {{CONTRACT_NAME}}@0x[a-fA-F0-9]*" /tmp/deploy-{{CONTRACT_NAME}}.txt | head -1 | cut -d'@' -f2 || echo "No {{CONTRACT_NAME}} address found. Run deploy-{{CONTRACT_NAME}} first."
+
+
+
