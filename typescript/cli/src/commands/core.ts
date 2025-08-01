@@ -5,7 +5,6 @@ import {
   CoreConfig,
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
-  MultiProtocolSignerManager,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import { diffObjMerge } from '@hyperlane-xyz/utils';
@@ -14,6 +13,7 @@ import {
   createCoreDeployConfig,
   readCoreDeployConfigs,
 } from '../config/core.js';
+import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,

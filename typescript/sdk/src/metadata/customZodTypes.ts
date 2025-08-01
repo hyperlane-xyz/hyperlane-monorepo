@@ -2,13 +2,6 @@
  * The types defined here are the source of truth for chain metadata.
  * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
  */
-import {
-  DocumentOptions,
-  ParseOptions,
-  SchemaOptions,
-  ToJSOptions,
-  parse,
-} from 'yaml';
 import { z } from 'zod';
 
 /** Zod uint schema */
@@ -39,9 +32,3 @@ export const ZBytes32String = z
     'Must be a 0x prefixed 64-character hexadecimal string (32 bytes)',
   )
   .transform((val) => val.toLowerCase());
-export const yamlParse = (
-  content: string,
-  options?: ParseOptions & DocumentOptions & SchemaOptions & ToJSOptions,
-) =>
-  // See stackoverflow.com/questions/63075256/why-does-the-npm-yaml-library-have-a-max-alias-number
-  parse(content, { maxAliasCount: -1, ...options });

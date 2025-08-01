@@ -4,17 +4,21 @@ import { z } from 'zod';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
+  ChainName,
+  IMultiProtocolSignerManager,
+  MultiProtocolProvider,
+  MultiProvider,
+  ProtocolMap,
+  getLocalProvider,
+} from '@hyperlane-xyz/sdk';
+import {
   Address,
   ProtocolType,
   assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
-import { ChainName, ProtocolMap } from '../types.js';
-import { getLocalProvider } from '../utils/fork.js';
+import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 
 import {
   IMultiProtocolSigner,
@@ -47,7 +51,7 @@ export const ENV = parsedEnv.success ? parsedEnv.data : {};
  * @title MultiProtocolSignerManager
  * @dev Context manager for signers across multiple protocols
  */
-export class MultiProtocolSignerManager {
+export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
   protected readonly signerStrategies: Map<ChainName, IMultiProtocolSigner>;
   protected readonly signers: Map<ChainName, TypedSigner>;
   public readonly logger: Logger;

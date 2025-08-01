@@ -3,7 +3,6 @@ import { TransactionReceipt } from '@ethersproject/providers';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   DispatchedMessage,
-  ExtendedSubmissionStrategy,
   HookType,
   HyperlaneCore,
   HyperlaneRelayer,
@@ -14,6 +13,7 @@ import {
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
+import { ExtendedSubmissionStrategy } from '../submitters/types.js';
 
 /**
  * Workaround helper for bypassing bad hook derivation when self-relaying.

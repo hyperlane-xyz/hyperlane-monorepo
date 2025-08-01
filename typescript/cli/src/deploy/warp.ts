@@ -17,9 +17,6 @@ import {
   ContractVerifier,
   EvmERC20WarpModule,
   ExplorerLicenseType,
-  ExtendedChainSubmissionStrategy,
-  ExtendedChainSubmissionStrategySchema,
-  ExtendedSubmissionStrategy,
   HypERC20Deployer,
   IsmType,
   MultiProvider,
@@ -71,6 +68,11 @@ import {
 } from '../logger.js';
 import { WarpSendLogs } from '../send/transfer.js';
 import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
+import {
+  ExtendedChainSubmissionStrategy,
+  ExtendedChainSubmissionStrategySchema,
+  ExtendedSubmissionStrategy,
+} from '../submitters/types.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,

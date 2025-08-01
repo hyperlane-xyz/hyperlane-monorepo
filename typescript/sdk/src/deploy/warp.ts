@@ -23,7 +23,6 @@ import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GroupedTransactions } from '../providers/ProviderType.js';
-import { MultiProtocolSignerManager } from '../signer/MultiProtocolSignerManager.js';
 import { CosmosNativeWarpModule } from '../token/CosmosNativeWarpModule.js';
 import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
@@ -33,7 +32,7 @@ import {
   HypTokenRouterConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
-import { ChainMap } from '../types.js';
+import { ChainMap, IMultiProtocolSignerManager } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
@@ -45,7 +44,7 @@ type ChainAddresses = Record<string, string>;
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  multiProtocolSigner: MultiProtocolSignerManager,
+  multiProtocolSigner: IMultiProtocolSignerManager,
   registryAddresses: ChainMap<ChainAddresses>,
   apiKeys: ChainMap<string>,
 ): Promise<ChainMap<Address>> {
@@ -137,7 +136,7 @@ export async function executeWarpDeploy(
 async function resolveWarpIsmAndHook(
   warpConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  multiProtocolSigner: MultiProtocolSignerManager,
+  multiProtocolSigner: IMultiProtocolSignerManager,
   registryAddresses: ChainMap<ChainAddresses>,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier: ContractVerifier,
@@ -167,7 +166,6 @@ async function resolveWarpIsmAndHook(
         chain,
         chainAddresses,
         multiProvider,
-        multiProtocolSigner,
         contractVerifier,
         ismFactoryDeployer,
         warpConfig: config,
@@ -195,7 +193,7 @@ async function createWarpIsm({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
-  multiProtocolSigner: MultiProtocolSignerManager;
+  multiProtocolSigner: IMultiProtocolSignerManager;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -272,7 +270,6 @@ async function createWarpHook({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
-  multiProtocolSigner: MultiProtocolSignerManager;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -344,7 +341,7 @@ export async function enrollCrossChainRouters(
     warpDeployConfig,
   }: {
     multiProvider: MultiProvider;
-    multiProtocolSigner: MultiProtocolSignerManager;
+    multiProtocolSigner: IMultiProtocolSignerManager;
     registryAddresses: ChainMap<ChainAddresses>;
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },

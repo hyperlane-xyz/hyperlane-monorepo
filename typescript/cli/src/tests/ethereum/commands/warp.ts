@@ -6,7 +6,6 @@ import {
   ChainName,
   HypTokenRouterConfig,
   MultiProtocolProvider,
-  MultiProtocolSignerManager,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
@@ -17,6 +16,7 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { getContext } from '../../../context/context.js';
+import { MultiProtocolSignerManager } from '../../../context/strategies/signer/MultiProtocolSignerManager.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';

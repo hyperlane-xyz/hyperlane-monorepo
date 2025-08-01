@@ -2,11 +2,7 @@ import { confirm, input, password, select } from '@inquirer/prompts';
 import { Wallet } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
-import {
-  ExtendedChainSubmissionStrategy,
-  ExtendedChainSubmissionStrategySchema,
-  TxSubmitterType,
-} from '@hyperlane-xyz/sdk';
+import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
   assert,
@@ -16,6 +12,10 @@ import {
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import {
+  ExtendedChainSubmissionStrategy,
+  ExtendedChainSubmissionStrategySchema,
+} from '../submitters/types.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,

@@ -2,8 +2,9 @@ import os from 'os';
 import { Options } from 'yargs';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
-import { ENV } from '@hyperlane-xyz/sdk';
 import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
+
+import { ENV } from '../utils/env.js';
 
 /* Global options */
 
