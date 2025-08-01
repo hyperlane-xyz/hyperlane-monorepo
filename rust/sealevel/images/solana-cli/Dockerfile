@@ -40,7 +40,7 @@ sed -i "s/^splTokenCliVersion=.*/splTokenCliVersion=$SPL_TOKEN_VERSION/" scripts
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=$SCCACHE_DIR \
+    --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     ./scripts/cargo-install-all.sh /usr/local/solana
 
 # Final image
