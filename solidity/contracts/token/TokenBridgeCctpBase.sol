@@ -277,4 +277,40 @@ abstract contract TokenBridgeCctpBase is
     ) internal override {
         // do not transfer to recipient as the CCTP transfer will do it
     }
+
+    function bridgeViaCircle(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal virtual returns (bytes memory message) {}
+
+    // TODO: Consider deduping with v1
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public payable virtual override returns (bytes32 messageId) {
+        (uint256 feeRecipientFee, uint256 externalFee) = calculateFeesAndCharge(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
+        bytes memory _message = bridgeViaCircle(
+            circleDomain,
+            _recipient,
+            _amount + feeRecipientFee + externalFee
+        );
+
+        return
+            emitAndDispatch(
+                _destination,
+                _recipient,
+                _amount,
+                _message,
+                feeRecipientFee,
+                externalFee
+            );
+    }
 }
