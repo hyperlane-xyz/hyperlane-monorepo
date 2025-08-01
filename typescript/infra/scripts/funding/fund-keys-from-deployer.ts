@@ -421,6 +421,7 @@ class ContextFunder {
     const fundableRoleKeys: Record<FundableRole, Address> = {
       [Role.Relayer]: '',
       [Role.Kathy]: '',
+      [Role.Rebalancer]: '',
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
     const { supportedChainNames } = getEnvironmentConfig(environment);
@@ -439,6 +440,7 @@ class ContextFunder {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],
             [Role.Kathy]: [],
+            [Role.Rebalancer]: [],
           };
         }
         roleKeysPerChain[chain][role] = [
@@ -956,7 +958,7 @@ function parseContextAndRoles(str: string): ContextAndRoles {
   }
 
   // For now, restrict the valid roles we think are reasonable to want to fund
-  const validRoles = new Set([Role.Relayer, Role.Kathy]);
+  const validRoles = new Set([Role.Relayer, Role.Kathy, Role.Rebalancer]);
   for (const role of roles) {
     if (!validRoles.has(role)) {
       throw Error(
