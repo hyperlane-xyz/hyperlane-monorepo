@@ -21,9 +21,6 @@ import { getSecretRpcEndpoints } from '../agents/index.js';
 
 import { DeployEnvironment } from './environment.js';
 
-// Separate list of chains that we want to keep updated operationally but
-// skip in regular check-deploy as they require manual updates via
-// legacy ICAs.
 // V2 ICAs are not supported on these chains, due to the block gas limit being
 // lower than the amount required to deploy the new InterchainAccountRouter
 // implementation.
@@ -89,12 +86,20 @@ export const chainsToSkip: ChainName[] = [
   // special case for arcadia as it's currently under maintenance.
   // will update this separately in the next batch.
   'arcadia',
-  // special case for viction, ontology, bouncebit, deepbrainchain as there are RPC issues currently
+  // special case for bouncebit, deepbrainchain as there are RPC issues currently
   // will update this separately in the next batch
-  'viction',
-  'ontology',
   'bouncebit',
   'deepbrainchain',
+
+  // legacy ICAs
+  'conflux',
+  'viction',
+  'ontology',
+
+  // legacy icas
+  'carrchaintestnet',
+  'infinityvmmonza',
+  'rometestnet',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
