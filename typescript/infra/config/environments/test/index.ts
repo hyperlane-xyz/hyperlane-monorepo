@@ -1,6 +1,6 @@
 import { JsonRpcProvider } from '@ethersproject/providers';
 
-import { MultiProvider, testChainMetadata } from '@hyperlane-xyz/sdk';
+import { MultiProvider } from '@hyperlane-xyz/sdk';
 
 import { EnvironmentConfig } from '../../../src/config/environment.js';
 
