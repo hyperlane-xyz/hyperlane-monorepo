@@ -6,6 +6,8 @@ import {
   ERC20Test,
   ERC20Test__factory,
   ERC4626Test__factory,
+  MockEverclearAdapter,
+  MockEverclearAdapter__factory,
   XERC20LockboxTest,
   XERC20LockboxTest__factory,
   XERC20VSTest,
@@ -475,6 +477,25 @@ export async function deployToken(
   await token.deployed();
 
   return token;
+}
+
+export async function deployEverclearBridgeAdapter(
+  privateKey: string,
+  chain: string,
+): Promise<MockEverclearAdapter> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
+  const adapter = await new MockEverclearAdapter__factory(
+    multiProvider.getSigner(chain),
+  ).deploy();
+  await adapter.deployed();
+
+  return adapter;
 }
 
 export async function deploy4626Vault(

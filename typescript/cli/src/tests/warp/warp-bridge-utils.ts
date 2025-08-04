@@ -2,7 +2,11 @@ import { JsonRpcProvider } from '@ethersproject/providers';
 import { Wallet } from 'ethers';
 import { parseUnits } from 'ethers/lib/utils.js';
 
-import { ERC20Test, ERC4626Test } from '@hyperlane-xyz/core';
+import {
+  ERC20Test,
+  ERC4626Test,
+  MockEverclearAdapter,
+} from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -24,6 +28,7 @@ import {
   REGISTRY_PATH,
   WARP_DEPLOY_OUTPUT_PATH,
   deploy4626Vault,
+  deployEverclearBridgeAdapter,
   deployOrUseExistingCore,
   deployToken,
   sendWarpRouteMessageRoundTrip,
@@ -46,6 +51,8 @@ export type WarpBridgeTestConfig = {
   vaultChain2: ERC4626Test;
   tokenChain3: ERC20Test;
   vaultChain3: ERC4626Test;
+  everclearBridgeAdapterChain2: MockEverclearAdapter;
+  everclearBridgeAdapterChain3: MockEverclearAdapter;
 };
 
 export async function runWarpBridgeTests(
@@ -136,6 +143,11 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
     vaultChain2.symbol(),
   ]);
 
+  const everclearBridgeAdapterChain2 = await deployEverclearBridgeAdapter(
+    ANVIL_KEY,
+    CHAIN_NAME_2,
+  );
+
   const tokenChain3 = await deployToken(ANVIL_KEY, CHAIN_NAME_3);
   const vaultChain3 = await deploy4626Vault(
     ANVIL_KEY,
@@ -147,6 +159,11 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
     tokenChain3.symbol(),
     vaultChain3.symbol(),
   ]);
+
+  const everclearBridgeAdapterChain3 = await deployEverclearBridgeAdapter(
+    ANVIL_KEY,
+    CHAIN_NAME_3,
+  );
 
   return {
     chain2Addresses,
@@ -162,6 +179,8 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
     tokenChain3Symbol,
     vaultChain3,
     tokenVaultChain3Symbol,
+    everclearBridgeAdapterChain2,
+    everclearBridgeAdapterChain3,
   };
 }
 
@@ -177,6 +196,7 @@ export function generateTestCases(
       owner: config.ownerAddress,
       token: config.tokenChain2.address,
       vault: config.vaultChain2.address,
+      everclearBridgeAdapter: config.everclearBridgeAdapterChain2.address,
     },
     {
       chainName: CHAIN_NAME_3,
@@ -184,6 +204,7 @@ export function generateTestCases(
       owner: config.ownerAddress,
       token: config.tokenChain3.address,
       vault: config.vaultChain3.address,
+      everclearBridgeAdapter: config.everclearBridgeAdapterChain3.address,
     },
   );
 
