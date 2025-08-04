@@ -207,10 +207,7 @@ impl Scraper {
         info!(domain = domain.name(), "create chain scraper for domain");
         let chain_setup = settings.chain_setup(domain)?;
         info!(domain = domain.name(), "create HyperlaneProvider");
-        let provider = settings
-            .build_provider(domain, &metrics.clone())
-            .await?
-            .into();
+        let provider = chain_setup.build_provider(&metrics).await?.into();
         info!(domain = domain.name(), "create HyperlaneDbStore");
         let store = HyperlaneDbStore::new(
             scraper_db,
