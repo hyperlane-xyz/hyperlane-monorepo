@@ -66,6 +66,8 @@ impl TracingConfig {
         if self.level < Level::DependencyTrace {
             // Reduce log noise from trusted libraries that we can reasonably assume are working correctly
             target_layer = target_layer
+                .with_target("cometbft", Level::Warn)
+                .with_target("cometbft_rpc", Level::Warn)
                 .with_target("hyper::", Level::Info)
                 .with_target("rusoto_core", Level::Info)
                 .with_target("rustls", Level::Info)
