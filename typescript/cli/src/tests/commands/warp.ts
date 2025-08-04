@@ -128,8 +128,9 @@ export class HyperlaneE2EWarpTestCommands {
     warpRouteId?: string;
     extraArgs?: string[];
   }): ProcessPromise {
-    return $`${hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
-      } ${localTestRunCmdPrefix()} hyperlane warp deploy \
+    return $`${
+      hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
+    } ${localTestRunCmdPrefix()} hyperlane warp deploy \
           --registry ${this.registryPath} \
           ${warpDeployPath ? ['--config', warpDeployPath] : []} \
           ${warpCorePath ? ['--warp', warpCorePath] : []} \
@@ -178,8 +179,9 @@ export class HyperlaneE2EWarpTestCommands {
     skipConfirmationPrompts?: boolean;
     extraArgs?: string[];
   }): ProcessPromise {
-    return $` ${hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
-      } ${localTestRunCmdPrefix()} hyperlane warp apply \
+    return $` ${
+      hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
+    } ${localTestRunCmdPrefix()} hyperlane warp apply \
           --registry ${this.registryPath} \
           ${warpDeployPath ? ['--config', warpDeployPath] : []} \
           ${warpCorePath ? ['--warp', warpCorePath] : []} \
