@@ -22,8 +22,9 @@ async fn test_http_client() {
     // let height = 15317185u32;
 
     // Injective
-    let url = "<Injective url>";
-    let height = 127361588u32;
+    let url = "<injective url>";
+    let height = 127744375u32;
+    // let height = 127361588u32;
     // let height = 127742354u32;
 
     let url = Url::from_str(url).unwrap();
