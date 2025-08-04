@@ -17,6 +17,7 @@ import {
 import {
   Address,
   ProtocolType,
+  addressToBytes32,
   assert,
   objFilter,
   objKeys,
@@ -61,6 +62,7 @@ import {
   isCollateralTokenConfig,
   isEverclearCollateralTokenConfig,
   isEverclearEthBridgeTokenConfig,
+  isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isOpL1TokenConfig,
@@ -557,6 +559,73 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async setEverclearFeeParams(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isEverclearTokenBridgeConfig(config)) {
+          return;
+        }
+
+        const router = this.router(deployedContractsMap[chain]).address;
+        const everclearTokenBridge = EverclearTokenBridge__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        await this.multiProvider.handleTx(
+          chain,
+          everclearTokenBridge.setFeeParams(
+            config.everclearFeeParams.fee,
+            config.everclearFeeParams.deadline,
+            config.everclearFeeParams.signature,
+          ),
+        );
+      }),
+    );
+  }
+
+  protected async setEverclearOutputAssets(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isEverclearTokenBridgeConfig(config)) {
+          return;
+        }
+
+        const router = this.router(deployedContractsMap[chain]).address;
+        const everclearTokenBridge = EverclearTokenBridge__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const remoteOutputAddresses = resolveRouterMapConfig(
+          this.multiProvider,
+          config.outputAssets ?? {},
+        );
+
+        const assets = Object.entries(remoteOutputAddresses).map(
+          ([domainId, outputAsset]): {
+            destination: number;
+            outputAsset: string;
+          } => ({
+            destination: parseInt(domainId),
+            outputAsset: addressToBytes32(outputAsset),
+          }),
+        );
+
+        await this.multiProvider.handleTx(
+          chain,
+          everclearTokenBridge.setOutputAssetsBatch(assets),
+        );
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadataMap: TokenMetadataMap;
     try {
@@ -593,6 +662,10 @@ abstract class TokenDeployer<
     await this.setAllowedBridges(configMap, deployedContractsMap);
 
     await this.setBridgesTokenApprovals(configMap, deployedContractsMap);
+
+    await this.setEverclearFeeParams(configMap, deployedContractsMap);
+
+    await this.setEverclearOutputAssets(configMap, deployedContractsMap);
 
     await super.transferOwnership(deployedContractsMap, configMap);
 
