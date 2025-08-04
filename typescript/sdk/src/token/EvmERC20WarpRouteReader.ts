@@ -121,7 +121,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       [TokenType.ethEverclear]:
         this.deriveEverclearEthTokenBridgeConfig.bind(this),
       [TokenType.collateralEverclear]:
-        this.deriveEverclearTokenbridgeConfig.bind(this),
+        this.deriveEverclearCollateralTokenBridgeConfig.bind(this),
     };
 
     this.contractVerifier =
@@ -710,7 +710,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     };
   }
 
-  private async deriveEverclearbridgeConfig(
+  private async deriveEverclearBaseBridgeConfig(
     everclearTokenbridgeInstance: EverclearTokenBridge,
   ): Promise<
     Pick<
@@ -733,6 +733,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
     return {
       everclearBridgeAddress,
+      // Remove unset domains from the output
       outputAssets: objFilter(
         outputAssets,
         (_domainId, assetAddress): assetAddress is string =>
@@ -756,7 +757,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
     const wethAddress = await everclearTokenbridgeInstance.wrappedToken();
     const { everclearBridgeAddress, everclearFeeParams, outputAssets } =
-      await this.deriveEverclearbridgeConfig(everclearTokenbridgeInstance);
+      await this.deriveEverclearBaseBridgeConfig(everclearTokenbridgeInstance);
 
     return {
       type: TokenType.ethEverclear,
@@ -767,7 +768,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     };
   }
 
-  private async deriveEverclearTokenbridgeConfig(
+  private async deriveEverclearCollateralTokenBridgeConfig(
     hypTokenAddress: Address,
   ): Promise<EverclearCollateralTokenConfig> {
     const everclearTokenbridgeInstance = EverclearTokenBridge__factory.connect(
@@ -782,7 +783,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       { everclearBridgeAddress, everclearFeeParams, outputAssets },
     ] = await Promise.all([
       this.fetchERC20Metadata(collateralTokenAddress),
-      this.deriveEverclearbridgeConfig(everclearTokenbridgeInstance),
+      this.deriveEverclearBaseBridgeConfig(everclearTokenbridgeInstance),
     ]);
 
     return {

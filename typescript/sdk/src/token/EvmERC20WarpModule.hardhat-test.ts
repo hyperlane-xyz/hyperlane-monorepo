@@ -227,7 +227,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
   const getEverclearTokenBridgeTokenConfig = (): Record<
     EverclearTokenBridgeTokenType,
-    HypTokenRouterConfig
+    Extract<HypTokenRouterConfig, { type: EverclearTokenBridgeTokenType }>
   > => {
     const everclearFeeParams = {
       deadline: Date.now(),
@@ -414,19 +414,28 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
   for (const tokenType of everclearTokenBridgeTypes) {
     it(`should create ${tokenType} token`, async () => {
-      const config: HypTokenRouterConfig =
-        getEverclearTokenBridgeTokenConfig()[tokenType];
+      const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
         chain,
         config,
         multiProvider,
         proxyFactoryFactories: ismFactoryAddresses,
       });
 
-      // TODO: update this once there is reader support
-      await expect(evmERC20WarpModule).not.to.rejected;
+      const currentConfig = await evmERC20WarpModule.read();
+
+      assert(
+        isEverclearCollateralTokenConfig(currentConfig),
+        `Expected token of type ${tokenType}`,
+      );
+      expect(currentConfig.everclearBridgeAddress).to.deep.equal(
+        config.everclearBridgeAddress,
+      );
+      expect(currentConfig.everclearFeeParams).to.deep.equal(
+        config.everclearFeeParams,
+      );
     });
   }
 

@@ -473,13 +473,13 @@ export function objDiff<
 >(
   a: Record<TKey, TValue>,
   b: Record<TKey, TValue>,
-  compare: (a: TValue, b: TValue) => boolean = (a, b) => a !== b,
+  areEquals: (a: TValue, b: TValue) => boolean = (a, b) => a === b,
 ): Record<TKey, TValue> {
   const bKeys = new Set(objKeys(b));
 
   return objFilter(
     a,
     (key, value): value is TValue =>
-      !bKeys.has(key as TKey) || compare(value, b[key as TKey]),
+      !bKeys.has(key as TKey) || !areEquals(value, b[key as TKey]),
   ) as Record<TKey, TValue>;
 }

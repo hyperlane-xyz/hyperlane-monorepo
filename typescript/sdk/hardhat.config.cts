@@ -20,7 +20,7 @@ module.exports = {
     currency: 'USD',
   },
   mocha: {
-    bail: false,
+    bail: true,
     import: 'tsx',
   },
   networks: {

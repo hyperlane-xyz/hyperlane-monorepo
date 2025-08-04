@@ -838,7 +838,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       }
     });
 
-    it('should set the everclear fee and outputa asset addresses', async () => {
+    it('should set the Everclear fee params and output asset addresses', async () => {
       const expectedFeeSettings = {
         deadline: Date.now(),
         fee: 1000,

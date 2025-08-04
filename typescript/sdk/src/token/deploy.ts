@@ -561,7 +561,7 @@ abstract class TokenDeployer<
 
         const remoteOutputAddresses = resolveRouterMapConfig(
           this.multiProvider,
-          config.outputAssets ?? {},
+          config.outputAssets,
         );
 
         const assets = Object.entries(remoteOutputAddresses).map(
