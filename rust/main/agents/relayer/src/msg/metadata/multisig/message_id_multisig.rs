@@ -4,13 +4,13 @@ use async_trait::async_trait;
 use derive_more::{AsRef, Deref};
 use derive_new::new;
 
-use eyre::{Context, Result};
+use eyre::Result;
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
 use tracing::{debug, warn};
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
-use crate::msg::metadata::MessageMetadataBuilder;
+use crate::msg::metadata::{MessageMetadataBuilder, MetadataBuildError};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct MessageIdMultisigMetadataBuilder(MessageMetadataBuilder);
@@ -36,14 +36,13 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         threshold: u8,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
-    ) -> Result<Option<MultisigMetadata>> {
+    ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
         let message_id = message.id();
-        const CTX: &str = "When fetching MessageIdMultisig metadata";
         let leaf_index = unwrap_or_none_result!(
             self.base_builder()
                 .get_merkle_leaf_id_by_message_id(message_id)
                 .await
-                .context(CTX)?,
+                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
             debug!(
                 hyp_message=?message,
                 "No merkle leaf found for message id, must have not been enqueued in the tree"
@@ -63,7 +62,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             checkpoint_syncer
                 .fetch_checkpoint(validators, threshold as usize, leaf_index)
                 .await
-                .context(CTX)?,
+                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
             debug!("No quorum checkpoint found")
         );
 
@@ -109,7 +108,8 @@ mod tests {
         MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder, MultisigMetadata,
     };
     use crate::msg::metadata::{
-        IsmBuildMetricsParams, MessageMetadataBuildParams, MessageMetadataBuilder, MetadataBuilder,
+        IsmBuildMetricsParams, MessageMetadataBuildParams, MessageMetadataBuilder,
+        MetadataBuildError, MetadataBuilder,
     };
     use crate::test_utils::mock_base_builder::build_mock_base_builder;
 
@@ -198,7 +198,9 @@ mod tests {
             .get_proof
             .lock()
             .unwrap()
-            .push_back(Err(eyre::eyre!("No Proof")));
+            .push_back(Err(MetadataBuildError::FailedToBuild(
+                "No proof found".into(),
+            )));
 
         let ism_address = H256::zero();
         let message_builder = {
@@ -277,7 +279,9 @@ mod tests {
             .get_proof
             .lock()
             .unwrap()
-            .push_back(Err(eyre::eyre!("No Proof")));
+            .push_back(Err(MetadataBuildError::FailedToBuild(
+                "No proof found".into(),
+            )));
 
         let multisig_syncer = MultisigCheckpointSyncer::new(syncers_dyn, None);
 
@@ -387,7 +391,9 @@ mod tests {
             .get_proof
             .lock()
             .unwrap()
-            .push_back(Err(eyre::eyre!("No Proof")));
+            .push_back(Err(MetadataBuildError::FailedToBuild(
+                "No proof found".into(),
+            )));
 
         let multisig_syncer = MultisigCheckpointSyncer::new(syncers_dyn, None);
 
