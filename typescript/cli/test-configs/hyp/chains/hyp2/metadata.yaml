@@ -3,9 +3,9 @@
 # Schema here: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/metadata/chainMetadataTypes.ts
 ---
 bech32Prefix: hyp
-chainId: hyperlane-local-1
-domainId: 758986691
-name: hyp1
+chainId: hyperlane-local-2
+domainId: 758986692
+name: hyp2
 protocol: cosmosnative
 slip44: 118
 restUrls:
