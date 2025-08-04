@@ -1,8 +1,10 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tracing::warn;
 
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::{db::DB, settings::ChainConf, CoreMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol, Mailbox, SubmitterType};
 use hyperlane_ethereum::Signers;
@@ -14,10 +16,18 @@ use lander::{
 pub struct Destination {
     pub domain: HyperlaneDomain,
     pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
+    pub chain_conf: ChainConf,
+    pub database: HyperlaneRocksDB,
     pub dispatcher_entrypoint: Option<DispatcherEntrypoint>,
     pub dispatcher: Option<Dispatcher>,
     pub mailbox: Arc<dyn Mailbox>,
     pub ccip_signer: Option<Signers>,
+}
+
+impl Debug for Destination {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Destination {{ domain: {} }}", self.domain.name())
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -67,6 +77,8 @@ impl Factory for DestinationFactory {
 
         let ccip_signer = self.init_ccip_signer(&domain, &chain_conf).await;
 
+        let database = HyperlaneRocksDB::new(&domain, self.db.clone());
+
         let (dispatcher_entrypoint, dispatcher) = self
             .init_dispatcher_and_entrypoint(&domain, chain_conf.clone(), dispatcher_metrics)
             .await?;
@@ -76,6 +88,8 @@ impl Factory for DestinationFactory {
         let destination = Destination {
             domain,
             application_operation_verifier,
+            chain_conf,
+            database,
             dispatcher_entrypoint,
             dispatcher,
             mailbox,

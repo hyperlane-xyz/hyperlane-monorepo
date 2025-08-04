@@ -126,7 +126,7 @@ export {
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
-export { executeWarpDeploy } from './deploy/warp.js';
+export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
   SealevelOverheadIgpAdapter,
@@ -190,6 +190,7 @@ export {
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
 export { CosmosNativeIsmReader } from './ism/CosmosNativeIsmReader.js';
+export { CosmosNativeWarpModule } from './token/CosmosNativeWarpModule.js';
 export { CosmosNativeWarpRouteReader } from './token/CosmosNativeWarpRouteReader.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
@@ -384,6 +385,7 @@ export {
   ViemProvider,
   ViemTransaction,
   ViemTransactionReceipt,
+  GroupedTransactions,
   ProtocolTypedTransaction,
 } from './providers/ProviderType.js';
 export {
@@ -731,6 +733,8 @@ export {
   PausableConfig,
   PausableSchema,
   ProtocolMap,
+  TypedSigner,
+  IMultiProtocolSignerManager,
 } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { verifyScale } from './utils/decimals.js';
