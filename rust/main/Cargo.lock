@@ -2130,7 +2130,7 @@ dependencies = [
 [[package]]
 name = "cometbft"
 version = "0.1.0-alpha.2"
-source = "git+https://github.com/cometbft/cometbft-rs?rev=ac3db79c5807cd1d0b8b14a7b8199b8d79d6408d#ac3db79c5807cd1d0b8b14a7b8199b8d79d6408d"
+source = "git+https://github.com/cometbft/cometbft-rs?rev=71af716216216cfdc150cacef5ceae3610a5824b#71af716216216cfdc150cacef5ceae3610a5824b"
 dependencies = [
  "bytes",
  "cometbft-proto",
@@ -2159,7 +2159,7 @@ dependencies = [
 [[package]]
 name = "cometbft-config"
 version = "0.1.0-alpha.2"
-source = "git+https://github.com/cometbft/cometbft-rs?rev=ac3db79c5807cd1d0b8b14a7b8199b8d79d6408d#ac3db79c5807cd1d0b8b14a7b8199b8d79d6408d"
+source = "git+https://github.com/cometbft/cometbft-rs?rev=71af716216216cfdc150cacef5ceae3610a5824b#71af716216216cfdc150cacef5ceae3610a5824b"
 dependencies = [
  "cometbft",
  "flex-error",
@@ -2172,7 +2172,7 @@ dependencies = [
 [[package]]
 name = "cometbft-proto"
 version = "0.1.0-alpha.2"
-source = "git+https://github.com/cometbft/cometbft-rs?rev=ac3db79c5807cd1d0b8b14a7b8199b8d79d6408d#ac3db79c5807cd1d0b8b14a7b8199b8d79d6408d"
+source = "git+https://github.com/cometbft/cometbft-rs?rev=71af716216216cfdc150cacef5ceae3610a5824b#71af716216216cfdc150cacef5ceae3610a5824b"
 dependencies = [
  "bytes",
  "flex-error",
@@ -2186,7 +2186,7 @@ dependencies = [
 [[package]]
 name = "cometbft-rpc"
 version = "0.1.0-alpha.2"
-source = "git+https://github.com/cometbft/cometbft-rs?rev=ac3db79c5807cd1d0b8b14a7b8199b8d79d6408d#ac3db79c5807cd1d0b8b14a7b8199b8d79d6408d"
+source = "git+https://github.com/cometbft/cometbft-rs?rev=71af716216216cfdc150cacef5ceae3610a5824b#71af716216216cfdc150cacef5ceae3610a5824b"
 dependencies = [
  "async-trait",
  "bytes",

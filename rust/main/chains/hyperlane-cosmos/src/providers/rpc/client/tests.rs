@@ -1267,6 +1267,8611 @@ fn test_deserialize_osmosis_block_15317185() {
     println!("Response: {:?}", response);
 }
 
+#[test]
+fn test_deserialize_injective_block_127740914() {
+    let json = r#"{
+  "id": 0,
+  "chainid": "injective-1",
+  "height": 127740914,
+  "proposer": "BBB6B7EB2D754EC2957CA5615DD5AB79415B0B1A",
+  "operator_address": "injvaloper10xhy8xurfwts9ckjkq0ga92mrjz9txyygymqzp",
+  "moniker": "Informal Systems",
+  "block_hash": "579C11F4B5BCFC289032CCFC28E47B222CFB932C13E0624CFD7D8915D2EE3422",
+  "identity": "",
+  "signatures": [
+    {
+      "block_id_flag": 2,
+      "validator_address": "5A22FB1E69D783401ED3CE77DD3C3D44EDB2E093",
+      "timestamp": "2025-08-04T19:07:58.3386964Z",
+      "signature": "oCL3OT0SrihGVBLcDftxmfmc73yxr6M4QRkdP2gywjhZDDJmh/JwvUUaypg3YBSQGq8e8PaMQGub2d4euQ/nDg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "BBB6B7EB2D754EC2957CA5615DD5AB79415B0B1A",
+      "timestamp": "2025-08-04T19:08:15.045414708Z",
+      "signature": "bmaUAEP6P1W+fiuWzeKYyKOjl+beOjLDMoJ15/SJXq4RmyDH9+MshkRbpKu3bXZOXBXvSTq2I6IRIjyHX70BCQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "6C56084E1CFA331628C8EB1DA6F865922457A975",
+      "timestamp": "2025-08-04T19:07:58.334824436Z",
+      "signature": "b03uhh6HmFAo8B2Vh4o50e2lCaAGWDkIDM5W2sXh9pcR4w3QN1YkgoKAKWYWnTl/krMh66LPRvIIZVrITmMHAg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "39633DD07F87E216E0CAD01E0BE216E22F89AB3F",
+      "timestamp": "2025-08-04T19:07:58.338784522Z",
+      "signature": "RCNg7CG56R0xYMeQmhXCYraplhEP2BFDZsJ4D2onsM7JaxVqUzAiHpwTPSuRPlnYLxWO4U8jSq71JaPholAoCQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "6AC092D0C0B91F5D889AAA03DB35A64330703144",
+      "timestamp": "2025-08-04T19:07:58.338802075Z",
+      "signature": "oQQxCe0oS52My6np8aplGwww5d7bcCKNJufoSHz8mLj+JMRJGlnASnhIklGkhK1V5WPKtpOtaJTZxJJ12+26DA=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "37CE71AD8CD4DC01D8798E103A70978591708169",
+      "timestamp": "2025-08-04T19:07:58.3376258Z",
+      "signature": "h5Ej39eaBoi399mvuI83Zluq3z7nH8cEfrbO8OKUv3MyYot+X3BMNvLLEB8H398k+s9igVybuXS1YuS7SP5hCg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "6087607E1E56F6EE7934ABAF65834C92D618104C",
+      "timestamp": "2025-08-04T19:07:58.336561248Z",
+      "signature": "0/3utS2m+KbyKCrbfY2oAk/Et86qlc5OHrxp+GAYsHDj8wlhwDNO/felQcEhopDGCA8P6NvE3hE1F8OeIFzYDQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "F530BDDB1CF813670A6F6F1E574474D4C91385F5",
+      "timestamp": "2025-08-04T19:07:58.336400926Z",
+      "signature": "1hL4NupWKDDUnPRFh5uTZAph/x7qDxDlDHV1FyJZbf0LFwPTadODvWcn1DxbPIiWEZkn0bEQXNRLQ0QHR5t0Dg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "37B3F9E462967F150F5BF98A7A355F3531B58D12",
+      "timestamp": "2025-08-04T19:07:58.340477742Z",
+      "signature": "nys4soAZnFHeFPbmlggjPmqmd6xn7KBULUYliyZw0ZnZhlTsJl5aq9ZQ9uhLY1xaHeqMV/2dx2eM35vMpWQODg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "CDF55ACD97B31A67662BD0BEBC673E5B5FAAEC04",
+      "timestamp": "2025-08-04T19:07:58.336617396Z",
+      "signature": "xN+M/16NoEsXpYjfOFftURFxORijnRvH+NWdCNgA3AY1QXhtSKmj0ed7u6SxQJh2tdjgL8hvi3vXrsyDq9DyAQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "7781FA16ADC57E109F63BD1E29F14F9D3817E14A",
+      "timestamp": "2025-08-04T19:07:58.334509423Z",
+      "signature": "Qya4pnDJM37aK64OU3a5eUsIsm1JLwISeVNG7ltBDPWvDY3GUP9WvTZhsefeVNSXCZfoKaTL5AAbooJ6chzdCA=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "545768F1C4F1EE3E7EF93DE8E59FD57A506CEE92",
+      "timestamp": "2025-08-04T19:07:58.350481319Z",
+      "signature": "vNaiLu6jm/PiWPOy/pU/tDHoZaja1cejMUiKaT8/5Z1p3rX0o60SpXrDdYfBEBMrshiSz9vSuRbUjSDepFINBQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "9AAC0790FFF74F4050DBBBB55EBF59BF134C4038",
+      "timestamp": "2025-08-04T19:07:58.344574776Z",
+      "signature": "UoAbRG/3TUbWZRk/jxpgXnsFYGfxPAVvD4ny42G2uPxHUFd78rtfXSJiBcA6YYlUUuQRqIdfDbRwZ0LEZlFKAA=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "1AF320FDB49A7409B173572FCD8F33070B7DE1FA",
+      "timestamp": "2025-08-04T19:07:58.334698762Z",
+      "signature": "WqITFLW3Zn/g0cWvTf3QseC4jwbZ7ZwsYb0bO2VD97ZWcq9QclCtx0yjYQ/kDyYd4YnzeW96Q0nQz38VYXP5BA=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "F39BF9316C07E4F27EE31951F720783C58D09C11",
+      "timestamp": "2025-08-04T19:07:58.351411184Z",
+      "signature": "cucx1BhcyyDvSIp3o+NMWYiN3iVWqk6rPBOJhWqtbv8qwdSgbLapPdP3/VfWraVnHeDt/HzqSQ9fJQ3yOyv+Aw=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "B785C7308D551BD1B227981BF938FE8AD3D3E3AF",
+      "timestamp": "2025-08-04T19:07:58.345611284Z",
+      "signature": "HZJbqYVz9KZJ1BO/XDnFsuyyiiotx64SdCRuYLvImkRSUCa7yJm7lffBv7qkefXqJNk69jecIVPiJL41PlESDQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "8797A180AA4E4ECF90FE6806E1C2FA6467577849",
+      "timestamp": "2025-08-04T19:07:58.375978529Z",
+      "signature": "vQ7u+hOau0RrebfRoIiWGNMch8izmDb7d/9RBFrlH05JOfjGn9wWB/+/snu4on2R2OLgj69KJ9ifM28oV+iOBw=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "7D2D96C14632861337AA62C0EF4E3CA096CE1665",
+      "timestamp": "2025-08-04T19:07:58.34603991Z",
+      "signature": "iGc7yupKZL6r0hHRQKxCuMJt1DnM7f4xFUyn5OD/mFkV8/dWJQ3rFaBWDmwef4Ma3FYkoNHJ6fKrqnqRIVByDg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "33ED396C904DD8E9A1C2A43FB37C14F5DFDB6E8A",
+      "timestamp": "2025-08-04T19:07:58.347085654Z",
+      "signature": "NjUz/nbg90t539FmD3TAULJrfh6ig63e64tFcrWTujzXuV2k2xy1l7Cfms1Aw4kHGS50uiXwO4SPWVaboTExDQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "6460844B2C81E87F3E2A10667787BB7600CFA970",
+      "timestamp": "2025-08-04T19:07:58.339582689Z",
+      "signature": "Ovjsm0Z4UmsNUy+v6CYXOxqVPhjoL/CzZ4wkbaviCnl3sc5YubTOWK5uhaHUnwIi0zcYSgPSq9yyOJCwAEnWBg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "9DFCC2E344433CBF2DA533E871EDF765E28FB74E",
+      "timestamp": "2025-08-04T19:07:58.340223568Z",
+      "signature": "R9XEdDzVEfRH5+L3jJ4skDbDJ28zAkBHBuded1G0roWGXmstLerCWXZUR5S5y/ROZ1vtV9UxNhY5HpIlG60vDg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "FEAA42B0C3582CF9EBE4BD52082B90636C8BF3A5",
+      "timestamp": "2025-08-04T19:07:58.339594155Z",
+      "signature": "wfuhESQBcCEFZ4I/4SQeewHcx78jQQbbxatdQvbSV8isgyqvxODlARW6T8HXIJhy4DUlx90Ml4hURxDr4F3HBw=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "75BC207881F939F712C73F0DED5EAAB029F19B2C",
+      "timestamp": "2025-08-04T19:07:58.341899731Z",
+      "signature": "h7RxpoyH+iPAJ4dsNfo6la69GMyte0AlWXvsJaQIZF3rbIIPaIIxW4sObKASjXpZLJ5G+N90Y0xOtwde5SV6Cg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "477858E6BF7E36ADB6062D224A0B06B7B4E5C26E",
+      "timestamp": "2025-08-04T19:07:58.334485564Z",
+      "signature": "6RhjfhK1KyK0N0rwyG222hbiw6lsWS6YKCGzcjHoPswEGqAU9ch6Cgltyl/rl3p3ZnAApvoJ2DO3jAfgoLPuBQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "B62687D180445D5CF84E1A2E85DB2ACAEEFCB19A",
+      "timestamp": "2025-08-04T19:07:58.340429433Z",
+      "signature": "O/Olxp/ydYvwYWRZdKkca59d4AZHYw4Or87zk+84cOVkul4aBTj/oHj5iUSSCeax+iEmrn0SYJxQ0Su/qRP5Cw=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "DD2C988B278E526870DD97D7BA75EEAA2FEBD55D",
+      "timestamp": "2025-08-04T19:07:58.337741966Z",
+      "signature": "qGTKJUKglxNiTkO9PRZyGLqtQJkyNYT55RsQ/jj23Z9x/RF6a2t6ByZcY+V2n5Wd/8pRkAVmZt340M1lWdcSDg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "93739258C5626903BA444128CFB7439AA31AA93F",
+      "timestamp": "2025-08-04T19:07:58.339518782Z",
+      "signature": "Pq3U1PyvSPokZ9zTIqN1ckYYUGAoVzExWYGCQVp1G9pqTOYqRgECworKxAZVpMi1yNLTMrTZTV6Lrh4CXiiWAw=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "8E2C70D2292FB3624BAF1F0CFBCB025D2ECC8AFB",
+      "timestamp": "2025-08-04T19:07:58.340050606Z",
+      "signature": "kpPoy3cTecVHbddvIzkk2QoNzKLccF9OIQVkWg7c3i9FO19K2zBvRXzMThM1mGdQbQxD/sRuR+25WgcH1a5cAQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "EC975EDDA923754C6BA6044DC6041B35D7AD92CF",
+      "timestamp": "2025-08-04T19:07:58.339648683Z",
+      "signature": "bz+xe+5HswYMg7c2xWoTL6KkolYVe7vIXpFZly8mIZneE0eGtZIZL9LaU5jpzMMI55HWF3e43pxTq9mavl0GBQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "1B85A5FFDC65A23DFB51A32DC1087DCA515EA6CC",
+      "timestamp": "2025-08-04T19:07:58.341835499Z",
+      "signature": "Y0YUKxzyTM3ski+oi4G6GJ6sGxi90R9UzeVe8JgIZrCWU759jQBs8C/qwUvD2uQW1ysvjz8rGKiQP9igfKadAA=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "7A6A9DEE7D8F3BAA83F2C3A0179D74ED1487932C",
+      "timestamp": "2025-08-04T19:07:58.346281764Z",
+      "signature": "kG4DmLmZjeck4c7Kb4xsjrIZJH27H5Aygf9Em+Hsw7PMg+2YjSMgHdjGVfWco006px8+w7szQaFAVyt9b6C4BA=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "D8DA9CB98162675E9DEB388EE17C360D702D5B96",
+      "timestamp": "2025-08-04T19:07:58.33131292Z",
+      "signature": "jZT3jwppEptq6jvjXP8SJsJCoW5zq+V/2duNMHcuuQKnHoTiwx04Eg6SfvDUGILE1k61NixnN66RoZNLTFuwAA=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "D0C143A237A69569CC7CECB0DAC2EA95F88B26B3",
+      "timestamp": "2025-08-04T19:07:58.335135352Z",
+      "signature": "SvIXQTXf9wWItrjrXGwRsgyfMYLedVep01gyX9tn2jCCOhzp9JldcejbJRBCoVjx6OgpwF3u6PHNAg7BzblzAA=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "E6643CC7E375FF889EAA59F7FCB93F4DE35403DB",
+      "timestamp": "2025-08-04T19:07:58.340130871Z",
+      "signature": "QAjdkpP0yg4/TCJTTFWa4GuUPxzH9LOMjOGB3NGdMXJv+OqAPA4JOJdza9ZbltjQMTj2JNytL1z6M7W0y1TSBg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "E411277DCD8DEF23ED5BCA3F1FEC169FDB10EF7B",
+      "timestamp": "2025-08-04T19:07:58.33348092Z",
+      "signature": "hHsACRmuHebYvxNzBxLQTlD90REb9xNrg4aeL977GjnaU+pCDV5xFt1x0vH8PLJZVhFU8Pvr7ww5+w9Xbd4RCw=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "DBDEA0E43C9EB037422D0E27C3FFEDF8692E9C97",
+      "timestamp": "2025-08-04T19:07:58.366275302Z",
+      "signature": "VNabPWvS/vsLIQc3DP1NlaSZjY73R62fH9IvkHIV86d+ApzuGzIL9wo+fLVBHFlQs2+iOpVDiO3IqSl730H2Bw=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "DC65D4AD5B754D643C733470DCC7A44B9FB4DCA5",
+      "timestamp": "2025-08-04T19:07:58.337872231Z",
+      "signature": "xzhOqQeKjC56wriIJsrCvNOyIeqPLIvF97AG3jZAlA6BTJX27rPk3RDUoPYLJZRxeJIlsQ1WgLrB6z6PQs8DCQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "2476D36C0C9E1B50A66B8CC8E89D75184F374DDF",
+      "timestamp": "2025-08-04T19:07:58.347837019Z",
+      "signature": "XFRXLrz7mJiLVgvL6HqlknyfizEtTYk882AVu88Bmtw2taIffMIuUplKFsdctuHDyaXRThwUk8JlEPDQDd5uCg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "D857A4BA9745354D9FC1DF91A82CDB87A27563A6",
+      "timestamp": "2025-08-04T19:07:58.336156982Z",
+      "signature": "JA/B6jIC2Q5ti1OvhX7ziGm6DlBo8f0RAlF9n/7rO5E8wj8HkltmjG7z9C60rP4jfL0nt/1coZbM2N5QyQHtBQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "5BCCAE7F95C2D852C2F18BE566F152A85A60B26E",
+      "timestamp": "2025-08-04T19:07:58.341392827Z",
+      "signature": "ylqGLM3rurCc3VGL7/dr24psakkVbT3xq+jHaA1GRZBffVFwOoNLt31oo7k3sQuYAI1HjecJ4c0Dykfd/wr7Bw=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "2620065FADD91C5E06AF25A3B7F864483BA1C3B9",
+      "timestamp": "2025-08-04T19:07:58.347204331Z",
+      "signature": "pxl8NLHUqAi9Dd9iaCZ4yHORjZ9Sr3yCYirrdzlLJy8r2JMxfNr9Yz7DpKwvRqNMDUgdSVzj8a8F/x9zDcj5Aw=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "29F697D164538C3BDF7969F238E2097FE745D73C",
+      "timestamp": "2025-08-04T19:07:58.338649433Z",
+      "signature": "rzngf2KGXUMgfbDNdZlnTbHKc/O6oHYFdW2KUOTenOipgRM8BwlKMr1UZnYSA5YbqsLTRVy+SJ8CWsEIBaPDDg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "D2ECA4D0345C1107BEAD58D66F3DD1ACCF7618ED",
+      "timestamp": "2025-08-04T19:07:58.337866761Z",
+      "signature": "oLiuCXCdQHncXY+duHb2VAwbFM7aRh3OpbmMlOuCm7L03UhKR3gY0HkoBWoAMTdK8iM1qFgdlzxqKVOwjSeoAg=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "D1CE87BBE89B737495416E8C44B9F58D2372D5D1",
+      "timestamp": "2025-08-04T19:07:58.340108808Z",
+      "signature": "G+ExKysSHgz01AjGKCP8S9hL4yO5Cdt5WHUx/AA5T19C0Ra0btVsbedM3jg64m2efXqjAsLm5wk423QSRAXTAw=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "307CB9AA68447995515D2AE44EFA82966715B057",
+      "timestamp": "2025-08-04T19:07:58.33584555Z",
+      "signature": "OHx4huawTLHKMpvfe9aini7YltXj1cN9WckE/RGuZmfNwC0W15cV/L7KLEQpBn1J/nsOlHEtVSxPM02lwQxXCQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "9B4E4CD4B66A3E507BB49441291DD838284CEB35",
+      "timestamp": "2025-08-04T19:07:58.336337999Z",
+      "signature": "TeT9y29L+TvuuRpT0yvgQs+WbQilVT1Bt9nTKm1LGIIgz8m4ywv732FqqKExUZJ2lc3vzewKHj43ABON2XX7DQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "D7A514435D5F2A0433242C6882BE298AC4245CF5",
+      "timestamp": "2025-08-04T19:07:58.344166013Z",
+      "signature": "luWsimZcm2cBnK0FS/5vvJD7phGx8FgnFmdb6TauNDdoLKcfJpZe5y+Qe8qTIoJg510L/P+864ciizL5bJg0Cw=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "77D3FF15AD886E93068C09F5E5C643537511A3A5",
+      "timestamp": "2025-08-04T19:07:58.338183527Z",
+      "signature": "G+kyFPGF5Xr5Gbfe4Qz3norzwOUG4uTw9A7SRMLUenSbdm14CdUvMA947GHFIcUR0euIPGRekLUrffs/XVTTBQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "1834E8A2FDE4644999EED5BD4B99B4A9A22C4351",
+      "timestamp": "2025-08-04T19:07:58.337762525Z",
+      "signature": "wOK3FZIF6fCrfYhTO6EhA9SolRyx9nF1dETWIUErwyLMN7l5c56h39dbSvRiTj9Jjg6DAYcXVNuAnFNDo5LQCQ=="
+    },
+    {
+      "block_id_flag": 2,
+      "validator_address": "006EEE079580CCF0E9C389062256F6C8BCA0B44E",
+      "timestamp": "2025-08-04T19:07:58.333691872Z",
+      "signature": "Q7Oq0XRpgFOpRMrRadAWqySnxYWUAEhsKzx5bu3tyrmTZejleHbIHlT8+KNlN907iCxqSyTWFXo26OS3w6JoAQ=="
+    }
+  ],
+  "num_signatures": 50,
+  "num_txs": 20,
+  "gas_wanted": 10486945,
+  "gas_used": 7065489,
+  "txs": [
+    {
+      "header": {
+        "chain_id": "injective-1",
+        "timestamp": "2025-08-04T19:07:57Z"
+      },
+      "data": {
+        "height": "127740914",
+        "txhash": "918210AA7D235AAA8A24FE152DB5BCA4E5439B7B69282FEFC27E3D5943F218A7",
+        "code": 0,
+        "logs": [
+          {
+            "msg_index": 0,
+            "events": [
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "action",
+                    "value": "/cosmos.authz.v1beta1.MsgExec",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj18h0638qv3u9zfe2nwq48fpl9k8d5ufsk6lh27l",
+                    "index": true
+                  },
+                  {
+                    "key": "module",
+                    "value": "authz",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"314.960000000000000000\",\"quantity\":\"47.624000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_46680\"},\"order_type\":\"BUY\",\"margin\":\"1499.000000000000000000\",\"fillable\":\"47.624000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"1M+QkmLfuqZWVQy1fdc1kT04moxkJVUSv7JxgItLO4Y=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"314960000.000000000000000000\",\"quantity\":\"47.624000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_46680\"},\"order_type\":\"BUY\",\"margin\":\"1499000000.000000000000000000\",\"fillable\":\"47.624000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"1M+QkmLfuqZWVQy1fdc1kT04moxkJVUSv7JxgItLO4Y=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"317.510000000000000000\",\"quantity\":\"31.494000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_46679\"},\"order_type\":\"BUY\",\"margin\":\"999.000000000000000000\",\"fillable\":\"31.494000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"jxI5xAnzgaXgK6d6zybEol8e6S2TG3IM1FYpBBt9LIw=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"317510000.000000000000000000\",\"quantity\":\"31.494000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_46679\"},\"order_type\":\"BUY\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"31.494000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"jxI5xAnzgaXgK6d6zybEol8e6S2TG3IM1FYpBBt9LIw=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"319.900000000000000000\",\"quantity\":\"31.259000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_46676\"},\"order_type\":\"SELL\",\"margin\":\"999.000000000000000000\",\"fillable\":\"31.259000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"hSW7hul0giNkrISc5k5ggB6H+FdJ0TjTQboBQn6noCo=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"319900000.000000000000000000\",\"quantity\":\"31.259000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_46676\"},\"order_type\":\"SELL\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"31.259000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"hSW7hul0giNkrISc5k5ggB6H+FdJ0TjTQboBQn6noCo=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"322.460000000000000000\",\"quantity\":\"46.517000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_46678\"},\"order_type\":\"SELL\",\"margin\":\"1499.000000000000000000\",\"fillable\":\"46.517000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"q6wggqRiI40LqolrjCMSgok3Tl32JZp+jzoDckNbIXg=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"322460000.000000000000000000\",\"quantity\":\"46.517000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_46678\"},\"order_type\":\"SELL\",\"margin\":\"1499000000.000000000000000000\",\"fillable\":\"46.517000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"q6wggqRiI40LqolrjCMSgok3Tl32JZp+jzoDckNbIXg=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"326.520000000000000000\",\"quantity\":\"209.191000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_46682\"},\"order_type\":\"SELL\",\"margin\":\"0.000000000000000000\",\"fillable\":\"209.191000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"iYrtCHg902xzKLtQhY39fqScp7oXsiyAqt1UPSr1s0o=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"326520000.000000000000000000\",\"quantity\":\"209.191000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_46682\"},\"order_type\":\"SELL\",\"margin\":\"0.000000000000000000\",\"fillable\":\"209.191000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"iYrtCHg902xzKLtQhY39fqScp7oXsiyAqt1UPSr1s0o=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "msg_index": null,
+            "events": [
+              {
+                "type": "coin_spent",
+                "attributes": [
+                  {
+                    "key": "spender",
+                    "value": "inj18h0638qv3u9zfe2nwq48fpl9k8d5ufsk6lh27l",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "78844320000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "coin_received",
+                "attributes": [
+                  {
+                    "key": "receiver",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "78844320000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "transfer",
+                "attributes": [
+                  {
+                    "key": "recipient",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj18h0638qv3u9zfe2nwq48fpl9k8d5ufsk6lh27l",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "78844320000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "sender",
+                    "value": "inj18h0638qv3u9zfe2nwq48fpl9k8d5ufsk6lh27l",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "fee",
+                    "value": "78844320000000inj",
+                    "index": true
+                  },
+                  {
+                    "key": "fee_payer",
+                    "value": "inj18h0638qv3u9zfe2nwq48fpl9k8d5ufsk6lh27l",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "acc_seq",
+                    "value": "inj18h0638qv3u9zfe2nwq48fpl9k8d5ufsk6lh27l/491658",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "signature",
+                    "value": "r231OFo2MfG8PcUOtzjZ+yKaskAVrIBS9qkPnDXSYAocoMHq9zpf8a6VBLLTPHnkkBXCc+m/CITXCZpthqigHw==",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gas_wanted": "492777",
+        "gas_used": "449145",
+        "tx": {
+          "@type": "/cosmos.tx.v1beta1.Tx",
+          "body": {
+            "messages": [
+              {
+                "@type": "/cosmos.authz.v1beta1.MsgExec",
+                "grantee": "inj18h0638qv3u9zfe2nwq48fpl9k8d5ufsk6lh27l",
+                "msgs": [
+                  {
+                    "@type": "/injective.exchange.v1beta1.MsgBatchUpdateOrders",
+                    "sender": "inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m",
+                    "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                    "spot_market_ids_to_cancel_all": [],
+                    "derivative_market_ids_to_cancel_all": [
+                      "0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3"
+                    ],
+                    "spot_orders_to_cancel": [],
+                    "derivative_orders_to_cancel": [],
+                    "spot_orders_to_create": [],
+                    "derivative_orders_to_create": [
+                      {
+                        "market_id": "0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "319900000.000000000000000000",
+                          "quantity": "31.259000000000000000",
+                          "cid": "MMStrategyEquities_1754334468_46681"
+                        },
+                        "order_type": "SELL",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "326520000.000000000000000000",
+                          "quantity": "216.556000000000000000",
+                          "cid": "MMStrategyEquities_1754334468_46682"
+                        },
+                        "order_type": "SELL",
+                        "margin": "0.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "322460000.000000000000000000",
+                          "quantity": "46.517000000000000000",
+                          "cid": "MMStrategyEquities_1754334468_46683"
+                        },
+                        "order_type": "SELL",
+                        "margin": "1499000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "317510000.000000000000000000",
+                          "quantity": "31.494000000000000000",
+                          "cid": "MMStrategyEquities_1754334468_46684"
+                        },
+                        "order_type": "BUY",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x329e14c73ef0712dd1359d56476f3dd9c1c032f9c755556e5bd0cb536fb479d3",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "314960000.000000000000000000",
+                          "quantity": "47.624000000000000000",
+                          "cid": "MMStrategyEquities_1754334468_46685"
+                        },
+                        "order_type": "BUY",
+                        "margin": "1499000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      }
+                    ],
+                    "binary_options_orders_to_cancel": [],
+                    "binary_options_market_ids_to_cancel_all": [],
+                    "binary_options_orders_to_create": []
+                  }
+                ]
+              }
+            ],
+            "memo": "",
+            "timeout_height": "127740927",
+            "extension_options": [],
+            "non_critical_extension_options": []
+          },
+          "auth_info": {
+            "signer_infos": [
+              {
+                "public_key": {
+                  "@type": "/injective.crypto.v1beta1.ethsecp256k1.PubKey",
+                  "key": "AvyuDMHC5essiS7Yxu0zniNf+fQY7oNqh5agodqeFBpu"
+                },
+                "mode_info": {
+                  "single": {
+                    "mode": "SIGN_MODE_DIRECT"
+                  }
+                },
+                "sequence": "491658"
+              }
+            ],
+            "fee": {
+              "amount": [
+                {
+                  "denom": "inj",
+                  "amount": "78844320000000"
+                }
+              ],
+              "gas_limit": "492777",
+              "payer": "",
+              "granter": ""
+            },
+            "tip": null
+          },
+          "signatures": [
+            "r231OFo2MfG8PcUOtzjZ+yKaskAVrIBS9qkPnDXSYAocoMHq9zpf8a6VBLLTPHnkkBXCc+m/CITXCZpthqigHw=="
+          ]
+        },
+        "timestamp": "2025-08-04T19:07:57Z",
+        "events": []
+      }
+    },
+    {
+      "header": {
+        "chain_id": "injective-1",
+        "timestamp": "2025-08-04T19:07:57Z"
+      },
+      "data": {
+        "height": "127740914",
+        "txhash": "344529A177CC6FD5DAC1E88A2A3A17F615BBCF08F57E304161582DE38D25ED62",
+        "code": 0,
+        "logs": [
+          {
+            "msg_index": 0,
+            "events": [
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "action",
+                    "value": "/cosmos.authz.v1beta1.MsgExec",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx",
+                    "index": true
+                  },
+                  {
+                    "key": "module",
+                    "value": "authz",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xb225b9ad051585af8ea48b03ba19ccdd315c43a200000000000000000000002a\",\"fee_recipient\":\"inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx\",\"price\":\"201.570000000000000000\",\"quantity\":\"5.954000000000000000\",\"cid\":\"\"},\"order_type\":\"BUY_PO\",\"margin\":\"141.000000000000000000\",\"fillable\":\"5.954000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"iIyLSIqwVaziULA/N6WSORi5/AncYXSJFCXU27MfzrA=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0db9bd22e4c6d4ef0a504f85708944056f5ecf82d753b9154c7be88b8c2ec5e9\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xb225b9ad051585af8ea48b03ba19ccdd315c43a200000000000000000000002a\",\"fee_recipient\":\"inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx\",\"price\":\"201570000.000000000000000000\",\"quantity\":\"5.954000000000000000\",\"cid\":\"\"},\"order_type\":\"BUY_PO\",\"margin\":\"141000000.000000000000000000\",\"fillable\":\"5.954000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"iIyLSIqwVaziULA/N6WSORi5/AncYXSJFCXU27MfzrA=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0db9bd22e4c6d4ef0a504f85708944056f5ecf82d753b9154c7be88b8c2ec5e9\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xb225b9ad051585af8ea48b03ba19ccdd315c43a200000000000000000000002a\",\"fee_recipient\":\"inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx\",\"price\":\"203.380000000000000000\",\"quantity\":\"5.901000000000000000\",\"cid\":\"\"},\"order_type\":\"SELL_PO\",\"margin\":\"141.000000000000000000\",\"fillable\":\"5.901000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"kXsONjUSSE1lq2K355KT6IVAM2EC+twDdKqa5XCk/js=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0db9bd22e4c6d4ef0a504f85708944056f5ecf82d753b9154c7be88b8c2ec5e9\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xb225b9ad051585af8ea48b03ba19ccdd315c43a200000000000000000000002a\",\"fee_recipient\":\"inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx\",\"price\":\"203380000.000000000000000000\",\"quantity\":\"5.901000000000000000\",\"cid\":\"\"},\"order_type\":\"SELL_PO\",\"margin\":\"141000000.000000000000000000\",\"fillable\":\"5.901000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"kXsONjUSSE1lq2K355KT6IVAM2EC+twDdKqa5XCk/js=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0db9bd22e4c6d4ef0a504f85708944056f5ecf82d753b9154c7be88b8c2ec5e9\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xb225b9ad051585af8ea48b03ba19ccdd315c43a200000000000000000000002a\",\"fee_recipient\":\"inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx\",\"price\":\"201.530000000000000000\",\"quantity\":\"5.955000000000000000\",\"cid\":\"\"},\"order_type\":\"BUY_PO\",\"margin\":\"141.000000000000000000\",\"fillable\":\"5.955000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"8AjJWbru+rqyRcOcc6Wbcp++3Edm6psRN3waAkCW2qA=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0db9bd22e4c6d4ef0a504f85708944056f5ecf82d753b9154c7be88b8c2ec5e9\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xb225b9ad051585af8ea48b03ba19ccdd315c43a200000000000000000000002a\",\"fee_recipient\":\"inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx\",\"price\":\"201530000.000000000000000000\",\"quantity\":\"5.955000000000000000\",\"cid\":\"\"},\"order_type\":\"BUY_PO\",\"margin\":\"141000000.000000000000000000\",\"fillable\":\"5.955000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"8AjJWbru+rqyRcOcc6Wbcp++3Edm6psRN3waAkCW2qA=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0db9bd22e4c6d4ef0a504f85708944056f5ecf82d753b9154c7be88b8c2ec5e9\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0db9bd22e4c6d4ef0a504f85708944056f5ecf82d753b9154c7be88b8c2ec5e9\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xb225b9ad051585af8ea48b03ba19ccdd315c43a200000000000000000000002a\",\"fee_recipient\":\"inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx\",\"price\":\"203.350000000000000000\",\"quantity\":\"5.902000000000000000\",\"cid\":\"\"},\"order_type\":\"SELL_PO\",\"margin\":\"141.000000000000000000\",\"fillable\":\"5.902000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Rn2mCnuX97xd11aSV2AppYjT+DipkRKuL095KhnXMEc=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0db9bd22e4c6d4ef0a504f85708944056f5ecf82d753b9154c7be88b8c2ec5e9\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xb225b9ad051585af8ea48b03ba19ccdd315c43a200000000000000000000002a\",\"fee_recipient\":\"inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx\",\"price\":\"203350000.000000000000000000\",\"quantity\":\"5.902000000000000000\",\"cid\":\"\"},\"order_type\":\"SELL_PO\",\"margin\":\"141000000.000000000000000000\",\"fillable\":\"5.902000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Rn2mCnuX97xd11aSV2AppYjT+DipkRKuL095KhnXMEc=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "msg_index": null,
+            "events": [
+              {
+                "type": "coin_spent",
+                "attributes": [
+                  {
+                    "key": "spender",
+                    "value": "inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "50400000000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "coin_received",
+                "attributes": [
+                  {
+                    "key": "receiver",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "50400000000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "transfer",
+                "attributes": [
+                  {
+                    "key": "recipient",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "50400000000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "sender",
+                    "value": "inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "fee",
+                    "value": "50400000000000inj",
+                    "index": true
+                  },
+                  {
+                    "key": "fee_payer",
+                    "value": "inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "acc_seq",
+                    "value": "inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx/760417",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "signature",
+                    "value": "2ZbRZKb95K1HiwUmXakbNXUWZD8CJ3rkDqY5jE9IE/tbQ0ATwEzCr//9h84ViipQby6bLiWcH8+mGe8F14fuhQ==",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gas_wanted": "315000",
+        "gas_used": "307027",
+        "tx": {
+          "@type": "/cosmos.tx.v1beta1.Tx",
+          "body": {
+            "messages": [
+              {
+                "@type": "/cosmos.authz.v1beta1.MsgExec",
+                "grantee": "inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx",
+                "msgs": [
+                  {
+                    "@type": "/injective.exchange.v1beta1.MsgBatchUpdateOrders",
+                    "sender": "inj1kgjmntg9zkz6lr4y3vpm5xwvm5c4csaz9t0w2c",
+                    "subaccount_id": "0xb225b9ad051585af8ea48b03ba19ccdd315c43a200000000000000000000002a",
+                    "spot_market_ids_to_cancel_all": [],
+                    "derivative_market_ids_to_cancel_all": [
+                      "0x0db9bd22e4c6d4ef0a504f85708944056f5ecf82d753b9154c7be88b8c2ec5e9"
+                    ],
+                    "spot_orders_to_cancel": [],
+                    "derivative_orders_to_cancel": [],
+                    "spot_orders_to_create": [],
+                    "derivative_orders_to_create": [
+                      {
+                        "market_id": "0x0db9bd22e4c6d4ef0a504f85708944056f5ecf82d753b9154c7be88b8c2ec5e9",
+                        "order_info": {
+                          "subaccount_id": "0xb225b9ad051585af8ea48b03ba19ccdd315c43a200000000000000000000002a",
+                          "fee_recipient": "inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx",
+                          "price": "201530000.000000000000000000",
+                          "quantity": "5.955000000000000000",
+                          "cid": ""
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "141000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x0db9bd22e4c6d4ef0a504f85708944056f5ecf82d753b9154c7be88b8c2ec5e9",
+                        "order_info": {
+                          "subaccount_id": "0xb225b9ad051585af8ea48b03ba19ccdd315c43a200000000000000000000002a",
+                          "fee_recipient": "inj1ecuh9pd8r9an34c75qs7556g2fds60wm32z0xx",
+                          "price": "203350000.000000000000000000",
+                          "quantity": "5.902000000000000000",
+                          "cid": ""
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "141000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      }
+                    ],
+                    "binary_options_orders_to_cancel": [],
+                    "binary_options_market_ids_to_cancel_all": [],
+                    "binary_options_orders_to_create": []
+                  }
+                ]
+              }
+            ],
+            "memo": "",
+            "timeout_height": "10000000000000000",
+            "extension_options": [],
+            "non_critical_extension_options": []
+          },
+          "auth_info": {
+            "signer_infos": [
+              {
+                "public_key": {
+                  "@type": "/injective.crypto.v1beta1.ethsecp256k1.PubKey",
+                  "key": "A0HQjh/2NoQ6e90EXXr+1UzWlxmVNTcP3628NmzaRZuq"
+                },
+                "mode_info": {
+                  "single": {
+                    "mode": "SIGN_MODE_DIRECT"
+                  }
+                },
+                "sequence": "760417"
+              }
+            ],
+            "fee": {
+              "amount": [
+                {
+                  "denom": "inj",
+                  "amount": "50400000000000"
+                }
+              ],
+              "gas_limit": "315000",
+              "payer": "",
+              "granter": ""
+            },
+            "tip": null
+          },
+          "signatures": [
+            "2ZbRZKb95K1HiwUmXakbNXUWZD8CJ3rkDqY5jE9IE/tbQ0ATwEzCr//9h84ViipQby6bLiWcH8+mGe8F14fuhQ=="
+          ]
+        },
+        "timestamp": "2025-08-04T19:07:57Z",
+        "events": []
+      }
+    },
+    {
+      "header": {
+        "chain_id": "injective-1",
+        "timestamp": "2025-08-04T19:07:57Z"
+      },
+      "data": {
+        "height": "127740914",
+        "txhash": "BFE6728CEC16C28A2CC3F255E21126695E1F919D15E6A0E6202E0B989871CDF6",
+        "code": 0,
+        "logs": [
+          {
+            "msg_index": 0,
+            "events": [
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "action",
+                    "value": "/cosmos.authz.v1beta1.MsgExec",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1hasra9guzqk2x6zluk9kpqjmw7sh2gxd2q9glp",
+                    "index": true
+                  },
+                  {
+                    "key": "module",
+                    "value": "authz",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"304.010000000000000000\",\"quantity\":\"32.893000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_1800\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"32.893000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"LUraab2OggZLMsi/udJgrkfYxchDw/VUOC4Au+x5VPk=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"304010000.000000000000000000\",\"quantity\":\"32.893000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_1800\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"32.893000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"LUraab2OggZLMsi/udJgrkfYxchDw/VUOC4Au+x5VPk=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"306.470000000000000000\",\"quantity\":\"32.628000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_1799\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"32.628000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"J6dmJ0ZYuRJ+jLM8LkCGjdfKGWXYEO+YnG/enlh8v8w=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"306470000.000000000000000000\",\"quantity\":\"32.628000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_1799\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"32.628000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"J6dmJ0ZYuRJ+jLM8LkCGjdfKGWXYEO+YnG/enlh8v8w=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"307.230000000000000000\",\"quantity\":\"94.324000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_1798\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"94.324000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"JHPnG6UJxAd8xD+oLwkshqz8nOtEMsT9kL5nJeSepYA=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"307230000.000000000000000000\",\"quantity\":\"94.324000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_1798\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"94.324000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"JHPnG6UJxAd8xD+oLwkshqz8nOtEMsT9kL5nJeSepYA=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"309.560000000000000000\",\"quantity\":\"32.303000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_1796\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"32.303000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"mO+A57n8BB+pK1cxVQhHM7aec+cKcD8UGuPUwpYfvC4=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"309560000.000000000000000000\",\"quantity\":\"32.303000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_1796\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"32.303000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"mO+A57n8BB+pK1cxVQhHM7aec+cKcD8UGuPUwpYfvC4=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"312.040000000000000000\",\"quantity\":\"32.046000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_1797\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"32.046000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"mfjkCKzzk+Ck5IpEUO+Tr7sIXRCqrlk7g4yxdF4Qz/U=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"312040000.000000000000000000\",\"quantity\":\"32.046000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_1797\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"32.046000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"mfjkCKzzk+Ck5IpEUO+Tr7sIXRCqrlk7g4yxdF4Qz/U=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"309.560000000000000000\",\"quantity\":\"32.303000000000000000\",\"cid\":\"MMStrategyEquities_1754334476_1801\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"32.303000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"efCHmCwpILlmdPFHmGhHZoIFIMNK0JEoqkwLoVn4PJc=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"309560000.000000000000000000\",\"quantity\":\"32.303000000000000000\",\"cid\":\"MMStrategyEquities_1754334476_1801\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"32.303000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"efCHmCwpILlmdPFHmGhHZoIFIMNK0JEoqkwLoVn4PJc=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"312.040000000000000000\",\"quantity\":\"32.046000000000000000\",\"cid\":\"MMStrategyEquities_1754334476_1802\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"32.046000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"CR3fRYUZEC1fNGtH8w7rgJ5sZMmV2jbZjVK6hSbbSJ0=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"312040000.000000000000000000\",\"quantity\":\"32.046000000000000000\",\"cid\":\"MMStrategyEquities_1754334476_1802\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"32.046000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"CR3fRYUZEC1fNGtH8w7rgJ5sZMmV2jbZjVK6hSbbSJ0=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"307.230000000000000000\",\"quantity\":\"94.324000000000000000\",\"cid\":\"MMStrategyEquities_1754334476_1803\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"94.324000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"U8S6SOQocGlRyWzwtxDCuYtOFvt9GqAJ+kmEMMGbFzY=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"307230000.000000000000000000\",\"quantity\":\"94.324000000000000000\",\"cid\":\"MMStrategyEquities_1754334476_1803\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"94.324000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"U8S6SOQocGlRyWzwtxDCuYtOFvt9GqAJ+kmEMMGbFzY=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"306.470000000000000000\",\"quantity\":\"32.628000000000000000\",\"cid\":\"MMStrategyEquities_1754334476_1804\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"32.628000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"ekDnAc554mBLYLUWXivC/kd9Y0ZKzyN5HNGio9HBhHQ=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"306470000.000000000000000000\",\"quantity\":\"32.628000000000000000\",\"cid\":\"MMStrategyEquities_1754334476_1804\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"32.628000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"ekDnAc554mBLYLUWXivC/kd9Y0ZKzyN5HNGio9HBhHQ=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"304.010000000000000000\",\"quantity\":\"32.893000000000000000\",\"cid\":\"MMStrategyEquities_1754334476_1805\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"32.893000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"jrGfNX3oHgDdVY7mWafytzEL6AqK3xIeLiSR1MUXC9g=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"304010000.000000000000000000\",\"quantity\":\"32.893000000000000000\",\"cid\":\"MMStrategyEquities_1754334476_1805\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"32.893000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"jrGfNX3oHgDdVY7mWafytzEL6AqK3xIeLiSR1MUXC9g=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "msg_index": null,
+            "events": [
+              {
+                "type": "coin_spent",
+                "attributes": [
+                  {
+                    "key": "spender",
+                    "value": "inj1hasra9guzqk2x6zluk9kpqjmw7sh2gxd2q9glp",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "110081440000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "coin_received",
+                "attributes": [
+                  {
+                    "key": "receiver",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "110081440000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "transfer",
+                "attributes": [
+                  {
+                    "key": "recipient",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1hasra9guzqk2x6zluk9kpqjmw7sh2gxd2q9glp",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "110081440000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "sender",
+                    "value": "inj1hasra9guzqk2x6zluk9kpqjmw7sh2gxd2q9glp",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "fee",
+                    "value": "110081440000000inj",
+                    "index": true
+                  },
+                  {
+                    "key": "fee_payer",
+                    "value": "inj1hasra9guzqk2x6zluk9kpqjmw7sh2gxd2q9glp",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "acc_seq",
+                    "value": "inj1hasra9guzqk2x6zluk9kpqjmw7sh2gxd2q9glp/616800",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "signature",
+                    "value": "9QeG3tQ0BY0N200v0QyZJVAr27yb852H7iIgIC9UB6tAcTXI7uaWZA3k0cqcWsJ2G9HDowXuj1zKodO5TUuYHg==",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gas_wanted": "688009",
+        "gas_used": "644331",
+        "tx": {
+          "@type": "/cosmos.tx.v1beta1.Tx",
+          "body": {
+            "messages": [
+              {
+                "@type": "/cosmos.authz.v1beta1.MsgExec",
+                "grantee": "inj1hasra9guzqk2x6zluk9kpqjmw7sh2gxd2q9glp",
+                "msgs": [
+                  {
+                    "@type": "/injective.exchange.v1beta1.MsgBatchUpdateOrders",
+                    "sender": "inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m",
+                    "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                    "spot_market_ids_to_cancel_all": [],
+                    "derivative_market_ids_to_cancel_all": [
+                      "0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6"
+                    ],
+                    "spot_orders_to_cancel": [],
+                    "derivative_orders_to_cancel": [],
+                    "spot_orders_to_create": [],
+                    "derivative_orders_to_create": [
+                      {
+                        "market_id": "0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "309560000.000000000000000000",
+                          "quantity": "32.303000000000000000",
+                          "cid": "MMStrategyEquities_1754334476_1801"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "312040000.000000000000000000",
+                          "quantity": "32.046000000000000000",
+                          "cid": "MMStrategyEquities_1754334476_1802"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "307230000.000000000000000000",
+                          "quantity": "94.324000000000000000",
+                          "cid": "MMStrategyEquities_1754334476_1803"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "0.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "306470000.000000000000000000",
+                          "quantity": "32.628000000000000000",
+                          "cid": "MMStrategyEquities_1754334476_1804"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x36374ac84498d300f99010e2ea693bea12479be910570fc49e986c5f899dccf6",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "304010000.000000000000000000",
+                          "quantity": "32.893000000000000000",
+                          "cid": "MMStrategyEquities_1754334476_1805"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      }
+                    ],
+                    "binary_options_orders_to_cancel": [],
+                    "binary_options_market_ids_to_cancel_all": [],
+                    "binary_options_orders_to_create": []
+                  }
+                ]
+              }
+            ],
+            "memo": "",
+            "timeout_height": "127740940",
+            "extension_options": [],
+            "non_critical_extension_options": []
+          },
+          "auth_info": {
+            "signer_infos": [
+              {
+                "public_key": {
+                  "@type": "/injective.crypto.v1beta1.ethsecp256k1.PubKey",
+                  "key": "AjMhVb7uPLr4cqkuK4PYBh2Mp6Rqbj8BGC/GTnw8AGR8"
+                },
+                "mode_info": {
+                  "single": {
+                    "mode": "SIGN_MODE_DIRECT"
+                  }
+                },
+                "sequence": "616800"
+              }
+            ],
+            "fee": {
+              "amount": [
+                {
+                  "denom": "inj",
+                  "amount": "110081440000000"
+                }
+              ],
+              "gas_limit": "688009",
+              "payer": "",
+              "granter": ""
+            },
+            "tip": null
+          },
+          "signatures": [
+            "9QeG3tQ0BY0N200v0QyZJVAr27yb852H7iIgIC9UB6tAcTXI7uaWZA3k0cqcWsJ2G9HDowXuj1zKodO5TUuYHg=="
+          ]
+        },
+        "timestamp": "2025-08-04T19:07:57Z",
+        "events": []
+      }
+    },
+    {
+      "header": {
+        "chain_id": "injective-1",
+        "timestamp": "2025-08-04T19:07:57Z"
+      },
+      "data": {
+        "height": "127740914",
+        "txhash": "736AC22CBD3918249BC23A52082B35AAC6D69DB64CBCF8AF41E6310E0E3E1563",
+        "code": 0,
+        "logs": [
+          {
+            "msg_index": 0,
+            "events": [
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "action",
+                    "value": "/cosmos.authz.v1beta1.MsgExec",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1k47wxz2rp0cdt5zzz02fkx3fkqnltl3q9gc5sh",
+                    "index": true
+                  },
+                  {
+                    "key": "module",
+                    "value": "authz",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"769.900000000000000000\",\"quantity\":\"12.988000000000000000\",\"cid\":\"MMStrategyEquities_1754334467_32991\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"12.988000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"7l6VSP2iQoQA7sMCk8rlBZPyNSr7gamhcbCzRH2l6Fo=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"769900000.000000000000000000\",\"quantity\":\"12.988000000000000000\",\"cid\":\"MMStrategyEquities_1754334467_32991\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"12.988000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"7l6VSP2iQoQA7sMCk8rlBZPyNSr7gamhcbCzRH2l6Fo=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"763.720000000000000000\",\"quantity\":\"13.093000000000000000\",\"cid\":\"MMStrategyEquities_1754334467_32992\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"13.093000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"i5GNB9RFTd9B3jKhL0L7Br4kLNm9buoF/sj5ELxFzY8=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"763720000.000000000000000000\",\"quantity\":\"13.093000000000000000\",\"cid\":\"MMStrategyEquities_1754334467_32992\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"13.093000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"i5GNB9RFTd9B3jKhL0L7Br4kLNm9buoF/sj5ELxFzY8=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"777.640000000000000000\",\"quantity\":\"12.859000000000000000\",\"cid\":\"MMStrategyEquities_1754334467_32989\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"12.859000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"bGrMPYbh+OyrsfAgnG3j88WZfmlARvODLKTL7G+ID78=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"777640000.000000000000000000\",\"quantity\":\"12.859000000000000000\",\"cid\":\"MMStrategyEquities_1754334467_32989\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"12.859000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"bGrMPYbh+OyrsfAgnG3j88WZfmlARvODLKTL7G+ID78=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"783.860000000000000000\",\"quantity\":\"12.757000000000000000\",\"cid\":\"MMStrategyEquities_1754334467_32990\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"12.757000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"tUNJLEJovsJQS5JGZmAw/ltudh1l0uLoIFR9rxETmbw=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"783860000.000000000000000000\",\"quantity\":\"12.757000000000000000\",\"cid\":\"MMStrategyEquities_1754334467_32990\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"12.757000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"tUNJLEJovsJQS5JGZmAw/ltudh1l0uLoIFR9rxETmbw=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"777.640000000000000000\",\"quantity\":\"12.859000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_32993\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"12.859000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"0XlD4FBNJrg0HXSaOoL/7Cft5oO0b0i4kJKaUu7Sc98=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"777640000.000000000000000000\",\"quantity\":\"12.859000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_32993\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"12.859000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"0XlD4FBNJrg0HXSaOoL/7Cft5oO0b0i4kJKaUu7Sc98=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"783.860000000000000000\",\"quantity\":\"12.757000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_32994\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"12.757000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"JfbkrHTt0CbYJPUAOKTI6vatXxaojdA0eJWuSMAmEkI=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"783860000.000000000000000000\",\"quantity\":\"12.757000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_32994\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"12.757000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"JfbkrHTt0CbYJPUAOKTI6vatXxaojdA0eJWuSMAmEkI=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"769.900000000000000000\",\"quantity\":\"12.988000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_32995\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"12.988000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"vvbiDvMqFjA2RJVneYTBYvoLd0Pl7PgFsS8ICkicRKQ=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"769900000.000000000000000000\",\"quantity\":\"12.988000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_32995\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"12.988000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"vvbiDvMqFjA2RJVneYTBYvoLd0Pl7PgFsS8ICkicRKQ=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"763.720000000000000000\",\"quantity\":\"13.093000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_32996\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"13.093000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Wfs286yRHk4FUh1DKh/h/jLCDV5fGK/+m3S4akHO49c=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"763720000.000000000000000000\",\"quantity\":\"13.093000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_32996\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"13.093000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Wfs286yRHk4FUh1DKh/h/jLCDV5fGK/+m3S4akHO49c=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "msg_index": null,
+            "events": [
+              {
+                "type": "coin_spent",
+                "attributes": [
+                  {
+                    "key": "spender",
+                    "value": "inj1k47wxz2rp0cdt5zzz02fkx3fkqnltl3q9gc5sh",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "93488320000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "coin_received",
+                "attributes": [
+                  {
+                    "key": "receiver",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "93488320000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "transfer",
+                "attributes": [
+                  {
+                    "key": "recipient",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1k47wxz2rp0cdt5zzz02fkx3fkqnltl3q9gc5sh",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "93488320000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "sender",
+                    "value": "inj1k47wxz2rp0cdt5zzz02fkx3fkqnltl3q9gc5sh",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "fee",
+                    "value": "93488320000000inj",
+                    "index": true
+                  },
+                  {
+                    "key": "fee_payer",
+                    "value": "inj1k47wxz2rp0cdt5zzz02fkx3fkqnltl3q9gc5sh",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "acc_seq",
+                    "value": "inj1k47wxz2rp0cdt5zzz02fkx3fkqnltl3q9gc5sh/570477",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "signature",
+                    "value": "0cyd4VDhkSCvvlNP1GWkrUNMuKkuH3qYLkr+iUTolCtYKhE6itfzVitBj0glUvZ1Gdg1/pGwQQQ2Ioh/x8X31g==",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gas_wanted": "584302",
+        "gas_used": "540670",
+        "tx": {
+          "@type": "/cosmos.tx.v1beta1.Tx",
+          "body": {
+            "messages": [
+              {
+                "@type": "/cosmos.authz.v1beta1.MsgExec",
+                "grantee": "inj1k47wxz2rp0cdt5zzz02fkx3fkqnltl3q9gc5sh",
+                "msgs": [
+                  {
+                    "@type": "/injective.exchange.v1beta1.MsgBatchUpdateOrders",
+                    "sender": "inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m",
+                    "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                    "spot_market_ids_to_cancel_all": [],
+                    "derivative_market_ids_to_cancel_all": [
+                      "0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36"
+                    ],
+                    "spot_orders_to_cancel": [],
+                    "derivative_orders_to_cancel": [],
+                    "spot_orders_to_create": [],
+                    "derivative_orders_to_create": [
+                      {
+                        "market_id": "0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "777640000.000000000000000000",
+                          "quantity": "12.859000000000000000",
+                          "cid": "MMStrategyEquities_1754334468_32993"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "783860000.000000000000000000",
+                          "quantity": "12.757000000000000000",
+                          "cid": "MMStrategyEquities_1754334468_32994"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "769900000.000000000000000000",
+                          "quantity": "12.988000000000000000",
+                          "cid": "MMStrategyEquities_1754334468_32995"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0xe12d934dfcd58f5f633b6cb6eb4cce91e950124469bb3996282e9d9d0cb96e36",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "763720000.000000000000000000",
+                          "quantity": "13.093000000000000000",
+                          "cid": "MMStrategyEquities_1754334468_32996"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      }
+                    ],
+                    "binary_options_orders_to_cancel": [],
+                    "binary_options_market_ids_to_cancel_all": [],
+                    "binary_options_orders_to_create": []
+                  }
+                ]
+              }
+            ],
+            "memo": "",
+            "timeout_height": "127740927",
+            "extension_options": [],
+            "non_critical_extension_options": []
+          },
+          "auth_info": {
+            "signer_infos": [
+              {
+                "public_key": {
+                  "@type": "/injective.crypto.v1beta1.ethsecp256k1.PubKey",
+                  "key": "A69NGspeIO5SCy+5MWRx8TDyqKrCqve4pEXY3lPSGXUB"
+                },
+                "mode_info": {
+                  "single": {
+                    "mode": "SIGN_MODE_DIRECT"
+                  }
+                },
+                "sequence": "570477"
+              }
+            ],
+            "fee": {
+              "amount": [
+                {
+                  "denom": "inj",
+                  "amount": "93488320000000"
+                }
+              ],
+              "gas_limit": "584302",
+              "payer": "",
+              "granter": ""
+            },
+            "tip": null
+          },
+          "signatures": [
+            "0cyd4VDhkSCvvlNP1GWkrUNMuKkuH3qYLkr+iUTolCtYKhE6itfzVitBj0glUvZ1Gdg1/pGwQQQ2Ioh/x8X31g=="
+          ]
+        },
+        "timestamp": "2025-08-04T19:07:57Z",
+        "events": []
+      }
+    },
+    {
+      "header": {
+        "chain_id": "injective-1",
+        "timestamp": "2025-08-04T19:07:57Z"
+      },
+      "data": {
+        "height": "127740914",
+        "txhash": "3B95D31552EC72EBEB83F445FAA2904A943AC586CE09521CBC28817F0B8C1513",
+        "code": 0,
+        "logs": [
+          {
+            "msg_index": 0,
+            "events": [
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "action",
+                    "value": "/cosmos.authz.v1beta1.MsgExec",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                    "index": true
+                  },
+                  {
+                    "key": "module",
+                    "value": "authz",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"105.550000000000000000\",\"quantity\":\"94.740000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19649\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"94.740000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"e23Sfnr7IxEfWF9Fa08AuMpwRDRndtfu3pdT4+7qQY4=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"105550000.000000000000000000\",\"quantity\":\"94.740000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19649\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"94.740000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"e23Sfnr7IxEfWF9Fa08AuMpwRDRndtfu3pdT4+7qQY4=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"104.700000000000000000\",\"quantity\":\"95.500000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19650\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"95.500000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"De5+crhJJ4mRwa/3TWRewykuptP4whSDUFRIl85h46k=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"104700000.000000000000000000\",\"quantity\":\"95.500000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19650\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"95.500000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"De5+crhJJ4mRwa/3TWRewykuptP4whSDUFRIl85h46k=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"107.460000000000000000\",\"quantity\":\"93.040000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19647\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"93.040000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Eg5hX1W2oKWvK6JDj8RQALcDn7Y5DfSLZHgcwJg9x+4=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"107460000.000000000000000000\",\"quantity\":\"93.040000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19647\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"93.040000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Eg5hX1W2oKWvK6JDj8RQALcDn7Y5DfSLZHgcwJg9x+4=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"106.610000000000000000\",\"quantity\":\"93.790000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19646\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"93.790000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"MjPh3qCGtqRW2JbeAFU11ybg0i5NY4uHGWj+5Euv6Ms=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"106610000.000000000000000000\",\"quantity\":\"93.790000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19646\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"93.790000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"MjPh3qCGtqRW2JbeAFU11ybg0i5NY4uHGWj+5Euv6Ms=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"106.610000000000000000\",\"quantity\":\"93.790000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19651\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"93.790000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"z/Bzd4b2UfMdWrLZYwIOCFeKD29zf+1SL44M02moNDU=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"106610000.000000000000000000\",\"quantity\":\"93.790000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19651\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"93.790000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"z/Bzd4b2UfMdWrLZYwIOCFeKD29zf+1SL44M02moNDU=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"107.470000000000000000\",\"quantity\":\"93.040000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19652\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"93.040000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Cb14607bHoaJnqjpV4KRFPaLuv/ZTAoKbhfoNliAvrE=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"107470000.000000000000000000\",\"quantity\":\"93.040000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19652\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"93.040000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Cb14607bHoaJnqjpV4KRFPaLuv/ZTAoKbhfoNliAvrE=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"98.830000000000000000\",\"quantity\":\"370.920000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19653\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"370.920000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"h3T6KE8K378F+6yOMCuNCaBl/5l5O2HB53lDQbWv+j0=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"98830000.000000000000000000\",\"quantity\":\"370.920000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19653\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"370.920000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"h3T6KE8K378F+6yOMCuNCaBl/5l5O2HB53lDQbWv+j0=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"98.830000000000000000\",\"quantity\":\"370.920000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19653\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"370.920000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"h3T6KE8K378F+6yOMCuNCaBl/5l5O2HB53lDQbWv+j0=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"98830000.000000000000000000\",\"quantity\":\"370.920000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19653\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"370.920000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"h3T6KE8K378F+6yOMCuNCaBl/5l5O2HB53lDQbWv+j0=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"105.550000000000000000\",\"quantity\":\"94.730000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19654\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"94.730000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Yu0IugJqmC3qkSQg222aPNSxaX4R8CNZeDeZ5M8hPLc=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"105550000.000000000000000000\",\"quantity\":\"94.730000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19654\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"94.730000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Yu0IugJqmC3qkSQg222aPNSxaX4R8CNZeDeZ5M8hPLc=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"104.700000000000000000\",\"quantity\":\"95.500000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19655\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"95.500000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"p5MfpXsHLW3gRkLkob5jn+I9Uq6Xep1uwZsTRzdYwzI=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"104700000.000000000000000000\",\"quantity\":\"95.500000000000000000\",\"cid\":\"MMStrategyEquities_1754334475_19655\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"95.500000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"p5MfpXsHLW3gRkLkob5jn+I9Uq6Xep1uwZsTRzdYwzI=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "msg_index": null,
+            "events": [
+              {
+                "type": "coin_spent",
+                "attributes": [
+                  {
+                    "key": "spender",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "109345920000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "coin_received",
+                "attributes": [
+                  {
+                    "key": "receiver",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "109345920000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "transfer",
+                "attributes": [
+                  {
+                    "key": "recipient",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "109345920000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "sender",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "fee",
+                    "value": "109345920000000inj",
+                    "index": true
+                  },
+                  {
+                    "key": "fee_payer",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "acc_seq",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw/568708",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "signature",
+                    "value": "l+Zm8IwJg/4oRK47nsvncs4ctFUkmYCleKRLPbyRpnMR4vtGosXe6rKd/HMyRfpFdaCRuwQlj+CB3xvdYcuoQw==",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gas_wanted": "683412",
+        "gas_used": "632096",
+        "tx": {
+          "@type": "/cosmos.tx.v1beta1.Tx",
+          "body": {
+            "messages": [
+              {
+                "@type": "/cosmos.authz.v1beta1.MsgExec",
+                "grantee": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                "msgs": [
+                  {
+                    "@type": "/injective.exchange.v1beta1.MsgBatchUpdateOrders",
+                    "sender": "inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m",
+                    "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                    "spot_market_ids_to_cancel_all": [],
+                    "derivative_market_ids_to_cancel_all": [
+                      "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e"
+                    ],
+                    "spot_orders_to_cancel": [],
+                    "derivative_orders_to_cancel": [],
+                    "spot_orders_to_create": [],
+                    "derivative_orders_to_create": [
+                      {
+                        "market_id": "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "106610000.000000000000000000",
+                          "quantity": "93.790000000000000000",
+                          "cid": "MMStrategyEquities_1754334475_19651"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "107470000.000000000000000000",
+                          "quantity": "93.040000000000000000",
+                          "cid": "MMStrategyEquities_1754334475_19652"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "98830000.000000000000000000",
+                          "quantity": "370.920000000000000000",
+                          "cid": "MMStrategyEquities_1754334475_19653"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "0.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "105550000.000000000000000000",
+                          "quantity": "94.730000000000000000",
+                          "cid": "MMStrategyEquities_1754334475_19654"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "104700000.000000000000000000",
+                          "quantity": "95.500000000000000000",
+                          "cid": "MMStrategyEquities_1754334475_19655"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      }
+                    ],
+                    "binary_options_orders_to_cancel": [],
+                    "binary_options_market_ids_to_cancel_all": [],
+                    "binary_options_orders_to_create": []
+                  }
+                ]
+              }
+            ],
+            "memo": "",
+            "timeout_height": "127740938",
+            "extension_options": [],
+            "non_critical_extension_options": []
+          },
+          "auth_info": {
+            "signer_infos": [
+              {
+                "public_key": {
+                  "@type": "/injective.crypto.v1beta1.ethsecp256k1.PubKey",
+                  "key": "A9Wu1JdLd9pUjH/5UaVlXgO1PTGRV9HLcYoR1rZ005PM"
+                },
+                "mode_info": {
+                  "single": {
+                    "mode": "SIGN_MODE_DIRECT"
+                  }
+                },
+                "sequence": "568708"
+              }
+            ],
+            "fee": {
+              "amount": [
+                {
+                  "denom": "inj",
+                  "amount": "109345920000000"
+                }
+              ],
+              "gas_limit": "683412",
+              "payer": "",
+              "granter": ""
+            },
+            "tip": null
+          },
+          "signatures": [
+            "l+Zm8IwJg/4oRK47nsvncs4ctFUkmYCleKRLPbyRpnMR4vtGosXe6rKd/HMyRfpFdaCRuwQlj+CB3xvdYcuoQw=="
+          ]
+        },
+        "timestamp": "2025-08-04T19:07:57Z",
+        "events": []
+      }
+    },
+    {
+      "header": {
+        "chain_id": "injective-1",
+        "timestamp": "2025-08-04T19:07:57Z"
+      },
+      "data": {
+        "height": "127740914",
+        "txhash": "528E2238EEA45F0CAD9F9110080BC4695742A479611911EC26DC772CC0D335CA",
+        "code": 0,
+        "logs": [
+          {
+            "msg_index": 0,
+            "events": [
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "action",
+                    "value": "/cosmos.authz.v1beta1.MsgExec",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                    "index": true
+                  },
+                  {
+                    "key": "module",
+                    "value": "authz",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"105.540000000000000000\",\"quantity\":\"94.740000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19644\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"94.740000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"d+GpQ2n6irDLf3bV9iXPXtRIrRlN0FkId8Ia/kfkYcE=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"105540000.000000000000000000\",\"quantity\":\"94.740000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19644\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"94.740000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"d+GpQ2n6irDLf3bV9iXPXtRIrRlN0FkId8Ia/kfkYcE=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"104.700000000000000000\",\"quantity\":\"95.500000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19645\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"95.500000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Aps23z8uYRmgTQ/MtOr0t4UernSnXVNb2fXYZM04hDs=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"104700000.000000000000000000\",\"quantity\":\"95.500000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19645\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"95.500000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Aps23z8uYRmgTQ/MtOr0t4UernSnXVNb2fXYZM04hDs=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"106.610000000000000000\",\"quantity\":\"93.790000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19641\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"93.790000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"IsEVT/LHcQmlmKnnLnBab41cLbCkShDr0ZSEmwoi3qI=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"106610000.000000000000000000\",\"quantity\":\"93.790000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19641\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"93.790000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"IsEVT/LHcQmlmKnnLnBab41cLbCkShDr0ZSEmwoi3qI=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"107.460000000000000000\",\"quantity\":\"93.050000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19642\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"93.050000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"wQUNrJZGbtnEruZAuNhgS49NbGP+cS3PHtMmDT+IWFw=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"107460000.000000000000000000\",\"quantity\":\"93.050000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19642\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"93.050000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"wQUNrJZGbtnEruZAuNhgS49NbGP+cS3PHtMmDT+IWFw=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"106.610000000000000000\",\"quantity\":\"93.790000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19646\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"93.790000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"MjPh3qCGtqRW2JbeAFU11ybg0i5NY4uHGWj+5Euv6Ms=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"106610000.000000000000000000\",\"quantity\":\"93.790000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19646\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"93.790000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"MjPh3qCGtqRW2JbeAFU11ybg0i5NY4uHGWj+5Euv6Ms=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"107.460000000000000000\",\"quantity\":\"93.040000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19647\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"93.040000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Eg5hX1W2oKWvK6JDj8RQALcDn7Y5DfSLZHgcwJg9x+4=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"107460000.000000000000000000\",\"quantity\":\"93.040000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19647\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"93.040000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Eg5hX1W2oKWvK6JDj8RQALcDn7Y5DfSLZHgcwJg9x+4=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"98.830000000000000000\",\"quantity\":\"370.920000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19648\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"370.920000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Cgi5b/asfAgLd8fHmYiSE1gTR7r0i+qz8YmXVwAEZIk=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"98830000.000000000000000000\",\"quantity\":\"370.920000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19648\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"370.920000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Cgi5b/asfAgLd8fHmYiSE1gTR7r0i+qz8YmXVwAEZIk=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"98.830000000000000000\",\"quantity\":\"370.920000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19648\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"370.920000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Cgi5b/asfAgLd8fHmYiSE1gTR7r0i+qz8YmXVwAEZIk=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"98830000.000000000000000000\",\"quantity\":\"370.920000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19648\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"370.920000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Cgi5b/asfAgLd8fHmYiSE1gTR7r0i+qz8YmXVwAEZIk=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"105.550000000000000000\",\"quantity\":\"94.740000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19649\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"94.740000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"e23Sfnr7IxEfWF9Fa08AuMpwRDRndtfu3pdT4+7qQY4=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"105550000.000000000000000000\",\"quantity\":\"94.740000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19649\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"94.740000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"e23Sfnr7IxEfWF9Fa08AuMpwRDRndtfu3pdT4+7qQY4=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"104.700000000000000000\",\"quantity\":\"95.500000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19650\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"95.500000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"De5+crhJJ4mRwa/3TWRewykuptP4whSDUFRIl85h46k=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"104700000.000000000000000000\",\"quantity\":\"95.500000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_19650\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"95.500000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"De5+crhJJ4mRwa/3TWRewykuptP4whSDUFRIl85h46k=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "msg_index": null,
+            "events": [
+              {
+                "type": "coin_spent",
+                "attributes": [
+                  {
+                    "key": "spender",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "109145120000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "coin_received",
+                "attributes": [
+                  {
+                    "key": "receiver",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "109145120000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "transfer",
+                "attributes": [
+                  {
+                    "key": "recipient",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "109145120000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "sender",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "fee",
+                    "value": "109145120000000inj",
+                    "index": true
+                  },
+                  {
+                    "key": "fee_payer",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "acc_seq",
+                    "value": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw/568707",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "signature",
+                    "value": "OiH+ZnnepDdAUDhlsuDwQNnmRYLrQkW2+dZX+MEmM1FLv4hiH1GxtM53BsoAxJZFgRcM+HB9+f171BRwc2zdQQ==",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gas_wanted": "682157",
+        "gas_used": "638479",
+        "tx": {
+          "@type": "/cosmos.tx.v1beta1.Tx",
+          "body": {
+            "messages": [
+              {
+                "@type": "/cosmos.authz.v1beta1.MsgExec",
+                "grantee": "inj1lx0r2wm22nkp3905ja69a0gkrdntmz0hw6npuw",
+                "msgs": [
+                  {
+                    "@type": "/injective.exchange.v1beta1.MsgBatchUpdateOrders",
+                    "sender": "inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m",
+                    "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                    "spot_market_ids_to_cancel_all": [],
+                    "derivative_market_ids_to_cancel_all": [
+                      "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e"
+                    ],
+                    "spot_orders_to_cancel": [],
+                    "derivative_orders_to_cancel": [],
+                    "spot_orders_to_create": [],
+                    "derivative_orders_to_create": [
+                      {
+                        "market_id": "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "106610000.000000000000000000",
+                          "quantity": "93.790000000000000000",
+                          "cid": "MMStrategyEquities_1754334474_19646"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "107460000.000000000000000000",
+                          "quantity": "93.040000000000000000",
+                          "cid": "MMStrategyEquities_1754334474_19647"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "98830000.000000000000000000",
+                          "quantity": "370.920000000000000000",
+                          "cid": "MMStrategyEquities_1754334474_19648"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "0.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "105550000.000000000000000000",
+                          "quantity": "94.740000000000000000",
+                          "cid": "MMStrategyEquities_1754334474_19649"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0xc785a40ccb958e8df31ab18c0788f8443cefc5cbf6aca989ca721214b31fd76e",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "104700000.000000000000000000",
+                          "quantity": "95.500000000000000000",
+                          "cid": "MMStrategyEquities_1754334474_19650"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      }
+                    ],
+                    "binary_options_orders_to_cancel": [],
+                    "binary_options_market_ids_to_cancel_all": [],
+                    "binary_options_orders_to_create": []
+                  }
+                ]
+              }
+            ],
+            "memo": "",
+            "timeout_height": "127740938",
+            "extension_options": [],
+            "non_critical_extension_options": []
+          },
+          "auth_info": {
+            "signer_infos": [
+              {
+                "public_key": {
+                  "@type": "/injective.crypto.v1beta1.ethsecp256k1.PubKey",
+                  "key": "A9Wu1JdLd9pUjH/5UaVlXgO1PTGRV9HLcYoR1rZ005PM"
+                },
+                "mode_info": {
+                  "single": {
+                    "mode": "SIGN_MODE_DIRECT"
+                  }
+                },
+                "sequence": "568707"
+              }
+            ],
+            "fee": {
+              "amount": [
+                {
+                  "denom": "inj",
+                  "amount": "109145120000000"
+                }
+              ],
+              "gas_limit": "682157",
+              "payer": "",
+              "granter": ""
+            },
+            "tip": null
+          },
+          "signatures": [
+            "OiH+ZnnepDdAUDhlsuDwQNnmRYLrQkW2+dZX+MEmM1FLv4hiH1GxtM53BsoAxJZFgRcM+HB9+f171BRwc2zdQQ=="
+          ]
+        },
+        "timestamp": "2025-08-04T19:07:57Z",
+        "events": []
+      }
+    },
+    {
+      "header": {
+        "chain_id": "injective-1",
+        "timestamp": "2025-08-04T19:07:57Z"
+      },
+      "data": {
+        "height": "127740914",
+        "txhash": "302841BB5D87F22A5A58CDDAB484B1FDA92C10A2E12751721CD16ACF359EF157",
+        "code": 0,
+        "logs": [
+          {
+            "msg_index": 0,
+            "events": [
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "action",
+                    "value": "/cosmos.authz.v1beta1.MsgExec",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1p0a77lew5mg0gjnqukjndpka7c6dkalyqjhp3k",
+                    "index": true
+                  },
+                  {
+                    "key": "module",
+                    "value": "authz",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"211.590000000000000000\",\"quantity\":\"0.472000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13683\"},\"order_type\":\"BUY_PO\",\"margin\":\"9.000000000000000000\",\"fillable\":\"0.472000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"gUioU4o0GQuDLIh4lM9IoZmmjvIiU8KU3tj8H46dL5Y=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"211590000.000000000000000000\",\"quantity\":\"0.472000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13683\"},\"order_type\":\"BUY_PO\",\"margin\":\"9000000.000000000000000000\",\"fillable\":\"0.472000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"gUioU4o0GQuDLIh4lM9IoZmmjvIiU8KU3tj8H46dL5Y=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"209.890000000000000000\",\"quantity\":\"0.476000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13684\"},\"order_type\":\"BUY_PO\",\"margin\":\"9.000000000000000000\",\"fillable\":\"0.476000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"bih/9MyTK0mrOG5eXnXyF4g02sGGkeshKom/ymM6Tvo=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"209890000.000000000000000000\",\"quantity\":\"0.476000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13684\"},\"order_type\":\"BUY_PO\",\"margin\":\"9000000.000000000000000000\",\"fillable\":\"0.476000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"bih/9MyTK0mrOG5eXnXyF4g02sGGkeshKom/ymM6Tvo=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"213.710000000000000000\",\"quantity\":\"0.467000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13681\"},\"order_type\":\"SELL_PO\",\"margin\":\"9.000000000000000000\",\"fillable\":\"0.467000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"TWCvehu+gtoBXUKzqgv1QST4eoE46CRO49p5EJ7KdGI=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"213710000.000000000000000000\",\"quantity\":\"0.467000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13681\"},\"order_type\":\"SELL_PO\",\"margin\":\"9000000.000000000000000000\",\"fillable\":\"0.467000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"TWCvehu+gtoBXUKzqgv1QST4eoE46CRO49p5EJ7KdGI=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"215.420000000000000000\",\"quantity\":\"0.464000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13682\"},\"order_type\":\"SELL_PO\",\"margin\":\"9.000000000000000000\",\"fillable\":\"0.464000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"ha9t3WHWYRem9zLg07KwuV4tWGJgMvpWEI34HYDIt3c=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"215420000.000000000000000000\",\"quantity\":\"0.464000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13682\"},\"order_type\":\"SELL_PO\",\"margin\":\"9000000.000000000000000000\",\"fillable\":\"0.464000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"ha9t3WHWYRem9zLg07KwuV4tWGJgMvpWEI34HYDIt3c=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"213.710000000000000000\",\"quantity\":\"0.467000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13685\"},\"order_type\":\"SELL_PO\",\"margin\":\"9.000000000000000000\",\"fillable\":\"0.467000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"jVFNTL+tpp1BGRk36xrsrfD1RO3EmpMsK0uTu6FZCeQ=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"213710000.000000000000000000\",\"quantity\":\"0.467000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13685\"},\"order_type\":\"SELL_PO\",\"margin\":\"9000000.000000000000000000\",\"fillable\":\"0.467000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"jVFNTL+tpp1BGRk36xrsrfD1RO3EmpMsK0uTu6FZCeQ=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"215.420000000000000000\",\"quantity\":\"0.464000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13686\"},\"order_type\":\"SELL_PO\",\"margin\":\"9.000000000000000000\",\"fillable\":\"0.464000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Wvwpu4D1eJ3NmXLM6/12hY6V0bGTqs/HCJyvG9oq4yY=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"215420000.000000000000000000\",\"quantity\":\"0.464000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13686\"},\"order_type\":\"SELL_PO\",\"margin\":\"9000000.000000000000000000\",\"fillable\":\"0.464000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Wvwpu4D1eJ3NmXLM6/12hY6V0bGTqs/HCJyvG9oq4yY=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"211.590000000000000000\",\"quantity\":\"0.472000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13687\"},\"order_type\":\"BUY_PO\",\"margin\":\"9.000000000000000000\",\"fillable\":\"0.472000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"6RSu4U8IlrJW+vVOH5l5SHQebHakH+z2VRhQIGzZR4s=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"211590000.000000000000000000\",\"quantity\":\"0.472000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13687\"},\"order_type\":\"BUY_PO\",\"margin\":\"9000000.000000000000000000\",\"fillable\":\"0.472000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"6RSu4U8IlrJW+vVOH5l5SHQebHakH+z2VRhQIGzZR4s=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"209.890000000000000000\",\"quantity\":\"0.476000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13688\"},\"order_type\":\"BUY_PO\",\"margin\":\"9.000000000000000000\",\"fillable\":\"0.476000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"f0kNhwZwFR+YVAusjfZmzarUpKFE6m5k9djZiQUU2AA=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"209890000.000000000000000000\",\"quantity\":\"0.476000000000000000\",\"cid\":\"MMStrategyEquities_1754334472_13688\"},\"order_type\":\"BUY_PO\",\"margin\":\"9000000.000000000000000000\",\"fillable\":\"0.476000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"f0kNhwZwFR+YVAusjfZmzarUpKFE6m5k9djZiQUU2AA=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "msg_index": null,
+            "events": [
+              {
+                "type": "coin_spent",
+                "attributes": [
+                  {
+                    "key": "spender",
+                    "value": "inj1p0a77lew5mg0gjnqukjndpka7c6dkalyqjhp3k",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "93118080000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "coin_received",
+                "attributes": [
+                  {
+                    "key": "receiver",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "93118080000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "transfer",
+                "attributes": [
+                  {
+                    "key": "recipient",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1p0a77lew5mg0gjnqukjndpka7c6dkalyqjhp3k",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "93118080000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "sender",
+                    "value": "inj1p0a77lew5mg0gjnqukjndpka7c6dkalyqjhp3k",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "fee",
+                    "value": "93118080000000inj",
+                    "index": true
+                  },
+                  {
+                    "key": "fee_payer",
+                    "value": "inj1p0a77lew5mg0gjnqukjndpka7c6dkalyqjhp3k",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "acc_seq",
+                    "value": "inj1p0a77lew5mg0gjnqukjndpka7c6dkalyqjhp3k/1188651",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "signature",
+                    "value": "6q32UvrEFQJ4RQu2wXhVP23VC/esxHvqpOZg9tX8kk0n8JrZ0lqf0DTnbXBGp++GwiQ1hS1k7w45ySgBqteSXw==",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gas_wanted": "581988",
+        "gas_used": "538356",
+        "tx": {
+          "@type": "/cosmos.tx.v1beta1.Tx",
+          "body": {
+            "messages": [
+              {
+                "@type": "/cosmos.authz.v1beta1.MsgExec",
+                "grantee": "inj1p0a77lew5mg0gjnqukjndpka7c6dkalyqjhp3k",
+                "msgs": [
+                  {
+                    "@type": "/injective.exchange.v1beta1.MsgBatchUpdateOrders",
+                    "sender": "inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m",
+                    "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002",
+                    "spot_market_ids_to_cancel_all": [],
+                    "derivative_market_ids_to_cancel_all": [
+                      "0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf"
+                    ],
+                    "spot_orders_to_cancel": [],
+                    "derivative_orders_to_cancel": [],
+                    "spot_orders_to_create": [],
+                    "derivative_orders_to_create": [
+                      {
+                        "market_id": "0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002",
+                          "fee_recipient": "",
+                          "price": "213710000.000000000000000000",
+                          "quantity": "0.467000000000000000",
+                          "cid": "MMStrategyEquities_1754334472_13685"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "9000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002",
+                          "fee_recipient": "",
+                          "price": "215420000.000000000000000000",
+                          "quantity": "0.464000000000000000",
+                          "cid": "MMStrategyEquities_1754334472_13686"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "9000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002",
+                          "fee_recipient": "",
+                          "price": "211590000.000000000000000000",
+                          "quantity": "0.472000000000000000",
+                          "cid": "MMStrategyEquities_1754334472_13687"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "9000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x8a2b6067a2eb2712222e42a52e75f85b5c8d67f66d45c76a700f763c723f4caf",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000002",
+                          "fee_recipient": "",
+                          "price": "209890000.000000000000000000",
+                          "quantity": "0.476000000000000000",
+                          "cid": "MMStrategyEquities_1754334472_13688"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "9000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      }
+                    ],
+                    "binary_options_orders_to_cancel": [],
+                    "binary_options_market_ids_to_cancel_all": [],
+                    "binary_options_orders_to_create": []
+                  }
+                ]
+              }
+            ],
+            "memo": "",
+            "timeout_height": "127740934",
+            "extension_options": [],
+            "non_critical_extension_options": []
+          },
+          "auth_info": {
+            "signer_infos": [
+              {
+                "public_key": {
+                  "@type": "/injective.crypto.v1beta1.ethsecp256k1.PubKey",
+                  "key": "AmcAtZCA51dDl8cgh7Ghmf/D0UsNP+aepGSMRmEHQk4U"
+                },
+                "mode_info": {
+                  "single": {
+                    "mode": "SIGN_MODE_DIRECT"
+                  }
+                },
+                "sequence": "1188651"
+              }
+            ],
+            "fee": {
+              "amount": [
+                {
+                  "denom": "inj",
+                  "amount": "93118080000000"
+                }
+              ],
+              "gas_limit": "581988",
+              "payer": "",
+              "granter": ""
+            },
+            "tip": null
+          },
+          "signatures": [
+            "6q32UvrEFQJ4RQu2wXhVP23VC/esxHvqpOZg9tX8kk0n8JrZ0lqf0DTnbXBGp++GwiQ1hS1k7w45ySgBqteSXw=="
+          ]
+        },
+        "timestamp": "2025-08-04T19:07:57Z",
+        "events": []
+      }
+    },
+    {
+      "header": {
+        "chain_id": "injective-1",
+        "timestamp": "2025-08-04T19:07:57Z"
+      },
+      "data": {
+        "height": "127740914",
+        "txhash": "7EAA13821328C383B1FDC751108BA5422EC114A607CBCA38DA8D4BF2FFA5F7A0",
+        "code": 0,
+        "logs": [
+          {
+            "msg_index": 0,
+            "events": [
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "action",
+                    "value": "/cosmos.authz.v1beta1.MsgExec",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                    "index": true
+                  },
+                  {
+                    "key": "module",
+                    "value": "authz",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"386.110000000000000000\",\"quantity\":\"77.679000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17268\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"77.679000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"7J2GLoXjmT+oQSO2+HI/96XvMqZDS3lDxCvkxwls/fE=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"386110000.000000000000000000\",\"quantity\":\"77.679000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17268\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"77.679000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"7J2GLoXjmT+oQSO2+HI/96XvMqZDS3lDxCvkxwls/fE=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"385.030000000000000000\",\"quantity\":\"25.971000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17269\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.971000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"wN3DYKzXo6CdUihkz2OcroSczW2rnLxCRgbxDzu1FK0=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"385030000.000000000000000000\",\"quantity\":\"25.971000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17269\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.971000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"wN3DYKzXo6CdUihkz2OcroSczW2rnLxCRgbxDzu1FK0=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"381.940000000000000000\",\"quantity\":\"26.181000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17270\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"26.181000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"TWKagHCTskLK3N5/Vn5XQIE10cnDjfV6IfzL2yuL2jw=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"381940000.000000000000000000\",\"quantity\":\"26.181000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17270\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"26.181000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"TWKagHCTskLK3N5/Vn5XQIE10cnDjfV6IfzL2yuL2jw=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"392.030000000000000000\",\"quantity\":\"25.508000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17267\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.508000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"NuGvT2UJGolxx1zTd36HTgxgGvMm30f7lN+keTOmMgo=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"392030000.000000000000000000\",\"quantity\":\"25.508000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17267\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.508000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"NuGvT2UJGolxx1zTd36HTgxgGvMm30f7lN+keTOmMgo=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"388.920000000000000000\",\"quantity\":\"25.712000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17266\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.712000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"zQya11q8YN/wFQTCPnCnToxc/FKKuN2rsWofZhycMvo=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"388920000.000000000000000000\",\"quantity\":\"25.712000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17266\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.712000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"zQya11q8YN/wFQTCPnCnToxc/FKKuN2rsWofZhycMvo=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"388.920000000000000000\",\"quantity\":\"25.712000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17271\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.712000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Bp6H8VAfrGB5EVozZHW2OuqSdfisTAlujtLPa8u7xSs=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"388920000.000000000000000000\",\"quantity\":\"25.712000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17271\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.712000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Bp6H8VAfrGB5EVozZHW2OuqSdfisTAlujtLPa8u7xSs=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"392.030000000000000000\",\"quantity\":\"25.508000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17272\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.508000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"AKM0Lokq7478uHnvlNgSlajUSnBDYR1Nmyh3+bUM58c=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"392030000.000000000000000000\",\"quantity\":\"25.508000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17272\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.508000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"AKM0Lokq7478uHnvlNgSlajUSnBDYR1Nmyh3+bUM58c=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"386.110000000000000000\",\"quantity\":\"77.679000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17273\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"77.679000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"fmqJtC60Nzvqur05f3TRxYXW1XV8kw5NCWors6Xd0cc=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"386110000.000000000000000000\",\"quantity\":\"77.679000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17273\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"77.679000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"fmqJtC60Nzvqur05f3TRxYXW1XV8kw5NCWors6Xd0cc=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"385.030000000000000000\",\"quantity\":\"25.971000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17274\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.971000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"bDgDrnjkqsU42jxtI7VtYoJu7Bk7W9WLGLXfmeNXsbI=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"385030000.000000000000000000\",\"quantity\":\"25.971000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17274\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.971000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"bDgDrnjkqsU42jxtI7VtYoJu7Bk7W9WLGLXfmeNXsbI=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"381.940000000000000000\",\"quantity\":\"26.181000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17275\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"26.181000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"aVr1AWIxcdDkUXJ86SGmEBkeaZ1lBkz7ddL2syrlZAA=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"381940000.000000000000000000\",\"quantity\":\"26.181000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17275\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"26.181000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"aVr1AWIxcdDkUXJ86SGmEBkeaZ1lBkz7ddL2syrlZAA=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "msg_index": null,
+            "events": [
+              {
+                "type": "coin_spent",
+                "attributes": [
+                  {
+                    "key": "spender",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "110973760000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "coin_received",
+                "attributes": [
+                  {
+                    "key": "receiver",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "110973760000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "transfer",
+                "attributes": [
+                  {
+                    "key": "recipient",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "110973760000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "sender",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "fee",
+                    "value": "110973760000000inj",
+                    "index": true
+                  },
+                  {
+                    "key": "fee_payer",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "acc_seq",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3/598217",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "signature",
+                    "value": "VN3bknHe/lATotO2R9eA2IDimofUnwzhk6cb7zIgAs8pEzbq3Jv+SvJPzZYhvsOqqk2hWvZHTE3aAkJUM6qtmw==",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gas_wanted": "693586",
+        "gas_used": "637782",
+        "tx": {
+          "@type": "/cosmos.tx.v1beta1.Tx",
+          "body": {
+            "messages": [
+              {
+                "@type": "/cosmos.authz.v1beta1.MsgExec",
+                "grantee": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                "msgs": [
+                  {
+                    "@type": "/injective.exchange.v1beta1.MsgBatchUpdateOrders",
+                    "sender": "inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m",
+                    "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                    "spot_market_ids_to_cancel_all": [],
+                    "derivative_market_ids_to_cancel_all": [
+                      "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77"
+                    ],
+                    "spot_orders_to_cancel": [],
+                    "derivative_orders_to_cancel": [],
+                    "spot_orders_to_create": [],
+                    "derivative_orders_to_create": [
+                      {
+                        "market_id": "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "388920000.000000000000000000",
+                          "quantity": "25.712000000000000000",
+                          "cid": "MMStrategyEquities_1754334469_17271"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "392030000.000000000000000000",
+                          "quantity": "25.508000000000000000",
+                          "cid": "MMStrategyEquities_1754334469_17272"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "386110000.000000000000000000",
+                          "quantity": "77.679000000000000000",
+                          "cid": "MMStrategyEquities_1754334469_17273"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "0.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "385030000.000000000000000000",
+                          "quantity": "25.971000000000000000",
+                          "cid": "MMStrategyEquities_1754334469_17274"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "381940000.000000000000000000",
+                          "quantity": "26.181000000000000000",
+                          "cid": "MMStrategyEquities_1754334469_17275"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      }
+                    ],
+                    "binary_options_orders_to_cancel": [],
+                    "binary_options_market_ids_to_cancel_all": [],
+                    "binary_options_orders_to_create": []
+                  }
+                ]
+              }
+            ],
+            "memo": "",
+            "timeout_height": "127740928",
+            "extension_options": [],
+            "non_critical_extension_options": []
+          },
+          "auth_info": {
+            "signer_infos": [
+              {
+                "public_key": {
+                  "@type": "/injective.crypto.v1beta1.ethsecp256k1.PubKey",
+                  "key": "AnS7xMeJah/2S5fsG3CdPnngGj1Og/cyR5ndfZrCXJ5Q"
+                },
+                "mode_info": {
+                  "single": {
+                    "mode": "SIGN_MODE_DIRECT"
+                  }
+                },
+                "sequence": "598217"
+              }
+            ],
+            "fee": {
+              "amount": [
+                {
+                  "denom": "inj",
+                  "amount": "110973760000000"
+                }
+              ],
+              "gas_limit": "693586",
+              "payer": "",
+              "granter": ""
+            },
+            "tip": null
+          },
+          "signatures": [
+            "VN3bknHe/lATotO2R9eA2IDimofUnwzhk6cb7zIgAs8pEzbq3Jv+SvJPzZYhvsOqqk2hWvZHTE3aAkJUM6qtmw=="
+          ]
+        },
+        "timestamp": "2025-08-04T19:07:57Z",
+        "events": []
+      }
+    },
+    {
+      "header": {
+        "chain_id": "injective-1",
+        "timestamp": "2025-08-04T19:07:57Z"
+      },
+      "data": {
+        "height": "127740914",
+        "txhash": "15435DA7182C913345EDD35FE2916A17682BCD6B27084FCE7428F676A4095360",
+        "code": 0,
+        "logs": [
+          {
+            "msg_index": 0,
+            "events": [
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "action",
+                    "value": "/cosmos.authz.v1beta1.MsgExec",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                    "index": true
+                  },
+                  {
+                    "key": "module",
+                    "value": "authz",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"381.910000000000000000\",\"quantity\":\"26.183000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_17265\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"26.183000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"53wtXeAgAzDTDeO4Fo0eDQCFhLY8q0vjxSZGMlVk4Do=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"381910000.000000000000000000\",\"quantity\":\"26.183000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_17265\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"26.183000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"53wtXeAgAzDTDeO4Fo0eDQCFhLY8q0vjxSZGMlVk4Do=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"386.110000000000000000\",\"quantity\":\"77.679000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_17263\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"77.679000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"q4+DaRJbDHkG8WDhdxHqptPcbflwWpnexqKDOtz4Mik=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"386110000.000000000000000000\",\"quantity\":\"77.679000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_17263\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"77.679000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"q4+DaRJbDHkG8WDhdxHqptPcbflwWpnexqKDOtz4Mik=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"385.000000000000000000\",\"quantity\":\"25.973000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_17264\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.973000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"cwsbx9YN4a9W2kTxVtfFaqfaz5C5MZ3dxKPstE988nA=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"385000000.000000000000000000\",\"quantity\":\"25.973000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_17264\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.973000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"cwsbx9YN4a9W2kTxVtfFaqfaz5C5MZ3dxKPstE988nA=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"388.890000000000000000\",\"quantity\":\"25.714000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_17261\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.714000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"VtxuQjvVENnaCOmqxnPdww853NovGTAkZsYT/tL494s=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"388890000.000000000000000000\",\"quantity\":\"25.714000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_17261\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.714000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"VtxuQjvVENnaCOmqxnPdww853NovGTAkZsYT/tL494s=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"392.000000000000000000\",\"quantity\":\"25.509000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_17262\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.509000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"m94/re1lBifWEJetmB1IamRFawR8VSGvmoV6qxMdCv4=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"392000000.000000000000000000\",\"quantity\":\"25.509000000000000000\",\"cid\":\"MMStrategyEquities_1754334468_17262\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.509000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"m94/re1lBifWEJetmB1IamRFawR8VSGvmoV6qxMdCv4=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"388.920000000000000000\",\"quantity\":\"25.712000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17266\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.712000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"zQya11q8YN/wFQTCPnCnToxc/FKKuN2rsWofZhycMvo=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"388920000.000000000000000000\",\"quantity\":\"25.712000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17266\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.712000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"zQya11q8YN/wFQTCPnCnToxc/FKKuN2rsWofZhycMvo=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"392.030000000000000000\",\"quantity\":\"25.508000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17267\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.508000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"NuGvT2UJGolxx1zTd36HTgxgGvMm30f7lN+keTOmMgo=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"392030000.000000000000000000\",\"quantity\":\"25.508000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17267\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.508000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"NuGvT2UJGolxx1zTd36HTgxgGvMm30f7lN+keTOmMgo=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"386.110000000000000000\",\"quantity\":\"77.679000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17268\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"77.679000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"7J2GLoXjmT+oQSO2+HI/96XvMqZDS3lDxCvkxwls/fE=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"386110000.000000000000000000\",\"quantity\":\"77.679000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17268\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"77.679000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"7J2GLoXjmT+oQSO2+HI/96XvMqZDS3lDxCvkxwls/fE=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"385.030000000000000000\",\"quantity\":\"25.971000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17269\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"25.971000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"wN3DYKzXo6CdUihkz2OcroSczW2rnLxCRgbxDzu1FK0=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"385030000.000000000000000000\",\"quantity\":\"25.971000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17269\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"25.971000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"wN3DYKzXo6CdUihkz2OcroSczW2rnLxCRgbxDzu1FK0=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"381.940000000000000000\",\"quantity\":\"26.181000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17270\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"26.181000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"TWKagHCTskLK3N5/Vn5XQIE10cnDjfV6IfzL2yuL2jw=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"381940000.000000000000000000\",\"quantity\":\"26.181000000000000000\",\"cid\":\"MMStrategyEquities_1754334469_17270\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"26.181000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"TWKagHCTskLK3N5/Vn5XQIE10cnDjfV6IfzL2yuL2jw=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "msg_index": null,
+            "events": [
+              {
+                "type": "coin_spent",
+                "attributes": [
+                  {
+                    "key": "spender",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "110973760000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "coin_received",
+                "attributes": [
+                  {
+                    "key": "receiver",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "110973760000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "transfer",
+                "attributes": [
+                  {
+                    "key": "recipient",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "110973760000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "sender",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "fee",
+                    "value": "110973760000000inj",
+                    "index": true
+                  },
+                  {
+                    "key": "fee_payer",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "acc_seq",
+                    "value": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3/598216",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "signature",
+                    "value": "5pnJh03Zw3W8WYXWSn3VKdm90C3BtLLWIha5FXZ2KxgmhZLnJLdgaRBYDl7VAzIbFq3OHW08wPZWpQdVdgsCsQ==",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gas_wanted": "693586",
+        "gas_used": "649845",
+        "tx": {
+          "@type": "/cosmos.tx.v1beta1.Tx",
+          "body": {
+            "messages": [
+              {
+                "@type": "/cosmos.authz.v1beta1.MsgExec",
+                "grantee": "inj1psxn36z365t4ypy2huhsyl0jx5va4v6kq0m4p3",
+                "msgs": [
+                  {
+                    "@type": "/injective.exchange.v1beta1.MsgBatchUpdateOrders",
+                    "sender": "inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m",
+                    "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                    "spot_market_ids_to_cancel_all": [],
+                    "derivative_market_ids_to_cancel_all": [
+                      "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77"
+                    ],
+                    "spot_orders_to_cancel": [],
+                    "derivative_orders_to_cancel": [],
+                    "spot_orders_to_create": [],
+                    "derivative_orders_to_create": [
+                      {
+                        "market_id": "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "388920000.000000000000000000",
+                          "quantity": "25.712000000000000000",
+                          "cid": "MMStrategyEquities_1754334469_17266"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "392030000.000000000000000000",
+                          "quantity": "25.508000000000000000",
+                          "cid": "MMStrategyEquities_1754334469_17267"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "386110000.000000000000000000",
+                          "quantity": "77.679000000000000000",
+                          "cid": "MMStrategyEquities_1754334469_17268"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "0.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "385030000.000000000000000000",
+                          "quantity": "25.971000000000000000",
+                          "cid": "MMStrategyEquities_1754334469_17269"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x9f70beeed6a8ea48b1eab7a608a2af600d432ee6eda7fba2965875a8e9702b77",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "381940000.000000000000000000",
+                          "quantity": "26.181000000000000000",
+                          "cid": "MMStrategyEquities_1754334469_17270"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      }
+                    ],
+                    "binary_options_orders_to_cancel": [],
+                    "binary_options_market_ids_to_cancel_all": [],
+                    "binary_options_orders_to_create": []
+                  }
+                ]
+              }
+            ],
+            "memo": "",
+            "timeout_height": "127740927",
+            "extension_options": [],
+            "non_critical_extension_options": []
+          },
+          "auth_info": {
+            "signer_infos": [
+              {
+                "public_key": {
+                  "@type": "/injective.crypto.v1beta1.ethsecp256k1.PubKey",
+                  "key": "AnS7xMeJah/2S5fsG3CdPnngGj1Og/cyR5ndfZrCXJ5Q"
+                },
+                "mode_info": {
+                  "single": {
+                    "mode": "SIGN_MODE_DIRECT"
+                  }
+                },
+                "sequence": "598216"
+              }
+            ],
+            "fee": {
+              "amount": [
+                {
+                  "denom": "inj",
+                  "amount": "110973760000000"
+                }
+              ],
+              "gas_limit": "693586",
+              "payer": "",
+              "granter": ""
+            },
+            "tip": null
+          },
+          "signatures": [
+            "5pnJh03Zw3W8WYXWSn3VKdm90C3BtLLWIha5FXZ2KxgmhZLnJLdgaRBYDl7VAzIbFq3OHW08wPZWpQdVdgsCsQ=="
+          ]
+        },
+        "timestamp": "2025-08-04T19:07:57Z",
+        "events": []
+      }
+    },
+    {
+      "header": {
+        "chain_id": "injective-1",
+        "timestamp": "2025-08-04T19:07:57Z"
+      },
+      "data": {
+        "height": "127740914",
+        "txhash": "BC030EC27142D6E899AAEB290DC109068F1B17258BA4AEE32CA44228CFD2B6CA",
+        "code": 0,
+        "logs": [
+          {
+            "msg_index": 0,
+            "events": [
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "action",
+                    "value": "/cosmos.authz.v1beta1.MsgExec",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1y8swa0jc3fx8n2xgqxswjjvavq87nju8zgay53",
+                    "index": true
+                  },
+                  {
+                    "key": "module",
+                    "value": "authz",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3334.400000000000000000\",\"quantity\":\"4.498500000000000000\",\"cid\":\"MMStrategyEquities_1754334474_60233\"},\"order_type\":\"BUY_PO\",\"margin\":\"1499.000000000000000000\",\"fillable\":\"4.498500000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"uOp2zldTTspbnSMVsmi+ZH/HkgoWbOILLElCq5kwU7E=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3334400000.000000000000000000\",\"quantity\":\"4.498500000000000000\",\"cid\":\"MMStrategyEquities_1754334474_60233\"},\"order_type\":\"BUY_PO\",\"margin\":\"1499000000.000000000000000000\",\"fillable\":\"4.498500000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"uOp2zldTTspbnSMVsmi+ZH/HkgoWbOILLElCq5kwU7E=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3361.390000000000000000\",\"quantity\":\"2.974900000000000000\",\"cid\":\"MMStrategyEquities_1754334474_60232\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"2.974900000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"D08/vzgHTnXaMIVNYHz2VEJSF4N5CaDvtJvmkNtoOwg=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3361390000.000000000000000000\",\"quantity\":\"2.974900000000000000\",\"cid\":\"MMStrategyEquities_1754334474_60232\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"2.974900000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"D08/vzgHTnXaMIVNYHz2VEJSF4N5CaDvtJvmkNtoOwg=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3405.300000000000000000\",\"quantity\":\"4.404800000000000000\",\"cid\":\"MMStrategyEquities_1754334474_60230\"},\"order_type\":\"SELL_PO\",\"margin\":\"1499.000000000000000000\",\"fillable\":\"4.404800000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"SXxIgi5/i3KhV5OgifQv2pdRGZE5ueg0ivzsL5JwiNA=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3405300000.000000000000000000\",\"quantity\":\"4.404800000000000000\",\"cid\":\"MMStrategyEquities_1754334474_60230\"},\"order_type\":\"SELL_PO\",\"margin\":\"1499000000.000000000000000000\",\"fillable\":\"4.404800000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"SXxIgi5/i3KhV5OgifQv2pdRGZE5ueg0ivzsL5JwiNA=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3378.280000000000000000\",\"quantity\":\"2.960000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_60229\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"2.960000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"544LASP3QFiVujStb+Uyr0rcpS23sfh4+wNSIZFX2EM=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3378280000.000000000000000000\",\"quantity\":\"2.960000000000000000\",\"cid\":\"MMStrategyEquities_1754334474_60229\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"2.960000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"544LASP3QFiVujStb+Uyr0rcpS23sfh4+wNSIZFX2EM=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3378.280000000000000000\",\"quantity\":\"2.960000000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60259\"},\"order_type\":\"SELL_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"2.960000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"adQnV1NflNbqiazx9TtitkaBW6MOMrkKfZody5bWQEw=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3378280000.000000000000000000\",\"quantity\":\"2.960000000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60259\"},\"order_type\":\"SELL_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"2.960000000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"adQnV1NflNbqiazx9TtitkaBW6MOMrkKfZody5bWQEw=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3405.310000000000000000\",\"quantity\":\"4.404800000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60260\"},\"order_type\":\"SELL_PO\",\"margin\":\"1499.000000000000000000\",\"fillable\":\"4.404800000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"sj1sC8vknHp0eTjxVBlVjbxPfwvKZIn5znJEOf+zNn8=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3405310000.000000000000000000\",\"quantity\":\"4.404800000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60260\"},\"order_type\":\"SELL_PO\",\"margin\":\"1499000000.000000000000000000\",\"fillable\":\"4.404800000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"sj1sC8vknHp0eTjxVBlVjbxPfwvKZIn5znJEOf+zNn8=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3300.090000000000000000\",\"quantity\":\"0.751300000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60261\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"0.751300000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"ehRG6eqgkZgH2SgNDDpa1FF5TwVYMK853NkidCLAZv8=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3300090000.000000000000000000\",\"quantity\":\"0.751300000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60261\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"0.751300000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"ehRG6eqgkZgH2SgNDDpa1FF5TwVYMK853NkidCLAZv8=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3300.090000000000000000\",\"quantity\":\"0.751300000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60261\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"0.751300000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"ehRG6eqgkZgH2SgNDDpa1FF5TwVYMK853NkidCLAZv8=\",\"expiration_block\":\"0\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventCancelDerivativeOrder",
+                "attributes": [
+                  {
+                    "key": "isLimitCancel",
+                    "value": "true",
+                    "index": true
+                  },
+                  {
+                    "key": "limit_order",
+                    "value": "{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3300090000.000000000000000000\",\"quantity\":\"0.751300000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60261\"},\"order_type\":\"BUY_PO\",\"margin\":\"0.000000000000000000\",\"fillable\":\"0.751300000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"ehRG6eqgkZgH2SgNDDpa1FF5TwVYMK853NkidCLAZv8=\"}",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "market_order_cancel",
+                    "value": "null",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3361.400000000000000000\",\"quantity\":\"2.974900000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60262\"},\"order_type\":\"BUY_PO\",\"margin\":\"999.000000000000000000\",\"fillable\":\"2.974900000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Sghy3lYSF56ylK7gMnsVxyw9WBIKvK589ktWPvmVeYs=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3361400000.000000000000000000\",\"quantity\":\"2.974900000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60262\"},\"order_type\":\"BUY_PO\",\"margin\":\"999000000.000000000000000000\",\"fillable\":\"2.974900000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"Sghy3lYSF56ylK7gMnsVxyw9WBIKvK589ktWPvmVeYs=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v2.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3334.400000000000000000\",\"quantity\":\"4.498500000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60263\"},\"order_type\":\"BUY_PO\",\"margin\":\"1499.000000000000000000\",\"fillable\":\"4.498500000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"eHN0mH3ktyq6LrP3JriwuBlsQIigq/KSsHC9UKZerpw=\",\"expiration_block\":\"0\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "injective.exchange.v1beta1.EventNewDerivativeOrders",
+                "attributes": [
+                  {
+                    "key": "buy_orders",
+                    "value": "[{\"order_info\":{\"subaccount_id\":\"0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006\",\"fee_recipient\":\"inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m\",\"price\":\"3334400000.000000000000000000\",\"quantity\":\"4.498500000000000000\",\"cid\":\"MMStrategyEquities_1754334477_60263\"},\"order_type\":\"BUY_PO\",\"margin\":\"1499000000.000000000000000000\",\"fillable\":\"4.498500000000000000\",\"trigger_price\":\"0.000000000000000000\",\"order_hash\":\"eHN0mH3ktyq6LrP3JriwuBlsQIigq/KSsHC9UKZerpw=\"}]",
+                    "index": true
+                  },
+                  {
+                    "key": "market_id",
+                    "value": "\"0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5\"",
+                    "index": true
+                  },
+                  {
+                    "key": "sell_orders",
+                    "value": "[]",
+                    "index": true
+                  },
+                  {
+                    "key": "authz_msg_index",
+                    "value": "0",
+                    "index": true
+                  },
+                  {
+                    "key": "msg_index",
+                    "value": "0",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "msg_index": null,
+            "events": [
+              {
+                "type": "coin_spent",
+                "attributes": [
+                  {
+                    "key": "spender",
+                    "value": "inj1y8swa0jc3fx8n2xgqxswjjvavq87nju8zgay53",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "109358080000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "coin_received",
+                "attributes": [
+                  {
+                    "key": "receiver",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "109358080000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "transfer",
+                "attributes": [
+                  {
+                    "key": "recipient",
+                    "value": "inj17xpfvakm2amg962yls6f84z3kell8c5l6s5ye9",
+                    "index": true
+                  },
+                  {
+                    "key": "sender",
+                    "value": "inj1y8swa0jc3fx8n2xgqxswjjvavq87nju8zgay53",
+                    "index": true
+                  },
+                  {
+                    "key": "amount",
+                    "value": "109358080000000inj",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "message",
+                "attributes": [
+                  {
+                    "key": "sender",
+                    "value": "inj1y8swa0jc3fx8n2xgqxswjjvavq87nju8zgay53",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "fee",
+                    "value": "109358080000000inj",
+                    "index": true
+                  },
+                  {
+                    "key": "fee_payer",
+                    "value": "inj1y8swa0jc3fx8n2xgqxswjjvavq87nju8zgay53",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "acc_seq",
+                    "value": "inj1y8swa0jc3fx8n2xgqxswjjvavq87nju8zgay53/579742",
+                    "index": true
+                  }
+                ]
+              },
+              {
+                "type": "tx",
+                "attributes": [
+                  {
+                    "key": "signature",
+                    "value": "1UAr/ncWCiotgjSc/Pt2hPCK2AYRbTdVo65ZwkV398xiWZ8mCNR7fSTHkvUvnfhE/sGEY0ruTgagZoQdK/tTAQ==",
+                    "index": true
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "gas_wanted": "683488",
+        "gas_used": "639813",
+        "tx": {
+          "@type": "/cosmos.tx.v1beta1.Tx",
+          "body": {
+            "messages": [
+              {
+                "@type": "/cosmos.authz.v1beta1.MsgExec",
+                "grantee": "inj1y8swa0jc3fx8n2xgqxswjjvavq87nju8zgay53",
+                "msgs": [
+                  {
+                    "@type": "/injective.exchange.v1beta1.MsgBatchUpdateOrders",
+                    "sender": "inj1l2ucgpsq3m7azk8t3h0p2luzqrelvjzmumnj6m",
+                    "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                    "spot_market_ids_to_cancel_all": [],
+                    "derivative_market_ids_to_cancel_all": [
+                      "0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5"
+                    ],
+                    "spot_orders_to_cancel": [],
+                    "derivative_orders_to_cancel": [],
+                    "spot_orders_to_create": [],
+                    "derivative_orders_to_create": [
+                      {
+                        "market_id": "0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "3378280000.000000000000000000",
+                          "quantity": "2.960000000000000000",
+                          "cid": "MMStrategyEquities_1754334477_60259"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "3405310000.000000000000000000",
+                          "quantity": "4.404800000000000000",
+                          "cid": "MMStrategyEquities_1754334477_60260"
+                        },
+                        "order_type": "SELL_PO",
+                        "margin": "1499000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "3300090000.000000000000000000",
+                          "quantity": "0.751300000000000000",
+                          "cid": "MMStrategyEquities_1754334477_60261"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "0.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "3361400000.000000000000000000",
+                          "quantity": "2.974900000000000000",
+                          "cid": "MMStrategyEquities_1754334477_60262"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "999000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      },
+                      {
+                        "market_id": "0x0160a0c8ecbf5716465b9fc22bceeedf6e92dcdc688e823bbe1af3b22a84e5b5",
+                        "order_info": {
+                          "subaccount_id": "0xfab98406008efdd158eb8dde157f8200f3f6485b000000000000000000000006",
+                          "fee_recipient": "",
+                          "price": "3334400000.000000000000000000",
+                          "quantity": "4.498500000000000000",
+                          "cid": "MMStrategyEquities_1754334477_60263"
+                        },
+                        "order_type": "BUY_PO",
+                        "margin": "1499000000.000000000000000000",
+                        "trigger_price": "0.000000000000000000"
+                      }
+                    ],
+                    "binary_options_orders_to_cancel": [],
+                    "binary_options_market_ids_to_cancel_all": [],
+                    "binary_options_orders_to_create": []
+                  }
+                ]
+              }
+            ],
+            "memo": "",
+            "timeout_height": "127740941",
+            "extension_options": [],
+            "non_critical_extension_options": []
+          },
+          "auth_info": {
+            "signer_infos": [
+              {
+                "public_key": {
+                  "@type": "/injective.crypto.v1beta1.ethsecp256k1.PubKey",
+                  "key": "Awdu/04fFBDJ5E/odgZiqP+o29Ymx0Xr1gjwYnn1aDlH"
+                },
+                "mode_info": {
+                  "single": {
+                    "mode": "SIGN_MODE_DIRECT"
+                  }
+                },
+                "sequence": "579742"
+              }
+            ],
+            "fee": {
+              "amount": [
+                {
+                  "denom": "inj",
+                  "amount": "109358080000000"
+                }
+              ],
+              "gas_limit": "683488",
+              "payer": "",
+              "granter": ""
+            },
+            "tip": null
+          },
+          "signatures": [
+            "1UAr/ncWCiotgjSc/Pt2hPCK2AYRbTdVo65ZwkV398xiWZ8mCNR7fSTHkvUvnfhE/sGEY0ruTgagZoQdK/tTAQ=="
+          ]
+        },
+        "timestamp": "2025-08-04T19:07:57Z",
+        "events": []
+      }
+    }
+  ],
+  "raw_txs": [
+    "96547F30807C34757510EA10F4E317519686C9BA82A70105C8F2C2177D8CF58C",
+    "02A8575686DB6C8630A1AAAD4E2CC86007BDF11DADDE63FDCD0510E4A2C3AF4F",
+    "7C49F8DB29DCF2A0B907D94823EECBDF838609D6AD2F5375AC52660D062C2698",
+    "2D72E92010EB53882C5B5041A07634EF08E3E931BC704C2F23B4803023FF0945",
+    "F70745837EFE1FFABB6ECEC894DAD34CA30E576A91FF69FB1702AD3175C7AAA0",
+    "1A64F8C0A959C7A25A43E6977CB10CDAB0F74242DE74A005B53174A53074064E",
+    "4D429B0A1821E623D60833A437B6447323401B08B4668D70C1ECEEB7DA3F69D4",
+    "5429D854CE13D4F2CB53536E08722634D744941EF1540E1F080C0B61D118E5BF",
+    "6979EF22D803836F6711BD18EC40C27EBCC88DD5E19A6C650385926874B415AF",
+    "46AEF4F9097A039DD9CA8C0EE69376C3D665EE58780B1E8FA3D5E353C1301B94",
+    "BC030EC27142D6E899AAEB290DC109068F1B17258BA4AEE32CA44228CFD2B6CA",
+    "15435DA7182C913345EDD35FE2916A17682BCD6B27084FCE7428F676A4095360",
+    "7EAA13821328C383B1FDC751108BA5422EC114A607CBCA38DA8D4BF2FFA5F7A0",
+    "302841BB5D87F22A5A58CDDAB484B1FDA92C10A2E12751721CD16ACF359EF157",
+    "528E2238EEA45F0CAD9F9110080BC4695742A479611911EC26DC772CC0D335CA",
+    "3B95D31552EC72EBEB83F445FAA2904A943AC586CE09521CBC28817F0B8C1513",
+    "736AC22CBD3918249BC23A52082B35AAC6D69DB64CBCF8AF41E6310E0E3E1563",
+    "BFE6728CEC16C28A2CC3F255E21126695E1F919D15E6A0E6202E0B989871CDF6",
+    "344529A177CC6FD5DAC1E88A2A3A17F615BBCF08F57E304161582DE38D25ED62",
+    "918210AA7D235AAA8A24FE152DB5BCA4E5439B7B69282FEFC27E3D5943F218A7"
+  ],
+  "block_round": 0,
+  "timestamp": "2025-08-04T19:07:57.738892209Z"
+}"#;
+
+    let response: Response = serde_json::from_str(json).unwrap();
+
+    println!("Response: {:?}", response);
+}
+
 /// This test passes when HttpClient is initialised with `CompactMode::V0_37`.
 /// This fails when `CompactMode::V0_38` is used with Neutron url and block height.
 /// This test passes with Osmosis url and block height and any compact mode.
