@@ -60,8 +60,8 @@ cainome = { version = "0.8.0", features = ["abigen-rs"] }
 clap = "4"
 chrono = "*"
 color-eyre = "0.6"
-cometbft = { git = "https://github.com/cometbft/cometbft-rs", rev = "71af716216216cfdc150cacef5ceae3610a5824b" }
-cometbft-rpc = { git = "https://github.com/cometbft/cometbft-rs", rev = "71af716216216cfdc150cacef5ceae3610a5824b" }
+cometbft = { git = "https://github.com/hyperlane-xyz/cometbft-rs", rev = "b6a0c1055d8e6c54cccb4647bf0ed09d73313a6f" }
+cometbft-rpc = { git = "https://github.com/hyperlane-xyz/cometbft-rs", rev = "b6a0c1055d8e6c54cccb4647bf0ed09d73313a6f" }
 config = "0.13.3"
 console-subscriber = "0.2.0"
 convert_case = "0.6"
