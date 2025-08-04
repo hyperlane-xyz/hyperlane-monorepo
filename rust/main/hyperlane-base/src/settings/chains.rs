@@ -4,10 +4,8 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::prelude::Selector;
-use eyre::{eyre, Context, Report, Result};
-use serde_json::Value;
-
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
+use eyre::{eyre, Context, Report, Result};
 use hyperlane_core::{
     config::OpSubmissionConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
@@ -17,6 +15,8 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
+use serde_json::Value;
+use tracing::instrument;
 
 use hyperlane_cosmos::{
     self as h_cosmos, delivery_indexer, dispatch_indexer, rpc::CosmosWasmRpcProvider,
@@ -1056,6 +1056,7 @@ impl ChainConf {
         .context(ctx)
     }
 
+    #[instrument(skip_all, fields(domain=%self.domain.name()))]
     async fn signer<S: BuildableWithSignerConf>(&self) -> Result<Option<S>> {
         if let Some(conf) = &self.signer {
             Ok(Some(conf.build::<S>().await?))
