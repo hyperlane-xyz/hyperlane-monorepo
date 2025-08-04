@@ -92,6 +92,10 @@ pub struct SimulateTrafficCli {
     #[arg(long, required = true)]
     pub ops_per_minute: u64,
 
+    /// Minimum deposit amount in sompi
+    #[arg(long, required = true)]
+    pub min_deposit_sompi: u64,
+
     /// Kaspa HL domain
     #[arg(long, required = true)]
     pub domain_kas: u32,

@@ -168,7 +168,6 @@ impl TryFrom<&WithdrawFXG> for ProtoWithdrawFXG {
 pub async fn filter_pending_withdrawals(
     withdrawals: Vec<HyperlaneMessage>,
     cosmos: &CosmosGrpcClient,
-    height: Option<u32>,
 ) -> eyre::Result<(TransactionOutpoint, Vec<HyperlaneMessage>)> {
     // A list of withdrawal IDs to request their statuses from the Hub
     let withdrawal_ids: Vec<_> = withdrawals
@@ -180,7 +179,7 @@ pub async fn filter_pending_withdrawals(
 
     // Request withdrawal statuses from the Hub
     let resp = cosmos
-        .withdrawal_status(withdrawal_ids, height)
+        .withdrawal_status(withdrawal_ids, None)
         .await
         .map_err(|e| eyre::eyre!("Query outpoint from x/kas: {}", e))?;
 

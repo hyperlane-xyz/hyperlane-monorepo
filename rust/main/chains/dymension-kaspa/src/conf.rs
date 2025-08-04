@@ -3,7 +3,9 @@ use std::str::FromStr;
 use derive_new::new;
 use url::Url;
 
-use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256};
+use hyperlane_core::{
+    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256, U256,
+};
 
 /// Kaspa connection configuration
 #[derive(Debug, Clone)]
@@ -23,14 +25,14 @@ pub struct ConnectionConf {
      */
     pub validator_pub_keys: Vec<String>,
 
-    pub kaspa_escrow_addr: String, // TODO: could be derived from pub keys and removed
-
     pub multisig_threshold_hub_ism: usize, // TODO: no need for it to be config, can actually query from dymension destination object
     pub multisig_threshold_kaspa: usize,
 
     // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/c5d733804d3713e8566d6b23366f7eed4917ee2a/rust/main/chains/hyperlane-cosmos-native/src/providers/grpc.rs#L77
     pub hub_grpc_urls: Vec<Url>,
     pub op_submission_config: OpSubmissionConfig,
+
+    pub min_deposit_sompi: U256,
 
     pub validator_stuff: Option<ValidatorStuff>,
     pub relayer_stuff: Option<RelayerStuff>,
@@ -80,7 +82,6 @@ impl ConnectionConf {
         kaspa_rest_url: Url,
         validator_hosts: Vec<String>,
         validator_pub_keys: Vec<String>,
-        escrow_address: String,
         kaspa_escrow_private_key: Option<String>,
         multisig_threshold_hub_ism: usize,
         multisig_threshold_kaspa_schnorr: usize,
@@ -89,6 +90,7 @@ impl ConnectionConf {
         hub_mailbox_id: String,
         op_submission_config: OpSubmissionConfig,
         validation_conf: ValidationConf,
+        min_deposit_sompi: U256,
 
         // we could query these two instead
         hub_domain: u32,
@@ -131,12 +133,12 @@ impl ConnectionConf {
             kaspa_rest_url,
             validator_stuff: v,
             validator_pub_keys,
-            kaspa_escrow_addr: escrow_address,
             multisig_threshold_hub_ism,
             multisig_threshold_kaspa: multisig_threshold_kaspa_schnorr,
             hub_grpc_urls,
             relayer_stuff: r,
             op_submission_config,
+            min_deposit_sompi,
         }
     }
 }

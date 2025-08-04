@@ -23,7 +23,6 @@ pub struct KaspaHttpClient {
 #[derive(Debug, Clone)]
 pub struct RestProvider {
     pub client: KaspaHttpClient,
-    pub conf: ConnectionConf,
     signer: Option<Signer>,
 }
 
@@ -106,7 +105,6 @@ impl RestProvider {
 
         Ok(RestProvider {
             client: clients[0].clone(),
-            conf,
             signer,
         })
     }
@@ -131,13 +129,13 @@ impl RestProvider {
     /// dococo
     pub async fn get_deposits(
         &self,
+        escrow_addr: &str,
         lower_bound_unix_time: Option<i64>,
     ) -> ChainResult<Vec<Deposit>> {
-        let address = self.conf.kaspa_escrow_addr.clone();
         let res = self
             .client
             .client
-            .get_deposits_by_address(lower_bound_unix_time, &address)
+            .get_deposits_by_address(lower_bound_unix_time, escrow_addr)
             .await;
         res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
             .map(|deposits| deposits.into_iter().collect())

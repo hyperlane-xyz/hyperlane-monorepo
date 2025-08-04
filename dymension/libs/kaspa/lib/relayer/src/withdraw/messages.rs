@@ -5,6 +5,7 @@ use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::U256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::prelude::Bundle;
@@ -17,15 +18,16 @@ pub async fn on_new_withdrawals(
     relayer: EasyKaspaWallet,
     cosmos: CosmosGrpcClient,
     escrow_public: EscrowPublic,
-    hub_height: Option<u32>,
+    min_deposit_sompi: U256,
 ) -> Result<Option<WithdrawFXG>> {
     info!("Kaspa relayer, getting pending withdrawals");
-    let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, &cosmos, hub_height)
+    let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, &cosmos)
         .await
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
     info!("Kaspa relayer, got pending withdrawals");
 
-    let (valid_msgs, outputs) = filter_outputs_from_msgs(pending_msgs, relayer.net.address_prefix);
+    let (valid_msgs, outputs) =
+        filter_outputs_from_msgs(pending_msgs, relayer.net.address_prefix, min_deposit_sompi);
 
     if outputs.is_empty() {
         info!("Kaspa relayer, no valid pending withdrawals, all in batch are already processed and confirmed on hub");
@@ -57,6 +59,7 @@ pub async fn on_new_withdrawals(
         &escrow_public,
         &relayer_address,
         relayer.net.network_id,
+        min_deposit_sompi,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 

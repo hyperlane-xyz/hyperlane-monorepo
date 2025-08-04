@@ -83,27 +83,23 @@ where
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop");
-        let lower_bound_unix_time: Option<i64> = match self
-            .provider
-            .rest()
-            .conf
-            .relayer_stuff
-            .as_ref()
-            .unwrap()
-            .deposit_look_back_mins
-        {
-            Some(offset) => {
-                let secs = offset * 60;
-                let d = Duration::new(secs, 0);
-                Some(unix_now() as i64 - d.as_millis() as i64)
-            }
-            None => None, // unbounded
-        };
+        let lower_bound_unix_time: Option<i64> =
+            match self.provider.must_relayer_stuff().deposit_look_back_mins {
+                Some(offset) => {
+                    let secs = offset * 60;
+                    let d = Duration::new(secs, 0);
+                    Some(unix_now() as i64 - d.as_millis() as i64)
+                }
+                None => None, // unbounded
+            };
         loop {
             let deposits_res = self
                 .provider
                 .rest()
-                .get_deposits(lower_bound_unix_time)
+                .get_deposits(
+                    &self.provider.escrow_address().to_string(),
+                    lower_bound_unix_time,
+                )
                 .await;
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,

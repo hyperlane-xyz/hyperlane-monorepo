@@ -1,11 +1,13 @@
 use super::consts::*;
 use crate::KaspaProvider;
+use dym_kas_relayer::withdraw::minimum::is_small_value;
 use hyperlane_core::{
-    utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, FixedPointNumber,
+    utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, Decode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Mailbox, QueueOperation, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
+use hyperlane_warp_route::TokenMessage;
 use tonic::async_trait;
 use tracing::info;
 
@@ -169,14 +171,36 @@ impl Mailbox for KaspaMailbox {
 
     async fn process_estimate_costs(
         &self,
-        _message: &HyperlaneMessage,
+        message: &HyperlaneMessage,
         _metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        Ok(TxCostEstimate {
-            gas_limit: 0.into(),
-            gas_price: FixedPointNumber::from(0),
-            l2_gas_limit: None,
-        })
+        let token_msg = match TokenMessage::read_from(&mut message.body.as_slice()) {
+            Ok(msg) => msg,
+            Err(e) => {
+                return Ok(TxCostEstimate {
+                    gas_limit: 0.into(),
+                    gas_price: FixedPointNumber::from(0),
+                    l2_gas_limit: None,
+                });
+            }
+        };
+
+        if is_small_value(
+            token_msg.amount().as_u64(),
+            self.provider.get_min_deposit_sompi(),
+        ) {
+            Ok(TxCostEstimate {
+                gas_limit: U256::MAX,
+                gas_price: FixedPointNumber::from(u128::MAX),
+                l2_gas_limit: None,
+            })
+        } else {
+            Ok(TxCostEstimate {
+                gas_limit: 0.into(),
+                gas_price: FixedPointNumber::from(0),
+                l2_gas_limit: None,
+            })
+        }
     }
 
     // used in payload derivation: https://github.com/dymensionxyz/hyperlane-monorepo/blob/7d0ae7590decd9ea09f6c88f8eeeb49df0295e19/rust/main/agents/relayer/src/msg/pending_message.rs#L551

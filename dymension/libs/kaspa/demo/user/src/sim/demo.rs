@@ -10,7 +10,7 @@ pub fn do_demo_params() {
         budget: 200000 * SOMPI_PER_KAS,
         ops_per_minute: 90,
         simple_mode: false,
-        min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
+        min_value: hardcode::e2e::MIN_DEPOSIT_SOMPI,
         hub_fund_amount: 100000000000000,
         max_wait_for_cancel: Duration::from_secs(60),
     });

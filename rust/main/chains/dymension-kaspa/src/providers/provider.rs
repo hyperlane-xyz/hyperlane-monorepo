@@ -3,6 +3,7 @@ use super::validators::ValidatorsClient;
 use super::RestProvider;
 use crate::util::domain_to_kas_network;
 use crate::ConnectionConf;
+use crate::RelayerStuff;
 use crate::ValidatorStuff;
 use dym_kas_core::confirmation::ConfirmationFXG;
 use dym_kas_core::escrow::EscrowPublic;
@@ -104,6 +105,11 @@ impl KaspaProvider {
         self.pending_confirmation.get_pending()
     }
 
+    /// Get the minimum deposit amount in sompi from configuration
+    pub fn get_min_deposit_sompi(&self) -> U256 {
+        self.conf.min_deposit_sompi
+    }
+
     /// dococo
     pub fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_key.unwrap()
@@ -137,6 +143,10 @@ impl KaspaProvider {
         self.conf.validator_stuff.as_ref().unwrap()
     }
 
+    pub fn must_relayer_stuff(&self) -> &RelayerStuff {
+        self.conf.relayer_stuff.as_ref().unwrap()
+    }
+
     /// dococo
     /// Returns next outpoint
     pub async fn process_withdrawal_messages(
@@ -148,7 +158,7 @@ impl KaspaProvider {
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
-            None,
+            self.conf.min_deposit_sompi,
         )
         .await?;
         info!("Kaspa provider, constructed withdrawal TXs");

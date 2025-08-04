@@ -1,3 +1,4 @@
+use super::minimum::{is_dust, is_small_value};
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
 use corelib::message::parse_hyperlane_metadata;
@@ -7,8 +8,8 @@ use corelib::wallet::SigningResources;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
-use hardcode::tx::{DUST_AMOUNT, MIN_DEPOSIT_AMOUNT};
 use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::U256;
 use kaspa_addresses::Prefix;
 use kaspa_consensus_core::config::params::Params;
 use kaspa_consensus_core::constants::TX_VERSION;
@@ -23,7 +24,6 @@ use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
 use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_core::tx::is_transaction_output_dust;
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
@@ -127,6 +127,7 @@ pub fn build_withdrawal_pskt(
     escrow: &EscrowPublic,
     relayer_addr: &kaspa_addresses::Address,
     network_id: NetworkId,
+    min_deposit_sompi: U256,
 ) -> Result<PSKT<Signer>> {
     //////////////////
     //   Balances   //
@@ -160,12 +161,12 @@ pub fn build_withdrawal_pskt(
         ));
     }
 
-    if escrow_balance < MIN_DEPOSIT_AMOUNT {
-        warn!(
+    if is_small_value(escrow_balance, min_deposit_sompi) {
+        return Err(eyre::eyre!(
             "Escrow balance is low: balance: {}, recommended: {}. Please deposit to escrow address to avoid high mass txs.",
             escrow_balance,
-            MIN_DEPOSIT_AMOUNT
-        );
+            min_deposit_sompi
+        ));
     }
     //////////////////
     //     Fee      //
@@ -184,12 +185,12 @@ pub fn build_withdrawal_pskt(
         ));
     }
 
-    if relayer_balance < MIN_DEPOSIT_AMOUNT {
-        warn!(
+    if is_small_value(relayer_balance, min_deposit_sompi) {
+        return Err(eyre::eyre!(
             "Relayer balance is low: balance: {}, recommended: {}. Please deposit to relayer address to avoid high mass txs.",
             relayer_balance,
-            MIN_DEPOSIT_AMOUNT
-        );
+            min_deposit_sompi
+        ));
     }
 
     ////////////////
@@ -202,7 +203,7 @@ pub fn build_withdrawal_pskt(
         value: relayer_change_amt,
         script_public_key: pay_to_address_script(relayer_addr),
     };
-    if is_dust(&relayer_change) {
+    if is_dust(&relayer_change, min_deposit_sompi) {
         return Err(eyre::eyre!(
             "Insufficient relayer funds to cover tx fee: {} < {}, only leaves dust {}",
             relayer_balance,
@@ -218,7 +219,7 @@ pub fn build_withdrawal_pskt(
         value: escrow_change_amt,
         script_public_key: escrow.p2sh.clone(),
     };
-    if is_dust(&escrow_change) {
+    if is_dust(&escrow_change, min_deposit_sompi) {
         return Err(eyre::eyre!(
             "Insufficient escrow funds to cover withdrawals and avoid dust change: {} < {}, only leaves dust {}, should never happen due to seed",
             escrow_balance,
@@ -231,12 +232,6 @@ pub fn build_withdrawal_pskt(
     outputs.extend(vec![relayer_change, escrow_change]);
 
     create_withdrawal_pskt(inputs, outputs, payload)
-}
-
-fn is_dust(tx_out: &TransactionOutput) -> bool {
-    tx_out.value < DUST_AMOUNT
-        || is_transaction_output_dust(tx_out)
-        || tx_out.value < MIN_DEPOSIT_AMOUNT
 }
 
 /// CONTRACT:
@@ -289,6 +284,7 @@ fn create_withdrawal_pskt(
 pub fn filter_outputs_from_msgs(
     messages: Vec<HyperlaneMessage>,
     prefix: Prefix,
+    min_deposit_sompi: U256,
 ) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();
@@ -308,7 +304,7 @@ pub fn filter_outputs_from_msgs(
 
         let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
 
-        if is_dust(&o) {
+        if is_dust(&o, min_deposit_sompi) {
             info!("Kaspa relayer, withdrawal amount is less than dust amount, skipping, amount: {}, message id: {:?}", o.value, m.id());
             continue;
         }

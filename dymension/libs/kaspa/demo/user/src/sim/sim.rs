@@ -137,7 +137,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 budget: cli.budget,
                 ops_per_minute: cli.ops_per_minute,
                 simple_mode: cli.simple,
-                min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
+                min_value: cli.min_deposit_sompi,
                 hub_fund_amount: cli.hub_fund_amount,
                 max_wait_for_cancel: std::time::Duration::from_secs(cli.cancel_wait),
             },

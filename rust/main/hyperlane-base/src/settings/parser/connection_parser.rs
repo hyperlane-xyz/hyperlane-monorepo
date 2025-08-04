@@ -379,13 +379,6 @@ pub fn build_kaspa_connection_conf(
         .map(|s| s.trim().to_string())
         .collect();
 
-    // TODO: can technically be derived from pub keys
-    let escrow_address = chain
-        .chain(err)
-        .get_key("escrowAddress")
-        .parse_string()
-        .end();
-
     let kaspa_escrow_private_key_s = chain
         .chain(err)
         .get_opt_key("kaspaEscrowPrivateKey")
@@ -407,6 +400,12 @@ pub fn build_kaspa_connection_conf(
         .chain(err)
         .get_key("kaspaMultisigThresholdEscrow")
         .parse_u32()
+        .end()?;
+
+    let kaspa_min_deposit_sompi = chain
+        .chain(err)
+        .get_key("kaspaMinDepositSompi")
+        .parse_u256()
         .end()?;
 
     let mut local_err = ConfigParsingError::default();
@@ -497,7 +496,6 @@ pub fn build_kaspa_connection_conf(
             rest_url,
             validator_hosts,
             validator_pubks,
-            escrow_address.unwrap().to_string(),
             kaspa_escrow_private_key,
             threshold_ism as usize,
             threshold_escrow as usize,
@@ -506,6 +504,7 @@ pub fn build_kaspa_connection_conf(
             hub_mailbox_id.to_owned(),
             operation_batch,
             validation_conf,
+            kaspa_min_deposit_sompi,
             hub_domain,
             hub_token_id,
             kas_domain,

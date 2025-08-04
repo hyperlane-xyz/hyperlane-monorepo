@@ -2,7 +2,6 @@ use kaspa_consensus_core::constants::SOMPI_PER_KASPA;
 use std::time::Duration;
 
 pub const DUST_AMOUNT: u64 = 20_000_001;
-pub const MIN_DEPOSIT_AMOUNT: u64 = 20 * SOMPI_PER_KASPA; // 20 KAS, approx USD 2, allows 200 withdrawals per tx
 
 /*
 In Kaspa, every node has a different and eventually converging view of the network.

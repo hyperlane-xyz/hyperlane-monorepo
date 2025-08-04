@@ -175,7 +175,7 @@ async fn validate_messages(
         }
     }
     debug!("All withdrawal fxg messages are dispatched on hub");
-    let (hub_anchor, pending_messages) = filter_pending_withdrawals(messages, cosmos_client, None)
+    let (hub_anchor, pending_messages) = filter_pending_withdrawals(messages, cosmos_client)
         .await
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
     if num_msgs != pending_messages.len() {
