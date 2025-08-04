@@ -45,7 +45,8 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     Duration::from_secs(5)
 } else {
     // Wait 10 min after submitting the message before confirming in normal/production mode
-    Duration::from_secs(60 * 10)
+    // Duration::from_secs(60 * 10)
+    Duration::from_secs(10)
 };
 
 pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
@@ -596,8 +597,9 @@ impl PendingMessage {
     }
 
     fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
-        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
-            .map(|dur| Instant::now() + dur)
+        Some(Instant::now() + Duration::from_secs(10))
+        // PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
+        // .map(|dur| Instant::now() + dur)
     }
 
     fn get_retries_or_skip(

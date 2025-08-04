@@ -1289,7 +1289,10 @@ impl Relayer {
     async fn get_dymension_kaspa_args(
         mailboxes: &HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
     ) -> Result<Option<DymensionKaspaArgs>> {
-        let kas_mailbox_trait = { mailboxes.iter().find(|(d, _)| is_kas(d)).unwrap().1.clone() };
+        let kas_mailbox_trait = match mailboxes.iter().find(|(d, _)| is_kas(d)) {
+            Some((_, mailbox)) => mailbox.clone(),
+            None => return Ok(None),
+        };
         let kas_provider_trait = kas_mailbox_trait.provider();
         let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
 
