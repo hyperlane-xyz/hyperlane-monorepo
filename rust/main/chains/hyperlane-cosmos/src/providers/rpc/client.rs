@@ -58,7 +58,7 @@ impl CosmosRpcClient {
 
         let client = HttpClient::builder(url)
             // Consider supporting different compatibility modes.
-            .compat_mode(CompatMode::V0_37)
+            .compat_mode(CompatMode::latest())
             .build()
             .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
