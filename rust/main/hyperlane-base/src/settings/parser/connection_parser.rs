@@ -327,7 +327,7 @@ fn build_starknet_connection_conf(
 }
 
 pub fn build_kaspa_connection_conf(
-    _rpcs: &[Url],
+    _rpcs: &[Url], // we dont use it because it does not support raw ip addresses and such
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     operation_batch: OpSubmissionConfig,
@@ -347,19 +347,26 @@ pub fn build_kaspa_connection_conf(
             .map(|s| s.to_string())
     };
 
-    let rpc_url_s = chain
+    let wrpc_urls: Vec<String> = chain
         .chain(err)
-        .get_opt_key("kaspaRpcUrl")
+        .get_key("kaspaUrlsWrpc")
         .parse_string()
-        .end()?;
+        .end()?
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
 
-    let rest_url_s = chain
-        .chain(err)
-        .get_opt_key("kaspaRestUrl")
-        .parse_string()
-        .end()?;
-
-    let rest_url = Url::parse(&rest_url_s).unwrap(); // TODO: avoid unwrap
+    let rest_urls: Vec<Url> = {
+        chain
+            .chain(err)
+            .get_key("kaspaUrlsRest")
+            .parse_string()
+            .end()?
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .map(|s| Url::parse(&s).unwrap())
+            .collect()
+    };
 
     let validator_hosts: Vec<String> = chain
         .chain(err)
@@ -492,8 +499,8 @@ pub fn build_kaspa_connection_conf(
         dymension_kaspa::ConnectionConf::new(
             wallet_secret.to_owned(),
             wallet_dir,
-            rpc_url_s.to_owned(),
-            rest_url,
+            wrpc_urls,
+            rest_urls,
             validator_hosts,
             validator_pubks,
             kaspa_escrow_private_key,

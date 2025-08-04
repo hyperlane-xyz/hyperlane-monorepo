@@ -65,7 +65,7 @@ impl KaspaProvider {
 
         let easy_wallet = get_easy_wallet(
             domain.clone(),
-            conf.kaspa_rpc_url.clone(),
+            conf.kaspa_urls_wrpc[0].clone(), // TODO: try all of them as needed
             conf.wallet_secret.clone(),
             conf.wallet_dir.clone(),
         )

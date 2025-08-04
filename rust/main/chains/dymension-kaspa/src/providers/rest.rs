@@ -94,7 +94,7 @@ impl RestProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let clients = [conf.clone().kaspa_rest_url]
+        let clients = [conf.kaspa_urls_rest[0].clone()] // TODO: allow more as fallback
             .iter()
             .map(|url| {
                 let metrics_config =

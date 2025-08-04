@@ -17,8 +17,8 @@ pub struct ConnectionConf {
     pub wallet_secret: String,
     pub wallet_dir: Option<String>, // optionally override default kaspa wallet directory
 
-    pub kaspa_rpc_url: String, // direct connection to kaspa DAG node .e.g localhost:17210
-    pub kaspa_rest_url: Url, // connection to Kaspa higher level indexer server e.g. https://api.kaspa.org
+    pub kaspa_urls_wrpc: Vec<String>, // direct connection to kaspa DAG node .e.g localhost:17210
+    pub kaspa_urls_rest: Vec<Url>, // connection to Kaspa higher level indexer server e.g. https://api.kaspa.org
 
     /*
     Used by both, since it's used to build escrow public object, which is used by both agents
@@ -78,8 +78,8 @@ impl ConnectionConf {
     pub fn new(
         wallet_secret: String,
         wallet_dir: Option<String>,
-        kaspa_rpc_url: String,
-        kaspa_rest_url: Url,
+        kaspa_urls_wrpc: Vec<String>,
+        kaspa_urls_rest: Vec<Url>,
         validator_hosts: Vec<String>,
         validator_pub_keys: Vec<String>,
         kaspa_escrow_private_key: Option<String>,
@@ -129,8 +129,8 @@ impl ConnectionConf {
         Self {
             wallet_secret,
             wallet_dir,
-            kaspa_rpc_url,
-            kaspa_rest_url,
+            kaspa_urls_wrpc,
+            kaspa_urls_rest,
             validator_stuff: v,
             validator_pub_keys,
             multisig_threshold_hub_ism,
