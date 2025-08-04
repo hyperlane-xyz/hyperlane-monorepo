@@ -227,7 +227,22 @@ export const tokenTypeToStandard = (
       }
 
       throw new Error(
-        `token type ${tokenType} not available on protocol Cosmos Native`,
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+    }
+    case ProtocolType.Radix: {
+      if (
+        RADIX_SUPPORTED_TOKEN_TYPES.includes(
+          tokenType as CosmosNativeSupportedTokenTypes,
+        )
+      ) {
+        return RADIX_TOKEN_TYPE_TO_STANDARD[
+          tokenType as CosmosNativeSupportedTokenTypes
+        ];
+      }
+
+      throw new Error(
+        `token type ${tokenType} not available on protocol ${protocolType}`,
       );
     }
     default: {
@@ -290,6 +305,21 @@ export const STARKNET_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.collateral]: TokenStandard.StarknetHypCollateral,
   [TokenType.native]: TokenStandard.StarknetHypNative,
   [TokenType.synthetic]: TokenStandard.StarknetHypSynthetic,
+};
+
+export const RADIX_SUPPORTED_TOKEN_TYPES = [
+  TokenType.collateral,
+  TokenType.synthetic,
+] as const;
+
+type RadixSupportedTokenTypes = (typeof RADIX_SUPPORTED_TOKEN_TYPES)[number];
+
+export const RADIX_TOKEN_TYPE_TO_STANDARD: Record<
+  RadixSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.collateral]: TokenStandard.RadixHypCollateral,
+  [TokenType.synthetic]: TokenStandard.RadixHypSynthetic,
 };
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =

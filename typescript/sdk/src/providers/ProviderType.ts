@@ -283,9 +283,11 @@ export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
 
 export type AnnotatedRadixTransaction = Annotated<RTransaction>;
+
 export type GroupedTransactions = {
   [ProtocolType.Ethereum]: ChainMap<AnnotatedEV5Transaction[]>;
   [ProtocolType.CosmosNative]: ChainMap<AnnotatedCosmJsNativeTransaction[]>;
+  [ProtocolType.Radix]: ChainMap<AnnotatedRadixTransaction[]>;
 };
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {

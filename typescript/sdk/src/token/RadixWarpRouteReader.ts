@@ -1,4 +1,4 @@
-import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
+import { RadixSDK, RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RadixIsmReader } from '../ism/RadixIsmReader.js';
@@ -23,7 +23,7 @@ export class RadixWarpRouteReader {
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     protected readonly chain: ChainNameOrId,
-    protected readonly signer: RadixSigningSDK,
+    protected readonly signer: RadixSDK | RadixSigningSDK,
   ) {
     this.ismReader = new RadixIsmReader(metadataManager, signer);
   }

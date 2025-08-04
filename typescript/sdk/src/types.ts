@@ -2,6 +2,7 @@ import type { BigNumber, Signer, ethers } from 'ethers';
 import { z } from 'zod';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import type { Address, Domain, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ZHash } from './metadata/customZodTypes.js';
@@ -47,6 +48,7 @@ export interface IMultiProtocolSignerManager {
 
   getEVMSigner(chain: ChainName): Signer;
   getCosmosNativeSigner(chain: ChainName): SigningHyperlaneModuleClient;
+  getRadixSigner(chain: ChainName): RadixSigningSDK;
 
   getSignerAddress(chain: ChainName): Promise<Address>;
   getBalance(params: {

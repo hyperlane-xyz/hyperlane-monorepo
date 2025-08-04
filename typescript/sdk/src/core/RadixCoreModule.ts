@@ -114,7 +114,6 @@ export class RadixCoreModule extends HyperlaneModule<
       chain: chainName,
       config: config.defaultIsm,
       addresses: {
-        deployedIsm: '',
         mailbox: '',
       },
       multiProvider,

@@ -124,14 +124,19 @@ export class RadixIsmModule extends HyperlaneModule<
   }: {
     chain: ChainNameOrId;
     config: IsmConfig;
-    addresses: IsmModuleAddresses;
+    addresses: {
+      mailbox: Address;
+    };
     multiProvider: MultiProvider;
     signer: RadixSigningSDK;
   }): Promise<RadixIsmModule> {
     const module = new RadixIsmModule(
       multiProvider,
       {
-        addresses,
+        addresses: {
+          ...addresses,
+          deployedIsm: '',
+        },
         chain,
         config,
       },

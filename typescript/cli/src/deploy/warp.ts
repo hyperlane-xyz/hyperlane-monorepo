@@ -142,7 +142,8 @@ export async function runWarpRouteDeploy({
   const deploymentChains = chains.filter(
     (chain) =>
       chainMetadata[chain].protocol === ProtocolType.Ethereum ||
-      chainMetadata[chain].protocol === ProtocolType.CosmosNative,
+      chainMetadata[chain].protocol === ProtocolType.CosmosNative ||
+      chainMetadata[chain].protocol === ProtocolType.Radix,
   );
 
   await runPreflightChecksForChains({

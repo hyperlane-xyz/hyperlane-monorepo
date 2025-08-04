@@ -272,6 +272,10 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
         const signer = this.getCosmosNativeSigner(chain);
         return signer.account.address;
       }
+      case ProtocolType.Radix: {
+        const signer = this.getRadixSigner(chain);
+        return signer.getAddress();
+      }
       default: {
         throw new Error(
           `Signer for protocol type ${metadata.protocol} not supported`,
@@ -301,14 +305,14 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
           return balance;
         } catch (err) {
           throw new Error(
-            `failed to get balance of address ${params.address} on EVM chain ${params.chain}: ${err}`,
+            `failed to get balance of address ${params.address} on ${metadata.protocol} chain ${params.chain}: ${err}`,
           );
         }
       }
       case ProtocolType.CosmosNative: {
         assert(
           params.denom,
-          `need denom to get balance of Cosmos Native chain ${params.chain}`,
+          `need denom to get balance of ${metadata.protocol} chain ${params.chain}`,
         );
 
         try {
@@ -323,7 +327,22 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
           return BigNumber.from(balance.amount);
         } catch (err) {
           throw new Error(
-            `failed to get balance of address ${params.address} on Cosmos Native chain ${params.chain}: ${err}`,
+            `failed to get balance of address ${params.address} on ${metadata.protocol} chain ${params.chain}: ${err}`,
+          );
+        }
+      }
+      case ProtocolType.Radix: {
+        try {
+          const provider = this.multiProtocolProvider.getRadixProvider(
+            params.chain,
+          );
+          const balance = await provider.query.getXrdBalance({
+            address: params.address,
+          });
+          return BigNumber.from(balance);
+        } catch (err) {
+          throw new Error(
+            `failed to get balance of address ${params.address} on ${metadata.protocol} chain ${params.chain}: ${err}`,
           );
         }
       }

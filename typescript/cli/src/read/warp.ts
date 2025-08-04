@@ -14,6 +14,7 @@ import {
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
   MultiProvider,
+  RadixWarpRouteReader,
   TokenStandard,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -109,6 +110,15 @@ async function deriveWarpRouteConfigs(
             cosmosProvider,
           ).deriveWarpRouteConfig(address);
         }
+        case ProtocolType.Radix: {
+          const radixProvider =
+            context.multiProtocolProvider!.getRadixProvider(chain);
+          return new RadixWarpRouteReader(
+            multiProvider,
+            chain,
+            radixProvider,
+          ).deriveWarpRouteConfig(address);
+        }
         default: {
           warnYellow(
             `protocol type ${context.multiProvider.getProtocol(chain)} not supported`,
@@ -131,7 +141,8 @@ function validateCompatibility(
       const protocol = multiProvider.getProtocol(chain);
       return (
         protocol !== ProtocolType.Ethereum &&
-        protocol !== ProtocolType.CosmosNative
+        protocol !== ProtocolType.CosmosNative &&
+        protocol !== ProtocolType.Radix
       );
     })
     .map(([chain]) => chain);
@@ -141,7 +152,7 @@ function validateCompatibility(
     logRed(
       `${chainList} ${
         nonCompatibleChains.length > 1 ? 'are' : 'is'
-      } non-EVM/Cosmos and not compatible with the cli`,
+      } compatible with the cli`,
     );
     process.exit(1);
   }
