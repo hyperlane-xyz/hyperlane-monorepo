@@ -145,11 +145,11 @@ contract EverclearTokenBridge is HypERC20Collateral {
         }
     }
 
-    // To be overridden by derived contracts if they have additional fees
+    // The fees that Everclear charges
     function _externalFeeAmount(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
+        uint32,
+        bytes32,
+        uint256
     ) internal view override returns (uint256 feeAmount) {
         return feeParams.fee;
     }
@@ -164,12 +164,6 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _recipient,
             _amount
         );
-
-        /// @dev We can't use _feeAmount here because Everclear wants to pull tokens from this contract
-        /// and the amount from _feeAmount is sent to the fee recipient.
-        // if (fee > 0) {
-        //     _transferTo(feeRecipient(), fee);
-        // }
 
         IEverclear.Intent memory intent = _createIntent(
             _destination,

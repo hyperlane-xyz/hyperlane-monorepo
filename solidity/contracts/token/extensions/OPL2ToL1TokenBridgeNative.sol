@@ -45,6 +45,7 @@ contract OpL2NativeTokenBridge is HypNative {
         _MailboxClient_initialize(_hook, address(0), _owner);
     }
 
+    // TODO: Consider extracting out the gasPayment logic to a separate function to avoid overriding this function
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,

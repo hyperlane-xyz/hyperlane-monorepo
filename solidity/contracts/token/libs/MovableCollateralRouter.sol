@@ -151,6 +151,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
         emit CollateralMoved(domain, recipient, amount, msg.sender);
     }
 
+    // TODO: Add documentation of why it exists
     function _nativeRebalanceValue(
         uint256 /*amount*/
     ) internal virtual returns (uint256 nativeValue) {

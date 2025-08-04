@@ -284,7 +284,6 @@ abstract contract TokenBridgeCctpBase is
         uint256 _amount
     ) internal virtual returns (bytes memory message) {}
 
-    // TODO: Consider deduping with v1
     function transferRemote(
         uint32 _destination,
         bytes32 _recipient,

@@ -13,6 +13,8 @@ import {TokenMessage} from "./libs/TokenMessage.sol";
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
+
+//  TODO: Consider getting rid of it
 contract HypNative is LpCollateralRouter {
     using TokenMessage for bytes;
 
@@ -37,22 +39,6 @@ contract HypNative is LpCollateralRouter {
     ) public virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
         _LpCollateralRouter_initialize();
-    }
-
-    // override for single unified quote
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount) +
-                _feeRecipientAmount(_destination, _recipient, _amount) +
-                _externalFeeAmount(_destination, _recipient, _amount) +
-                _amount
-        });
     }
 
     function token() public view virtual override returns (address) {
