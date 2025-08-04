@@ -324,7 +324,8 @@ export const WarpRouteDeployConfigSchema = z
           isCollateralRebaseTokenConfig(config) ||
           isCctpTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
-          isNativeTokenConfig(config),
+          isNativeTokenConfig(config) ||
+          isEverclearTokenBridgeConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)

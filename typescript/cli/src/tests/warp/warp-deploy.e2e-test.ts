@@ -8,6 +8,8 @@ import path from 'path';
 import {
   ERC20Test,
   ERC4626Test,
+  EverclearTokenBridge__factory,
+  MockEverclearAdapter,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -27,7 +29,11 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, normalizeAddressEvm } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes32,
+  normalizeAddressEvm,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -45,6 +51,7 @@ import {
   TestPromptAction,
   WARP_DEPLOY_OUTPUT_PATH,
   deploy4626Vault,
+  deployEverclearBridgeAdapter,
   deployOrUseExistingCore,
   deployToken,
   handlePrompts,
@@ -571,6 +578,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
   describe(`hyperlane warp deploy --config ... --yes --key ...`, () => {
     let tokenChain2: ERC20Test;
     let vaultChain2: ERC4626Test;
+    let everclearBridgeAdapterMock: MockEverclearAdapter;
 
     before(async () => {
       tokenChain2 = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
@@ -578,6 +586,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
         ANVIL_KEY,
         CHAIN_NAME_2,
         tokenChain2.address,
+      );
+      everclearBridgeAdapterMock = await deployEverclearBridgeAdapter(
+        ANVIL_KEY,
+        CHAIN_NAME_2,
       );
     });
 
@@ -824,6 +836,72 @@ describe('hyperlane warp deploy e2e tests', async function () {
           ),
         );
       }
+    });
+
+    it('should set the everclear fee and outputa asset addresses', async () => {
+      const expectedFeeSettings = {
+        deadline: Date.now(),
+        fee: 1000,
+        signature: '0x42',
+      };
+
+      const expectedOutputAssetAddress = randomAddress();
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateralEverclear,
+          token: tokenChain2.address,
+          owner: ownerAddress,
+          everclearBridgeAddress: everclearBridgeAdapterMock.address,
+          everclearFeeParams: expectedFeeSettings,
+          outputAssets: {
+            [CHAIN_NAME_3]: expectedOutputAssetAddress,
+          },
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await tokenChain2.symbol(),
+        );
+
+      const coreConfig: WarpCoreConfig = readYamlOrJson(
+        COMBINED_WARP_CORE_CONFIG_PATH,
+      );
+
+      const [chain2TokenConfig] = coreConfig.tokens.filter(
+        (config) => config.chainName === CHAIN_NAME_2,
+      );
+      expect(chain2TokenConfig).to.exist;
+
+      const movableToken = EverclearTokenBridge__factory.connect(
+        chain2TokenConfig.addressOrDenom!,
+        providerChain2,
+      );
+
+      const onChainEverclearBridgeAdapterAddress =
+        await movableToken.everclearAdapter();
+      expect(onChainEverclearBridgeAdapterAddress).to.equal(
+        everclearBridgeAdapterMock.address,
+      );
+
+      const [fee, deadline, signature] = await movableToken.feeParams();
+      expect(deadline.toNumber()).to.equal(expectedFeeSettings.deadline);
+      expect(fee.toNumber()).to.equal(expectedFeeSettings.fee);
+      expect(signature).to.equal(expectedFeeSettings.signature);
+
+      const outputAssetAddress =
+        await movableToken.outputAssets(chain3DomainId);
+      expect(outputAssetAddress).to.equal(
+        addressToBytes32(expectedOutputAssetAddress),
+      );
     });
   });
 });
