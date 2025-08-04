@@ -1,6 +1,7 @@
 use hyperlane_core::H256;
 use serde::Deserialize;
 use serde_json::Value;
+use sov_universal_wallet::schema::Schema;
 
 /// Event emitted during transaction execution.
 #[derive(Clone, Debug, Deserialize)]
@@ -95,4 +96,13 @@ pub struct TxInfo {
     pub id: H256,
     /// Transaction status.
     pub status: TxStatus,
+}
+
+/// Response from the `/rollup/schema` endpoint.
+#[derive(Deserialize, Debug)]
+pub struct SchemaResponse {
+    /// The schema JSON.
+    pub schema: Schema,
+    /// The chain hash in hex form, prefixed with `0x`.
+    pub chain_hash: String,
 }

@@ -11,6 +11,7 @@ use tokio_retry::{strategy::ExponentialBackoff, Retry};
 use tracing::instrument;
 use url::Url;
 
+use crate::types::SchemaResponse;
 use crate::{ConnectionConf, Signer};
 
 /// Request error details
@@ -86,7 +87,8 @@ impl SovereignClient {
         let get_schema = url
             .join("/rollup/schema")
             .map_err(|e| custom_err!("Failed to construct url: {e}"))?;
-        let mut schema: Schema = http_get(&client, get_schema).await?;
+        let response: SchemaResponse = http_get(&client, get_schema).await?;
+        let mut schema = response.schema;
         schema
             .chain_hash()
             .map_err(|e| custom_err!("Failed to pre-compute rollups chain hash: {e}"))?;
