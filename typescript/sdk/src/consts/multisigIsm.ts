@@ -497,6 +497,23 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x6dbc192c06907784fb0af0c0c2d8809ea50ba675',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_ZKV_VALIDATOR,
+      {
+        address: '0x885a8c1ef7f7eea8955c8f116fc1fbe1113c4a78',
+        alias: 'P2P.ORG',
+      },
+      {
+        address: '0xa6c998f0db2b56d7a63faf30a9b677c8b9b6faab',
+        alias: 'O-OPS',
+      },
+      {
+        address: '0x21e93a81920b73c0e98aed8e6b058dae409e4909',
+        alias: 'Binary Builders',
+      },
+      {
+        address: '0x7b8606d61bc990165d1e5977037ddcf7f2de74d6',
+        alias: 'Cosmostation',
+      },
     ],
   },
 
