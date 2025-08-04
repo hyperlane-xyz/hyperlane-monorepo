@@ -8579,6 +8579,8 @@ __metadata:
     "@safe-global/safe-deployments": "npm:1.37.47"
     "@solana/spl-token": "npm:^0.4.9"
     "@solana/web3.js": "npm:^1.98.4"
+    "@sovereign-sdk/modules": "npm:^0.1.5"
+    "@sovereign-sdk/web3": "npm:^0.10.0"
     "@turnkey/api-key-stamper": "npm:^0.5.0"
     "@turnkey/sdk-server": "npm:^4.12.0"
     "@turnkey/solana": "npm:^1.1.12"
@@ -10349,6 +10351,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@noble/ed25519@npm:^2.1.0":
+  version: 2.3.0
+  resolution: "@noble/ed25519@npm:2.3.0"
+  checksum: 10/3b12a7ac401ac625c59ab4b597d415aea3b855cdfa2563529863c9848b6c143b29fb1f0e462acec947bd20ab4fac0d8cfe892231566cbdcf6bdd13532241191b
+  languageName: node
+  linkType: hard
+
 "@noble/hashes@npm:1.0.0, @noble/hashes@npm:~1.0.0":
   version: 1.0.0
   resolution: "@noble/hashes@npm:1.0.0"
@@ -10430,6 +10439,13 @@ __metadata:
   version: 1.5.5
   resolution: "@noble/secp256k1@npm:1.5.5"
   checksum: 10/7d8478ca71bff32f48d197c1dd4fbbb4cebf9c29b46b40dc89a49c680e73bbddd9e3ce8362817d730748d219406161909caf1a01155fda0c947955a3a726c8e3
+  languageName: node
+  linkType: hard
+
+"@noble/secp256k1@npm:^2.3.0":
+  version: 2.3.0
+  resolution: "@noble/secp256k1@npm:2.3.0"
+  checksum: 10/3e2669aae45612cebccdac466e584e9b35329cc3a28528100dc0bd17c16244336678a0ea663ccad6e32873ea15259ae57cf208f1ce03e475ae063b42e6561e3a
   languageName: node
   linkType: hard
 
@@ -15527,6 +15543,98 @@ __metadata:
   version: 0.19.0
   resolution: "@solidity-parser/parser@npm:0.19.0"
   checksum: 10/2136708ecc988b534efcf836e95f4f02a1452ab0c026438014c35ce31b26dc011cc8c512d502fc7bcb968f850ab7e524838292bc36cad6a144fedb4c29685587
+  languageName: node
+  linkType: hard
+
+"@sovereign-sdk/client@npm:0.1.0-alpha.36":
+  version: 0.1.0-alpha.36
+  resolution: "@sovereign-sdk/client@npm:0.1.0-alpha.36"
+  dependencies:
+    "@types/node": "npm:^18.11.18"
+    "@types/node-fetch": "npm:^2.6.4"
+    abort-controller: "npm:^3.0.0"
+    agentkeepalive: "npm:^4.2.1"
+    form-data-encoder: "npm:1.7.2"
+    formdata-node: "npm:^4.3.2"
+    node-fetch: "npm:^2.6.7"
+  checksum: 10/9a3bd69203af10043f98886badd2ed955bda0a3ead72444f476d4692c0ab27253079edfaad780b5387efbb3ada931ecc169124e44836089ad8c6f36165932705
+  languageName: node
+  linkType: hard
+
+"@sovereign-sdk/modules@npm:^0.1.5":
+  version: 0.1.5
+  resolution: "@sovereign-sdk/modules@npm:0.1.5"
+  dependencies:
+    "@sovereign-sdk/utils": "npm:^0.0.4"
+    "@sovereign-sdk/web3": "npm:^0.10.0"
+  peerDependencies:
+    tsup: ^8.3.0
+    typescript: ^5.6.3
+  checksum: 10/d1e3b27e2b0ea5f2b66cddd52288f2bb7b88abb6832c21340fd79b0c55f698bf79215e1439ee01675ec55dedf895a8ba783b33b39b0e8802bfa09c60c1d3466a
+  languageName: node
+  linkType: hard
+
+"@sovereign-sdk/serializers@npm:^0.1.1":
+  version: 0.1.1
+  resolution: "@sovereign-sdk/serializers@npm:0.1.1"
+  dependencies:
+    "@sovereign-sdk/universal-wallet-wasm": "npm:^0.4.0"
+    "@sovereign-sdk/utils": "npm:^0.0.4"
+    bech32: "npm:^2.0.0"
+    bs58: "npm:^6.0.0"
+  checksum: 10/499f773bbe91b3b8f0e6a2b6434bcfbd9a8f36232ad2998cd81ba9b44d5f3d8b61ab27b66fdd0f46670a42385725bcdca63abab07bc83fad6acd5edae6c52f7c
+  languageName: node
+  linkType: hard
+
+"@sovereign-sdk/signers@npm:^0.2.1":
+  version: 0.2.1
+  resolution: "@sovereign-sdk/signers@npm:0.2.1"
+  dependencies:
+    "@noble/ed25519": "npm:^2.1.0"
+    "@noble/hashes": "npm:^1.5.0"
+    "@noble/secp256k1": "npm:^2.3.0"
+    "@sovereign-sdk/utils": "npm:^0.0.4"
+    ethers: "npm:^6.15.0"
+  peerDependencies:
+    tsup: ^8.3.0
+    typescript: ^5.6.3
+  checksum: 10/7f06afeb963b327558fa329ed35b083c57d225d8a43471e5cf05a1ee734983cb552046fc82f26cbfaffc14fe3dc20bede4bfe049426b85940a845a576c9ab7cd
+  languageName: node
+  linkType: hard
+
+"@sovereign-sdk/universal-wallet-wasm@npm:^0.4.0":
+  version: 0.4.0
+  resolution: "@sovereign-sdk/universal-wallet-wasm@npm:0.4.0"
+  peerDependencies:
+    typescript: ^5.0.0
+  checksum: 10/561b2609b928262333a4f30fd13e944fc2e0b94785e926b82992f9fec9ef9467da18573d4f44d0f16982295a8990122403d1fc03c06f3961d7553a1d9f75aee1
+  languageName: node
+  linkType: hard
+
+"@sovereign-sdk/utils@npm:^0.0.4":
+  version: 0.0.4
+  resolution: "@sovereign-sdk/utils@npm:0.0.4"
+  checksum: 10/db50665963cee314d073be5021613f77f06f30b62a620c037f5ae5f0289cba3e1a3458be08e76afd0aed474f0ac3931e573d38267ed525eeff74bb9738bc5bd2
+  languageName: node
+  linkType: hard
+
+"@sovereign-sdk/web3@npm:^0.10.0":
+  version: 0.10.0
+  resolution: "@sovereign-sdk/web3@npm:0.10.0"
+  dependencies:
+    "@sovereign-sdk/client": "npm:0.1.0-alpha.36"
+    "@sovereign-sdk/serializers": "npm:^0.1.1"
+    "@sovereign-sdk/signers": "npm:^0.2.1"
+    "@sovereign-sdk/universal-wallet-wasm": "npm:^0.4.0"
+    "@sovereign-sdk/utils": "npm:^0.0.4"
+    bech32: "npm:^2.0.0"
+    isomorphic-ws: "npm:^5.0.0"
+    js-base64: "npm:^3.7.7"
+    partysocket: "npm:^1.1.3"
+    ws: "npm:^8.18.1"
+  peerDependencies:
+    typescript: ^5.0.0
+  checksum: 10/25c7eb2220bdeab475f74262a977b0de9c34908479cab86d12cb9748a29ff1fa3688c98f1368aa843a81c83dc559eba6bddc915c4aaafb3855094bd39717cbca
   languageName: node
   linkType: hard
 
@@ -25965,7 +26073,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethers@npm:^6.10.0":
+"ethers@npm:^6.10.0, ethers@npm:^6.15.0":
   version: 6.15.0
   resolution: "ethers@npm:6.15.0"
   dependencies:
@@ -25997,6 +26105,13 @@ __metadata:
     is-hex-prefixed: "npm:1.0.0"
     strip-hex-prefix: "npm:1.0.0"
   checksum: 10/02e1d37f743a78742651a11be35461dfe8ed653f113d630435aada8036e1e199691c2cfffbbf1e800bfdeb14bb34c7ed69fab5d3c727058c1daf3effc6bf6f69
+  languageName: node
+  linkType: hard
+
+"event-target-polyfill@npm:^0.0.4":
+  version: 0.0.4
+  resolution: "event-target-polyfill@npm:0.0.4"
+  checksum: 10/465f7abfc7d4716365cae732f6940732b0c48315358b228df80d13c85d1b55f2ff8c02c6c98bd1d474fe9e21119d40ff4d907dffe8387ae89ee8a09608365bf9
   languageName: node
   linkType: hard
 
@@ -26859,6 +26974,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"form-data-encoder@npm:1.7.2":
+  version: 1.7.2
+  resolution: "form-data-encoder@npm:1.7.2"
+  checksum: 10/227bf2cea083284411fd67472ccc22f5cb354ca92c00690e11ff5ed942d993c13ac99dea365046306200f8bd71e1a7858d2d99e236de694b806b1f374a4ee341
+  languageName: node
+  linkType: hard
+
 "form-data-encoder@npm:^2.1.2":
   version: 2.1.4
   resolution: "form-data-encoder@npm:2.1.4"
@@ -26896,6 +27018,16 @@ __metadata:
     combined-stream: "npm:^1.0.6"
     mime-types: "npm:^2.1.12"
   checksum: 10/1b6f3ccbf4540e535887b42218a2431a3f6cfdea320119c2affa2a7a374ad8fdd1e60166fc865181f45d49b1684c3e90e7b2190d3fe016692957afb9cf0d0d02
+  languageName: node
+  linkType: hard
+
+"formdata-node@npm:^4.3.2":
+  version: 4.4.1
+  resolution: "formdata-node@npm:4.4.1"
+  dependencies:
+    node-domexception: "npm:1.0.0"
+    web-streams-polyfill: "npm:4.0.0-beta.3"
+  checksum: 10/29622f75533107c1bbcbe31fda683e6a55859af7f48ec354a9800591ce7947ed84cd3ef2b2fcb812047a884f17a1bac75ce098ffc17e23402cd373e49c1cd335
   languageName: node
   linkType: hard
 
@@ -29761,6 +29893,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"isomorphic-ws@npm:^5.0.0":
+  version: 5.0.0
+  resolution: "isomorphic-ws@npm:5.0.0"
+  peerDependencies:
+    ws: "*"
+  checksum: 10/e20eb2aee09ba96247465fda40c6d22c1153394c0144fa34fe6609f341af4c8c564f60ea3ba762335a7a9c306809349f9b863c8beedf2beea09b299834ad5398
+  languageName: node
+  linkType: hard
+
 "isows@npm:1.0.6":
   version: 1.0.6
   resolution: "isows@npm:1.0.6"
@@ -30429,6 +30570,13 @@ __metadata:
   version: 3.7.7
   resolution: "js-base64@npm:3.7.7"
   checksum: 10/185e34c536a6b1c4e1ad8bd96d25b49a9ea4e6803e259eaaaca95f1b392a0d590b2933c5ca8580c776f7279507944b81ff1faf889d84baa5e31f026e96d676a5
+  languageName: node
+  linkType: hard
+
+"js-base64@npm:^3.7.7":
+  version: 3.7.8
+  resolution: "js-base64@npm:3.7.8"
+  checksum: 10/4baa9a222bc094b072933e4894735653b59992477c731879784e3112f21862b08dd5c56b8b23b0b8e43bc5bb514d957621d1892a6c58950f29e12b731fe087b6
   languageName: node
   linkType: hard
 
@@ -32844,7 +32992,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-domexception@npm:^1.0.0":
+"node-domexception@npm:1.0.0, node-domexception@npm:^1.0.0":
   version: 1.0.0
   resolution: "node-domexception@npm:1.0.0"
   checksum: 10/e332522f242348c511640c25a6fc7da4f30e09e580c70c6b13cb0be83c78c3e71c8d4665af2527e869fc96848924a4316ae7ec9014c091e2156f41739d4fa233
@@ -33912,6 +34060,15 @@ __metadata:
   version: 1.3.3
   resolution: "parseurl@npm:1.3.3"
   checksum: 10/407cee8e0a3a4c5cd472559bca8b6a45b82c124e9a4703302326e9ab60fc1081442ada4e02628efef1eb16197ddc7f8822f5a91fd7d7c86b51f530aedb17dfa2
+  languageName: node
+  linkType: hard
+
+"partysocket@npm:^1.1.3":
+  version: 1.1.5
+  resolution: "partysocket@npm:1.1.5"
+  dependencies:
+    event-target-polyfill: "npm:^0.0.4"
+  checksum: 10/88f13aa0cd0bbe287b7fdec1108efb1df5c0a0063458963164d25d62f195eb56a78f4fbcd731c5cc1384d02bc2a4a78f707cdb0d8d8c0dfc364ff6518838d464
   languageName: node
   linkType: hard
 
@@ -41562,6 +41719,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"web-streams-polyfill@npm:4.0.0-beta.3":
+  version: 4.0.0-beta.3
+  resolution: "web-streams-polyfill@npm:4.0.0-beta.3"
+  checksum: 10/dcdef67de57d83008f9dc330662b65ba4497315555dd0e4e7bcacb132ffdf8a830eaab8f74ad40a4a44f542461f51223f406e2a446ece1cc29927859b1405853
+  languageName: node
+  linkType: hard
+
 "web-streams-polyfill@npm:^3.0.3":
   version: 3.3.3
   resolution: "web-streams-polyfill@npm:3.3.3"
@@ -42099,7 +42263,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ws@npm:8.18.3":
+"ws@npm:8.18.3, ws@npm:^8.18.1":
   version: 8.18.3
   resolution: "ws@npm:8.18.3"
   peerDependencies:

@@ -536,7 +536,24 @@ const DOMAINS: &[RawDomain] = &[
         chain_id: 9913375,
         is_test_net: true,
         is_deprecated: false,
-    }, // ---------- End: E2E tests chains ----------------
+    },
+    RawDomain {
+        name: "sovrollup0",
+        token: "SOV",
+        domain: 50001,
+        chain_id: 50001,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "sovrollup1",
+        token: "SOV",
+        domain: 50002,
+        chain_id: 50002,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    // ---------- End: E2E tests chains ----------------
 ];
 
 #[derive(DeriveMigrationName)]

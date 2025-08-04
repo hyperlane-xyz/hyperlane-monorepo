@@ -7,6 +7,7 @@ use std::time::Duration;
 use eyre::Result;
 use hyperlane_core::metrics::agent::decimals_by_protocol;
 use hyperlane_core::metrics::agent::u256_as_scaled_f64;
+use hyperlane_core::metrics::agent::u256_as_scaled_f64_with_decimals;
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
 use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::HyperlaneProvider;
@@ -148,6 +149,9 @@ pub struct AgentMetricsConf {
 
     /// Name of the agent the metrics are about
     pub name: String,
+
+    /// Native token decimals for this chain (used for balance display)
+    pub native_token_decimals: u32,
 }
 
 /// Utility struct to update various metrics using a standalone tokio task
@@ -190,7 +194,7 @@ impl ChainSpecificMetricsUpdater {
 
         match self.provider.get_balance(wallet_addr.clone()).await {
             Ok(balance) => {
-                let balance = u256_as_scaled_f64(balance, self.conf.domain.domain_protocol());
+                let balance = u256_as_scaled_f64_with_decimals(balance, self.conf.native_token_decimals);
                 trace!("Wallet {agent_name} ({wallet_addr}) on chain {chain} balance is {balance} of the native currency");
                 wallet_balance_metric
                 .with(&hashmap! {

@@ -41,4 +41,9 @@ export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
     name: 'Radix',
     symbol: 'XRD',
   },
+  [ProtocolType.Sovereign]: {
+    decimals: 8,
+    name: 'Sovereign',
+    symbol: 'SOV',
+  },
 };

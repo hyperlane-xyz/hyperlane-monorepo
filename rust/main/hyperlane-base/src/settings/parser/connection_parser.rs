@@ -637,5 +637,61 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Aleo => {
             build_aleo_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Sovereign => {
+            build_sovereign_connection_conf(rpcs, chain, err, operation_batch)
+        }
     }
+}
+
+pub fn build_sovereign_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    op_submission_config: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let Some(url) = rpcs.first() else { return None };
+
+    let native_token = parse_sovereign_native_token(chain, err)?;
+
+    Some(ChainConnectionConf::Sovereign(
+        h_sovereign::ConnectionConf {
+            url: url.clone(),
+            op_submission_config,
+            native_token,
+        },
+    ))
+}
+
+/// Parse native token config for Sovereign chains.
+/// Unlike other chains, decimals is required for Sovereign (no default).
+fn parse_sovereign_native_token(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<NativeToken> {
+    let decimals = chain
+        .chain(err)
+        .get_key("nativeToken")
+        .get_key("decimals")
+        .parse_u32()
+        .end();
+
+    let Some(decimals) = decimals else {
+        err.push(
+            (&chain.cwp).add("nativeToken").add("decimals"),
+            eyre!("nativeToken.decimals is required for Sovereign chains"),
+        );
+        return None;
+    };
+
+    let denom = chain
+        .chain(err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("denom")
+        .parse_string()
+        .unwrap_or("");
+
+    Some(NativeToken {
+        decimals,
+        denom: denom.to_owned(),
+    })
 }
