@@ -121,6 +121,11 @@ type XERC20Metadata = {
   decimals: number;
 };
 
+const ownableFunctionSelectors = [
+  'renounceOwnership()',
+  'transferOwnership(address)',
+].map((func) => ethers.utils.id(func).substring(0, 10));
+
 export class GovernTransactionReader {
   errors: any[] = [];
 
@@ -265,6 +270,11 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
+    // If it's an Ownable transaction
+    if (await this.isOwnableTransaction(tx)) {
+      return this.readOwnableTransaction(chain, tx);
+    }
+
     // If it's to another Safe
     if (this.isSafeTransaction(chain, tx)) {
       return this.readSafeTransaction(chain, tx);
@@ -314,11 +324,6 @@ export class GovernTransactionReader {
     // If it's to a Proxy Admin
     if (await this.isProxyAdminTransaction(chain, tx)) {
       return this.readProxyAdminTransaction(chain, tx);
-    }
-
-    // If it's an Ownable transaction
-    if (await this.isOwnableTransaction(chain, tx)) {
-      return this.readOwnableTransaction(chain, tx);
     }
 
     // If it's a native token transfer (no data, only value)
@@ -1393,21 +1398,9 @@ export class GovernTransactionReader {
     );
   }
 
-  async isOwnableTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<boolean> {
-    if (!tx.to) return false;
-    try {
-      const account = Ownable__factory.connect(
-        tx.to,
-        this.multiProvider.getProvider(chain),
-      );
-      await account.owner();
-      return true;
-    } catch {
-      return false;
-    }
+  async isOwnableTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
+    if (!tx.to || !tx.data) return false;
+    return ownableFunctionSelectors.includes(tx.data.substring(0, 10));
   }
 
   private isSafeTransaction(
