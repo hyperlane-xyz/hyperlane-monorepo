@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 
+use base64::prelude::BASE64_STANDARD_NO_PAD;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use cometbft::abci::EventAttribute;
 use cometbft::hash::Algorithm;
@@ -9,6 +10,7 @@ use cometbft::Hash;
 use cosmrs::crypto::PublicKey;
 use futures::future;
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 use tracing::warn;
 
@@ -119,12 +121,38 @@ pub(crate) fn event_attributes_from_str(attrs_str: &str) -> Vec<cometbft::abci::
         .collect()
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct CosmosKeyJsonFormat {
+    #[serde(rename = "@type")]
+    pub key_type: &'static str,
+    pub key: String,
+}
+
 pub fn cometbft_pubkey_to_cosmrs_pubkey(
     cometbft_key: &cometbft::PublicKey,
 ) -> ChainResult<cosmrs::crypto::PublicKey> {
     let cometbft_key_json = serde_json::to_string(&cometbft_key)
         .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
-    let cosm_key = PublicKey::from_json(&cometbft_key_json)
+
+    let comos_key_json = match cometbft_key {
+        cometbft::PublicKey::Ed25519(key) => CosmosKeyJsonFormat {
+            key_type: cosmrs::crypto::PublicKey::ED25519_TYPE_URL,
+            key: BASE64_STANDARD_NO_PAD.encode(key.as_bytes()),
+        },
+        cometbft::PublicKey::Secp256k1(key) => CosmosKeyJsonFormat {
+            key_type: cosmrs::crypto::PublicKey::SECP256K1_TYPE_URL,
+            key: BASE64_STANDARD_NO_PAD.encode(key.to_sec1_bytes()),
+        },
+        // not sure why it requires me to have this extra arm. But
+        // we should never reach this
+        _ => {
+            return Err(HyperlaneCosmosError::PublicKeyError("Invalid key".into()).into());
+        }
+    };
+
+    let json_val = serde_json::to_string(&comos_key_json)
+        .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+    let cosm_key = PublicKey::from_json(&json_val)
         .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
     Ok(cosm_key)
 }

@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use cosmrs::crypto::PublicKey;
 use cosmwasm_std::HexBinary;
 

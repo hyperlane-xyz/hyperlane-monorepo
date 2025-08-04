@@ -1288,7 +1288,7 @@ async fn test_http_client() {
     let url = cometbft_rpc::HttpClientUrl::try_from(tendermint_url).unwrap();
 
     let client = HttpClient::builder(url)
-        .compat_mode(CompatMode::V0_37)
+        .compat_mode(CompatMode::latest())
         .build()
         .unwrap();
 
