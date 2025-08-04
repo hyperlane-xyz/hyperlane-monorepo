@@ -184,8 +184,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         expectedConfig,
       )),
       ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
-      ...this.createAddRemoteOutputAddressTxs(actualConfig, expectedConfig),
-      ...this.createRemoveRemoteOutputAddressTxs(actualConfig, expectedConfig),
+      ...this.createAddRemoteOutputAssetsTxs(actualConfig, expectedConfig),
+      ...this.createRemoveRemoteOutputAssetsTxs(actualConfig, expectedConfig),
       ...this.createUpdateEverclearFeeParamsTx(actualConfig, expectedConfig),
 
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
@@ -569,7 +569,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     );
   }
 
-  createAddRemoteOutputAddressTxs(
+  createAddRemoteOutputAssetsTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
@@ -624,7 +624,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     ];
   }
 
-  createRemoveRemoteOutputAddressTxs(
+  createRemoveRemoteOutputAssetsTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
@@ -662,7 +662,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         destination: number;
         outputAsset: string;
       } => ({
-        destination: this.multiProvider.getDomainId(domainId),
+        destination: domainId,
         outputAsset: ZERO_ADDRESS_HEX_32,
       }),
     );
@@ -1187,7 +1187,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       isEverclearTokenBridgeConfig(config) &&
       !isObjEmpty(config.outputAssets)
     ) {
-      const addRemoteOutputTokens = warpModule.createAddRemoteOutputAddressTxs(
+      const addRemoteOutputTokens = warpModule.createAddRemoteOutputAssetsTxs(
         actualConfig,
         config,
       );
