@@ -69,6 +69,7 @@ impl TracingConfig {
                 .with_target("cometbft", Level::Warn)
                 .with_target("cometbft_rpc", Level::Warn)
                 .with_target("hyper::", Level::Info)
+                .with_target("hyper_util", Level::Warn)
                 .with_target("rusoto_core", Level::Info)
                 .with_target("rustls", Level::Info)
                 .with_target("reqwest", Level::Info)
