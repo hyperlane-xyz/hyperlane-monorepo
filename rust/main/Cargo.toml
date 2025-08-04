@@ -60,6 +60,8 @@ cainome = { version = "0.8.0", features = ["abigen-rs"] }
 clap = "4"
 chrono = "*"
 color-eyre = "0.6"
+cometbft = { git = "https://github.com/cometbft/cometbft-rs", rev = "ac3db79c5807cd1d0b8b14a7b8199b8d79d6408d" }
+cometbft-rpc = { git = "https://github.com/cometbft/cometbft-rs", rev = "ac3db79c5807cd1d0b8b14a7b8199b8d79d6408d" }
 config = "0.13.3"
 console-subscriber = "0.2.0"
 convert_case = "0.6"

@@ -3,11 +3,12 @@ use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use cometbft::abci::EventAttribute;
+use cometbft::hash::Algorithm;
+use cometbft::Hash;
+use cosmrs::crypto::PublicKey;
 use futures::future;
 use once_cell::sync::Lazy;
-use tendermint::abci::EventAttribute;
-use tendermint::hash::Algorithm;
-use tendermint::Hash;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
@@ -15,6 +16,7 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, LogMeta, Reo
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
+use crate::HyperlaneCosmosError;
 
 type FutureChainResults<T> = Vec<JoinHandle<(ChainResult<Vec<(T, LogMeta)>>, u32)>>;
 
@@ -109,12 +111,20 @@ pub(crate) async fn execute_and_parse_log_futures<T: Into<Indexed<T>>>(
 /// Helper function to create a Vec<EventAttribute> from a JSON string -
 /// crate::payloads::general::EventAttribute has a Deserialize impl while
 /// cosmrs::tendermint::abci::EventAttribute does not.
-pub(crate) fn event_attributes_from_str(
-    attrs_str: &str,
-) -> Vec<cosmrs::tendermint::abci::EventAttribute> {
+pub(crate) fn event_attributes_from_str(attrs_str: &str) -> Vec<cometbft::abci::EventAttribute> {
     serde_json::from_str::<Vec<crate::payloads::general::EventAttribute>>(attrs_str)
         .unwrap()
         .into_iter()
         .map(|attr| attr.into())
         .collect()
+}
+
+pub fn cometbft_pubkey_to_cosmrs_pubkey(
+    cometbft_key: &cometbft::PublicKey,
+) -> ChainResult<cosmrs::crypto::PublicKey> {
+    let cometbft_key_json = serde_json::to_string(&cometbft_key)
+        .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+    let cosm_key = PublicKey::from_json(&cometbft_key_json)
+        .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+    Ok(cosm_key)
 }
