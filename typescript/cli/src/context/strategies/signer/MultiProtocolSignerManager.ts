@@ -1,18 +1,25 @@
-import { Signer } from 'ethers';
+import { BigNumber, Signer } from 'ethers';
 import { Logger } from 'pino';
+import { z } from 'zod';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   ChainName,
+  IMultiProtocolSignerManager,
   MultiProtocolProvider,
   MultiProvider,
   ProtocolMap,
+  getLocalProvider,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
-import { ENV } from '../../../utils/env.js';
 
 import {
   IMultiProtocolSigner,
@@ -26,11 +33,26 @@ export interface MultiProtocolSignerOptions {
   key?: string | ProtocolMap<string>;
 }
 
+const envScheme = z.object({
+  HYP_KEY: z.string().optional(),
+  ANVIL_IP_ADDR: z.string().optional(),
+  ANVIL_PORT: z.number().optional(),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  AWS_REGION: z.string().optional(),
+  GH_AUTH_TOKEN: z.string().optional(),
+  COINGECKO_API_KEY: z.string().optional(),
+});
+
+const parsedEnv = envScheme.safeParse(process.env);
+
+export const ENV = parsedEnv.success ? parsedEnv.data : {};
+
 /**
  * @title MultiProtocolSignerManager
  * @dev Context manager for signers across multiple protocols
  */
-export class MultiProtocolSignerManager {
+export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
   protected readonly signerStrategies: Map<ChainName, IMultiProtocolSigner>;
   protected readonly signers: Map<ChainName, TypedSigner>;
   public readonly logger: Logger;
@@ -85,8 +107,7 @@ export class MultiProtocolSignerManager {
     );
 
     for (const chain of evmChains) {
-      const signer = await this.initSigner(chain);
-      this.multiProvider.setSigner(chain, signer as Signer);
+      this.multiProvider.setSigner(chain, this.signers.get(chain) as Signer);
     }
 
     return this.multiProvider;
@@ -208,7 +229,7 @@ export class MultiProtocolSignerManager {
     return strategy;
   }
 
-  protected getSpecificSigner<T>(chain: ChainName): T {
+  getSpecificSigner<T>(chain: ChainName): T {
     return this.signers.get(chain) as T;
   }
 
@@ -237,5 +258,80 @@ export class MultiProtocolSignerManager {
       `Chain ${chain} is not a Radix chain`,
     );
     return this.getSpecificSigner<RadixSigningSDK>(chain);
+  }
+
+  async getSignerAddress(chain: ChainName): Promise<Address> {
+    const metadata = this.multiProvider.getChainMetadata(chain);
+
+    switch (metadata.protocol) {
+      case ProtocolType.Ethereum: {
+        const signer = this.getEVMSigner(chain);
+        return signer.getAddress();
+      }
+      case ProtocolType.CosmosNative: {
+        const signer = this.getCosmosNativeSigner(chain);
+        return signer.account.address;
+      }
+      default: {
+        throw new Error(
+          `Signer for protocol type ${metadata.protocol} not supported`,
+        );
+      }
+    }
+  }
+
+  async getBalance(params: {
+    isDryRun: boolean;
+    address: Address;
+    chain: ChainName;
+    denom?: string;
+  }): Promise<BigNumber> {
+    const metadata = this.multiProvider.getChainMetadata(params.chain);
+
+    switch (metadata.protocol) {
+      case ProtocolType.Ethereum: {
+        try {
+          const provider = params.isDryRun
+            ? getLocalProvider({
+                anvilIPAddr: ENV.ANVIL_IP_ADDR,
+                anvilPort: ENV.ANVIL_PORT,
+              })
+            : this.multiProvider.getProvider(params.chain);
+          const balance = await provider.getBalance(params.address);
+          return balance;
+        } catch (err) {
+          throw new Error(
+            `failed to get balance of address ${params.address} on EVM chain ${params.chain}: ${err}`,
+          );
+        }
+      }
+      case ProtocolType.CosmosNative: {
+        assert(
+          params.denom,
+          `need denom to get balance of Cosmos Native chain ${params.chain}`,
+        );
+
+        try {
+          const provider =
+            await this.multiProtocolProvider.getCosmJsNativeProvider(
+              params.chain,
+            );
+          const balance = await provider.getBalance(
+            params.address,
+            params.denom,
+          );
+          return BigNumber.from(balance.amount);
+        } catch (err) {
+          throw new Error(
+            `failed to get balance of address ${params.address} on Cosmos Native chain ${params.chain}: ${err}`,
+          );
+        }
+      }
+      default: {
+        throw new Error(
+          `Retrieving balance for account of protocol type ${metadata.protocol} not supported chain ${params.chain}`,
+        );
+      }
+    }
   }
 }
