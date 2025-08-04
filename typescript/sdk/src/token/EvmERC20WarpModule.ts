@@ -1178,7 +1178,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         config,
       );
 
-      await multiProvider.sendTransaction(chain, addRemoteOutputTokens[0]);
+      if (addRemoteOutputTokens.length > 0) {
+        await multiProvider.sendTransaction(chain, addRemoteOutputTokens[0]);
+      }
     }
 
     if (isEverclearTokenBridgeConfig(config)) {
