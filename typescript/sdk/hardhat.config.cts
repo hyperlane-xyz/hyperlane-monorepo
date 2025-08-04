@@ -20,7 +20,12 @@ module.exports = {
     currency: 'USD',
   },
   mocha: {
-    bail: true,
+    bail: false,
     import: 'tsx',
+  },
+  networks: {
+    hardhat: {
+      allowUnlimitedContractSize: true,
+    },
   },
 };
