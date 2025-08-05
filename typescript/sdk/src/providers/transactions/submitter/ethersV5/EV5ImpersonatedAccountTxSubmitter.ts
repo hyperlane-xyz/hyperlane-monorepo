@@ -39,7 +39,7 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
       this.props.userAddress,
       anvilEndpoint,
     );
-    this.multiProvider.setSharedSigner(impersonatedAccount);
+    this.multiProvider.setSigner(this.props.chain, impersonatedAccount);
     const transactionReceipts = await super.submit(...txs);
     await stopImpersonatingAccount(this.props.userAddress, anvilEndpoint);
     return transactionReceipts;
