@@ -196,6 +196,7 @@ export function attachContractsMapAndGetForeignDeployments<
 
         case ProtocolType.Cosmos:
         case ProtocolType.CosmosNative:
+        case ProtocolType.Starknet:
           return router;
 
         case ProtocolType.Sealevel:
