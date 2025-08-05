@@ -6,6 +6,9 @@ use async_trait::async_trait;
 use ethers::prelude::Selector;
 use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use eyre::{eyre, Context, Report, Result};
+use serde_json::Value;
+use tracing::instrument;
+
 use hyperlane_core::{
     config::OpSubmissionConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
@@ -15,8 +18,6 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
-use serde_json::Value;
-use tracing::instrument;
 
 use hyperlane_cosmos::{
     self as h_cosmos, delivery_indexer, dispatch_indexer, rpc::CosmosWasmRpcProvider,
