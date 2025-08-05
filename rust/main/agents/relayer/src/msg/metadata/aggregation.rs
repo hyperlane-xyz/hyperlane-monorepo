@@ -339,7 +339,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         // If any inner ISMs are refusing to build metadata, we propagate just the first refusal.
         for sub_module_res in sub_modules_and_metas.iter() {
             if let Err(MetadataBuildError::Refused(s)) = sub_module_res {
-                return Err(MetadataBuildError::Refused(s.to_string()));
+                return Err(MetadataBuildError::Refused(s.clone()));
             }
         }
 

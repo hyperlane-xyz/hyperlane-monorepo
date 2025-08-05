@@ -241,9 +241,9 @@ async fn test_failed_build_destinations() {
     assert_eq!(metric.get(), 1);
 }
 
-#[tokio::test]
 #[tracing_test::traced_test]
-async fn test_failed_build_validator_announces() {
+#[tokio::test]
+async fn test_failed_build_origin() {
     let temp_dir = tempfile::tempdir().unwrap();
     let db_path = temp_dir.path();
 
@@ -291,11 +291,12 @@ async fn test_failed_build_validator_announces() {
         .unwrap(),
     };
 
-    let mailboxes =
-        Relayer::build_validator_announces(&settings, &core_metrics, &chain_metrics).await;
+    let db = DB::from_path(db_path).expect("Failed to initialize database");
+    let origins =
+        Relayer::build_origins(&settings, db, Arc::new(core_metrics), &chain_metrics).await;
 
-    assert_eq!(mailboxes.len(), 1);
-    assert!(mailboxes.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
+    assert_eq!(origins.len(), 1);
+    assert!(origins.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
 
     // Arbitrum chain should not have any errors because it's ChainConf exists
     let metric = chain_metrics
