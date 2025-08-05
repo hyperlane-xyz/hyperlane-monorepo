@@ -1,5 +1,15 @@
 # @hyperlane-xyz/sdk
 
+## 16.1.1
+
+### Patch Changes
+
+- ea77b6ae4: Add Starknet protocol type.
+  - @hyperlane-xyz/starknet-core@16.1.1
+  - @hyperlane-xyz/cosmos-sdk@16.1.1
+  - @hyperlane-xyz/utils@16.1.1
+  - @hyperlane-xyz/core@9.0.4
+
 ## 16.1.0
 
 ### Minor Changes
