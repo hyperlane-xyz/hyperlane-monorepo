@@ -43,7 +43,7 @@ pin-project.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
-hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", rev = "d7fcf4b" }
+hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", rev = "4cde36b" }
 
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }

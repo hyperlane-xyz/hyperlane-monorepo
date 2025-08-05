@@ -57,39 +57,28 @@ pub fn add_kaspa_metadata_hl_messsage(
     let hl_message = parsed.hl_message;
     let token_message: TokenMessage = parsed.token_message;
 
-    // build TransactionOutpoint from transaction id and utxo index
     let output = TransactionOutpoint {
         transaction_id: transaction_id.as_bytes().to_vec(),
         index: utxo_index as u32,
     };
 
-    // serialze TransactionOutpoint to bytes
     let output_bytes = output.encode_to_vec();
 
-    // include TransactionOutpoint to metadata
     let mut metadata: HlMetadata;
     if token_message.metadata().is_empty() {
-        metadata = HlMetadata {
-            hook_forward_to_ibc: Vec::new(),
-            kaspa: output_bytes,
-        };
-    } else {
-        metadata = HlMetadata::decode(token_message.metadata())?;
-        // replace kaspa value and reencode message
-        metadata.kaspa = output_bytes;
+        return Err(eyre::eyre!("Token message metadata (memo) is empty"));
     }
+    metadata = HlMetadata::decode(token_message.metadata())?;
+    metadata.kaspa = output_bytes;
 
-    // create new TokenMessage with new metadata
-    let token_message_new = TokenMessage::new(
+    let token_message = TokenMessage::new(
         token_message.recipient(),
         token_message.amount(),
         metadata.encode_to_vec(),
     );
 
-    // create message with new body
-    let mut hl_message_new: HyperlaneMessage = hl_message.clone();
-    hl_message_new.body = token_message_new.to_vec();
+    let mut hl_message: HyperlaneMessage = hl_message.clone();
+    hl_message.body = token_message.to_vec();
 
-    // return new HL message
-    Ok(hl_message_new)
+    Ok(hl_message)
 }
