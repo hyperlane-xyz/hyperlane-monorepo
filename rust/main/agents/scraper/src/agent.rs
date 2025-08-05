@@ -276,11 +276,16 @@ impl Scraper {
             )
             .await
             .map_err(|err| {
-                tracing::error!(?err, domain=?domain.name(), ?label, "Error syncing sequenced contract");
+                tracing::error!(
+                    ?err,
+                    domain = domain.name(),
+                    label,
+                    "Error syncing sequenced contract"
+                );
                 err
             })?;
         let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, domain=?domain.name(), ?label, "Error getting cursor");
+            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
             err
         })?;
         let maybe_broadcaser = sync.get_broadcaster();
@@ -313,11 +318,16 @@ impl Scraper {
             )
             .await
             .map_err(|err| {
-                tracing::error!(?err, domain=?domain.name(), ?label, "Error syncing contract");
+                tracing::error!(
+                    ?err,
+                    domain = domain.name(),
+                    label,
+                    "Error syncing contract"
+                );
                 err
             })?;
         let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, domain=?domain.name(), ?label, "Error getting cursor");
+            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
             err
         })?;
         // there is no txid receiver for delivery indexing, since delivery txs aren't batched with
@@ -351,11 +361,16 @@ impl Scraper {
             )
             .await
             .map_err(|err| {
-                tracing::error!(?err, domain=?domain.name(), ?label, "Error syncing contract");
+                tracing::error!(
+                    ?err,
+                    domain = domain.name(),
+                    label,
+                    "Error syncing contract"
+                );
                 err
             })?;
         let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, domain=?domain.name(), ?label, "Error getting cursor");
+            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
             err
         })?;
         Ok(tokio::spawn(
