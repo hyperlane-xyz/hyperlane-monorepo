@@ -1,5 +1,6 @@
 import {
   ChainName,
+  IToken,
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
@@ -40,9 +41,27 @@ export type SendTransactionFn<
   activeChainName?: ChainName;
 }) => Promise<{ hash: string; confirm: () => Promise<TxResp> }>;
 
+export type SendMultiTransactionFn<
+  TxReq extends WarpTypedTransaction = WarpTypedTransaction,
+  TxResp extends TypedTransactionReceipt = TypedTransactionReceipt,
+> = (params: {
+  txs: TxReq[];
+  chainName: ChainName;
+  activeChainName?: ChainName;
+}) => Promise<{ hash: string; confirm: () => Promise<TxResp> }>;
+
 export type SwitchNetworkFn = (chainName: ChainName) => Promise<void>;
 
 export interface ChainTransactionFns {
   sendTransaction: SendTransactionFn;
+  sendMultiTransaction: SendMultiTransactionFn;
   switchNetwork?: SwitchNetworkFn;
+}
+
+export interface SwitchNetworkFns {
+  switchNetwork: SwitchNetworkFn;
+}
+
+export interface WatchAssetFns {
+  addAsset: (token: IToken, activeChainName: ChainName) => Promise<boolean>;
 }

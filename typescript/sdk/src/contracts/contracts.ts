@@ -1,4 +1,4 @@
-import { Contract } from 'ethers';
+import { constants } from 'ethers';
 
 import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
@@ -6,18 +6,25 @@ import {
   EvmChainId,
   ProtocolType,
   ValueOf,
+  assert,
   eqAddress,
   hexOrBase58ToHex,
   objFilter,
   objMap,
   pick,
-  promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { EthersLikeProvider } from '../deploy/proxy.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainMap, Connection, OwnableConfig } from '../types.js';
+import {
+  ChainMap,
+  ChainNameOrId,
+  Connection,
+  OwnableConfig,
+} from '../types.js';
 
 import {
   HyperlaneAddresses,
@@ -62,9 +69,35 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
   const pickedAddressesMap = objMap(addressesMap, (_, addresses) =>
     pick(addresses, factoryKeys),
   );
+
+  const chainsWithMissingAddresses = new Set<string>();
+  const filledAddressesMap = objMap(
+    pickedAddressesMap,
+    (chainName, addresses) =>
+      objMap(addresses, (key, value) => {
+        if (!value) {
+          rootLogger.warn(
+            `Missing address for contract "${key}" on chain ${chainName}`,
+          );
+          chainsWithMissingAddresses.add(chainName);
+          return constants.AddressZero;
+        }
+        return value;
+      }),
+  );
+  // Add summary warning if any addresses were missing
+  if (chainsWithMissingAddresses.size > 0) {
+    rootLogger.warn(
+      `Warning: Core deployment incomplete for chain(s): ${Array.from(
+        chainsWithMissingAddresses,
+      ).join(', ')}. ` +
+        `Please run 'core deploy' again for these chains to fix the deployment.`,
+    );
+  }
+
   // Filter out chains for which we do not have a complete set of addresses
   return objFilter(
-    pickedAddressesMap,
+    filledAddressesMap,
     (_, addresses): addresses is HyperlaneAddresses<F> => {
       return Object.keys(addresses).every((a) => factoryKeys.includes(a));
     },
@@ -162,6 +195,8 @@ export function attachContractsMapAndGetForeignDeployments<
           throw new Error('Ethereum chain should not have foreign deployments');
 
         case ProtocolType.Cosmos:
+        case ProtocolType.CosmosNative:
+        case ProtocolType.Starknet:
           return router;
 
         case ProtocolType.Sealevel:
@@ -212,21 +247,13 @@ export function connectContractsMap<F extends HyperlaneFactories>(
   );
 }
 
-export async function filterOwnableContracts(
-  contracts: HyperlaneContracts<any>,
-): Promise<{ [key: string]: Ownable }> {
-  const isOwnable = async (_: string, contract: Contract): Promise<boolean> => {
-    try {
-      await contract.owner();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  };
-  const isOwnableContracts = await promiseObjAll(objMap(contracts, isOwnable));
+// NOTE: does not perform any onchain checks
+export function filterOwnableContracts(contracts: HyperlaneContracts<any>): {
+  [key: string]: Ownable;
+} {
   return objFilter(
     contracts,
-    (name, contract): contract is Ownable => isOwnableContracts[name],
+    (_, contract): contract is Ownable => 'owner' in contract.functions,
   );
 }
 
@@ -285,4 +312,45 @@ export function transferOwnershipTransactions(
       ),
     },
   ];
+}
+
+export async function isAddressActive(
+  provider: EthersLikeProvider,
+  address: Address,
+): Promise<boolean> {
+  const [code, txnCount] = await Promise.all([
+    provider.getCode(address),
+    provider.getTransactionCount(address),
+  ]);
+
+  return code !== '0x' || txnCount > 0;
+}
+
+/**
+ * Checks if the provided address is a contract
+ */
+export async function isContractAddress(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  address: string,
+  blockNumber?: number,
+) {
+  const provider = multiProvider.getProvider(chain);
+  const code = await provider.getCode(address, blockNumber);
+
+  return code !== '0x';
+}
+
+/**
+ * Checks if the provided address is a contract and throws if it isn't
+ */
+export async function assertIsContractAddress(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  address: string,
+) {
+  assert(
+    await isContractAddress(multiProvider, chain, address),
+    `Address "${address}" on chain "${chain}" is not a contract`,
+  );
 }

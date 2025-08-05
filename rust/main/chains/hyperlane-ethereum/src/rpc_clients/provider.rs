@@ -1,22 +1,50 @@
 use std::fmt::Debug;
 use std::future::Future;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
-use ethers_core::{abi::Address, types::BlockNumber};
-use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, H512, U256};
+use ethers::types::{Block, TransactionReceipt, H160, H256 as EthersH256};
+use ethers_contract::{builders::ContractCall, Multicall, MulticallResult};
+use ethers_core::abi::{Address, Function};
+use ethers_core::types::transaction::eip2718::TypedTransaction;
+use ethers_core::types::{BlockId, BlockNumber, FeeHistory, U256 as EthersU256};
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::instrument;
 
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
+    ethers_core_types, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator,
+    HyperlaneChain, HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneProvider,
+    HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
-use crate::{BuildableWithProvider, ConnectionConf};
+use crate::contracts::multicall::BatchCache;
+use crate::{
+    get_finalized_block_number, multicall, BuildableWithProvider, ConnectionConf,
+    EthereumReorgPeriod,
+};
+
+// From
+// gas_limit: QUANTITY, 32 bytes - The maximum amount of gas that can be used.
+// max_fee_per_gas: QUANTITY, 32 bytes - The maximum fee per unit of gas that the sender is willing to pay.
+// max_priority_fee_per_gas: QUANTITY, 32 bytes - The maximum priority fee per unit of gas to incentivize miners.
+// gas_per_pubdata_limit: QUANTITY, 32 bytes - The gas limit per unit of public data.
+/// Response from the zkSync estimate fee endpoint.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub struct ZksyncEstimateFeeResponse {
+    /// Gas limit
+    pub gas_limit: EthersU256,
+    /// Max fee
+    pub max_fee_per_gas: EthersU256,
+    /// Max priority fee
+    pub max_priority_fee_per_gas: EthersU256,
+    /// Gas per pubdata limit
+    pub gas_per_pubdata_limit: EthersU256,
+}
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
@@ -39,6 +67,297 @@ where
             self.provider.clone(),
             self.domain.clone(),
         ))
+    }
+}
+
+/// Methods of provider which are used in submitter
+#[async_trait]
+pub trait EvmProviderForLander: Send + Sync {
+    /// Get the transaction receipt for a given transaction hash
+    async fn get_transaction_receipt(
+        &self,
+        transaction_hash: H256,
+    ) -> ChainResult<Option<TransactionReceipt>>;
+
+    /// Get the finalized block number
+    async fn get_finalized_block_number(
+        &self,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<u32>;
+
+    /// Get the block for a given block number
+    async fn get_block(&self, block_number: BlockNumber) -> ChainResult<Option<Block<EthersH256>>>;
+
+    /// Estimate the gas limit for a transaction
+    async fn estimate_gas_limit(
+        &self,
+        tx: &TypedTransaction,
+        function: &Function,
+    ) -> ChainResult<U256>;
+
+    /// Batches precursors into a single transaction
+    async fn batch(
+        &self,
+        cache: Arc<Mutex<BatchCache>>,
+        batch_contract_address: H256,
+        precursors: Vec<(TypedTransaction, Function)>,
+        signer: H160,
+    ) -> ChainResult<(TypedTransaction, Function)>;
+
+    /// Simulate the batch transaction without sending it to the blockchain
+    async fn simulate_batch(
+        &self,
+        multi_precursor: (TypedTransaction, Function),
+    ) -> ChainResult<(Vec<usize>, Vec<(usize, String)>)>;
+
+    /// Estimate the batch transaction, which includes a multi-precursor transaction
+    async fn estimate_batch(
+        &self,
+        multi_precursor: (TypedTransaction, Function),
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> ChainResult<U256>;
+
+    /// Send transaction into blockchain
+    async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
+
+    /// Read-only call into blockchain which returns a boolean
+    async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
+
+    /// Get the next nonce to use for a given address (using the finalized block)
+    async fn get_next_nonce_on_finalized_block(
+        &self,
+        address: &Address,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<U256>;
+
+    /// Get the fee history
+    async fn fee_history(
+        &self,
+        block_count: U256,
+        last_block: BlockNumber,
+        reward_percentiles: &[f64],
+    ) -> ChainResult<FeeHistory>;
+
+    /// Estimate the fee for a zkSync transaction
+    async fn zk_estimate_fee(
+        &self,
+        tx: &TypedTransaction,
+    ) -> ChainResult<ZksyncEstimateFeeResponse>;
+
+    /// Get default sender
+    fn get_signer(&self) -> Option<H160>;
+}
+
+#[async_trait]
+impl<M> EvmProviderForLander for EthereumProvider<M>
+where
+    M: Middleware + 'static,
+{
+    async fn get_transaction_receipt(
+        &self,
+        transaction_hash: H256,
+    ) -> ChainResult<Option<TransactionReceipt>> {
+        let receipt = self
+            .provider
+            .get_transaction_receipt(transaction_hash)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(receipt)
+    }
+
+    async fn get_finalized_block_number(
+        &self,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<u32> {
+        get_finalized_block_number(&*self.provider, reorg_period).await
+    }
+
+    async fn get_block(&self, block_number: BlockNumber) -> ChainResult<Option<Block<EthersH256>>> {
+        let block = self
+            .provider
+            .get_block(block_number)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(block)
+    }
+
+    async fn estimate_gas_limit(
+        &self,
+        tx: &TypedTransaction,
+        function: &Function,
+    ) -> ChainResult<U256> {
+        let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
+        let gas_limit = contract_call.estimate_gas().await?.into();
+        Ok(gas_limit)
+    }
+
+    async fn batch(
+        &self,
+        cache: Arc<Mutex<BatchCache>>,
+        batch_contract_address: H256,
+        precursors: Vec<(TypedTransaction, Function)>,
+        signer: H160,
+    ) -> ChainResult<(TypedTransaction, Function)> {
+        let mut multicall = self.create_multicall(cache, batch_contract_address).await?;
+        let contract_calls = self.create_contract_calls(precursors);
+        let multicall_contract_call = multicall::batch(&mut multicall, contract_calls);
+
+        let mut tx = multicall_contract_call.tx;
+        tx.set_from(signer);
+
+        let function = multicall_contract_call.function;
+
+        Ok((tx, function))
+    }
+
+    async fn simulate_batch(
+        &self,
+        multi_precursor: (TypedTransaction, Function),
+    ) -> ChainResult<(Vec<usize>, Vec<(usize, String)>)> {
+        let (multi_tx, multi_function) = multi_precursor;
+        let multicall_contract_call =
+            self.build_contract_call::<Vec<MulticallResult>>(multi_tx, multi_function);
+        let call_results = multicall_contract_call.call().await?;
+
+        let (successful, failed) = multicall::filter(&call_results);
+
+        Ok((successful, failed))
+    }
+
+    async fn estimate_batch(
+        &self,
+        multi_precursor: (TypedTransaction, Function),
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> ChainResult<U256> {
+        let (multi_tx, multi_function) = multi_precursor;
+        let multicall_contract_call = self.build_contract_call::<()>(multi_tx, multi_function);
+        let contract_calls = self.create_contract_calls(precursors);
+
+        let gas_limit = multicall::estimate(&multicall_contract_call, contract_calls).await?;
+        Ok(gas_limit)
+    }
+
+    async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256> {
+        let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
+        let pending = contract_call
+            .send()
+            .await
+            .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
+
+        Ok(pending.tx_hash().into())
+    }
+
+    async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool> {
+        let contract_call = self.build_contract_call::<bool>(tx.clone(), function.clone());
+        let success = contract_call
+            .call()
+            .await
+            .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
+
+        Ok(success)
+    }
+
+    async fn get_next_nonce_on_finalized_block(
+        &self,
+        address: &Address,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> ChainResult<U256> {
+        let finalized_block_number = self.get_finalized_block_number(reorg_period).await?;
+        self.provider
+            .get_transaction_count(
+                *address,
+                Some(BlockId::Number(BlockNumber::Number(
+                    finalized_block_number.into(),
+                ))),
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)
+            .map(Into::into)
+    }
+
+    async fn fee_history(
+        &self,
+        block_count: U256,
+        last_block: BlockNumber,
+        reward_percentiles: &[f64],
+    ) -> ChainResult<FeeHistory> {
+        self.provider
+            .fee_history(block_count, last_block, reward_percentiles)
+            .await
+            .map_err(ChainCommunicationError::from_other)
+    }
+
+    async fn zk_estimate_fee(
+        &self,
+        tx: &TypedTransaction,
+    ) -> ChainResult<ZksyncEstimateFeeResponse> {
+        self.provider
+            .provider()
+            .request("zks_estimateFee", [tx.clone()])
+            .await
+            .map_err(ChainCommunicationError::from_other)
+    }
+
+    fn get_signer(&self) -> Option<H160> {
+        self.provider.default_sender()
+    }
+}
+
+impl<M> EthereumProvider<M>
+where
+    M: 'static + Middleware,
+{
+    /// Create a ContractCall object for a given transaction and function.
+    fn build_contract_call<D>(
+        &self,
+        tx: TypedTransaction,
+        function: Function,
+    ) -> ContractCall<M, D> {
+        ContractCall {
+            tx,
+            function,
+            block: None,
+            client: self.provider.clone(),
+            datatype: PhantomData::<D>,
+        }
+    }
+
+    fn create_contract_calls(
+        &self,
+        precursors: Vec<(TypedTransaction, Function)>,
+    ) -> Vec<ContractCall<M, ()>> {
+        precursors
+            .into_iter()
+            .map(|(tx, f)| self.build_contract_call::<()>(tx, f))
+            .collect::<Vec<_>>()
+    }
+
+    async fn create_multicall(
+        &self,
+        cache: Arc<Mutex<BatchCache>>,
+        batch_contract_address: H256,
+    ) -> eyre::Result<Multicall<M>> {
+        multicall::build_multicall(
+            self.provider.clone(),
+            self.domain.clone(),
+            cache,
+            batch_contract_address,
+        )
+        .await
+    }
+
+    #[instrument(err, skip(self))]
+    async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
+        let storage = self
+            .provider
+            .get_storage_at(
+                ethers_core_types::H160::from(address),
+                location.into(),
+                None,
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(storage.into())
     }
 }
 
@@ -156,9 +475,16 @@ where
                 ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
             })?
         else {
-            tracing::trace!(domain=?self.domain, "Latest block not found");
+            tracing::trace!(domain=?self.domain.name(), "Latest block not found");
             return Ok(None);
         };
+
+        let block_hash = block
+            .hash
+            .ok_or_else(|| ChainCommunicationError::CustomError("Block hash missing".into()))?;
+        let block_number = block
+            .number
+            .ok_or_else(|| ChainCommunicationError::CustomError("Block number missing".into()))?;
 
         // Given the block is queried with `BlockNumber::Latest` rather than `BlockNumber::Pending`,
         // if `block` is Some at this point, we're guaranteed to have its `hash` and `number` defined,
@@ -166,9 +492,9 @@ where
         // more info at <https://docs.rs/ethers/latest/ethers/core/types/struct.Block.html#structfield.number>
         let chain_metrics = ChainInfo::new(
             BlockInfo {
-                hash: block.hash.unwrap().into(),
+                hash: block_hash.into(),
                 timestamp: block.timestamp.as_u64(),
-                number: block.number.unwrap().as_u64(),
+                number: block_number.as_u64(),
             },
             block.base_fee_per_gas.map(Into::into),
         );
@@ -176,22 +502,31 @@ where
     }
 }
 
-impl<M> EthereumProvider<M>
-where
-    M: Middleware + 'static,
-{
-    #[instrument(err, skip(self))]
-    async fn get_storage_at(&self, address: H256, location: H256) -> ChainResult<H256> {
-        let storage = self
-            .provider
-            .get_storage_at(
-                ethers_core_types::H160::from(address),
-                location.into(),
-                None,
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-        Ok(storage.into())
+/// Builder for hyperlane providers.
+pub struct LanderProviderBuilder {}
+
+#[async_trait]
+impl BuildableWithProvider for LanderProviderBuilder {
+    type Output = Arc<dyn EvmProviderForLander>;
+    const NEEDS_SIGNER: bool = true;
+
+    // the submitter does not use the ethers submission middleware.
+    // it uses its own logic for setting transaction parameters
+    // and landing them onchain
+    fn uses_ethers_submission_middleware(&self) -> bool {
+        false
+    }
+
+    async fn build_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        _conn: &ConnectionConf,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Arc::new(EthereumProvider::new(
+            Arc::new(provider),
+            locator.domain.clone(),
+        ))
     }
 }
 

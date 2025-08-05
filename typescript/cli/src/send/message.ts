@@ -3,7 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
-import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
+import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -102,6 +102,7 @@ async function executeDelivery({
     );
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);
+    logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);
     log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
 
     if (selfRelay) {

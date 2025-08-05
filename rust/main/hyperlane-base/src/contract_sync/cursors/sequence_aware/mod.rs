@@ -15,6 +15,8 @@ mod forward;
 pub(crate) use backward::BackwardSequenceAwareSyncCursor;
 pub(crate) use forward::ForwardSequenceAwareSyncCursor;
 
+use crate::cursors::sequence_aware::backward::BackwardSequenceAwareSyncCursorParams;
+
 use super::{CursorMetrics, Indexable};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,7 +33,7 @@ struct LastIndexedSnapshot {
 
 /// Used to avoid going over the `instrument` macro limit.
 #[derive(Debug, Clone)]
-struct MetricsData {
+pub struct MetricsData {
     pub domain: HyperlaneDomain,
     pub metrics: Arc<CursorMetrics>,
 }
@@ -89,6 +91,7 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
         store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         chunk_size: u32,
+        lowest_block_height_or_sequence: i64,
         mode: IndexMode,
     ) -> Result<Self> {
         let (sequence_count, tip) = latest_sequence_querier
@@ -110,14 +113,18 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
             mode,
             metrics_data.clone(),
         );
-        let backward_cursor = BackwardSequenceAwareSyncCursor::new(
+
+        let params = BackwardSequenceAwareSyncCursorParams {
             chunk_size,
+            latest_sequence_querier: latest_sequence_querier.clone(),
+            lowest_block_height_or_sequence,
             store,
-            sequence_count,
-            tip,
-            mode,
+            current_sequence_count: sequence_count,
+            start_block: tip,
+            index_mode: mode,
             metrics_data,
-        );
+        };
+        let backward_cursor = BackwardSequenceAwareSyncCursor::new(params);
         Ok(Self {
             forward: forward_cursor,
             backward: backward_cursor,
@@ -160,5 +167,139 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
             SyncDirection::Forward => self.forward.update(logs, range).await,
             SyncDirection::Backward => self.backward.update(logs, range).await,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{fmt::Debug, ops::RangeInclusive, sync::Arc};
+
+    use hyperlane_core::{
+        ChainResult, HyperlaneDomain, HyperlaneLogStore, HyperlaneSequenceAwareIndexerStoreReader,
+        HyperlaneWatermarkedLogStore, IndexMode, Indexed, Indexer, KnownHyperlaneDomain, LogMeta,
+        SequenceAwareIndexer, H256, H512,
+    };
+
+    use crate::cursors::{CursorMetrics, ForwardBackwardSequenceAwareSyncCursor, Indexable};
+
+    mockall::mock! {
+        pub Db<T: Indexable + Send + Sync> {}
+
+        impl<T: Indexable + Send + Sync> Debug for Db<T> {
+            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
+        }
+
+        #[async_trait::async_trait]
+        impl<T: Indexable + Send + Sync> HyperlaneLogStore<T> for Db<T> {
+            async fn store_logs(&self, logs: &[(hyperlane_core::Indexed<T>, LogMeta)]) -> eyre::Result<u32>;
+        }
+
+        #[async_trait::async_trait]
+        impl<T: Indexable + Send + Sync> HyperlaneWatermarkedLogStore<T> for Db<T> {
+            async fn retrieve_high_watermark(&self) -> eyre::Result<Option<u32>>;
+            async fn store_high_watermark(&self, block_number: u32) -> eyre::Result<()>;
+        }
+
+        #[async_trait::async_trait]
+        impl<T: Indexable + Send + Sync> HyperlaneSequenceAwareIndexerStoreReader<T> for Db<T> {
+            async fn retrieve_by_sequence(&self, sequence: u32) -> eyre::Result<Option<T>>;
+            async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> eyre::Result<Option<u64>>;
+        }
+    }
+
+    mockall::mock! {
+        #[auto_impl::auto_impl(&, Box, Arc)]
+        #[derive(Clone, Debug)]
+        pub SequenceAwareIndexerMock<T> {}
+
+        #[async_trait::async_trait]
+        impl<T: Indexable + Send + Sync> Indexer<T> for SequenceAwareIndexerMock<T> {
+            async fn fetch_logs_in_range(
+                &self,
+                range: RangeInclusive<u32>,
+            ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>>;
+
+            async fn get_finalized_block_number(&self) -> ChainResult<u32>;
+
+            async fn fetch_logs_by_tx_hash(
+                &self,
+                _tx_hash: H512,
+            ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>>;
+        }
+
+        #[async_trait::async_trait]
+        impl<T: Indexable + Send + Sync> SequenceAwareIndexer<T> for SequenceAwareIndexerMock<T> {
+            async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
+        }
+    }
+
+    fn mock_cursor_metrics() -> CursorMetrics {
+        CursorMetrics {
+            cursor_current_block: prometheus::IntGaugeVec::new(
+                prometheus::Opts::new("cursor_current_block", "Current block of the cursor")
+                    .namespace("mock")
+                    .subsystem("cursor"),
+                &["event_type", "chain", "cursor_type"],
+            )
+            .unwrap(),
+            cursor_current_sequence: prometheus::IntGaugeVec::new(
+                prometheus::Opts::new("cursor_current_sequence", "Current sequence of the cursor")
+                    .namespace("mock")
+                    .subsystem("cursor"),
+                &["event_type", "chain", "cursor_type"],
+            )
+            .unwrap(),
+            cursor_max_sequence: prometheus::IntGaugeVec::new(
+                prometheus::Opts::new("cursor_max_sequence", "Max sequence of the cursor")
+                    .namespace("mock")
+                    .subsystem("cursor"),
+                &["event_type", "chain"],
+            )
+            .unwrap(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_relative_block_height_or_sequence() {
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+
+        let metrics = mock_cursor_metrics();
+
+        let mut sequencer = MockSequenceAwareIndexerMock::new();
+
+        sequencer
+            .expect_latest_sequence_count_and_tip()
+            .returning(|| Ok((Some(100), 100)));
+
+        let latest_sequence_querier = Arc::new(sequencer);
+        let mut store = MockDb::new();
+
+        store.expect_retrieve_by_sequence().returning(|_| Ok(None));
+        store
+            .expect_retrieve_log_block_number_by_sequence()
+            .returning(|_| Ok(None));
+
+        let chunk_size = 20;
+        let lowest_block_height_or_sequence: i64 = -10;
+        let mode = IndexMode::Sequence;
+
+        let store_arc: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<H256>> = Arc::new(store);
+
+        let cursor = ForwardBackwardSequenceAwareSyncCursor::new(
+            &domain,
+            Arc::new(metrics),
+            latest_sequence_querier,
+            store_arc,
+            chunk_size,
+            lowest_block_height_or_sequence,
+            mode,
+        )
+        .await
+        .expect("Failed to instantiate ForwardBackwardSequenceAwareSyncCursor");
+
+        assert_eq!(
+            cursor.backward.lowest_block_height_or_sequence,
+            lowest_block_height_or_sequence
+        );
     }
 }

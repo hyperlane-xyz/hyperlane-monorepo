@@ -1,7 +1,14 @@
-import { checkbox } from '@inquirer/prompts';
+import { input } from '@inquirer/prompts';
+
+import {
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
+import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import { WarpRouteMonitorHelmManager } from '../../src/warp/helm.js';
 import {
@@ -14,14 +21,25 @@ import {
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { environment, warpRouteId } = await withWarpRouteId(getArgs()).argv;
+  await assertCorrectKubeContext(getEnvironmentConfig(environment));
+
+  const envConfig = getEnvironmentConfig(environment);
+  const multiProtocolProvider = await envConfig.getMultiProtocolProvider();
 
   let warpRouteIds;
   if (warpRouteId) {
     warpRouteIds = [warpRouteId];
   } else {
-    warpRouteIds = await getWarpRouteIdsInteractive();
+    warpRouteIds = await getWarpRouteIdsInteractive(environment);
   }
+
+  const registryCommit = await input({
+    message:
+      'Enter the registry version to use (can be a commit, branch or tag):',
+  });
+  await validateRegistryCommit(registryCommit);
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
   const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
@@ -31,7 +49,9 @@ async function main() {
       warpRouteId,
       environment,
       agentConfig.environmentChainNames,
+      registryCommit,
     );
+    await helmManager.runPreflightChecks(multiProtocolProvider);
     await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
   };
 
@@ -42,11 +62,11 @@ async function main() {
   );
 
   for (const id of warpRouteIds) {
-    console.log(`Deploying Warp Monitor for Warp Route ID: ${id}`);
+    rootLogger.info(`Deploying Warp Monitor for Warp Route ID: ${id}`);
     await deployWarpMonitor(id);
   }
 }
 
 main()
-  .then(() => console.log('Deploy successful!'))
-  .catch(console.error);
+  .then(() => rootLogger.info('Deploy successful!'))
+  .catch(rootLogger.error);

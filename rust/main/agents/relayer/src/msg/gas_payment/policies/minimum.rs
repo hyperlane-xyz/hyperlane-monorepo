@@ -6,7 +6,7 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256,
 };
 
-use crate::msg::gas_payment::GasPaymentPolicy;
+use crate::{msg::gas_payment::GasPaymentPolicy, settings::GasPaymentEnforcementPolicy};
 
 #[derive(Debug, new)]
 pub struct GasPaymentPolicyMinimum {
@@ -15,6 +15,13 @@ pub struct GasPaymentPolicyMinimum {
 
 #[async_trait]
 impl GasPaymentPolicy for GasPaymentPolicyMinimum {
+    /// `Minimum` requires a payment to exist on the IGP specified in the config,
+    /// even if the payment is zero. For example, a policy of Minimum { payment: 0 }
+    /// will only relay messages that send a zero payment to the IGP specified in the config.
+    /// This is different from not requiring message senders to make any payment at all to
+    /// the configured IGP to get relayed. To relay regardless of the existence of a payment,
+    /// the `None` IGP policy should be used.
+
     async fn message_meets_gas_payment_requirement(
         &self,
         _message: &HyperlaneMessage,
@@ -26,6 +33,16 @@ impl GasPaymentPolicy for GasPaymentPolicyMinimum {
             Ok(Some(tx_cost_estimate.gas_limit))
         } else {
             Ok(None)
+        }
+    }
+
+    fn requires_payment_found(&self) -> bool {
+        true
+    }
+
+    fn enforcement_type(&self) -> GasPaymentEnforcementPolicy {
+        GasPaymentEnforcementPolicy::Minimum {
+            payment: self.minimum_payment,
         }
     }
 }

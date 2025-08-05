@@ -1,5 +1,142 @@
 # @hyperlane-xyz/utils
 
+## 16.1.1
+
+## 16.1.0
+
+## 16.0.0
+
+## 15.0.0
+
+### Minor Changes
+
+- 451f3f6c3: Support pino-pretty in development
+- a33c8abd4: Implement `convertToScaledAmount` for amounts that need scaling
+
+## 14.4.0
+
+## 14.3.0
+
+## 14.2.0
+
+## 14.1.0
+
+## 14.0.0
+
+### Patch Changes
+
+- 7ad8e394c: fix starknet token adapter
+
+## 13.4.0
+
+### Minor Changes
+
+- 0ec92f775: Update starknet dependency from v6 to v7.
+- ec8d196d9: Fix CosmosNative address parsing
+- bacf16a80: Export yaml eslint config
+
+## 13.3.0
+
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+
+## 13.2.0
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+
+## 13.1.0
+
+### Minor Changes
+
+- f41f766: Add sort-yaml-arrays eslint rule
+
+## 13.0.0
+
+### Minor Changes
+
+- 0de63e0: Add Starknet address and tx utils
+
+## 12.6.0
+
+### Minor Changes
+
+- d182d7d: Adds the sortArraysInObject function to properly sort arrays in an object recursively given an optional sort function
+- b360802: Add the isCosmosIbcDenomAddress function and improve the config expansion logic to correctly format the destination gas
+
+## 12.5.0
+
+## 12.4.0
+
+## 12.3.0
+
+### Minor Changes
+
+- 7500bd6fe: implemented cosmos protocol type and cosmos token adapter
+
+## 12.2.0
+
+## 12.1.0
+
+## 12.0.0
+
+## 11.0.0
+
+### Major Changes
+
+- 3b060c3e1: Stub new CosmosModule ProtocolType.
+
+## 10.0.0
+
+### Minor Changes
+
+- b8d95fc95: implement custom ESLint rule for restricted imports from exports
+
+## 9.2.1
+
+## 9.2.0
+
+## 9.1.0
+
+## 9.0.0
+
+### Major Changes
+
+- 4df37393f: Added minimal support for Starknet networks (for successful registry build)
+
+## 8.9.0
+
+### Minor Changes
+
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- 3518f8901: Add ZERO_ADDRESS_HEX_32 constant.
+
+## 8.8.1
+
+## 8.8.0
+
+## 8.7.0
+
+## 8.6.1
+
+## 8.6.0
+
+## 8.5.0
+
+## 8.4.0
+
+## 8.3.0
+
+## 8.2.0
+
+## 8.1.0
+
 ## 8.0.0
 
 ### Minor Changes

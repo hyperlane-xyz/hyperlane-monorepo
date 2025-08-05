@@ -1,11 +1,18 @@
+/// Transaction Submitter config
+pub mod config;
+
+use std::sync::Arc;
+
 use async_trait::async_trait;
-use hyperlane_core::ChainResult;
+use derive_new::new;
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, instruction::Instruction, pubkey::Pubkey,
-    signature::Signature, transaction::Transaction,
+    commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction,
+    instruction::Instruction, pubkey::Pubkey, signature::Signature, transaction::Transaction,
 };
 
-use crate::SealevelRpcClient;
+use hyperlane_core::ChainResult;
+
+use crate::{SealevelProvider, SealevelProviderForLander};
 
 /// A trait for submitting transactions to the chain.
 #[async_trait]
@@ -24,20 +31,23 @@ pub trait TransactionSubmitter: Send + Sync {
         transaction: &Transaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature>;
+
+    /// Waits for Sealevel transaction confirmation with processed commitment level
+    async fn wait_for_transaction_confirmation(&self, transaction: &Transaction)
+        -> ChainResult<()>;
+
+    /// Confirm transaction
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool>;
 }
 
 /// A transaction submitter that uses the vanilla RPC to submit transactions.
-#[derive(Debug)]
+#[derive(Debug, new)]
 pub struct RpcTransactionSubmitter {
-    rpc_client: SealevelRpcClient,
-}
-
-impl RpcTransactionSubmitter {
-    pub fn new(url: String) -> Self {
-        Self {
-            rpc_client: SealevelRpcClient::new(url),
-        }
-    }
+    provider: Arc<SealevelProvider>,
 }
 
 #[async_trait]
@@ -56,28 +66,45 @@ impl TransactionSubmitter for RpcTransactionSubmitter {
         transaction: &Transaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
-        self.rpc_client
+        self.provider
+            .rpc_client()
             .send_transaction(transaction, skip_preflight)
+            .await
+    }
+
+    async fn wait_for_transaction_confirmation(
+        &self,
+        transaction: &Transaction,
+    ) -> ChainResult<()> {
+        self.provider
+            .wait_for_transaction_confirmation(transaction)
+            .await
+    }
+
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool> {
+        self.provider
+            .confirm_transaction(signature, commitment)
             .await
     }
 }
 
 /// A transaction submitter that uses the Jito API to submit transactions.
-#[derive(Debug)]
+#[derive(Debug, new)]
 pub struct JitoTransactionSubmitter {
-    rpc_client: SealevelRpcClient,
+    /// Used for other operations
+    default_provider: Arc<SealevelProvider>,
+    /// Used to submit transactions
+    submit_provider: Arc<SealevelProvider>,
 }
 
 impl JitoTransactionSubmitter {
     /// The minimum tip to include in a transaction.
     /// From https://docs.jito.wtf/lowlatencytxnsend/#sendtransaction
     const MINIMUM_TIP_LAMPORTS: u64 = 1000;
-
-    pub fn new(url: String) -> Self {
-        Self {
-            rpc_client: SealevelRpcClient::new(url),
-        }
-    }
 }
 
 #[async_trait]
@@ -108,8 +135,28 @@ impl TransactionSubmitter for JitoTransactionSubmitter {
         transaction: &Transaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
-        self.rpc_client
+        self.submit_provider
+            .rpc_client()
             .send_transaction(transaction, skip_preflight)
+            .await
+    }
+
+    async fn wait_for_transaction_confirmation(
+        &self,
+        transaction: &Transaction,
+    ) -> ChainResult<()> {
+        self.default_provider
+            .wait_for_transaction_confirmation(transaction)
+            .await
+    }
+
+    async fn confirm_transaction(
+        &self,
+        signature: Signature,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<bool> {
+        self.default_provider
+            .confirm_transaction(signature, commitment)
             .await
     }
 }

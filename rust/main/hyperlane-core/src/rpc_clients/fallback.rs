@@ -1,7 +1,3 @@
-use async_rwlock::RwLock;
-use async_trait::async_trait;
-use derive_new::new;
-use itertools::Itertools;
 use std::{
     fmt::{Debug, Formatter},
     future::Future,
@@ -10,10 +6,15 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio;
-use tracing::{info, trace, warn_span};
 
-use crate::ChainCommunicationError;
+use async_rwlock::RwLock;
+use async_trait::async_trait;
+use derive_new::new;
+use itertools::Itertools;
+use tokio;
+use tracing::{info, warn, warn_span};
+
+use crate::ChainResult;
 
 use super::RpcClientError;
 
@@ -21,17 +22,21 @@ use super::RpcClientError;
 #[async_trait]
 pub trait BlockNumberGetter: Send + Sync + Debug {
     /// Latest block number getter
-    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError>;
+    async fn get_block_number(&self) -> ChainResult<u64>;
 }
 
 const MAX_BLOCK_TIME: Duration = Duration::from_secs(2 * 60);
 
+const FAILED_REQUEST_THRESHOLD: u32 = 10;
+
 /// Information about a provider in `PrioritizedProviders`
 
-#[derive(Clone, Copy, new)]
+#[derive(Clone, Copy, Debug, new)]
 pub struct PrioritizedProviderInner {
     /// Index into the `providers` field of `PrioritizedProviders`
     pub index: usize,
+    /// Track how many failed requests occurred since last deprioritization
+    pub last_failed_count: u32,
     /// Tuple of the block number and the time when it was queried
     #[new(value = "(0, Instant::now())")]
     last_block_height: (u64, Instant),
@@ -41,7 +46,15 @@ impl PrioritizedProviderInner {
     fn from_block_height(index: usize, block_height: u64) -> Self {
         Self {
             index,
+            last_failed_count: 0,
             last_block_height: (block_height, Instant::now()),
+        }
+    }
+
+    fn reset_failed_count(&self) -> Self {
+        Self {
+            last_failed_count: 0,
+            ..*self
         }
     }
 }
@@ -65,6 +78,18 @@ pub struct FallbackProvider<T, B> {
     pub inner: Arc<PrioritizedProviders<T>>,
     max_block_time: Duration,
     _phantom: PhantomData<B>,
+}
+
+impl<T, B> FallbackProvider<T, B> {
+    /// Get how many providers this fallback provider has
+    pub fn len(&self) -> usize {
+        self.inner.providers.len()
+    }
+
+    /// Check if this provider has any fallback providers
+    pub fn is_empty(&self) -> bool {
+        self.inner.providers.is_empty()
+    }
 }
 
 impl<T, B> Clone for FallbackProvider<T, B> {
@@ -152,8 +177,9 @@ where
             .await
             .unwrap_or(priority.last_block_height.0);
         if current_block_height <= priority.last_block_height.0 {
+            let new_priority = priority.reset_failed_count();
             // The `max_block_time` elapsed but the block number returned by the provider has not increased
-            self.deprioritize_provider(*priority).await;
+            self.deprioritize_provider(new_priority).await;
             info!(
                 provider_index=%priority.index,
                 provider=?self.inner.providers[priority.index],
@@ -165,12 +191,35 @@ where
         }
     }
 
+    /// De-prioritize a provider that has returned a bad response
+    pub async fn handle_failed_provider(&self, priority: &PrioritizedProviderInner) {
+        self.increment_failed_count(priority.index).await;
+
+        if priority.last_failed_count + 1 >= FAILED_REQUEST_THRESHOLD {
+            let new_priority = priority.reset_failed_count();
+            self.deprioritize_provider(new_priority).await;
+            info!(
+                provider_index=%new_priority.index,
+                provider=?self.inner.providers[new_priority.index],
+                "Deprioritizing an inner provider in FallbackProvider",
+            );
+        }
+    }
+
+    async fn increment_failed_count(&self, index: usize) {
+        let mut priorities = self.inner.priorities.write().await;
+
+        if let Some(priority) = priorities.iter_mut().find(|p| p.index == index) {
+            priority.last_failed_count += 1;
+        }
+    }
+
     /// Call the first provider, then the second, and so on (in order of priority) until a response is received.
     /// If all providers fail, return an error.
     pub async fn call<V>(
         &self,
-        mut f: impl FnMut(T) -> Pin<Box<dyn Future<Output = Result<V, ChainCommunicationError>> + Send>>,
-    ) -> Result<V, ChainCommunicationError> {
+        mut f: impl FnMut(T) -> Pin<Box<dyn Future<Output = ChainResult<V>> + Send>>,
+    ) -> ChainResult<V> {
         let mut errors = vec![];
         // make sure we do at least 4 total retries.
         while errors.len() <= 3 {
@@ -182,16 +231,19 @@ where
                 let provider = &self.inner.providers[priority.index];
                 let resp = f(provider.clone()).await;
                 self.handle_stalled_provider(priority, provider).await;
+                if resp.is_err() {
+                    self.handle_failed_provider(priority).await;
+                }
                 let _span =
                     warn_span!("FallbackProvider::call", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
                 match resp {
                     Ok(v) => return Ok(v),
                     Err(e) => {
-                        trace!(
+                        warn!(
                             error=?e,
                             "Got error from inner fallback provider",
                         );
-                        errors.push(e)
+                        errors.push(e);
                     }
                 }
             }
@@ -248,7 +300,7 @@ impl<T, B> FallbackProviderBuilder<T, B> {
             // The order of `self.providers` gives the initial priority.
             priorities: RwLock::new(
                 (0..provider_count)
-                    .map(PrioritizedProviderInner::new)
+                    .map(|i| PrioritizedProviderInner::new(i, 0))
                     .collect(),
             ),
         };
@@ -262,11 +314,12 @@ impl<T, B> FallbackProviderBuilder<T, B> {
 
 /// Utilities to import when testing chain-specific fallback providers
 pub mod test {
-    use super::*;
     use std::{
         ops::Deref,
         sync::{Arc, Mutex},
     };
+
+    use super::*;
 
     /// Provider that stores requests and optionally sleeps before returning a dummy value
     #[derive(Debug, Clone)]
@@ -300,13 +353,16 @@ pub mod test {
         pub fn push<T: Debug>(&self, method: &str, params: T) {
             self.requests
                 .lock()
-                .unwrap()
+                .expect("Failed to acquire mutex")
                 .push((method.to_owned(), format!("{:?}", params)));
         }
 
         /// Get the stored requests
         pub fn requests(&self) -> Vec<(String, String)> {
-            self.requests.lock().unwrap().clone()
+            self.requests
+                .lock()
+                .expect("Failed to acquire mutex")
+                .clone()
         }
 
         /// Set the sleep duration
@@ -330,5 +386,51 @@ pub mod test {
                 })
                 .collect()
         }
+    }
+
+    #[async_trait::async_trait]
+    impl BlockNumberGetter for ProviderMock {
+        async fn get_block_number(&self) -> ChainResult<u64> {
+            return Ok(100);
+        }
+    }
+
+    #[tokio::test]
+    pub async fn test_deprioritization_by_failed_count() {
+        let provider1 = ProviderMock::new(None);
+        let provider2 = ProviderMock::new(None);
+        let provider3 = ProviderMock::new(None);
+        provider2.push("aaa", true);
+        provider3.push("aaa", true);
+
+        let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::new(vec![provider1, provider2, provider3]);
+
+        for _ in 0..FAILED_REQUEST_THRESHOLD + 1 {
+            let _ = fallback_provider
+                .call(|provider: ProviderMock| {
+                    // we set it up so that provider1 always fails and get deprioritized
+                    let future = async move {
+                        if provider.requests.lock().unwrap().is_empty() {
+                            Err(crate::ChainCommunicationError::BatchingFailed)
+                        } else {
+                            Ok(100)
+                        }
+                    };
+                    Box::pin(future)
+                })
+                .await;
+        }
+
+        let expected = vec![1, 2, 0];
+        let actual: Vec<_> = fallback_provider
+            .inner
+            .priorities
+            .read()
+            .await
+            .iter()
+            .map(|p| p.index)
+            .collect();
+        assert_eq!(expected, actual);
     }
 }

@@ -2,7 +2,13 @@
   "mainnet3": {
     "hyperlane": "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5",
     "neutron": "0x03787bc64a4f352b4ad172947473342028513ef3",
-    "rc": "0x09b96417602ed6ac76651f7a8c4860e60e3aa6d0"
+    "rc": "0x09b96417602ed6ac76651f7a8c4860e60e3aa6d0",
+    "vanguard0": "0xbe2e6b1ce045422a08a3662fffa3fc5f114efc3d",
+    "vanguard1": "0xdbcd22e5223f5d0040398e66dbb525308f27c655",
+    "vanguard2": "0x226b721316ea44aad50a10f4cc67fc30658ab4a9",
+    "vanguard3": "0xcdd728647ecd9d75413c9b780de303b1d1eb12a5",
+    "vanguard4": "0x5401627b69f317da9adf3d6e1e1214724ce49032",
+    "vanguard5": "0x6fd953d1cbdf3a79663b4238898147a6cf36d459"
   },
   "test": {
     "hyperlane": "",
@@ -11,7 +17,13 @@
   },
   "testnet4": {
     "hyperlane": "0x16626cd24fd1f228a031e48b77602ae25f8930db",
-    "neutron": "",
-    "rc": "0x7fe8c60ead4ab10be736f4de2b3090db5a851f16"
+    "neutron": "0xf2c72c0befa494d62949a1699a99e2c605a0b636",
+    "rc": "0x7fe8c60ead4ab10be736f4de2b3090db5a851f16",
+    "vanguard0": "0x2c9209efcaff2778d945e18fb24174e16845dc62",
+    "vanguard1": "0x939043d9db00f6ada1b742239beb7ddd5bf82096",
+    "vanguard2": "0x45b58e4d46a89c003cc7126bd971eb3794a66aeb",
+    "vanguard3": "0x1f4fdb150e8c9fda70687a2fd481e305af1e7f8e",
+    "vanguard4": "0xe41b227e7aaaf7bbd1d60258de0dd76a11a0c3fc",
+    "vanguard5": "0xb1d77c39166972c0873b6ae016d1a54ec3ce289b"
   }
 }

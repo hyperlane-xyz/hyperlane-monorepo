@@ -4,7 +4,6 @@ pragma solidity >=0.6.11;
 // ============ Internal Imports ============
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {MailboxClient} from "./MailboxClient.sol";
 import {EnumerableMapExtended} from "../libs/EnumerableMapExtended.sol";
 
@@ -16,6 +15,7 @@ abstract contract Router is MailboxClient, IMessageRecipient {
     using Strings for uint32;
 
     // ============ Mutable Storage ============
+    /// @dev Mapping of domain => router. For a given domain we have one router we send/receive messages from.
     EnumerableMapExtended.UintToBytes32Map internal _routers;
 
     uint256[48] private __GAP; // gap for upgrade safety

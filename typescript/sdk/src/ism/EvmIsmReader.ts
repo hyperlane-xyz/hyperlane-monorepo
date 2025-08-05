@@ -1,13 +1,19 @@
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  AbstractCcipReadIsm__factory,
+  AbstractRoutingIsm,
   AbstractRoutingIsm__factory,
+  AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
+  CCIPIsm__factory,
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
   IOutbox__factory,
+  InterchainAccountRouter__factory,
   OPStackIsm__factory,
+  Ownable__factory,
   PausableIsm__factory,
   StaticAggregationIsm__factory,
   TrustedRelayerIsm__factory,
@@ -18,33 +24,39 @@ import {
   assert,
   concurrentMap,
   getLogLevel,
+  objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainMap, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
   AggregationIsmConfig,
   ArbL2ToL1IsmConfig,
+  DerivedIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
   MultisigIsmConfig,
   NullIsmConfig,
+  OffchainLookupIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
 
-export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
-
 export interface IsmReader {
   deriveIsmConfig(address: Address): Promise<DerivedIsmConfig>;
-  deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
+  deriveOffchainLookupConfig(
+    address: string,
+  ): Promise<WithAddress<OffchainLookupIsmConfig>>;
+  deriveRoutingConfig(address: Address): Promise<WithAddress<DerivedIsmConfig>>;
   deriveAggregationConfig(
     address: Address,
   ): Promise<WithAddress<AggregationIsmConfig>>;
@@ -82,7 +94,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     this.isZkSyncChain = chainTechnicalStack === ChainTechnicalStack.ZkSync;
   }
 
-  async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
+  async deriveIsmConfigFromAddress(
+    address: Address,
+  ): Promise<DerivedIsmConfig> {
     let moduleType: ModuleType | undefined = undefined;
     let derivedIsmConfig: DerivedIsmConfig;
     try {
@@ -117,7 +131,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           derivedIsmConfig = await this.deriveNullConfig(address);
           break;
         case ModuleType.CCIP_READ:
-          throw new Error('CCIP_READ does not have a corresponding IsmType');
+          derivedIsmConfig = await this.deriveOffchainLookupConfig(address);
+          break;
         case ModuleType.ARB_L2_TO_L1:
           return this.deriveArbL2ToL1Config(address);
         default:
@@ -134,51 +149,148 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return derivedIsmConfig;
   }
 
+  async deriveOffchainLookupConfig(
+    address: string,
+  ): Promise<WithAddress<OffchainLookupIsmConfig>> {
+    const ism = AbstractCcipReadIsm__factory.connect(address, this.provider);
+
+    this.assertModuleType(await ism.moduleType(), ModuleType.CCIP_READ);
+
+    const [urls, owner] = await Promise.all([ism.urls(), ism.owner()]);
+
+    return {
+      address,
+      type: IsmType.OFFCHAIN_LOOKUP,
+      urls,
+      owner,
+    };
+  }
+
+  // expands ISM configs that are set as addresses by deriving the config
+  // from the on-chain deployment
+  async deriveIsmConfig(config: IsmConfig): Promise<DerivedIsmConfig> {
+    if (typeof config === 'string')
+      return this.deriveIsmConfigFromAddress(config);
+
+    // Extend the inner isms
+    switch (config.type) {
+      case IsmType.FALLBACK_ROUTING:
+      case IsmType.ROUTING:
+        config.domains = await promiseObjAll(
+          objMap(config.domains, async (_, ism) => this.deriveIsmConfig(ism)),
+        );
+        break;
+      case IsmType.AGGREGATION:
+      case IsmType.STORAGE_AGGREGATION:
+        config.modules = await Promise.all(
+          config.modules.map(async (ism) => this.deriveIsmConfig(ism)),
+        );
+        break;
+      case IsmType.AMOUNT_ROUTING:
+        [config.lowerIsm, config.upperIsm] = await Promise.all([
+          this.deriveIsmConfig(config.lowerIsm),
+          this.deriveIsmConfig(config.upperIsm),
+        ]);
+        break;
+    }
+
+    return config as DerivedIsmConfig;
+  }
+
   async deriveRoutingConfig(
     address: Address,
-  ): Promise<WithAddress<RoutingIsmConfig>> {
-    const ism = AbstractRoutingIsm__factory.connect(address, this.provider);
+  ): Promise<WithAddress<DerivedIsmConfig>> {
+    const abstractRoutingIsm = AbstractRoutingIsm__factory.connect(
+      address,
+      this.provider,
+    );
 
-    this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
+    this.assertModuleType(
+      await abstractRoutingIsm.moduleType(),
+      ModuleType.ROUTING,
+    );
 
-    let owner: Address | undefined;
-    const defaultFallbackIsmInstance =
-      DefaultFallbackRoutingIsm__factory.connect(address, this.provider);
+    // check if its the ICA ISM
     try {
-      owner = await defaultFallbackIsmInstance.owner();
+      const icaInstance = InterchainAccountRouter__factory.connect(
+        address,
+        this.provider,
+      );
+      await icaInstance.CCIP_READ_ISM();
+      if (this.messageContext) {
+        // Route via the message context to get routed ISM
+        const routedIsm = await icaInstance.route(this.messageContext.message);
+        return this.deriveIsmConfig(routedIsm);
+      }
+      // If no message context, just return this ICA ISM placeholder
+      return {
+        address,
+        type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+        isms: {},
+        owner: await icaInstance.owner(),
+      };
     } catch {
       this.logger.debug(
-        'Error accessing owner property, implying this is an ICA routing ISM.',
+        'Error accessing CCIP_READ_ISM property, implying this is not an ICA ISM.',
         address,
       );
     }
 
-    // If the current ISM does not have an owner then it is an ICA Router
-    if (!owner) {
-      return {
-        type: IsmType.ICA_ROUTING,
+    let owner: Address | undefined;
+    const ownableIsm = Ownable__factory.connect(address, this.provider);
+    try {
+      owner = await ownableIsm.owner();
+    } catch {
+      this.logger.debug(
+        'Error accessing owner property, implying that this is not a DefaultFallbackRoutingIsm.',
         address,
-      };
+      );
     }
 
+    // If the current ISM does not have an owner then it is an Amount Router
+    if (!owner) {
+      return this.deriveNonOwnableRoutingConfig(address);
+    }
+
+    const defaultFallbackIsmInstance =
+      DefaultFallbackRoutingIsm__factory.connect(address, this.provider);
     const domainIds = this.messageContext
       ? [BigNumber.from(this.messageContext.parsed.origin)]
       : await defaultFallbackIsmInstance.domains();
-    const domains: DomainRoutingIsmConfig['domains'] = {};
 
-    await concurrentMap(this.concurrency, domainIds, async (domainId) => {
-      const chainName = this.multiProvider.tryGetChainName(domainId.toNumber());
-      if (!chainName) {
-        this.logger.warn(
-          `Unknown domain ID ${domainId}, skipping domain configuration`,
-        );
-        return;
-      }
-      const module = this.messageContext
-        ? await defaultFallbackIsmInstance.route(this.messageContext.message)
-        : await defaultFallbackIsmInstance.module(domainId);
-      domains[chainName] = await this.deriveIsmConfig(module);
-    });
+    const icaRouter = InterchainAccountRouter__factory.connect(
+      address,
+      this.provider,
+    );
+    try {
+      await icaRouter.CCIP_READ_ISM();
+
+      return {
+        type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+        isms: await this.deriveRemoteIsmConfigs(
+          domainIds,
+          abstractRoutingIsm,
+          icaRouter.isms,
+          // The isms here are deployed on remote chains and can't be derived
+          false,
+        ),
+        address,
+        owner,
+      };
+    } catch {
+      this.logger.debug(
+        `Error accessing CCIP_READ_ISM property, implying that this is not a InterchainAccountRouterIsm.`,
+        address,
+      );
+    }
+
+    const domains: DomainRoutingIsmConfig['domains'] =
+      await this.deriveRemoteIsmConfigs(
+        domainIds,
+        abstractRoutingIsm,
+        defaultFallbackIsmInstance.module,
+        true,
+      );
 
     // Fallback routing ISM extends from MailboxClient, default routing
     let ismType = IsmType.FALLBACK_ROUTING;
@@ -197,6 +309,94 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       type: ismType,
       domains,
+    };
+  }
+
+  private async deriveRemoteIsmConfigs(
+    domainIds: ethers.BigNumber[],
+    contractInstance: AbstractRoutingIsm,
+    addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
+    deriveConfig: true,
+  ): Promise<ChainMap<IsmConfig>>;
+  private async deriveRemoteIsmConfigs(
+    domainIds: ethers.BigNumber[],
+    contractInstance: AbstractRoutingIsm,
+    addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
+    deriveConfig: false,
+  ): Promise<ChainMap<string>>;
+  private async deriveRemoteIsmConfigs(
+    domainIds: ethers.BigNumber[],
+    contractInstance: AbstractRoutingIsm,
+    addressDeriveFunc: (domain: ethers.BigNumberish) => Promise<string>,
+    deriveConfig: boolean,
+  ): Promise<ChainMap<IsmConfig>> {
+    const res = await concurrentMap(
+      this.concurrency,
+      domainIds,
+      async (domainId): Promise<[string, IsmConfig] | undefined> => {
+        const chainName = this.multiProvider.tryGetChainName(
+          domainId.toNumber(),
+        );
+        if (!chainName) {
+          this.logger.warn(
+            `Unknown domain ID ${domainId}, skipping domain configuration`,
+          );
+          return;
+        }
+        const moduleAddress = this.messageContext
+          ? await contractInstance.route(this.messageContext.message)
+          : await addressDeriveFunc(domainId);
+
+        return [
+          chainName,
+          deriveConfig
+            ? await this.deriveIsmConfig(moduleAddress)
+            : moduleAddress,
+        ];
+      },
+    );
+
+    return Object.fromEntries(
+      res.filter((curr) => curr) as [string, IsmConfig][],
+    );
+  }
+
+  private async deriveNonOwnableRoutingConfig(
+    address: Address,
+  ): Promise<WithAddress<RoutingIsmConfig>> {
+    const ism = AmountRoutingIsm__factory.connect(address, this.provider);
+
+    let lowerIsm: Address;
+    let upperIsm: Address;
+    let threshold: BigNumber;
+    try {
+      [lowerIsm, upperIsm, threshold] = await Promise.all([
+        ism.lower(),
+        ism.upper(),
+        ism.threshold(),
+      ]);
+    } catch {
+      // If we fail to access AmountRoutingIsm properties, this is likely a legacy InterchainAccountIsm
+      this.logger.debug(
+        'Error accessing AmountRoutingIsm properties, treating as legacy InterchainAccountIsm.',
+        address,
+      );
+
+      // return a basic ICA routing config for legacy contracts
+      return {
+        type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+        isms: {},
+        address,
+        owner: ethers.constants.AddressZero,
+      };
+    }
+
+    return {
+      type: IsmType.AMOUNT_ROUTING,
+      address,
+      lowerIsm: await this.deriveIsmConfig(lowerIsm),
+      upperIsm: await this.deriveIsmConfig(upperIsm),
+      threshold: threshold.toNumber(),
     };
   }
 
@@ -308,6 +508,26 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     } catch {
       this.logger.debug(
         'Error accessing "paused" property, implying this is not a Pausable ISM.',
+        address,
+      );
+    }
+
+    // if it has ccipOrigin property --> CCIP
+    const ccipIsm = CCIPIsm__factory.connect(address, this.provider);
+    try {
+      const ccipOrigin = await ccipIsm.ccipOrigin();
+      const originChain = getChainNameFromCCIPSelector(ccipOrigin.toString());
+      if (!originChain) {
+        throw new Error('Unknown CCIP origin chain');
+      }
+      return {
+        address,
+        type: IsmType.CCIP,
+        originChain,
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing "ccipOrigin" property, implying this is not a CCIP ISM.',
         address,
       );
     }

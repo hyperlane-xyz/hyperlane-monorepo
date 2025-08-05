@@ -1,5 +1,5 @@
 import { Provider } from '@ethersproject/providers';
-import { BigNumber, Wallet } from 'ethers';
+import { Wallet } from 'ethers';
 import fs from 'fs';
 import yargs from 'yargs';
 
@@ -9,6 +9,7 @@ import {
   Mailbox,
   StorageGasOracle,
   StorageGasOracle__factory,
+  TestSendReceiver,
   TestSendReceiver__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -127,6 +128,29 @@ function getArgs() {
       default: false,
       describe: 'Mine forever after sending messages',
     })
+    .option('body', {
+      type: 'string',
+      default: '0x1234',
+      describe: 'send custom body',
+    })
+    .option('singleOrigin', {
+      type: 'string',
+      default: undefined,
+      describe: 'If specified, only sends from a single origin chain',
+      coerce: (arg) => {
+        if (arg) {
+          if (!Object.values(TestChainName).includes(arg)) {
+            throw new Error(
+              `Invalid chain name ${arg}. Must be one of ${Object.values(
+                TestChainName,
+              )}`,
+            );
+          }
+          return arg as TestChainName;
+        }
+        return undefined;
+      },
+    })
     .option(MailboxHookType.DEFAULT, {
       type: 'string',
       describe: 'Description for defaultHook',
@@ -143,7 +167,14 @@ function getArgs() {
 
 async function main() {
   const args = await getArgs();
-  const { timeout, defaultHook, requiredHook, mineforever } = args;
+  const {
+    timeout,
+    defaultHook,
+    requiredHook,
+    mineforever,
+    singleOrigin,
+    body,
+  } = args;
   let messages = args.messages;
 
   // Limit the test chains to a subset of the known chains
@@ -179,8 +210,14 @@ async function main() {
   //  Generate artificial traffic
   const run_forever = messages === 0;
   while (run_forever || messages-- > 0) {
-    // Round robin origin chain
-    const local = kathyTestChains[messages % kathyTestChains.length];
+    // By default, round robin origin chain
+    let local: TestChainName;
+    if (singleOrigin) {
+      local = singleOrigin;
+    } else {
+      local = kathyTestChains[messages % kathyTestChains.length];
+    }
+
     // Random remote chain
     const remote: ChainName = randomElement(
       kathyTestChains.filter((c) => c !== local),
@@ -211,24 +248,15 @@ async function main() {
       await setIgpConfig(remoteId, signer, provider, mailbox, addresses, local);
     }
 
-    const message = formatMessage(
-      1,
-      0,
-      multiProvider.getDomainId(local),
-      recipient.address,
-      multiProvider.getDomainId(remote),
-      recipient.address,
-      '0x1234',
-    );
     const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
       remoteId,
       addressToBytes32(recipient.address),
-      message,
+      body,
     );
     await mailbox['dispatch(uint32,bytes32,bytes)'](
       remoteId,
       addressToBytes32(recipient.address),
-      message,
+      body,
       {
         value: quote,
       },

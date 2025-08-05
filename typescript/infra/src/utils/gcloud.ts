@@ -273,6 +273,33 @@ export async function grantServiceAccountRoleIfNotExists(
   debugLog(`Granted role ${role} to service account ${serviceAccountEmail}`);
 }
 
+export async function grantServiceAccountStorageRoleIfNotExists(
+  serviceAccountEmail: string,
+  bucketName: string,
+  role: string,
+) {
+  const bucketUri = `gs://${bucketName}`;
+  const existingPolicies = await execCmdAndParseJson(
+    `gcloud storage buckets get-iam-policy ${bucketUri} --format="json"`,
+  );
+  const existingBindings = existingPolicies.bindings || [];
+  const hasRole = existingBindings.some(
+    (binding: any) =>
+      binding.role === role &&
+      binding.members &&
+      binding.members.includes(`serviceAccount:${serviceAccountEmail}`),
+  );
+  if (hasRole) {
+    debugLog(
+      `Service account ${serviceAccountEmail} already has role ${role} on bucket ${bucketName}`,
+    );
+    return;
+  }
+  await execCmd(
+    `gcloud storage buckets add-iam-policy-binding ${bucketUri} --member="serviceAccount:${serviceAccountEmail}" --role="${role}"`,
+  );
+}
+
 export async function createServiceAccountKey(serviceAccountEmail: string) {
   const localKeyFile = '/tmp/tmp_key.json';
   await execCmd(
@@ -341,4 +368,32 @@ function iamConditionsEqual(
     return true;
   }
   return a && b && a.title === b.title && a.expression === b.expression;
+}
+
+async function checkDockerTagExists({
+  repo = 'abacus-labs-dev',
+  image,
+  tag,
+}: {
+  repo?: string;
+  image: string;
+  tag: string;
+}): Promise<boolean> {
+  const url = `https://gcr.io/v2/${repo}/${image}/manifests/${tag}`;
+  const res = await fetch(url, { method: 'HEAD' });
+  return res.status === 200;
+}
+
+export async function checkAgentImageExists(tag: string) {
+  return checkDockerTagExists({
+    image: 'hyperlane-agent',
+    tag,
+  });
+}
+
+export async function checkMonorepoImageExists(tag: string) {
+  return checkDockerTagExists({
+    image: 'hyperlane-monorepo',
+    tag,
+  });
 }

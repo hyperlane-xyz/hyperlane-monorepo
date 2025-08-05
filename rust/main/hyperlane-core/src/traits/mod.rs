@@ -1,5 +1,6 @@
 pub use aggregation_ism::*;
 pub use ccip_read_ism::*;
+
 pub use cursor::*;
 pub use db::*;
 pub use deployed::*;
@@ -14,6 +15,7 @@ pub use pending_operation::*;
 pub use provider::*;
 pub use routing_ism::*;
 pub use signing::*;
+
 pub use validator_announce::*;
 
 use crate::{FixedPointNumber, H512, U256};
@@ -55,7 +57,10 @@ impl From<ethers_core::types::TransactionReceipt> for TxOutcome {
     fn from(t: ethers_core::types::TransactionReceipt) -> Self {
         Self {
             transaction_id: t.transaction_hash.into(),
-            executed: t.status.unwrap().low_u32() == 1,
+            executed: t
+                .status
+                .map(|status| status.low_u32() == 1)
+                .unwrap_or(false),
             gas_used: t.gas_used.map(Into::into).unwrap_or(U256::zero()),
             gas_price: t
                 .effective_gas_price

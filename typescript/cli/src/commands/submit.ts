@@ -1,15 +1,17 @@
+import { groupBy } from 'lodash-es';
+
 import {
   SubmissionStrategy,
   SubmissionStrategySchema,
 } from '@hyperlane-xyz/sdk';
+import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { runSubmit } from '../config/submit.js';
+import { getTransactions, runSubmit } from '../config/submit.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
 import { logBlue, logGray } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
 
 import {
-  dryRunCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
   transactionsCommandOption,
@@ -21,7 +23,6 @@ import {
 export const submitCommand: CommandModuleWithWriteContext<{
   transactions: string;
   strategy: string;
-  'dry-run': string;
   receipts: string;
 }> = {
   command: 'submit',
@@ -29,27 +30,37 @@ export const submitCommand: CommandModuleWithWriteContext<{
   builder: {
     transactions: transactionsCommandOption,
     strategy: strategyCommandOption,
-    'dry-run': dryRunCommandOption,
     receipts: outputFileCommandOption('./generated/transactions/receipts.yaml'),
   },
   handler: async ({
     context,
-    transactions,
-    strategy: strategyUrl,
-    receipts,
+    transactions: transactionsPath,
+    strategy: strategyPath,
+    receipts: receiptsFilepath,
   }) => {
     logGray(`Hyperlane Submit`);
     logGray(`----------------`);
 
-    const submissionStrategy = readSubmissionStrategy(strategyUrl);
-    await runSubmit({
-      context,
-      transactionsFilepath: transactions,
-      receiptsFilepath: receipts,
-      submissionStrategy,
-    });
+    const chainTransactions = groupBy(
+      getTransactions(transactionsPath),
+      'chainId',
+    );
 
-    logBlue(`✅ Submission complete`);
+    await promiseObjAll(
+      objMap(chainTransactions, async (chainId, transactions) => {
+        const chain = context.multiProvider.getChainName(chainId);
+
+        await runSubmit({
+          context,
+          chain,
+          transactions,
+          strategyPath,
+          receiptsFilepath,
+        });
+        logBlue(`✅ Submission complete for chain ${chain}`);
+      }),
+    );
+
     process.exit(0);
   },
 };

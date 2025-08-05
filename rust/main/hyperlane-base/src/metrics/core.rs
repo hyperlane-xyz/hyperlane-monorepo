@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 use std::time;
 
 use eyre::Result;
-use hyperlane_core::{HyperlaneDomain, H160};
+use maplit::hashmap;
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
     register_gauge_vec_with_registry, register_histogram_vec_with_registry,
@@ -13,10 +13,14 @@ use prometheus::{
 };
 use tokio::sync::RwLock;
 
-use ethers_prometheus::{json_rpc_client::JsonRpcClientMetrics, middleware::MiddlewareMetrics};
+use ethers_prometheus::middleware::MiddlewareMetrics;
+use hyperlane_core::{HyperlaneDomain, H160};
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
+use crate::cache::MeteredCacheMetrics;
 use crate::metrics::{
-    json_rpc_client::create_json_rpc_client_metrics, provider::create_provider_metrics,
+    cache::create_cache_metrics, json_rpc_client::create_json_rpc_client_metrics,
+    provider::create_provider_metrics,
 };
 
 /// Macro to prefix a string with the namespace.
@@ -38,17 +42,39 @@ pub struct CoreMetrics {
     span_counts: IntCounterVec,
     span_events: IntCounterVec,
     last_known_message_nonce: IntGaugeVec,
-    latest_leaf_index: IntGaugeVec,
+
+    latest_tree_insertion_index: IntGaugeVec,
+    merkle_tree_retrieve_insertion_total_elapsed_micros: IntCounterVec,
+    merkle_tree_retrieve_insertions_count: IntCounterVec,
+    merkle_tree_ingest_message_id_total_elapsed_micros: IntCounterVec,
+    merkle_tree_ingest_message_ids_count: IntCounterVec,
+
     submitter_queue_length: IntGaugeVec,
 
     operations_processed_count: IntCounterVec,
     messages_processed_count: IntCounterVec,
+    merkle_root_mismatch: IntGaugeVec,
 
     latest_checkpoint: IntGaugeVec,
 
+    announced: IntGaugeVec,
+    backfill_complete: IntGaugeVec,
+    reached_initial_consistency: IntGaugeVec,
+
+    // metadata building metrics
+    metadata_build_count: IntCounterVec,
+    metadata_build_duration: CounterVec,
+
+    // ism building metrics
+    ism_build_count: IntCounterVec,
+
+    /// Chain initialization metrics
+    chain_init_latency: IntGaugeVec,
+
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
     /// quorum provider.
-    json_rpc_client_metrics: OnceLock<JsonRpcClientMetrics>,
+    client_metrics: OnceLock<PrometheusClientMetrics>,
+    cache_metrics: OnceLock<MeteredCacheMetrics>,
 
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceLock<MiddlewareMetrics>,
@@ -113,10 +139,50 @@ impl CoreMetrics {
             registry
         )?;
 
-        let latest_leaf_index = register_int_gauge_vec_with_registry!(
+        let latest_tree_insertion_index = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced!("latest_leaf_index"),
+                namespaced!("latest_tree_insertion_index"),
                 "Latest leaf index inserted into the merkle tree",
+                const_labels_ref
+            ),
+            &["origin"],
+            registry
+        )?;
+
+        let merkle_tree_retrieve_insertion_total_elapsed_micros = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("merkle_tree_retrieve_insertion_total_elapsed_micros"),
+                "Accumulated elapsed time of retrieval of insertions by leaf index from database, in microseconds",
+                const_labels_ref
+            ),
+            &["origin"],
+            registry
+        )?;
+
+        let merkle_tree_retrieve_insertions_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("merkle_tree_retrieve_insertions_count"),
+                "Number of times insertion into merkle tree was retrieved by leaf index from database",
+                const_labels_ref
+            ),
+            &["origin"],
+            registry
+        )?;
+
+        let merkle_tree_ingest_message_id_total_elapsed_micros = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("merkle_tree_ingest_message_id_total_elapsed_micros"),
+                "Accumulated elapsed time of ingesting a message id into merkle tree, in microseconds",
+                const_labels_ref
+            ),
+            &["origin"],
+            registry
+        )?;
+
+        let merkle_tree_ingest_message_ids_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("merkle_tree_ingest_message_ids_count"),
+                "Number of times message id was ingested into merkle tree",
                 const_labels_ref
             ),
             &["origin"],
@@ -158,13 +224,43 @@ impl CoreMetrics {
             registry
         )?;
 
+        let announced = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("announced"),
+                "Whether the validator has been announced",
+                const_labels_ref
+            ),
+            &["chain"],
+            registry
+        )?;
+
+        let backfill_complete = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("backfill_complete"),
+                "Whether backfilling checkpoints is complete",
+                const_labels_ref
+            ),
+            &["chain"],
+            registry
+        )?;
+
+        let reached_initial_consistency = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("reached_initial_consistency"),
+                "Whether the tree has reached an initial point of consistency",
+                const_labels_ref
+            ),
+            &["chain"],
+            registry
+        )?;
+
         let operations_processed_count = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("operations_processed_count"),
                 "Number of operations processed",
                 const_labels_ref
             ),
-            &["phase", "chain"],
+            &["app_context", "phase", "chain"],
             registry
         )?;
 
@@ -178,6 +274,56 @@ impl CoreMetrics {
             registry
         )?;
 
+        let merkle_root_mismatch = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("merkle_root_mismatch"),
+                "Merkle root mismatch",
+                const_labels_ref
+            ),
+            &["origin"],
+            registry
+        )?;
+
+        let metadata_build_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("metadata_build_count"),
+                "Total number of times metadata was built",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote", "status"],
+            registry
+        )?;
+
+        let metadata_build_duration = register_counter_vec_with_registry!(
+            opts!(
+                namespaced!("metadata_build_duration"),
+                "Duration of metadata build times",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote", "status"],
+            registry
+        )?;
+
+        let ism_build_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("ism_build_count"),
+                "Total number of times ism was built",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote", "ism_type", "status"],
+            registry
+        )?;
+
+        let chain_init_latency = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("chain_init_latency"),
+                "Chain initialization latency in milliseconds",
+                const_labels_ref
+            ),
+            &["chain", "role", "entity"],
+            registry
+        )?;
+
         Ok(Self {
             agent_name: for_agent.into(),
             registry,
@@ -188,22 +334,45 @@ impl CoreMetrics {
             span_counts,
             span_events,
             last_known_message_nonce,
-            latest_leaf_index,
+
+            latest_tree_insertion_index,
+            merkle_tree_retrieve_insertion_total_elapsed_micros,
+            merkle_tree_retrieve_insertions_count,
+            merkle_tree_ingest_message_id_total_elapsed_micros,
+            merkle_tree_ingest_message_ids_count,
 
             submitter_queue_length,
 
             operations_processed_count,
             messages_processed_count,
+            merkle_root_mismatch,
 
             latest_checkpoint,
 
-            json_rpc_client_metrics: OnceLock::new(),
+            announced,
+            backfill_complete,
+            reached_initial_consistency,
+
+            metadata_build_count,
+            metadata_build_duration,
+
+            ism_build_count,
+
+            chain_init_latency,
+
+            client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
+            cache_metrics: OnceLock::new(),
 
             validator_metrics: ValidatorObservabilityMetricManager::new(
                 observed_validator_latest_index.clone(),
             ),
         })
+    }
+
+    /// Get the prometheus registry for this core metrics instance.
+    pub fn registry(&self) -> Registry {
+        self.registry.clone()
     }
 
     /// Create the provider metrics attached to this core metrics instance.
@@ -217,11 +386,18 @@ impl CoreMetrics {
 
     /// Create the json rpc provider metrics attached to this core metrics
     /// instance.
-    pub fn json_rpc_client_metrics(&self) -> JsonRpcClientMetrics {
-        self.json_rpc_client_metrics
+    pub fn client_metrics(&self) -> PrometheusClientMetrics {
+        self.client_metrics
             .get_or_init(|| {
                 create_json_rpc_client_metrics(self).expect("Failed to create rpc client metrics!")
             })
+            .clone()
+    }
+
+    /// Create the cache metrics attached to this core metrics instance.
+    pub fn cache_metrics(&self) -> MeteredCacheMetrics {
+        self.cache_metrics
+            .get_or_init(|| create_cache_metrics(self).expect("Failed to create cache metrics!"))
             .clone()
     }
 
@@ -325,8 +501,44 @@ impl CoreMetrics {
     ///
     /// Labels:
     /// - `origin`: Origin chain the leaf index is being tracked at.
-    pub fn latest_leaf_index(&self) -> IntGaugeVec {
-        self.latest_leaf_index.clone()
+    pub fn latest_tree_insertion_index(&self) -> IntGaugeVec {
+        self.latest_tree_insertion_index.clone()
+    }
+
+    /// Reports accumulated elapsed time of retrieval of insertions by leaf index from database,
+    /// in microseconds.
+    ///
+    /// Labels:
+    /// - `origin`: Origin chain the merkle tree.
+    pub fn merkle_tree_retrieve_insertion_total_elapsed_micros(&self) -> IntCounterVec {
+        self.merkle_tree_retrieve_insertion_total_elapsed_micros
+            .clone()
+    }
+
+    /// Number of times insertion into merkle tree was retrieved by leaf index from database
+    ///
+    /// Labels:
+    /// - `origin`: Origin chain the merkle tree.
+    pub fn merkle_tree_retrieve_insertions_count(&self) -> IntCounterVec {
+        self.merkle_tree_retrieve_insertions_count.clone()
+    }
+
+    /// Reports accumulated elapsed time of ingesting a message id into merkle tree,
+    /// in microseconds
+    ///
+    /// Labels:
+    /// - `origin`: Origin chain the merkle tree.
+    pub fn merkle_tree_ingest_message_id_total_elapsed_micros(&self) -> IntCounterVec {
+        self.merkle_tree_ingest_message_id_total_elapsed_micros
+            .clone()
+    }
+
+    /// Number of times message id was ingested into merkle tree
+    ///
+    /// Labels:
+    /// - `origin`: Origin chain the merkle tree.
+    pub fn merkle_tree_ingest_message_ids_count(&self) -> IntCounterVec {
+        self.merkle_tree_ingest_message_ids_count.clone()
     }
 
     /// Latest message nonce in the validator.
@@ -339,12 +551,47 @@ impl CoreMetrics {
         self.latest_checkpoint.clone()
     }
 
+    /// Set the validator to be announced
+    ///
+    /// Labels:
+    /// - `chain`: Chain the validator was announced on.
+    pub fn set_announced(&self, origin_chain: HyperlaneDomain) {
+        self.announced
+            .clone()
+            .with_label_values(&[origin_chain.name()])
+            .set(1);
+    }
+
+    /// Whether the validator has been announced.
+    ///
+    /// Labels:
+    /// - `chain`: Chain the operation was submitted to.
+    pub fn announced(&self) -> IntGaugeVec {
+        self.announced.clone()
+    }
+
+    /// Whether the validator has completed backfilling.
+    ///
+    /// Labels:
+    /// - `chain`: Chain the operation was submitted to.
+    pub fn backfill_complete(&self) -> IntGaugeVec {
+        self.backfill_complete.clone()
+    }
+
+    /// Whether the validator has ever synced to the tip of the chain.
+    ///
+    /// Labels:
+    /// - `chain`: Chain the operation was submitted to.
+    pub fn reached_initial_consistency(&self) -> IntGaugeVec {
+        self.reached_initial_consistency.clone()
+    }
+
     /// Measure of the queue lengths in Submitter instances
     ///
     /// Labels:
     /// - `remote`: Remote chain the queue is for.
     /// - `queue_name`: Which queue the message is in.
-    pub fn submitter_queue_length(&self) -> IntGaugeVec {
+    pub fn processor_queue_length(&self) -> IntGaugeVec {
         self.submitter_queue_length.clone()
     }
 
@@ -392,6 +639,24 @@ impl CoreMetrics {
         self.messages_processed_count.clone()
     }
 
+    /// Indicate when a merkle root mismatch occurs.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the merkle root is for.
+    pub fn merkle_root_mismatch(&self) -> IntGaugeVec {
+        self.merkle_root_mismatch.clone()
+    }
+
+    /// Set merkle root mismatch
+    pub fn set_merkle_root_mismatch(&self, origin: &HyperlaneDomain) {
+        self.merkle_root_mismatch
+            .with(&hashmap! {
+                "origin" => origin.name(),
+            })
+            .set(1);
+    }
+
     /// Measure of span durations provided by tracing.
     ///
     /// Labels:
@@ -410,6 +675,53 @@ impl CoreMetrics {
     ///   span or event occurred. e.g. module path.
     pub fn span_count(&self) -> IntCounterVec {
         self.span_counts.clone()
+    }
+
+    /// The number of metadata built by this process during its
+    /// lifetime.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the message came from.
+    /// - `remote`: Chain we delivered the message to.
+    /// - `status`: success or failure
+    pub fn metadata_build_count(&self) -> IntCounterVec {
+        self.metadata_build_count.clone()
+    }
+
+    /// The durations of metadata build by this process during its
+    /// lifetime.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the message came from.
+    /// - `remote`: Chain we delivered the message to.
+    /// - `status`: success or failure
+    pub fn metadata_build_duration(&self) -> CounterVec {
+        self.metadata_build_duration.clone()
+    }
+
+    /// The number of ism built by this process during its
+    /// lifetime.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the message came from.
+    /// - `remote`: Chain we delivered the message to.
+    /// - `ism_type`: ISM type.
+    /// - `status`: success or failure
+    pub fn ism_build_count(&self) -> IntCounterVec {
+        self.ism_build_count.clone()
+    }
+
+    /// The latency of chain initialization in milliseconds.
+    ///
+    /// Labels:
+    /// - `chain`: chain
+    /// - `role`: `origin` or `destination`
+    /// - `entity`: initialized entity, e.g. `dispatcher`, `submitter`, `processor`, etc.
+    pub fn chain_init_latency(&self) -> IntGaugeVec {
+        self.chain_init_latency.clone()
     }
 
     /// Counts of tracing (logging framework) span events.
@@ -510,7 +822,7 @@ impl ValidatorObservabilityMetricManager {
         destination: &HyperlaneDomain,
         app_context: String,
         latest_checkpoints: &HashMap<H160, Option<u32>>,
-    ) {
+    ) -> Result<(), prometheus::Error> {
         let key = AppContextKey {
             origin: origin.clone(),
             destination: destination.clone(),
@@ -539,14 +851,12 @@ impl ValidatorObservabilityMetricManager {
                 // We unwrap because an error here occurs if the # of labels
                 // provided is incorrect, and we'd like to loudly fail in e2e if that
                 // happens.
-                self.observed_validator_latest_index
-                    .remove_label_values(&[
-                        origin.as_ref(),
-                        destination.as_ref(),
-                        &format!("0x{:x}", validator).to_lowercase(),
-                        &app_context,
-                    ])
-                    .unwrap();
+                self.observed_validator_latest_index.remove_label_values(&[
+                    origin.as_ref(),
+                    destination.as_ref(),
+                    &format!("0x{:x}", validator).to_lowercase(),
+                    &app_context,
+                ])?;
             }
         }
 
@@ -565,6 +875,8 @@ impl ValidatorObservabilityMetricManager {
             new_set.insert(*validator, time::Instant::now());
         }
         app_context_validators.insert(key, new_set);
+
+        Ok(())
     }
 
     /// Gauge for reporting recently observed latest checkpoint indices for validator sets.

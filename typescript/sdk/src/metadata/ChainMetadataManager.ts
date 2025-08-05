@@ -3,11 +3,13 @@ import { Logger } from 'pino';
 import {
   EvmChainId,
   ProtocolType,
+  assert,
   exclude,
   pick,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { isEvmBlockExplorerAndNotEtherscan } from '../block-explorer/utils.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -410,6 +412,55 @@ export class ChainMetadataManager<MetaExt = {}> {
   }
 
   /**
+   * Get a block explorer metadata for given chain
+   * @returns null if there isn't an explorer configured correctly for using the API (missing api key...)
+   */
+  tryGetEvmExplorerMetadata(
+    chainNameOrId: ChainNameOrId,
+  ): ReturnType<ChainMetadataManager['getExplorerApi']> | null {
+    const defaultExplorer = this.tryGetExplorerApi(chainNameOrId);
+
+    if (!defaultExplorer) {
+      return null;
+    }
+
+    const chainMetadata = this.getChainMetadata(chainNameOrId);
+    const [fallBackExplorer] =
+      chainMetadata.blockExplorers?.filter((blockExplorer) =>
+        isEvmBlockExplorerAndNotEtherscan(blockExplorer),
+      ) ?? [];
+
+    // Fallback to use other block explorers if the default block explorer
+    // is etherscan and an API key is not configured
+    const isExplorerConfiguredCorrectly =
+      defaultExplorer.family === ExplorerFamily.Etherscan
+        ? !!defaultExplorer.apiKey
+        : true;
+    const canUseExplorerApi =
+      defaultExplorer.family !== ExplorerFamily.Other &&
+      isExplorerConfiguredCorrectly;
+
+    const explorer = canUseExplorerApi ? defaultExplorer : fallBackExplorer;
+
+    return explorer ?? null;
+  }
+
+  /**
+   * Get a block explorer metadata for given chain
+   * @throws if there isn't an explorer configured correctly for using the API (missing api key...)
+   */
+  getEvmExplorerMetadata(
+    chainNameOrId: ChainNameOrId,
+  ): ReturnType<ChainMetadataManager['getExplorerApi']> {
+    const explorer = this.tryGetEvmExplorerMetadata(chainNameOrId);
+    assert(
+      explorer,
+      `No explorer was configured correctly to make requests to the API for chain "${chainNameOrId}". Set an API key or configure an explorer API that does not require one`,
+    );
+
+    return explorer;
+  }
+  /**
    * Get native token for given chain
    * @throws if native token has not been set
    */
@@ -468,5 +519,11 @@ export class ChainMetadataManager<MetaExt = {}> {
     const result = new ChainMetadataManager(intersectionMetadata);
 
     return { intersection, result };
+  }
+
+  isLocalRpc(chain: ChainName) {
+    const metadata = this.tryGetChainMetadata(chain);
+    const rpcUrl = metadata?.rpcUrls[0]?.http;
+    return rpcUrl?.includes('localhost') || rpcUrl?.includes('127.0.0.1');
   }
 }

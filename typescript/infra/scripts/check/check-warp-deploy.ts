@@ -1,12 +1,14 @@
 import chalk from 'chalk';
 import { Gauge, Registry } from 'prom-client';
 
+import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { getWarpAddresses } from '../../config/registry.js';
-import { warpConfigGetterMap } from '../../config/warp.js';
+import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
+import { DEFAULT_REGISTRY_URI } from '../../config/registry.js';
+import { getWarpConfigMapFromMergedRegistry } from '../../config/warp.js';
 import { submitMetrics } from '../../src/utils/metrics.js';
-import { Modules, getWarpRouteIdsInteractive } from '../agent-utils.js';
+import { Modules } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 import {
@@ -17,15 +19,8 @@ import {
 } from './check-utils.js';
 
 async function main() {
-  const {
-    environment,
-    asDeployer,
-    chains,
-    fork,
-    context,
-    pushMetrics,
-    interactive,
-  } = await getCheckWarpDeployArgs().argv;
+  const { environment, asDeployer, chains, fork, context, pushMetrics } =
+    await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
   const checkerViolationsGauge = new Gauge(
@@ -35,34 +30,71 @@ async function main() {
 
   const failedWarpRoutesChecks: string[] = [];
 
-  let warpIdsToCheck = Object.keys(warpConfigGetterMap);
-  if (interactive) {
-    warpIdsToCheck = await getWarpRouteIdsInteractive();
-  }
+  const routesToSkip: string[] = [
+    WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet,
+    'EDGEN/bsc-edgenchain-ethereum',
+  ];
 
-  // Determine which chains have warp configs
-  const chainsWithWarpConfigs = warpIdsToCheck.reduce((chains, warpRouteId) => {
-    const warpAddresses = getWarpAddresses(warpRouteId);
-    Object.keys(warpAddresses).forEach((chain) => chains.add(chain));
-    return chains;
-  }, new Set<ChainName>());
+  const registries = [DEFAULT_REGISTRY_URI];
+  const registry = getRegistry({
+    registryUris: registries,
+    enableProxy: true,
+  });
+
+  const warpCoreConfigMap =
+    await getWarpConfigMapFromMergedRegistry(registries);
+
+  console.log(chalk.yellow('Skipping the following warp routes:'));
+  routesToSkip.forEach((route) => console.log(chalk.yellow(`- ${route}`)));
+
+  const isTestnetRoute = async (warpRouteConfig: any) => {
+    for (const chain of Object.keys(warpRouteConfig)) {
+      const chainMetadata = await registry.getChainMetadata(chain);
+      if (chainMetadata?.isTestnet) return true;
+    }
+    return false;
+  };
+
+  const warpConfigChains = new Set<ChainName>();
+  const warpRouteIds = Object.keys(warpCoreConfigMap);
+
+  const filterResults = await Promise.all(
+    warpRouteIds.map(async (warpRouteId) => {
+      const warpRouteConfig = warpCoreConfigMap[warpRouteId];
+      const isTestnet = await isTestnetRoute(warpRouteConfig);
+      const shouldCheck =
+        (environment === 'mainnet3' && !isTestnet) ||
+        (environment === 'testnet4' && isTestnet);
+      return shouldCheck && !routesToSkip.includes(warpRouteId);
+    }),
+  );
+
+  const warpIdsToCheck = warpRouteIds.filter(
+    (_, index) => filterResults[index],
+  );
+
+  warpIdsToCheck.forEach((warpRouteId) => {
+    const warpRouteConfig = warpCoreConfigMap[warpRouteId];
+    Object.keys(warpRouteConfig).forEach((chain) =>
+      warpConfigChains.add(chain),
+    );
+  });
 
   console.log(
-    `Found warp configs for chains: ${Array.from(chainsWithWarpConfigs).join(
-      ', ',
-    )}`,
+    `Found warp configs for chains: ${Array.from(warpConfigChains).join(', ')}`,
   );
 
   // Get the multiprovider once to avoid recreating it for each warp route
   // We specify the chains to avoid creating a multiprovider for all chains.
   // This ensures that we don't fail to fetch secrets for new chains in the cron job.
   const envConfig = getEnvironmentConfig(environment);
+
   // Use default values for context, role, and useSecrets
   const multiProvider = await envConfig.getMultiProvider(
     undefined,
     undefined,
     undefined,
-    Array.from(chainsWithWarpConfigs),
+    Array.from(warpConfigChains),
   );
 
   // TODO: consider retrying this if check throws an error
@@ -81,6 +113,7 @@ async function main() {
         fork,
         false,
         multiProvider,
+        registries,
       );
 
       await governor.check();

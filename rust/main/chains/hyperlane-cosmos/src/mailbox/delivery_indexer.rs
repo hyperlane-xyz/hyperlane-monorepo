@@ -21,7 +21,7 @@ use crate::utils::{
 use crate::{ConnectionConf, HyperlaneCosmosError, Signer};
 
 /// The message process event type from the CW contract.
-const MESSAGE_DELIVERY_EVENT_TYPE: &str = "mailbox_process_id";
+pub const MESSAGE_DELIVERY_EVENT_TYPE: &str = "mailbox_process_id";
 const MESSAGE_ID_ATTRIBUTE_KEY: &str = "message_id";
 static MESSAGE_ID_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY));
@@ -34,21 +34,9 @@ pub struct CosmosMailboxDeliveryIndexer {
 impl CosmosMailboxDeliveryIndexer {
     /// Create a reference to a mailbox at a specific Cosmos address on some
     /// chain
-    pub fn new(
-        conf: ConnectionConf,
-        locator: ContractLocator,
-        signer: Option<Signer>,
-        reorg_period: u32,
-    ) -> ChainResult<Self> {
-        let provider = CosmosWasmRpcProvider::new(
-            conf,
-            locator,
-            MESSAGE_DELIVERY_EVENT_TYPE.to_owned(),
-            reorg_period,
-        )?;
-
+    pub fn new(wasm_provider: CosmosWasmRpcProvider) -> ChainResult<Self> {
         Ok(Self {
-            provider: Box::new(provider),
+            provider: Box::new(wasm_provider),
         })
     }
 

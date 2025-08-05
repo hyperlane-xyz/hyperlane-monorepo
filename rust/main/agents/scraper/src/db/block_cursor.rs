@@ -101,6 +101,6 @@ impl BlockCursor {
 
 impl ScraperDb {
     pub async fn block_cursor(&self, domain: u32, default_height: u64) -> Result<BlockCursor> {
-        BlockCursor::new(self.0.clone(), domain, default_height).await
+        BlockCursor::new(self.clone_connection(), domain, default_height).await
     }
 }

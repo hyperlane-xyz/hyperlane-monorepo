@@ -149,9 +149,8 @@ async function main() {
 
         // Get metadata from each storage location
         try {
-          const validatorInstance = await getValidatorFromStorageLocation(
-            location,
-          );
+          const validatorInstance =
+            await getValidatorFromStorageLocation(location);
 
           const metadata = await validatorInstance.getMetadata();
           const gitSha = metadata?.git_sha;

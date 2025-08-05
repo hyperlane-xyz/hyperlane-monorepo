@@ -8,8 +8,9 @@ import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 contract HypFiatToken is HypERC20Collateral {
     constructor(
         address _fiatToken,
+        uint256 _scale,
         address _mailbox
-    ) HypERC20Collateral(_fiatToken, _mailbox) {}
+    ) HypERC20Collateral(_fiatToken, _scale, _mailbox) {}
 
     function _transferFromSender(
         uint256 _amount

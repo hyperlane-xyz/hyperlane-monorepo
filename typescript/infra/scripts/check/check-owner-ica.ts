@@ -1,14 +1,30 @@
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
-import { Address, eqAddress, isZeroishAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  eqAddress,
+  isZeroishAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
-import { icas } from '../../config/environments/mainnet3/owners.js';
-import { chainsToSkip } from '../../src/config/chain.js';
+import {
+  getGovernanceSafes,
+  getLegacyGovernanceIcas,
+} from '../../config/environments/mainnet3/governance/utils.js';
+import {
+  chainsToSkip,
+  legacyEthIcaRouter,
+  legacyIcaChains,
+} from '../../src/config/chain.js';
+import { withGovernanceType } from '../../src/governance.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 function getArgs() {
-  return withChains(getEnvArgs()).option('ownerChain', {
+  return withGovernanceType(withChains(getEnvArgs())).option('ownerChain', {
     type: 'string',
     description: 'Origin chain where the Safe owner lives',
     default: 'ethereum',
@@ -16,20 +32,27 @@ function getArgs() {
 }
 
 async function main() {
-  const { environment, ownerChain, chains } = await getArgs();
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
+
+  const { environment, ownerChain, chains, governanceType } = await getArgs();
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  const owner = config.owners[ownerChain].ownerOverrides?._safeAddress;
+  const owner = getGovernanceSafes(governanceType)[ownerChain];
   if (!owner) {
-    console.error(`No Safe owner found for ${ownerChain}`);
+    rootLogger.error(`No Safe owner found for ${ownerChain}`);
     process.exit(1);
   }
 
-  console.log(`Safe owner on ${ownerChain}: ${owner}`);
+  rootLogger.info(`Safe owner on ${ownerChain}: ${owner}`);
 
   const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
-  const ica = InterchainAccount.fromAddressesMap(chainAddresses, multiProvider);
+  const interchainAccountApp = InterchainAccount.fromAddressesMap(
+    chainAddresses,
+    multiProvider,
+  );
+
+  const icas = getLegacyGovernanceIcas(governanceType);
 
   const checkOwnerIcaChains = (
     chains?.length ? chains : Object.keys(icas)
@@ -42,10 +65,11 @@ async function main() {
     owner: owner,
   };
   const ownerChainInterchainAccountRouter =
-    ica.contractsMap[ownerChain].interchainAccountRouter.address;
+    interchainAccountApp.contractsMap[ownerChain].interchainAccountRouter
+      .address;
 
   if (isZeroishAddress(ownerChainInterchainAccountRouter)) {
-    console.error(`Interchain account router address is zero`);
+    rootLogger.error(`Interchain account router address is zero`);
     process.exit(1);
   }
 
@@ -53,36 +77,65 @@ async function main() {
     string,
     { Expected: Address; Actual: Address }
   > = {};
-  for (const chain of checkOwnerIcaChains) {
-    const expectedAddress = icas[chain as keyof typeof icas];
-    if (!expectedAddress) {
-      console.error(`No expected address found for ${chain}`);
-      continue;
+  const settledResults = await Promise.allSettled(
+    checkOwnerIcaChains.map(async (chain) => {
+      const expectedAddress = icas[chain];
+      if (!expectedAddress) {
+        rootLogger.error(`No expected address found for ${chain}`);
+        return { chain, error: 'No expected address found' };
+      }
+
+      const icaRouter = legacyIcaChains.includes(chain)
+        ? legacyEthIcaRouter
+        : ownerChainInterchainAccountRouter;
+
+      try {
+        const actualAccount = await interchainAccountApp.getAccount(chain, {
+          ...ownerConfig,
+          localRouter: icaRouter,
+        });
+        if (!eqAddress(expectedAddress, actualAccount)) {
+          return {
+            chain,
+            result: {
+              Expected: expectedAddress,
+              Actual: actualAccount,
+            },
+          };
+        }
+        return { chain, result: null };
+      } catch (error) {
+        rootLogger.error(`Error processing chain ${chain}:`, error);
+        return { chain, error };
+      }
+    }),
+  );
+
+  settledResults.forEach((settledResult) => {
+    if (settledResult.status === 'fulfilled') {
+      const { chain, result, error } = settledResult.value;
+      if (error) {
+        rootLogger.error(`Failed to process ${chain}:`, error);
+      } else if (result) {
+        mismatchedResults[chain] = result;
+      }
+    } else {
+      rootLogger.error(`Promise rejected:`, settledResult.reason);
     }
-    const actualAccount = await ica.getAccount(
-      chain,
-      ownerConfig,
-      ownerChainInterchainAccountRouter,
-    );
-    if (!eqAddress(expectedAddress, actualAccount)) {
-      mismatchedResults[chain] = {
-        Expected: expectedAddress,
-        Actual: actualAccount,
-      };
-    }
-  }
+  });
 
   if (Object.keys(mismatchedResults).length > 0) {
-    console.error('\nMismatched ICAs found:');
+    rootLogger.error('\nMismatched ICAs found:');
+    // eslint-disable-next-line no-console
     console.table(mismatchedResults);
     process.exit(1);
   } else {
-    console.log('✅ All ICAs match the expected addresses.');
+    rootLogger.info('✅ All ICAs match the expected addresses.');
   }
   process.exit(0);
 }
 
 main().catch((err) => {
-  console.error('Error:', err);
+  rootLogger.error('Error:', err);
   process.exit(1);
 });

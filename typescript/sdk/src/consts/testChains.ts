@@ -2,6 +2,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   ChainMetadata,
+  ChainTechnicalStack,
   ExplorerFamily,
 } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -74,6 +75,54 @@ export const test4: ChainMetadata = {
   name: 'test4',
 };
 
+export const testXERC20: ChainMetadata = {
+  ...test1,
+  chainId: 9913374,
+  domainId: 9913374,
+  displayName: 'Test XERC20',
+  name: 'testxerc20',
+};
+
+export const testVSXERC20: ChainMetadata = {
+  ...test1,
+  chainId: 9913375,
+  domainId: 9913375,
+  displayName: 'Test VSXERC20',
+  name: 'testvsxerc20',
+};
+
+export const testXERC20Lockbox: ChainMetadata = {
+  ...test1,
+  chainId: 9913376,
+  domainId: 9913376,
+  displayName: 'Test XERC20Lockbox',
+  name: 'testxerc20lockbox',
+};
+
+export const testScale1: ChainMetadata = {
+  ...test1,
+  chainId: 9913377,
+  domainId: 9913377,
+  displayName: 'Test Scale 1',
+  name: 'testscale1',
+};
+
+export const testScale2: ChainMetadata = {
+  ...test1,
+  chainId: 9913378,
+  domainId: 9913378,
+  displayName: 'Test Scale 2',
+  name: 'testscale2',
+};
+
+export const testCollateralFiat: ChainMetadata = {
+  ...test1,
+  chainId: 9913379,
+  domainId: 9913379,
+  displayName: 'Test Collateral Fiat',
+  name: 'testcollateralfiat',
+};
+
 export const testChainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
@@ -119,10 +168,81 @@ export const testSealevelChain: ChainMetadata = {
   rpcUrls: [{ http: 'http://127.0.0.1:8899' }],
 };
 
+export const testStarknetChain: ChainMetadata = {
+  chainId: '0x534e5f5345504f4c4941',
+  domainId: 5854809,
+  name: 'starknetdevnet',
+  nativeToken: {
+    decimals: 18,
+    denom: '0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7',
+    name: 'Ether',
+    symbol: 'ETH',
+  },
+  protocol: ProtocolType.Starknet,
+  rpcUrls: [
+    {
+      http: 'http://127.0.0.1:5050',
+    },
+  ],
+  blockExplorers: [
+    {
+      apiUrl: 'https://sepolia.voyager.online/api',
+      family: ExplorerFamily.Voyager,
+      name: 'Starknet Sepolia Explorer',
+      url: 'https://sepolia.voyager.online',
+    },
+  ],
+};
+
+// Address of a timelock contract on base that can be used for integration tests
+export const KNOWN_BASE_TIMELOCK_CONTRACT =
+  '0x733BC1F0D76AB8f0AB7C1c8044ECc4720Cd402AD';
+
+// Base chain metadata for testing with block explorer
+export const baseTestChain: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://base.blockscout.com/api',
+      family: ExplorerFamily.Blockscout,
+      name: 'Base Explorer',
+      url: 'https://base.blockscout.com',
+    },
+  ],
+  blocks: { confirmations: 3, estimateBlockTime: 2, reorgPeriod: 10 },
+  chainId: 8453,
+  displayName: 'Base',
+  domainId: 8453,
+  gasCurrencyCoinGeckoId: 'ethereum',
+  name: 'base',
+  nativeToken: {
+    decimals: 18,
+    name: 'Ether',
+    symbol: 'ETH',
+  },
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [
+    { http: 'https://base.publicnode.com' },
+    { http: 'https://mainnet.base.org' },
+    { http: 'https://base.blockpi.network/v1/rpc/public' },
+    { http: 'https://base.drpc.org' },
+    { http: 'https://base.llamarpc.com' },
+    { http: 'https://1rpc.io/base' },
+    { http: 'https://base-pokt.nodies.app' },
+  ],
+  technicalStack: ChainTechnicalStack.OpStack,
+};
+
 export const multiProtocolTestChainMetadata: ChainMap<ChainMetadata> = {
   ...testChainMetadata,
   testcosmos: testCosmosChain,
   testsealevel: testSealevelChain,
+  testxerc20: testXERC20,
+  testvsxerc20: testVSXERC20,
+  testxerc20lockbox: testXERC20Lockbox,
+  starknetdevnet: testStarknetChain,
+  testscale1: testScale1,
+  testscale2: testScale2,
+  testcollateralfiat: testCollateralFiat,
 };
 
 export const multiProtocolTestChains: Array<ChainName> = Object.keys(

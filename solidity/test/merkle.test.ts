@@ -1,10 +1,13 @@
 import { expect } from 'chai';
 import { utils } from 'ethers';
 
-import merkleTestCases from '../../vectors/merkle.json' assert { type: 'json' };
-import { TestMerkle, TestMerkle__factory } from '../types';
+import merkleTestCases from '../../vectors/merkle.json' with { type: 'json' };
+import {
+  TestMerkle,
+  TestMerkle__factory,
+} from '../core-utils/typechain/index.js';
 
-import { getSigner } from './signer';
+import { getSigner } from './signer.js';
 
 describe('Merkle', async () => {
   for (const testCase of merkleTestCases) {

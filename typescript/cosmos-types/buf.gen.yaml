@@ -1,0 +1,6 @@
+version: v1
+plugins:
+  - name: ts_proto
+    out: ./types
+    strategy: all
+    opt: esModuleInterop=true,importSuffix=.js,forceLong=string,useOptionals=messages,snakeToCamel=false,stringEnums=true

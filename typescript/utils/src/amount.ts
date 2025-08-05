@@ -111,25 +111,31 @@ export function eqAmountApproximate(
  * @param value The value to convert.
  * @returns `value` represented with `toDecimals` decimals in string type.
  */
-export function convertDecimals(
+export function convertDecimalsToIntegerString(
   fromDecimals: number,
   toDecimals: number,
   value: BigNumber.Value,
 ): string {
+  const converted = convertDecimals(fromDecimals, toDecimals, value);
+  return converted.integerValue(BigNumber.ROUND_FLOOR).toString(10);
+}
+
+export function convertDecimals(
+  fromDecimals: number,
+  toDecimals: number,
+  value: BigNumber.Value,
+): BigNumber {
   const amount = BigNumber(value);
 
-  if (fromDecimals === toDecimals) return amount.toString(10);
+  if (fromDecimals === toDecimals) return amount;
   else if (fromDecimals > toDecimals) {
     const difference = fromDecimals - toDecimals;
-    return amount
-      .div(BigNumber(10).pow(difference))
-      .integerValue(BigNumber.ROUND_FLOOR)
-      .toString(10);
+    return amount.div(BigNumber(10).pow(difference));
   }
   // fromDecimals < toDecimals
   else {
     const difference = toDecimals - fromDecimals;
-    return amount.times(BigNumber(10).pow(difference)).toString(10);
+    return amount.times(BigNumber(10).pow(difference));
   }
 }
 
@@ -148,4 +154,33 @@ export function addBufferToGasLimit(
 ): ethers.BigNumber {
   const bufferMultiplier = 100 + bufferPercent;
   return estimatedGas.mul(bufferMultiplier).div(100);
+}
+
+/**
+ * Calculates the amount from the origin chain scaled to the destination chain
+ * This calculation is in line with the FungibleTokenRouter contract _outboundAmount
+ * and _inboundAmount functions
+ * @param fromScale The origin scale number.
+ * @param toScale The destination scale number.
+ * @param amount The number to scale.
+ * @param precisionFactor  Number used to get accurate conversion for smaller numbers.
+ * Take into account the resulting amount will be have this precision factor multiplied into it.
+ */
+export function convertToScaledAmount({
+  amount,
+  fromScale,
+  toScale,
+  precisionFactor,
+}: {
+  fromScale?: number;
+  toScale?: number;
+  amount: bigint;
+  precisionFactor: number;
+}) {
+  if (!fromScale || !toScale || fromScale === toScale)
+    return amount * BigInt(Math.floor(precisionFactor));
+
+  const scaledAmount =
+    amount * BigInt(Math.floor((fromScale * precisionFactor) / toScale));
+  return scaledAmount;
 }

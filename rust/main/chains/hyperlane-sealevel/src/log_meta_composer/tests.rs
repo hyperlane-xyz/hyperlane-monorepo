@@ -29,7 +29,7 @@ pub fn test_search_dispatched_message_transaction() {
     );
 
     // then
-    assert!(!transaction_hashes.is_empty());
+    assert_eq!(transaction_hashes.len(), 1);
 }
 
 #[test]
@@ -49,7 +49,38 @@ pub fn test_search_dispatched_message_versioned_transaction() {
     );
 
     // then
-    assert!(!transaction_hashes.is_empty());
+    assert_eq!(transaction_hashes.len(), 1);
+}
+
+#[test]
+pub fn test_search_dispatched_message_relevant_instruction_out_of_two_in_single_transaction() {
+    // given
+    let mailbox_program_id = decode_pubkey("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
+    let dispatched_message_pda_account_one =
+        decode_pubkey("HkS7U5adrqR4PZfn6DUEtHzwHxF8hZzmrEkJE8UuqFmz").unwrap();
+    let dispatched_message_pda_account_two =
+        decode_pubkey("9qg84RiHnQmi8Qk7ZYWRs7VTtkRB42sB4UFdhLNZ15qD").unwrap();
+    let transactions = transactions(&read_json(
+        "dispatch_message_two_instructions_in_one_txn.json",
+    ));
+
+    // when
+    let transaction_hashes_one = search_transactions(
+        transactions.clone(),
+        &mailbox_program_id,
+        &dispatched_message_pda_account_one,
+        is_message_dispatch_instruction,
+    );
+    let transaction_hashes_two = search_transactions(
+        transactions.clone(),
+        &mailbox_program_id,
+        &dispatched_message_pda_account_two,
+        is_message_dispatch_instruction,
+    );
+
+    // then
+    assert_eq!(transaction_hashes_one.len(), 1);
+    assert_eq!(transaction_hashes_two.len(), 1);
 }
 
 #[test]
@@ -69,7 +100,7 @@ pub fn test_search_delivered_message_transaction() {
     );
 
     // then
-    assert!(!transaction_hashes.is_empty());
+    assert_eq!(transaction_hashes.len(), 1);
 }
 
 #[test]
@@ -111,7 +142,7 @@ pub fn test_search_interchain_payment_transaction() {
     );
 
     // then
-    assert!(!transaction_hashes.is_empty());
+    assert_eq!(transaction_hashes.len(), 1);
 }
 
 #[test]

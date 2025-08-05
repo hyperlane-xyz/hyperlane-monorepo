@@ -10,8 +10,11 @@ base64.workspace = true
 bincode.workspace = true
 borsh.workspace = true
 derive-new.workspace = true
+ed25519-dalek.workspace = true
+eyre.workspace = true
 jsonrpc-core.workspace = true
 lazy_static.workspace = true
+maplit.workspace = true
 num-traits.workspace = true
 reqwest.workspace = true
 serde.workspace = true
@@ -32,6 +35,8 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
     "solana",
     "async",
 ] }
+hyperlane-metric = { path = "../../hyperlane-metric" }
+hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../sealevel/libraries/interchain-security-module-interface" }
 hyperlane-sealevel-mailbox = { path = "../../../sealevel/programs/mailbox", features = [
     "no-entrypoint",
@@ -46,5 +51,9 @@ hyperlane-sealevel-multisig-ism-message-id = { path = "../../../sealevel/program
 hyperlane-sealevel-validator-announce = { path = "../../../sealevel/programs/validator-announce", features = [
     "no-entrypoint",
 ] }
+hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 multisig-ism = { path = "../../../sealevel/libraries/multisig-ism" }
 serializable-account-meta = { path = "../../../sealevel/libraries/serializable-account-meta" }
+
+[dev-dependencies]
+rstest.workspace = true

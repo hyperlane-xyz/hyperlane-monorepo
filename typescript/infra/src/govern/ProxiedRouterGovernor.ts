@@ -24,7 +24,7 @@ export class ProxiedRouterGovernor<
     switch (violation.type) {
       case ConnectionClientViolationType.InterchainSecurityModule:
         return this.handleIsmViolation(violation as ConnectionClientViolation);
-      case RouterViolationType.EnrolledRouter:
+      case RouterViolationType.MisconfiguredEnrolledRouter:
         return this.handleEnrolledRouterViolation(violation as RouterViolation);
       case ViolationType.Owner:
         return this.handleOwnerViolation(violation as OwnerViolation);

@@ -45,9 +45,8 @@ export class S3Validator extends BaseValidator {
           caching: true,
         };
         const s3Bucket = new S3Wrapper(s3Config);
-        const announcement = await s3Bucket.getS3Obj<S3Announcement>(
-          ANNOUNCEMENT_KEY,
-        );
+        const announcement =
+          await s3Bucket.getS3Obj<S3Announcement>(ANNOUNCEMENT_KEY);
         if (!announcement) {
           throw new Error('No announcement found');
         }
@@ -102,9 +101,8 @@ export class S3Validator extends BaseValidator {
   }
 
   async getLatestCheckpointIndex(): Promise<number> {
-    const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
-      LATEST_KEY,
-    );
+    const latestCheckpointIndex =
+      await this.s3Bucket.getS3Obj<number>(LATEST_KEY);
 
     if (!latestCheckpointIndex) return -1;
 

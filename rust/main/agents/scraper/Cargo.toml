@@ -20,7 +20,7 @@ itertools.workspace = true
 num-bigint.workspace = true
 num-traits.workspace = true
 prometheus.workspace = true
-sea-orm = { workspace = true }
+sea-orm = { workspace = true, features = ["mock"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -34,7 +34,11 @@ hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 migration = { path = "migration" }
 
 [dev-dependencies]
+reqwest.workspace = true
 tokio-test = "0.4"
+tracing-test.workspace = true
+ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
+hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-test = { path = "../../hyperlane-test" }
 
 [features]

@@ -1,0 +1,39 @@
+warpRouteId: USDC/arbitrum-base-ethereum-ink-optimism-solanamainnet-superseed
+strategy:
+  rebalanceStrategy: minAmount
+  chains:
+    base:
+      minAmount:
+        min: 3000
+        target: 5000
+        type: 'absolute'
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 2000
+      bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+
+    ethereum:
+      minAmount:
+        min: 30000
+        target: 40000
+        type: 'absolute'
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 2000
+      bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
+
+    optimism:
+      minAmount:
+        min: 3000
+        target: 5000
+        type: 'absolute'
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 2000
+      bridge: '0xfB7681ECB05F85c383A5ce4439C7dF5ED12c77DE'
+
+    arbitrum:
+      minAmount:
+        min: 3000
+        target: 5000
+        type: 'absolute'
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 2000
+      bridge: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2'

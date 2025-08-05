@@ -21,6 +21,7 @@ export default [
     ignores: [
       '**/node_modules',
       '**/dist',
+      '**/cli-bundle',
       '**/coverage',
       '**/*.cjs',
       '**/*.cts',
@@ -82,10 +83,6 @@ export default [
           name: 'console',
           message: 'Please use a logger and/or the utils package assert',
         },
-        {
-          name: 'fs',
-          message: 'Avoid use of node-specific libraries',
-        },
       ],
 
       '@typescript-eslint/ban-ts-comment': ['off'],
@@ -110,6 +107,100 @@ export default [
       'jest/no-identical-title': 'error',
       'jest/prefer-to-have-length': 'warn',
       'jest/valid-expect': 'error',
+    },
+  },
+
+  {
+    files: ['**/*.ts', '**/*.js', '**/*.mjs'],
+    ignores: ['**/aws/**/*', '**/test/**/*', '**/*.test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'fs',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'path',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'child_process',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'os',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'process',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'http',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'https',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'net',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'dgram',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'dns',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'crypto',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'tls',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'cluster',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'stream',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'vm',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+            {
+              name: 'readline',
+              message:
+                'Avoid Node.js built-in modules in cross-platform code. Use environment-agnostic alternatives.',
+            },
+          ],
+        },
+      ],
     },
   },
 ];

@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import {IXERC20Lockbox} from "../interfaces/IXERC20Lockbox.sol";
 import {IXERC20, IERC20} from "../interfaces/IXERC20.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract HypXERC20Lockbox is HypERC20Collateral {
     uint256 constant MAX_INT = 2 ** 256 - 1;
@@ -11,10 +12,19 @@ contract HypXERC20Lockbox is HypERC20Collateral {
     IXERC20Lockbox public immutable lockbox;
     IXERC20 public immutable xERC20;
 
+    using SafeERC20 for IERC20;
+
     constructor(
         address _lockbox,
+        uint256 _scale,
         address _mailbox
-    ) HypERC20Collateral(address(IXERC20Lockbox(_lockbox).ERC20()), _mailbox) {
+    )
+        HypERC20Collateral(
+            address(IXERC20Lockbox(_lockbox).ERC20()),
+            _scale,
+            _mailbox
+        )
+    {
         lockbox = IXERC20Lockbox(_lockbox);
         xERC20 = lockbox.XERC20();
         approveLockbox();
@@ -26,14 +36,8 @@ contract HypXERC20Lockbox is HypERC20Collateral {
      * @dev This function is idempotent and need not be access controlled
      */
     function approveLockbox() public {
-        require(
-            IERC20(wrappedToken).approve(address(lockbox), MAX_INT),
-            "erc20 lockbox approve failed"
-        );
-        require(
-            xERC20.approve(address(lockbox), MAX_INT),
-            "xerc20 lockbox approve failed"
-        );
+        IERC20(wrappedToken).safeApprove(address(lockbox), MAX_INT);
+        IERC20(xERC20).safeApprove(address(lockbox), MAX_INT);
     }
 
     /**

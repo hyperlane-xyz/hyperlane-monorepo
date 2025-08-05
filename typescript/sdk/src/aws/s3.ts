@@ -1,4 +1,6 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+// FIXME: Is this used in the browser?
+// eslint-disable-next-line import/no-nodejs-modules
 import { Readable } from 'stream';
 
 import { streamToString } from '@hyperlane-xyz/utils';
@@ -34,7 +36,15 @@ export class S3Wrapper {
   }
 
   constructor(readonly config: S3Config) {
-    this.client = new S3Client(config);
+    this.client = new S3Client({
+      ...config,
+      // explicitly set empty credentials to allow usage without env vars
+      credentials: {
+        accessKeyId: '',
+        secretAccessKey: '',
+      },
+      signer: { sign: async (req) => req },
+    });
     if (config.caching) {
       this.cache = {};
     }

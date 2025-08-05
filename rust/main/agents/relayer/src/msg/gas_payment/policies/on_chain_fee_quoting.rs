@@ -5,7 +5,7 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256,
 };
 
-use crate::msg::gas_payment::GasPaymentPolicy;
+use crate::{msg::gas_payment::GasPaymentPolicy, settings::GasPaymentEnforcementPolicy};
 
 #[derive(Debug)]
 pub struct GasPaymentPolicyOnChainFeeQuoting {
@@ -38,6 +38,10 @@ impl Default for GasPaymentPolicyOnChainFeeQuoting {
 
 #[async_trait]
 impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
+    /// OnChainFeeQuoting requires the user to pay a specified fraction of the
+    /// estimated gas. Like the Minimum policy, OnChainFeeQuoting requires a
+    /// payment to exist on the IGP specified in the config.
+
     async fn message_meets_gas_payment_requirement(
         &self,
         _message: &HyperlaneMessage,
@@ -57,6 +61,17 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
             Ok(Some(tx_cost_estimate.gas_limit.max(gas_amount)))
         } else {
             Ok(None)
+        }
+    }
+
+    fn requires_payment_found(&self) -> bool {
+        true
+    }
+
+    fn enforcement_type(&self) -> GasPaymentEnforcementPolicy {
+        GasPaymentEnforcementPolicy::OnChainFeeQuoting {
+            gas_fraction_numerator: self.fractional_numerator,
+            gas_fraction_denominator: self.fractional_denominator,
         }
     }
 }

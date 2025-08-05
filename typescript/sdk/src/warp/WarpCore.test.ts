@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-imports */
 import { expect } from 'chai';
 import fs from 'fs';
 import sinon from 'sinon';
@@ -8,7 +7,12 @@ import {
   test1,
   test2,
   testCosmosChain,
+  testScale1,
+  testScale2,
   testSealevelChain,
+  testVSXERC20,
+  testXERC20,
+  testXERC20Lockbox,
 } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
@@ -23,15 +27,23 @@ import { WarpTxCategory } from './types.js';
 const MOCK_LOCAL_QUOTE = { gasUnits: 2_000n, gasPrice: 100, fee: 200_000n };
 const MOCK_INTERCHAIN_QUOTE = { amount: 20_000n };
 const TRANSFER_AMOUNT = BigInt('1000000000000000000'); // 1 units @ 18 decimals
+const MEDIUM_TRANSFER_AMOUNT = BigInt('15000000000000000000'); // 15 units @ 18 deicmals
 const BIG_TRANSFER_AMOUNT = BigInt('100000000000000000000'); // 100 units @ 18 decimals
 const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
+const MEDIUM_MOCK_BALANCE = BigInt('50000000000000000000'); // 50 units at @ 18 decimals
 const MOCK_ADDRESS = '0x0000000000000000000000000000000000000001';
 
 describe('WarpCore', () => {
   const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
   let warpCore: WarpCore;
   let evmHypNative: Token;
+  let evmHypNativeScale1: Token;
+  let evmHypNativeScale2: Token;
   let evmHypSynthetic: Token;
+  let evmHypXERC20: Token;
+  let evmHypVSXERC20: Token;
+  let evmHypXERC20Lockbox: Token;
+  let evmHypCollateralFiat: Token;
   let sealevelHypSynthetic: Token;
   let cwHypCollateral: Token;
   let cw20: Token;
@@ -58,6 +70,12 @@ describe('WarpCore', () => {
     [
       evmHypNative,
       evmHypSynthetic,
+      evmHypXERC20,
+      evmHypVSXERC20,
+      evmHypXERC20Lockbox,
+      evmHypNativeScale1,
+      evmHypNativeScale2,
+      evmHypCollateralFiat,
       sealevelHypSynthetic,
       cwHypCollateral,
       cw20,
@@ -88,6 +106,7 @@ describe('WarpCore', () => {
         quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),
     );
 
@@ -151,6 +170,8 @@ describe('WarpCore', () => {
     const stubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
         getBalance: () => Promise.resolve(MOCK_BALANCE),
+        getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),
     );
 
@@ -181,6 +202,45 @@ describe('WarpCore', () => {
     await testCollateral(evmHypNative, testCosmosChain.name, false);
     await testCollateral(evmHypNative, testSealevelChain.name, true);
     await testCollateral(cwHypCollateral, test1.name, false);
+    await testCollateral(evmHypXERC20, testVSXERC20.name, true);
+    await testCollateral(evmHypVSXERC20, testXERC20.name, true);
+    await testCollateral(evmHypXERC20Lockbox, testXERC20.name, true);
+    await testCollateral(evmHypNative, testXERC20Lockbox.name, false);
+
+    stubs.forEach((s) => s.restore());
+  });
+
+  it('Checks for destination collateral with scaling factors', async () => {
+    const stubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        getBalance: () => Promise.resolve(10n),
+        getBridgedSupply: () => Promise.resolve(10n),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
+      } as any),
+    );
+
+    const testCollateral = async (
+      token: Token,
+      destination: ChainName,
+      amount: bigint,
+      expectedResult: boolean,
+    ) => {
+      const result = await warpCore.isDestinationCollateralSufficient({
+        originTokenAmount: token.amount(amount),
+        destination,
+      });
+
+      expect(
+        result,
+        `collateral check for ${token.chainName} to ${destination}`,
+      ).to.equal(expectedResult);
+    };
+
+    await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
+    await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
+    await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
+    await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
+    await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
 
     stubs.forEach((s) => s.restore());
   });
@@ -196,6 +256,11 @@ describe('WarpCore', () => {
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
         getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
+        getBalance: () => Promise.resolve(MOCK_BALANCE),
+        getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
+        getMintLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+        getMintMaxLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),
     );
 
@@ -247,6 +312,58 @@ describe('WarpCore', () => {
     });
     expect(Object.keys(insufficientBalance || {})[0]).to.equal('amount');
 
+    const validXERC20TokenResult = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+      destination: testXERC20.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+    });
+    expect(validXERC20TokenResult).to.be.null;
+
+    const invalidRateLimit = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
+      destination: testXERC20.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+    });
+    expect(Object.values(invalidRateLimit || {})[0]).to.equal(
+      'Rate limit exceeded on destination',
+    );
+
+    const invalidXERC20LockboxTokenRateLimit = await warpCore.validateTransfer({
+      originTokenAmount: evmHypXERC20.amount(BIG_TRANSFER_AMOUNT),
+      destination: testXERC20Lockbox.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+    });
+    expect(Object.values(invalidXERC20LockboxTokenRateLimit || {})[0]).to.equal(
+      'Rate limit exceeded on destination',
+    );
+
+    const invalidCollateralFiatTokenRateLimit = await warpCore.validateTransfer(
+      {
+        originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
+        destination: evmHypCollateralFiat.chainName,
+        recipient: MOCK_ADDRESS,
+        sender: MOCK_ADDRESS,
+      },
+    );
+    expect(
+      Object.values(invalidCollateralFiatTokenRateLimit || {})[0],
+    ).to.equal('Rate limit exceeded on destination');
+
+    const invalidCollateralXERC20LockboxToken = await warpCore.validateTransfer(
+      {
+        originTokenAmount: evmHypXERC20.amount(MEDIUM_TRANSFER_AMOUNT),
+        destination: testXERC20Lockbox.name,
+        recipient: MOCK_ADDRESS,
+        sender: MOCK_ADDRESS,
+      },
+    );
+    expect(
+      Object.values(invalidCollateralXERC20LockboxToken || {})[0],
+    ).to.equal('Insufficient collateral on destination');
+
     balanceStubs.forEach((s) => s.restore());
     quoteStubs.forEach((s) => s.restore());
   });
@@ -260,6 +377,7 @@ describe('WarpCore', () => {
       sinon.stub(t, 'getHypAdapter').returns({
         quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
         populateTransferRemoteTx: () => Promise.resolve({}),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),
     );
 

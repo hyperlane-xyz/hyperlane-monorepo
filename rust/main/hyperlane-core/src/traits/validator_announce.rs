@@ -21,5 +21,9 @@ pub trait ValidatorAnnounce: HyperlaneContract + Send + Sync + Debug {
 
     /// Returns the number of additional tokens needed to pay for the announce
     /// transaction. Return `None` if the needed tokens cannot be determined.
-    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256>;
+    async fn announce_tokens_needed(
+        &self,
+        announcement: SignedType<Announcement>,
+        chain_signer: H256,
+    ) -> Option<U256>;
 }

@@ -136,7 +136,7 @@ impl HyperlaneDbStore {
         let mut hashes_to_insert: Vec<&H512> = Vec::with_capacity(CHUNK_SIZE);
 
         for mut chunk in as_chunks::<(&H512, &mut (Option<i64>, i64))>(txns_to_fetch, CHUNK_SIZE) {
-            for (hash, (_, block_id)) in chunk.iter() {
+            for (hash, (_, block_id)) in chunk.iter().filter(|(hash, _)| !hash.is_zero()) {
                 let info = match self.provider.get_txn_by_hash(hash).await {
                     Ok(info) => info,
                     Err(e) => {
@@ -218,14 +218,16 @@ impl HyperlaneDbStore {
             .iter_mut()
             .filter(|(_, block_info)| block_info.is_none());
 
-        let mut blocks_to_insert: Vec<(&mut BasicBlock, Option<BlockInfo>)> =
-            Vec::with_capacity(CHUNK_SIZE);
-        let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
         for chunk in as_chunks(blocks_to_fetch, CHUNK_SIZE) {
             debug_assert!(!chunk.is_empty());
+            let mut block_infos: Vec<BlockInfo> = Vec::with_capacity(CHUNK_SIZE);
+            let mut blocks_to_insert: Vec<&mut BasicBlock> = Vec::with_capacity(CHUNK_SIZE);
+            let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
             for (hash, block_info) in chunk {
                 // We should have block_id in this map for every hashes
-                let block_id = block_hash_to_block_id_map[hash];
+                let block_id = block_hash_to_block_id_map
+                    .get(hash)
+                    .expect("Missing block id");
                 let block_height = block_id.height;
 
                 let info = match self.provider.get_block_by_height(block_height).await {
@@ -239,7 +241,8 @@ impl HyperlaneDbStore {
                     id: -1,
                     hash: *hash,
                 });
-                blocks_to_insert.push((basic_info_ref, Some(info)));
+                block_infos.push(info);
+                blocks_to_insert.push(basic_info_ref);
                 hashes_to_insert.push(hash);
             }
 
@@ -250,12 +253,7 @@ impl HyperlaneDbStore {
             }
 
             self.db
-                .store_blocks(
-                    self.domain.id(),
-                    blocks_to_insert
-                        .iter_mut()
-                        .map(|(_, info)| info.take().unwrap()),
-                )
+                .store_blocks(self.domain.id(), block_infos.into_iter())
                 .await?;
 
             let hashes = self
@@ -266,7 +264,7 @@ impl HyperlaneDbStore {
                 .map(|b| (b.hash, b.id))
                 .collect::<HashMap<_, _>>();
 
-            for (block_ref, _) in blocks_to_insert.drain(..) {
+            for block_ref in blocks_to_insert {
                 if let Some(id) = hashes.get(&block_ref.hash) {
                     block_ref.id = *id;
                 }

@@ -111,4 +111,15 @@ contract TestSendReceiverTest is Test {
             "0x1234"
         );
     }
+
+    function testHandle_withHardcodedBody() public {
+        bytes memory hardcodedFail = "failMessageBody";
+
+        vm.expectRevert("failMessageBody");
+        testSendReceiver.handle(
+            0,
+            address(testSendReceiver).addressToBytes32(),
+            hardcodedFail
+        );
+    }
 }

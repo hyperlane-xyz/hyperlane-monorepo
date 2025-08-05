@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use eyre::{Context, Result};
-use tracing::{debug, error, instrument};
+use tracing::{error, instrument};
 
 use hyperlane_base::db::DbError;
 use hyperlane_core::{
@@ -35,6 +35,12 @@ impl Display for MerkleTreeBuilder {
         )?;
         write!(f, "}}")?;
         Ok(())
+    }
+}
+
+impl Default for MerkleTreeBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -85,9 +91,9 @@ impl MerkleTreeBuilder {
         self.prover.count() as u32
     }
 
-    pub async fn ingest_message_id(&mut self, message_id: H256) -> Result<()> {
+    pub fn ingest_message_id(&mut self, message_id: H256) -> Result<()> {
         const CTX: &str = "When ingesting message id";
-        debug!(?message_id, "Ingesting leaf");
+        tracing::trace!(?message_id, "Ingesting leaf");
         self.prover.ingest(message_id).expect("tree full");
         self.incremental.ingest(message_id);
         match self.prover.root().eq(&self.incremental.root()) {

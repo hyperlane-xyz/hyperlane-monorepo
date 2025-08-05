@@ -5,8 +5,11 @@
 // TODO: Remove once we start filling things in
 #![allow(unused_variables)]
 #![allow(unused_imports)] // TODO: `rustc` 1.80.1 clippy issue
+#![deny(clippy::unwrap_used, clippy::panic)]
 
 mod aggregation_ism;
+/// Hyperlane Application specific functionality
+pub mod application;
 mod error;
 mod interchain_gas;
 mod interchain_security_module;
@@ -15,6 +18,7 @@ mod mailbox;
 mod merkle_tree_hook;
 mod multisig_ism;
 mod payloads;
+mod prometheus;
 mod providers;
 mod routing_ism;
 mod rpc_clients;

@@ -1,0 +1,58 @@
+{
+  "name": "@hyperlane-xyz/http-registry-server",
+  "version": "16.1.1",
+  "private": true,
+  "description": "An HTTP server for the Hyperlane registry",
+  "license": "Apache-2.0",
+  "homepage": "https://www.hyperlane.xyz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf ./dist",
+    "start": "node dist/scripts/run-server.js",
+    "start:dev": "NODE_ENV=development LOG_FORMAT=pretty node dist/scripts/run-server.js",
+    "dev": "tsc --watch",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "prettier": "prettier --write ./src ./test",
+    "test": "yarn test:unit",
+    "test:ci": "yarn test",
+    "test:unit": "mocha --config .mocharc.json './test/**/*.ts' --exit"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/registry": "20.0.0",
+    "@hyperlane-xyz/sdk": "16.1.1",
+    "@hyperlane-xyz/utils": "16.1.1",
+    "express": "^5.1.0",
+    "pino": "^8.19.0",
+    "zod": "^3.21.2",
+    "zod-validation-error": "^3.3.0"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "^4.2.21",
+    "@types/chai-as-promised": "^8",
+    "@types/express": "^5.0.3",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^18.14.5",
+    "@types/sinon": "^17.0.1",
+    "@types/supertest": "^2.0.12",
+    "@types/yargs": "^17.0.24",
+    "chai": "^4.5.0",
+    "chai-as-promised": "^8.0.1",
+    "eslint": "^9.31.0",
+    "mocha": "^11.5.0",
+    "pino-pretty": "^13.0.0",
+    "prettier": "^3.5.3",
+    "sinon": "^13.0.2",
+    "supertest": "^6.3.3",
+    "tsx": "^4.19.1",
+    "typescript": "5.3.3",
+    "yargs": "^17.7.2"
+  }
+}
