@@ -109,6 +109,8 @@ struct Cli {
     config: Option<String>,
     #[arg(long, default_value_t = false)]
     require_tx_approval: bool,
+    #[arg(long)]
+    write_instructions: bool,
 }
 
 #[derive(Subcommand)]
@@ -158,8 +160,6 @@ pub(crate) struct WarpRouteDeploy {
     registry: PathBuf,
     #[arg(long)]
     ata_payer_funding_amount: Option<u64>,
-    #[arg(long)]
-    write_instructions: bool,
 }
 
 #[derive(Args)]
@@ -713,8 +713,6 @@ pub(crate) struct HelloWorldDeploy {
     registry: PathBuf,
     #[arg(long)]
     context: String,
-    #[arg(long)]
-    write_instructions: bool,
 }
 
 #[derive(Args)]
@@ -787,6 +785,7 @@ fn main() {
         commitment,
         instructions.into(),
         cli.require_tx_approval,
+        cli.write_instructions,
     );
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
@@ -1245,7 +1244,6 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     Some(&unique_message_account_keypair),
                 ],
                 &ctx.payer_pubkey,
-                None,
                 None,
             );
             // Print the output so it can be used in e2e tests

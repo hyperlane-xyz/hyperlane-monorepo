@@ -31,6 +31,8 @@ pub(crate) struct Context {
     pub commitment: CommitmentConfig,
     pub initial_instructions: RefCell<Vec<InstructionWithDescription>>,
     pub require_tx_approval: bool,
+    pub write_instructions: bool,
+    pub instructions_path: Option<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -77,6 +79,7 @@ impl Context {
         commitment: CommitmentConfig,
         initial_instructions: RefCell<Vec<InstructionWithDescription>>,
         require_tx_approval: bool,
+        write_instructions: bool,
     ) -> Self {
         Self {
             client,
@@ -85,6 +88,8 @@ impl Context {
             commitment,
             initial_instructions,
             require_tx_approval,
+            write_instructions,
+            instructions_path: None,
         }
     }
 
@@ -283,7 +288,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
     pub(crate) fn send_with_payer(self) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         let payer_signer = self.ctx.payer_signer();
         let payer_pubkey = self.ctx.payer_pubkey;
-        self.send(&[payer_signer.as_deref()], &payer_pubkey, None, None)
+        self.send(&[payer_signer.as_deref()], &payer_pubkey, None)
     }
 
     /// Sends the transaction with a signer for the given pubkey.
@@ -293,18 +298,16 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
     pub(crate) fn send_with_pubkey_signer(
         self,
         pubkey: &Pubkey,
-        instructions_path: Option<PathBuf>,
         chain_name: Option<String>,
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         let signer = self.ctx.signer_for_pubkey(pubkey);
-        self.send(&[signer.as_deref()], pubkey, instructions_path, chain_name)
+        self.send(&[signer.as_deref()], pubkey, chain_name)
     }
 
     pub(crate) fn send(
         self,
         maybe_signers: &[Option<&dyn Signer>],
         payer: &Pubkey,
-        instructions_path: Option<PathBuf>,
         chain_name: Option<String>,
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         // If the payer can't sign, it's presumed that the payer is intended
@@ -315,8 +318,8 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         if maybe_signers.iter().any(|s| s.is_none()) {
             println!("Transaction to be submitted via Squads multisig:");
 
-            if let Some(p) = instructions_path {
-                self.write_transaction_to_yaml(payer, p, chain_name)
+            if let Some(p) = &self.ctx.instructions_path {
+                self.write_transaction_to_yaml(payer, p.clone(), chain_name)
                     .expect("Failed to write transaction to instructions file.");
             } else {
                 println!("To write the transaction to an instructions file, a path needs to be provided. Continuing to print the transactions.");
