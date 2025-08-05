@@ -1,6 +1,8 @@
 use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
 use hyperlane_cosmos_native::signers::Signer;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use hyperlane_warp_route::TokenMessage;
+use prost::Message as _;
 
 /*
 Need to make a hub priv key and address pair
@@ -54,7 +56,14 @@ pub fn make_deposit_payload(
 }
 
 fn make_deposit_payload_meta() -> Vec<u8> {
-    let buf = vec![];
-    // TODO:
-    buf
+    // Create an empty HlMetadata struct with all required fields
+    // The kaspa field will be populated later in the message flow
+    let metadata = HlMetadata {
+        kaspa: vec![],
+        hook_forward_to_hl: vec![],
+        hook_forward_to_ibc: vec![],
+    };
+
+    // Encode the metadata to protobuf bytes
+    metadata.encode_to_vec()
 }
