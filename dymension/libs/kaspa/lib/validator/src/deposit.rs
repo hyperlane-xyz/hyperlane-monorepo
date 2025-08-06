@@ -1,3 +1,4 @@
+use crate::error::ValidationError;
 use corelib::api::client::HttpClient;
 use corelib::deposit::DepositFXG;
 use corelib::finality;
@@ -49,44 +50,49 @@ impl MustMatch {
         self.enable_validation = enable_validation;
     }
 
-    fn is_match(&self, other: &HyperlaneMessage) -> Result<()> {
+    fn is_match(&self, other: &HyperlaneMessage) -> Result<(), ValidationError> {
         if !self.enable_validation {
             return Ok(());
         }
         if self.partial_message.version != other.version {
-            return Err(eyre::eyre!(
-                "version is incorrect, expected: {}, got: {}",
-                self.partial_message.version,
-                other.version
-            ));
+            return Err(ValidationError::FailedGeneralVerification {
+                reason: format!(
+                    "version is incorrect, expected: {}, got: {}",
+                    self.partial_message.version, other.version
+                ),
+            });
         }
         if self.partial_message.origin != other.origin {
-            return Err(eyre::eyre!(
-                "origin is incorrect, expected: {}, got: {}",
-                self.partial_message.origin,
-                other.origin
-            ));
+            return Err(ValidationError::FailedGeneralVerification {
+                reason: format!(
+                    "origin is incorrect, expected: {}, got: {}",
+                    self.partial_message.origin, other.origin
+                ),
+            });
         }
         if self.partial_message.sender != other.sender {
-            return Err(eyre::eyre!(
-                "sender is incorrect, expected: {}, got: {}",
-                self.partial_message.sender,
-                other.sender
-            ));
+            return Err(ValidationError::FailedGeneralVerification {
+                reason: format!(
+                    "sender is incorrect, expected: {}, got: {}",
+                    self.partial_message.sender, other.sender
+                ),
+            });
         }
         if self.partial_message.destination == other.destination {
-            return Err(eyre::eyre!(
-                "destination is incorrect, expected: {}, got: {}",
-                self.partial_message.destination,
-                other.destination
-            ));
+            return Err(ValidationError::FailedGeneralVerification {
+                reason: format!(
+                    "destination is incorrect, expected: {}, got: {}",
+                    self.partial_message.destination, other.destination
+                ),
+            });
         }
         if self.partial_message.recipient != other.recipient {
-            return Err(eyre::eyre!(
-                "recipient is incorrect, expected: {}, got: {}",
-                self.partial_message.recipient,
-                other.recipient
-            ));
+            return Err(ValidationError::FailedGeneralVerification {
+                reason: format!(
+                    "recipient is incorrect, expected: {}, got: {}",
+                    self.partial_message.recipient, other.recipient
+                ),
+            });
         }
         Ok(())
     }
@@ -110,8 +116,11 @@ pub async fn validate_new_deposit(
     escrow_address: &Address,
     hub_client: &CosmosGrpcClient,
     must_match: MustMatch,
-) -> Result<bool> {
-    let hub_bootstrapped = hub_client.hub_bootstrapped().await?;
+) -> Result<(), ValidationError> {
+    let hub_bootstrapped = hub_client
+        .hub_bootstrapped()
+        .await
+        .map_err(|e| ValidationError::SystemError(e.into()))?;
     validate_new_deposit_inner(
         client_node,
         client_rest,
@@ -142,100 +151,123 @@ pub async fn validate_new_deposit_inner(
     escrow_address: &Address,
     hub_bootstrapped: bool,
     must_match: MustMatch,
-) -> Result<bool> {
+) -> Result<(), ValidationError> {
     if !hub_bootstrapped {
-        error!("Hub is not bootstrapped, cannot validate deposit");
-        return Ok(false);
+        return Err(ValidationError::FailedGeneralVerification {
+            reason: "Hub is not bootstrapped, cannot validate deposit".to_string(),
+        });
     }
 
     if d_untrusted.tx_id_rpc().is_err() {
-        error!("Deposit tx hash is not valid");
-        return Ok(false);
+        return Err(ValidationError::FailedGeneralVerification {
+            reason: "Deposit tx hash is not valid".to_string(),
+        });
     }
+
+    let containing_block_hash = d_untrusted
+        .containing_block_hash_rpc()
+        .map_err(|e| ValidationError::SystemError(e.into()))?;
 
     if !finality::is_safe_against_reorg(
         client_rest,
         &d_untrusted.tx_id,
-        Some(d_untrusted.containing_block_hash_rpc()?.to_string()),
+        Some(containing_block_hash.to_string()),
     )
-    .await?
+    .await
+    .map_err(|e| ValidationError::SystemError(e.into()))?
     {
-        error!("Deposit is not sufficiently final",);
-        return Ok(false);
+        return Err(ValidationError::NotSafeAgainstReorg {
+            tx_id: d_untrusted.tx_id.clone(),
+        });
     }
 
     let containing_block: RpcBlock = client_node
-        .get_block(d_untrusted.containing_block_hash_rpc()?, true)
-        .await?;
+        .get_block(containing_block_hash, true)
+        .await
+        .map_err(|e| ValidationError::SystemError(e.into()))?;
 
-    let actual_deposit = tx_by_id(&containing_block, &d_untrusted.tx_id_rpc().unwrap())?;
+    let tx_id_rpc = d_untrusted
+        .tx_id_rpc()
+        .map_err(|e| ValidationError::SystemError(e.into()))?;
+
+    let actual_deposit = tx_by_id(&containing_block, &tx_id_rpc)?;
 
     // get utxo in the tx from index in deposit.
     let actual_deposit_utxo: &RpcTransactionOutput = actual_deposit
         .outputs
         .get(d_untrusted.utxo_index)
-        .ok_or("utxo not found by index")
-        .map_err(|e: &'static str| eyre::eyre!(e))?;
+        .ok_or_else(|| ValidationError::FailedGeneralVerification {
+            reason: "utxo not found by index".to_string(),
+        })?;
 
     // get HLMessage and token message from Tx payload
-    let actual_hl_message = ParsedHL::parse_bytes(actual_deposit.payload)?;
+    let actual_hl_message = ParsedHL::parse_bytes(actual_deposit.payload).map_err(|e| {
+        ValidationError::FailedGeneralVerification {
+            reason: format!("Failed to parse HL message from payload: {}", e),
+        }
+    })?;
 
     // deposit tx amount
     let actual_hl_amt: U256 = actual_hl_message.token_message.amount();
 
     // recreate the metadata injection to the token message done by the relayer
-    let actual_hl_message_with_injected_info = add_kaspa_metadata_hl_messsage(
-        actual_hl_message,
-        d_untrusted.tx_id_rpc()?,
-        d_untrusted.utxo_index,
-    )?;
+    let actual_hl_message_with_injected_info =
+        add_kaspa_metadata_hl_messsage(actual_hl_message, tx_id_rpc, d_untrusted.utxo_index)
+            .map_err(|e| ValidationError::FailedGeneralVerification {
+                reason: format!("Failed to add Kaspa metadata to HL message: {}", e),
+            })?;
 
-    if let Err(e) = must_match.is_match(&actual_hl_message_with_injected_info) {
-        error!("Relayed HL message does not pass common validaion: {}", e);
-        return Ok(false);
-    };
+    must_match.is_match(&actual_hl_message_with_injected_info)?;
 
     // validate the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
     if d_untrusted.hl_message.id() != actual_hl_message_with_injected_info.id() {
-        error!("Relayed HL message does not match HL message included in Kaspa Tx");
-        return Ok(false);
+        return Err(ValidationError::FailedGeneralVerification {
+            reason: "Relayed HL message does not match HL message included in Kaspa Tx".to_string(),
+        });
     }
 
     // deposit covers HL message amount?
     if U256::from(actual_deposit_utxo.value) < actual_hl_amt {
-        error!(
-            "Deposit amount is less than token message amount, deposit: {:?}, token message: {:?}",
-            U256::from(actual_deposit_utxo.value),
-            actual_hl_amt
-        );
-        return Ok(false);
+        return Err(ValidationError::FailedGeneralVerification {
+            reason: format!(
+                "Deposit amount is less than token message amount, deposit: {:?}, token message: {:?}",
+                U256::from(actual_deposit_utxo.value),
+                actual_hl_amt
+            ),
+        });
     }
 
     let actual_utxo_addr =
-        extract_script_pub_key_address(&actual_deposit_utxo.script_public_key, net.address_prefix)?;
+        extract_script_pub_key_address(&actual_deposit_utxo.script_public_key, net.address_prefix)
+            .map_err(|e| ValidationError::FailedGeneralVerification {
+                reason: format!("Failed to extract script public key address: {}", e),
+            })?;
     if actual_utxo_addr != *escrow_address {
-        error!(
-            "Deposit is not to escrow address, escrow: {:?}, utxo: {:?}",
-            escrow_address, actual_deposit_utxo.script_public_key
-        );
-        return Ok(false);
+        return Err(ValidationError::FailedGeneralVerification {
+            reason: format!(
+                "Deposit is not to escrow address, escrow: {:?}, utxo: {:?}",
+                escrow_address, actual_deposit_utxo.script_public_key
+            ),
+        });
     }
 
-    Ok(true)
+    Ok(())
 }
 
 /// takes block and tx id and returns the tx
-fn tx_by_id(block: &RpcBlock, tx_id: &RpcHash) -> Result<RpcTransaction> {
+fn tx_by_id(block: &RpcBlock, tx_id: &RpcHash) -> Result<RpcTransaction, ValidationError> {
     let tx_index_actual = block
         .verbose_data
         .as_ref()
-        .ok_or("block data not found")
-        .map_err(|e: &'static str| eyre::eyre!(e))?
+        .ok_or_else(|| ValidationError::FailedGeneralVerification {
+            reason: "block data not found".to_string(),
+        })?
         .transaction_ids
         .iter()
         .position(|id| id == tx_id)
-        .ok_or("transaction not found in block")
-        .map_err(|e: &'static str| eyre::eyre!(e))?;
+        .ok_or_else(|| ValidationError::FailedGeneralVerification {
+            reason: "transaction not found in block".to_string(),
+        })?;
 
     Ok(block.transactions[tx_index_actual].clone())
 }
