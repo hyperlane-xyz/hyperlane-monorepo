@@ -146,8 +146,8 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     info!("Validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
     // Call to validator.G()
-    if resources.must_val_stuff().toggles.deposit_enabled
-        && !validate_new_deposit(
+    if resources.must_val_stuff().toggles.deposit_enabled {
+        validate_new_deposit(
             &resources.must_api(),
             resources.must_rest_client(),
             &deposits,
@@ -162,10 +162,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
             ),
         )
         .await
-        .map_err(AppError)?
-    {
-        // TODO: return reasons and use them
-        return Err(AppError(eyre::eyre!("Validator G() function rejected")));
+        .map_err(|e| AppError(Report::from(e)))?;
     }
     info!(
         "Validator: deposit is valid: id = {:?}",

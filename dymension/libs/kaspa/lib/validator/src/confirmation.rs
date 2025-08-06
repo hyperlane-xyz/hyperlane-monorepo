@@ -27,26 +27,32 @@ pub async fn validate_confirmed_withdrawals(
     let untrusted_progress = &fxg.progress_indication;
 
     let proposed_hub_anchor_old = {
-        let o = untrusted_progress
-            .old_outpoint
-            .as_ref()
-            .ok_or_else(|| eyre::eyre!("Validator: Old outpoint missing in progress indication"))?;
+        let o = untrusted_progress.old_outpoint.as_ref().ok_or_else(|| {
+            ValidationError::OutpointMissing {
+                description: "old outpoint in progress indication".to_string(),
+            }
+        })?;
         TransactionOutpoint {
             transaction_id: KaspaHash::from_bytes(o.transaction_id.as_slice().try_into().map_err(
-                |e| eyre::eyre!("Validator: Invalid anchor outpoint transaction ID: {}", e),
+                |e| ValidationError::InvalidOutpointData {
+                    reason: format!("Invalid anchor outpoint transaction ID: {}", e),
+                },
             )?),
             index: o.index,
         }
     };
 
     let proposed_hub_anchor_new = {
-        let o = untrusted_progress
-            .new_outpoint
-            .as_ref()
-            .ok_or_else(|| eyre::eyre!("Validator: New outpoint missing in progress indication"))?;
+        let o = untrusted_progress.new_outpoint.as_ref().ok_or_else(|| {
+            ValidationError::OutpointMissing {
+                description: "new outpoint in progress indication".to_string(),
+            }
+        })?;
         TransactionOutpoint {
             transaction_id: KaspaHash::from_bytes(o.transaction_id.as_slice().try_into().map_err(
-                |e| eyre::eyre!("Validator: Invalid new outpoint transaction ID: {}", e),
+                |e| ValidationError::InvalidOutpointData {
+                    reason: format!("Invalid new outpoint transaction ID: {}", e),
+                },
             )?),
             index: o.index,
         }
@@ -55,19 +61,19 @@ pub async fn validate_confirmed_withdrawals(
     // Validate the progress indication is correct according to the cache
     let outpoint_sequence = &fxg.outpoints;
     if outpoint_sequence.len() < 2 {
-        return Err(ValidationError::SystemError(eyre::eyre!(
-            "Validator: Insufficient outpoints in cache for validation"
-        )));
+        return Err(ValidationError::InsufficientOutpoints {
+            count: outpoint_sequence.len(),
+        });
     }
     if outpoint_sequence[0] != proposed_hub_anchor_old {
-        return Err(ValidationError::SystemError(eyre::eyre!(
-            "Validator: Anchor outpoint mismatch in cache"
-        )));
+        return Err(ValidationError::AnchorMismatch {
+            o: proposed_hub_anchor_old,
+        });
     }
     if outpoint_sequence[outpoint_sequence.len() - 1] != proposed_hub_anchor_new {
-        return Err(ValidationError::SystemError(eyre::eyre!(
-            "Validator: New outpoint mismatch in cache"
-        )));
+        return Err(ValidationError::AnchorMismatch {
+            o: proposed_hub_anchor_new,
+        });
     }
 
     let mut observed_message_ids = Vec::new();
@@ -84,38 +90,30 @@ pub async fn validate_confirmed_withdrawals(
         let tx_id = &o.transaction_id.to_string();
 
         // Get the transaction that CREATED this UTXO
-        let tx = client_rest.get_tx_by_id(tx_id).await.map_err(|e| {
-            eyre::eyre!(
-                "Validator: Failed to get transaction {}: {}",
-                o.transaction_id,
-                e
-            )
+        let tx = client_rest.get_tx_by_id(tx_id).await.map_err(|_| {
+            ValidationError::TransactionFetchError {
+                tx_id: o.transaction_id.to_string(),
+            }
         })?;
 
         // Validate that this transaction spends the previous outpoint
         let o_prev = &outpoint_sequence[i - 1]; // Previous outpoint in the chain
         if !outpoint_in_inputs(&tx, o_prev)? {
-            return Err(ValidationError::SystemError(eyre::eyre!(
-                "Validator: Previous transaction not found in inputs"
-            )));
+            return Err(ValidationError::PreviousTransactionNotFound);
         }
 
         // Validate that this transaction creates the current outpoint
-        escrow_outpoint_in_outputs(&tx, o, escrow_address).map_err(|e| {
-            ValidationError::SystemError(eyre::eyre!(
-                "Validator: Failed to validate anchor in outputs for tx {}: {}",
-                o.transaction_id,
-                e
-            ))
-        })?;
+        escrow_outpoint_in_outputs(&tx, o, escrow_address)?;
 
         let p = tx
             .payload
             .clone()
-            .ok_or_else(|| eyre::eyre!("No payload found in transaction"))?;
+            .ok_or(ValidationError::MissingTransactionPayload)?;
 
-        let message_ids = MessageIDs::from_tx_payload(&p)
-            .map_err(|e| eyre::eyre!("Failed to parse message IDs from payload: {}", e))?;
+        let message_ids =
+            MessageIDs::from_tx_payload(&p).map_err(|e| ValidationError::PayloadParseError {
+                reason: format!("Failed to parse message IDs: {}", e),
+            })?;
 
         // If the last TX in sequence is final then the others must be too
         if i == outpoint_sequence.len() - 1 {
@@ -129,7 +127,12 @@ pub async fn validate_confirmed_withdrawals(
                 }
                 None => None,
             };
-            if !finality::is_safe_against_reorg(client_rest, tx_id, hint).await? {
+            if !finality::is_safe_against_reorg(client_rest, tx_id, hint)
+                .await
+                .map_err(|e| ValidationError::ExternalApiError {
+                    reason: e.to_string(),
+                })?
+            {
                 return Err(ValidationError::NotSafeAgainstReorg {
                     tx_id: tx_id.clone(),
                 });
@@ -154,21 +157,26 @@ fn outpoint_in_inputs(
     let inputs = transaction
         .inputs
         .as_ref()
-        .ok_or_else(|| eyre::eyre!("Validator: Transaction inputs not found"))?;
+        .ok_or(ValidationError::MissingTransactionInputs)?;
 
     for input in inputs {
         // Properly decode the hex values like in the relayer
         let input_utxo = TransactionOutpoint {
             transaction_id: kaspa_hashes::Hash::from_bytes(
                 hex::decode(&input.previous_outpoint_hash)
-                    .map_err(|e| eyre::eyre!("Invalid hex in previous_outpoint_hash: {}", e))?
+                    .map_err(|e| ValidationError::InvalidOutpointData {
+                        reason: format!("Invalid hex in previous_outpoint_hash: {}", e),
+                    })?
                     .try_into()
-                    .map_err(|_| eyre::eyre!("Invalid hex length in previous_outpoint_hash"))?,
+                    .map_err(|_| ValidationError::InvalidOutpointData {
+                        reason: "Invalid hex length in previous_outpoint_hash".to_string(),
+                    })?,
             ),
-            index: input
-                .previous_outpoint_index
-                .parse()
-                .map_err(|e| eyre::eyre!("Failed to parse previous_outpoint_index: {}", e))?,
+            index: input.previous_outpoint_index.parse().map_err(|e| {
+                ValidationError::InvalidOutpointData {
+                    reason: format!("Failed to parse previous_outpoint_index: {}", e),
+                }
+            })?,
         };
 
         if input_utxo == *anchor {
@@ -189,7 +197,7 @@ fn escrow_outpoint_in_outputs(
     let outs = tx_trusted
         .outputs
         .as_ref()
-        .ok_or(eyre::eyre!("Validator: Transaction outputs not found"))?;
+        .ok_or(ValidationError::MissingTransactionOutputs)?;
 
     let out_actual: &TxOutput = outs
         .get(escrow_outpoint_unstrusted.index as usize)
@@ -201,9 +209,7 @@ fn escrow_outpoint_in_outputs(
     let recipient_actual = out_actual
         .script_public_key_address
         .clone()
-        .ok_or(eyre::eyre!(
-            "Validatior: No script public key address found in anchor output"
-        ))?;
+        .ok_or(ValidationError::MissingScriptPubKeyAddress)?;
 
     if recipient_actual != escrow_address.address_to_string() {
         return Err(ValidationError::NonEscrowAnchor {
@@ -231,11 +237,7 @@ fn validate_message_ids_exactly_equal(
         .collect();
 
     if expected_message_ids != untrusted_message_ids {
-        return Err(ValidationError::SystemError(eyre::eyre!(
-            "Validator: Message IDs mismatch - expected: {:?}, actual: {:?}",
-            expected_message_ids,
-            untrusted_message_ids
-        )));
+        return Err(ValidationError::MessageIdsMismatch);
     }
 
     Ok(())

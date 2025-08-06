@@ -6,7 +6,7 @@ use corelib::payload::MessageIDs;
 use corelib::util;
 use corelib::util::{get_recipient_script_pubkey, is_valid_sighash_type};
 use corelib::withdraw::filter_pending_withdrawals;
-use eyre::{Report, Result};
+use eyre::Result;
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
@@ -130,8 +130,7 @@ pub async fn validate_withdrawal_batch(
     // - All the messages are dispatched on the hub
     // - None of the messages are already confirmed on the hub
 
-    validate_pskts(bundle, messages, hub_anchor, must_match)
-        .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
+    validate_pskts(bundle, messages, hub_anchor, must_match)?;
 
     info!("Withdrawal validation completed successfully for withdrawals");
 
@@ -165,7 +164,9 @@ async fn validate_messages(
         let res = cosmos_client
             .delivered(must_match.hub_mailbox_id.clone(), id.encode_hex())
             .await
-            .map_err(|e| ValidationError::SystemError(Report::from(e)))?;
+            .map_err(|e| ValidationError::HubQueryError {
+                reason: e.to_string(),
+            })?;
 
         // Delivered is a confusing name. `delivered` is just the name of the network query.
         let was_dispatched_on_hub = res.delivered;
@@ -177,7 +178,9 @@ async fn validate_messages(
     debug!("All withdrawal fxg messages are dispatched on hub");
     let (hub_anchor, pending_messages) = filter_pending_withdrawals(messages, cosmos_client)
         .await
-        .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
+        .map_err(|e| ValidationError::HubQueryError {
+            reason: format!("Failed to get pending withdrawals: {}", e),
+        })?;
     if num_msgs != pending_messages.len() {
         return Err(ValidationError::MessagesNotUnprocessed);
     }
@@ -208,8 +211,7 @@ pub fn validate_pskts(
             anchor_to_spend,
             messages,
             must_match.clone(),
-        )
-        .map_err(|e| eyre::eyre!("Single PSKT validation failed: {}", e))?;
+        )?;
     }
 
     Ok(())
@@ -285,8 +287,11 @@ pub fn validate_pskt_application_semantics(
     let mut expected_outputs: HashMap<(u64, ScriptPublicKey), i32> = HashMap::new();
 
     for m in expected_messages {
-        let tm = TokenMessage::read_from(&mut Cursor::new(&m.body))
-            .map_err(|e| eyre::eyre!("Failed to parse TokenMessage from message body: {}", e))?;
+        let tm = TokenMessage::read_from(&mut Cursor::new(&m.body)).map_err(|e| {
+            ValidationError::PayloadParseError {
+                reason: format!("Failed to parse TokenMessage from message body: {}", e),
+            }
+        })?;
 
         let recipient = get_recipient_script_pubkey(tm.recipient(), must_match.address_prefix);
 

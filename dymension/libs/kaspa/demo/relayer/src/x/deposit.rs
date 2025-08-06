@@ -243,11 +243,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     )
     .await?;
 
-    if validation_result {
-        println!("Deposit validated");
-    } else {
-        println!("Failed to validate deposit");
-    }
+    println!("Deposit validated");
 
     Ok(())
 }
