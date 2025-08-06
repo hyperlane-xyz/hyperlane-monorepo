@@ -2,7 +2,7 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 import { randomBytes } from 'crypto';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixPopulate } from './modules/populate.js';
 import { RadixQuery } from './modules/query.js';
@@ -100,7 +100,7 @@ export class RadixSigningSDK extends RadixSDK {
     options?: RadixSDKOptions,
   ) {
     const account = await generateNewEd25519VirtualAccount(
-      privateKey,
+      strip0x(privateKey),
       options?.networkId ?? NetworkId.Mainnet,
     );
     return new RadixSigningSDK(account, options);

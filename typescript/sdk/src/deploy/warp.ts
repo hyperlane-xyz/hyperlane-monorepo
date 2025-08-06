@@ -3,6 +3,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import {
   Address,
   ProtocolType,
+  addressToBytes32,
   isObjEmpty,
   objFilter,
   objKeys,
@@ -438,7 +439,7 @@ export async function enrollCrossChainRouters(
             const routers: Record<string, { address: string }> = {};
             for (const c of allRemoteChains) {
               routers[multiProvider.getDomainId(c).toString()] = {
-                address: deployedContracts[c],
+                address: addressToBytes32(deployedContracts[c]),
               };
             }
             return routers;
@@ -476,7 +477,7 @@ export async function enrollCrossChainRouters(
             const routers: Record<string, { address: string }> = {};
             for (const c of allRemoteChains) {
               routers[multiProvider.getDomainId(c).toString()] = {
-                address: deployedContracts[c],
+                address: addressToBytes32(deployedContracts[c]),
               };
             }
             return routers;
@@ -515,7 +516,7 @@ export async function enrollCrossChainRouters(
             const routers: Record<string, { address: string }> = {};
             for (const c of allRemoteChains) {
               routers[multiProvider.getDomainId(c).toString()] = {
-                address: deployedContracts[c],
+                address: addressToBytes32(deployedContracts[c]),
               };
             }
             return routers;
