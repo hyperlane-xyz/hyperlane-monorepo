@@ -28,6 +28,7 @@ use crate::{DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus};
 /// This is block time for unit tests which assume that we are ready to re-submit every time,
 /// so, it is set to 0 nanoseconds so that we can test the inclusion stage without waiting
 const TEST_BLOCK_TIME: Duration = Duration::from_nanos(0);
+const TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS: Duration = Duration::from_nanos(0);
 const TEST_DOMAIN: KnownHyperlaneDomain = KnownHyperlaneDomain::Arbitrum;
 static TEST_GAS_LIMIT: LazyLock<EthersU256> = LazyLock::new(|| {
     apply_estimate_buffer_to_ethers(EthersU256::from(21000), &TEST_DOMAIN.into()).unwrap()
@@ -77,6 +78,7 @@ async fn test_inclusion_happy_path() {
         expected_tx_states,
         mock_evm_provider,
         block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
     )
     .await;
 }
@@ -213,6 +215,7 @@ async fn test_inclusion_gas_spike() {
         expected_tx_states,
         mock_evm_provider,
         block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
     )
     .await;
 }
@@ -306,6 +309,7 @@ async fn test_inclusion_gas_underpriced() {
         expected_tx_states,
         mock_evm_provider,
         block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
     )
     .await;
 }
@@ -443,6 +447,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         expected_tx_states,
         mock_evm_provider,
         block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
     )
     .await;
 }
@@ -536,6 +541,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
         expected_tx_states,
         mock_evm_provider,
         block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
     )
     .await;
 }
@@ -632,6 +638,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
         expected_tx_states,
         mock_evm_provider,
         block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
     )
     .await;
 }
@@ -657,8 +664,12 @@ async fn test_inclusion_estimate_gas_limit_error_drops_tx_and_payload() {
         });
 
     let signer = H160::random();
-    let dispatcher_state =
-        mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
+    let dispatcher_state = mock_dispatcher_state_with_provider(
+        mock_evm_provider,
+        signer,
+        block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
+    );
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
     let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
@@ -765,8 +776,12 @@ async fn test_inclusion_stage_nonce_too_low_error_does_not_drop_tx() {
         .returning(move |_| Ok(None));
 
     let signer = H160::random();
-    let dispatcher_state =
-        mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
+    let dispatcher_state = mock_dispatcher_state_with_provider(
+        mock_evm_provider,
+        signer,
+        block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
+    );
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
     let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
@@ -831,14 +846,18 @@ async fn test_inclusion_stage_nonce_too_low_error_does_not_drop_tx() {
 
 #[tokio::test]
 #[traced_test]
-async fn test_tx_ready_for_resubmission() {
+async fn test_tx_ready_for_resubmission_block_time() {
     let block_time = Duration::from_millis(20);
     let mut mock_evm_provider = MockEvmProvider::new();
     mock_finalized_block_number(&mut mock_evm_provider);
 
     let signer = H160::random();
-    let dispatcher_state =
-        mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
+    let dispatcher_state = mock_dispatcher_state_with_provider(
+        mock_evm_provider,
+        signer,
+        block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
+    );
 
     let mut created_txs = mock_evm_txs(
         1,
@@ -880,15 +899,87 @@ async fn test_tx_ready_for_resubmission() {
     );
 }
 
+#[tokio::test]
+#[traced_test]
+async fn test_tx_ready_for_resubmission_minimum_time_between_submissions() {
+    let block_time = Duration::from_millis(20);
+    let minimum_time_between_resubmissions = block_time * 2;
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+
+    let signer = H160::random();
+    let dispatcher_state = mock_dispatcher_state_with_provider(
+        mock_evm_provider,
+        signer,
+        block_time,
+        minimum_time_between_resubmissions,
+    );
+
+    let mut created_txs = mock_evm_txs(
+        1,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::PendingInclusion,
+        signer,
+        ExpectedTxType::Eip1559,
+    )
+    .await;
+    let mut tx = created_txs.remove(0);
+    let duration_since_epoch = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap();
+    #[allow(deprecated)]
+    let mock_last_submission_attempt = Utc.timestamp(
+        duration_since_epoch.as_secs() as i64,
+        duration_since_epoch.subsec_nanos(),
+    );
+    tx.last_submission_attempt = Some(mock_last_submission_attempt);
+
+    // Ensure the transaction is not ready for resubmission immediately
+    assert!(
+        !dispatcher_state
+            .adapter
+            .tx_ready_for_resubmission(&tx)
+            .await
+    );
+
+    // Simulate block time passing
+    tokio::time::sleep(block_time).await;
+
+    // Ensure the transaction is not ready for resubmission after block time
+    assert!(
+        !dispatcher_state
+            .adapter
+            .tx_ready_for_resubmission(&tx)
+            .await
+    );
+
+    // Simulate another block time passing
+    tokio::time::sleep(block_time).await;
+
+    // Ensure the transaction is now ready for resubmission
+    assert!(
+        dispatcher_state
+            .adapter
+            .tx_ready_for_resubmission(&tx)
+            .await
+    );
+}
+
 async fn run_and_expect_successful_inclusion(
     initial_tx_type: ExpectedTxType,
     mut expected_tx_states: Vec<ExpectedEvmTxState>,
     mock_evm_provider: MockEvmProvider,
     block_time: Duration,
+    minimum_time_between_resubmissions: Duration,
 ) {
     let signer = H160::random();
-    let dispatcher_state =
-        mock_dispatcher_state_with_provider(mock_evm_provider, signer, block_time);
+    let dispatcher_state = mock_dispatcher_state_with_provider(
+        mock_evm_provider,
+        signer,
+        block_time,
+        minimum_time_between_resubmissions,
+    );
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
     let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
@@ -1057,6 +1148,7 @@ pub fn mock_dispatcher_state_with_provider(
     provider: MockEvmProvider,
     signer: H160,
     block_time: Duration,
+    minimum_time_between_resubmissions: Duration,
 ) -> DispatcherState {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
     let adapter = mock_ethereum_adapter(
@@ -1066,6 +1158,7 @@ pub fn mock_dispatcher_state_with_provider(
         nonce_db,
         signer,
         block_time,
+        minimum_time_between_resubmissions,
     );
     DispatcherState::new(
         payload_db,
@@ -1083,6 +1176,7 @@ fn mock_ethereum_adapter(
     nonce_db: Arc<dyn NonceDb>,
     signer: H160,
     block_time: Duration,
+    minimum_time_between_resubmissions: Duration,
 ) -> EthereumAdapter {
     let domain: HyperlaneDomain = TEST_DOMAIN.into();
     let provider = Arc::new(provider);
@@ -1121,6 +1215,7 @@ fn mock_ethereum_adapter(
         batch_contract_address,
         payload_db,
         signer,
+        minimum_time_between_resubmissions,
     }
 }
 
