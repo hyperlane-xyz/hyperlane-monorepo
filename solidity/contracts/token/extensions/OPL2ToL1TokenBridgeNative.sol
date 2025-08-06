@@ -45,12 +45,11 @@ contract OpL2NativeTokenBridge is HypNative {
         _MailboxClient_initialize(_hook, address(0), _owner);
     }
 
-    // TODO: Consider extracting out the gasPayment logic to a separate function to avoid overriding this function
-    function quoteTransferRemote(
+    function _quoteGasPayment(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
+    ) internal view override returns (uint256) {
         bytes memory message = TokenMessage.format(_recipient, _amount);
         uint256 proveQuote = _Router_quoteDispatch(
             _destination,
@@ -64,11 +63,7 @@ contract OpL2NativeTokenBridge is HypNative {
             _finalizeHookMetadata(),
             address(hook)
         );
-        quotes = new Quote[](1);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: proveQuote + finalizeQuote + _amount
-        });
+        return proveQuote + finalizeQuote;
     }
 
     function _proveHookMetadata() internal view virtual returns (bytes memory) {

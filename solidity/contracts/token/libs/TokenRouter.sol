@@ -195,7 +195,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destinationDomain,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view returns (uint256) {
+    ) internal view virtual returns (uint256) {
         return
             _GasRouter_quoteDispatch(
                 _destinationDomain,
