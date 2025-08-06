@@ -10,15 +10,15 @@ import { HyperlaneContracts } from '../index.js';
 import { ChainName } from '../types.js';
 
 import { EvmTokenFeeFactories } from './contracts.js';
-import { TokenFee, TokenFeeType } from './types.js';
+import { TokenFeeConfig, TokenFeeType } from './types.js';
 
 export class EvmTokenFeeDeployer extends HyperlaneDeployer<
-  TokenFee,
+  TokenFeeConfig,
   EvmTokenFeeFactories
 > {
   async deployContracts(
     chain: ChainName,
-    config: TokenFee,
+    config: TokenFeeConfig,
   ): Promise<HyperlaneContracts<EvmTokenFeeFactories>> {
     let deployedContract;
     switch (config.type) {
@@ -40,7 +40,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
 
   private async deployLinearFee(
     chain: ChainName,
-    config: TokenFee,
+    config: TokenFeeConfig,
   ): Promise<LinearFee> {
     return this.deployContract(chain, TokenFeeType.LinearFee, [
       config.token,
@@ -52,7 +52,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
 
   private async deployProgressiveFee(
     chain: ChainName,
-    config: TokenFee,
+    config: TokenFeeConfig,
   ): Promise<ProgressiveFee> {
     return this.deployContract(chain, TokenFeeType.ProgressiveFee, [
       config.token,
@@ -64,7 +64,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
 
   private async deployRegressiveFee(
     chain: ChainName,
-    config: TokenFee,
+    config: TokenFeeConfig,
   ): Promise<RegressiveFee> {
     return this.deployContract(chain, TokenFeeType.RegressiveFee, [
       config.token,
@@ -76,7 +76,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
 
   private async deployRoutingFee(
     chain: ChainName,
-    config: TokenFee,
+    config: TokenFeeConfig,
   ): Promise<RoutingFee> {
     return this.deployContract(chain, TokenFeeType.RoutingFee, [
       config.token,

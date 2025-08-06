@@ -10,17 +10,17 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { evmTokenFeeFactories } from './contracts.js';
-import { TokenFee, TokenFeeType } from './types.js';
+import { LinearFeeConfig, TokenFeeConfig, TokenFeeType } from './types.js';
 
-function assertTokenConfigForTest(
-  config: Partial<TokenFee>,
-): asserts config is TokenFee {
+export function assertTokenConfigForTest(
+  config: Partial<TokenFeeConfig>,
+): asserts config is TokenFeeConfig {
   assert(config.type || !config.token || config.owner, 'Not a TokenFeeConfig');
 }
 
 const MAX_FEE = '100000000000000000000';
 const HALF_AMOUNT = '50000000000000000000';
-describe.only('EvmTokenFeeDeployer', () => {
+describe('EvmTokenFeeDeployer', () => {
   let multiProvider: MultiProvider;
   let deployer: EvmTokenFeeDeployer;
   let token: ERC20Test;
@@ -28,7 +28,7 @@ describe.only('EvmTokenFeeDeployer', () => {
 
   type TestCase = {
     title: string;
-    config: Omit<TokenFee, 'owner' | 'token'>;
+    config: Omit<TokenFeeConfig, 'owner' | 'token'>;
   };
 
   beforeEach(async () => {
@@ -71,7 +71,7 @@ describe.only('EvmTokenFeeDeployer', () => {
       },
     ];
     for (const testCase of testCases) {
-      it.only(testCase.title, async () => {
+      it(testCase.title, async () => {
         const config = {
           ...testCase.config,
           owner: signer.address,
@@ -113,15 +113,14 @@ describe.only('EvmTokenFeeDeployer', () => {
     expect(await routingFeeContract.token()).to.equal(config.token);
 
     // Deploy and set a LinearFee
-    const linearFeeConfig: Extract<TokenFee, { type: TokenFeeType.LinearFee }> =
-      {
-        type: TokenFeeType.LinearFee,
-        token: token.address,
-        owner: signer.address,
-        maxFee: MAX_FEE,
-        halfAmount: HALF_AMOUNT,
-        bps: 1000,
-      };
+    const linearFeeConfig: LinearFeeConfig = {
+      type: TokenFeeType.LinearFee,
+      token: token.address,
+      owner: signer.address,
+      maxFee: MAX_FEE,
+      halfAmount: HALF_AMOUNT,
+      bps: 1000,
+    };
     const linearFeeDeployer = await deployer.deploy({
       [TestChainName.test2]: linearFeeConfig,
     });
