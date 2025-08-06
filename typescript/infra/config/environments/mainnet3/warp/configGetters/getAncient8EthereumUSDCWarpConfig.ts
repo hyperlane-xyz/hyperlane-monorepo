@@ -13,7 +13,7 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { regularIcasV2 } from '../../governance/ica/regular2.js';
+import { regularIcas } from '../../governance/ica/regular.js';
 import { regularSafes } from '../../governance/safe/regular.js';
 
 export const getAncient8EthereumUSDCWarpConfig = async (
@@ -48,7 +48,7 @@ export const getAncient8EthereumUSDCWarpConfig = async (
     // Uses the default ISM
     interchainSecurityModule: ethers.constants.AddressZero,
     proxyAdmin: {
-      owner: regularIcasV2.ancient8,
+      owner: regularIcas.ancient8,
     },
   };
 
