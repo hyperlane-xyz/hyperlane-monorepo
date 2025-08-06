@@ -60,8 +60,6 @@ cainome = { version = "0.8.0", features = ["abigen-rs"] }
 clap = "4"
 chrono = "*"
 color-eyre = "0.6"
-cometbft = { git = "https://github.com/hyperlane-xyz/cometbft-rs", rev = "b6a0c1055d8e6c54cccb4647bf0ed09d73313a6f" }
-cometbft-rpc = { git = "https://github.com/hyperlane-xyz/cometbft-rs", rev = "b6a0c1055d8e6c54cccb4647bf0ed09d73313a6f" }
 config = "0.13.3"
 console-subscriber = "0.2.0"
 convert_case = "0.6"
@@ -223,6 +221,13 @@ overflow-checks = true
 [profile.release.package.hyperlane-sealevel-validator-announce]
 overflow-checks = true
 
+[workspace.dependencies.cometbft]
+git = "https://github.com/hyperlane-xyz/cometbft-rs"
+tag = "2025-08-06"
+
+[workspace.dependencies.cometbft-rpc]
+git = "https://github.com/hyperlane-xyz/cometbft-rs"
+tag = "2025-08-06"
 
 [workspace.dependencies.ethers]
 features = []
