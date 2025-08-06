@@ -94,7 +94,7 @@ describe.only('EvmTokenFeeDeployer', () => {
     }
   });
 
-  it.only('should deploy RoutingFee with correct parameters', async () => {
+  it('should deploy RoutingFee with correct parameters', async () => {
     const config = {
       type: TokenFeeType.RoutingFee,
       owner: signer.address,
