@@ -40,6 +40,7 @@ export class MultiChainResolver implements ChainResolver {
 
   async resolveChains(argv: ChainMap<any>): Promise<ChainName[]> {
     switch (this.mode) {
+      case ChainSelectionMode.STRATEGY:
       case ChainSelectionMode.WARP_CONFIG:
         return this.resolveWarpRouteConfigChains(argv);
       case ChainSelectionMode.WARP_APPLY:
@@ -51,7 +52,6 @@ export class MultiChainResolver implements ChainResolver {
       case ChainSelectionMode.CORE_DEPLOY:
         return this.resolveCoreDeployChains(argv);
       case ChainSelectionMode.DEFAULT:
-      default:
         return this.resolveRelayerChains(argv);
     }
   }
