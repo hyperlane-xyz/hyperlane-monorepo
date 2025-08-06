@@ -2,4 +2,4 @@
 "@hyperlane-xyz/cli": minor
 ---
 
-Fix `hyperlane strategy` throwing an error due to unknown chain resolver
+Fixes chain resolver for `hyperlane submit` by adding the STRATEGY enum into the chain resolver switch.
