@@ -97,7 +97,6 @@ impl BaseAgent for Scraper {
         tasks.push(server_task);
 
         for scraper in self.scrapers.values() {
-            info_span!("scraper", domain = %scraper.domain.name());
             let chain_conf = match self.settings.chain_setup(&scraper.domain) {
                 Ok(s) => s,
                 Err(err) => {
