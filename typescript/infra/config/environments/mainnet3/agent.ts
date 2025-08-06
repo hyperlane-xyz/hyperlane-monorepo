@@ -90,6 +90,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bouncebit: true,
     bsc: true,
     bsquared: true,
+    celestia: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -240,6 +241,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bouncebit: true,
     bsc: true,
     bsquared: true,
+    celestia: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -390,6 +392,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bouncebit: true,
     bsc: true,
     bsquared: true,
+    celestia: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -848,7 +851,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cb7d42b-20250801-092506',
+      tag: '2fe58b3-20250718-114304',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -894,7 +897,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cb7d42b-20250801-092506',
+      tag: 'e3559a3-20250730-083713',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -938,7 +941,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cb7d42b-20250801-092506',
+      tag: '5291797-20250701-134531',
     },
     blacklist,
     gasPaymentEnforcement,
