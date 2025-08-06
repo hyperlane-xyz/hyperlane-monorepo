@@ -2281,7 +2281,7 @@
       "domainId": 875,
       "gasCurrencyCoinGeckoId": "osmosis",
       "gasPrice": {
-        "amount": "0.025",
+        "amount": "0.1",
         "denom": "uosmo"
       },
       "grpcUrls": [
@@ -10046,6 +10046,81 @@
       "slip44": 118,
       "technicalStack": "other",
       "interchainGasPaymaster": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000010000000000000000",
+      "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000000",
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
+    },
+    "celestia": {
+      "bech32Prefix": "celestia",
+      "blockExplorers": [
+        {
+          "apiUrl": "https://celenium.io",
+          "family": "other",
+          "name": "Celenium",
+          "url": "https://celenium.io"
+        },
+        {
+          "apiUrl": "https://www.mintscan.io/celestia",
+          "family": "other",
+          "name": "Mintscan",
+          "url": "https://www.mintscan.io/celestia"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 6,
+        "reorgPeriod": 1
+      },
+      "canonicalAsset": "utia",
+      "chainId": "celestia",
+      "contractAddressBytes": 32,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Celestia",
+      "domainId": 1128614981,
+      "gasCurrencyCoinGeckoId": "celestia",
+      "gasPrice": {
+        "denom": "utia",
+        "amount": "0.02"
+      },
+      "grpcUrls": [
+        {
+          "http": "https://celestia-grpc.publicnode.com:443"
+        }
+      ],
+      "index": {
+        "chunk": 10,
+        "from": 6680339
+      },
+      "name": "celestia",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "utia",
+        "name": "Celestia",
+        "symbol": "TIA"
+      },
+      "protocol": "cosmosnative",
+      "restUrls": [
+        {
+          "http": "https://celestia-rest.publicnode.com"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "https://celestia-rpc.publicnode.com:443"
+        }
+      ],
+      "signer": {
+        "key": "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26",
+        "prefix": "celestia",
+        "type": "cosmosKey"
+      },
+      "slip44": 118,
+      "technicalStack": "other",
+      "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000040000000000000001",
       "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000010000000000000000",
       "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000000",
