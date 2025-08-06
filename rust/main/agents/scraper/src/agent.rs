@@ -149,7 +149,7 @@ impl BaseAgent for Scraper {
 impl Scraper {
     /// Sync contract data and other blockchain with the current chain state.
     /// This will spawn long-running contract sync tasks
-    #[instrument(fields(domain=%domain.name()), skip(self, scraper))]
+    #[instrument(fields(domain=%scraper.domain.name()), skip(self, scraper))]
     async fn scrape(&self, scraper: &ChainScraper) -> eyre::Result<JoinHandle<()>> {
         let store = scraper.store.clone();
         let index_settings = scraper.index_settings.clone();
