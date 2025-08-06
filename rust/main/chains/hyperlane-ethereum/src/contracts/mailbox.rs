@@ -208,7 +208,7 @@ where
             Ok(s) => s,
             Err(e) => {
                 if HyperlaneDomain::Known(KnownHyperlaneDomain::CoreDao) == self.domain {
-                    error!(domain=%self.domain.name(), tip, error=%e, contract_address=?self.contract.address(), "Failed to fetch sequence for Coredao domain");
+                    error!(tip, error=%e, contract_address=?self.contract.address(), "Failed to fetch sequence for Coredao domain");
                 }
                 return Err(e.into());
             }

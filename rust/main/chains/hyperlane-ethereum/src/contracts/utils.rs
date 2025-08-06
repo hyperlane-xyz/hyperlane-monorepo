@@ -7,6 +7,7 @@ use ethers::{
 };
 use ethers_contract::{ContractError, EthEvent, LogMeta as EthersLogMeta};
 use hyperlane_core::{ChainCommunicationError, ChainResult, LogMeta, H512};
+use tracing::{error, info};
 
 use crate::EthereumReorgPeriod;
 
@@ -56,12 +57,22 @@ where
     T: Deref<Target = M>,
 {
     let number = match *reorg_period {
-        EthereumReorgPeriod::Blocks(blocks) => provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .as_u32()
-            .saturating_sub(blocks),
+        EthereumReorgPeriod::Blocks(blocks) => {
+            let block_number_result = provider.get_block_number().await;
+            let block_number = match block_number_result {
+                Ok(number) => number.as_u32(),
+                Err(e) => {
+                    error!(error=%e, "Failed to fetch block number for Coredao domain");
+                    return Err(ChainCommunicationError::from_other(e));
+                }
+            };
+            let finalized_block_number = block_number.saturating_sub(blocks);
+            info!(
+                block_number,
+                finalized_block_number, "Finalized block number"
+            );
+            finalized_block_number
+        }
 
         EthereumReorgPeriod::Tag(tag) => provider
             .get_block(tag)
