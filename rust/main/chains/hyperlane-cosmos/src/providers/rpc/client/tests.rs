@@ -4,7 +4,6 @@ use cometbft_rpc::endpoint::block::Response;
 use cometbft_rpc::{HttpClient, Url};
 use std::str::FromStr;
 
-#[ignore]
 #[test]
 fn test_deserialize_neutron_block_22488720() {
     let json = r#"{
@@ -253,7 +252,6 @@ fn test_deserialize_neutron_block_22488720() {
     println!("Response: {:?}", response);
 }
 
-#[ignore]
 #[test]
 fn test_deserialize_osmosis_block_15317185() {
     let json = r#"{
@@ -1279,7 +1277,7 @@ async fn test_http_client() {
 
     // Neutron
     let url = "<neutron url>";
-    let height = 22488720u32;
+    let height: u32 = 22488720;
 
     // Osmosis
     // let url = "<osmosis url>";
