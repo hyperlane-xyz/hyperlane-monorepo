@@ -34,10 +34,6 @@ export const legacyIcaChainRouters: Record<
     interchainAccountRouter: Address;
   }
 > = {
-  conflux: {
-    interchainAccountIsm: '0x93D41E41cA545a35A81d11b08D2eE8b852C768df',
-    interchainAccountRouter: '0xc2466492C451E1AE49d8C874bB9f89293Aaad59b',
-  },
   viction: {
     interchainAccountIsm: '0x551BbEc45FD665a8C95ca8731CbC32b7653Bc59B',
     interchainAccountRouter: '0xc11f8Cf2343d3788405582F65B8af6A4F7a6FfC8',
@@ -52,18 +48,6 @@ export const legacyIcaChainRouters: Record<
     interchainAccountIsm: '0xc261Bd2BD995d3D0026e918cBFD44b0Cc5416a57',
     interchainAccountRouter: '0xf4035357EB3e3B48E498FA6e1207892f615A2c2f',
   },
-  // special case for bouncebit as there are RPC issues currently
-  // will update this separately in the next batch
-  bouncebit: {
-    interchainAccountIsm: '0xcDD89f19b2d00DCB9510BB3fBd5eCeCa761fe5Ab',
-    interchainAccountRouter: '0x7947b7Fe737B4bd1D3387153f32148974066E591',
-  },
-  // special case for deepbrainchain as there are RPC issues currently
-  // will update this separately in the next batch
-  deepbrainchain: {
-    interchainAccountIsm: '0x5B7a808CaA2C3F1378B07cDd46eB8ccA52F67e3B',
-    interchainAccountRouter: '0xBCD18636e5876DFd7AAb5F2B2a5Eb5ca168BA1d8',
-  },
 };
 export const legacyIcaChains = Object.keys(legacyIcaChainRouters);
 export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
@@ -76,7 +60,6 @@ export const chainsToSkip: ChainName[] = [
   // mainnets
   'zksync',
   'zeronetwork',
-  'zklink',
   'abstract',
   'sophon',
 
@@ -89,12 +72,10 @@ export const chainsToSkip: ChainName[] = [
   // special case for arcadia as it's currently under maintenance.
   // will update this separately in the next batch.
   'arcadia',
-  // special case for viction, ontology, bouncebit, deepbrainchain as there are RPC issues currently
+  // special case for viction, ontology as there are RPC issues currently
   // will update this separately in the next batch
   'viction',
   'ontology',
-  'bouncebit',
-  'deepbrainchain',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
