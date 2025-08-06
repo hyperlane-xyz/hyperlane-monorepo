@@ -14,7 +14,7 @@ import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainNameOrId } from '../types.js';
 
-import { XERC20TokenExtraBridgesLimits } from './types.js';
+import { XERC20TokenExtraBridgesLimits, XERC20Type } from './types.js';
 
 const minimalXERC20VSABI = [
   {
@@ -191,6 +191,7 @@ async function getLockboxesFromLogs(
     .map((log) => ({
       lockbox: log.args.bridge,
       limits: {
+        type: XERC20Type.Velo,
         bufferCap: log.args.bufferCap.toString(),
         rateLimitPerSecond: log.args.rateLimitPerSecond.toString(),
       },
