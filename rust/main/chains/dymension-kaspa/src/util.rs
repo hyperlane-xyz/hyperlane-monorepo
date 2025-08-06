@@ -3,8 +3,8 @@ use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol};
 use dym_kas_core::wallet::Network;
 use dym_kas_hardcode::hl::{
     HL_DOMAIN_DYM_LOCAL, HL_DOMAIN_DYM_MAINNET, HL_DOMAIN_DYM_PLAYGROUND_202507,
-    HL_DOMAIN_DYM_TESTNET_BLUMBUS, HL_DOMAIN_KASPA_MAINNET, HL_DOMAIN_KASPA_TEST10,
-    HL_DOMAIN_KASPA_TEST10_LEGACY,
+    HL_DOMAIN_DYM_PLAYGROUND_202507_LEGACY, HL_DOMAIN_DYM_TESTNET_BLUMBUS, HL_DOMAIN_KASPA_MAINNET,
+    HL_DOMAIN_KASPA_TEST10, HL_DOMAIN_KASPA_TEST10_LEGACY,
 };
 
 /// is it a kaspa domain?
@@ -50,9 +50,10 @@ pub fn domain_to_kas_network(d: &HyperlaneDomain) -> Network {
 pub const KAS_DOMAINS: [u32; 2] = [HL_DOMAIN_KASPA_MAINNET, HL_DOMAIN_KASPA_TEST10];
 
 /// List of dym domain.
-pub const HUB_DOMAINS: [u32; 4] = [
+pub const HUB_DOMAINS: [u32; 5] = [
     HL_DOMAIN_DYM_LOCAL,
     HL_DOMAIN_DYM_MAINNET,
     HL_DOMAIN_DYM_TESTNET_BLUMBUS,
     HL_DOMAIN_DYM_PLAYGROUND_202507,
+    HL_DOMAIN_DYM_PLAYGROUND_202507_LEGACY,
 ];
