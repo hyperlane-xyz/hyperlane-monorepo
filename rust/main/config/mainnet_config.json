@@ -2281,7 +2281,7 @@
       "domainId": 875,
       "gasCurrencyCoinGeckoId": "osmosis",
       "gasPrice": {
-        "amount": "0.025",
+        "amount": "0.1",
         "denom": "uosmo"
       },
       "grpcUrls": [
