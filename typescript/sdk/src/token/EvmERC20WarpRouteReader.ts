@@ -66,6 +66,7 @@ import {
   OwnerStatus,
   TokenMetadata,
   XERC20TokenMetadata,
+  XERC20Type,
   isMovableCollateralTokenConfig,
 } from './types.js';
 import { getExtraLockBoxConfigs } from './xerc20.js';
@@ -515,9 +516,11 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         logger: this.logger,
       });
 
+      // TODO: fix this such that it fetches from WL's values too
       return {
         xERC20: {
           warpRouteLimits: {
+            type: XERC20Type.Velo,
             rateLimitPerSecond: (
               await xERC20.rateLimitPerSecond(warpRouteAddress)
             ).toString(),

@@ -8,15 +8,14 @@ import {
   IsmConfig,
   IsmType,
   TokenType,
-  XERC20LimitConfig,
   XERC20TokenExtraBridgesLimits,
+  XERC20Type,
+  XERC20VSLimitConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { awIcas } from '../../governance/ica/aw.js';
-import { awSafes } from '../../governance/safe/aw.js';
-import { ousdtSafes } from '../../governance/safe/ousdt.js';
+import { awTimelocks } from '../../governance/timelock/aw.js';
 import { DEPLOYER } from '../../owners.js';
 
 // Environment-independent configuration
@@ -113,22 +112,15 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   botanix: middleRateLimitPerSecond,
 };
 
-const ICA_OWNED_CHAINS: oUSDTTokenChainName[] = [
-  'bob',
-  'hashkey',
-  'swell',
-  'botanix',
-];
 const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = [];
 const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
   deploymentChains.reduce((acc, chain) => {
     if (DPL_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
       acc[chain] = DEPLOYER;
-    } else if (ICA_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
-      assert(awIcas[chain], `ICA for ${chain} not found`);
-      acc[chain] = awIcas[chain];
     } else {
-      acc[chain] = ousdtSafes[chain] ?? awSafes[chain] ?? DEPLOYER;
+      const timelock = awTimelocks[chain];
+      assert(timelock, `Timelock for ${chain} not found`);
+      acc[chain] = timelock;
     }
     return acc;
   }, {} as TypedoUSDTTokenChainMap<string>);
@@ -238,7 +230,8 @@ const productionCeloXERC20LockboxAddress =
 const productionXERC20TokenAddress =
   '0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189';
 
-const zeroLimits: XERC20LimitConfig = {
+const zeroLimits: XERC20VSLimitConfig = {
+  type: XERC20Type.Velo,
   bufferCap: '0',
   rateLimitPerSecond: '0',
 };
@@ -254,7 +247,8 @@ const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
   botanix: '0x0EEFa8b75587bcD4A909a0F3c36180D4441481a0',
 };
 
-const productionCCIPTokenPoolLimits: XERC20LimitConfig = {
+const productionCCIPTokenPoolLimits: XERC20VSLimitConfig = {
+  type: XERC20Type.Velo,
   bufferCap: upperBufferCap,
   rateLimitPerSecond: productionDefaultRateLimitPerSecond,
 };
@@ -264,6 +258,7 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
     {
       lockbox: productionEthereumXERC20LockboxAddress,
       limits: {
+        type: XERC20Type.Velo,
         bufferCap: productionBufferCapByChain.ethereum,
         rateLimitPerSecond: productionRateLimitByChain.ethereum,
       },
@@ -460,6 +455,7 @@ const stagingExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
     {
       lockbox: stagingEthereumXERC20LockboxAddress,
       limits: {
+        type: XERC20Type.Velo,
         bufferCap: stagingBufferCapByChain.ethereum,
         rateLimitPerSecond: stagingRateLimitByChain.ethereum,
       },
@@ -584,6 +580,7 @@ function generateoUSDTTokenConfig(
         token: xERC20AddressesByChain[chain],
         xERC20: {
           warpRouteLimits: {
+            type: XERC20Type.Velo,
             rateLimitPerSecond: rateLimitPerSecondPerChain[chain],
             bufferCap: bufferCapPerChain[chain],
           },

@@ -81,9 +81,8 @@ impl LatestCheckpointReorgReporter {
 
         let mut merkle_tree_hooks = HashMap::new();
         for (url, settings) in Self::settings_with_single_rpc(settings, origin) {
-            let merkle_tree_hook = settings
-                .build_merkle_tree_hook(&settings.origin_chain, metrics)
-                .await?;
+            let chain_setup = settings.chain_setup(&settings.origin_chain)?;
+            let merkle_tree_hook = chain_setup.build_merkle_tree_hook(metrics).await?;
 
             merkle_tree_hooks.insert(url, merkle_tree_hook.into());
         }

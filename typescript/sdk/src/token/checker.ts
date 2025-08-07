@@ -238,7 +238,8 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       decimals = await (hypToken as unknown as ERC20).decimals();
     } else if (
       isCollateralTokenConfig(expectedConfig) ||
-      isXERC20TokenConfig(expectedConfig)
+      isXERC20TokenConfig(expectedConfig) ||
+      isCctpTokenConfig(expectedConfig)
     ) {
       const collateralToken = await this.getCollateralToken(chain);
       decimals = await collateralToken.decimals();
