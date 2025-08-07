@@ -28,7 +28,7 @@ const tokenMetadata: ChainMap<{
   },
   base: {
     type: TokenType.XERC20,
-    token: '0x6D87e970E4Db840bDc82dB3B149335DeB48306f7',
+    token: '0x30974f73A4ac9E606Ed80da928e454977ac486D2',
   },
   celo: {
     type: TokenType.XERC20,
