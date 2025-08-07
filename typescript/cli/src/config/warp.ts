@@ -312,7 +312,9 @@ export async function createWarpRouteDeployConfig({
         };
         break;
       case TokenType.native:
+      case TokenType.nativeMemo:
       case TokenType.synthetic:
+      case TokenType.syntheticMemo:
         result[chain] = {
           type,
           owner,

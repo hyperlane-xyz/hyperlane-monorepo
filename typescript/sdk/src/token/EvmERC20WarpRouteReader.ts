@@ -338,6 +338,44 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
+    // FORK PATCH: Check for native types first to avoid calling ERC20 methods on non-ERC20 contracts
+    // This prevents reverts when reading native/nativeMemo token routes
+    try {
+      // Quick check if contract accepts ETH (native token indicator)
+      await this.multiProvider.estimateGas(
+        this.chain,
+        {
+          to: warpRouteAddress,
+          value: BigNumber.from(0),
+        },
+        NON_ZERO_SENDER_ADDRESS,
+      );
+
+      // It's a native token type - check if it has memo support
+      try {
+        // Use minimal ABI to check for transferRemoteMemo without importing full factory
+        const memoCheckAbi = [
+          'function transferRemoteMemo(uint32,bytes32,uint256,bytes)',
+        ];
+        const contract = new Contract(
+          warpRouteAddress,
+          memoCheckAbi,
+          this.provider,
+        );
+        contract.interface.encodeFunctionData('transferRemoteMemo', [
+          0,
+          '0x' + '0'.repeat(64),
+          0,
+          '0x',
+        ]);
+        return TokenType.nativeMemo;
+      } catch {
+        return TokenType.native;
+      }
+    } catch {
+      // Not a native token, continue with standard detection
+    }
+
     const contractTypes: Partial<
       Record<TokenType, { factory: any; method: string }>
     > = {
@@ -460,41 +498,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       }
     }
 
-    // Finally check native types
-    // Using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
-    try {
-      await this.multiProvider.estimateGas(
-        this.chain,
-        {
-          to: warpRouteAddress,
-          value: BigNumber.from(0),
-        },
-        NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
-      );
-
-      // Check if it's nativeMemo by looking for transferRemoteMemo
-      try {
-        const HypNativeMemo = HypERC20Memo__factory.connect(
-          warpRouteAddress,
-          this.provider,
-        );
-        // Try to encode the transferRemoteMemo function - if it succeeds, it's nativeMemo
-        HypNativeMemo.interface.encodeFunctionData('transferRemoteMemo', [
-          0,
-          '0x' + '0'.repeat(64),
-          0,
-          '0x',
-        ]);
-        return TokenType.nativeMemo;
-      } catch {
-        // If transferRemoteMemo doesn't exist, it's regular native
-        return TokenType.native;
-      }
-    } catch (e) {
-      throw Error(`Error accessing token specific method ${e}`);
-    } finally {
-      this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
-    }
+    // Native types are now checked at the beginning of the function (FORK PATCH)
+    // If we reach here, we couldn't determine the token type
+    this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
+    throw Error(`Unable to determine token type for ${warpRouteAddress}`);
   }
 
   async fetchXERC20Config(
