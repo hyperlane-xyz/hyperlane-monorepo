@@ -1,17 +1,11 @@
-# File extension owners
-
-*.sol @yorhodes @larryob
-*.ts @yorhodes @ltyu @xeno097
-*.rs @tkporter @daniel-savu @ameten
-
 # Package owners
 
 ## Contracts
-solidity/ @yorhodes @tkporter @ltyu @larryob
-starknet/ @yorhodes @tkporter @troykessler
+solidity/ @yorhodes @ltyu @larryob
+starknet/ @yorhodes @troykessler
 
 ## Agents
-rust/ @tkporter @daniel-savu @ameten @kamiyaa
+rust/ @ameten @kamiyaa
 
 ## SDK
 typescript/utils @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
@@ -22,7 +16,7 @@ typescript/widgets @xaroz @cmcewen @antigremlin
 typescript/cli @yorhodes @ltyu @xeno097 @antigremlin
 
 ## Infra
-typescript/infra @tkporter @paulbalaji @Mo-Hussain
+typescript/infra @paulbalaji @Mo-Hussain
 
 ## Cosmos
 typescript/cosmos-sdk @troykessler @yjamin
