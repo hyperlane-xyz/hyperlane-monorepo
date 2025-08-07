@@ -12,6 +12,7 @@ hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
+hyperlane-sovereign = { path = "../../chains/hyperlane-sovereign" }
 toml_edit.workspace = true
 k256.workspace = true
 jobserver.workspace = true
@@ -49,3 +50,4 @@ cosmos = []
 starknet = []
 cosmosnative = []
 sealevel = []
+sovereign = []

@@ -9188,6 +9188,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-cosmwasm-interface",
+ "hyperlane-sovereign",
  "hyperlane-starknet",
  "jobserver",
  "k256 0.13.4",
