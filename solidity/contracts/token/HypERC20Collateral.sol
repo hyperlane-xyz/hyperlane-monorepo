@@ -16,7 +16,6 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {TokenMessage} from "./libs/TokenMessage.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
 import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
 import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
@@ -45,7 +44,7 @@ contract HypERC20Collateral is LpCollateralRouter {
         address erc20,
         uint256 _scale,
         address _mailbox
-    ) FungibleTokenRouter(_scale, _mailbox) {
+    ) TokenRouter(_scale, _mailbox) {
         require(Address.isContract(erc20), "HypERC20Collateral: invalid token");
         wrappedToken = IERC20(erc20);
     }
@@ -67,8 +66,32 @@ contract HypERC20Collateral is LpCollateralRouter {
         _LpCollateralRouter_initialize();
     }
 
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     */
     function token() public view virtual override returns (address) {
         return address(wrappedToken);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Override to transfer `_amount` of `wrappedToken` from `msg.sender` to this contract.
+     */
+    function _transferFromSender(uint256 _amount) internal virtual override {
+        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Override to transfer `_amount` of `wrappedToken` from this contract to `_recipient`.
+     */
+    function _transferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal virtual override {
+        wrappedToken.safeTransfer(_recipient, _amount);
     }
 
     function _addBridge(uint32 domain, ITokenBridge bridge) internal override {
@@ -82,24 +105,5 @@ contract HypERC20Collateral is LpCollateralRouter {
     ) internal override {
         MovableCollateralRouter._removeBridge(domain, bridge);
         IERC20(wrappedToken).safeApprove(address(bridge), 0);
-    }
-
-    /**
-     * @dev Transfers `_amount` of `wrappedToken` from `msg.sender` to this contract.
-     * @inheritdoc TokenRouter
-     */
-    function _transferFromSender(uint256 _amount) internal virtual override {
-        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
-    }
-
-    /**
-     * @dev Transfers `_amount` of `wrappedToken` from this contract to `_recipient`.
-     * @inheritdoc TokenRouter
-     */
-    function _transferTo(
-        address _recipient,
-        uint256 _amount
-    ) internal virtual override {
-        wrappedToken.safeTransfer(_recipient, _amount);
     }
 }

@@ -6,14 +6,14 @@ import {MovableCollateralRouter} from "contracts/token/libs/MovableCollateralRou
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import {Router} from "contracts/client/Router.sol";
-import {FungibleTokenRouter} from "contracts/token/libs/FungibleTokenRouter.sol";
+import {TokenRouter} from "contracts/token/libs/TokenRouter.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 
 import "forge-std/Test.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract MockMovableCollateralRouter is MovableCollateralRouter {
-    constructor(address _mailbox) FungibleTokenRouter(1, _mailbox) {}
+    constructor(address _mailbox) TokenRouter(1, _mailbox) {}
 
     function token() public view override returns (address) {
         return address(0);
