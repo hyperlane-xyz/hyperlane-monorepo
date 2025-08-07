@@ -134,7 +134,7 @@ pub fn cometbft_pubkey_to_cosmrs_pubkey(
     let cometbft_key_json = serde_json::to_string(&cometbft_key)
         .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
 
-    let comos_key_json = match cometbft_key {
+    let cosmos_key_json = match cometbft_key {
         cometbft::PublicKey::Ed25519(key) => CosmosKeyJsonFormat {
             key_type: cosmrs::crypto::PublicKey::ED25519_TYPE_URL,
             key: BASE64_STANDARD_NO_PAD.encode(key.as_bytes()),
@@ -150,9 +150,40 @@ pub fn cometbft_pubkey_to_cosmrs_pubkey(
         }
     };
 
-    let json_val = serde_json::to_string(&comos_key_json)
+    let json_val = serde_json::to_string(&cosmos_key_json)
         .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
     let cosm_key = PublicKey::from_json(&json_val)
         .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
     Ok(cosm_key)
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_cometbft_pubkey_to_cosmrs_pubkey_ed25519() {
+        let key_bytes =
+            hex::decode("F09E4D1CA00583669C8FB10B539DE25FB75CAD5A7C72569C2C3E08D05EB0DC71")
+                .expect("Failed to decode hex");
+        let key =
+            cometbft::PublicKey::from_raw_ed25519(&key_bytes).expect("Failed to parse ed25519 key");
+
+        let cosmos_key = cometbft_pubkey_to_cosmrs_pubkey(&key).expect("Failed to parse key");
+
+        println!("{:?}", cosmos_key);
+    }
+
+    #[test]
+    fn test_cometbft_pubkey_to_cosmrs_pubkey_secp256k1() {
+        let key_bytes = hex::decode("046da0967f2293b5ce9982ed7b0114cc36e4bb608d6e4d00140b9ee2a491af967448050dab0ae25263668e285acad1e91ea53b871b65f31aafc80ae6fb54e48567")
+            .expect("Failed to decode hex");
+        let key = cometbft::PublicKey::from_raw_secp256k1(&key_bytes)
+            .expect("Failed to parse secp256k1 key");
+
+        let cosmos_key = cometbft_pubkey_to_cosmrs_pubkey(&key).expect("Failed to parse key");
+
+        println!("{:?}", cosmos_key);
+    }
 }
