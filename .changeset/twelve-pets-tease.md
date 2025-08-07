@@ -1,5 +1,5 @@
 ---
-"@hyperlane-xyz/sdk": minor
+"@hyperlane-xyz/widgets": minor
 ---
 
 Include lockbox check for `useEthereumWatchAsset`
