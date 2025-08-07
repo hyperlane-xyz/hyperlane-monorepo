@@ -41,15 +41,32 @@ contract HypNative is LpCollateralRouter {
         _LpCollateralRouter_initialize();
     }
 
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     */
     function token() public view virtual override returns (address) {
         return address(0);
     }
 
     /**
      * @inheritdoc TokenRouter
+     * @dev Overrides to require `msg.value` is at least `_amount`.
      */
     function _transferFromSender(uint256 _amount) internal virtual override {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Override to release `_amount` of native token to `_recipient` balance.
+     */
+    function _transferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal virtual override {
+        Address.sendValue(payable(_recipient), _amount);
     }
 
     function _nativeRebalanceValue(
@@ -60,17 +77,6 @@ contract HypNative is LpCollateralRouter {
             address(this).balance >= nativeValue,
             "Native: rebalance amount exceeds balance"
         );
-    }
-
-    /**
-     * @dev Sends `_amount` of native token to `_recipient` balance.
-     * @inheritdoc TokenRouter
-     */
-    function _transferTo(
-        address _recipient,
-        uint256 _amount
-    ) internal virtual override {
-        Address.sendValue(payable(_recipient), _amount);
     }
 
     receive() external payable {

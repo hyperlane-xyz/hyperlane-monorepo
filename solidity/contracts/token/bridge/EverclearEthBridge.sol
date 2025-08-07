@@ -41,7 +41,7 @@ contract EverclearEthBridge is EverclearTokenBridge {
         )
     {}
 
-    function transfersNativeTokens() internal pure override returns (bool) {
+    function _transfersNativeTokens() internal pure override returns (bool) {
         return true;
     }
 

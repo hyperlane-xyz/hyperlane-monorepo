@@ -58,17 +58,36 @@ contract HypERC4626Collateral is HypERC20Collateral {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to deposit tokens into the vault and add exchange rate metadata.
+     */
     function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
     ) public payable override returns (bytes32 messageId) {
-        uint256 fee = _feeRecipientAmount(_destination, _recipient, _amount);
-        HypERC20Collateral._transferFromSender(_amount + fee);
-        if (fee > 0) {
-            HypERC20Collateral._transferTo(feeRecipient(), fee);
+        // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
+        // Don't use HypERC4626Collateral's implementation of _transferTo since it does a redemption.
+        uint256 feeRecipientFee = _feeRecipientAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        uint256 externalFee = _externalFeeAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        _transferFromSender(_amount + feeRecipientFee);
+        if (feeRecipientFee > 0) {
+            HypERC20Collateral._transferTo(feeRecipient(), feeRecipientFee);
         }
 
+        // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
+        // Deposit the amount into the vault and get the shares for the TokenMessage amount
         uint256 _shares = _depositIntoVault(_amount);
 
         uint256 _exchangeRate = vault.convertToAssets(PRECISION);
@@ -86,38 +105,41 @@ contract HypERC4626Collateral is HypERC20Collateral {
             _tokenMetadata
         );
 
-        // effects
-        emit SentTransferRemote(_destination, _recipient, _amount);
-
-        // interactions
-        // TODO: Consider flattening with GasRouter
-        messageId = _GasRouter_dispatch(
-            _destination,
-            msg.value,
-            _tokenMessage,
-            address(hook)
-        );
+        // 3. Emit the SentTransferRemote event and 4. dispatch the message
+        return
+            emitAndDispatch(
+                _destination,
+                _recipient,
+                _amount,
+                _tokenMessage,
+                feeRecipientFee,
+                externalFee
+            );
     }
 
     /**
-     * @dev Deposits into the vault and increment assetDeposited
-     * @param _amount amount to deposit into vault
-     */
-    function _depositIntoVault(
-        uint256 _amount
-    ) internal virtual returns (uint256) {
-        return vault.deposit(_amount, address(this));
-    }
-
-    /**
-     * @dev Withdraws `_shares` of `wrappedToken` from this contract to `_recipient`
      * @inheritdoc HypERC20Collateral
+     * @dev Override to redeem from vault when transferring to user.
+     * Known overrides:
+     * - HypERC4626OwnerCollateral: Trackes and keeps the yield for the owner.
      */
     function _transferTo(
         address _recipient,
         uint256 _shares
     ) internal virtual override {
         vault.redeem(_shares, _recipient, address(this));
+    }
+
+    /**
+     * @param _amount amount to deposit into vault
+     * @dev Deposits into the vault and increment assetDeposited.
+     * Known overrides:
+     * - HypERC4626OwnerCollateral: Tracks the total asset deposited and allows sweeping excess
+     */
+    function _depositIntoVault(
+        uint256 _amount
+    ) internal virtual returns (uint256) {
+        return vault.deposit(_amount, address(this));
     }
 
     /**

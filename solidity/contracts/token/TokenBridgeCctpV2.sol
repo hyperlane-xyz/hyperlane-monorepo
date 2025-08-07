@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenBridgeCctpBase} from "./TokenBridgeCctpBase.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
 import {TypedMemView} from "./../libs/TypedMemView.sol";
 import {Message} from "./../libs/Message.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
@@ -44,6 +45,20 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     {
         maxFeeBps = _maxFeeBps;
         minFinalityThreshold = _minFinalityThreshold;
+    }
+
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to indicate v2 fees.
+     */
+    function _externalFeeAmount(
+        uint32,
+        bytes32,
+        uint256 amount
+    ) internal view override returns (uint256 feeAmount) {
+        return (amount * maxFeeBps) / 10_000;
     }
 
     function _getCCTPVersion() internal pure override returns (uint32) {
@@ -151,15 +166,6 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             minFinalityThreshold,
             abi.encode(messageId)
         );
-    }
-
-    // TODO: this fee amount goes to Circle, not the configured fee recipient
-    function _externalFeeAmount(
-        uint32 destination,
-        bytes32 recipient,
-        uint256 amount
-    ) internal view override returns (uint256 feeAmount) {
-        return (amount * maxFeeBps) / 10_000;
     }
 
     function bridgeViaCircle(

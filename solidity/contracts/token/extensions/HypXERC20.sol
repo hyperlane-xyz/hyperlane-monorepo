@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 import {IXERC20} from "../interfaces/IXERC20.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
+import {TokenRouter} from "../libs/TokenRouter.sol";
 
 contract HypXERC20 is HypERC20Collateral {
     constructor(
@@ -13,10 +14,20 @@ contract HypXERC20 is HypERC20Collateral {
         _disableInitializers();
     }
 
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to burn tokens on outbound transfer.
+     */
     function _transferFromSender(uint256 _amountOrId) internal override {
         IXERC20(address(wrappedToken)).burn(msg.sender, _amountOrId);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to mint tokens on inbound transfer.
+     */
     function _transferTo(
         address _recipient,
         uint256 _amountOrId
