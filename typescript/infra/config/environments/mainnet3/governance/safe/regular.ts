@@ -25,4 +25,11 @@ export const regularSafes: ChainMap<Address> = {
   zeronetwork: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
   zksync: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
   zklink: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
+
+  // SVM chains
+  solanamainnet: '3oocunLfAgATEqoRyW7A5zirsQuHJh6YjD4kReiVVKLa',
+  eclipsemainnet: 'D742EWw9wpV47jRAvEenG1oWHfMmpiQNJLjHTBfXhuRm',
+  soon: '7Y6WDpMfNeb1b4YYbyUkF41z1DuPhvDDuWWJCHPRNa9Y',
+  sonicsvm: '8ECSwp5yo2EeZkozSrpPnMj5Rmcwa4VBYCETE9LHmc9y',
+  svmbnb: '3JiYeSX1rN2nsh78Xqypg87vQd2Y5Y9h5w9ns6Hjii5B',
 };
