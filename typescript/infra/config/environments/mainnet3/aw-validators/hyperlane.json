@@ -87,6 +87,9 @@
   "bsquared": {
     "validators": ["0xcadc90933c9fbe843358a4e70e46ad2db78e28aa"]
   },
+  "celestia": {
+    "validators": ["0x6dbc192c06907784fb0af0c0c2d8809ea50ba675"]
+  },
   "celo": {
     "validators": [
       "0x63478422679303c3e4fc611b771fa4a707ef7f4a",

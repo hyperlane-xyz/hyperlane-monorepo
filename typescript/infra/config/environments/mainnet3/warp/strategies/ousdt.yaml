@@ -2,31 +2,42 @@ base:
   submitter:
     chain: base
     safeAddress: '0x125d1b64dfd7898DD06ac3E060A432691b8Fa676'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 bitlayer:
   submitter:
     chain: bitlayer
     safeAddress: '0x5F7771EA40546e2932754C263455Cb0023a55ca7'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 bob:
   submitter:
     chain: ethereum
     destinationChain: bob
     internalSubmitter:
+      chain: ethereum
       safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
       type: gnosisSafeTxBuilder
       version: '1.0'
-    owner: '0xc99e58b9A4E330e2E4d09e2c94CD3c553904F588'
+    owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
     type: interchainAccount
 botanix:
   submitter:
-    chain: botanix
-    type: jsonRpc
+    chain: ethereum
+    destinationChain: botanix
+    internalSubmitter:
+      chain: ethereum
+      safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: gnosisSafeTxBuilder
+      version: '1.0'
+    owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+    type: interchainAccount
 celo:
   submitter:
     chain: celo
     safeAddress: '0xf1b3fc934bB46c459253fb38555A400b94909800'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 ethereum:
   submitter:
     chain: ethereum
@@ -37,42 +48,49 @@ fraxtal:
   submitter:
     chain: fraxtal
     safeAddress: '0x21C0CA5be5aC9BC6161Bf1cfE281A18Fe2190079'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 hashkey:
   submitter:
     chain: ethereum
     destinationChain: hashkey
     internalSubmitter:
+      chain: ethereum
       safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
       type: gnosisSafeTxBuilder
       version: '1.0'
-    owner: '0xEE01c007f89c9255f43b91B591b93cD1459048D1'
+    owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
     type: interchainAccount
 ink:
   submitter:
     chain: ink
     safeAddress: '0x1BBf2CE75A77b8A10dA7e73dC1F76456008010bD'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 linea:
   submitter:
     chain: linea
     safeAddress: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 lisk:
   submitter:
     chain: lisk
     safeAddress: '0x6F0A0038FcDB2F1655219f1b92f7E9aD4b78Aa49'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 mantle:
   submitter:
     chain: mantle
     safeAddress: '0x8aFE6EECc6CcB02aA20DA8Fff7d29aadEBbc2DCd'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 metal:
   submitter:
     chain: metal
     safeAddress: '0x41A4e3425c7FeE8711D1C1b2c2acc1879F849b45'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 metis:
   submitter:
     chain: metis
@@ -83,17 +101,20 @@ mode:
   submitter:
     chain: mode
     safeAddress: '0xD4c01B4753575899AD81aAca0bb2DB7796E9F7C0'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 optimism:
   submitter:
     chain: optimism
     safeAddress: '0x8E3340E241880F80359AA95Ae20Dc498d3f62503'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 ronin:
   submitter:
     chain: ronin
     safeAddress: '0x5F7771EA40546e2932754C263455Cb0023a55ca7'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 soneium:
   submitter:
     chain: soneium
@@ -104,7 +125,8 @@ sonic:
   submitter:
     chain: sonic
     safeAddress: '0x7f56412491D8E77331Ff0300d3C8E42A6D233FdC'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 superseed:
   submitter:
     chain: superseed
@@ -113,15 +135,24 @@ superseed:
     version: '1.0'
 swell:
   submitter:
-    chain: swell
-    type: jsonRpc
+    chain: ethereum
+    destinationChain: swell
+    internalSubmitter:
+      chain: ethereum
+      safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: gnosisSafeTxBuilder
+      version: '1.0'
+    owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+    type: interchainAccount
 unichain:
   submitter:
     chain: unichain
     safeAddress: '0xf306ad5bF95960188c67A30f5546D193760ca3D0'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'
 worldchain:
   submitter:
     chain: worldchain
     safeAddress: '0x998238aF5A2DDC7ae08Dbe4B60b82EF63A1538cd'
-    type: gnosisSafe
+    type: gnosisSafeTxBuilder
+    version: '1.0'

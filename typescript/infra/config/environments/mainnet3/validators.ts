@@ -1810,5 +1810,15 @@ export const validatorChainConfig = (
         'noble',
       ),
     },
+    celestia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('celestia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x6dbc192c06907784fb0af0c0c2d8809ea50ba675'],
+        },
+        'celestia',
+      ),
+    },
   };
 };

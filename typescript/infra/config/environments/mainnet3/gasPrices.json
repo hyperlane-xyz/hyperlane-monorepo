@@ -95,6 +95,10 @@
     "amount": "0.001000252",
     "decimals": 9
   },
+  "celestia": {
+    "amount": "0.02",
+    "decimals": 1
+  },
   "celo": {
     "amount": "25.001",
     "decimals": 9
