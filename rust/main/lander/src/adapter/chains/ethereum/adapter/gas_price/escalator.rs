@@ -3,6 +3,7 @@ use ethers_core::types::transaction::eip2718::TypedTransaction;
 use tracing::{debug, error, info, warn};
 
 use hyperlane_core::U256;
+use hyperlane_ethereum::TransactionOverrides;
 
 use crate::adapter::EthereumTxPrecursor;
 
@@ -13,11 +14,12 @@ const ESCALATION_MULTIPLIER_DENOMINATOR: u32 = 100;
 const GAS_PRICE_CAP_MULTIPLIER: u32 = 3;
 
 /// Sets the max between the newly estimated gas price and 1.1x the old gas price,
-/// then caps it at GAS_PRICE_CAP_MULTIPLIER times the newly estimated gas price.
-/// Formula: Min(Max(Escalate(oldGasPrice), newEstimatedGasPrice), GAS_PRICE_CAP_MULTIPLIER x newEstimatedGasPrice)
+/// then caps it at gas_price_cap_multiplier times the newly estimated gas price.
+/// Formula: Min(Max(Escalate(oldGasPrice), newEstimatedGasPrice), gas_price_cap_multiplier x newEstimatedGasPrice)
 pub fn escalate_gas_price_if_needed(
     old_gas_price: &GasPrice,
     estimated_gas_price: &GasPrice,
+    transaction_overrides: &TransactionOverrides,
 ) -> GasPrice {
     // assumes the old and new txs have the same type
     match (old_gas_price, estimated_gas_price) {
@@ -47,8 +49,11 @@ pub fn escalate_gas_price_if_needed(
                 gas_price: estimated_gas_price,
             },
         ) => {
-            let escalated_gas_price =
-                get_escalated_price_from_old_and_new(old_gas_price, estimated_gas_price);
+            let escalated_gas_price = get_escalated_price_from_old_and_new(
+                old_gas_price,
+                estimated_gas_price,
+                transaction_overrides,
+            );
             debug!(
                 tx_type = "Legacy or Eip2930",
                 ?old_gas_price,
@@ -70,11 +75,17 @@ pub fn escalate_gas_price_if_needed(
                 max_priority_fee: new_max_priority_fee,
             },
         ) => {
-            let escalated_max_fee_per_gas =
-                get_escalated_price_from_old_and_new(old_max_fee, new_max_fee);
+            let escalated_max_fee_per_gas = get_escalated_price_from_old_and_new(
+                old_max_fee,
+                new_max_fee,
+                transaction_overrides,
+            );
 
-            let escalated_max_priority_fee_per_gas =
-                get_escalated_price_from_old_and_new(old_max_priority_fee, new_max_priority_fee);
+            let escalated_max_priority_fee_per_gas = get_escalated_price_from_old_and_new(
+                old_max_priority_fee,
+                new_max_priority_fee,
+                transaction_overrides,
+            );
 
             debug!(
                 tx_type = "Eip1559",
@@ -97,10 +108,14 @@ pub fn escalate_gas_price_if_needed(
     }
 }
 
-fn get_escalated_price_from_old_and_new(old_gas_price: &U256, new_gas_price: &U256) -> U256 {
+fn get_escalated_price_from_old_and_new(
+    old_gas_price: &U256,
+    new_gas_price: &U256,
+    transaction_overrides: &TransactionOverrides,
+) -> U256 {
     let escalated_gas_price = apply_escalation_multiplier(old_gas_price);
     let max_escalated_or_new = escalated_gas_price.max(*new_gas_price);
-    let cap = apply_cap_multiplier(new_gas_price);
+    let cap = apply_cap_multiplier(new_gas_price, transaction_overrides);
     max_escalated_or_new.min(cap)
 }
 
@@ -110,8 +125,10 @@ fn apply_escalation_multiplier(gas_price: &U256) -> U256 {
     gas_price.saturating_mul(numerator).div_mod(denominator).0
 }
 
-fn apply_cap_multiplier(gas_price: &U256) -> U256 {
-    let multiplier = U256::from(GAS_PRICE_CAP_MULTIPLIER);
+fn apply_cap_multiplier(gas_price: &U256, transaction_overrides: &TransactionOverrides) -> U256 {
+    let multiplier = transaction_overrides
+        .gas_price_cap_multiplier
+        .unwrap_or_else(|| U256::from(GAS_PRICE_CAP_MULTIPLIER));
     gas_price.saturating_mul(multiplier)
 }
 
@@ -120,8 +137,16 @@ mod tests {
     use hyperlane_core::U256;
 
     use crate::adapter::chains::ethereum::adapter::gas_price::GasPrice;
+    use hyperlane_ethereum::TransactionOverrides;
 
     use super::*;
+
+    fn default_transaction_overrides() -> TransactionOverrides {
+        TransactionOverrides {
+            gas_price_cap_multiplier: Some(U256::from(3)),
+            ..Default::default()
+        }
+    }
 
     #[test]
     fn test_gas_price_does_not_overflow() {
@@ -135,7 +160,11 @@ mod tests {
         };
 
         // should not overflow and panic
-        let res = escalate_gas_price_if_needed(&old_gas_price, &estimated_gas_price);
+        let res = escalate_gas_price_if_needed(
+            &old_gas_price,
+            &estimated_gas_price,
+            &default_transaction_overrides(),
+        );
         let expected = GasPrice::Eip1559 {
             max_fee: U256::MAX,
             max_priority_fee: U256::MAX,
@@ -154,7 +183,11 @@ mod tests {
             gas_price: U256::from(100), // Low new estimated price
         };
 
-        let res = escalate_gas_price_if_needed(&old_gas_price, &estimated_gas_price);
+        let res = escalate_gas_price_if_needed(
+            &old_gas_price,
+            &estimated_gas_price,
+            &default_transaction_overrides(),
+        );
 
         // Escalated would be 1000 * 1.1 = 1100
         // Cap is 100 * 3 = 300
@@ -178,7 +211,11 @@ mod tests {
             max_priority_fee: U256::from(100),
         };
 
-        let res = escalate_gas_price_if_needed(&old_gas_price, &estimated_gas_price);
+        let res = escalate_gas_price_if_needed(
+            &old_gas_price,
+            &estimated_gas_price,
+            &default_transaction_overrides(),
+        );
 
         // Escalated max_fee would be 2000 * 1.1 = 2200
         // Cap for max_fee is 200 * 3 = 600
@@ -205,7 +242,11 @@ mod tests {
             gas_price: U256::from(200), // Higher new estimated price
         };
 
-        let res = escalate_gas_price_if_needed(&old_gas_price, &estimated_gas_price);
+        let res = escalate_gas_price_if_needed(
+            &old_gas_price,
+            &estimated_gas_price,
+            &default_transaction_overrides(),
+        );
 
         // Escalated would be 100 * 1.1 = 110
         // Cap is 200 * 3 = 600
@@ -227,13 +268,75 @@ mod tests {
             gas_price: U256::from(50), // Lower new estimated price
         };
 
-        let res = escalate_gas_price_if_needed(&old_gas_price, &estimated_gas_price);
+        let res = escalate_gas_price_if_needed(
+            &old_gas_price,
+            &estimated_gas_price,
+            &default_transaction_overrides(),
+        );
 
         // Escalated would be 100 * 1.1 = 110
         // Cap is 50 * 3 = 150
         // Result should be min(max(110, 50), 150) = 110 (escalated price)
         let expected = GasPrice::NonEip1559 {
             gas_price: U256::from(110),
+        };
+
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_configurable_gas_price_cap_multiplier() {
+        // Test that custom gas price cap multiplier is used
+        let old_gas_price = GasPrice::NonEip1559 {
+            gas_price: U256::from(1000), // High old price
+        };
+        let estimated_gas_price = GasPrice::NonEip1559 {
+            gas_price: U256::from(100), // Low new estimated price
+        };
+
+        // Use custom multiplier of 5 instead of default 3
+        let custom_overrides = TransactionOverrides {
+            gas_price_cap_multiplier: Some(U256::from(5)),
+            ..Default::default()
+        };
+
+        let res =
+            escalate_gas_price_if_needed(&old_gas_price, &estimated_gas_price, &custom_overrides);
+
+        // Escalated would be 1000 * 1.1 = 1100
+        // Cap with multiplier 5 is 100 * 5 = 500
+        // Result should be min(max(1100, 100), 500) = 500
+        let expected = GasPrice::NonEip1559 {
+            gas_price: U256::from(500),
+        };
+
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_default_gas_price_cap_multiplier_when_none() {
+        // Test that default multiplier (3) is used when not specified
+        let old_gas_price = GasPrice::NonEip1559 {
+            gas_price: U256::from(1000), // High old price
+        };
+        let estimated_gas_price = GasPrice::NonEip1559 {
+            gas_price: U256::from(100), // Low new estimated price
+        };
+
+        // Use overrides with no gas_price_cap_multiplier set
+        let default_overrides = TransactionOverrides {
+            gas_price_cap_multiplier: None,
+            ..Default::default()
+        };
+
+        let res =
+            escalate_gas_price_if_needed(&old_gas_price, &estimated_gas_price, &default_overrides);
+
+        // Escalated would be 1000 * 1.1 = 1100
+        // Cap with default multiplier 3 is 100 * 3 = 300
+        // Result should be min(max(1100, 100), 300) = 300
+        let expected = GasPrice::NonEip1559 {
+            gas_price: U256::from(300),
         };
 
         assert_eq!(res, expected);
