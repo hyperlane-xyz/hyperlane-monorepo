@@ -1,9 +1,4 @@
-import {
-  LinearFee,
-  ProgressiveFee,
-  RegressiveFee,
-  RoutingFee,
-} from '@hyperlane-xyz/core';
+import { RoutingFee } from '@hyperlane-xyz/core';
 
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { HyperlaneContracts } from '../index.js';
@@ -23,13 +18,25 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     let deployedContract;
     switch (config.type) {
       case TokenFeeType.LinearFee:
-        deployedContract = await this.deployLinearFee(chain, config);
+        deployedContract = await this.deployFee(
+          TokenFeeType.LinearFee,
+          chain,
+          config,
+        );
         break;
       case TokenFeeType.ProgressiveFee:
-        deployedContract = await this.deployProgressiveFee(chain, config);
+        deployedContract = await this.deployFee(
+          TokenFeeType.ProgressiveFee,
+          chain,
+          config,
+        );
         break;
       case TokenFeeType.RegressiveFee:
-        deployedContract = await this.deployRegressiveFee(chain, config);
+        deployedContract = await this.deployFee(
+          TokenFeeType.RegressiveFee,
+          chain,
+          config,
+        );
         break;
       case TokenFeeType.RoutingFee:
         deployedContract = await this.deployRoutingFee(chain, config);
@@ -38,35 +45,12 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     return { [config.type]: deployedContract } as any; // partial
   }
 
-  private async deployLinearFee(
+  async deployFee(
+    feeType: TokenFeeType,
     chain: ChainName,
     config: TokenFeeConfig,
-  ): Promise<LinearFee> {
-    return this.deployContract(chain, TokenFeeType.LinearFee, [
-      config.token,
-      config.maxFee,
-      config.halfAmount,
-      config.owner,
-    ]);
-  }
-
-  private async deployProgressiveFee(
-    chain: ChainName,
-    config: TokenFeeConfig,
-  ): Promise<ProgressiveFee> {
-    return this.deployContract(chain, TokenFeeType.ProgressiveFee, [
-      config.token,
-      config.maxFee,
-      config.halfAmount,
-      config.owner,
-    ]);
-  }
-
-  private async deployRegressiveFee(
-    chain: ChainName,
-    config: TokenFeeConfig,
-  ): Promise<RegressiveFee> {
-    return this.deployContract(chain, TokenFeeType.RegressiveFee, [
+  ): Promise<ReturnType<EvmTokenFeeFactories[typeof feeType]['deploy']>> {
+    return this.deployContract(chain, feeType, [
       config.token,
       config.maxFee,
       config.halfAmount,
