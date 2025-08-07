@@ -49,6 +49,7 @@ mod gas_price;
 mod tx_status_checker;
 
 const NONCE_TOO_LOW_ERROR: &str = "nonce too low";
+const DEFAULT_MINIMUM_TIME_BETWEEN_RESUBMISSIONS: Duration = Duration::from_secs(1);
 
 pub struct EthereumAdapter {
     pub estimated_block_time: Duration,
@@ -62,6 +63,7 @@ pub struct EthereumAdapter {
     pub batch_contract_address: H256,
     pub payload_db: Arc<dyn PayloadDb>,
     pub signer: H160,
+    pub minimum_time_between_resubmissions: Duration,
 }
 
 impl EthereumAdapter {
@@ -114,6 +116,7 @@ impl EthereumAdapter {
             batch_contract_address: connection_conf.batch_contract_address(),
             payload_db,
             signer,
+            minimum_time_between_resubmissions: DEFAULT_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
         };
 
         Ok(adapter)
@@ -344,6 +347,8 @@ impl AdaptsChain for EthereumAdapter {
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
         let estimated_block_time = self.estimated_block_time();
+        let ready_time = estimated_block_time.max(&self.minimum_time_between_resubmissions);
+
         let Some(last_submission_time) = tx.last_submission_attempt else {
             // If the transaction has never been submitted, it is ready for resubmission
             return true;
@@ -360,7 +365,7 @@ impl AdaptsChain for EthereumAdapter {
                 return true;
             }
         };
-        elapsed > *estimated_block_time
+        elapsed > *ready_time
     }
 
     /// Builds a transaction for the given payloads.
