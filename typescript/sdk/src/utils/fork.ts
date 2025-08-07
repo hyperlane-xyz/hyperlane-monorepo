@@ -145,6 +145,12 @@ export const setBalance = async (
   anvilEndPoint?: string,
 ) => {
   rootLogger.info(`Setting balance for address (${address}) to ${balance}...`);
+  if (!isValidAddressEvm(address))
+    throw new Error(`Cannot set balance: invalid address format: ${address}`);
+
   const provider = getLocalProvider({ urlOverride: anvilEndPoint });
   await provider.send(ANVIL_RPC_METHODS.SET_BALANCE, [address, balance]);
+  rootLogger.info(
+    `✅ Successfully set balance for address (${address}) to ${balance}`,
+  );
 };
