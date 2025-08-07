@@ -3,6 +3,7 @@ pragma solidity ^0.8.22;
 
 import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
+import {TokenRouter} from "../libs/TokenRouter.sol";
 import {IEverclearAdapter, IEverclear, IEverclearSpoke} from "../../interfaces/IEverclearAdapter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -89,6 +90,98 @@ contract EverclearTokenBridge is HypERC20Collateral {
         wrappedToken.approve(address(everclearAdapter), type(uint256).max);
     }
 
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     */
+    function _externalFeeAmount(
+        uint32,
+        bytes32,
+        uint256
+    ) internal view override returns (uint256 feeAmount) {
+        return feeParams.fee;
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to create an Everclear intent for the transfer.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public payable virtual override returns (bytes32 messageId) {
+        // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
+        (uint256 feeRecipientFee, uint256 externalFee) = calculateFeesAndCharge(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
+        IEverclear.Intent memory intent = _createIntent(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            _outboundAmount(_amount),
+            abi.encode(intent)
+        );
+
+        // 3. Emit the SentTransferRemote event and 4. dispatch the message
+        return
+            emitAndDispatch(
+                _destination,
+                _recipient,
+                _amount,
+                _tokenMessage,
+                feeRecipientFee,
+                externalFee
+            );
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to check for the Everclear intent status and transfer tokens to the recipient.
+     */
+    function _handle(
+        uint32 _origin,
+        bytes32 /* sender */,
+        bytes calldata _message
+    ) internal virtual override {
+        // Get intent from hyperlane message
+        bytes memory metadata = _message.metadata();
+        IEverclear.Intent memory intent = abi.decode(
+            metadata,
+            (IEverclear.Intent)
+        );
+
+        /* CHECKS */
+        // Check that intent is settled
+        bytes32 intentId = keccak256(abi.encode(intent));
+        require(
+            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
+            "ETB: Intent Status != SETTLED"
+        );
+        // Check that we have not processed this intent before
+        require(!intentSettled[intentId], "ETB: Intent already processed");
+        (bytes32 _recipient, uint256 _amount) = abi.decode(
+            intent.data,
+            (bytes32, uint256)
+        );
+
+        /* EFFECTS */
+        intentSettled[intentId] = true;
+        emit ReceivedTransferRemote(_origin, _recipient, _amount);
+
+        /* INTERACTIONS */
+        _transferTo(_recipient.bytes32ToAddress(), _amount);
+    }
+
     /**
      * @notice Sets the fee parameters for Everclear bridge operations
      * @dev Only callable by the contract owner
@@ -145,49 +238,6 @@ contract EverclearTokenBridge is HypERC20Collateral {
         }
     }
 
-    // The fees that Everclear charges
-    function _externalFeeAmount(
-        uint32,
-        bytes32,
-        uint256
-    ) internal view override returns (uint256 feeAmount) {
-        return feeParams.fee;
-    }
-
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) public payable virtual override returns (bytes32 messageId) {
-        (uint256 feeRecipientFee, uint256 externalFee) = calculateFeesAndCharge(
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        IEverclear.Intent memory intent = _createIntent(
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        bytes memory _tokenMessage = TokenMessage.format(
-            _recipient,
-            _outboundAmount(_amount),
-            abi.encode(intent)
-        );
-
-        return
-            emitAndDispatch(
-                _destination,
-                _recipient,
-                _amount,
-                _tokenMessage,
-                feeRecipientFee,
-                externalFee
-            );
-    }
-
     /**
      * @notice Creates an Everclear intent for cross-chain token transfer
      * @dev Internal function to handle intent creation with Everclear adapter
@@ -236,39 +286,5 @@ contract EverclearTokenBridge is HypERC20Collateral {
         uint256 _amount
     ) internal view returns (bytes memory) {
         return abi.encode(_recipient, _amount);
-    }
-
-    function _handle(
-        uint32 _origin,
-        bytes32 /* sender */,
-        bytes calldata _message
-    ) internal virtual override {
-        // Get intent from hyperlane message
-        bytes memory metadata = _message.metadata();
-        IEverclear.Intent memory intent = abi.decode(
-            metadata,
-            (IEverclear.Intent)
-        );
-
-        /* CHECKS */
-        // Check that intent is settled
-        bytes32 intentId = keccak256(abi.encode(intent));
-        require(
-            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
-            "ETB: Intent Status != SETTLED"
-        );
-        // Check that we have not processed this intent before
-        require(!intentSettled[intentId], "ETB: Intent already processed");
-        (bytes32 _recipient, uint256 _amount) = abi.decode(
-            intent.data,
-            (bytes32, uint256)
-        );
-
-        /* EFFECTS */
-        intentSettled[intentId] = true;
-        emit ReceivedTransferRemote(_origin, _recipient, _amount);
-
-        /* INTERACTIONS */
-        _transferTo(_recipient.bytes32ToAddress(), _amount);
     }
 }

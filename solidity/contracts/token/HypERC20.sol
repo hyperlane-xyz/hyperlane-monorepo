@@ -47,21 +47,26 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         return _decimals;
     }
 
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     */
     function token() public view virtual override returns (address) {
         return address(this);
     }
 
     /**
-     * @dev Burns `_amount` of token from `msg.sender` balance.
      * @inheritdoc TokenRouter
+     * @dev Overrides to burn `_amount` of token from `msg.sender` balance.
      */
     function _transferFromSender(uint256 _amount) internal virtual override {
         _burn(msg.sender, _amount);
     }
 
     /**
-     * @dev Mints `_amount` of token to `_recipient` balance.
      * @inheritdoc TokenRouter
+     * @dev Overrides to mint `_amount` of token to `_recipient` balance.
      */
     function _transferTo(
         address _recipient,

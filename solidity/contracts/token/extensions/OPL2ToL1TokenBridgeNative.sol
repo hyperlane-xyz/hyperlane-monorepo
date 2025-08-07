@@ -45,6 +45,12 @@ contract OpL2NativeTokenBridge is HypNative {
         _MailboxClient_initialize(_hook, address(0), _owner);
     }
 
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to quote for two messages: prove and finalize.
+     */
     function _quoteGasPayment(
         uint32 _destination,
         bytes32 _recipient,
@@ -66,38 +72,25 @@ contract OpL2NativeTokenBridge is HypNative {
         return proveQuote + finalizeQuote;
     }
 
-    function _proveHookMetadata() internal view virtual returns (bytes memory) {
-        return
-            StandardHookMetadata.format({
-                _msgValue: 0,
-                _gasLimit: PROVE_WITHDRAWAL_GAS_LIMIT,
-                _refundAddress: address(this)
-            });
-    }
-
-    function _finalizeHookMetadata()
-        internal
-        view
-        virtual
-        returns (bytes memory)
-    {
-        return
-            StandardHookMetadata.format({
-                _msgValue: 0,
-                _gasLimit: FINALIZE_WITHDRAWAL_GAS_LIMIT,
-                _refundAddress: address(this)
-            });
-    }
-
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to use the L2 bridge for transferring native tokens and trigger two messages:
+     * - Prove message with amount 0 to prove the withdrawal
+     * - Finalize message with the actual amount to finalize the withdrawal
+     * transferRemote typically has the dispatch of the message as the 4th and final step. However, in this case we want the Hyperlane messageId to be passed via the rollup bridge.
+     */
     function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
     ) public payable virtual override returns (bytes32) {
+        // 1. No external fee calculation necessary
         require(
             _amount > 0,
             "OP L2 token bridge: amount must be greater than 0"
         );
+
+        // 2. Prepare the "dispatch" of messages by actually dispatching the Hyperlane messages
 
         // Dispatch proof message (no token amount)
         bytes32 proveMessageId = _Router_quoteAndDispatch(
@@ -118,6 +111,7 @@ contract OpL2NativeTokenBridge is HypNative {
         // include for legible error message
         HypNative._transferFromSender(_amount);
 
+        // 3. Emit event manually
         emit SentTransferRemote(_destination, _recipient, _amount);
 
         // used for mapping withdrawal to hyperlane prove and finalize messages
@@ -125,6 +119,8 @@ contract OpL2NativeTokenBridge is HypNative {
             proveMessageId,
             withdrawMessageId
         );
+
+        // 4. "Dispatch" the message by calling the L2 bridge to transfer native tokens
         l2Bridge.bridgeETHTo{value: _amount}(
             _recipient.bytes32ToAddress(),
             OP_MIN_GAS_LIMIT_ON_L1,
@@ -136,6 +132,24 @@ contract OpL2NativeTokenBridge is HypNative {
         }
 
         return withdrawMessageId;
+    }
+
+    function _proveHookMetadata() internal view virtual returns (bytes memory) {
+        return
+            StandardHookMetadata.format({
+                _msgValue: 0,
+                _gasLimit: PROVE_WITHDRAWAL_GAS_LIMIT,
+                _refundAddress: address(this)
+            });
+    }
+
+    function _finalizeHookMetadata() internal view returns (bytes memory) {
+        return
+            StandardHookMetadata.format({
+                _msgValue: 0,
+                _gasLimit: FINALIZE_WITHDRAWAL_GAS_LIMIT,
+                _refundAddress: address(this)
+            });
     }
 
     function handle(uint32, bytes32, bytes calldata) external payable override {

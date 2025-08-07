@@ -5,6 +5,7 @@ import {IXERC20Lockbox} from "../interfaces/IXERC20Lockbox.sol";
 import {IXERC20, IERC20} from "../interfaces/IXERC20.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {TokenRouter} from "../libs/TokenRouter.sol";
 
 contract HypXERC20Lockbox is HypERC20Collateral {
     uint256 constant MAX_INT = 2 ** 256 - 1;
@@ -55,6 +56,12 @@ contract HypXERC20Lockbox is HypERC20Collateral {
         _MailboxClient_initialize(_hook, _ism, _owner);
     }
 
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to burn tokens on outbound transfer.
+     */
     function _transferFromSender(uint256 _amount) internal override {
         // transfer erc20 from sender
         super._transferFromSender(_amount);
@@ -64,6 +71,10 @@ contract HypXERC20Lockbox is HypERC20Collateral {
         xERC20.burn(address(this), _amount);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to mint tokens on inbound transfer.
+     */
     function _transferTo(
         address _recipient,
         uint256 _amount
