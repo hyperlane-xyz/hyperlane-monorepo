@@ -223,13 +223,11 @@ overflow-checks = true
 
 [workspace.dependencies.cometbft]
 git = "https://github.com/hyperlane-xyz/cometbft-rs"
-rev = "b1246e536f3b376ce0a580a2ef7b1dae28af3716"
-# tag = "2025-08-06"
+tag = "2025-08-07"
 
 [workspace.dependencies.cometbft-rpc]
 git = "https://github.com/hyperlane-xyz/cometbft-rs"
-rev = "b1246e536f3b376ce0a580a2ef7b1dae28af3716"
-# tag = "2025-08-06"
+tag = "2025-08-07"
 
 [workspace.dependencies.ethers]
 features = []

@@ -2130,7 +2130,7 @@ dependencies = [
 [[package]]
 name = "cometbft"
 version = "0.1.0-alpha.2"
-source = "git+https://github.com/hyperlane-xyz/cometbft-rs?rev=b1246e536f3b376ce0a580a2ef7b1dae28af3716#b1246e536f3b376ce0a580a2ef7b1dae28af3716"
+source = "git+https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31488dd08063d5c5db854af42b401222fe"
 dependencies = [
  "bytes",
  "cometbft-proto",
@@ -2159,7 +2159,7 @@ dependencies = [
 [[package]]
 name = "cometbft-config"
 version = "0.1.0-alpha.2"
-source = "git+https://github.com/hyperlane-xyz/cometbft-rs?rev=b1246e536f3b376ce0a580a2ef7b1dae28af3716#b1246e536f3b376ce0a580a2ef7b1dae28af3716"
+source = "git+https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31488dd08063d5c5db854af42b401222fe"
 dependencies = [
  "cometbft",
  "flex-error",
@@ -2172,7 +2172,7 @@ dependencies = [
 [[package]]
 name = "cometbft-proto"
 version = "0.1.0-alpha.2"
-source = "git+https://github.com/hyperlane-xyz/cometbft-rs?rev=b1246e536f3b376ce0a580a2ef7b1dae28af3716#b1246e536f3b376ce0a580a2ef7b1dae28af3716"
+source = "git+https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31488dd08063d5c5db854af42b401222fe"
 dependencies = [
  "bytes",
  "flex-error",
@@ -2186,7 +2186,7 @@ dependencies = [
 [[package]]
 name = "cometbft-rpc"
 version = "0.1.0-alpha.2"
-source = "git+https://github.com/hyperlane-xyz/cometbft-rs?rev=b1246e536f3b376ce0a580a2ef7b1dae28af3716#b1246e536f3b376ce0a580a2ef7b1dae28af3716"
+source = "git+https://github.com/hyperlane-xyz/cometbft-rs?tag=2025-08-07#9382da31488dd08063d5c5db854af42b401222fe"
 dependencies = [
  "async-trait",
  "bytes",
