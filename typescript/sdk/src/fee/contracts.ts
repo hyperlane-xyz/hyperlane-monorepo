@@ -5,11 +5,13 @@ import {
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
 
+import { TokenFeeType } from './types.js';
+
 export const evmTokenFeeFactories = {
-  LinearFee: new LinearFee__factory(),
-  ProgressiveFee: new ProgressiveFee__factory(),
-  RegressiveFee: new RegressiveFee__factory(),
-  RoutingFee: new RoutingFee__factory(),
+  [TokenFeeType.LinearFee]: new LinearFee__factory(),
+  [TokenFeeType.ProgressiveFee]: new ProgressiveFee__factory(),
+  [TokenFeeType.RegressiveFee]: new RegressiveFee__factory(),
+  [TokenFeeType.RoutingFee]: new RoutingFee__factory(),
 } as const;
 
 export type EvmTokenFeeFactories = typeof evmTokenFeeFactories;
