@@ -1,12 +1,6 @@
 import { ChakraProvider } from '@chakra-ui/react';
 import { ChainProvider } from '@cosmos-kit/react';
 import '@interchain-ui/react/styles';
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import {
-  Logger,
-  RadixDappToolkit,
-  RadixNetwork,
-} from '@radixdlt/radix-dapp-toolkit';
 import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import '@rainbow-me/rainbowkit/styles.css';
 import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
@@ -33,9 +27,6 @@ import { ConnectWalletButton } from '../walletIntegrations/ConnectWalletButton.j
 import { MultiProtocolWalletModal } from '../walletIntegrations/MultiProtocolWalletModal.js';
 import { getCosmosKitChainConfigs } from '../walletIntegrations/cosmos.js';
 import { getWagmiChainConfigs } from '../walletIntegrations/ethereum.js';
-import { AccountProvider } from '../walletIntegrations/radix/AccountContext.js';
-import { GatewayApiProvider } from '../walletIntegrations/radix/GatewayApiProvider.js';
-import { RdtProvider } from '../walletIntegrations/radix/RdtProvider.js';
 
 const multiProvider = new MultiProtocolProvider({
   ethereum,
@@ -53,26 +44,24 @@ function MinimalDapp({ protocols }: { protocols?: ProtocolType[] }) {
       <CosmosWalletProvider>
         <SolanaWalletProvider>
           <StarknetWalletProvider>
-            <RadixWalletProvider>
-              <div className="htw-space-y-4">
-                <h1>CONNECT BUTTON</h1>
-                <ConnectWalletButton
-                  multiProvider={multiProvider}
-                  onClickWhenConnected={open}
-                  onClickWhenUnconnected={open}
-                />
-                <h1>ACCOUNT SUMMARY</h1>
-                <AccountList
-                  multiProvider={multiProvider}
-                  onClickConnectWallet={open}
-                />
-              </div>
-              <MultiProtocolWalletModal
-                isOpen={isOpen}
-                close={close}
-                protocols={protocols}
+            <div className="htw-space-y-4">
+              <h1>CONNECT BUTTON</h1>
+              <ConnectWalletButton
+                multiProvider={multiProvider}
+                onClickWhenConnected={open}
+                onClickWhenUnconnected={open}
               />
-            </RadixWalletProvider>
+              <h1>ACCOUNT SUMMARY</h1>
+              <AccountList
+                multiProvider={multiProvider}
+                onClickConnectWallet={open}
+              />
+            </div>
+            <MultiProtocolWalletModal
+              isOpen={isOpen}
+              close={close}
+              protocols={protocols}
+            />
           </StarknetWalletProvider>
         </SolanaWalletProvider>
       </CosmosWalletProvider>
@@ -128,32 +117,6 @@ function StarknetWalletProvider({ children }: PropsWithChildren<unknown>) {
     <StarknetConfig chains={[sepolia]} provider={publicProvider()}>
       {children}
     </StarknetConfig>
-  );
-}
-
-function RadixWalletProvider({ children }: PropsWithChildren<unknown>) {
-  // TODO: RADIX
-  const [rdt] = useState(
-    RadixDappToolkit({
-      networkId: RadixNetwork.Mainnet,
-      applicationVersion: '1.0.0',
-      applicationName: 'Radix Web3 dApp',
-      applicationDappDefinitionAddress:
-        'account_rdx12y7md4spfq5qy7e3mfjpa52937uvkxf0nmydsu5wydkkxw3qx6nghn',
-      logger: Logger(1),
-    }),
-  );
-
-  const [gatewayApi] = useState(
-    GatewayApiClient.initialize(rdt.gatewayApi.clientConfig),
-  );
-
-  return (
-    <RdtProvider value={rdt}>
-      <GatewayApiProvider value={gatewayApi}>
-        <AccountProvider>{children}</AccountProvider>
-      </GatewayApiProvider>
-    </RdtProvider>
   );
 }
 

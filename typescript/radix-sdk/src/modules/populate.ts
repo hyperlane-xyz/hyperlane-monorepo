@@ -51,11 +51,7 @@ export class RadixPopulate {
     args: Value[],
   ) {
     return new ManifestBuilder()
-      .callMethod(
-        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
-        'lock_fee',
-        [decimal(this.gasAmount)],
-      )
+      .callMethod(from_address, 'lock_fee', [decimal(this.gasAmount)])
       .callFunction(package_address, blueprint_name, function_name, args)
       .callMethod(from_address, 'try_deposit_batch_or_refund', [
         expression('EntireWorktop'),
@@ -79,11 +75,7 @@ export class RadixPopulate {
       .access_rule.proof_rule.requirement.resource;
 
     return new ManifestBuilder()
-      .callMethod(
-        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
-        'lock_fee',
-        [decimal(this.gasAmount)],
-      )
+      .callMethod(from_address, 'lock_fee', [decimal(this.gasAmount)])
       .callMethod(from_address, 'create_proof_of_amount', [
         address(ownerResource),
         decimal(1),
@@ -108,11 +100,7 @@ export class RadixPopulate {
     amount: string;
   }) {
     return new ManifestBuilder()
-      .callMethod(
-        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
-        'lock_fee',
-        [decimal(this.gasAmount)],
-      )
+      .callMethod(from_address, 'lock_fee', [decimal(this.gasAmount)])
       .callMethod(from_address, 'withdraw', [
         address(resource_address),
         decimal(amount),
@@ -559,11 +547,7 @@ export class RadixPopulate {
     assert(origin_denom, `no origin_denom found on token ${token}`);
 
     return new ManifestBuilder()
-      .callMethod(
-        'component_sim1cptxxxxxxxxxfaucetxxxxxxxxx000527798379xxxxxxxxxhkrefh',
-        'lock_fee',
-        [decimal(this.gasAmount)],
-      )
+      .callMethod(from_address, 'lock_fee', [decimal(this.gasAmount)])
       .callMethod(from_address, 'withdraw', [
         address(origin_denom),
         decimal(tokenAmount),
