@@ -69,7 +69,7 @@ where
             let block_number_u32 = block_number.as_u32();
             let finalized_block_number = block_number_u32.saturating_sub(blocks);
             info!(
-                block_number,
+                ?block_number,
                 block_number_u32, finalized_block_number, "Block numbers"
             );
             finalized_block_number
