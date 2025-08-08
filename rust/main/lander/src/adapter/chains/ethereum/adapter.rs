@@ -143,8 +143,11 @@ impl EthereumAdapter {
         .await;
 
         // then, compare the estimated gas price with `current * escalation_multiplier`
-        let escalated_gas_price =
-            gas_price::escalate_gas_price_if_needed(&old_gas_price, &estimated_gas_price);
+        let escalated_gas_price = gas_price::escalate_gas_price_if_needed(
+            &old_gas_price,
+            &estimated_gas_price,
+            &self.transaction_overrides,
+        );
 
         let new_gas_price = match escalated_gas_price {
             GasPrice::None => estimated_gas_price,
