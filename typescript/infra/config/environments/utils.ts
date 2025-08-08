@@ -95,3 +95,27 @@ export function getGnosisSafeBuilderStrategyConfigGenerator(
     );
   };
 }
+
+/**
+ * Create a GnosisSafe Submitter Strategy for each safe address
+ * @param safes Safe addresses for strategy
+ * @returns GnosisSafe Submitter Strategy for each safe address
+ */
+export function getGnosisSafeSubmitterStrategyConfigGenerator(
+  safes: Record<string, string>,
+) {
+  return (): ChainSubmissionStrategy => {
+    return Object.fromEntries(
+      Object.entries(safes).map(([chain, safeAddress]) => [
+        chain,
+        {
+          submitter: {
+            type: TxSubmitterType.GNOSIS_SAFE,
+            chain,
+            safeAddress,
+          },
+        },
+      ]),
+    );
+  };
+}
