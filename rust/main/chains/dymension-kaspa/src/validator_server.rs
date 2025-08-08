@@ -41,11 +41,14 @@ struct AppError(eyre::Report);
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let err = "Error: ".to_string() + &self.0.to_string();
-        eprintln!("{}", err);
+        let err_msg = self.0.to_string();
+        eprintln!("Validator error: {}", err_msg);
+
+        // Return the actual error message in the response body
+        // This ensures the relayer gets meaningful error information
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            "An internal error occurred: ".to_string() + err.as_str(),
+            format!("Validation failed: {}", err_msg),
         )
             .into_response()
     }
@@ -162,7 +165,11 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
             ),
         )
         .await
-        .map_err(|e| AppError(Report::from(e)))?;
+        .map_err(|e| {
+            // Log the detailed error for debugging
+            eprintln!("Deposit validation failed: {:?}", e);
+            AppError(Report::from(e))
+        })?;
     }
     info!(
         "Validator: deposit is valid: id = {:?}",
@@ -200,7 +207,10 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     info!("Validator: signing pskts");
     let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-    let b = safe_bundle(&fxg.bundle).map_err(AppError)?; // !! Safe bundle can be considered part of the validation, strictly speaking
+    let b = safe_bundle(&fxg.bundle).map_err(|e| {
+        eprintln!("Safe bundle validation failed: {:?}", e);
+        AppError(e)
+    })?; // !! Safe bundle can be considered part of the validation, strictly speaking
     let m = fxg.messages;
 
     // Call to validator.G()
@@ -220,7 +230,10 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
             ),
         )
         .await
-        .map_err(|e| AppError(Report::from(e)))?;
+        .map_err(|e| {
+            eprintln!("Withdrawal validation failed: {:?}", e);
+            AppError(Report::from(e))
+        })?;
         info!("Validator: pskts are valid");
     }
 
@@ -330,7 +343,10 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
             &resources.must_escrow().addr,
         )
         .await
-        .map_err(|e| AppError(Report::from(e)))?;
+        .map_err(|e| {
+            eprintln!("Withdrawal confirmation validation failed: {:?}", e);
+            AppError(Report::from(e))
+        })?;
         info!("Validator: confirmed withdrawal is valid");
     }
 
