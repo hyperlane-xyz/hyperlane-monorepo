@@ -1,3 +1,5 @@
+use std::{ops::Deref, sync::Arc};
+
 use ethers::{
     abi::RawLog,
     providers::Middleware,
@@ -5,9 +7,6 @@ use ethers::{
 };
 use ethers_contract::{ContractError, EthEvent, LogMeta as EthersLogMeta};
 use hyperlane_core::{ChainCommunicationError, ChainResult, LogMeta, H512};
-use std::fmt::Debug;
-use std::{ops::Deref, sync::Arc};
-use tracing::{error, info};
 
 use crate::EthereumReorgPeriod;
 
@@ -54,29 +53,15 @@ pub async fn get_finalized_block_number<M, T>(
 ) -> ChainResult<u32>
 where
     M: Middleware + 'static,
-    T: Debug + Deref<Target = M>,
+    T: Deref<Target = M>,
 {
     let number = match *reorg_period {
-        EthereumReorgPeriod::Blocks(blocks) => {
-            let block_number_result = provider.get_block_number().await;
-            let block_number = match block_number_result {
-                Ok(number) => number,
-                Err(e) => {
-                    error!(error=%e, "Failed to fetch block number for Coredao domain");
-                    return Err(ChainCommunicationError::from_other(e));
-                }
-            };
-            let block_number_u32 = block_number.as_u32();
-            let finalized_block_number = block_number_u32.saturating_sub(blocks);
-            info!(
-                ?block_number,
-                block_number_u32,
-                finalized_block_number,
-                ?provider,
-                "Block numbers"
-            );
-            finalized_block_number
-        }
+        EthereumReorgPeriod::Blocks(blocks) => provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .as_u32()
+            .saturating_sub(blocks),
 
         EthereumReorgPeriod::Tag(tag) => provider
             .get_block(tag)

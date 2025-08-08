@@ -16,15 +16,14 @@ use ethers_core::utils::WEI_IN_ETHER;
 use futures_util::future::join_all;
 use tokio::join;
 use tokio::sync::Mutex;
-use tracing::{error, instrument};
+use tracing::instrument;
 
 use hyperlane_core::{
     rpc_clients::call_and_retry_indefinitely, utils::bytes_to_hex, BatchItem, BatchResult,
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain, LogMeta, Mailbox, QueueOperation,
-    RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H160, H256,
-    H512, U256,
+    HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox, QueueOperation, RawHyperlaneMessage,
+    ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H160, H256, H512, U256,
 };
 
 use crate::error::HyperlaneEthereumError;
@@ -103,7 +102,6 @@ pub struct EthereumMailboxIndexer<M>
 where
     M: Middleware,
 {
-    domain: HyperlaneDomain,
     contract: Arc<EthereumMailboxInternal<M>>,
     provider: Arc<M>,
     reorg_period: EthereumReorgPeriod,
@@ -124,7 +122,6 @@ where
             provider.clone(),
         ));
         Self {
-            domain: locator.domain.clone(),
             contract,
             provider,
             reorg_period,
@@ -203,16 +200,7 @@ where
 {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        let sequence_result = self.contract.nonce().block(u64::from(tip)).call().await;
-        let sequence = match sequence_result {
-            Ok(s) => s,
-            Err(e) => {
-                if HyperlaneDomain::Known(KnownHyperlaneDomain::CoreDao) == self.domain {
-                    error!(tip, error=%e, contract_address=?self.contract.address(), "Failed to fetch sequence for Coredao domain");
-                }
-                return Err(e.into());
-            }
-        };
+        let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
         Ok((Some(sequence), tip))
     }
 }
