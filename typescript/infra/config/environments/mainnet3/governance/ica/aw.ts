@@ -24,7 +24,6 @@ export const awIcas: ChainMap<Address> = {
   metis: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
   mint: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
   proofofplay: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
-  sanko: '0x5DAcd2f1AafC749F2935A160865Ab1568eC23752',
   tangle: '0xCC2aeb692197C7894E561d31ADFE8F79746f7d9F',
   xai: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
   // taiko: '0x483D218D2FEe7FC7204ba15F00C7901acbF9697D', // renzo chain
@@ -89,15 +88,12 @@ export const awIcas: ChainMap<Address> = {
   metal: '0xf1d25462e1f82BbF25b3ef7A4C94F738a30a968B',
   polynomialfi: '0x6ACa36E710dC0C80400090EA0bC55dA913a3D20D',
   rarichain: '0xD0A4Ad2Ca0251BBc6541f8c2a594F1A82b67F114',
-  rootstockmainnet: '0x0C15f7479E0B46868693568a3f1C747Fdec9f17d',
   superpositionmainnet: '0x5F17Dc2e1fd1371dc6e694c51f22aBAF8E27667B',
-  flame: '0x4F3d85360840497Cd1bc34Ca55f27629eee2AA2e',
   prom: '0x1cDd3C143387cD1FaE23e2B66bc3F409D073aC3D',
 
   // Nov 21, 2024 batch
   // ----------------------------------------------------------
   boba: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
-  duckchain: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
   unichain: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
   vana: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
   bsquared: '0xd9564EaaA68A327933f758A54450D3A0531E60BB',
@@ -111,30 +107,22 @@ export const awIcas: ChainMap<Address> = {
   // Dec 13, 2024 batch
   // ----------------------------------------------------------
   aurora: '0x853f40c807cbb08EDd19B326b9b6A669bf3c274c',
-  conflux: '0xac8f0e306A126312C273080d149ca01d461603FE',
-  conwai: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   // corn: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
-  evmos: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   form: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   ink: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
-  rivalz: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
   soneium: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   sonic: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
-  telos: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
 
   // Jan 13, 2025 batch
   // ----------------------------------------------------------
   artela: '0x745CEA119757ea3e27093da590bC91f408bD4448',
   hemi: '0x8D18CBB212920e5ef070b23b813d82F8981cC276',
-  nero: '0xbBdb1682B2922C282b56DD716C29db5EFbdb5632',
   torus: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
-  xpla: '0x24832680dF0468967F413be1C83acfE24154F88D',
 
   // Feb 3, 2025 batch
   // ----------------------------------------------------------
   // glue: '0x24832680dF0468967F413be1C83acfE24154F88D',
   matchain: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
-  unitzero: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
 
   // Q5, 2024 batch
   // ----------------------------------------------------------
@@ -142,7 +130,6 @@ export const awIcas: ChainMap<Address> = {
 
   // Feb 17, 2025 batch
   // ----------------------------------------------------------
-  bouncebit: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
   arcadia: '0xD2344a364b6Dc6B2Fe0f7D836fa344d83056cbaD',
   ronin: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
   story: '0x8768A14AA6eD2A62C77155501E742376cbE97981',
@@ -155,7 +142,6 @@ export const awIcas: ChainMap<Address> = {
   // Mar 31, 2025 batch
   // ----------------------------------------------------------
   coti: '0x294589E4913A132A49F7830a2A219363A25c0529',
-  deepbrainchain: '0xeFb7D10Da69A0a913485851ccec6B85cF98d9cab',
   // nibiru: '0x40cD75e80d04663FAe0CE30687504074F163C346', // temporary while looking into decimals
   opbnb: '0xeFb7D10Da69A0a913485851ccec6B85cF98d9cab',
   reactive: '0x9312B04076efA12D69b95bcE7F4F0EA847073E6a',

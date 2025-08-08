@@ -600,6 +600,7 @@ export {
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
   EvmXERC20VSAdapter,
+  EvmXERC20Adapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
@@ -662,6 +663,7 @@ export {
 export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export {
   EVM_TOKEN_TYPE_TO_STANDARD,
+  LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
@@ -714,7 +716,8 @@ export {
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
-  XERC20LimitConfig,
+  XERC20VSLimitConfig,
+  XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
 } from './token/types.js';
