@@ -30,8 +30,12 @@ export class ChainResolverFactory {
    */
   static getStrategy(argv: Record<string, any>): ChainResolver {
     const commandKey = `${argv._[0]}:${argv._[1] || ''}`.trim() as CommandType;
-    const createStrategy =
-      this.strategyMap.get(commandKey) || (() => MultiChainResolver.default());
+    const createStrategy = this.strategyMap.get(commandKey);
+    if (!createStrategy) {
+      throw new Error(
+        `Unknown command: ${commandKey}. Define a new CommandType and strategy in ${ChainResolverFactory.name}`,
+      );
+    }
     return createStrategy();
   }
 }
