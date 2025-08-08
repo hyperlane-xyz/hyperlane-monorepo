@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ZChainName } from '../metadata/customZodTypes.js';
+import { ZChainName, ZUWei } from '../metadata/customZodTypes.js';
 
 export enum OnchainTokenFeeType {
   ZeroFee,
@@ -20,9 +20,11 @@ export enum TokenFeeType {
 const BaseFeeConfigSchema = z.object({
   token: z.string(),
   owner: z.string(),
-  maxFee: z.string().default('0'),
-  halfAmount: z.string().default('0'),
-  bps: z.number().default(0),
+  maxFee: ZUWei.optional().describe('Max fee'),
+  halfAmount: ZUWei.optional().describe('Half of the max fee'),
+  bps: ZUWei.optional().describe(
+    'Bps for the token. Gets converted to maxFee and halfAmount based on fee model.',
+  ),
 });
 
 export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;

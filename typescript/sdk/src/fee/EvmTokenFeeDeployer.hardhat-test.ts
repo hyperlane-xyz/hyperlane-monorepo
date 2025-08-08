@@ -9,7 +9,6 @@ import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
-import { evmTokenFeeFactories } from './contracts.js';
 import { LinearFeeConfig, TokenFeeConfig, TokenFeeType } from './types.js';
 
 export function assertTokenConfigForTest(
@@ -34,7 +33,7 @@ describe('EvmTokenFeeDeployer', () => {
   beforeEach(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    deployer = new EvmTokenFeeDeployer(multiProvider, evmTokenFeeFactories);
+    deployer = new EvmTokenFeeDeployer(multiProvider, TestChainName.test2);
     const factory = new ERC20Test__factory(signer);
     token = await factory.deploy('fake', 'FAKE', '100000000000000000000', 18);
     await token.deployed();

@@ -1,16 +1,29 @@
 import { RoutingFee } from '@hyperlane-xyz/core';
 
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { HyperlaneContracts } from '../index.js';
+import {
+  DeployerOptions,
+  HyperlaneDeployer,
+} from '../deploy/HyperlaneDeployer.js';
+import { HyperlaneContracts, MultiProvider } from '../index.js';
 import { ChainName } from '../types.js';
 
-import { EvmTokenFeeFactories } from './contracts.js';
+import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
+import { EvmTokenFeeFactories, evmTokenFeeFactories } from './contracts.js';
 import { TokenFeeConfig, TokenFeeType } from './types.js';
 
 export class EvmTokenFeeDeployer extends HyperlaneDeployer<
   TokenFeeConfig,
   EvmTokenFeeFactories
 > {
+  protected readonly tokenFeeReader: EvmTokenFeeReader;
+  constructor(
+    protected readonly multiProvider: MultiProvider,
+    protected readonly chain: ChainName,
+    options: DeployerOptions = {},
+  ) {
+    super(multiProvider, evmTokenFeeFactories, options);
+    this.tokenFeeReader = new EvmTokenFeeReader(multiProvider, chain);
+  }
   async deployContracts(
     chain: ChainName,
     config: TokenFeeConfig,
@@ -45,15 +58,17 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     return { [config.type]: deployedContract } as any; // partial
   }
 
-  async deployFee(
+  private async deployFee(
     feeType: TokenFeeType,
     chain: ChainName,
     config: TokenFeeConfig,
   ): Promise<ReturnType<EvmTokenFeeFactories[typeof feeType]['deploy']>> {
+    const { maxFee, halfAmount } =
+      await this.tokenFeeReader.convertBpsToMaxFeeAndHalfAmount(config);
     return this.deployContract(chain, feeType, [
       config.token,
-      config.maxFee,
-      config.halfAmount,
+      maxFee,
+      halfAmount,
       config.owner,
     ]);
   }
