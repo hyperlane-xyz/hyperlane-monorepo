@@ -420,14 +420,12 @@ impl HyperlaneProvider for CosmosProvider {
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
 
-        let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
+        let sha_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("transaction hash should be of correct size");
 
         let response = self
             .rpc_client
-            .call(|provider| {
-                Box::pin(async move { provider.get_tx_by_hash(tendermint_hash).await })
-            })
+            .call(|provider| Box::pin(async move { provider.get_tx_by_hash(sha_hash).await }))
             .await?;
 
         let received_hash = H256::from_slice(response.hash.as_bytes());

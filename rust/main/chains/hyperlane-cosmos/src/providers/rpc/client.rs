@@ -49,10 +49,10 @@ impl CosmosRpcClient {
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
     ) -> ChainResult<Self> {
-        let tendermint_url = cometbft_rpc::Url::try_from(url.to_owned())
+        let rpc_url = cometbft_rpc::Url::try_from(url.to_owned())
             .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
-        let url = cometbft_rpc::HttpClientUrl::try_from(tendermint_url)
+        let url = cometbft_rpc::HttpClientUrl::try_from(rpc_url)
             .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
 

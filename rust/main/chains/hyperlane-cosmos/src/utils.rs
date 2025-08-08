@@ -75,12 +75,10 @@ pub(crate) async fn parse_logs_in_tx<T: PartialEq + Send + Sync + Debug + 'stati
     parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     label: &'static str,
 ) -> ChainResult<Vec<(T, LogMeta)>> {
-    let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
+    let sha_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
         .expect("transaction hash should be of correct size");
 
-    provider
-        .get_logs_in_tx(tendermint_hash, parser, label)
-        .await
+    provider.get_logs_in_tx(sha_hash, parser, label).await
 }
 
 #[allow(clippy::type_complexity)]
