@@ -98,13 +98,11 @@ export async function nativeBalancesAreSufficient(
         assert(gasPrice, `gasPrice is not defined on chain ${chain}`);
 
         // TODO: RADIX
-        // gas price
-        minBalanceSmallestUnit = new BigNumber(
-          GasPrice.fromString(
-            `${gasPrice.amount}${gasPrice.denom}`,
-          ).amount.toString(),
-        ).multipliedBy(minGas[ProtocolType.CosmosNative]);
-        minBalance = new BigNumber(minBalanceSmallestUnit).dividedBy(
+        // hardcode min balance to 10 XRD for now, but add more accurate
+        // min balance once we know how much gas it costs to run a core/warp
+        // deploy on radix
+        minBalance = new BigNumber(10);
+        minBalanceSmallestUnit = new BigNumber(minBalance).exponentiatedBy(
           new BigNumber(10).exponentiatedBy(nativeToken.decimals),
         );
 
