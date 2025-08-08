@@ -111,11 +111,35 @@ impl InclusionStage {
         state: DispatcherState,
         domain: String,
     ) -> Result<(), LanderError> {
+        let mut backoff_ms = 50; // Start with 50ms instead of 10ms
+        const MIN_BACKOFF_MS: u64 = 50;
+        const MAX_BACKOFF_MS: u64 = 5000; // Cap at 5 seconds
+
         loop {
-            // evaluate the pool every block
-            sleep(Duration::from_millis(10)).await;
+            sleep(Duration::from_millis(backoff_ms)).await;
+
+            let pool_before = {
+                let guard = pool.lock().await;
+                guard.len()
+            };
 
             Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
+
+            let pool_after = {
+                let guard = pool.lock().await;
+                guard.len()
+            };
+
+            // Adaptive backoff: if pool shrunk (transactions progressed), reduce backoff
+            // If pool stayed same (no progress), increase backoff
+            if pool_after < pool_before {
+                // Progress made, reduce backoff to be more responsive
+                backoff_ms = (backoff_ms / 2).max(MIN_BACKOFF_MS);
+            } else if pool_after == pool_before && pool_after > 0 {
+                // No progress with pending transactions, increase backoff
+                backoff_ms = (backoff_ms * 2).min(MAX_BACKOFF_MS);
+            }
+            // If pool is empty, keep current backoff rate
         }
     }
 
