@@ -1284,8 +1284,8 @@ async fn test_http_client() {
     // let height = 15317185u32;
 
     let url = Url::from_str(url).unwrap();
-    let tendermint_url = cometbft_rpc::Url::try_from(url).unwrap();
-    let url = cometbft_rpc::HttpClientUrl::try_from(tendermint_url).unwrap();
+    let rpc_url = cometbft_rpc::Url::try_from(url).unwrap();
+    let url = cometbft_rpc::HttpClientUrl::try_from(rpc_url).unwrap();
 
     let client = HttpClient::builder(url)
         .compat_mode(CompatMode::latest())
