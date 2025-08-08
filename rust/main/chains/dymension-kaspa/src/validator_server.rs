@@ -43,7 +43,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let err_msg = self.0.to_string();
         eprintln!("Validator error: {}", err_msg);
-        
+
         // Return the actual error message in the response body
         // This ensures the relayer gets meaningful error information
         (

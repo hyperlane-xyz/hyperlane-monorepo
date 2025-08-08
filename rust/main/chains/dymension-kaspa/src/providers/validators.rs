@@ -223,7 +223,11 @@ pub async fn request_validate_new_deposits(
     } else {
         // Try to extract the error message from the response body
         let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
-        Err(eyre::eyre!("Failed to validate deposits: {} - {}", status, error_msg))
+        Err(eyre::eyre!(
+            "Failed to validate deposits: {} - {}",
+            status,
+            error_msg
+        ))
     }
 }
 
@@ -246,7 +250,11 @@ pub async fn request_validate_new_confirmation(
     } else {
         // Try to extract the error message from the response body
         let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
-        Err(eyre::eyre!("Failed to validate confirmation: {} - {}", status, error_msg))
+        Err(eyre::eyre!(
+            "Failed to validate confirmation: {} - {}",
+            status,
+            error_msg
+        ))
     }
 }
 
@@ -273,7 +281,11 @@ pub async fn request_sign_withdrawal_bundle(
     } else {
         // Try to extract the error message from the response body
         let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
-        Err(eyre::eyre!("Failed to sign withdrawal bundle: {} - {}", status, error_msg))
+        Err(eyre::eyre!(
+            "Failed to sign withdrawal bundle: {} - {}",
+            status,
+            error_msg
+        ))
     }
 }
 
