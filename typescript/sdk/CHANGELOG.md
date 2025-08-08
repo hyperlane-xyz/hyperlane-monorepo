@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 16.2.0
+
+### Minor Changes
+
+- 22ceaa109: Add xERC20 adapter with getLimits()
+- a89018a3f: Make `getWrappedTokenAddress` public, add LOCKBOX_STANDARDS
+
+### Patch Changes
+
+- ce4974214: Add cctp to getActualDecimals.
+  - @hyperlane-xyz/starknet-core@16.2.0
+  - @hyperlane-xyz/cosmos-sdk@16.2.0
+  - @hyperlane-xyz/utils@16.2.0
+  - @hyperlane-xyz/core@9.0.5
+
 ## 16.1.1
 
 ### Patch Changes
