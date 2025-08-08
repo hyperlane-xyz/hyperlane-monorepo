@@ -410,6 +410,8 @@ pub enum HyperlaneDomainProtocol {
     Starknet,
     /// A Cosmos based chain with uses a module instead of a contract.
     CosmosNative,
+    /// A Sovereign-based chain type which uses hyperlane-sovereign.
+    Sovereign,
 }
 
 impl HyperlaneDomainProtocol {
@@ -772,7 +774,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         match protocol {
-            Ethereum | Cosmos | CosmosNative | Starknet => IndexMode::Block,
+            Ethereum | Cosmos | CosmosNative | Starknet | Sovereign => IndexMode::Block,
             Fuel | Sealevel => IndexMode::Sequence,
         }
     }
@@ -945,6 +947,7 @@ mod tests {
             ("cosmosnative", HyperlaneDomainProtocol::CosmosNative) => {}
             ("ethereum", HyperlaneDomainProtocol::Ethereum) => {}
             ("sealevel", HyperlaneDomainProtocol::Sealevel) => {}
+            ("sovereign", HyperlaneDomainProtocol::Sovereign) => {}
             ("starknet", HyperlaneDomainProtocol::Starknet) => {}
             _ => {
                 panic!(

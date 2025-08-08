@@ -10,6 +10,7 @@ import {
   EthersV5Provider,
   ProviderType,
   SolanaWeb3Provider,
+  SovereignProvider,
   StarknetJsProvider,
 } from './ProviderType.js';
 import { protocolToDefaultProviderBuilder } from './providerBuilders.js';
@@ -33,6 +34,8 @@ export async function isRpcHealthy(
     return isCosmJsProviderHealthy(provider.provider, metadata);
   else if (provider.type === ProviderType.Starknet)
     return isStarknetJsProviderHealthy(provider.provider, metadata);
+  else if (provider.type === ProviderType.Sovereign)
+    return isSovereignProviderHealthy(provider.provider, metadata);
   else
     throw new Error(
       `Unsupported provider type ${provider.type}, new health check required`,
@@ -99,5 +102,16 @@ export async function isStarknetJsProviderHealthy(
   const blockNumber = await provider.getBlockNumber();
   if (!blockNumber || blockNumber < 0) return false;
   rootLogger.debug(`Block number is okay for ${metadata.name}`);
+  return true;
+}
+
+export async function isSovereignProviderHealthy(
+  provider: SovereignProvider['provider'],
+  metadata: ChainMetadata,
+): Promise<boolean> {
+  const client = await provider;
+  const slot = await client.ledger.slots.latest();
+  if (slot.number < 1) return false;
+  rootLogger.debug(`Slot number is okay for ${metadata.name} (${slot.number})`);
   return true;
 }

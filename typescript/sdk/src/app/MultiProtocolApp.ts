@@ -17,6 +17,7 @@ import {
   CosmJsWasmProvider,
   EthersV5Provider,
   SolanaWeb3Provider,
+  SovereignProvider,
   StarknetJsProvider,
   TypedProvider,
 } from '../providers/ProviderType.js';
@@ -75,6 +76,14 @@ export class BaseCosmNativeAdapter extends BaseAppAdapter {
 
   public getProvider(): CosmJsNativeProvider['provider'] {
     return this.multiProvider.getCosmJsNativeProvider(this.chainName);
+  }
+}
+
+export class BaseSovereignAdapter extends BaseAppAdapter {
+  public readonly protocol: ProtocolType = ProtocolType.Sovereign;
+
+  public getProvider(): SovereignProvider['provider'] {
+    return this.multiProvider.getSovereignProvider(this.chainName);
   }
 }
 

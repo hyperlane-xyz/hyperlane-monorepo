@@ -7,6 +7,7 @@ export enum ProtocolType {
   Cosmos = 'cosmos',
   CosmosNative = 'cosmosnative',
   Starknet = 'starknet',
+  Sovereign = 'sovereign',
 }
 // A type that also allows for literal values of the enum
 export type ProtocolTypeValue = `${ProtocolType}`;
@@ -17,6 +18,7 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.Cosmos]: 'uATOM',
   [ProtocolType.CosmosNative]: 'uATOM',
   [ProtocolType.Starknet]: 'fri',
+  [ProtocolType.Sovereign]: 'tokens',
 };
 
 /********* BASIC TYPES *********/

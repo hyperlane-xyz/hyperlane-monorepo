@@ -1,6 +1,7 @@
 import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
+import { createStandardRollup } from '@sovereign-sdk/web3';
 import { providers } from 'ethers';
 import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
@@ -18,6 +19,7 @@ import {
   EthersV5Provider,
   ProviderType,
   SolanaWeb3Provider,
+  SovereignProvider,
   StarknetJsProvider,
   TypedProvider,
   ViemProvider,
@@ -160,6 +162,20 @@ export function defaultZKProviderBuilder(
   return defaultZKSyncProviderBuilder(rpcUrls, _network).provider;
 }
 
+export function defaultSovereignProviderBuilder(
+  rpcUrls: RpcUrl[],
+  _network: number | string,
+): SovereignProvider {
+  assert(rpcUrls.length, 'No RPC URLs provided');
+  const provider = createStandardRollup({
+    url: rpcUrls[0].http,
+  });
+  return {
+    type: ProviderType.Sovereign,
+    provider,
+  };
+}
+
 export type ProviderBuilderMap = Record<
   ProviderType,
   ProviderBuilderFn<TypedProvider>
@@ -174,6 +190,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.CosmJsNative]: defaultCosmJsNativeProviderBuilder,
   [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
+  [ProviderType.Sovereign]: defaultSovereignProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -185,4 +202,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
   [ProtocolType.CosmosNative]: defaultCosmJsNativeProviderBuilder,
   [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
+  [ProtocolType.Sovereign]: defaultSovereignProviderBuilder,
 };

@@ -25,6 +25,7 @@ import {
   ProviderMap,
   ProviderType,
   SolanaWeb3Provider,
+  SovereignProvider,
   StarknetJsProvider,
   TypedProvider,
   TypedTransaction,
@@ -222,6 +223,15 @@ export class MultiProtocolProvider<
     return this.getSpecificProvider<StarknetJsProvider['provider']>(
       chainNameOrId,
       ProviderType.Starknet,
+    );
+  }
+
+  getSovereignProvider(
+    chainNameOrId: ChainNameOrId,
+  ): SovereignProvider['provider'] {
+    return this.getSpecificProvider<SovereignProvider['provider']>(
+      chainNameOrId,
+      ProviderType.Sovereign,
     );
   }
 

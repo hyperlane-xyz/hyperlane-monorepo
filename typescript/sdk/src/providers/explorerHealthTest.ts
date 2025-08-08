@@ -14,6 +14,7 @@ const PROTOCOL_TO_ADDRESS: Record<ProtocolType, Address> = {
   [ProtocolType.CosmosNative]: 'cosmos100000000000000000000000000000000000000',
   [ProtocolType.Starknet]:
     '0x0000000000000000000000000000000000000000000000000000000000000000',
+  [ProtocolType.Sovereign]: '0x0000000000000000000000000000000000000000',
 };
 
 const PROTOCOL_TO_TX_HASH: Partial<Record<ProtocolType, Address>> = {
