@@ -60,16 +60,17 @@ where
         EthereumReorgPeriod::Blocks(blocks) => {
             let block_number_result = provider.get_block_number().await;
             let block_number = match block_number_result {
-                Ok(number) => number.as_u32(),
+                Ok(number) => number,
                 Err(e) => {
                     error!(error=%e, "Failed to fetch block number for Coredao domain");
                     return Err(ChainCommunicationError::from_other(e));
                 }
             };
-            let finalized_block_number = block_number.saturating_sub(blocks);
+            let block_number_u32 = block_number.as_u32();
+            let finalized_block_number = block_number_u32.saturating_sub(blocks);
             info!(
                 block_number,
-                finalized_block_number, "Finalized block number"
+                block_number_u32, finalized_block_number, "Block numbers"
             );
             finalized_block_number
         }
