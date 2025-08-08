@@ -1,5 +1,3 @@
-use std::{ops::Deref, sync::Arc};
-
 use ethers::{
     abi::RawLog,
     providers::Middleware,
@@ -7,6 +5,8 @@ use ethers::{
 };
 use ethers_contract::{ContractError, EthEvent, LogMeta as EthersLogMeta};
 use hyperlane_core::{ChainCommunicationError, ChainResult, LogMeta, H512};
+use std::fmt::Debug;
+use std::{ops::Deref, sync::Arc};
 use tracing::{error, info};
 
 use crate::EthereumReorgPeriod;
@@ -54,7 +54,7 @@ pub async fn get_finalized_block_number<M, T>(
 ) -> ChainResult<u32>
 where
     M: Middleware + 'static,
-    T: Deref<Target = M>,
+    T: Debug + Deref<Target = M>,
 {
     let number = match *reorg_period {
         EthereumReorgPeriod::Blocks(blocks) => {
@@ -70,7 +70,10 @@ where
             let finalized_block_number = block_number_u32.saturating_sub(blocks);
             info!(
                 ?block_number,
-                block_number_u32, finalized_block_number, "Block numbers"
+                block_number_u32,
+                finalized_block_number,
+                ?provider,
+                "Block numbers"
             );
             finalized_block_number
         }
