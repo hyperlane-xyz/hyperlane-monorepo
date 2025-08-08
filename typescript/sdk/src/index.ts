@@ -670,6 +670,7 @@ export {
 export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export {
   EVM_TOKEN_TYPE_TO_STANDARD,
+  LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,

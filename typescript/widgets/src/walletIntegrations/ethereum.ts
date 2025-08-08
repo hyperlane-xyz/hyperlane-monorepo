@@ -12,7 +12,9 @@ import { useAccount, useConfig, useDisconnect } from 'wagmi';
 
 import {
   ChainName,
+  EvmHypXERC20LockboxAdapter,
   IToken,
+  LOCKBOX_STANDARDS,
   MultiProtocolProvider,
   ProviderType,
   TypedTransactionReceipt,
@@ -122,16 +124,26 @@ export function useEthereumWatchAsset(
       if (activeChainName && activeChainName !== chainName)
         await switchNetwork(chainName);
 
+      let tokenAddress = '';
+      if (LOCKBOX_STANDARDS.includes(token.standard)) {
+        const adapter = token.getAdapter(
+          multiProvider,
+        ) as EvmHypXERC20LockboxAdapter;
+        tokenAddress = await adapter.getWrappedTokenAddress();
+      } else {
+        tokenAddress = token.collateralAddressOrDenom || token.addressOrDenom;
+      }
+
       return watchAsset(config, {
         type: 'ERC20',
         options: {
-          address: token.collateralAddressOrDenom || token.addressOrDenom,
+          address: tokenAddress,
           decimals: token.decimals,
           symbol: token.symbol,
         },
       });
     },
-    [config, switchNetwork],
+    [config, switchNetwork, multiProvider],
   );
 
   return { addAsset: onAddAsset };

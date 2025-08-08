@@ -24,6 +24,7 @@ import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
+  LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
@@ -535,10 +536,7 @@ export class WarpCore {
   }
 
   async getTokenCollateral(token: IToken): Promise<bigint> {
-    if (
-      token.standard === TokenStandard.EvmHypXERC20Lockbox ||
-      token.standard === TokenStandard.EvmHypVSXERC20Lockbox
-    ) {
+    if (LOCKBOX_STANDARDS.includes(token.standard)) {
       const adapter = token.getAdapter(
         this.multiProvider,
       ) as EvmHypXERC20LockboxAdapter;
