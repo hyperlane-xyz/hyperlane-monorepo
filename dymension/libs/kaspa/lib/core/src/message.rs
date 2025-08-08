@@ -66,9 +66,10 @@ pub fn add_kaspa_metadata_hl_messsage(
 
     let mut metadata: HlMetadata;
     if token_message.metadata().is_empty() {
-        return Err(eyre::eyre!("Token message metadata (memo) is empty"));
+        metadata = HlMetadata::default();
+    } else {
+        metadata = HlMetadata::decode(token_message.metadata())?;
     }
-    metadata = HlMetadata::decode(token_message.metadata())?;
     metadata.kaspa = output_bytes;
 
     let token_message = TokenMessage::new(
