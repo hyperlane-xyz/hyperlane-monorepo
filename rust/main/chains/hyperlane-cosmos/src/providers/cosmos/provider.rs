@@ -181,7 +181,7 @@ impl CosmosProvider {
                         let cometbft_key = cometbft::PublicKey::from_raw_secp256k1(&decompressed)
                             .ok_or_else(|| {
                             HyperlaneCosmosError::PublicKeyError(
-                                "cannot create tendermint public key".to_owned(),
+                                "cannot create cometbft public key".to_owned(),
                             )
                         })?;
 
