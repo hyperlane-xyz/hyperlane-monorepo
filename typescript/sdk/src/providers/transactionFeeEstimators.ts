@@ -5,6 +5,7 @@ import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
+import { transaction } from 'starknet';
 
 import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 
@@ -20,6 +21,8 @@ import {
   EthersV5Provider,
   EthersV5Transaction,
   ProviderType,
+  RadixProvider,
+  RadixTransaction,
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
   StarknetJsProvider,
@@ -255,6 +258,37 @@ export async function estimateTransactionFeeCosmJsNative({
   };
 }
 
+// Starknet does not support gas estimation without starknet account
+// TODO: Figure out a way to inject starknet account
+export async function estimateTransactionFeeStarknet({
+  transaction: _transaction,
+  provider: _provider,
+  sender: _sender,
+}: {
+  transaction: StarknetJsTransaction;
+  provider: StarknetJsProvider;
+  sender: Address;
+}): Promise<TransactionFeeEstimate> {
+  return { gasUnits: 0, gasPrice: 0, fee: 0 };
+}
+
+export async function estimateTransactionFeeRadix({
+  transaction,
+  provider,
+  sender: _sender,
+  senderPubKey,
+}: {
+  transaction: RadixTransaction;
+  provider: RadixProvider;
+  sender: Address;
+  senderPubKey: HexString;
+}): Promise<TransactionFeeEstimate> {
+  return provider.provider.query.estimateTransactionFee({
+    transactionManifest: transaction.transaction.manifest,
+    senderPubKey,
+  });
+}
+
 export function estimateTransactionFee({
   transaction,
   provider,
@@ -333,23 +367,20 @@ export function estimateTransactionFee({
     provider.type === ProviderType.Starknet
   ) {
     return estimateTransactionFeeStarknet({ transaction, provider, sender });
+  } else if (
+    transaction.type === ProviderType.Radix &&
+    provider.type === ProviderType.Radix
+  ) {
+    assert(senderPubKey, 'senderPubKey required for Radix gas estimation');
+    return estimateTransactionFeeRadix({
+      transaction,
+      provider,
+      sender,
+      senderPubKey,
+    });
   } else {
     throw new Error(
       `Unsupported transaction type ${transaction.type} or provider type ${provider.type} for gas estimation`,
     );
   }
-}
-
-// Starknet does not support gas estimation without starknet account
-// TODO: Figure out a way to inject starknet account
-export async function estimateTransactionFeeStarknet({
-  transaction: _transaction,
-  provider: _provider,
-  sender: _sender,
-}: {
-  transaction: StarknetJsTransaction;
-  provider: StarknetJsProvider;
-  sender: Address;
-}): Promise<TransactionFeeEstimate> {
-  return { gasUnits: 0, gasPrice: 0, fee: 0 };
 }

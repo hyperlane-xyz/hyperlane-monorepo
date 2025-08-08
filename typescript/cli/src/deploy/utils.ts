@@ -183,7 +183,7 @@ export async function completeDeploy(
     const address = userAddress
       ? userAddress
       : await multiProtocolSigner.getSignerAddress(chain);
-    const currentBalance = await multiProtocolSigner!.getBalance({
+    const currentBalance = await multiProtocolSigner.getBalance({
       isDryRun: isDryRun || false,
       address,
       chain,
