@@ -16,7 +16,7 @@ const NETWORKS = {
   [NetworkId.Stokenet]: {
     applicationName: 'hyperlane',
     packageAddress:
-      'package_tdx_2_1p4hhy2zlsu9gv8m70fq8wvmul5wm6ae4c9fkvrh9xj80jgjdgmslx5',
+      'package_tdx_2_1p4r9rl60wz4xc589wp9nusvcllj82e0l7ef825cxmt4rf684wq0j8r',
   },
   [NetworkId.Mainnet]: {
     applicationName: 'hyperlane',
@@ -25,6 +25,8 @@ const NETWORKS = {
 };
 
 export { NetworkId };
+
+export const DEFAULT_FEE = 100;
 
 export class RadixSDK {
   protected networkId: number;
@@ -57,7 +59,7 @@ export class RadixSDK {
       this.gateway,
       this.query,
       this.packageAddress,
-      options?.gasAmount ?? 10,
+      options?.gasAmount ?? DEFAULT_FEE,
     );
   }
 
