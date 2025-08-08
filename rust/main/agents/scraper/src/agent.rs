@@ -199,6 +199,7 @@ impl Scraper {
         ))
     }
 
+    #[instrument(fields(domain=%domain.name()), skip_all)]
     async fn build_chain_scraper(
         domain: &HyperlaneDomain,
         settings: &ScraperSettings,
