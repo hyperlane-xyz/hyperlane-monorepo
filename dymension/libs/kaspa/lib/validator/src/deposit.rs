@@ -74,7 +74,7 @@ impl MustMatch {
                 actual: format!("{:?}", other.sender),
             });
         }
-        if self.partial_message.destination == other.destination {
+        if self.partial_message.destination != other.destination {
             return Err(ValidationError::HLMessageFieldMismatch {
                 field: "destination".to_string(),
                 expected: format!("!= {}", self.partial_message.destination),
