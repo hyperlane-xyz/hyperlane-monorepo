@@ -1,11 +1,12 @@
+use cometbft::account::Id as TendermintAccountId;
+use cometbft::public_key::PublicKey as TendermintPublicKey;
 use cosmrs::{crypto::PublicKey, AccountId};
 use hyperlane_cosmwasm_interface::types::keccak256_hash;
-use tendermint::account::Id as TendermintAccountId;
-use tendermint::public_key::PublicKey as TendermintPublicKey;
 
 use crypto::decompress_public_key;
 use hyperlane_core::Error::Overflow;
 use hyperlane_core::{AccountAddressType, ChainCommunicationError, ChainResult, H256};
+use protobuf::reflect::ProtobufValue;
 
 use crate::HyperlaneCosmosError;
 
@@ -34,9 +35,12 @@ impl<'a> CosmosAccountId<'a> {
     /// Source: `<https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154>`
     fn bitcoin_style(pub_key: PublicKey, prefix: &str) -> ChainResult<AccountId> {
         // Get the inner type
-        let tendermint_pub_key = TendermintPublicKey::from(pub_key);
+        let tendermint_pub_key = cometbft::PublicKey::from_raw_secp256k1(&pub_key.to_bytes())
+            .ok_or_else(|| ChainCommunicationError::ParseError {
+                msg: "Failed to parse to secp256k1 key".into(),
+            })?;
         // Get the RIPEMD160(SHA256(pub_key))
-        let tendermint_id = TendermintAccountId::from(tendermint_pub_key);
+        let tendermint_id = cometbft::account::Id::from(tendermint_pub_key);
         // Bech32 encoding
         let account_id = AccountId::new(prefix, tendermint_id.as_bytes())
             .map_err(Box::new)

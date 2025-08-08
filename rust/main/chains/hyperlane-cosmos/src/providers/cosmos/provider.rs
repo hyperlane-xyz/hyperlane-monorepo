@@ -7,12 +7,13 @@ use cosmrs::proto::traits::Message;
 use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo, SignerPublicKey};
 use cosmrs::{proto, AccountId, Any, Coin, Tx};
 
+use cometbft::hash::Algorithm;
+use cometbft::Hash;
+use cometbft_rpc::client::{http::HttpClient, Client, CompatMode};
 use itertools::{any, cloned, Itertools};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use tendermint::hash::Algorithm;
-use tendermint::Hash;
-use tendermint_rpc::{client::CompatMode, Client, HttpClient};
+
 use time::OffsetDateTime;
 use tracing::{error, warn};
 
@@ -34,6 +35,7 @@ use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::providers::cosmos::provider::parse::PacketData;
 use crate::providers::rpc::CosmosRpcClient;
 use crate::rpc_clients::CosmosFallbackProvider;
+use crate::utils::cometbft_pubkey_to_cosmrs_pubkey;
 use crate::{
     ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
 };
@@ -176,14 +178,15 @@ impl CosmosProvider {
                         let decompressed = decompress_public_key(&proto.key)
                             .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
 
-                        let tendermint = tendermint::PublicKey::from_raw_secp256k1(&decompressed)
+                        let cometbft_key = cometbft::PublicKey::from_raw_secp256k1(&decompressed)
                             .ok_or_else(|| {
                             HyperlaneCosmosError::PublicKeyError(
                                 "cannot create tendermint public key".to_owned(),
                             )
                         })?;
 
-                        (PublicKey::from(tendermint), AccountAddressType::Ethereum)
+                        let cosm_key = cometbft_pubkey_to_cosmrs_pubkey(&cometbft_key)?;
+                        (cosm_key, AccountAddressType::Ethereum)
                     } else {
                         (PublicKey::try_from(pk)?, AccountAddressType::Bitcoin)
                     };
