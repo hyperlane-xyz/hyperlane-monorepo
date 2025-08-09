@@ -209,6 +209,7 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         _app_configs_to_deploy: &HashMap<&String, &Config>,
         _chain_metadatas: &HashMap<String, ChainMetadata>,
         _routers: &HashMap<u32, H256>,
+        _instructions_path: Option<PathBuf>,
     ) {
         // By default, do nothing.
     }
@@ -288,6 +289,7 @@ pub(crate) fn deploy_routers<
     environments_dir_path: PathBuf,
     environment: &str,
     built_so_dir_path: PathBuf,
+    write_instructions: bool,
 ) {
     // Load the app configs from the app config file.
     let app_config_file = File::open(app_config_file_path).unwrap();
@@ -304,6 +306,12 @@ pub(crate) fn deploy_routers<
     let keys_dir = create_new_directory(&deploy_dir, "keys");
 
     let existing_program_ids = read_router_program_ids(&deploy_dir);
+
+    let instructions_path = if write_instructions {
+        Some(deploy_dir.join("instructions.yaml"))
+    } else {
+        None
+    };
 
     // Builds a HashMap of all the foreign deployments from the app config.
     // These domains with foreign deployments will not have any txs / deployments
@@ -373,6 +381,7 @@ pub(crate) fn deploy_routers<
             &program_id,
             app_config.router_config(),
             chain_metadata,
+            instructions_path.clone(),
         );
 
         configure_owner(
@@ -381,9 +390,16 @@ pub(crate) fn deploy_routers<
             &program_id,
             app_config.router_config(),
             chain_metadata,
+            instructions_path.clone(),
         );
 
-        configure_upgrade_authority(ctx, &program_id, app_config.router_config(), chain_metadata);
+        configure_upgrade_authority(
+            ctx,
+            &program_id,
+            app_config.router_config(),
+            chain_metadata,
+            instructions_path.clone(),
+        );
     }
 
     // Now enroll all the routers.
@@ -393,6 +409,7 @@ pub(crate) fn deploy_routers<
         &app_configs_to_deploy,
         &chain_metadatas,
         &routers,
+        instructions_path.clone(),
     );
 
     // Call the post-deploy hook.
@@ -402,6 +419,7 @@ pub(crate) fn deploy_routers<
         &app_configs_to_deploy,
         &chain_metadatas,
         &routers,
+        instructions_path.clone(),
     );
 
     // Now write the program ids to a file!
@@ -431,6 +449,7 @@ fn configure_connection_client(
     program_id: &Pubkey,
     router_config: &RouterConfig,
     chain_metadata: &ChainMetadata,
+    instructions_path: Option<PathBuf>,
 ) {
     let client = chain_metadata.client();
 
@@ -454,7 +473,11 @@ fn configure_connection_client(
                     ),
                 )
                 .with_client(&client)
-                .send_with_pubkey_signer(&owner);
+                .send_with_pubkey_signer(
+                    &owner,
+                    instructions_path.clone(),
+                    Option::from(chain_metadata.clone().name),
+                );
         } else {
             println!(
                 "WARNING: Cannot set ISM for chain: {} ({}) to {:?}, the existing owner is None",
@@ -485,7 +508,11 @@ fn configure_connection_client(
                         ),
                     )
                     .with_client(&client)
-                    .send_with_pubkey_signer(&owner);
+                    .send_with_pubkey_signer(
+                        &owner,
+                        instructions_path.clone(),
+                        Option::from(chain_metadata.clone().name),
+                    );
             } else {
                 println!(
                     "WARNING: Cannot set IGP for chain: {} ({}) to {:?}, the existing owner is None",
@@ -506,6 +533,7 @@ fn configure_owner(
     program_id: &Pubkey,
     router_config: &RouterConfig,
     chain_metadata: &ChainMetadata,
+    instructions_path: Option<PathBuf>,
 ) {
     let client = chain_metadata.client();
 
@@ -523,7 +551,11 @@ fn configure_owner(
                     ),
                 )
                 .with_client(&client)
-                .send_with_pubkey_signer(&actual_owner);
+                .send_with_pubkey_signer(
+                    &actual_owner,
+                    instructions_path,
+                    Option::from(chain_metadata.clone().name),
+                );
         } else {
             // Flag if we can't change the owner
             println!(
@@ -553,6 +585,7 @@ fn configure_upgrade_authority(
     program_id: &Pubkey,
     router_config: &RouterConfig,
     chain_metadata: &ChainMetadata,
+    instructions_path: Option<PathBuf>,
 ) {
     let client = chain_metadata.client();
 
@@ -577,7 +610,11 @@ fn configure_upgrade_authority(
                     ),
                 )
                 .with_client(&client)
-                .send_with_pubkey_signer(&actual_upgrade_authority);
+                .send_with_pubkey_signer(
+                    &actual_upgrade_authority,
+                    instructions_path,
+                    Option::from(chain_metadata.clone().name),
+                );
         } else {
             // Flag if we can't change the upgrade authority
             println!(
@@ -646,6 +683,7 @@ fn enroll_all_remote_routers<
     app_configs_to_deploy: &HashMap<&String, &Config>,
     chain_metadatas: &HashMap<String, ChainMetadata>,
     routers: &HashMap<u32, H256>,
+    instructions_path: Option<PathBuf>,
 ) {
     for (chain_name, _) in app_configs_to_deploy.iter() {
         adjust_gas_price_if_needed(chain_name.as_str(), ctx);
@@ -714,7 +752,11 @@ fn enroll_all_remote_routers<
                         ),
                     )
                     .with_client(&chain_metadata.client())
-                    .send_with_pubkey_signer(&owner);
+                    .send_with_pubkey_signer(
+                        &owner,
+                        instructions_path.clone(),
+                        Option::from(chain_metadata.clone().name),
+                    );
             } else {
                 println!(
                     "WARNING: Cannot enroll routers for chain: {} ({}) with program_id {}, the existing owner is None",
