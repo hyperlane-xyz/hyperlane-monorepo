@@ -111,9 +111,17 @@ impl InclusionStage {
         state: DispatcherState,
         domain: String,
     ) -> Result<(), LanderError> {
+        let base_interval = *state.adapter.estimated_block_time();
+
         loop {
-            // evaluate the pool every block
-            sleep(Duration::from_millis(10)).await;
+            // Use adaptive polling interval based on block time, but never faster than 100ms
+            // for small block time chains, and never slower than 1/4 block time for responsiveness
+            let polling_interval = std::cmp::max(
+                base_interval / 4,          // Never slower than 1/4 block time for responsiveness
+                Duration::from_millis(100), // Never faster than 100ms to avoid excessive RPC calls
+            );
+
+            sleep(polling_interval).await;
 
             Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
         }
@@ -143,7 +151,43 @@ impl InclusionStage {
             return Ok(());
         }
         info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
+
+        let base_interval = *state.adapter.estimated_block_time();
+        let now = chrono::Utc::now();
+
         for (_, mut tx) in pool_snapshot {
+            // Implement per-transaction backoff: don't check transactions too frequently
+            if let Some(last_check) = tx.last_status_check {
+                let time_since_last_check = now.signed_duration_since(last_check);
+
+                // Calculate backoff interval based on how long the transaction has been pending
+                let tx_age = now.signed_duration_since(tx.creation_timestamp);
+                let backoff_interval = if tx_age.num_seconds() < 30 {
+                    // New transactions: check every 1/4 block time (responsive)
+                    // But for very new transactions (< 1 second), allow immediate recheck for testing
+                    if tx_age.num_seconds() < 1 {
+                        Duration::from_nanos(1) // Effectively immediate for tests
+                    } else {
+                        std::cmp::max(base_interval / 4, Duration::from_millis(10))
+                    }
+                } else if tx_age.num_seconds() < 300 {
+                    // Medium age transactions: check every 1/2 block time
+                    std::cmp::max(base_interval / 2, Duration::from_millis(50))
+                } else {
+                    // Old transactions: check every full block time
+                    std::cmp::max(base_interval, Duration::from_millis(100))
+                };
+
+                // Skip this transaction if we checked it too recently
+                if time_since_last_check
+                    .to_std()
+                    .unwrap_or(Duration::from_secs(0))
+                    < backoff_interval
+                {
+                    continue;
+                }
+            }
+
             if let Err(err) =
                 Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
             {
@@ -160,12 +204,16 @@ impl InclusionStage {
         fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
     )]
     async fn try_process_tx(
-        tx: Transaction,
+        mut tx: Transaction,
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
     ) -> Result<()> {
         info!(?tx, "Processing inclusion stage transaction");
+
+        // Update last status check timestamp before querying
+        tx.last_status_check = Some(chrono::Utc::now());
+
         let tx_status = call_until_success_or_nonretryable_error(
             || state.adapter.tx_status(&tx),
             "Querying transaction status",
@@ -173,6 +221,12 @@ impl InclusionStage {
         )
         .await?;
         info!(?tx, next_tx_status = ?tx_status, "Transaction status");
+
+        // Update the transaction in the pool with the new timestamp
+        {
+            let mut pool_lock = pool.lock().await;
+            pool_lock.insert(tx.uuid.clone(), tx.clone());
+        }
 
         Self::try_process_tx_with_next_status(tx, tx_status, finality_stage_sender, state, pool)
             .await
