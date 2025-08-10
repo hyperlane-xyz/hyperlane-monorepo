@@ -11,7 +11,7 @@ use tokio_retry::{strategy::ExponentialBackoff, Retry};
 use tracing::instrument;
 use url::Url;
 
-use crate::types::SchemaResponse;
+use crate::types::{ConstantsResponse, SchemaResponse};
 use crate::{ConnectionConf, Signer};
 
 /// Request error details
@@ -93,11 +93,15 @@ impl SovereignClient {
             .chain_hash()
             .map_err(|e| custom_err!("Failed to pre-compute rollups chain hash: {e}"))?;
 
+        let get_constants = url
+            .join("/rollup/constants")
+            .map_err(|e| custom_err!("Failed to construct url: {e}"))?;
+        let response: ConstantsResponse = http_get(&client, get_constants).await?;
         Ok(SovereignClient {
             url,
             client,
             signer,
-            chain_id: conf.chain_id,
+            chain_id: response.chain_id,
             schema: Arc::new(schema),
         })
     }

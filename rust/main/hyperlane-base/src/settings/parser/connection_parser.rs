@@ -606,20 +606,15 @@ pub fn build_connection_conf(
 
 pub fn build_sovereign_connection_conf(
     rpcs: &[Url],
-    chain: &ValueParser,
-    err: &mut ConfigParsingError,
+    _chain: &ValueParser,
+    _err: &mut ConfigParsingError,
     op_submission_config: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
     let Some(url) = rpcs.first() else { return None };
-    let Some(chain_id) = chain.chain(err).get_key("chainId").parse_u64().end() else {
-        err.push(&chain.cwp + "chain_id", eyre!("Missing chain id for chain"));
-        return None;
-    };
 
     Some(ChainConnectionConf::Sovereign(
         h_sovereign::ConnectionConf {
             url: url.clone(),
-            chain_id,
             op_submission_config,
         },
     ))

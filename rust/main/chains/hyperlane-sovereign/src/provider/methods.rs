@@ -1,3 +1,5 @@
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use futures::stream::FuturesOrdered;
 use futures::TryStreamExt;
 use hyperlane_core::accumulator::TREE_DEPTH;
@@ -162,6 +164,7 @@ impl SovereignClient {
         #[derive(Clone, Debug, Deserialize)]
         struct ReceiptInner {
             outcome: String,
+            content: String,
         }
 
         #[derive(Clone, Debug, Deserialize)]
@@ -186,13 +189,12 @@ impl SovereignClient {
             json!({
                 "body": {
                   "details":{
-                    "chain_id": message.destination,
+                    "chain_id": self.chain_id,
                     "max_fee": "100000000",
                     "max_priority_fee_bips": 0
                   },
                   "encoded_call_message": &encoded_call_message,
-                  "nonce": message.nonce,
-                  "generation": 0,
+                  "generation": self.get_generation() as u64,
                   "sender_pub_key": format!("\"{}\"", hex::encode(public_key))
                 }
             })
@@ -201,9 +203,16 @@ impl SovereignClient {
         let request = request_json(self.signer.public_key());
         let response = self.http_post::<Data>(query, &request).await?;
 
-        let receipt = response.apply_tx_result.receipt;
+        let receipt = response.apply_tx_result.receipt.clone();
         if receipt.receipt.outcome != "successful" {
-            return Err(custom_err!("Transaction simulation reverted"));
+            let reason = BASE64_STANDARD
+                .decode(&receipt.receipt.content)
+                .expect("failed to decode base64");
+            return Err(custom_err!(
+                "Transaction simulation reverted: {:?}, reason: {:?}",
+                receipt,
+                reason,
+            ));
         }
 
         let tx_consumption = response.apply_tx_result.transaction_consumption;

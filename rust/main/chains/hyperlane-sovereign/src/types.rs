@@ -106,3 +106,12 @@ pub struct SchemaResponse {
     /// The chain hash in hex form, prefixed with `0x`.
     pub chain_hash: String,
 }
+
+/// Response from the `/rollup/constants` endpoint.
+#[derive(Deserialize, Debug)]
+pub struct ConstantsResponse {
+    /// The rollups Chain ID
+    pub chain_id: u64,
+    /// The name of the rollup
+    pub chain_name: String,
+}
