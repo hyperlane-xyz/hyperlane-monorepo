@@ -45,17 +45,11 @@ impl IntoResponse for AppError {
         eprintln!("Validator error: {}", err_msg);
 
         // Differentiate between error types for different HTTP status codes
-        let (status_code, response_body) = if err_msg.contains("Deposit transaction is not final") {
+        let (status_code, response_body) = if err_msg.contains("not safe against reorg") {
             // Use 202 Accepted for non-final deposits (retryable)
             (
                 StatusCode::ACCEPTED,
                 format!("Deposit not final: {}", err_msg)
-            )
-        } else if err_msg.contains("not safe against reorg") {
-            // Use 422 Unprocessable Entity for rejected transactions (non-retryable)
-            (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                format!("Transaction rejected: {}", err_msg)
             )
         } else if err_msg.contains("Hub is not bootstrapped") {
             // Use 503 Service Unavailable for infrastructure issues (retryable)

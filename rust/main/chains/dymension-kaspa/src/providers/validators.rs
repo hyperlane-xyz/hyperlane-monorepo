@@ -78,14 +78,7 @@ impl ValidatorsClient {
                 }
                 Err(e) => {
                     let error_str = e.to_string();
-                    if error_str.contains("DepositNotFinal") {
-                        error!(
-                            "Dymension, deposit not final, validator: {:?}, error: {:?}",
-                            h, e
-                        );
-                        // This is retryable - you could implement retry logic here
-                        Err(e)
-                    } else if error_str.contains("TransactionRejected") {
+                    if error_str.contains("TransactionRejected") {
                         error!(
                             "Dymension, transaction rejected, validator: {:?}, error: {:?}",
                             h, e
