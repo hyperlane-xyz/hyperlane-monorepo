@@ -61,6 +61,7 @@ pub fn escalate_gas_price_if_needed(
             debug!(
                 tx_type = "Legacy or Eip2930",
                 ?old_gas_price,
+                ?estimated_gas_price,
                 ?escalated_gas_price,
                 "Escalation attempt outcome"
             );
@@ -75,27 +76,29 @@ pub fn escalate_gas_price_if_needed(
                 max_priority_fee: old_max_priority_fee,
             },
             GasPrice::Eip1559 {
-                max_fee: new_max_fee,
-                max_priority_fee: new_max_priority_fee,
+                max_fee: estimated_max_fee,
+                max_priority_fee: estimated_max_priority_fee,
             },
         ) => {
             let escalated_max_fee_per_gas = get_escalated_price_from_old_and_new(
                 old_max_fee,
-                new_max_fee,
+                estimated_max_fee,
                 transaction_overrides,
             );
 
             let escalated_max_priority_fee_per_gas = get_escalated_price_from_old_and_new(
                 old_max_priority_fee,
-                new_max_priority_fee,
+                estimated_max_priority_fee,
                 transaction_overrides,
             );
 
             debug!(
                 tx_type = "Eip1559",
                 old_max_fee_per_gas = ?old_max_fee,
+                estimated_max_fee = ?estimated_max_fee,
                 escalated_max_fee_per_gas = ?escalated_max_fee_per_gas,
                 old_max_priority_fee_per_gas = ?old_max_priority_fee,
+                estimated_max_priority_fee = ?estimated_max_priority_fee,
                 escalated_max_priority_fee_per_gas = ?escalated_max_priority_fee_per_gas,
                 "Escalation attempt outcome"
             );
