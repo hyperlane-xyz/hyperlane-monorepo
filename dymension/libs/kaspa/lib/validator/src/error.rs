@@ -15,15 +15,11 @@ pub enum ValidationError {
         actual: String,
     },
 
-    #[error("Transaction is not safe against reorg: {tx_id}")]
-    NotSafeAgainstReorg { tx_id: String },
-
-    #[error("Deposit transaction is not final: tx_id={tx_id} confirmations={confirmations} required={required}")]
-    DepositNotFinal { 
-        tx_id: String, 
+    #[error("Transaction is not safe against reorg: {tx_id} confirmations={confirmations} required={required}")]
+    NotSafeAgainstReorg { 
+        tx_id: String,
         confirmations: i64, 
-        required: i64 
-    },
+        required: i64 },
 
     #[error("Hub is not bootstrapped")]
     HubNotBootstrapped,

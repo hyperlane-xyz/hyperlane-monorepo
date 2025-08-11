@@ -1,7 +1,6 @@
 use crate::error::ValidationError;
 use corelib::api::client::HttpClient;
 use corelib::deposit::DepositFXG;
-use corelib::finality::check_finality_status;
 use corelib::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
 use corelib::wallet::NetworkInfo;
 use eyre::Result;
@@ -16,6 +15,7 @@ use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
 use kaspa_txscript::extract_script_pub_key_address;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use std::sync::Arc;
+use corelib::finality::is_safe_against_reorg;
 
 #[derive(Clone, Default)]
 pub struct MustMatch {
@@ -163,7 +163,7 @@ pub async fn validate_new_deposit_inner(
         }
     })?;
 
-    let finality_status = check_finality_status(
+    let finality_status = is_safe_against_reorg(
         client_rest,
         &d_untrusted.tx_id,
         Some(containing_block_hash.to_string()),
@@ -173,14 +173,8 @@ pub async fn validate_new_deposit_inner(
         reason: e.to_string(),
     })?;
 
-    if !finality_status.is_accepted {
-        return Err(ValidationError::NotSafeAgainstReorg {
-            tx_id: d_untrusted.tx_id.clone(),
-        });
-    }
-
     if !finality_status.is_final {
-        return Err(ValidationError::DepositNotFinal {
+        return Err(ValidationError::NotSafeAgainstReorg {
             tx_id: d_untrusted.tx_id.clone(),
             confirmations: finality_status.confirmations,
             required: finality_status.required_confirmations,
