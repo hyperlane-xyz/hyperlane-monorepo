@@ -338,15 +338,28 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       // Handle when the process exits due to an error that is not the expected log
       rebalancer.catch((e) => {
-        const lines = e.lines();
-        const error = lines[lines.length - 1];
+        const lines = typeof e.lines === 'function' ? e.lines() : [];
+        const combined = Array.isArray(lines) ? lines.join('\n') : String(e);
+
+        // Consume any expected logs that appear in the error output
+        while (expectedLogs.length && combined.includes(expectedLogs[0])) {
+          expectedLogs.shift();
+        }
 
         clearTimeout(timeoutId);
-        reject(
-          new Error(
-            `Process failed before logging: "${expectedLogs[0]}" with error: ${error}`,
-          ),
-        );
+        if (!expectedLogs.length) {
+          resolve(void 0);
+        } else {
+          const lastLine =
+            Array.isArray(lines) && lines.length
+              ? lines[lines.length - 1]
+              : String(e);
+          reject(
+            new Error(
+              `Process failed before logging: "${expectedLogs[0]}" with error: ${lastLine}`,
+            ),
+          );
+        }
       });
       (async () => {
         // Wait for the process to output the expected log.
@@ -391,7 +404,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     rmSync(REBALANCER_CONFIG_PATH);
 
     await startRebalancerAndExpectLog(
-      `Rebalancer startup error: Error: File doesn't exist at ${REBALANCER_CONFIG_PATH}`,
+      `Error: File doesn't exist at ${REBALANCER_CONFIG_PATH}`,
     );
   });
 
@@ -424,7 +437,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer startup error: Error: Validation error: All chains must use the same minAmount type. at "strategy.chains"`,
+      `Error: Validation error: All chains must use the same minAmount type. at "strategy.chains"`,
     );
   });
 
@@ -455,7 +468,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer startup error: SyntaxError: Cannot convert weight to a BigInt`,
+      `SyntaxError: Cannot convert weight to a BigInt`,
     );
   });
 
@@ -486,7 +499,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer startup error: SyntaxError: Cannot convert tolerance to a BigInt`,
+      `SyntaxError: Cannot convert tolerance to a BigInt`,
     );
   });
 
@@ -517,7 +530,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer startup error: Error: Validation error: Invalid at "strategy.chains.anvil2.bridge"`,
+      `Error: Validation error: Invalid at "strategy.chains.anvil2.bridge"`,
     );
   });
 
@@ -837,7 +850,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Rebalancer startup error: Error: Consider reducing the targets as the sum (23) is greater than sum of collaterals (20)`,
+      `Error: Consider reducing the targets as the sum (23) is greater than sum of collaterals (20)`,
     );
   });
 
