@@ -31,6 +31,66 @@ pub async fn is_safe_against_reorg(
     .await
 }
 
+/// Result of finality check with detailed status information
+#[derive(Debug, Clone)]
+pub struct FinalityStatus {
+    pub is_accepted: bool,
+    pub is_final: bool,
+    pub confirmations: i64,
+    pub required_confirmations: i64,
+}
+
+/// Returns detailed finality status including confirmation count
+pub async fn check_finality_status(
+    rest_client: &HttpClient,
+    tx_id: &str,
+    block_hash_hint: Option<String>,
+) -> Result<FinalityStatus> {
+    check_finality_status_n_confs(
+        rest_client,
+        REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS,
+        tx_id,
+        block_hash_hint,
+    )
+    .await
+}
+
+pub async fn check_finality_status_n_confs(
+    rest_client: &HttpClient,
+    required_confirmations: i64,
+    tx_id: &str,
+    containing_block_hash_hint: Option<String>,
+) -> Result<FinalityStatus> {
+    let virtual_blue_score = rest_client.get_blue_score().await?;
+    let tx = rest_client
+        .get_tx_by_id_slim(tx_id, containing_block_hash_hint)
+        .await?;
+    
+    let is_accepted = tx.is_accepted.unwrap_or(false);
+    if !is_accepted {
+        return Ok(FinalityStatus {
+            is_accepted: false,
+            is_final: false,
+            confirmations: 0,
+            required_confirmations,
+        });
+    }
+    
+    let accepting_blue_score = tx
+        .accepting_block_blue_score
+        .ok_or(eyre::eyre!("Accepting block blue score is missing"))?;
+    
+    let confirmations = virtual_blue_score - accepting_blue_score;
+    let is_final = confirmations >= required_confirmations;
+    
+    Ok(FinalityStatus {
+        is_accepted: true,
+        is_final,
+        confirmations,
+        required_confirmations,
+    })
+}
+
 pub async fn is_safe_against_reorg_n_confs(
     rest_client: &HttpClient,
     required_confirmations: i64,

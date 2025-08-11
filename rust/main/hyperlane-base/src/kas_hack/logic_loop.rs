@@ -111,7 +111,8 @@ where
             };
             // TODO: len include deposits that have been processed, the number is misleading
             info!("Dymension, queried kaspa deposits, n: {:?}", deposits.len());
-            time::sleep(FINALITY_APPROX_WAIT_TIME).await;
+            time::sleep(Duration::from_secs(1)).await;
+            //time::sleep(FINALITY_APPROX_WAIT_TIME).await;
             self.handle_new_deposits(deposits).await;
         }
     }

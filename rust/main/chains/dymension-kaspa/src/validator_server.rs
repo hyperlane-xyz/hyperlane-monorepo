@@ -44,13 +44,34 @@ impl IntoResponse for AppError {
         let err_msg = self.0.to_string();
         eprintln!("Validator error: {}", err_msg);
 
-        // Return the actual error message in the response body
-        // This ensures the relayer gets meaningful error information
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Validation failed: {}", err_msg),
-        )
-            .into_response()
+        // Differentiate between error types for different HTTP status codes
+        let (status_code, response_body) = if err_msg.contains("Deposit transaction is not final") {
+            // Use 202 Accepted for non-final deposits (retryable)
+            (
+                StatusCode::ACCEPTED,
+                format!("Deposit not final: {}", err_msg)
+            )
+        } else if err_msg.contains("not safe against reorg") {
+            // Use 422 Unprocessable Entity for rejected transactions (non-retryable)
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                format!("Transaction rejected: {}", err_msg)
+            )
+        } else if err_msg.contains("Hub is not bootstrapped") {
+            // Use 503 Service Unavailable for infrastructure issues (retryable)
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("Service unavailable: {}", err_msg)
+            )
+        } else {
+            // Default to 500 for other validation errors
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Validation failed: {}", err_msg)
+            )
+        };
+
+        (status_code, response_body).into_response()
     }
 }
 

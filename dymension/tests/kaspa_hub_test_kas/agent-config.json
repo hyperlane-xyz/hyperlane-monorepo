@@ -64,7 +64,7 @@
     "kaspatest10": {
       "protocol": "kaspa",
       "name": "kaspatest10",
-      "domainId": 80808082,
+      "domainId": 897658017,
       "interchainGasPaymaster": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "mailbox": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -78,16 +78,18 @@
         }
       ],
       "walletSecret": "L1cinda_14",
+      "kaspaUrlsWrpc": "localhost:17210",
       "kaspaRpcUrl": "localhost:17210",
-      "kaspaRestUrl": "https://api-tn10.kaspa.org/",
+      "kaspaUrlsRest": "https://api-tn10.kaspa.org/",
       "validatorHosts": "http://localhost:9090",
-      "validatorPubsKaspa": "027b75fcbedee53f82ebc43c19a69697100afad2df27202f107c994c740e9df5b8",
-      "escrowAddress": "kaspatest:prmapgdl0nsdqjsmd45fjykxuq3242g4npryzkqe3aeqq9yhrp20k20ymjrlk",
-      "kaspaEscrowPrivateKey": "\"afa4bcc6e5828eb28d70138ea784a32e0212d3560dfcdfac85bfa1dbabb11ac9\"",
+      "validatorPubsKaspa": "02864190cba9fb3f4606f746e51f463d6aa483ec9dd9799b99a803d29ec29c60af",
+      "escrowAddress": "kaspatest:pz2vlvkeryjfpwfnxucve5sum2lef9xm3n6pfz2592j9mr4cr2nvqadma5k24",
+      "kaspaEscrowPrivateKey": "\"2ef9b034e2ca320dd8a5bf92d120dee1f3e9e573760022272799fc35c5553cbd\"",
       "kaspaMultisigThresholdHubIsm": 1,
       "kaspaMultisigThresholdEscrow": 1,
       "hubMailboxId": "0x68797065726c616e650000000000000000000000000000000000000000000000",
       "depositLookBackMins": 120,
+      "kaspaMinDepositSompi": 1000000000,
       "validateDeposit": true,
       "validateWithdrawal": true,
       "validateWithdrawalConfirmation": true,
@@ -96,8 +98,8 @@
           "http": "http://127.0.0.1:8090"
         }
       ],
-      "hubDomain": 1260813472,
-      "kasDomain": 80808082,
+      "hubDomain": 587907060,
+      "kasDomain": 897658017,
       "hubTokenId": "0x726f757465725f61707000000000000000000000000000020000000000000000",
       "kasTokenId": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
     }

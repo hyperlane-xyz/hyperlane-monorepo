@@ -77,11 +77,35 @@ impl ValidatorsClient {
                     Err(eyre!("No signature received"))
                 }
                 Err(e) => {
-                    error!(
-                        "Dymension, got deposit sig response Err, validator: {:?}, error: {:?}",
-                        h, e
-                    );
-                    Err(e)
+                    let error_str = e.to_string();
+                    if error_str.contains("DepositNotFinal") {
+                        error!(
+                            "Dymension, deposit not final, validator: {:?}, error: {:?}",
+                            h, e
+                        );
+                        // This is retryable - you could implement retry logic here
+                        Err(e)
+                    } else if error_str.contains("TransactionRejected") {
+                        error!(
+                            "Dymension, transaction rejected, validator: {:?}, error: {:?}",
+                            h, e
+                        );
+                        // This is non-retryable - mark as permanent failure
+                        Err(e)
+                    } else if error_str.contains("ServiceUnavailable") {
+                        error!(
+                            "Dymension, service unavailable, validator: {:?}, error: {:?}",
+                            h, e
+                        );
+                        // This is retryable with longer backoff
+                        Err(e)
+                    } else {
+                        error!(
+                            "Dymension, got deposit sig response Err, validator: {:?}, error: {:?}",
+                            h, e
+                        );
+                        Err(e)
+                    }
                 }
             }
         });
@@ -223,11 +247,28 @@ pub async fn request_validate_new_deposits(
     } else {
         // Try to extract the error message from the response body
         let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
-        Err(eyre::eyre!(
-            "Failed to validate deposits: {} - {}",
-            status,
-            error_msg
-        ))
+        
+        // Create more specific errors based on HTTP status code
+        let error = match status {
+            StatusCode::ACCEPTED => {
+                // 202: Deposit not final (retryable with backoff)
+                eyre::eyre!("DepositNotFinal: {}", error_msg)
+            }
+            StatusCode::UNPROCESSABLE_ENTITY => {
+                // 422: Transaction rejected (non-retryable)  
+                eyre::eyre!("TransactionRejected: {}", error_msg)
+            }
+            StatusCode::SERVICE_UNAVAILABLE => {
+                // 503: Service unavailable (retryable)
+                eyre::eyre!("ServiceUnavailable: {}", error_msg)
+            }
+            _ => {
+                // Default error format
+                eyre::eyre!("ValidationFailed: {} - {}", status, error_msg)
+            }
+        };
+        
+        Err(error)
     }
 }
 

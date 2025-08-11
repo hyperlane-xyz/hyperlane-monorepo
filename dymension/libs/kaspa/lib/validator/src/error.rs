@@ -18,6 +18,13 @@ pub enum ValidationError {
     #[error("Transaction is not safe against reorg: {tx_id}")]
     NotSafeAgainstReorg { tx_id: String },
 
+    #[error("Deposit transaction is not final: tx_id={tx_id} confirmations={confirmations} required={required}")]
+    DepositNotFinal { 
+        tx_id: String, 
+        confirmations: i64, 
+        required: i64 
+    },
+
     #[error("Hub is not bootstrapped")]
     HubNotBootstrapped,
 
@@ -140,4 +147,7 @@ pub enum ValidationError {
 
     #[error("Kaspa node error: {reason}")]
     KaspaNodeError { reason: String },
+
+    #[error("Finality check error: tx_id={tx_id} reason={reason}")]
+    FinalityCheckError { tx_id: String, reason: String },
 }
