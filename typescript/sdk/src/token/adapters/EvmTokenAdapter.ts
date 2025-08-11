@@ -35,6 +35,7 @@ import {
   ZERO_ADDRESS_HEX_32,
   addressToByteHexString,
   addressToBytes32,
+  assert,
   bytes32ToAddress,
   strip0x,
 } from '@hyperlane-xyz/utils';
@@ -52,6 +53,7 @@ import {
   ITokenAdapter,
   IXERC20VSAdapter,
   InterchainGasQuote,
+  Quote,
   QuoteTransferRemoteParams,
   RateLimitMidPoint,
   TransferParams,
@@ -256,6 +258,8 @@ export class EvmHypSyntheticAdapter
 
   async quoteTransferRemoteGas({
     destination,
+    recipient,
+    amount,
   }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const contractVersion = await this.contract.PACKAGE_VERSION();
 
@@ -266,14 +270,35 @@ export class EvmHypSyntheticAdapter
       ) >= 0;
 
     // Version does not support quoteTransferRemote defaulting to quoteGasPayment
-    const gasPayment = await this.contract.quoteGasPayment(destination);
     if (!hasQuoteTransferRemote) {
+      const gasPayment = await this.contract.quoteGasPayment(destination);
       return { igpQuote: { amount: BigInt(gasPayment.toString()) } };
     }
 
-    // Fallback for older contract versions
+    assert(amount, 'Amount must be defined for quoteTransferRemoteGas');
+    assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
+
+    const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
+
+    const [igpQuote, ...feeQuotes] = await this.contract.quoteTransferRemote(
+      destination,
+      recipBytes32,
+      amount,
+    );
+
+    const [igpTokenAddressOrDenom, igpAmount] = igpQuote;
+
+    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote) => ({
+      addressOrDenom: quote[0],
+      amount: BigInt(quote[1].toString()),
+    }));
+
     return {
-      igpQuote: { amount: BigInt(gasPayment.toString()) },
+      igpQuote: {
+        addressOrDenom: igpTokenAddressOrDenom,
+        amount: BigInt(igpAmount.toString()),
+      },
+      tokenFeeQuotes,
     };
   }
 
