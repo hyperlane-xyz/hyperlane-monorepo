@@ -43,6 +43,7 @@ export enum CommandType {
   WARP_DEPLOY = 'warp:deploy',
   WARP_SEND = 'warp:send',
   WARP_APPLY = 'warp:apply',
+  WARP_REBALANCER = 'warp:rebalancer',
   SEND_MESSAGE = 'send:message',
   AGENT_KURTOSIS = 'deploy:kurtosis-agents',
   STATUS = 'status:',
