@@ -159,7 +159,7 @@ export class StarknetHypSyntheticAdapter
     destination: Domain,
   ): Promise<InterchainGasQuote> {
     const gasPayment = await this.contract.quote_gas_payment(destination);
-    return { amount: BigInt(gasPayment.toString()) };
+    return { igpQuote: { amount: BigInt(gasPayment.toString()) } };
   }
 
   async populateTransferRemoteTx({
@@ -169,13 +169,13 @@ export class StarknetHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<Call> {
     const nonOption = new CairoOption(CairoOptionVariant.None);
-    const quote =
+    const { igpQuote } =
       interchainGas || (await this.quoteTransferRemoteGas(destination));
     return this.contract.populateTransaction.transfer_remote(
       destination,
       cairo.uint256(addressToBytes32(recipient)),
       cairo.uint256(BigInt(weiAmountOrId.toString())),
-      cairo.uint256(BigInt(quote.amount)),
+      cairo.uint256(BigInt(igpQuote.amount)),
       nonOption,
       nonOption,
     );
@@ -301,7 +301,7 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
   }: TransferRemoteParams): Promise<Call> {
     const nonOption = new CairoOption(CairoOptionVariant.None);
     const amount = BigInt(weiAmountOrId.toString());
-    const gasAmount = BigInt(interchainGas?.amount.toString() ?? '0');
+    const gasAmount = BigInt(interchainGas?.igpQuote.amount.toString() ?? '0');
     const totalAmount = amount + gasAmount;
     return this.collateralContract.populateTransaction.transfer_remote(
       destination,
@@ -369,7 +369,7 @@ export class StarknetHypFeeAdapter extends StarknetHypSyntheticAdapter {
   }: TransferRemoteParams): Promise<Call> {
     const nonOption = new CairoOption(CairoOptionVariant.None);
     const amount = BigInt(weiAmountOrId.toString());
-    const gasAmount = BigInt(interchainGas?.amount.toString() ?? '0');
+    const gasAmount = BigInt(interchainGas?.igpQuote.amount.toString() ?? '0');
     const totalAmount = amount + gasAmount;
     return this.collateralContract.populateTransaction.transfer_remote(
       destination,

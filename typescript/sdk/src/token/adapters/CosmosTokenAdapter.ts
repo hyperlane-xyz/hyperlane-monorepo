@@ -128,7 +128,9 @@ export class CosmIbcTokenAdapter
     _destination: Domain,
   ): Promise<InterchainGasQuote> {
     // TODO implement IBC interchain transfer gas estimation here
-    return { amount: 0n, addressOrDenom: this.properties.ibcDenom };
+    return {
+      igpQuote: { amount: 0n, addressOrDenom: this.properties.ibcDenom },
+    };
   }
 
   async populateTransferRemoteTx(
@@ -184,7 +186,12 @@ export class CosmIbcToWarpTokenAdapter
     _destination: Domain,
   ): Promise<InterchainGasQuote> {
     // TODO implement IBC interchain transfer gas estimation here
-    return { amount: 0n, addressOrDenom: this.properties.intermediateIbcDenom };
+    return {
+      igpQuote: {
+        amount: 0n,
+        addressOrDenom: this.properties.intermediateIbcDenom,
+      },
+    };
   }
 
   async populateTransferRemoteTx(
@@ -198,19 +205,20 @@ export class CosmIbcToWarpTokenAdapter
         warpRouter: this.addresses.intermediateRouterAddress,
       },
     );
+    const { interchainGas } = transferParams;
     assert(
-      transferParams.interchainGas?.addressOrDenom === this.properties.ibcDenom,
+      interchainGas?.igpQuote.addressOrDenom === this.properties.ibcDenom,
       'Only same-denom interchain gas is supported for IBC to Warp transfers',
     );
     // This transformation is necessary to ensure the CW adapter recognizes the gas
     // denom is the same as this adapter's denom (e.g. utia & igp/77...)
     const intermediateInterchainGas = {
       addressOrDenom: this.properties.intermediateIbcDenom,
-      amount: transferParams.interchainGas?.amount || 0n,
+      amount: interchainGas?.igpQuote.amount || 0n,
     };
     const transfer = await cwAdapter.populateTransferRemoteTx({
       ...transferParams,
-      interchainGas: intermediateInterchainGas,
+      interchainGas: { igpQuote: intermediateInterchainGas },
     });
     const cwMemo = {
       wasm: {

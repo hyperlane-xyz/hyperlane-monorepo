@@ -17,9 +17,14 @@ export interface TransferRemoteParams extends TransferParams {
   customHook?: Address;
 }
 
-export interface InterchainGasQuote {
+export interface Quote {
   addressOrDenom?: string; // undefined values represent default native tokens
   amount: bigint;
+}
+
+export interface InterchainGasQuote {
+  igpQuote: Quote;
+  tokenFeeQuotes?: Quote[];
 }
 
 export interface RateLimitMidPoint {

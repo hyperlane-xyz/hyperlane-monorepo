@@ -101,7 +101,8 @@ describe('WarpCore', () => {
   it('Gets transfer gas quote', async () => {
     const stubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
+        quoteTransferRemoteGas: () =>
+          Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
         isRevokeApprovalRequired: () => Promise.resolve(false),
@@ -112,7 +113,7 @@ describe('WarpCore', () => {
       token: Token,
       destination: ChainName,
       standard: TokenStandard,
-      interchainQuote: InterchainGasQuote = MOCK_INTERCHAIN_QUOTE,
+      interchainQuote: InterchainGasQuote = { igpQuote: MOCK_INTERCHAIN_QUOTE },
     ) => {
       const result = await warpCore.estimateTransferRemoteFees({
         originToken: token,
@@ -134,7 +135,7 @@ describe('WarpCore', () => {
       expect(
         result.interchainQuote.amount,
         `token interchain amount check for ${token.chainName} to ${destination}`,
-      ).to.equal(interchainQuote.amount);
+      ).to.equal(interchainQuote.igpQuote.amount);
     };
 
     await testQuote(evmHypNative, test1.name, TokenStandard.EvmNative);
@@ -157,8 +158,7 @@ describe('WarpCore', () => {
     await testQuote(cosmosIbc, test1.name, TokenStandard.CosmosNative);
     // Note, this route uses an igp quote const config
     await testQuote(cwHypCollateral, test2.name, TokenStandard.CosmosNative, {
-      amount: 1n,
-      addressOrDenom: 'atom',
+      igpQuote: { amount: 1n, addressOrDenom: 'atom' },
     });
 
     stubs.forEach((s) => s.restore());
@@ -250,7 +250,8 @@ describe('WarpCore', () => {
     const minimumTransferAmount = 10n;
     const quoteStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
+        quoteTransferRemoteGas: () =>
+          Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
         getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
@@ -361,7 +362,8 @@ describe('WarpCore', () => {
 
     const adapterStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
+        quoteTransferRemoteGas: () =>
+          Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
         populateTransferRemoteTx: () => Promise.resolve({}),
         isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),

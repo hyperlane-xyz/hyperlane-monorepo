@@ -257,7 +257,7 @@ export class EvmHypSyntheticAdapter
     const gasPayment = await this.contract.quoteGasPayment(destination);
     // If EVM hyp contracts eventually support alternative IGP tokens,
     // this would need to determine the correct token address
-    return { amount: BigInt(gasPayment.toString()) };
+    return { igpQuote: { amount: BigInt(gasPayment.toString()) } };
   }
 
   async populateTransferRemoteTx({
@@ -273,7 +273,7 @@ export class EvmHypSyntheticAdapter
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, weiAmountOrId, {
-      value: interchainGas.amount.toString(),
+      value: interchainGas.igpQuote.amount.toString(),
     });
   }
 }
@@ -399,7 +399,7 @@ export class EvmHypCollateralAdapter
 
       return [
         {
-          amount: BigInt(gasPayment.toString()),
+          igpQuote: { amount: BigInt(gasPayment.toString()) },
         },
       ];
     }
@@ -416,9 +416,11 @@ export class EvmHypCollateralAdapter
     );
 
     return quotes.map((quote) => ({
-      addressOrDenom:
-        quote.token === ethersConstants.AddressZero ? undefined : quote.token,
-      amount: BigInt(quote.amount.toString()),
+      igpQuote: {
+        addressOrDenom:
+          quote.token === ethersConstants.AddressZero ? undefined : quote.token,
+        amount: BigInt(quote.amount.toString()),
+      },
     }));
   }
 
@@ -433,7 +435,8 @@ export class EvmHypCollateralAdapter
   ): Promise<PopulatedTransaction> {
     // Obtains the trx value by adding the amount of all quotes with no addressOrDenom (native tokens)
     const value = quotes.reduce(
-      (value, quote) => (!quote.addressOrDenom ? value + quote.amount : value),
+      (value, quote) =>
+        !quote.igpQuote.addressOrDenom ? value + quote.igpQuote.amount : value,
       0n,
     );
 
@@ -777,8 +780,9 @@ export class EvmHypNativeAdapter
       interchainGas = await this.quoteTransferRemoteGas(destination);
 
     let txValue: bigint | undefined = undefined;
-    const { addressOrDenom: igpAddressOrDenom, amount: igpAmount } =
-      interchainGas;
+    const {
+      igpQuote: { addressOrDenom: igpAddressOrDenom, amount: igpAmount },
+    } = interchainGas;
     // If the igp token is native Eth
     if (!igpAddressOrDenom) {
       txValue = igpAmount + BigInt(weiAmountOrId);
@@ -803,7 +807,8 @@ export class EvmHypNativeAdapter
   ): Promise<PopulatedTransaction> {
     // Obtains the trx value by adding the amount of all quotes with no addressOrDenom (native tokens)
     const value = quotes.reduce(
-      (value, quote) => (!quote.addressOrDenom ? value + quote.amount : value),
+      (value, quote) =>
+        !quote.igpQuote.addressOrDenom ? value + quote.igpQuote.amount : value,
       // Uses the amount to transfer as base value given that the amount is defined in native tokens for this adapter
       BigInt(amount),
     );

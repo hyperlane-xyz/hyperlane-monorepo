@@ -159,8 +159,8 @@ export class WarpCore {
         sender,
         originToken.igpTokenAddressOrDenom,
       );
-      gasAmount = BigInt(quote.amount);
-      gasAddressOrDenom = quote.addressOrDenom;
+      gasAmount = BigInt(quote.igpQuote.amount);
+      gasAddressOrDenom = quote.igpQuote.addressOrDenom;
     }
 
     let igpToken: Token;
@@ -434,8 +434,10 @@ export class WarpCore {
       fromAccountOwner: sender,
       recipient,
       interchainGas: {
-        amount: interchainFee.amount,
-        addressOrDenom: interchainFee.token.addressOrDenom,
+        igpQuote: {
+          amount: interchainFee.amount,
+          addressOrDenom: interchainFee.token.addressOrDenom,
+        },
       },
       customHook: token.igpTokenAddressOrDenom,
     });
