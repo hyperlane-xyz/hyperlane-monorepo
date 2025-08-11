@@ -58,7 +58,7 @@ import {
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
-const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
+const logger = rootLogger.child({ module: 'infra:scripts:utils' });
 
 export enum Modules {
   // TODO: change
@@ -557,7 +557,7 @@ export function getKeyForRole(
   chain?: ChainName,
   index?: number,
 ): CloudAgentKey {
-  debugLog(`Getting key for ${role} role`);
+  logger.debug(`Getting key for ${role} role`);
   const agentConfig = getAgentConfig(context, environment);
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
@@ -578,10 +578,10 @@ export async function getMultiProviderForRole(
   index?: number,
 ): Promise<MultiProvider> {
   const chainMetadata = await registry.getMetadata();
-  debugLog(`Getting multiprovider for ${role} role`);
+  logger.debug(`Getting multiprovider for ${role} role`);
   const multiProvider = new MultiProvider(chainMetadata);
   if (inCIMode()) {
-    debugLog('Running in CI, returning multiprovider without secret keys');
+    logger.debug('Running in CI, returning multiprovider without secret keys');
     return multiProvider;
   }
   await promiseObjAll(
@@ -619,7 +619,7 @@ export async function getKeysForRole(
   index?: number,
 ): Promise<ChainMap<CloudAgentKey>> {
   if (inCIMode()) {
-    debugLog('No keys to return in CI');
+    logger.debug('No keys to return in CI');
     return {};
   }
 
