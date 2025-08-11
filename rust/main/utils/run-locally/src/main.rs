@@ -225,6 +225,27 @@ fn main() -> ExitCode {
         })
         .collect::<Vec<_>>();
 
+    // Create a special SQL-enabled validator for test1 that uses the scraper database
+    let sql_validator_db = concat_path(&rocks_db_dir, "validator_sql");
+    let sql_validator_checkpoints_dir = Box::new(tempdir().unwrap()) as DynPath;
+    let sql_validator_env = base_validator_env
+        .clone()
+        .hyp_env("METRICSPORT", "9097") // Unique port for SQL validator
+        .hyp_env("DB", sql_validator_db.to_str().unwrap())
+        .hyp_env("ORIGINCHAINNAME", "test1")
+        .hyp_env(
+            "VALIDATOR_KEY",
+            "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+        ) // Different key from regular validators
+        .hyp_env(
+            "CHECKPOINTSYNCER_PATH",
+            (*sql_validator_checkpoints_dir).as_ref().to_str().unwrap(),
+        )
+        .hyp_env(
+            "SCRAPERDBURL",
+            "postgresql://postgres:47221c18c610@localhost:5432/postgres",
+        );
+
     let scraper_env = common_agent_env
         .bin(concat_path(AGENT_BIN_PATH, "scraper"))
         .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "quorum")
@@ -250,10 +271,15 @@ fn main() -> ExitCode {
             .collect::<Vec<_>>()
             .join(", ")
     );
+    log!(
+        "SQL validator checkpoints in {}",
+        (*sql_validator_checkpoints_dir).as_ref().display()
+    );
     log!("Relayer DB in {}", relayer_db.display());
     (0..validator_count).for_each(|i| {
         log!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
     });
+    log!("SQL Validator DB in {}", sql_validator_db.display());
 
     //
     // Ready to run...
@@ -274,15 +300,27 @@ fn main() -> ExitCode {
     let start_anvil = start_anvil(config.clone());
 
     log!("Running postgres db...");
-    let postgres = Program::new("docker")
-        .cmd("run")
-        .flag("rm")
-        .arg("name", "scraper-testnet-postgres")
-        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
-        .arg("publish", "5432:5432")
-        .cmd("postgres:14")
-        .spawn("SQL", None);
-    state.push_agent(postgres);
+
+    // Clean up any existing postgres container first
+    Program::new("docker")
+        .cmd("rm")
+        .flag("force")
+        .cmd("scraper-testnet-postgres")
+        .run_ignore_code()
+        .join();
+
+    // Start postgres in background
+    std::thread::spawn(|| {
+        Program::new("docker")
+            .cmd("run")
+            .flag("rm")
+            .arg("name", "scraper-testnet-postgres")
+            .arg("env", "POSTGRES_PASSWORD=47221c18c610")
+            .arg("publish", "5432:5432")
+            .cmd("postgres:14")
+            .run()
+            .join();
+    });
 
     build_main.join();
 
@@ -293,11 +331,60 @@ fn main() -> ExitCode {
 
     sleep(Duration::from_secs(5));
 
+    // Wait for PostgreSQL to be ready before initializing the database
+    log!("Waiting for PostgreSQL to be ready...");
+    for attempt in 1..=20 {
+        sleep(Duration::from_secs(2));
+        log!("Checking PostgreSQL readiness (attempt {}/20)...", attempt);
+
+        // Try to run a simple pg_isready check
+        let pg_check_result = std::process::Command::new("docker")
+            .args(&[
+                "exec",
+                "scraper-testnet-postgres",
+                "pg_isready",
+                "-h",
+                "localhost",
+                "-p",
+                "5432",
+                "-U",
+                "postgres",
+            ])
+            .output();
+
+        match pg_check_result {
+            Ok(output) if output.status.success() => {
+                log!("PostgreSQL is ready!");
+                break;
+            }
+            Ok(output) => {
+                log!(
+                    "PostgreSQL not ready yet: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            Err(e) => {
+                log!("Error checking PostgreSQL: {}", e);
+            }
+        }
+
+        if attempt == 20 {
+            panic!("PostgreSQL did not become ready within 40 seconds");
+        }
+    }
+
     log!("Init postgres db...");
     Program::new(concat_path(AGENT_BIN_PATH, "init-db"))
         .run()
         .join();
     state.push_agent(scraper_env.spawn("SCR", None));
+
+    // Wait for scraper to start indexing before starting SQL validator
+    sleep(Duration::from_secs(10));
+
+    // Start SQL validator that will use the scraper database for indexing
+    log!("Starting SQL-enabled validator for test1...");
+    state.push_agent(sql_validator_env.spawn("VLS", Some(AGENT_LOGGING_DIR.as_ref())));
 
     // Send a message that's guaranteed to fail
     // "failMessageBody" hex value is 0x6661696c4d657373616765426f6479
@@ -446,6 +533,16 @@ fn main() -> ExitCode {
 
     let resp = server::send_insert_message_request().expect("Failed to insert messages");
     assert_eq!(resp.count, 2);
+
+    // Test SQL validator functionality
+    if test_passed {
+        test_passed = sql_validator_invariants_met();
+        if !test_passed {
+            log!("SQL validator invariants not met");
+        } else {
+            log!("Success: SQL validator invariants met");
+        }
+    }
 
     report_test_result(test_passed)
 }
@@ -644,6 +741,119 @@ fn relayer_cached_metadata_invariant_met() -> eyre::Result<bool> {
         return Ok(false);
     }
     Ok(true)
+}
+
+/// Check that the SQL validator is functioning correctly and fetching data from the database
+fn sql_validator_invariants_met() -> bool {
+    log!("Checking SQL validator invariants...");
+
+    let log_file_path = AGENT_LOGGING_DIR.join("VLS-output.log");
+    let sql_validator_logfile = match File::open(&log_file_path) {
+        Ok(file) => file,
+        Err(e) => {
+            log!(
+                "Failed to open SQL validator log file {:?}: {}",
+                log_file_path,
+                e
+            );
+            return false;
+        }
+    };
+
+    // Check for SQL store initialization
+    let sql_init_filters = vec!["Initializing SQL store for validator indexing"];
+    let sql_success_filters = vec!["SQL store initialized successfully for validator"];
+    let sql_retrieval_filters = vec!["Retrieved message from SQL"];
+    let sql_assumption_filters = vec!["SQL nonce=leaf_index assumption validated successfully"];
+
+    let invariant_logs = vec![
+        sql_init_filters.clone(),
+        sql_success_filters.clone(),
+        sql_retrieval_filters.clone(),
+        sql_assumption_filters.clone(),
+    ];
+
+    let log_counts = get_matching_lines(&sql_validator_logfile, invariant_logs);
+
+    // Check SQL store was initialized
+    let sql_init_count = *log_counts.get(&sql_init_filters).unwrap_or(&0);
+    if sql_init_count == 0 {
+        log!("SQL validator did not initialize SQL store");
+        return false;
+    }
+
+    // Check SQL store initialization succeeded
+    let sql_success_count = *log_counts.get(&sql_success_filters).unwrap_or(&0);
+    if sql_success_count == 0 {
+        log!("SQL validator did not successfully initialize SQL store");
+        return false;
+    }
+
+    // Check that messages were retrieved from SQL (at least some)
+    let sql_retrieval_count = *log_counts.get(&sql_retrieval_filters).unwrap_or(&0);
+    if sql_retrieval_count == 0 {
+        log!("SQL validator did not retrieve any messages from SQL database");
+        return false;
+    }
+
+    // Check that assumption validation occurred (optional but good sign)
+    let sql_assumption_count = *log_counts.get(&sql_assumption_filters).unwrap_or(&0);
+
+    log!(
+        "SQL validator metrics - Init: {}, Success: {}, Retrieval: {}, Assumption: {}",
+        sql_init_count,
+        sql_success_count,
+        sql_retrieval_count,
+        sql_assumption_count
+    );
+
+    // Verify the SQL validator is producing checkpoints like regular validators
+    match fetch_metric("9097", "hyperlane_checkpoint_write", &HashMap::new()) {
+        Ok(checkpoints) => {
+            let checkpoint_count: u32 = checkpoints.iter().sum();
+            if checkpoint_count == 0 {
+                log!("SQL validator has not written any checkpoints");
+                return false;
+            }
+            log!("SQL validator has written {} checkpoints", checkpoint_count);
+        }
+        Err(e) => {
+            log!("Failed to fetch SQL validator checkpoint metrics: {}", e);
+            return false;
+        }
+    }
+
+    // Check SQL store metrics if available
+    match fetch_metric(
+        "9097",
+        "hyperlane_sql_indexer_queries_total",
+        &HashMap::new(),
+    ) {
+        Ok(queries) => {
+            let query_count: u32 = queries.iter().sum();
+            log!("SQL validator made {} SQL queries", query_count);
+
+            // Check for hits vs misses
+            if let Ok(hits) =
+                fetch_metric("9097", "hyperlane_sql_indexer_hits_total", &HashMap::new())
+            {
+                let hit_count: u32 = hits.iter().sum();
+                log!("SQL validator had {} SQL hits", hit_count);
+
+                if query_count > 0 && hit_count == 0 {
+                    log!("SQL validator made queries but had no hits - possible issue with SQL indexing");
+                    // Don't fail the test, but log the concern
+                }
+            }
+        }
+        Err(_) => {
+            log!("SQL indexer metrics not available (validator may not have used SQL store yet)");
+            // This is okay - metrics might not be available if no SQL operations occurred
+        }
+    }
+
+    log!("SQL validator invariants successfully validated");
+    true
 }
 
 pub fn wait_for_condition<F1, F2, F3>(
