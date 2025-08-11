@@ -1,6 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { BigNumber, constants, utils } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory, LinearFee } from '@hyperlane-xyz/core';
@@ -15,7 +14,10 @@ import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
+<<<<<<< HEAD
   TokenFeeConfig,
+=======
+>>>>>>> 52e2edeae (Fix fee convert functions for both bps and contract fee amounts)
   TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
