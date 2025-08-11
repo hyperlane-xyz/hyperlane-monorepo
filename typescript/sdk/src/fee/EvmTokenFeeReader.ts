@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 import { constants } from 'ethers';
-=======
-import { BigNumber, constants } from 'ethers';
->>>>>>> 52e2edeae (Fix fee convert functions for both bps and contract fee amounts)
 
 import {
   BaseFee__factory,
@@ -101,35 +97,21 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     throw new Error('Not implemented');
   }
 
-<<<<<<< HEAD
   async convertFromBps(
     bps: bigint,
-=======
-  async convertFromBpsForLinearFee(
-    bps: string,
->>>>>>> 52e2edeae (Fix fee convert functions for both bps and contract fee amounts)
     tokenAddress: Address,
   ): Promise<Pick<BaseTokenFeeConfig, 'maxFee' | 'halfAmount'>> {
     // Assume maxFee is uint256.max / token.totalSupply
     const token = ERC20__factory.connect(tokenAddress, this.provider);
-<<<<<<< HEAD
     const totalSupplyBn = await token.totalSupply();
     const maxFee = BigInt(constants.MaxUint256.div(totalSupplyBn).toString());
     const halfAmount = (maxFee * 5_000n) / bps;
-=======
-    const totalSupply = await token.totalSupply();
-    const maxFee = constants.MaxUint256.div(totalSupply);
-    const halfAmount = BigNumber.from(bps).mul(
-      BigNumber.from(maxFee).mul(5_000),
-    );
->>>>>>> 52e2edeae (Fix fee convert functions for both bps and contract fee amounts)
     return {
       maxFee,
       halfAmount,
     };
   }
 
-<<<<<<< HEAD
   async convertToBps(
     maxFee: bigint,
     halfAmount: bigint,
@@ -138,18 +120,5 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     const bps = (maxFee * PRECISION) / (halfAmount * 2n);
 
     return bps;
-=======
-  async convertToBpsForLinearFee(
-    maxFee: string,
-    halfAmount: string,
-  ): Promise<BaseTokenFeeConfig['bps']> {
-    const maxFeeBN = BigNumber.from(maxFee);
-    const halfAmountBN = BigNumber.from(halfAmount);
-
-    const PRECISION = 10_000;
-    const bps = maxFeeBN.mul(PRECISION).div(halfAmountBN.mul(2));
-
-    return bps.toString();
->>>>>>> 52e2edeae (Fix fee convert functions for both bps and contract fee amounts)
   }
 }

@@ -14,10 +14,7 @@ import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
-<<<<<<< HEAD
   TokenFeeConfig,
-=======
->>>>>>> 52e2edeae (Fix fee convert functions for both bps and contract fee amounts)
   TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
