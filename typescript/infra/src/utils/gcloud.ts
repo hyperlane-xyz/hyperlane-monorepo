@@ -124,7 +124,10 @@ export async function gcpSecretExistsUsingClient(
 
     return secrets.length > 0;
   } catch (err) {
-    logger.warn({ err }, `Error checking if secret exists`);
+    logger.warn(
+      { err },
+      `Error checking if secret ${secretName} exists: ${err}`,
+    );
     throw err;
   }
 }
