@@ -17,6 +17,7 @@ import {
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
 import { Token } from '../token/Token.js';
+import { TokenAmount } from '../token/TokenAmount.js';
 import { TokenStandard } from '../token/TokenStandard.js';
 import { InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
 import { ChainName } from '../types.js';
@@ -115,10 +116,12 @@ describe('WarpCore', () => {
       standard: TokenStandard,
       interchainQuote: InterchainGasQuote = { igpQuote: MOCK_INTERCHAIN_QUOTE },
     ) => {
+      const tokenAmount = new TokenAmount(0, token);
       const result = await warpCore.estimateTransferRemoteFees({
-        originToken: token,
+        originTokenAmount: tokenAmount,
         destination,
         sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
       });
       expect(
         result.localQuote.token.standard,

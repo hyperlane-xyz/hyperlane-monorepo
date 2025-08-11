@@ -1,3 +1,4 @@
+import { compareVersions } from 'compare-versions';
 import {
   BigNumber,
   PopulatedTransaction,
@@ -59,6 +60,7 @@ import {
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
+const QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION = '10.0.0';
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -254,10 +256,24 @@ export class EvmHypSyntheticAdapter
   async quoteTransferRemoteGas(
     destination: Domain,
   ): Promise<InterchainGasQuote> {
+    const contractVersion = await this.contract.PACKAGE_VERSION();
+
+    const hasQuoteTransferRemote =
+      compareVersions(
+        contractVersion,
+        QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
+      ) >= 0;
+
+    // Version does not support quoteTransferRemote defaulting to quoteGasPayment
     const gasPayment = await this.contract.quoteGasPayment(destination);
-    // If EVM hyp contracts eventually support alternative IGP tokens,
-    // this would need to determine the correct token address
-    return { igpQuote: { amount: BigInt(gasPayment.toString()) } };
+    if (!hasQuoteTransferRemote) {
+      return { igpQuote: { amount: BigInt(gasPayment.toString()) } };
+    }
+
+    // Fallback for older contract versions
+    return {
+      igpQuote: { amount: BigInt(gasPayment.toString()) },
+    };
   }
 
   async populateTransferRemoteTx({

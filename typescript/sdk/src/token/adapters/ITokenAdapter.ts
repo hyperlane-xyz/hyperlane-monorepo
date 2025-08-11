@@ -80,6 +80,8 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
     destination: Domain,
     sender?: Address,
     customHook?: Address,
+    recipient?: Address,
+    amount?: bigint,
   ): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }
