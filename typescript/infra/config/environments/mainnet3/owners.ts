@@ -100,4 +100,7 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   noble: {
     owner: 'TODO: configure noble owner',
   },
+  celestia: {
+    owner: 'TODO: configure celestia owner',
+  },
 };

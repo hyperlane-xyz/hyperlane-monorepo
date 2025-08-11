@@ -1,5 +1,44 @@
 # @hyperlane-xyz/widgets
 
+## 16.2.0
+
+### Minor Changes
+
+- a89018a3f: Include lockbox check for `useEthereumWatchAsset`
+
+### Patch Changes
+
+- Updated dependencies [22ceaa109]
+- Updated dependencies [ce4974214]
+- Updated dependencies [a89018a3f]
+  - @hyperlane-xyz/sdk@16.2.0
+  - @hyperlane-xyz/cosmos-sdk@16.2.0
+  - @hyperlane-xyz/utils@16.2.0
+
+## 16.1.1
+
+### Patch Changes
+
+- Updated dependencies [ea77b6ae4]
+  - @hyperlane-xyz/sdk@16.1.1
+  - @hyperlane-xyz/cosmos-sdk@16.1.1
+  - @hyperlane-xyz/utils@16.1.1
+
+## 16.1.0
+
+### Minor Changes
+
+- b9753277e: Add useWatchAsset fns and refactor switchNetwork
+
+### Patch Changes
+
+- Updated dependencies [2a2c29c39]
+- Updated dependencies [e69ac9f62]
+- Updated dependencies [d9b8a7551]
+  - @hyperlane-xyz/sdk@16.1.0
+  - @hyperlane-xyz/cosmos-sdk@16.1.0
+  - @hyperlane-xyz/utils@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

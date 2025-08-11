@@ -126,7 +126,7 @@ export {
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
-export { executeWarpDeploy } from './deploy/warp.js';
+export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
   SealevelOverheadIgpAdapter,
@@ -190,6 +190,7 @@ export {
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
 export { CosmosNativeIsmReader } from './ism/CosmosNativeIsmReader.js';
+export { CosmosNativeWarpModule } from './token/CosmosNativeWarpModule.js';
 export { CosmosNativeWarpRouteReader } from './token/CosmosNativeWarpRouteReader.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
@@ -384,6 +385,7 @@ export {
   ViemProvider,
   ViemTransaction,
   ViemTransactionReceipt,
+  GroupedTransactions,
   ProtocolTypedTransaction,
 } from './providers/ProviderType.js';
 export {
@@ -425,6 +427,7 @@ export {
   EV5GnosisSafeTxSubmitterPropsSchema,
   EV5ImpersonatedAccountTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
+  EvmIcaTxSubmitterProps,
 } from './providers/transactions/submitter/ethersV5/types.js';
 
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
@@ -597,6 +600,7 @@ export {
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
   EvmXERC20VSAdapter,
+  EvmXERC20Adapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
@@ -659,6 +663,7 @@ export {
 export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export {
   EVM_TOKEN_TYPE_TO_STANDARD,
+  LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
@@ -711,7 +716,8 @@ export {
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
-  XERC20LimitConfig,
+  XERC20VSLimitConfig,
+  XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
 } from './token/types.js';
@@ -730,6 +736,8 @@ export {
   PausableConfig,
   PausableSchema,
   ProtocolMap,
+  TypedSigner,
+  IMultiProtocolSignerManager,
 } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { verifyScale } from './utils/decimals.js';

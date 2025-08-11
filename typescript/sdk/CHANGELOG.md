@@ -1,5 +1,45 @@
 # @hyperlane-xyz/sdk
 
+## 16.2.0
+
+### Minor Changes
+
+- 22ceaa109: Add xERC20 adapter with getLimits()
+- a89018a3f: Make `getWrappedTokenAddress` public, add LOCKBOX_STANDARDS
+
+### Patch Changes
+
+- ce4974214: Add cctp to getActualDecimals.
+  - @hyperlane-xyz/starknet-core@16.2.0
+  - @hyperlane-xyz/cosmos-sdk@16.2.0
+  - @hyperlane-xyz/utils@16.2.0
+  - @hyperlane-xyz/core@9.0.5
+
+## 16.1.1
+
+### Patch Changes
+
+- ea77b6ae4: Add Starknet protocol type.
+  - @hyperlane-xyz/starknet-core@16.1.1
+  - @hyperlane-xyz/cosmos-sdk@16.1.1
+  - @hyperlane-xyz/utils@16.1.1
+  - @hyperlane-xyz/core@9.0.4
+
+## 16.1.0
+
+### Minor Changes
+
+- 2a2c29c39: Add the `EvmTimelockReader` class to get pending/scheduled transaction from a timelock contract. Add the `EvmEventLogsReader` to read logs on a given chain reliably either using the rpc or the block explorer api depending on what is available in the registry
+
+### Patch Changes
+
+- e69ac9f62: Updated the HypERC20Checker to use a default anvil address instead of the signer address when asserting if a token is a hyp native
+- d9b8a7551: Handle etherscan v2 api migration
+  - @hyperlane-xyz/starknet-core@16.1.0
+  - @hyperlane-xyz/cosmos-sdk@16.1.0
+  - @hyperlane-xyz/utils@16.1.0
+  - @hyperlane-xyz/core@9.0.3
+
 ## 16.0.0
 
 ### Major Changes
