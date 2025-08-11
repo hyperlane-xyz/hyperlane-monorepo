@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 16.2.0
+
+### Patch Changes
+
+- db55c3e00: fix: parse private keys as string instead of number
+
 ## 16.1.1
 
 ## 16.1.0
