@@ -87,17 +87,6 @@ pub fn build_ethereum_connection_conf(
                 .parse_u256()
                 .end(),
 
-            gas_limit_multiplier_denominator: value_parser
-                .chain(err)
-                .get_opt_key("gasLimitMultiplierDenominator")
-                .parse_u256()
-                .end(),
-            gas_limit_multiplier_numerator: value_parser
-                .chain(err)
-                .get_opt_key("gasLimitMultiplierNumerator")
-                .parse_u256()
-                .end(),
-
             gas_price_multiplier_denominator: value_parser
                 .chain(err)
                 .get_opt_key("gasPriceMultiplierDenominator")
@@ -112,6 +101,11 @@ pub fn build_ethereum_connection_conf(
             gas_price_cap: value_parser
                 .chain(err)
                 .get_opt_key("gasPriceCap")
+                .parse_u256()
+                .end(),
+            gas_limit_cap: value_parser
+                .chain(err)
+                .get_opt_key("gasLimitCap")
                 .parse_u256()
                 .end(),
         })
