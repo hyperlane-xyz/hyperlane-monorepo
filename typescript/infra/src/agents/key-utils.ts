@@ -43,7 +43,7 @@ export const relayerAddresses: LocalRoleAddresses =
 export const kathyAddresses: LocalRoleAddresses =
   localKathyAddresses as LocalRoleAddresses;
 
-const logger = rootLogger.child({ module: 'infra:agents:key:utils' });
+const logger = rootLogger.child({ module: 'infra:agents:key-utils' });
 
 export interface KeyAsAddress {
   identifier: string;
@@ -536,7 +536,7 @@ async function persistAddressesLocally(
   keys: CloudAgentKey[],
 ) {
   logger.debug(
-    `Persisting addresses to GCP for ${agentConfig.context} context in ${agentConfig.runEnv} environment`,
+    `Persisting addresses locally for ${agentConfig.context} context in ${agentConfig.runEnv} environment`,
   );
   // recent keys fetched from aws saved to local artifacts
   const multisigValidatorKeys: ChainMap<{ validators: Address[] }> = {};
@@ -638,7 +638,7 @@ export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
       `${role}.json`,
     );
 
-    logger.debug(`Fetching addresses from GCP for ${role} role ...`);
+    logger.debug(`Fetching addresses locally for ${role} role ...`);
     return addresses;
   } catch (e) {
     throw new Error(`Error fetching addresses locally for ${role} role: ${e}`);

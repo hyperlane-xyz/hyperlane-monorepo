@@ -58,7 +58,7 @@ import {
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
-const logger = rootLogger.child({ module: 'infra:scripts:utils' });
+const logger = rootLogger.child({ module: 'infra:scripts:agent-utils' });
 
 export enum Modules {
   // TODO: change
@@ -557,7 +557,7 @@ export function getKeyForRole(
   chain?: ChainName,
   index?: number,
 ): CloudAgentKey {
-  logger.debug(`Getting key for ${role} role`);
+  logger.debug({ chain }, `Getting key for ${role} role`);
   const agentConfig = getAgentConfig(context, environment);
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
