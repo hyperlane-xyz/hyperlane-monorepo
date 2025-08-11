@@ -52,6 +52,7 @@ import {
   ITokenAdapter,
   IXERC20VSAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   RateLimitMidPoint,
   TransferParams,
   TransferRemoteParams,
@@ -253,9 +254,9 @@ export class EvmHypSyntheticAdapter
     return this.getTotalSupply();
   }
 
-  async quoteTransferRemoteGas(
-    destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const contractVersion = await this.contract.PACKAGE_VERSION();
 
     const hasQuoteTransferRemote =
@@ -283,7 +284,7 @@ export class EvmHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas(destination);
+      interchainGas = await this.quoteTransferRemoteGas({ destination });
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
     return this.contract.populateTransaction[
@@ -793,7 +794,7 @@ export class EvmHypNativeAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas(destination);
+      interchainGas = await this.quoteTransferRemoteGas({ destination });
 
     let txValue: bigint | undefined = undefined;
     const {

@@ -32,6 +32,7 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -155,9 +156,9 @@ export class StarknetHypSyntheticAdapter
     return this.getTotalSupply();
   }
 
-  async quoteTransferRemoteGas(
-    destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const gasPayment = await this.contract.quote_gas_payment(destination);
     return { igpQuote: { amount: BigInt(gasPayment.toString()) } };
   }
@@ -170,7 +171,7 @@ export class StarknetHypSyntheticAdapter
   }: TransferRemoteParams): Promise<Call> {
     const nonOption = new CairoOption(CairoOptionVariant.None);
     const { igpQuote } =
-      interchainGas || (await this.quoteTransferRemoteGas(destination));
+      interchainGas || (await this.quoteTransferRemoteGas({ destination }));
     return this.contract.populateTransaction.transfer_remote(
       destination,
       cairo.uint256(addressToBytes32(recipient)),

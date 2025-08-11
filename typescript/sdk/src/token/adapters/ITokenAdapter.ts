@@ -17,6 +17,14 @@ export interface TransferRemoteParams extends TransferParams {
   customHook?: Address;
 }
 
+export interface QuoteTransferRemoteParams {
+  destination: Domain;
+  sender?: Address;
+  customHook?: Address;
+  recipient?: Address;
+  amount?: bigint;
+}
+
 export interface Quote {
   addressOrDenom?: string; // undefined values represent default native tokens
   amount: bigint;
@@ -77,11 +85,7 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getBridgedSupply(): Promise<bigint | undefined>;
   // Sender is only required for Sealevel origins.
   quoteTransferRemoteGas(
-    destination: Domain,
-    sender?: Address,
-    customHook?: Address,
-    recipient?: Address,
-    amount?: bigint,
+    params: QuoteTransferRemoteParams,
   ): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }

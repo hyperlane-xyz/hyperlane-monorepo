@@ -20,6 +20,7 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -203,11 +204,10 @@ export class CosmNativeHypCollateralAdapter
     return BigInt(bridged_supply.amount);
   }
 
-  async quoteTransferRemoteGas(
-    destination: Domain,
-    _?: Address,
-    customHook?: Address,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination,
+    customHook,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const provider = await this.getProvider();
     const { gas_payment } = await provider.query.warp.QuoteRemoteTransfer({
       id: this.tokenId,
@@ -228,11 +228,10 @@ export class CosmNativeHypCollateralAdapter
     params: TransferRemoteParams,
   ): Promise<MsgRemoteTransferEncodeObject> {
     if (!params.interchainGas) {
-      params.interchainGas = await this.quoteTransferRemoteGas(
-        params.destination,
-        undefined,
-        params.customHook,
-      );
+      params.interchainGas = await this.quoteTransferRemoteGas({
+        destination: params.destination,
+        customHook: params.customHook,
+      });
     }
 
     const provider = await this.getProvider();

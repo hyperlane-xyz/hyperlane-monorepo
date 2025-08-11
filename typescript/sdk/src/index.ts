@@ -601,6 +601,7 @@ export {
   TransferParams,
   TransferRemoteParams,
   Quote,
+  QuoteTransferRemoteParams,
 } from './token/adapters/ITokenAdapter.js';
 export {
   SealevelHypCollateralAdapter,
