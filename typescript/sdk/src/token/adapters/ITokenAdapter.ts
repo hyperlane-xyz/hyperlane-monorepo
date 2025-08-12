@@ -32,7 +32,7 @@ export interface Quote {
 
 export interface InterchainGasQuote {
   igpQuote: Quote;
-  tokenFeeQuotes?: Quote[];
+  tokenFeeQuote?: Quote;
 }
 
 export interface RateLimitMidPoint {

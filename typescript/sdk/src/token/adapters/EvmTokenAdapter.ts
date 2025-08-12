@@ -37,6 +37,7 @@ import {
   addressToBytes32,
   assert,
   bytes32ToAddress,
+  isNullish,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
@@ -63,7 +64,7 @@ import {
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
-const QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION = '10.0.0';
+const QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION = '10.0.0-beta';
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -275,7 +276,10 @@ export class EvmHypSyntheticAdapter
       return { igpQuote: { amount: BigInt(gasPayment.toString()) } };
     }
 
-    assert(amount, 'Amount must be defined for quoteTransferRemoteGas');
+    assert(
+      !isNullish(amount),
+      'Amount must be defined for quoteTransferRemoteGas',
+    );
     assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
@@ -293,12 +297,28 @@ export class EvmHypSyntheticAdapter
       amount: BigInt(quote[1].toString()),
     }));
 
+    // Because the amount is added on of the fees we need to subtract it
+    // from the actual IGP/fees
+    let igpBigIntAmount = BigInt(igpAmount.toString());
+    let tokenFeeQuote: Quote | undefined = undefined;
+
+    // For native routes, the fee is returned as a single quote
+    if (!tokenFeeQuotes.length) {
+      igpBigIntAmount = igpBigIntAmount - amount;
+    } else {
+      // for non-native fees we need to get the sum in case there are more than one quote
+      tokenFeeQuote = {
+        addressOrDenom: tokenFeeQuotes[0].addressOrDenom, // the contract enforces the token address to be the same as the route
+        amount: tokenFeeQuotes.reduce((sum, q) => sum + q.amount, 0n) - amount,
+      };
+    }
+
     return {
       igpQuote: {
         addressOrDenom: igpTokenAddressOrDenom,
-        amount: BigInt(igpAmount.toString()),
+        amount: igpBigIntAmount,
       },
-      tokenFeeQuotes,
+      tokenFeeQuote,
     };
   }
 

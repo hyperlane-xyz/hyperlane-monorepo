@@ -157,13 +157,13 @@ export class WarpCore {
         destinationName,
       );
       const destinationDomainId = this.multiProvider.getDomainId(destination);
-      const quote = await hypAdapter.quoteTransferRemoteGas(
-        destinationDomainId,
+      const quote = await hypAdapter.quoteTransferRemoteGas({
+        destination: destinationDomainId,
         sender,
-        originToken.igpTokenAddressOrDenom,
+        customHook: originToken.igpTokenAddressOrDenom,
         recipient,
         amount,
-      );
+      });
       gasAmount = BigInt(quote.igpQuote.amount);
       gasAddressOrDenom = quote.igpQuote.addressOrDenom;
     }
