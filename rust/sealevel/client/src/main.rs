@@ -59,7 +59,6 @@ use hyperlane_sealevel_token_memo::{
     hyperlane_token_ata_payer_pda_seeds as hyperlane_token_ata_payer_pda_seeds_memo,
     hyperlane_token_mint_pda_seeds as hyperlane_token_mint_pda_seeds_memo,
     spl_associated_token_account::get_associated_token_address_with_program_id as get_associated_token_address_with_program_id_memo,
-    spl_token_2022 as spl_token_2022_memo,
 };
 use hyperlane_sealevel_token_native::hyperlane_token_native_collateral_pda_seeds;
 use hyperlane_sealevel_token_native_memo::hyperlane_token_native_collateral_pda_seeds as hyperlane_token_native_memo_collateral_pda_seeds;
@@ -86,11 +85,13 @@ mod registry;
 mod router;
 mod serde;
 mod squads;
+mod test_ism;
 mod warp_route;
 
 use crate::helloworld::process_helloworld_cmd;
 use crate::igp::process_igp_cmd;
 use crate::multisig_ism::process_multisig_ism_message_id_cmd;
+use crate::test_ism::process_test_ism_cmd;
 use crate::warp_route::process_warp_route_cmd;
 pub(crate) use crate::{context::*, core::*};
 
@@ -128,6 +129,7 @@ enum HyperlaneSealevelCmd {
     Igp(IgpCmd),
     ValidatorAnnounce(ValidatorAnnounceCmd),
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
+    TestIsm(TestIsmCmd),
     WarpRoute(WarpRouteCmd),
     HelloWorld(HelloWorldCmd),
     Squads(SquadsCmd),
@@ -747,6 +749,52 @@ pub(crate) struct HelloWorldQuery {
     program_id: Pubkey,
 }
 
+#[derive(Args)]
+struct TestIsmCmd {
+    #[command(subcommand)]
+    cmd: TestIsmSubCmd,
+}
+
+#[derive(Subcommand)]
+enum TestIsmSubCmd {
+    Deploy(TestIsmDeploy),
+    Init(TestIsmInit),
+    SetAccept(TestIsmSetAccept),
+    Query(TestIsmQuery),
+}
+
+#[derive(Args)]
+struct TestIsmDeploy {
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
+    #[arg(long)]
+    built_so_dir: PathBuf,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    context: String,
+}
+
+#[derive(Args)]
+struct TestIsmInit {
+    #[arg(long, short)]
+    program_id: Pubkey,
+}
+
+#[derive(Args)]
+struct TestIsmSetAccept {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    #[arg(long)]
+    accept: bool,
+}
+
+#[derive(Args)]
+struct TestIsmQuery {
+    #[arg(long, short)]
+    program_id: Pubkey,
+}
+
 fn main() {
     pretty_env_logger::init();
 
@@ -819,6 +867,7 @@ fn main() {
         HyperlaneSealevelCmd::MultisigIsmMessageId(cmd) => {
             process_multisig_ism_message_id_cmd(ctx, cmd)
         }
+        HyperlaneSealevelCmd::TestIsm(cmd) => process_test_ism_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Core(cmd) => process_core_cmd(ctx, cmd),
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
         HyperlaneSealevelCmd::HelloWorld(cmd) => process_helloworld_cmd(ctx, cmd),
@@ -1293,8 +1342,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             match xfer.token_type {
                 TokenType::Native => {
-                    // 5. [executable] The system program.
-                    // 6. [writeable] The native token collateral PDA account.
+                    // 14. [executable] The system program.
+                    // 15. [writeable] The native token collateral PDA account.
                     let (native_collateral_account, _native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_collateral_pda_seeds!(),
@@ -1306,8 +1355,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     ]);
                 }
                 TokenType::NativeMemo => {
-                    // 5. [executable] The system program.
-                    // 6. [writeable] The native token collateral PDA account.
+                    // 14. [executable] The system program.
+                    // 15. [writeable] The native token collateral PDA account.
                     let (native_collateral_account, _native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_memo_collateral_pda_seeds!(),
@@ -1522,8 +1571,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             match xfer.token_type {
                 TokenType::Native => {
-                    // 5. [executable] The system program.
-                    // 6. [writeable] The native token collateral PDA account.
+                    // 14. [executable] The system program.
+                    // 15. [writeable] The native token collateral PDA account.
                     let (native_collateral_account, _native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_collateral_pda_seeds!(),
@@ -1535,8 +1584,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     ]);
                 }
                 TokenType::NativeMemo => {
-                    // 5. [executable] The system program.
-                    // 6. [writeable] The native token collateral PDA account.
+                    // 14. [executable] The system program.
+                    // 15. [writeable] The native token collateral PDA account.
                     let (native_collateral_account, _native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_memo_collateral_pda_seeds!(),

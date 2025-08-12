@@ -12,7 +12,9 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 
-use crate::{read_core_program_ids, registry::FileSystemRegistry, Context, EnvironmentArgs};
+use crate::{
+    read_flexible_core_program_ids, registry::FileSystemRegistry, Context, EnvironmentArgs,
+};
 
 const COMPUTE_BUDGET_PROGRAM_ID: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
 const BPF_LOADER_UPGRADEABLE_PROGRAM_ID: Pubkey =
@@ -111,23 +113,29 @@ pub fn process_squads_cmd(ctx: Context, cmd: SquadsCmd) {
             let client = chain_metadata.client();
 
             // Read existing core program IDs
-            let core_program_ids = read_core_program_ids(
+            let core_program_ids = read_flexible_core_program_ids(
                 &verify.env_args.environments_dir,
                 &verify.env_args.environment,
                 &verify.chain,
             );
-            let core_programs = vec![
+            let mut core_programs = vec![
                 ProgramIdWithMetadata::new("Mailbox".into(), core_program_ids.mailbox),
-                ProgramIdWithMetadata::new(
-                    "Validator Announce".into(),
-                    core_program_ids.validator_announce,
-                ),
-                ProgramIdWithMetadata::new(
-                    "Multisig ISM Message ID".into(),
-                    core_program_ids.multisig_ism_message_id,
-                ),
                 ProgramIdWithMetadata::new("IGP program".into(), core_program_ids.igp_program_id),
             ];
+
+            if let Some(validator_announce) = core_program_ids.validator_announce {
+                core_programs.push(ProgramIdWithMetadata::new(
+                    "Validator Announce".into(),
+                    validator_announce,
+                ));
+            }
+
+            if let Some(multisig_ism) = core_program_ids.multisig_ism_message_id {
+                core_programs.push(ProgramIdWithMetadata::new(
+                    "Multisig ISM Message ID".into(),
+                    multisig_ism,
+                ));
+            }
 
             // Chain -> (Label, Owner)
             let chain_owner_lookups: HashMap<String, Vec<(Pubkey, String)>> = CHAIN_CORE_OWNERS
