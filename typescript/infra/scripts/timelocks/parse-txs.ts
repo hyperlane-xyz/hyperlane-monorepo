@@ -18,7 +18,7 @@ import {
 } from '../../src/tx/govern-transaction-reader.js';
 import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { logTable } from '../../src/utils/log.js';
-import { getTimelockPendingTxs } from '../../src/utils/timelock.js';
+import { getPendingTimelockTxs } from '../../src/utils/timelock.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -51,7 +51,7 @@ async function main() {
   );
 
   // Get the pending transactions for the relevant chains, for the chosen governance type
-  const pendingTxs = await getTimelockPendingTxs(
+  const pendingTxs = await getPendingTimelockTxs(
     chainsToCheck,
     multiProvider,
     timelocks,

@@ -16,7 +16,7 @@ import { Role } from '../../src/roles.js';
 import { logTable } from '../../src/utils/log.js';
 import {
   TimelockOperationStatus,
-  getTimelockPendingTxs,
+  getPendingTimelockTxs,
 } from '../../src/utils/timelock.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -45,7 +45,7 @@ async function main() {
     chainsToCheck,
   );
 
-  const pendingTxs = await getTimelockPendingTxs(
+  const pendingTxs = await getPendingTimelockTxs(
     chainsToCheck,
     multiProvider,
     timelocks,

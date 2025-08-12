@@ -191,7 +191,7 @@ type TimelockTransactionStatus = {
   canSignerExecute: boolean;
 };
 
-async function getTimelockPendingTxsOnChain(
+async function getPendingTimelockTxsOnChain(
   chain: ChainName,
   timelockAddress: Address,
   multiProvider: MultiProvider,
@@ -252,7 +252,7 @@ async function getTimelockPendingTxsOnChain(
   });
 }
 
-export async function getTimelockPendingTxs(
+export async function getPendingTimelockTxs(
   chains: ChainName[],
   multiProvider: MultiProvider,
   timelocks: ChainMap<Address>,
@@ -272,7 +272,7 @@ export async function getTimelockPendingTxs(
         return;
       }
 
-      const maybeTxs = await getTimelockPendingTxsOnChain(
+      const maybeTxs = await getPendingTimelockTxsOnChain(
         chain,
         timelockAddress,
         multiProvider,
@@ -329,7 +329,7 @@ export async function deleteTimelockTx(
   );
 }
 
-export async function deleteAllTimelockTxs(
+export async function cancelAllTimelockTxs(
   chains: ChainName[],
   timelocks: ChainMap<Address>,
   multiProvider: MultiProvider,
@@ -348,7 +348,7 @@ export async function deleteAllTimelockTxs(
       }
 
       try {
-        const maybePendingTxs = await getTimelockPendingTxsOnChain(
+        const maybePendingTxs = await getPendingTimelockTxsOnChain(
           chain,
           timelockAddress,
           multiProvider,
