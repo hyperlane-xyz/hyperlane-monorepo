@@ -15,34 +15,19 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: TokenFeeConfig,
   ): Promise<HyperlaneContracts<EvmTokenFeeFactories>> {
-    let deployedContract;
+    let deployedContract = {};
+
     switch (config.type) {
       case TokenFeeType.LinearFee:
-        deployedContract = await this.deployFee(
-          TokenFeeType.LinearFee,
-          chain,
-          config,
-        );
-        break;
       case TokenFeeType.ProgressiveFee:
-        deployedContract = await this.deployFee(
-          TokenFeeType.ProgressiveFee,
-          chain,
-          config,
-        );
-        break;
       case TokenFeeType.RegressiveFee:
-        deployedContract = await this.deployFee(
-          TokenFeeType.RegressiveFee,
-          chain,
-          config,
-        );
+        deployedContract = await this.deployFee(config.type, chain, config);
         break;
       case TokenFeeType.RoutingFee:
         deployedContract = await this.deployRoutingFee(chain, config);
         break;
     }
-    return { [config.type]: deployedContract } as any; // partial
+    return { [config.type]: deployedContract } as any; // Returns a partial HyperlaneContracts<EvmTokenFeeFactories>
   }
 
   async deployFee(
