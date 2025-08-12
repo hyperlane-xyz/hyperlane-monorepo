@@ -15,7 +15,6 @@ import {
   HyperlaneFactories,
 } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap } from '../types.js';
 
@@ -161,24 +160,15 @@ export abstract class HyperlaneRouterDeployer<
     deployedContractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {
+    // Intentionally a no-op in the base deployer.
+    // Token-fee configuration is router-specific (e.g., fungible token routers)
+    // and should be implemented by subclasses that know their router interface.
     for (const chain of Object.keys(deployedContractsMap)) {
       const config = configMap[chain];
-      const tokenFee = config.tokenFee;
-      if (!tokenFee) {
-        continue;
-      }
-      this.logger.debug(`Deploying token fee on ${chain}...`);
-      const module = await EvmTokenFeeModule.create({
-        multiProvider: this.multiProvider,
-        chain,
-        config: tokenFee,
-      });
-      console.log('deployed fee', await module.read());
-      // TODO: set token fee on router
-      // const contracts = deployedContractsMap[chain];
-      // const router = this.router(contracts);
-      // const setTokenFeeTx = await router.setFeeRecipient(module);
-      // await this.multiProvider.handleTx(chain, setTokenFeeTx);
+      if (!config.tokenFee) continue;
+      this.logger.debug(
+        `Token fee config detected on ${chain}, no-op in base deployer. Must be handled by subclass if applicable`,
+      );
     }
   }
 }
