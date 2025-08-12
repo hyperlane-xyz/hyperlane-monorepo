@@ -47,8 +47,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { awIcasV2 } from '../../config/environments/mainnet3/governance/ica/aw2.js';
-import { regularIcasV2 } from '../../config/environments/mainnet3/governance/ica/regular2.js';
+import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_awLegacy.js';
+import { regularIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_regularLegacy.js';
 import {
   getAllSafesForChain,
   getGovernanceIcas,
@@ -120,6 +120,11 @@ type XERC20Metadata = {
   name: string;
   decimals: number;
 };
+
+const ownableFunctionSelectors = [
+  'renounceOwnership()',
+  'transferOwnership(address)',
+].map((func) => ethers.utils.id(func).substring(0, 10));
 
 export class GovernTransactionReader {
   errors: any[] = [];
@@ -265,6 +270,11 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
+    // If it's an Ownable transaction
+    if (await this.isOwnableTransaction(tx)) {
+      return this.readOwnableTransaction(chain, tx);
+    }
+
     // If it's to another Safe
     if (this.isSafeTransaction(chain, tx)) {
       return this.readSafeTransaction(chain, tx);
@@ -314,11 +324,6 @@ export class GovernTransactionReader {
     // If it's to a Proxy Admin
     if (await this.isProxyAdminTransaction(chain, tx)) {
       return this.readProxyAdminTransaction(chain, tx);
-    }
-
-    // If it's an Ownable transaction
-    if (await this.isOwnableTransaction(chain, tx)) {
-      return this.readOwnableTransaction(chain, tx);
     }
 
     // If it's a native token transfer (no data, only value)
@@ -482,6 +487,7 @@ export class GovernTransactionReader {
     });
 
     let insight;
+    let calls;
     if (
       decoded.functionFragment.name ===
       timelockControllerInterface.functions[
@@ -508,10 +514,10 @@ export class GovernTransactionReader {
     ) {
       const [targets, values, data, _predecessor, _salt, delay] = decoded.args;
 
-      const innerTxs = [];
+      calls = [];
       const numOfTxs = targets.length;
       for (let i = 0; i < numOfTxs; i++) {
-        innerTxs.push(
+        calls.push(
           await this.read(chain, {
             to: targets[i],
             data: data[i],
@@ -522,7 +528,7 @@ export class GovernTransactionReader {
 
       const eta = new Date(Date.now() + delay.toNumber() * 1000);
 
-      insight = `Schedule for ${eta}: ${JSON.stringify(innerTxs, null, 2)}`;
+      insight = `Schedule for ${eta}`;
     }
 
     if (
@@ -543,10 +549,10 @@ export class GovernTransactionReader {
     ) {
       const [targets, values, data, _predecessor, _salt] = decoded.args;
 
-      const innerTxs = [];
+      calls = [];
       const numOfTxs = targets.length;
       for (let i = 0; i < numOfTxs; i++) {
-        innerTxs.push(
+        calls.push(
           await this.read(chain, {
             to: targets[i],
             data: data[i],
@@ -555,7 +561,7 @@ export class GovernTransactionReader {
         );
       }
 
-      insight = `Execute batch on ${targets}:\n ${JSON.stringify(innerTxs, null, 2)}`;
+      insight = `Execute batch on ${targets}`;
     }
 
     if (
@@ -575,6 +581,7 @@ export class GovernTransactionReader {
       chain,
       to: `Timelock Controller (${chain} ${tx.to})`,
       ...(insight ? { insight } : { args }),
+      ...(calls ? { innerTxs: calls } : {}),
     };
   }
 
@@ -968,23 +975,41 @@ export class GovernTransactionReader {
       const remoteChainName = this.multiProvider.getChainName(domain);
       const expectedRouter = this.chainAddresses[remoteChainName][routerName];
       const routerToBeEnrolled = addresses[index];
-      const matchesExpectedRouter =
-        eqAddress(expectedRouter, bytes32ToAddress(routerToBeEnrolled)) &&
-        // Poor man's check that the 12 byte padding is all zeroes
-        addressToBytes32(bytes32ToAddress(routerToBeEnrolled)) ===
-          routerToBeEnrolled;
+      const isAddressMatch = eqAddress(
+        expectedRouter,
+        bytes32ToAddress(routerToBeEnrolled),
+      );
+      const isPaddingCorrect = eqAddress(
+        addressToBytes32(bytes32ToAddress(routerToBeEnrolled)),
+        routerToBeEnrolled,
+      );
 
       let insight = '✅ matches expected router from artifacts';
-      if (!matchesExpectedRouter) {
-        insight = `❌ fatal mismatch, expected ${expectedRouter}`;
-        this.errors.push({
-          chain: chain,
-          remoteDomain: domain,
-          remoteChain: remoteChainName,
-          router: routerToBeEnrolled,
-          expected: expectedRouter,
-          info: 'Incorrect router getting enrolled',
-        });
+      if (!isAddressMatch || !isPaddingCorrect) {
+        if (!isAddressMatch) {
+          insight = `❌ fatal mismatch, expected ${expectedRouter}`;
+          this.errors.push({
+            chain: chain,
+            remoteDomain: domain,
+            remoteChain: remoteChainName,
+            router: routerToBeEnrolled,
+            expected: expectedRouter,
+            info: 'Incorrect router address getting enrolled',
+          });
+        }
+
+        if (!isPaddingCorrect) {
+          // This is a subtle but important check: the address must be properly padded to 32 bytes
+          insight = `❌ fatal mismatch, expected ${addressToBytes32(bytes32ToAddress(routerToBeEnrolled))}`;
+          this.errors.push({
+            chain: chain,
+            remoteDomain: domain,
+            remoteChain: remoteChainName,
+            router: routerToBeEnrolled,
+            expected: addressToBytes32(bytes32ToAddress(routerToBeEnrolled)),
+            info: 'Router address is not properly padded to 32 bytes (should be 12 leading zero bytes)',
+          });
+        }
       }
 
       return {
@@ -1249,7 +1274,7 @@ export class GovernTransactionReader {
         expected: expectedRemoteIcaAddress,
         info: 'Incorrect destination ICA in ICA call',
       });
-      remoteIcaInsight = `❌ fatal mismatch, expected ${remoteIcaAddress}`;
+      remoteIcaInsight = `❌ fatal mismatch, expected ${expectedRemoteIcaAddress}`;
     }
 
     const decodedCalls = await Promise.all(
@@ -1416,21 +1441,9 @@ export class GovernTransactionReader {
     );
   }
 
-  async isOwnableTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<boolean> {
-    if (!tx.to) return false;
-    try {
-      const account = Ownable__factory.connect(
-        tx.to,
-        this.multiProvider.getProvider(chain),
-      );
-      await account.owner();
-      return true;
-    } catch {
-      return false;
-    }
+  async isOwnableTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
+    if (!tx.to || !tx.data) return false;
+    return ownableFunctionSelectors.includes(tx.data.substring(0, 10));
   }
 
   private isSafeTransaction(
@@ -1651,12 +1664,15 @@ async function getOwnerInsight(
     return `${address} (${governanceType.toUpperCase()} ${ownerType})`;
   }
 
-  if (eqAddress(address, awIcasV2[chain])) {
-    return `${address} (${GovernanceType.AbacusWorks.toUpperCase()} ${Owner.ICA} v2)`;
+  if (awIcasLegacy[chain] && eqAddress(address, awIcasLegacy[chain])) {
+    return `${address} (${GovernanceType.AbacusWorks.toUpperCase()} ${Owner.ICA} LEGACY)`;
   }
 
-  if (eqAddress(address, regularIcasV2[chain])) {
-    return `${address} (${GovernanceType.Regular.toUpperCase()} ${Owner.ICA} v2)`;
+  if (
+    regularIcasLegacy[chain] &&
+    eqAddress(address, regularIcasLegacy[chain])
+  ) {
+    return `${address} (${GovernanceType.Regular.toUpperCase()} ${Owner.ICA} LEGACY)`;
   }
 
   return `${address} (Unknown)`;
