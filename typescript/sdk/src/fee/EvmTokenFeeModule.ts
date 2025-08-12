@@ -73,6 +73,11 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     return module;
   }
 
+  // Public accessor for the deployed fee contract address
+  getDeployedFeeAddress(): Address {
+    return this.args.addresses.deployedFee;
+  }
+
   async read(): Promise<TokenFeeConfigInput> {
     return this.reader.deriveTokenFeeConfig(this.args.addresses.deployedFee);
   }
