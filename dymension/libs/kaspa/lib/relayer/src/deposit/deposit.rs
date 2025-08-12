@@ -109,12 +109,12 @@ pub async fn on_new_deposit(
             U256::from(utxo.amount) >= amt_hl
                 && utxo.script_public_key_address.as_ref().unwrap() == escrow_address
         })
-        .ok_or_else(|| eyre!("kaspa deposit had insufficient sompi amount"))?;
-
+        .ok_or(eyre::eyre!("kaspa deposit had insufficient sompi amount"))?;
+    
     let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)?;
 
     if deposit.block_hashes.is_empty() {
-        return Err(eyre!("kaspa deposit had no block hashes").into());
+        return Err(eyre::eyre!("kaspa deposit had no block hashes"));
     }
 
     // build response for validator
