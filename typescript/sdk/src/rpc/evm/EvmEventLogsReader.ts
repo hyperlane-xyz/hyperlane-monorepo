@@ -131,7 +131,7 @@ export class EvmEventLogsReader {
     protected readonly multiProvider: MultiProvider,
     protected logReaderStrategy: IEvmEventLogsReaderStrategy,
     protected readonly logger: Logger,
-    protected fallbackLogReaderSrategy?: IEvmEventLogsReaderStrategy,
+    protected fallbackLogReaderStrategy?: IEvmEventLogsReaderStrategy,
   ) {}
 
   static fromConfig(
@@ -197,7 +197,7 @@ export class EvmEventLogsReader {
 
       return res;
     } catch (err) {
-      if (!this.fallbackLogReaderSrategy) {
+      if (!this.fallbackLogReaderStrategy) {
         throw err;
       }
 
@@ -208,7 +208,7 @@ export class EvmEventLogsReader {
       return this.getLogsByTopicWithStrategy(
         options,
         provider,
-        this.fallbackLogReaderSrategy,
+        this.fallbackLogReaderStrategy,
       );
     }
   }
