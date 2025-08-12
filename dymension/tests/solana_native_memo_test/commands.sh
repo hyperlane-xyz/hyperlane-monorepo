@@ -118,8 +118,6 @@ cargo run -- -k $SOL_KEY_PATH --config $SOL_CFG_PATH \
     token transfer-remote-memo \
     --program-id $PROGRAM_ID \
     $SOL_KEY_PATH 100 $HUB_DOMAIN $DUMMY_RECIPIENT native $EXAMPLE_MEMO
-   
-    
 
 ###########################
 # STEP: USE INDEXER TO CHECK THE RESULT

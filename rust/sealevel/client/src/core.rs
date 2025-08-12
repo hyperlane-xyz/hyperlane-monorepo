@@ -101,10 +101,10 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
 
             let program_ids = CoreProgramIds {
                 mailbox: mailbox_program_id,
-                validator_announce: Some(validator_announce_program_id),
-                multisig_ism_message_id: Some(ism_program_id),
+                validator_announce: validator_announce_program_id,
+                multisig_ism_message_id: ism_program_id,
                 igp_program_id,
-                overhead_igp_account: Some(overhead_igp_account),
+                overhead_igp_account,
                 igp_account,
             };
             write_program_ids(&core_dir, program_ids);
@@ -273,8 +273,26 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
     (program_id, overhead_igp_account, igp_account)
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+// Core structure maintained for upstream compatibility
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CoreProgramIds {
+    #[serde(with = "crate::serde::serde_pubkey")]
+    pub mailbox: Pubkey,
+    #[serde(with = "crate::serde::serde_pubkey")]
+    pub validator_announce: Pubkey,
+    #[serde(with = "crate::serde::serde_pubkey")]
+    pub multisig_ism_message_id: Pubkey,
+    #[serde(with = "crate::serde::serde_pubkey")]
+    pub igp_program_id: Pubkey,
+    #[serde(with = "crate::serde::serde_pubkey")]
+    pub overhead_igp_account: Pubkey,
+    #[serde(with = "crate::serde::serde_pubkey")]
+    pub igp_account: Pubkey,
+}
+
+// Fork-specific extension for flexible deployments
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FlexibleCoreProgramIds {
     #[serde(with = "crate::serde::serde_pubkey")]
     pub mailbox: Pubkey,
     #[serde(default)]
@@ -295,6 +313,32 @@ pub struct CoreProgramIds {
     pub igp_account: Pubkey,
 }
 
+impl FlexibleCoreProgramIds {
+    /// Convert to CoreProgramIds, using default values for missing components
+    pub fn to_core_with_defaults(&self) -> CoreProgramIds {
+        // Use a dummy program ID for missing components
+        // This is safe as these will fail if actually used
+        let dummy_program = Pubkey::default();
+
+        CoreProgramIds {
+            mailbox: self.mailbox,
+            validator_announce: self.validator_announce.unwrap_or(dummy_program),
+            multisig_ism_message_id: self.multisig_ism_message_id.unwrap_or(dummy_program),
+            igp_program_id: self.igp_program_id,
+            overhead_igp_account: self.overhead_igp_account.unwrap_or(dummy_program),
+            igp_account: self.igp_account,
+        }
+    }
+
+    /// Check if this has all required components for full core functionality
+    #[allow(dead_code)]
+    pub fn is_complete(&self) -> bool {
+        self.validator_announce.is_some()
+            && self.multisig_ism_message_id.is_some()
+            && self.overhead_igp_account.is_some()
+    }
+}
+
 fn write_program_ids(core_dir: &Path, program_ids: CoreProgramIds) {
     write_json(&core_dir.join("program-ids.json"), program_ids);
 }
@@ -309,7 +353,48 @@ pub(crate) fn read_core_program_ids(
         .join(chain)
         .join("core")
         .join("program-ids.json");
-    read_json(&path)
+
+    // Try to read as CoreProgramIds first (upstream format)
+    if let Ok(core_ids) =
+        serde_json::from_str::<CoreProgramIds>(&std::fs::read_to_string(&path).unwrap_or_default())
+    {
+        return core_ids;
+    }
+
+    // Fall back to FlexibleCoreProgramIds (fork format)
+    let flexible_ids: FlexibleCoreProgramIds = read_json(&path);
+    flexible_ids.to_core_with_defaults()
+}
+
+/// Read core program IDs in flexible format for contexts that need optional components
+pub(crate) fn read_flexible_core_program_ids(
+    environments_dir: &Path,
+    environment: &str,
+    chain: &str,
+) -> FlexibleCoreProgramIds {
+    let path = environments_dir
+        .join(environment)
+        .join(chain)
+        .join("core")
+        .join("program-ids.json");
+
+    // Try to read as FlexibleCoreProgramIds first
+    if let Ok(flexible_ids) = serde_json::from_str::<FlexibleCoreProgramIds>(
+        &std::fs::read_to_string(&path).unwrap_or_default(),
+    ) {
+        return flexible_ids;
+    }
+
+    // Fall back to CoreProgramIds and convert to flexible
+    let core_ids: CoreProgramIds = read_json(&path);
+    FlexibleCoreProgramIds {
+        mailbox: core_ids.mailbox,
+        validator_announce: Some(core_ids.validator_announce),
+        multisig_ism_message_id: Some(core_ids.multisig_ism_message_id),
+        igp_program_id: core_ids.igp_program_id,
+        overhead_igp_account: Some(core_ids.overhead_igp_account),
+        igp_account: core_ids.igp_account,
+    }
 }
 
 #[cfg(test)]

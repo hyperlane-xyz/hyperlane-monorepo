@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     artifacts::{read_json, try_read_json, write_json, SingularProgramIdArtifact},
     cmd_utils::{create_new_directory, deploy_program},
-    read_core_program_ids,
+    read_flexible_core_program_ids,
     registry::FileSystemRegistry,
     Context, GasOverheadSubCmd, GetSetCmd, IgpCmd, IgpSubCmd,
 };
@@ -304,7 +304,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 .send_with_payer();
         }
         IgpSubCmd::GasOracleConfig(args) => {
-            let core_program_ids = read_core_program_ids(
+            let core_program_ids = read_flexible_core_program_ids(
                 &args.env_args.environments_dir,
                 &args.env_args.environment,
                 &args.chain_name,
@@ -353,7 +353,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             }
         }
         IgpSubCmd::DestinationGasOverhead(args) => {
-            let core_program_ids = read_core_program_ids(
+            let core_program_ids = read_flexible_core_program_ids(
                 &args.env_args.environments_dir,
                 &args.env_args.environment,
                 &args.chain_name,

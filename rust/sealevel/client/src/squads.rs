@@ -12,7 +12,9 @@ use solana_sdk::{
     pubkey::Pubkey,
 };
 
-use crate::{read_core_program_ids, registry::FileSystemRegistry, Context, EnvironmentArgs};
+use crate::{
+    read_flexible_core_program_ids, registry::FileSystemRegistry, Context, EnvironmentArgs,
+};
 
 const COMPUTE_BUDGET_PROGRAM_ID: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
 const BPF_LOADER_UPGRADEABLE_PROGRAM_ID: Pubkey =
@@ -111,7 +113,7 @@ pub fn process_squads_cmd(ctx: Context, cmd: SquadsCmd) {
             let client = chain_metadata.client();
 
             // Read existing core program IDs
-            let core_program_ids = read_core_program_ids(
+            let core_program_ids = read_flexible_core_program_ids(
                 &verify.env_args.environments_dir,
                 &verify.env_args.environment,
                 &verify.chain,
