@@ -3,26 +3,25 @@ import { Wallet } from 'ethers';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,
   TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
-import { deployOrUseExistingCore } from '../commands/core.js';
-import {
-  hyperlaneWarpDeploy,
-  hyperlaneWarpReadRaw,
-  readWarpConfig,
-} from '../commands/warp.js';
+import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
+  CORE_READ_CONFIG_PATH_2,
+  CORE_READ_CONFIG_PATH_3,
   DEFAULT_E2E_TEST_TIMEOUT,
+  REGISTRY_PATH,
   TEMP_PATH,
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
@@ -34,6 +33,28 @@ import {
 describe('hyperlane warp read e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
+  const hyperlaneCore2 = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    CHAIN_NAME_2,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH,
+    CORE_READ_CONFIG_PATH_2,
+  );
+
+  const hyperlaneCore3 = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    CHAIN_NAME_3,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH,
+    CORE_READ_CONFIG_PATH_3,
+  );
+
+  const hyperlaneWarp = new HyperlaneE2EWarpTestCommands(
+    ProtocolType.Ethereum,
+    REGISTRY_PATH,
+    WARP_CONFIG_PATH_2,
+  );
+
   let anvil2Config: WarpRouteDeployConfig;
 
   let chain2Addresses: ChainAddresses = {};
@@ -43,15 +64,15 @@ describe('hyperlane warp read e2e tests', async function () {
 
   before(async function () {
     [chain2Addresses, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      hyperlaneCore2.deployOrUseExistingCore(ANVIL_KEY),
+      hyperlaneCore3.deployOrUseExistingCore(ANVIL_KEY),
     ]);
 
     ownerAddress = new Wallet(ANVIL_KEY).address;
   });
 
   before(async function () {
-    await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
+    await hyperlaneCore2.deployOrUseExistingCore(ANVIL_KEY);
 
     // Create a new warp config using the example
     const exampleWarpConfig: WarpRouteDeployConfig = readYamlOrJson(
@@ -63,11 +84,9 @@ describe('hyperlane warp read e2e tests', async function () {
 
   describe('hyperlane warp read --config ...', () => {
     it('should exit early if no symbol or no chain and address', async () => {
-      await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
+      await hyperlaneWarp.deploy(WARP_CONFIG_PATH_2, ANVIL_KEY);
 
-      const output = await hyperlaneWarpReadRaw({
-        outputPath: WARP_CONFIG_PATH_2,
-      }).nothrow();
+      const output = await hyperlaneWarp.readRaw({}).nothrow();
 
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.include(
@@ -78,12 +97,12 @@ describe('hyperlane warp read e2e tests', async function () {
 
   describe('hyperlane warp read --config ... --symbol ...', () => {
     it('should successfully read the complete warp route config from all the chains', async () => {
-      await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
+      await hyperlaneWarp.deploy(WARP_CONFIG_PATH_2, ANVIL_KEY);
 
-      const output = await hyperlaneWarpReadRaw({
-        symbol: 'ETH',
-        outputPath: WARP_CONFIG_PATH_2,
-      })
+      const output = await hyperlaneWarp
+        .readRaw({
+          symbol: 'ETH',
+        })
         .stdio('pipe')
         .nothrow();
 
@@ -114,7 +133,7 @@ describe('hyperlane warp read e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+      await hyperlaneWarp.deploy(WARP_DEPLOY_OUTPUT_PATH, ANVIL_KEY);
 
       const steps: TestPromptAction[] = [
         // Select the anvil2-anvil3 ETH route from the selection prompt
@@ -125,10 +144,11 @@ describe('hyperlane warp read e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneWarpReadRaw({
-        symbol: 'ETH',
-        outputPath: readOutputPath,
-      })
+      const output = hyperlaneWarp
+        .readRaw({
+          symbol: 'ETH',
+          outputPath: readOutputPath,
+        })
         .stdio('pipe')
         .nothrow();
 
@@ -148,13 +168,14 @@ describe('hyperlane warp read e2e tests', async function () {
 
   describe('hyperlane warp read --chain ... --config ...', () => {
     it('should be able to read a warp route', async function () {
-      await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
-
-      const warpReadResult: WarpRouteDeployConfig = await readWarpConfig(
-        CHAIN_NAME_2,
-        WARP_CORE_CONFIG_PATH_2,
-        WARP_DEPLOY_OUTPUT_PATH,
+      await hyperlaneWarp.deploy(
+        WARP_CONFIG_PATH_2,
+        ANVIL_KEY,
+        WARP_DEPLOY_2_ID,
       );
+
+      const warpReadResult: WarpRouteDeployConfig =
+        await hyperlaneWarp.readConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2);
 
       expect(warpReadResult[CHAIN_NAME_2].type).to.be.equal(
         anvil2Config[CHAIN_NAME_2].type,
