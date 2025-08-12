@@ -15,6 +15,7 @@ import {
   HyperlaneFactories,
 } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap } from '../types.js';
 
@@ -149,9 +150,35 @@ export abstract class HyperlaneRouterDeployer<
       foreignDeployments,
     );
     await this.configureClients(deployedContractsMap, configMap);
+    await this.configureTokenFees(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
     this.logger.debug(`Finished deploying router contracts for all chains.`);
 
     return deployedContractsMap;
+  }
+
+  async configureTokenFees(
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+    configMap: ChainMap<Config>,
+  ): Promise<void> {
+    for (const chain of Object.keys(deployedContractsMap)) {
+      const config = configMap[chain];
+      const tokenFee = config.tokenFee;
+      if (!tokenFee) {
+        continue;
+      }
+      this.logger.debug(`Deploying token fee on ${chain}...`);
+      const module = await EvmTokenFeeModule.create({
+        multiProvider: this.multiProvider,
+        chain,
+        config: tokenFee,
+      });
+      console.log('deployed fee', await module.read());
+      // TODO: set token fee on router
+      // const contracts = deployedContractsMap[chain];
+      // const router = this.router(contracts);
+      // const setTokenFeeTx = await router.setFeeRecipient(module);
+      // await this.multiProvider.handleTx(chain, setTokenFeeTx);
+    }
   }
 }
