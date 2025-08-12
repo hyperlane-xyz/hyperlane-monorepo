@@ -808,3 +808,4 @@ export {
   PROPOSER_ROLE,
 } from './timelock/evm/constants.js';
 export { EvmEventLogsReader } from './rpc/evm/EvmEventLogsReader.js';
+export { getTimelockExecutableTransactionFromBatch } from './timelock/evm/utils.js';
