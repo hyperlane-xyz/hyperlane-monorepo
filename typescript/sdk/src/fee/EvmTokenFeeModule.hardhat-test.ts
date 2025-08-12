@@ -41,4 +41,17 @@ describe('EvmTokenFeeModule', () => {
     const onchainConfig = await module.read();
     expect(onchainConfig).to.deep.equal(config);
   });
+
+  it.only('should create a new token fee with bps', async () => {
+    const module = await EvmTokenFeeModule.create({
+      multiProvider,
+      chain: TestChainName.test2,
+      config: {
+        ...config,
+        bps: '1000',
+      },
+    });
+    const onchainConfig = await module.read();
+    expect(onchainConfig.bps).to.equal('1000');
+  });
 });

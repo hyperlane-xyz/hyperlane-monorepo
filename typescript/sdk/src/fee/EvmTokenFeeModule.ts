@@ -15,22 +15,23 @@ import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
-import { TokenFeeConfig } from './types.js';
+import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
+import { TokenFeeConfigInput } from './types.js';
 
 type TokenFeeModuleAddresses = {
   deployedFee: Address;
 };
 export class EvmTokenFeeModule extends HyperlaneModule<
   ProtocolType.Ethereum,
-  TokenFeeConfig,
+  TokenFeeConfigInput,
   TokenFeeModuleAddresses
 > {
   protected readonly logger = rootLogger.child({ module: 'EvmTokenFeeModule' });
   protected readonly deployer: EvmTokenFeeDeployer;
-
+  protected readonly reader: EvmTokenFeeReader;
   constructor(
     protected readonly multiProvider: MultiProvider,
-    params: HyperlaneModuleParams<TokenFeeConfig, TokenFeeModuleAddresses>,
+    params: HyperlaneModuleParams<TokenFeeConfigInput, TokenFeeModuleAddresses>,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     super(params);
@@ -39,6 +40,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       logger: this.logger,
       contractVerifier: contractVerifier,
     });
+    this.reader = new EvmTokenFeeReader(multiProvider, chainName);
   }
 
   static async create({
@@ -49,7 +51,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }: {
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
-    config: TokenFeeConfig;
+    config: TokenFeeConfigInput;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmTokenFeeModule> {
     const chainName = multiProvider.getChainName(chain);
@@ -71,15 +73,15 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     return module;
   }
 
+  async read(): Promise<TokenFeeConfigInput> {
+    return this.reader.deriveTokenFeeConfig(this.args.addresses.deployedFee);
+  }
+
   async update(
-    _config: TokenFeeConfig,
+    _config: TokenFeeConfigInput,
   ): Promise<
     Annotated<ProtocolTypedTransaction<ProtocolType.Ethereum>['transaction']>[]
   > {
-    throw new Error('Not implemented');
-  }
-
-  async read(): Promise<TokenFeeConfig> {
     throw new Error('Not implemented');
   }
 }
