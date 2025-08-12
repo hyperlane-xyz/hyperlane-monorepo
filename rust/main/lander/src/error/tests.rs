@@ -1,5 +1,6 @@
-use crate::error::{IsRetryable, LanderError};
 use hyperlane_core::ChainCommunicationError;
+
+use crate::error::{IsRetryable, LanderError};
 
 fn make_chain_comm_err(msg: &str) -> LanderError {
     LanderError::ChainCommunicationError(ChainCommunicationError::from(eyre::eyre!(msg.to_owned())))
