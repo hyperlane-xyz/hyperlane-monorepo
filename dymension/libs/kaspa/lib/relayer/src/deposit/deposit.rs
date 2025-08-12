@@ -114,7 +114,7 @@ pub async fn on_new_deposit(
     let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)?;
 
     if deposit.block_hashes.is_empty() {
-        return Err(eyre::eyre!("kaspa deposit had no block hashes"));
+        return Err(eyre::eyre!("kaspa deposit had no block hashes").into());
     }
 
     // build response for validator
