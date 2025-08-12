@@ -282,13 +282,11 @@ export class EvmHypSyntheticAdapter
     assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-
     const [igpQuote, ...feeQuotes] = await this.contract.quoteTransferRemote(
       destination,
       recipBytes32,
       amount.toString(),
     );
-
     const [igpTokenAddressOrDenom, igpAmount] = igpQuote;
 
     const tokenFeeQuotes: Quote[] = feeQuotes.map((quote) => ({
@@ -296,8 +294,7 @@ export class EvmHypSyntheticAdapter
       amount: BigInt(quote[1].toString()),
     }));
 
-    // Because the amount is added on of the fees
-    // we need to subtract it from the actual fees
+    // Because the amount is added on  the fees, we need to subtract it from the actual fees
     const tokenFeeQuote: Quote | undefined = {
       addressOrDenom: tokenFeeQuotes[0].addressOrDenom, // the contract enforces the token address to be the same as the route
       amount: tokenFeeQuotes.reduce((sum, q) => sum + q.amount, 0n) - amount,
@@ -847,19 +844,17 @@ export class EvmHypNativeAdapter
     assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-
     const [igpQuote] = await this.contract.quoteTransferRemote(
       destination,
       recipBytes32,
       amount.toString(),
     );
-
     const [igpTokenAddressOrDenom, igpAmount] = igpQuote;
 
     return {
       igpQuote: {
         addressOrDenom: igpTokenAddressOrDenom,
-        // Because the amount is added on of the fees we need to subtract it from the actual IGP/fees
+        // Because the amount is added on the fees, we need to subtract it from the actual IGP/fees
         // For native routes, the fee is returned as a single quote
         amount: BigInt(igpAmount.toString()) - amount,
       },
