@@ -10,7 +10,13 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  arrayToObject,
+  objFilter,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import {
@@ -150,30 +156,39 @@ export class EvmTimelockReader {
   }
 
   async getReadyOperationIds(operationIds: string[]): Promise<Set<string>> {
-    const readyOperationIds = new Set<string>();
-    for (const operationId of operationIds) {
-      const isReady = await this.timelockInstance.isOperationReady(operationId);
+    const isReadyOperationByOperationId = await promiseObjAll(
+      objMap(arrayToObject(operationIds), (operationId, _) =>
+        this.timelockInstance.isOperationReady(operationId),
+      ),
+    );
 
-      if (isReady) {
-        readyOperationIds.add(operationId);
-      }
-    }
-
-    return readyOperationIds;
+    return new Set(
+      Object.keys(
+        objFilter(
+          isReadyOperationByOperationId,
+          (_operationId, isPendingOperation): isPendingOperation is boolean =>
+            isPendingOperation,
+        ),
+      ),
+    );
   }
 
   async getPendingOperationIds(operationIds: string[]): Promise<Set<string>> {
-    const pendingOperationIds = new Set<string>();
-    for (const operationId of operationIds) {
-      const isPending =
-        await this.timelockInstance.isOperationPending(operationId);
+    const isPendingOperationByOperationId = await promiseObjAll(
+      objMap(arrayToObject(operationIds), (operationId, _) =>
+        this.timelockInstance.isOperationPending(operationId),
+      ),
+    );
 
-      if (isPending) {
-        pendingOperationIds.add(operationId);
-      }
-    }
-
-    return pendingOperationIds;
+    return new Set(
+      Object.keys(
+        objFilter(
+          isPendingOperationByOperationId,
+          (_operationId, isPendingOperation): isPendingOperation is boolean =>
+            isPendingOperation,
+        ),
+      ),
+    );
   }
 
   async getPendingScheduledOperations(): Promise<Record<string, TimelockTx>> {

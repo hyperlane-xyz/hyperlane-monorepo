@@ -180,7 +180,7 @@ type TimelockTransactionStatus = {
   canSignerExecute: boolean;
 };
 
-export async function getTimelockPendingTxs(
+export async function getPendingTimelockTxs(
   chains: ChainName[],
   multiProvider: MultiProvider,
   timelocks: ChainMap<Address>,

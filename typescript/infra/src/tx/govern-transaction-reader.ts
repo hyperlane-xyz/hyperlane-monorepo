@@ -487,6 +487,7 @@ export class GovernTransactionReader {
     });
 
     let insight;
+    let calls;
     if (
       decoded.functionFragment.name ===
       timelockControllerInterface.functions[
@@ -513,10 +514,10 @@ export class GovernTransactionReader {
     ) {
       const [targets, values, data, _predecessor, _salt, delay] = decoded.args;
 
-      const innerTxs = [];
+      calls = [];
       const numOfTxs = targets.length;
       for (let i = 0; i < numOfTxs; i++) {
-        innerTxs.push(
+        calls.push(
           await this.read(chain, {
             to: targets[i],
             data: data[i],
@@ -527,7 +528,7 @@ export class GovernTransactionReader {
 
       const eta = new Date(Date.now() + delay.toNumber() * 1000);
 
-      insight = `Schedule for ${eta}: ${JSON.stringify(innerTxs, null, 2)}`;
+      insight = `Schedule for ${eta}`;
     }
 
     if (
@@ -548,10 +549,10 @@ export class GovernTransactionReader {
     ) {
       const [targets, values, data, _predecessor, _salt] = decoded.args;
 
-      const innerTxs = [];
+      calls = [];
       const numOfTxs = targets.length;
       for (let i = 0; i < numOfTxs; i++) {
-        innerTxs.push(
+        calls.push(
           await this.read(chain, {
             to: targets[i],
             data: data[i],
@@ -560,7 +561,7 @@ export class GovernTransactionReader {
         );
       }
 
-      insight = `Execute batch on ${targets}:\n ${JSON.stringify(innerTxs, null, 2)}`;
+      insight = `Execute batch on ${targets}`;
     }
 
     if (
@@ -580,6 +581,7 @@ export class GovernTransactionReader {
       chain,
       to: `Timelock Controller (${chain} ${tx.to})`,
       ...(insight ? { insight } : { args }),
+      ...(calls ? { innerTxs: calls } : {}),
     };
   }
 
