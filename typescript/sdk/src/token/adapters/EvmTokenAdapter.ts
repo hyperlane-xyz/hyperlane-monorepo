@@ -1,4 +1,3 @@
-import { compareVersions } from 'compare-versions';
 import {
   BigNumber,
   PopulatedTransaction,
@@ -44,6 +43,7 @@ import {
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
+import { isValidContractVersion } from '../../utils/contract.js';
 import { TokenMetadata } from '../types.js';
 
 import {
@@ -264,11 +264,10 @@ export class EvmHypSyntheticAdapter
   }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const contractVersion = await this.contract.PACKAGE_VERSION();
 
-    const hasQuoteTransferRemote =
-      compareVersions(
-        contractVersion,
-        QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
-      ) >= 0;
+    const hasQuoteTransferRemote = isValidContractVersion(
+      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
+      contractVersion,
+    );
 
     // Version does not support quoteTransferRemote defaulting to quoteGasPayment
     if (!hasQuoteTransferRemote) {
@@ -297,26 +296,17 @@ export class EvmHypSyntheticAdapter
       amount: BigInt(quote[1].toString()),
     }));
 
-    // Because the amount is added on of the fees we need to subtract it
-    // from the actual IGP/fees
-    let igpBigIntAmount = BigInt(igpAmount.toString());
-    let tokenFeeQuote: Quote | undefined = undefined;
-
-    // For native routes, the fee is returned as a single quote
-    if (!tokenFeeQuotes.length) {
-      igpBigIntAmount = igpBigIntAmount - amount;
-    } else {
-      // for non-native fees we need to get the sum in case there are more than one quote
-      tokenFeeQuote = {
-        addressOrDenom: tokenFeeQuotes[0].addressOrDenom, // the contract enforces the token address to be the same as the route
-        amount: tokenFeeQuotes.reduce((sum, q) => sum + q.amount, 0n) - amount,
-      };
-    }
+    // Because the amount is added on of the fees
+    // we need to subtract it from the actual fees
+    const tokenFeeQuote: Quote | undefined = {
+      addressOrDenom: tokenFeeQuotes[0].addressOrDenom, // the contract enforces the token address to be the same as the route
+      amount: tokenFeeQuotes.reduce((sum, q) => sum + q.amount, 0n) - amount,
+    };
 
     return {
       igpQuote: {
         addressOrDenom: igpTokenAddressOrDenom,
-        amount: igpBigIntAmount,
+        amount: BigInt(igpAmount.toString()),
       },
       tokenFeeQuote,
     };
@@ -830,6 +820,50 @@ export class EvmHypNativeAdapter
     _spender: Address,
   ): Promise<boolean> {
     return false;
+  }
+
+  override async quoteTransferRemoteGas({
+    destination,
+    recipient,
+    amount,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
+    const contractVersion = await this.contract.PACKAGE_VERSION();
+
+    const hasQuoteTransferRemote = isValidContractVersion(
+      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
+      contractVersion,
+    );
+
+    // Version does not support quoteTransferRemote defaulting to quoteGasPayment
+    if (!hasQuoteTransferRemote) {
+      const gasPayment = await this.contract.quoteGasPayment(destination);
+      return { igpQuote: { amount: BigInt(gasPayment.toString()) } };
+    }
+
+    assert(
+      !isNullish(amount),
+      'Amount must be defined for quoteTransferRemoteGas',
+    );
+    assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
+
+    const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
+
+    const [igpQuote] = await this.contract.quoteTransferRemote(
+      destination,
+      recipBytes32,
+      amount.toString(),
+    );
+
+    const [igpTokenAddressOrDenom, igpAmount] = igpQuote;
+
+    return {
+      igpQuote: {
+        addressOrDenom: igpTokenAddressOrDenom,
+        // Because the amount is added on of the fees we need to subtract it from the actual IGP/fees
+        // For native routes, the fee is returned as a single quote
+        amount: BigInt(igpAmount.toString()) - amount,
+      },
+    };
   }
 
   override async populateTransferRemoteTx({
