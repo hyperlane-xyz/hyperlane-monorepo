@@ -31,17 +31,18 @@
 # in libs/kaspa/demo/user
 cargo run validator-with-escrow
 Validator infos: {
-  "validator_ism_addr": "0x172ed756c7c04f6e5370f9fc181f85b7779643eb",
-  "validator_ism_priv_key": "a4d1c634e1b8cde0fc53013dfc62e1789535b59d15b0bbf4c8fbd2d4e79bc132",
-  "validator_escrow_secret": "\"afa4bcc6e5828eb28d70138ea784a32e0212d3560dfcdfac85bfa1dbabb11ac9\"",
-  "validator_escrow_pub_key": "027b75fcbedee53f82ebc43c19a69697100afad2df27202f107c994c740e9df5b8",
-  "multisig_escrow_addr": "kaspatest:prmapgdl0nsdqjsmd45fjykxuq3242g4npryzkqe3aeqq9yhrp20k20ymjrlk"
+  "validator_ism_addr": "0x7db128a9f2d755592c40f4dfc01b1159b68a2648",
+  "validator_ism_priv_key": "0e05c5595a3bbd56fc4dcbce4b08a619ff09ef0b3c7c26faf38b7205d95e81b0",
+  "validator_escrow_secret": "\"7a55d74bc1e05a19fdf49fada89bc95d68acf66a8f977d9c31fa61b780645ad4\"",
+  "validator_escrow_pub_key": "02d77f17305c99da1b9b3effd3e42e1e559fe8c30507e599c3fcea7c25b7f51ee9",
+  "multisig_escrow_addr": "kaspatest:ppd73u7d5ra0zxx8skxknagft9l2m4r5xlxttvdqvghg7uvwjhrj5apte9e69"
 }
-VALIDATOR_ISM_ADDR="0x172ed756c7c04f6e5370f9fc181f85b7779643eb"
-VALIDATOR_ISM_PRIV_KEY="a4d1c634e1b8cde0fc53013dfc62e1789535b59d15b0bbf4c8fbd2d4e79bc132"
-VALIDATOR_ESCROW_SECRET="\"afa4bcc6e5828eb28d70138ea784a32e0212d3560dfcdfac85bfa1dbabb11ac9\""
-VALIDATOR_ESCROW_PUB_KEY="027b75fcbedee53f82ebc43c19a69697100afad2df27202f107c994c740e9df5b8"
-ESCROW_ADDR="kaspatest:prmapgdl0nsdqjsmd45fjykxuq3242g4npryzkqe3aeqq9yhrp20k20ymjrlk"
+se
+VALIDATOR_ISM_ADDR="0x7db128a9f2d755592c40f4dfc01b1159b68a2648"
+VALIDATOR_ISM_PRIV_KEY="0e05c5595a3bbd56fc4dcbce4b08a619ff09ef0b3c7c26faf38b7205d95e81b0"
+VALIDATOR_ESCROW_SECRET="\"7a55d74bc1e05a19fdf49fada89bc95d68acf66a8f977d9c31fa61b780645ad4\""
+VALIDATOR_ESCROW_PUB_KEY="02d77f17305c99da1b9b3effd3e42e1e559fe8c30507e599c3fcea7c25b7f51ee9"
+ESCROW_ADDR="kaspatest:ppd73u7d5ra0zxx8skxknagft9l2m4r5xlxttvdqvghg7uvwjhrj5apte9e69"
 # THES VALUES MUST CORRESPOND WITH agent-config.json (in this directory, REQUIRES EDITING)  Do NOT unescape json quotes
 # Update:
 # kaspatest10.validatorPubsKaspa = VALIDATOR_ESCROW_PUB_KEY
@@ -75,11 +76,11 @@ MONODIR=/Users/danwt/Documents/dym/d-hyperlane-monorepo
 
 # clean slate
 trash ~/.hyperlane; trash ~/.dymension
-mkdir ~/.hyperlane; cp -r $MONODIR/dymension/tests/kaspa_hub_test/chains ~/.hyperlane/chains
+mkdir ~/.hyperlane; cp -r $MONODIR/dymension/tests/kaspa_hub_test_kas/chains ~/.hyperlane/chains
 
 # install hub binary (dymension/)
 make install
-source $MONODIR/dymension/tests/kaspa_hub_test/env.sh
+source $MONODIR/dymension/tests/kaspa_hub_test_kas/env.sh
 scripts/setup_local.sh
 dymd start --log_level=debug
 
@@ -151,7 +152,7 @@ echo $OUTPOINT | xxd -r -p | base64 # Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5z
 # query the hub entities and reference them (REQUIRES EDITING bootstrap.json)
 ISM=$(dymd q hyperlane ism isms -o json | jq -r '.isms[0].id')
 
-dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test/bootstrap.json \
+dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test_kas/bootstrap.json \
   --from hub-user \
   --gas auto \
   --fees 10000000000000000adym \
