@@ -31,17 +31,17 @@
 # in libs/kaspa/demo/user
 cargo run validator-with-escrow
 Validator infos: {
-  "validator_ism_addr": "0xb9911206d7ee8218518588cb8091add9c538ff93",
-  "validator_ism_priv_key": "53182de3c6089ceb6aa18c052e3e7e173fbc70e8fef50481b924880a10c30b52",
-  "validator_escrow_secret": "\"2ef9b034e2ca320dd8a5bf92d120dee1f3e9e573760022272799fc35c5553cbd\"",
-  "validator_escrow_pub_key": "02864190cba9fb3f4606f746e51f463d6aa483ec9dd9799b99a803d29ec29c60af",
-  "multisig_escrow_addr": "kaspatest:pz2vlvkeryjfpwfnxucve5sum2lef9xm3n6pfz2592j9mr4cr2nvqadma5k24"
+  "validator_ism_addr": "0x172ed756c7c04f6e5370f9fc181f85b7779643eb",
+  "validator_ism_priv_key": "a4d1c634e1b8cde0fc53013dfc62e1789535b59d15b0bbf4c8fbd2d4e79bc132",
+  "validator_escrow_secret": "\"afa4bcc6e5828eb28d70138ea784a32e0212d3560dfcdfac85bfa1dbabb11ac9\"",
+  "validator_escrow_pub_key": "027b75fcbedee53f82ebc43c19a69697100afad2df27202f107c994c740e9df5b8",
+  "multisig_escrow_addr": "kaspatest:prmapgdl0nsdqjsmd45fjykxuq3242g4npryzkqe3aeqq9yhrp20k20ymjrlk"
 }
-VALIDATOR_ISM_ADDR="0xb9911206d7ee8218518588cb8091add9c538ff93"
-VALIDATOR_ISM_PRIV_KEY="53182de3c6089ceb6aa18c052e3e7e173fbc70e8fef50481b924880a10c30b52"
-VALIDATOR_ESCROW_SECRET="\"2ef9b034e2ca320dd8a5bf92d120dee1f3e9e573760022272799fc35c5553cbd\""
-VALIDATOR_ESCROW_PUB_KEY="02864190cba9fb3f4606f746e51f463d6aa483ec9dd9799b99a803d29ec29c60af"
-ESCROW_ADDR="kaspatest:pz2vlvkeryjfpwfnxucve5sum2lef9xm3n6pfz2592j9mr4cr2nvqadma5k24"
+VALIDATOR_ISM_ADDR="0x172ed756c7c04f6e5370f9fc181f85b7779643eb"
+VALIDATOR_ISM_PRIV_KEY="a4d1c634e1b8cde0fc53013dfc62e1789535b59d15b0bbf4c8fbd2d4e79bc132"
+VALIDATOR_ESCROW_SECRET="\"afa4bcc6e5828eb28d70138ea784a32e0212d3560dfcdfac85bfa1dbabb11ac9\""
+VALIDATOR_ESCROW_PUB_KEY="027b75fcbedee53f82ebc43c19a69697100afad2df27202f107c994c740e9df5b8"
+ESCROW_ADDR="kaspatest:prmapgdl0nsdqjsmd45fjykxuq3242g4npryzkqe3aeqq9yhrp20k20ymjrlk"
 # THES VALUES MUST CORRESPOND WITH agent-config.json (in this directory, REQUIRES EDITING)  Do NOT unescape json quotes
 # Update:
 # kaspatest10.validatorPubsKaspa = VALIDATOR_ESCROW_PUB_KEY
