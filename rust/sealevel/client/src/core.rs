@@ -101,10 +101,10 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
 
             let program_ids = CoreProgramIds {
                 mailbox: mailbox_program_id,
-                validator_announce: validator_announce_program_id,
-                multisig_ism_message_id: ism_program_id,
+                validator_announce: Some(validator_announce_program_id),
+                multisig_ism_message_id: Some(ism_program_id),
                 igp_program_id,
-                overhead_igp_account,
+                overhead_igp_account: Some(overhead_igp_account),
                 igp_account,
             };
             write_program_ids(&core_dir, program_ids);
@@ -277,14 +277,20 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
 pub struct CoreProgramIds {
     #[serde(with = "crate::serde::serde_pubkey")]
     pub mailbox: Pubkey,
-    #[serde(with = "crate::serde::serde_pubkey")]
-    pub validator_announce: Pubkey,
-    #[serde(with = "crate::serde::serde_pubkey")]
-    pub multisig_ism_message_id: Pubkey,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(with = "crate::serde::serde_option_pubkey")]
+    pub validator_announce: Option<Pubkey>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(with = "crate::serde::serde_option_pubkey")]
+    pub multisig_ism_message_id: Option<Pubkey>,
     #[serde(with = "crate::serde::serde_pubkey")]
     pub igp_program_id: Pubkey,
-    #[serde(with = "crate::serde::serde_pubkey")]
-    pub overhead_igp_account: Pubkey,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(with = "crate::serde::serde_option_pubkey")]
+    pub overhead_igp_account: Option<Pubkey>,
     #[serde(with = "crate::serde::serde_pubkey")]
     pub igp_account: Pubkey,
 }

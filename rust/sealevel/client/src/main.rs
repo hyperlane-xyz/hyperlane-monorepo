@@ -59,7 +59,6 @@ use hyperlane_sealevel_token_memo::{
     hyperlane_token_ata_payer_pda_seeds as hyperlane_token_ata_payer_pda_seeds_memo,
     hyperlane_token_mint_pda_seeds as hyperlane_token_mint_pda_seeds_memo,
     spl_associated_token_account::get_associated_token_address_with_program_id as get_associated_token_address_with_program_id_memo,
-    spl_token_2022 as spl_token_2022_memo,
 };
 use hyperlane_sealevel_token_native::hyperlane_token_native_collateral_pda_seeds;
 use hyperlane_sealevel_token_native_memo::hyperlane_token_native_collateral_pda_seeds as hyperlane_token_native_memo_collateral_pda_seeds;

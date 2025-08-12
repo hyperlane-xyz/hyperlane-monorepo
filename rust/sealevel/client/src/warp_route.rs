@@ -263,16 +263,27 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             .interchain_security_module();
         let owner = Some(app_config.router_config().ownable.owner(ctx.payer_pubkey));
 
-        // Default to the Overhead IGP
+        // Default to the Overhead IGP if available, otherwise use regular IGP
         let interchain_gas_paymaster = Some(
             app_config
                 .router_config()
                 .connection_client
                 .interchain_gas_paymaster_config(client)
-                .unwrap_or((
-                    core_program_ids.igp_program_id,
-                    InterchainGasPaymasterType::OverheadIgp(core_program_ids.overhead_igp_account),
-                )),
+                .or_else(|| {
+                    // If overhead_igp_account is available, use OverheadIgp, otherwise use regular Igp
+                    if let Some(overhead_igp) = core_program_ids.overhead_igp_account {
+                        Some((
+                            core_program_ids.igp_program_id,
+                            InterchainGasPaymasterType::OverheadIgp(overhead_igp),
+                        ))
+                    } else {
+                        Some((
+                            core_program_ids.igp_program_id,
+                            InterchainGasPaymasterType::Igp(core_program_ids.igp_account),
+                        ))
+                    }
+                })
+                .unwrap(),
         );
 
         println!(
@@ -458,7 +469,14 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         .with_client(client)
         .send_with_payer();
 
-        if let TokenType::Synthetic(token_metadata) = &app_config.token_type {
+        if matches!(
+            &app_config.token_type,
+            TokenType::Synthetic(_) | TokenType::SyntheticMemo(_)
+        ) {
+            let token_metadata = match &app_config.token_type {
+                TokenType::Synthetic(metadata) | TokenType::SyntheticMemo(metadata) => metadata,
+                _ => unreachable!(),
+            };
             let (mint_account, _mint_bump) =
                 Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
 

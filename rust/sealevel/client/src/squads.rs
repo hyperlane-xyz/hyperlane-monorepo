@@ -116,18 +116,24 @@ pub fn process_squads_cmd(ctx: Context, cmd: SquadsCmd) {
                 &verify.env_args.environment,
                 &verify.chain,
             );
-            let core_programs = vec![
+            let mut core_programs = vec![
                 ProgramIdWithMetadata::new("Mailbox".into(), core_program_ids.mailbox),
-                ProgramIdWithMetadata::new(
-                    "Validator Announce".into(),
-                    core_program_ids.validator_announce,
-                ),
-                ProgramIdWithMetadata::new(
-                    "Multisig ISM Message ID".into(),
-                    core_program_ids.multisig_ism_message_id,
-                ),
                 ProgramIdWithMetadata::new("IGP program".into(), core_program_ids.igp_program_id),
             ];
+
+            if let Some(validator_announce) = core_program_ids.validator_announce {
+                core_programs.push(ProgramIdWithMetadata::new(
+                    "Validator Announce".into(),
+                    validator_announce,
+                ));
+            }
+
+            if let Some(multisig_ism) = core_program_ids.multisig_ism_message_id {
+                core_programs.push(ProgramIdWithMetadata::new(
+                    "Multisig ISM Message ID".into(),
+                    multisig_ism,
+                ));
+            }
 
             // Chain -> (Label, Owner)
             let chain_owner_lookups: HashMap<String, Vec<(Pubkey, String)>> = CHAIN_CORE_OWNERS

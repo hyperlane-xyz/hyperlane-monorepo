@@ -361,10 +361,13 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             match args.cmd {
                 GasOverheadSubCmd::Get => {
                     // Read the gas overhead config
+                    let overhead_igp_account_pubkey = core_program_ids
+                        .overhead_igp_account
+                        .expect("Overhead IGP account not configured");
                     let overhead_igp_account = ctx
                         .client
                         .get_account_with_commitment(
-                            &core_program_ids.overhead_igp_account,
+                            &overhead_igp_account_pubkey,
                             ctx.commitment,
                         )
                         .unwrap()
@@ -385,10 +388,13 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                         gas_overhead: Some(set_args.gas_overhead),
                     };
                     // Set the gas overhead config
+                    let overhead_igp_account_pubkey = core_program_ids
+                        .overhead_igp_account
+                        .expect("Overhead IGP account not configured");
                     let instruction =
                         hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
                             core_program_ids.igp_program_id,
-                            core_program_ids.overhead_igp_account,
+                            overhead_igp_account_pubkey,
                             ctx.payer_pubkey,
                             vec![overhead_config],
                         )
