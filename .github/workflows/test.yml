@@ -30,7 +30,7 @@ jobs:
   yarn-install:
     runs-on: depot-ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -67,7 +67,7 @@ jobs:
     runs-on: depot-ubuntu-24.04-4
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -117,7 +117,7 @@ jobs:
       current_sha: ${{ steps.determine-base-sha.outputs.current_sha }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -144,7 +144,7 @@ jobs:
       only_rust: ${{ steps.check-rust-only.outputs.only_rust }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -180,7 +180,7 @@ jobs:
     timeout-minutes: 10
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -205,7 +205,7 @@ jobs:
     needs: [yarn-test-run]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check yarn-test status
         uses: ./.github/actions/check-job-status
         with:
@@ -220,7 +220,7 @@ jobs:
       BALANCE_CHANGES: false
       WARP_CONFIG_CHANGES: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -259,7 +259,7 @@ jobs:
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -277,7 +277,7 @@ jobs:
     needs: [cli-install-test-run]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check cli-install-test status
         uses: ./.github/actions/check-job-status
         with:
@@ -318,7 +318,7 @@ jobs:
           - warp-send
           - warp-rebalancer
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -347,7 +347,7 @@ jobs:
     needs: [cli-e2e-matrix]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check cli-e2e matrix status
         uses: ./.github/actions/check-job-status
         with:
@@ -359,7 +359,7 @@ jobs:
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -379,7 +379,7 @@ jobs:
     needs: [cosmos-sdk-e2e-run]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check cosmos-sdk-e2e status
         uses: ./.github/actions/check-job-status
         with:
@@ -393,7 +393,7 @@ jobs:
       matrix:
         environment: [mainnet3, testnet4]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -425,7 +425,7 @@ jobs:
       matrix:
         e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -621,7 +621,7 @@ jobs:
             module: core
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -652,7 +652,7 @@ jobs:
     needs: env-test-matrix
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check env-test matrix status
         uses: ./.github/actions/check-job-status
         with:
@@ -664,7 +664,7 @@ jobs:
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -691,7 +691,7 @@ jobs:
     needs: [coverage-run]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check coverage status
         uses: ./.github/actions/check-job-status
         with:
