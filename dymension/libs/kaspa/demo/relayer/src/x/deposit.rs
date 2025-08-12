@@ -11,6 +11,7 @@ use corelib::wallet::*;
 use dymension_kaspa::KaspaHttpClient;
 use hardcode::e2e::*;
 use hex;
+use eyre;
 use hyperlane_core::ChainCommunicationError;
 use hyperlane_core::ChainResult;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
@@ -33,7 +34,7 @@ use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
 use kaspa_wallet_core::tx::Fees;
 use kaspa_wallet_core::utxo::NetworkParams;
-use relayer::deposit::on_new_deposit;
+use relayer::deposit::{on_new_deposit, DepositError};
 use relayer::withdraw::*;
 use std::collections::HashSet;
 use std::error::Error;
@@ -215,10 +216,11 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
 
     let escrow = escrow_address.clone();
     // handle deposit (relayer operation)
-    let deposit_fxg = on_new_deposit(&escrow.address_to_string(), &result).await;
+    let deposit_fxg = on_new_deposit(&escrow.address_to_string(), &result, &client.client).await
+        .map_err(|e| eyre::eyre!("Deposit processing failed: {}", e))?;
 
     // deposit encode to bytes
-    let deposit_bytes_recv: Bytes = (&deposit_fxg.unwrap().unwrap()).into();
+    let deposit_bytes_recv: Bytes = (&deposit_fxg.unwrap()).into();
 
     // deposit from bytes
     let deposit_recv = DepositFXG::try_from(deposit_bytes_recv)?;

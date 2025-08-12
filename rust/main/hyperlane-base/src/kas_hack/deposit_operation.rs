@@ -8,7 +8,6 @@ pub struct DepositOperation {
     pub escrow_address: String,
     pub retry_count: u32,
     pub next_attempt_after: Option<Instant>,
-    pub max_retries: u32,
 }
 
 impl DepositOperation {
@@ -18,12 +17,7 @@ impl DepositOperation {
             escrow_address,
             retry_count: 0,
             next_attempt_after: None,
-            max_retries: 3, // configurable max retries
         }
-    }
-
-    pub fn can_retry(&self) -> bool {
-        self.retry_count < self.max_retries
     }
 
     pub fn is_ready(&self) -> bool {
@@ -35,24 +29,30 @@ impl DepositOperation {
 
     pub fn mark_failed(&mut self) {
         self.retry_count += 1;
-        if self.can_retry() {
-            // Exponential backoff: 30s, 60s, 120s
-            let delay_secs = 30 * (1 << (self.retry_count - 1).min(3));
-            self.next_attempt_after = Some(Instant::now() + Duration::from_secs(delay_secs));
-            info!(
-                "Deposit operation failed, will retry in {}s (attempt {}/{}): {}",
-                delay_secs,
-                self.retry_count,
-                self.max_retries,
-                self.deposit.id
-            );
-        } else {
-            error!(
-                "Deposit operation failed permanently after {} attempts: {}",
-                self.retry_count,
-                self.deposit.id
-            );
-        }
+        // Exponential backoff: 30s, 60s, 120s
+        let delay_secs = 30 * (1 << (self.retry_count - 1).min(3));
+        self.next_attempt_after = Some(Instant::now() + Duration::from_secs(delay_secs));
+        info!(
+            "Deposit operation failed, will retry in {}s (attempt {}): {}",
+            delay_secs,
+            self.retry_count,
+            self.deposit.id
+        );
+
+    }
+
+    /// Mark failed with custom retry timing (for finality-based delays)
+    pub fn mark_failed_with_custom_delay(&mut self, delay: Duration, reason: &str) {
+        self.retry_count += 1;
+        self.next_attempt_after = Some(Instant::now() + delay);
+        info!(
+            "Deposit operation failed ({}), will retry in {:.1}s (attempt {}): {}",
+            reason,
+            delay.as_secs_f64(),
+            self.retry_count,
+            self.deposit.id
+        );
+
     }
 
     pub fn reset_attempts(&mut self) {
@@ -84,7 +84,7 @@ impl DepositOpQueue {
         if let Some(pos) = self
             .operations
             .iter()
-            .position(|op| op.is_ready() && op.can_retry())
+            .position(|op| op.is_ready())
         {
             self.operations.remove(pos)
         } else {
@@ -94,15 +94,9 @@ impl DepositOpQueue {
 
     pub fn requeue(&mut self, operation: DepositOperation) {
         let operation_id = operation.deposit.id;
-        if operation.can_retry() {
-            self.operations.push_back(operation);
-            debug!("Re-queued deposit operation: {}", operation_id);
-        } else {
-            error!(
-                "Dropping deposit operation after max retries: {}",
-                operation_id
-            );
-        }
+        self.operations.push_back(operation);
+        debug!("Re-queued deposit operation: {}", operation_id);
+
     }
 
     pub fn len(&self) -> usize {
@@ -113,13 +107,4 @@ impl DepositOpQueue {
         self.operations.is_empty()
     }
 
-    /// Remove operations that have expired or exceeded max retries
-    pub fn cleanup_expired(&mut self) {
-        let initial_len = self.operations.len();
-        self.operations.retain(|op| op.can_retry());
-        let removed = initial_len - self.operations.len();
-        if removed > 0 {
-            debug!("Cleaned up {} expired/failed deposit operations", removed);
-        }
-    }
 }

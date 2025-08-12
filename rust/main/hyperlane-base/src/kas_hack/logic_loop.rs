@@ -2,7 +2,7 @@ use crate::contract_sync::cursors::Indexable;
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
 use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
 use dym_kas_relayer::confirm::expensive_trace_transactions;
-use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
+use dym_kas_relayer::deposit::{on_new_deposit as relayer_on_new_deposit, DepositError};
 use dymension_kaspa::{Deposit, KaspaProvider};
 use eyre::Result;
 use hyperlane_core::{
@@ -144,9 +144,6 @@ where
     async fn process_deposit_queue(&self) {
         let mut queue = self.deposit_queue.lock().await;
         
-        // Clean up expired operations
-        queue.cleanup_expired();
-        
         // Process ready operations
         while let Some(operation) = queue.pop_ready() {
             drop(queue); // Release lock before processing
@@ -161,7 +158,7 @@ where
         
         // Call to relayer.F()
         let new_deposit_res =
-            relayer_on_new_deposit(&operation.escrow_address, &operation.deposit).await;
+            relayer_on_new_deposit(&operation.escrow_address, &operation.deposit, &self.provider.rest().client.client).await;
         
         match new_deposit_res {
             Ok(Some(fxg)) => {
@@ -210,10 +207,20 @@ where
                 self.deposit_queue.lock().await.requeue(operation);
             }
             Err(e) => {
-                error!("Dymension, F() new deposit: {:?}, will retry.", e);
-                // This could be transient, queue for retry
-                operation.mark_failed();
-                self.deposit_queue.lock().await.requeue(operation);
+                match e {
+                    DepositError::NotFinalEnough { retry_after_secs, .. } => {
+                        // Use the calculated retry delay based on pending confirmations
+                        let delay = Duration::from_secs_f64(retry_after_secs);
+                        operation.mark_failed_with_custom_delay(delay, &e.to_string());
+                        self.deposit_queue.lock().await.requeue(operation);
+                    }
+                    DepositError::ProcessingError(_) => {
+                        error!("Dymension, F() new deposit processing error: {:?}, will retry.", e);
+                        // Use standard exponential backoff for processing errors
+                        operation.mark_failed();
+                        self.deposit_queue.lock().await.requeue(operation);
+                    }
+                }
             }
         }
     }
