@@ -132,26 +132,39 @@ pub(crate) fn process_test_ism_cmd(mut ctx: Context, cmd: TestIsmCmd) {
             if let Some(account) = &accounts[0] {
                 use borsh::BorshDeserialize;
 
-                // Ensure account data is large enough to contain discriminator and storage
-                // The first 8 bytes are the Anchor/Borsh discriminator that identifies the account type
-                if account.data.len() < 8 {
-                    println!(
-                        "Error: Account data too small (expected at least 8 bytes, got {})",
-                        account.data.len()
-                    );
-                    return;
-                }
-
-                let storage =
+                // Try to deserialize the storage, handling both formats (with and without discriminator)
+                let storage = if account.data.len() >= 8 {
+                    // Try with 8-byte discriminator first (new format)
                     match hyperlane_sealevel_test_ism::program::TestIsmStorage::deserialize(
-                        &mut &account.data[8..], // Skip 8-byte AccountData discriminator
+                        &mut &account.data[8..],
+                    ) {
+                        Ok(s) => s,
+                        Err(_) => {
+                            // Fall back to no discriminator (old format)
+                            match hyperlane_sealevel_test_ism::program::TestIsmStorage::deserialize(
+                                &mut &account.data[..],
+                            ) {
+                                Ok(s) => s,
+                                Err(e) => {
+                                    println!("Error deserializing Test ISM storage: {}", e);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Small data, try without discriminator
+                    match hyperlane_sealevel_test_ism::program::TestIsmStorage::deserialize(
+                        &mut &account.data[..],
                     ) {
                         Ok(s) => s,
                         Err(e) => {
                             println!("Error deserializing Test ISM storage: {}", e);
+                            println!("Account data (hex): {:02x?}", account.data);
                             return;
                         }
-                    };
+                    }
+                };
 
                 println!("Test ISM Storage:");
                 println!(
