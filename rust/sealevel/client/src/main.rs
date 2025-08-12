@@ -1342,8 +1342,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             match xfer.token_type {
                 TokenType::Native => {
-                    // 5. [executable] The system program.
-                    // 6. [writeable] The native token collateral PDA account.
+                    // 14. [executable] The system program.
+                    // 15. [writeable] The native token collateral PDA account.
                     let (native_collateral_account, _native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_collateral_pda_seeds!(),
@@ -1355,8 +1355,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     ]);
                 }
                 TokenType::NativeMemo => {
-                    // 5. [executable] The system program.
-                    // 6. [writeable] The native token collateral PDA account.
+                    // 14. [executable] The system program.
+                    // 15. [writeable] The native token collateral PDA account.
                     let (native_collateral_account, _native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_memo_collateral_pda_seeds!(),
@@ -1571,8 +1571,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
             match xfer.token_type {
                 TokenType::Native => {
-                    // 5. [executable] The system program.
-                    // 6. [writeable] The native token collateral PDA account.
+                    // 14. [executable] The system program.
+                    // 15. [writeable] The native token collateral PDA account.
                     let (native_collateral_account, _native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_collateral_pda_seeds!(),
@@ -1584,8 +1584,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     ]);
                 }
                 TokenType::NativeMemo => {
-                    // 5. [executable] The system program.
-                    // 6. [writeable] The native token collateral PDA account.
+                    // 14. [executable] The system program.
+                    // 15. [writeable] The native token collateral PDA account.
                     let (native_collateral_account, _native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_memo_collateral_pda_seeds!(),
