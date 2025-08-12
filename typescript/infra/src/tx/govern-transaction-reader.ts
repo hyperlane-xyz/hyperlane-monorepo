@@ -1639,11 +1639,14 @@ async function getOwnerInsight(
     return `${address} (${governanceType.toUpperCase()} ${ownerType})`;
   }
 
-  if (eqAddress(address, awIcasLegacy[chain])) {
+  if (awIcasLegacy[chain] && eqAddress(address, awIcasLegacy[chain])) {
     return `${address} (${GovernanceType.AbacusWorks.toUpperCase()} ${Owner.ICA} LEGACY)`;
   }
 
-  if (eqAddress(address, regularIcasLegacy[chain])) {
+  if (
+    regularIcasLegacy[chain] &&
+    eqAddress(address, regularIcasLegacy[chain])
+  ) {
     return `${address} (${GovernanceType.Regular.toUpperCase()} ${Owner.ICA} LEGACY)`;
   }
 
