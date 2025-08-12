@@ -746,6 +746,12 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       name: 'superswap_ica_v2',
       matchingList: superswapIcaV2MatchingList,
     },
+    {
+      name: 'm0',
+      matchingList: consistentSenderRecipientMatchingList(
+        '0x36f586A30502AE3afb555b8aA4dCc05d233c2ecE',
+      ),
+    },
   ];
 };
 
