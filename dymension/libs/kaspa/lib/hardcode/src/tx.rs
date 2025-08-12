@@ -35,4 +35,3 @@ Blue Score Difference (d)	Time Elapsed (Approx)	Upper Bound on Reorg Probability
 We choose 1000, which is probably over conservative.
  */
 pub const REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS: i64 = 1000;
-pub const FINALITY_APPROX_WAIT_TIME: Duration = Duration::from_secs(100 + 3); // give a bit of leeway

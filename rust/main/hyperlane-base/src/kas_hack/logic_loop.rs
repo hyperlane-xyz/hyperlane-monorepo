@@ -18,11 +18,14 @@ use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
 use tracing::{error, info, info_span, warn, Instrument};
 
+use super::deposit_operation::{DepositOpQueue, DepositOperation};
+
 pub struct Foo<C: MetadataConstructor> {
     provider: Box<KaspaProvider>,
     hub_mailbox: Arc<CosmosNativeMailbox>,
     metadata_constructor: C,
     deposit_cache: DepositCache,
+    deposit_queue: Mutex<DepositOpQueue>,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -39,6 +42,7 @@ where
             hub_mailbox,
             metadata_constructor,
             deposit_cache: DepositCache::new(),
+            deposit_queue: Mutex::new(DepositOpQueue::new()),
         }
     }
 
@@ -82,7 +86,7 @@ where
 
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&self) {
-        info!("Dymension, starting deposit loop");
+        info!("Dymension, starting deposit loop with queue");
         let lower_bound_unix_time: Option<i64> =
             match self.provider.must_relayer_stuff().deposit_look_back_mins {
                 Some(offset) => {
@@ -93,6 +97,10 @@ where
                 None => None, // unbounded
             };
         loop {
+            // Process retry queue first
+            self.process_deposit_queue().await;
+            
+            // Then fetch new deposits
             let deposits_res = self
                 .provider
                 .rest()
@@ -112,7 +120,6 @@ where
             // TODO: len include deposits that have been processed, the number is misleading
             info!("Dymension, queried kaspa deposits, n: {:?}", deposits.len());
             time::sleep(Duration::from_secs(1)).await;
-            //time::sleep(FINALITY_APPROX_WAIT_TIME).await;
             self.handle_new_deposits(deposits).await;
         }
     }
@@ -128,45 +135,85 @@ where
         }
 
         for d in &deposits_new {
-            // Call to relayer.F()
-            let new_deposit_res =
-                relayer_on_new_deposit(&self.provider.escrow_address().to_string(), d).await;
-            info!("Dymension, built new deposit FXG: {:?}", new_deposit_res);
-            match new_deposit_res {
-                Ok(Some(fxg)) => {
-                    let delivered_res = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
-                    match delivered_res {
-                        Ok(true) => {
-                            info!(
-                                "Dymension, deposit already delivered, skipping : {:?}",
-                                fxg.hl_message.id()
-                            );
-                            continue;
-                        }
-                        Err(e) => {
-                            error!("Dymension, check if deposit is delivered: {:?}", e);
-                            // TODO: should have a retry flow
-                            continue;
-                        }
-                        _ => {}
-                    };
-                    let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
-                    match res {
-                        Ok(_) => {
-                            info!("Dymension, got sigs and sent new deposit to hub: {:?}", fxg);
-                        }
-                        Err(e) => {
-                            error!("Dymension, gather sigs and send deposit to hub: {:?}", e);
-                            // TODO: should have a retry flow
-                        }
+            let operation = DepositOperation::new(d.clone(), self.provider.escrow_address().to_string());
+            self.process_deposit_operation(operation).await;
+        }
+    }
+
+    /// Process the retry queue for failed deposit operations
+    async fn process_deposit_queue(&self) {
+        let mut queue = self.deposit_queue.lock().await;
+        
+        // Clean up expired operations
+        queue.cleanup_expired();
+        
+        // Process ready operations
+        while let Some(operation) = queue.pop_ready() {
+            drop(queue); // Release lock before processing
+            self.process_deposit_operation(operation).await;
+            queue = self.deposit_queue.lock().await;
+        }
+    }
+
+    /// Process a single deposit operation, with retry logic on failure
+    async fn process_deposit_operation(&self, mut operation: DepositOperation) {
+        info!("Processing deposit operation: {}", operation.deposit.id);
+        
+        // Call to relayer.F()
+        let new_deposit_res =
+            relayer_on_new_deposit(&operation.escrow_address, &operation.deposit).await;
+        
+        match new_deposit_res {
+            Ok(Some(fxg)) => {
+                info!("Dymension, built new deposit FXG: {:?}", fxg);
+                
+                // Check if already delivered
+                let delivered_res = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
+                match delivered_res {
+                    Ok(true) => {
+                        info!(
+                            "Dymension, deposit already delivered, skipping : {:?}",
+                            fxg.hl_message.id()
+                        );
+                        return; // Successfully processed (already delivered)
+                    }
+                    Err(e) => {
+                        error!("Dymension, check if deposit is delivered: {:?}", e);
+                        // This is a transient error, queue for retry
+                        operation.mark_failed();
+                        self.deposit_queue.lock().await.requeue(operation);
+                        return;
+                    }
+                    _ => {} // Not delivered, continue processing
+                };
+                
+                // Send to hub
+                let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
+                match res {
+                    Ok(_) => {
+                        info!("Dymension, got sigs and sent new deposit to hub: {:?}", fxg);
+                        // Success! Operation complete
+                        operation.reset_attempts();
+                    }
+                    Err(e) => {
+                        error!("Dymension, gather sigs and send deposit to hub: {:?}", e);
+                        // This failed, queue for retry
+                        operation.mark_failed();
+                        self.deposit_queue.lock().await.requeue(operation);
                     }
                 }
-                Ok(None) => {
-                    error!("Dymension, F() new deposit returned none, dropping deposit.");
-                }
-                Err(e) => {
-                    error!("Dymension, F() new deposit: {:?}, dropping deposit.", e);
-                }
+            }
+            Ok(None) => {
+                error!("Dymension, F() new deposit returned none, will retry.");
+                // This could be transient, queue for retry
+                operation.mark_failed();
+                self.deposit_queue.lock().await.requeue(operation);
+            }
+            Err(e) => {
+                error!("Dymension, F() new deposit: {:?}, will retry.", e);
+                // This could be transient, queue for retry
+                operation.mark_failed();
+                self.deposit_queue.lock().await.requeue(operation);
             }
         }
     }
