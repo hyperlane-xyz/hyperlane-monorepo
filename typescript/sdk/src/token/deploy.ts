@@ -3,6 +3,7 @@ import { constants } from 'ethers';
 import {
   ERC20__factory,
   ERC721Enumerable__factory,
+  FungibleTokenRouter,
   GasRouter,
   IERC4626__factory,
   IMessageTransmitter__factory,
@@ -28,6 +29,7 @@ import {
   HyperlaneContractsMap,
 } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
@@ -124,6 +126,8 @@ abstract class TokenDeployer<
       concurrentDeploy,
     }); // factories not used in deploy
   }
+
+  // Note: token fee configuration is implemented in HypERC20Deployer
 
   async constructorArgs(
     _: ChainName,
@@ -579,7 +583,38 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     );
   }
 
-  router(contracts: HyperlaneContracts<HypERC20Factories>): GasRouter {
+  async configureTokenFees(
+    deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
+    configMap: ChainMap<HypTokenRouterConfig>,
+  ): Promise<void> {
+    await Promise.all(
+      Object.keys(deployedContractsMap).map(async (chain) => {
+        const config = configMap[chain];
+        const tokenFee = config?.tokenFee;
+        if (!tokenFee) return;
+
+        if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+          this.logger.debug(`Skipping token fee on non-EVM chain ${chain}`);
+          return;
+        }
+
+        this.logger.debug(`Deploying token fee on ${chain}...`);
+        const module = await EvmTokenFeeModule.create({
+          multiProvider: this.multiProvider,
+          chain,
+          config: tokenFee,
+        });
+
+        const router = this.router(deployedContractsMap[chain]);
+        const tx = await router.setFeeRecipient(module.getDeployedFeeAddress());
+        await this.multiProvider.handleTx(chain, tx);
+      }),
+    );
+  }
+
+  router(
+    contracts: HyperlaneContracts<HypERC20Factories>,
+  ): FungibleTokenRouter {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
         return contracts[key];
