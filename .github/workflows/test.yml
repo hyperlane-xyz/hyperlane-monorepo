@@ -291,9 +291,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        protocol:
-          - ethereum
-          - cosmosnative
         test:
           # Core Commands
           - core-apply
