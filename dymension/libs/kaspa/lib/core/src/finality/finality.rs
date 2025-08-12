@@ -28,7 +28,7 @@ pub struct FinalityStatus {
 pub async fn is_safe_against_reorg(
     rest_client: &HttpClient,
     tx_id: &str,
-    block_hash_hint: Option<String>,
+    block_hash_hint: Option<String>, // enables faster lookup
 ) -> Result<FinalityStatus> {
     is_safe_against_reorg_n_confs(
         rest_client,
