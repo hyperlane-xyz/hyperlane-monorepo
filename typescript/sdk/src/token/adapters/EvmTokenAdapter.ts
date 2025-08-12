@@ -287,7 +287,7 @@ export class EvmHypSyntheticAdapter
     const [igpQuote, ...feeQuotes] = await this.contract.quoteTransferRemote(
       destination,
       recipBytes32,
-      amount,
+      amount.toString(),
     );
 
     const [igpTokenAddressOrDenom, igpAmount] = igpQuote;
