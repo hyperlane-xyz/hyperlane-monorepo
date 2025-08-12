@@ -52,6 +52,7 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
     if (FULLY_CONNECTED_ICA_CHAINS.has(chain)) {
       // don't try to enroll legacy ica chains
       const actualRemoteChains = await this.app.remoteChains(chain);
+      // .remoteChains() already filters out the origin chain itself
       const filteredRemoteChains = actualRemoteChains.filter(
         (c) => !legacyIcaChains.includes(c),
       );
@@ -61,10 +62,12 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
     // are enrolled. This is so any fresh deployments are always controllable from
     // the "core" ICA controller chains.
     else {
-      return super.checkEnrolledRouters(
-        chain,
-        Array.from(FULLY_CONNECTED_ICA_CHAINS),
+      // have to manually filter out the origin chain itself
+      // and then filter out legacy ica chains
+      const remotes = Array.from(FULLY_CONNECTED_ICA_CHAINS).filter(
+        (c) => c !== chain && !legacyIcaChains.includes(c),
       );
+      return super.checkEnrolledRouters(chain, remotes);
     }
   }
 
