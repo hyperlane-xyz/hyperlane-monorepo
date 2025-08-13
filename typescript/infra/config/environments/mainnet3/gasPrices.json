@@ -287,6 +287,10 @@
     "amount": "0.01",
     "decimals": 9
   },
+  "mitosis": {
+    "amount": "1.000000007",
+    "decimals": 9
+  },
   "mode": {
     "amount": "0.001000457",
     "decimals": 9

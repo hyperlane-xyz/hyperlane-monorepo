@@ -445,5 +445,8 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+  },
+  "mitosis": {
+    "validators": ["0x3b3eb808d90a4e19bb601790a6b6297812d6a61f"]
   }
 }
