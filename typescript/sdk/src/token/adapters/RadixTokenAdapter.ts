@@ -239,7 +239,7 @@ export class RadixHypCollateralAdapter
         custom_hook_metadata: '',
         max_fee: {
           denom: params.interchainGas.addressOrDenom || '',
-          amount: params.interchainGas.amount.toString(),
+          amount: (Number(params.interchainGas.amount) / 1e18).toString(), // convert to float with precision
         },
       }),
     };

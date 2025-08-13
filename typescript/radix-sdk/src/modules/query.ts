@@ -750,7 +750,7 @@ CALL_METHOD
 
     return {
       resource: entries[0].key.value,
-      amount: BigInt(entries[0].value.value),
+      amount: BigInt(Math.floor(+entries[0].value.value * 1e18)),
     };
   }
 }

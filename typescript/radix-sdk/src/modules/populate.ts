@@ -547,7 +547,6 @@ export class RadixPopulate {
     assert(origin_denom, `no origin_denom found on token ${token}`);
 
     return new ManifestBuilder()
-      .callMethod(from_address, 'lock_fee', [decimal(this.gasAmount)])
       .callMethod(from_address, 'withdraw', [
         address(origin_denom),
         decimal(tokenAmount),
