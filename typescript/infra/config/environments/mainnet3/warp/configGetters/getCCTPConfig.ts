@@ -10,7 +10,7 @@ import {
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { awIcas } from '../../governance/ica/aw.js';
+import { awIcasLegacy } from '../../governance/ica/_awLegacy.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import {
   messageTransmitterAddresses,
@@ -37,7 +37,7 @@ export const getCCTPWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   return Object.fromEntries(
     CCTP_CHAINS.map((chain) => {
-      const owner = awIcas[chain] ?? awSafes[chain];
+      const owner = awIcasLegacy[chain] ?? awSafes[chain];
       assert(owner, `Owner not found for ${chain}`);
       const config: HypTokenRouterConfig = {
         owner,
@@ -62,7 +62,7 @@ const safeSubmitter: SubmitterMetadata = {
   safeAddress: icaOwner,
 };
 
-const icaChains = Object.keys(awIcas);
+const icaChains = Object.keys(awIcasLegacy);
 
 export const getCCTPStrategyConfig = (): ChainSubmissionStrategy => {
   const submitterMetadata = CCTP_CHAINS.map((chain): SubmitterMetadata => {

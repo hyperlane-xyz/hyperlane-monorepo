@@ -142,7 +142,7 @@ export async function tryInitializeGcpLogger(options?: {
 
   try {
     const { createGcpLoggingPinoConfig } = await import(
-      '@google-cloud/pino-logging-gcp-config'
+      /* webpackIgnore: true */ '@google-cloud/pino-logging-gcp-config'
     );
     const serviceContext = options
       ? {
