@@ -258,8 +258,10 @@ export function hyperlaneWarpRebalancer(
   destination?: string,
   amount?: string,
   key?: string,
+  explorerUrl?: string,
 ): ProcessPromise {
-  return $`${localTestRunCmdPrefix()} hyperlane warp rebalancer \
+  const rebalancerAddress = new Wallet(key ?? ANVIL_KEY).address;
+  return $`${explorerUrl ? [`EXPLORER_API_URL=${explorerUrl}`] : []} REBALANCER=${rebalancerAddress} ${localTestRunCmdPrefix()} hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
         --checkFrequency ${checkFrequency} \
         --config ${config} \
