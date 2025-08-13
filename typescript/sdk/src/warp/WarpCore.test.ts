@@ -43,6 +43,7 @@ describe('WarpCore', () => {
   let evmHypXERC20: Token;
   let evmHypVSXERC20: Token;
   let evmHypXERC20Lockbox: Token;
+  let evmHypCollateralFiat: Token;
   let sealevelHypSynthetic: Token;
   let cwHypCollateral: Token;
   let cw20: Token;
@@ -74,6 +75,7 @@ describe('WarpCore', () => {
       evmHypXERC20Lockbox,
       evmHypNativeScale1,
       evmHypNativeScale2,
+      evmHypCollateralFiat,
       sealevelHypSynthetic,
       cwHypCollateral,
       cw20,
@@ -337,6 +339,18 @@ describe('WarpCore', () => {
     expect(Object.values(invalidXERC20LockboxTokenRateLimit || {})[0]).to.equal(
       'Rate limit exceeded on destination',
     );
+
+    const invalidCollateralFiatTokenRateLimit = await warpCore.validateTransfer(
+      {
+        originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
+        destination: evmHypCollateralFiat.chainName,
+        recipient: MOCK_ADDRESS,
+        sender: MOCK_ADDRESS,
+      },
+    );
+    expect(
+      Object.values(invalidCollateralFiatTokenRateLimit || {})[0],
+    ).to.equal('Rate limit exceeded on destination');
 
     const invalidCollateralXERC20LockboxToken = await warpCore.validateTransfer(
       {

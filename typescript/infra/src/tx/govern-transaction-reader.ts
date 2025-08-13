@@ -53,10 +53,12 @@ import {
   getAllSafesForChain,
   getGovernanceIcas,
   getGovernanceSafes,
+  getGovernanceTimelocks,
+  getLegacyGovernanceIcas,
 } from '../../config/environments/mainnet3/governance/utils.js';
 import {
   icaOwnerChain,
-  timelocks,
+  timelocks as legacyTimelocks,
 } from '../../config/environments/mainnet3/owners.js';
 import {
   getEnvironmentConfig,
@@ -119,6 +121,11 @@ type XERC20Metadata = {
   decimals: number;
 };
 
+const ownableFunctionSelectors = [
+  'renounceOwnership()',
+  'transferOwnership(address)',
+].map((func) => ethers.utils.id(func).substring(0, 10));
+
 export class GovernTransactionReader {
   errors: any[] = [];
 
@@ -150,6 +157,8 @@ export class GovernTransactionReader {
     const warpRoutes = await registry.getWarpRoutes();
     const safes = getGovernanceSafes(governanceType);
     const icas = getGovernanceIcas(governanceType);
+    const legacyIcas = getLegacyGovernanceIcas(governanceType);
+    const timelocks = getGovernanceTimelocks(governanceType);
 
     const txReaderInstance = new GovernTransactionReader(
       environment,
@@ -159,6 +168,8 @@ export class GovernTransactionReader {
       warpRoutes,
       safes,
       icas,
+      legacyIcas,
+      timelocks,
     );
     await txReaderInstance.init();
     return txReaderInstance;
@@ -172,6 +183,8 @@ export class GovernTransactionReader {
     warpRoutes: Record<string, WarpCoreConfig>,
     readonly safes: ChainMap<string>,
     readonly icas: ChainMap<string>,
+    readonly legacyIcas: ChainMap<string>,
+    readonly timelocks: ChainMap<string>,
   ) {
     this.rawWarpRouteConfigMap = warpRoutes;
   }
@@ -257,6 +270,11 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
+    // If it's an Ownable transaction
+    if (await this.isOwnableTransaction(tx)) {
+      return this.readOwnableTransaction(chain, tx);
+    }
+
     // If it's to another Safe
     if (this.isSafeTransaction(chain, tx)) {
       return this.readSafeTransaction(chain, tx);
@@ -306,11 +324,6 @@ export class GovernTransactionReader {
     // If it's to a Proxy Admin
     if (await this.isProxyAdminTransaction(chain, tx)) {
       return this.readProxyAdminTransaction(chain, tx);
-    }
-
-    // If it's an Ownable transaction
-    if (await this.isOwnableTransaction(chain, tx)) {
-      return this.readOwnableTransaction(chain, tx);
     }
 
     // If it's a native token transfer (no data, only value)
@@ -448,11 +461,14 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): boolean {
-    return (
-      tx.to !== undefined &&
-      timelocks[chain] !== undefined &&
-      eqAddress(tx.to!, timelocks[chain]!)
-    );
+    const isNewTimelock =
+      this.timelocks[chain] !== undefined &&
+      eqAddress(tx.to!, this.timelocks[chain]!);
+    const isLegacyTimelock =
+      legacyTimelocks[chain] !== undefined &&
+      eqAddress(tx.to!, legacyTimelocks[chain]!);
+
+    return tx.to !== undefined && (isNewTimelock || isLegacyTimelock);
   }
 
   private async readTimelockControllerTransaction(
@@ -487,6 +503,31 @@ export class GovernTransactionReader {
       const eta = new Date(Date.now() + delay.toNumber() * 1000);
 
       insight = `Schedule for ${eta}: ${JSON.stringify(inner)}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
+        'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
+      ].name
+    ) {
+      const [targets, values, data, _predecessor, _salt, delay] = decoded.args;
+
+      const innerTxs = [];
+      const numOfTxs = targets.length;
+      for (let i = 0; i < numOfTxs; i++) {
+        innerTxs.push(
+          await this.read(chain, {
+            to: targets[i],
+            data: data[i],
+            value: values[i],
+          }),
+        );
+      }
+
+      const eta = new Date(Date.now() + delay.toNumber() * 1000);
+
+      insight = `Schedule for ${eta}: ${JSON.stringify(innerTxs, null, 2)}`;
     }
 
     if (
@@ -1171,11 +1212,17 @@ export class GovernTransactionReader {
       ismOverride: ism,
     });
     const expectedRemoteIcaAddress = this.icas[remoteChainName];
+    const expectedLegacyRemoteIcaAddress = this.legacyIcas[remoteChainName];
     let remoteIcaInsight = '✅ matches expected ICA';
-    if (
-      !expectedRemoteIcaAddress ||
-      !eqAddress(remoteIcaAddress, expectedRemoteIcaAddress)
-    ) {
+
+    const isValidIca =
+      expectedRemoteIcaAddress &&
+      eqAddress(remoteIcaAddress, expectedRemoteIcaAddress);
+    const isValidLegacyIca =
+      expectedRemoteIcaAddress &&
+      eqAddress(remoteIcaAddress, expectedLegacyRemoteIcaAddress);
+
+    if (!isValidIca && !isValidLegacyIca) {
       this.errors.push({
         chain: chain,
         remoteDomain: destination,
@@ -1351,21 +1398,9 @@ export class GovernTransactionReader {
     );
   }
 
-  async isOwnableTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<boolean> {
-    if (!tx.to) return false;
-    try {
-      const account = Ownable__factory.connect(
-        tx.to,
-        this.multiProvider.getProvider(chain),
-      );
-      await account.owner();
-      return true;
-    } catch {
-      return false;
-    }
+  async isOwnableTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
+    if (!tx.to || !tx.data) return false;
+    return ownableFunctionSelectors.includes(tx.data.substring(0, 10));
   }
 
   private isSafeTransaction(

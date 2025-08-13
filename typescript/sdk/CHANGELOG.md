@@ -6,9 +6,78 @@
 
 - e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additonal updates to types related to these changes.
 
+## 16.2.0
+
+### Minor Changes
+
+- 22ceaa109: Add xERC20 adapter with getLimits()
+- a89018a3f: Make `getWrappedTokenAddress` public, add LOCKBOX_STANDARDS
+
+### Patch Changes
+
+- ce4974214: Add cctp to getActualDecimals.
+  - @hyperlane-xyz/starknet-core@16.2.0
+  - @hyperlane-xyz/cosmos-sdk@16.2.0
+  - @hyperlane-xyz/utils@16.2.0
+  - @hyperlane-xyz/core@9.0.5
+
+## 16.1.1
+
+### Patch Changes
+
+- ea77b6ae4: Add Starknet protocol type.
+  - @hyperlane-xyz/starknet-core@16.1.1
+  - @hyperlane-xyz/cosmos-sdk@16.1.1
+  - @hyperlane-xyz/utils@16.1.1
+  - @hyperlane-xyz/core@9.0.4
+
+## 16.1.0
+
+### Minor Changes
+
+- 2a2c29c39: Add the `EvmTimelockReader` class to get pending/scheduled transaction from a timelock contract. Add the `EvmEventLogsReader` to read logs on a given chain reliably either using the rpc or the block explorer api depending on what is available in the registry
+
+### Patch Changes
+
+- e69ac9f62: Updated the HypERC20Checker to use a default anvil address instead of the signer address when asserting if a token is a hyp native
+- d9b8a7551: Handle etherscan v2 api migration
+  - @hyperlane-xyz/starknet-core@16.1.0
+  - @hyperlane-xyz/cosmos-sdk@16.1.0
+  - @hyperlane-xyz/utils@16.1.0
+  - @hyperlane-xyz/core@9.0.3
+
+## 16.0.0
+
+### Major Changes
+
+- d200acfa8: Add support for submitting transactions using Timelock contracts
+- 1f4412909: Remove a circular import dependency between the sdk and registry package by not importing the IRegistry interface in the sdk
+
+### Minor Changes
+
+- 9f3222962: Add limit check for EvmCollateralFiat tokens
+- a71193486: Implemented class for deploying timelocks
+- af783be54: Updated the timelock deployer class to allow configuration of cancellers on contract deployment
+
+### Patch Changes
+
+- 966ad8440: Fix Starknet Adapter: balance_of
+- fabb4a5af: Introduced a shared eslint configuration that is applied to the SDK
+  - @hyperlane-xyz/starknet-core@16.0.0
+  - @hyperlane-xyz/cosmos-sdk@16.0.0
+  - @hyperlane-xyz/utils@16.0.0
+  - @hyperlane-xyz/core@9.0.2
+
+## 15.0.0
+
+### Minor Changes
+
+- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additional updates to types related to these changes.
+
 ### Patch Changes
 
 - 23861b70a: Don't `handleTx` for zksync, since the zksync deployer itself will handle it.
+  <<<<<<< HEAD
 - e0c69e255: Implement token fees on FungibleTokenRouter
 
   Removes `metadata` from return type of internal `TokenRouter._transferFromSender` hook
@@ -30,7 +99,16 @@
   - @hyperlane-xyz/core@10.0.0-beta.0
   - @hyperlane-xyz/utils@15.0.0-beta.0
   - @hyperlane-xyz/starknet-core@15.0.0-beta.0
-  - @hyperlane-xyz/cosmos-sdk@15.0.0-beta.0
+  - # @hyperlane-xyz/cosmos-sdk@15.0.0-beta.0
+- a33c8abd4: Use `convertToScaledAmount` in WarpCore
+- d16a853c0: Update paradex AW validator address.
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [a33c8abd4]
+  - @hyperlane-xyz/utils@15.0.0
+  - @hyperlane-xyz/core@9.0.1
+  - @hyperlane-xyz/starknet-core@15.0.0
+  - @hyperlane-xyz/cosmos-sdk@15.0.0
+    > > > > > > > main
 
 ## 14.4.0
 

@@ -212,34 +212,6 @@ pub mod serde_u128 {
     }
 }
 
-/// Shortcut for many-to-one match statements that get very redundant. Flips the
-/// order such that the thing which is mapped to is listed first.
-///
-/// ```ignore
-/// match v {
-///   V1 => A,
-///   V2 => A,
-///   V3 => B,
-///   V4 => B,
-/// }
-///
-/// // becomes
-///
-/// many_to_one!(match v {
-///     A: [V1, V2],
-///     B: [v3, V4],
-/// })
-/// ```
-macro_rules! many_to_one {
-    (match $v:ident {
-        $($result:path: [$($source:path),*$(,)?]),*$(,)?
-    }) => {
-        match $v {
-            $($( $source => $result, )*)*
-        }
-    }
-}
-
 /// Unwrap an expression that returns an `Option`, and return `Ok(None)` if it is `None`.
 /// Otherwise, assign the value to the given variable name.
 /// We use the pattern of returning `Ok(None)` a lot because of our retry logic,
@@ -264,5 +236,3 @@ macro_rules! unwrap_or_none_result {
         };
     };
 }
-
-pub(crate) use many_to_one;

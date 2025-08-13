@@ -190,8 +190,9 @@ impl Scraper {
 
         Ok(tokio::spawn(
             async move {
-                // If any of the tasks panic, we want to propagate it, so we unwrap
-                try_join_all(tasks).await.unwrap();
+                try_join_all(tasks)
+                    .await
+                    .expect("Some scraper tasks failed");
             }
             .instrument(info_span!("Scraper Tasks")),
         ))
@@ -206,10 +207,7 @@ impl Scraper {
         info!(domain = domain.name(), "create chain scraper for domain");
         let chain_setup = settings.chain_setup(domain)?;
         info!(domain = domain.name(), "create HyperlaneProvider");
-        let provider = settings
-            .build_provider(domain, &metrics.clone())
-            .await?
-            .into();
+        let provider = chain_setup.build_provider(&metrics).await?.into();
         info!(domain = domain.name(), "create HyperlaneDbStore");
         let store = HyperlaneDbStore::new(
             scraper_db,
@@ -264,6 +262,7 @@ impl Scraper {
         store: HyperlaneDbStore,
         index_settings: IndexSettings,
     ) -> eyre::Result<(JoinHandle<()>, Option<BroadcastMpscSender<H512>>)> {
+        let label = "message_dispatch";
         let sync = self
             .as_ref()
             .settings
@@ -277,18 +276,22 @@ impl Scraper {
             )
             .await
             .map_err(|err| {
-                tracing::error!(?err, ?domain, "Error syncing sequenced contract");
+                tracing::error!(
+                    ?err,
+                    domain = domain.name(),
+                    label,
+                    "Error syncing sequenced contract"
+                );
                 err
             })?;
         let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, ?domain, "Error getting cursor");
+            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
             err
         })?;
         let maybe_broadcaser = sync.get_broadcaster();
         let task = tokio::spawn(
-            async move { sync.sync("message_dispatch", cursor.into()).await }.instrument(
-                info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"),
-            ),
+            async move { sync.sync(label, cursor.into()).await }
+                .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label)),
         );
         Ok((task, maybe_broadcaser))
     }
@@ -301,6 +304,7 @@ impl Scraper {
         store: HyperlaneDbStore,
         index_settings: IndexSettings,
     ) -> eyre::Result<JoinHandle<()>> {
+        let label = "message_delivery";
         let sync = self
             .as_ref()
             .settings
@@ -314,13 +318,16 @@ impl Scraper {
             )
             .await
             .map_err(|err| {
-                tracing::error!(?err, ?domain, "Error syncing contract");
+                tracing::error!(
+                    ?err,
+                    domain = domain.name(),
+                    label,
+                    "Error syncing contract"
+                );
                 err
             })?;
-
-        let label = "message_delivery";
         let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, ?domain, "Error getting cursor");
+            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
             err
         })?;
         // there is no txid receiver for delivery indexing, since delivery txs aren't batched with
@@ -340,6 +347,7 @@ impl Scraper {
         index_settings: IndexSettings,
         tx_id_receiver: Option<MpscReceiver<H512>>,
     ) -> eyre::Result<JoinHandle<()>> {
+        let label = "gas_payment";
         let sync = self
             .as_ref()
             .settings
@@ -353,13 +361,16 @@ impl Scraper {
             )
             .await
             .map_err(|err| {
-                tracing::error!(?err, ?domain, "Error syncing contract");
+                tracing::error!(
+                    ?err,
+                    domain = domain.name(),
+                    label,
+                    "Error syncing contract"
+                );
                 err
             })?;
-
-        let label = "gas_payment";
         let cursor = sync.cursor(index_settings.clone()).await.map_err(|err| {
-            tracing::error!(?err, ?domain, "Error getting cursor");
+            tracing::error!(?err, domain = domain.name(), label, "Error getting cursor");
             err
         })?;
         Ok(tokio::spawn(
@@ -465,9 +476,20 @@ mod test {
             },
         )];
 
+        let chains = chains
+            .into_iter()
+            .map(|(_, conf)| (conf.domain.clone(), conf))
+            .collect::<HashMap<_, _>>();
+
+        let domains = chains
+            .keys()
+            .map(|domain| (domain.name().to_string(), domain.clone()))
+            .collect();
+
         ScraperSettings {
             base: Settings {
-                chains: chains.into_iter().collect(),
+                domains,
+                chains,
                 metrics_port: 5000,
                 tracing: TracingConfig::default(),
             },
