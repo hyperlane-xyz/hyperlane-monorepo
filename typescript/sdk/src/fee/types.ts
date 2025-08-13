@@ -35,8 +35,8 @@ export const onChainTypeToTokenFeeTypeMap: Record<
 export const BaseFeeConfigSchema = z.object({
   token: ZHash,
   owner: ZHash,
-  maxFee: ZBigNumberish.default(0n),
-  halfAmount: ZBigNumberish.default(0n),
+  maxFee: ZBigNumberish.default(0n).transform(BigInt),
+  halfAmount: ZBigNumberish.default(0n).transform(BigInt),
   bps: z.number().default(0),
 });
 
