@@ -117,3 +117,42 @@ async fn test_assign_nonce_error_when_from_address_mismatch() {
         .to_string()
         .contains("Transaction from address does not match nonce manager address"));
 }
+
+#[tokio::test]
+async fn test_nonce_gets_loaded_from_db() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let other_address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+    let nonce_updater = make_nonce_updater(address, state.clone());
+    let manager = NonceManager {
+        address,
+        state,
+        nonce_updater,
+    };
+
+    let uuid = TransactionUuid::random();
+
+    let expected_nonce = U256::from(100);
+    manager
+        .state
+        .nonce_db()
+        .store_nonce_by_transaction_uuid(&uuid, &expected_nonce)
+        .await
+        .expect("Failed to store nonce");
+
+    // From address does not match manager address
+    let mut tx = make_tx(
+        uuid.clone(),
+        TransactionStatus::PendingInclusion,
+        None,
+        Some(other_address),
+    );
+
+    let nonce = manager
+        .calculate_next_nonce(&mut tx)
+        .await
+        .expect("Failed to calculate next once");
+    assert_eq!(nonce, Some(expected_nonce));
+}

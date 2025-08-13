@@ -30,4 +30,8 @@ impl NonceManagerState {
             metrics,
         }
     }
+
+    pub fn nonce_db(&self) -> &Arc<dyn NonceDb> {
+        &self.nonce_db
+    }
 }

@@ -40,6 +40,9 @@ impl NonceManagerState {
         self.nonce_db
             .store_transaction_uuid_by_nonce_and_signer_address(nonce, &self.address, tx_uuid)
             .await?;
+        self.nonce_db
+            .store_nonce_by_transaction_uuid(tx_uuid, nonce)
+            .await?;
 
         Ok(())
     }
