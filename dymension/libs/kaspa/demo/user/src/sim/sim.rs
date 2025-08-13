@@ -37,9 +37,9 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
-const DEFAULT_RPC_URL: &str = "https://rpc-dymension-playground35.mzonder.com:443";
-const DEFAULT_GRPC_URL: &str = "https://grpc-dymension-playground35.mzonder.com:443";
-const DEFAULT_CHAIN_ID: &str = "dymension_3405-1";
+const DEFAULT_RPC_URL: &str = "https://dymension-rpc.polkachu.com:443";
+const DEFAULT_GRPC_URL: &str = "https://dymension-grpc.polkachu.com:443";
+const DEFAULT_CHAIN_ID: &str = "dymension_1100-1";
 const DEFAULT_PREFIX: &str = "dym";
 const DEFAULT_DENOM: &str = "adym";
 const DEFAULT_DECIMALS: u32 = 18;
@@ -69,6 +69,7 @@ async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosNativeProvider> {
     let locator = ContractLocator::new(&d, H256::zero());
     let hub_key = EasyHubKey::from_hex(signer_key_hex);
     let signer = Some(hub_key.signer());
+    debug!("signer: {:?}", signer);
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
     CosmosNativeProvider::new(&conf, &locator, signer, metrics, chain).map_err(eyre::Report::from)
@@ -285,11 +286,12 @@ async fn fund_hub_addr(
     match response {
         Ok(response) => {
             if response.tx_result.code.is_ok() {
+                info!("Funded hub address: {}", hub_addr);
                 Ok(())
             } else {
                 Err(eyre::eyre!(
                     "Failed to fund hub address, non success code: {:?}",
-                    response.tx_result.code
+                    response
                 ))
             }
         }
@@ -307,5 +309,15 @@ mod tests {
         let h = H256::random();
         let s = format!("{:?}", h);
         println!("s: {}", s);
+    }
+
+    #[tokio::test]
+    async fn test_fund_hub_addr() {
+        tracing_subscriber::fmt::init();
+        let recipient = EasyHubKey::new();
+        println!("recipient: {:?}", recipient.signer().address_string);
+        let k = "7c3ea937a1578534cbe33bc22486d837436d99d0fb66cf1e5f9c9aa120e05964";
+        let hub = cosmos_provider(&k).await.unwrap();
+        fund_hub_addr(&recipient, &hub, 100).await.unwrap();
     }
 }
