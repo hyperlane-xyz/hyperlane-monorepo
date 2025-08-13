@@ -1,13 +1,17 @@
 import { z } from 'zod';
 
-import { ZChainName } from '../metadata/customZodTypes.js';
+import {
+  ZBigNumberish,
+  ZChainName,
+  ZHash,
+} from '../metadata/customZodTypes.js';
 
+// Matches the enum in BaseFee.sol
 export enum OnchainTokenFeeType {
-  ZeroFee,
-  LinearFee,
-  RegressiveFee,
-  ProgressiveFee,
-  RoutingFee,
+  LinearFee = 1,
+  RegressiveFee = 2,
+  ProgressiveFee = 3,
+  RoutingFee = 4,
 }
 
 export enum TokenFeeType {
@@ -17,11 +21,22 @@ export enum TokenFeeType {
   RoutingFee = 'RoutingFee',
 }
 
-const BaseFeeConfigSchema = z.object({
-  token: z.string(),
-  owner: z.string(),
-  maxFee: z.string().default('0'),
-  halfAmount: z.string().default('0'),
+// Mapping between the on-chain token fee type (uint) and the token fee type (string)
+export const onChainTypeToTokenFeeTypeMap: Record<
+  OnchainTokenFeeType,
+  TokenFeeType
+> = {
+  [OnchainTokenFeeType.LinearFee]: TokenFeeType.LinearFee,
+  [OnchainTokenFeeType.RegressiveFee]: TokenFeeType.RegressiveFee,
+  [OnchainTokenFeeType.ProgressiveFee]: TokenFeeType.ProgressiveFee,
+  [OnchainTokenFeeType.RoutingFee]: TokenFeeType.RoutingFee,
+};
+
+export const BaseFeeConfigSchema = z.object({
+  token: ZHash,
+  owner: ZHash,
+  maxFee: ZBigNumberish.default(0n),
+  halfAmount: ZBigNumberish.default(0n),
   bps: z.number().default(0),
 });
 
@@ -48,9 +63,14 @@ const RegressiveFeeConfigSchema = z.object({
 
 export type RegressiveFeeConfig = z.infer<typeof RegressiveFeeConfigSchema>;
 
-const RoutingFeeConfigSchema = z.object({
+export const RoutingFeeConfigSchema = z.object({
   type: z.literal(TokenFeeType.RoutingFee),
-  feeContracts: z.record(ZChainName, BaseFeeConfigSchema), // Destination -> Fee
+  feeContracts: z
+    .record(
+      ZChainName,
+      z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
+    )
+    .optional(), // Destination -> Fee
   ...BaseFeeConfigSchema.shape,
 });
 

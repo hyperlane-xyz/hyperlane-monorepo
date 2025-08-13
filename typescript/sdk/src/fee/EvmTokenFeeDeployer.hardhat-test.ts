@@ -12,13 +12,14 @@ import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { evmTokenFeeFactories } from './contracts.js';
 import {
   LinearFeeConfig,
+  RoutingFeeConfigSchema,
   TokenFeeConfig,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
 
-const MAX_FEE = '100000000000000000000';
-const HALF_AMOUNT = '50000000000000000000';
+const MAX_FEE = 100000000000000000000n;
+const HALF_AMOUNT = 50000000000000000000n;
 describe('EvmTokenFeeDeployer', () => {
   let multiProvider: MultiProvider;
   let deployer: EvmTokenFeeDeployer;
@@ -144,5 +145,42 @@ describe('EvmTokenFeeDeployer', () => {
       MAX_FEE,
     );
     expect(quote2.length).to.equal(0);
+  });
+
+  it('should deploy RoutingFee with multiple fee contracts', async () => {
+    const config = RoutingFeeConfigSchema.parse({
+      type: TokenFeeType.RoutingFee,
+      owner: signer.address,
+      token: token.address,
+      feeContracts: {
+        [TestChainName.test2]: {
+          type: TokenFeeType.LinearFee,
+          token: token.address,
+          owner: signer.address,
+          maxFee: MAX_FEE,
+          halfAmount: HALF_AMOUNT,
+          bps: 1000,
+        },
+      },
+    });
+
+    const deployedContracts = await deployer.deploy({
+      [TestChainName.test2]: config,
+    });
+
+    const routingFeeContract =
+      deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee];
+
+    expect(await routingFeeContract.owner()).to.equal(config.owner);
+    expect(await routingFeeContract.token()).to.equal(config.token);
+
+    // Read the actual address of the deployed routing fee contract
+    const actualLinearFeeAddress = await routingFeeContract.feeContracts(
+      multiProvider.getChainId(TestChainName.test2),
+    );
+
+    expect(actualLinearFeeAddress).to.equal(
+      deployedContracts[TestChainName.test2][TokenFeeType.LinearFee].address,
+    );
   });
 });
