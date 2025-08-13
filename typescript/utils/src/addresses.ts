@@ -404,6 +404,9 @@ export function addressToBytes(
     new Uint8Array(),
     protocol,
   );
+  if (!bytes.length) {
+    return Buffer.from(strip0x(ethersUtils.hexZeroPad(address, 32)), 'hex');
+  }
   assert(
     bytes.length && !bytes.every((b) => b == 0),
     'address bytes must not be empty',
@@ -426,7 +429,8 @@ export function addressToBytes32(
 ): string {
   // If the address is already bytes32, just return, avoiding a regression
   // where an already bytes32 address cannot be categorized as a protocol address.
-  if (HEX_BYTES32_REGEX.test(ensure0x(address))) return ensure0x(address);
+  if (HEX_BYTES32_REGEX.test(ensure0x(address)))
+    return addressToBytes32Evm(address);
 
   const bytes = addressToBytes(address, protocol);
   return bytesToBytes32(bytes);
@@ -481,8 +485,18 @@ export function bytesToAddressRadix(
   prefix: string,
 ): Address {
   if (!prefix) throw new Error('Prefix required for Radix address');
+  // padd the bytes to be 30 bytes long, left pad with zeros
+  // If the bytes array is larger than or equal to 30 bytes, take the last 30 bytes
+  // Otherwise, pad with zeros from the left up to 30 bytes
+  if (bytes.length >= 30) {
+    bytes = bytes.slice(bytes.length - 30);
+  } else {
+    const paddedBytes = new Uint8Array(30);
+    paddedBytes.set(bytes, 30 - bytes.length);
+    bytes = paddedBytes;
+  }
 
-  return bech32m.encode(prefix, bech32m.fromWords(bytes));
+  return bech32m.encode(prefix, bech32m.toWords(bytes));
 }
 
 export function bytesToProtocolAddress(
