@@ -285,15 +285,24 @@ async fn fund_hub_addr(
     let response = rpc.send(vec![a], gas_limit).await;
     match response {
         Ok(response) => {
-            if response.tx_result.code.is_ok() {
-                info!("Funded hub address: {}", hub_addr);
-                Ok(())
-            } else {
-                Err(eyre::eyre!(
-                    "Failed to fund hub address, non success code: {:?}",
-                    response
-                ))
+            // Check check_tx for errors first (mempool validation)
+            if response.check_tx.code.is_err() {
+                return Err(eyre::eyre!(
+                    "Transaction failed during CheckTx with code {:?}: {}",
+                    response.check_tx.code,
+                    response.check_tx.log
+                ));
             }
+            // Then check tx_result for execution errors
+            if response.tx_result.code.is_err() {
+                return Err(eyre::eyre!(
+                    "Transaction failed during DeliverTx with code {:?}: {}",
+                    response.tx_result.code,
+                    response.tx_result.log
+                ));
+            }
+            info!("Funded hub address: {}", hub_addr);
+            Ok(())
         }
         Err(e) => Err(eyre::eyre!("Failed to fund hub address: {:?}", e)),
     }
@@ -313,7 +322,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_fund_hub_addr() {
-        tracing_subscriber::fmt::init();
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
         let recipient = EasyHubKey::new();
         println!("recipient: {:?}", recipient.signer().address_string);
         let k = "7c3ea937a1578534cbe33bc22486d837436d99d0fb66cf1e5f9c9aa120e05964";
