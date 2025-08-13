@@ -174,15 +174,21 @@ export class RebalancerContextFactory {
       throw new Error('REBALANCER env var is not set');
     }
     const explorer = new ExplorerClient(explorerUrl);
-    const withInflight = new WithInflightGuard(
+    // Compose decorators: Inflight guard first, then semaphore, then core rebalancer
+    const withSemaphore = new WithSemaphore(
       this.config,
       rebalancer,
+      this.logger,
+    );
+    const withInflight = new WithInflightGuard(
+      this.config,
+      withSemaphore,
       explorer,
       txSender,
       new ChainMetadataManager(this.context.chainMetadata),
       this.logger,
     );
-    return new WithSemaphore(this.config, withInflight, this.logger);
+    return withInflight;
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {
