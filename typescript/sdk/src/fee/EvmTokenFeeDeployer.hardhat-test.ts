@@ -3,20 +3,19 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
-import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { evmTokenFeeFactories } from './contracts.js';
-import { LinearFeeConfig, TokenFeeConfig, TokenFeeType } from './types.js';
-
-export function assertTokenConfigForTest(
-  config: Partial<TokenFeeConfig>,
-): asserts config is TokenFeeConfig {
-  assert(config.type || !config.token || config.owner, 'Not a TokenFeeConfig');
-}
+import {
+  LinearFeeConfig,
+  TokenFeeConfig,
+  TokenFeeConfigSchema,
+  TokenFeeType,
+} from './types.js';
 
 const MAX_FEE = '100000000000000000000';
 const HALF_AMOUNT = '50000000000000000000';
@@ -72,12 +71,11 @@ describe('EvmTokenFeeDeployer', () => {
     ];
     for (const testCase of testCases) {
       it(testCase.title, async () => {
-        const config = {
+        const config = TokenFeeConfigSchema.parse({
           ...testCase.config,
           owner: signer.address,
           token: token.address,
-        };
-        assertTokenConfigForTest(config);
+        });
 
         const deployedContracts = await deployer.deploy({
           [TestChainName.test2]: config,
@@ -95,12 +93,11 @@ describe('EvmTokenFeeDeployer', () => {
   });
 
   it('should deploy RoutingFee with correct parameters', async () => {
-    const config = {
+    const config = TokenFeeConfigSchema.parse({
       type: TokenFeeType.RoutingFee,
       owner: signer.address,
       token: token.address,
-    };
-    assertTokenConfigForTest(config);
+    });
 
     const deployedContracts = await deployer.deploy({
       [TestChainName.test2]: config,
