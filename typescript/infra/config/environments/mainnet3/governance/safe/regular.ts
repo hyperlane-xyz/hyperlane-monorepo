@@ -24,5 +24,4 @@ export const regularSafes: ChainMap<Address> = {
   sophon: '0x113d3a19031Fe5DB58884D6aa54545dD4De499c0',
   zeronetwork: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
   zksync: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
-  zklink: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
 };

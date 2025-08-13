@@ -76,6 +76,46 @@ describe('ChainSubmissionStrategySchema', () => {
         },
       },
     },
+    {
+      submitter: {
+        type: TxSubmitterType.TIMELOCK_CONTROLLER,
+        chain: CHAIN_MOCK,
+        timelockAddress: OWNER_ADDRESS_MOCK,
+        proposerSubmitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          safeAddress: ADDRESS_MOCK,
+          chain: CHAIN_MOCK,
+          // Should not fail as it has a default value
+          version: undefined as any,
+        },
+      },
+    },
+    {
+      submitter: {
+        type: TxSubmitterType.TIMELOCK_CONTROLLER,
+        chain: CHAIN_MOCK,
+        timelockAddress: OWNER_ADDRESS_MOCK,
+        // It should be transformed to a bigint and not fail parsing
+        delay: '10' as any,
+        proposerSubmitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN_MOCK,
+        },
+      },
+    },
+    {
+      submitter: {
+        type: TxSubmitterType.TIMELOCK_CONTROLLER,
+        chain: CHAIN_MOCK,
+        timelockAddress: OWNER_ADDRESS_MOCK,
+        // It should be transformed to a bigint and not fail parsing
+        delay: 10 as any,
+        proposerSubmitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN_MOCK,
+        },
+      },
+    },
   ];
 
   for (const testCase of testCases) {

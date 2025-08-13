@@ -114,6 +114,11 @@ pub fn build_ethereum_connection_conf(
                 .get_opt_key("gasPriceCap")
                 .parse_u256()
                 .end(),
+            gas_price_cap_multiplier: value_parser
+                .chain(err)
+                .get_opt_key("gasPriceCapMultiplier")
+                .parse_u256()
+                .end(),
         })
         .unwrap_or_default();
 
@@ -157,23 +162,6 @@ pub fn build_cosmos_connection_conf(
             None
         });
 
-    let canonical_asset = if let Some(asset) = chain
-        .chain(err)
-        .get_opt_key("canonicalAsset")
-        .parse_string()
-        .end()
-    {
-        Some(asset.to_string())
-    } else if let Some(hrp) = prefix {
-        Some(format!("u{}", hrp))
-    } else {
-        local_err.push(
-            &chain.cwp + "canonical_asset",
-            eyre!("Missing canonical asset for chain"),
-        );
-        None
-    };
-
     let gas_price = chain
         .chain(err)
         .get_opt_key("gasPrice")
@@ -190,20 +178,35 @@ pub fn build_cosmos_connection_conf(
 
     if !local_err.is_ok() {
         err.merge(local_err);
-        None
-    } else {
-        Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
-            grpcs,
-            rpcs.to_owned(),
-            chain_id.unwrap().to_string(),
-            prefix.unwrap().to_string(),
-            canonical_asset.unwrap(),
-            gas_price.unwrap(),
-            contract_address_bytes.unwrap().try_into().unwrap(),
-            operation_batch,
-            native_token,
-        )))
+        return None;
     }
+
+    let chain_id = chain_id?;
+    let prefix = prefix?;
+    let gas_price = gas_price?;
+    let contract_address_bytes = contract_address_bytes?;
+
+    let canonical_asset = match chain
+        .chain(err)
+        .get_opt_key("canonicalAsset")
+        .parse_string()
+        .end()
+    {
+        Some(asset) => asset.to_string(),
+        None => format!("u{}", prefix),
+    };
+
+    Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
+        grpcs,
+        rpcs.to_owned(),
+        chain_id.to_string(),
+        prefix.to_string(),
+        canonical_asset,
+        gas_price,
+        contract_address_bytes as usize,
+        operation_batch,
+        native_token,
+    )))
 }
 
 pub fn build_cosmos_native_connection_conf(
@@ -239,23 +242,6 @@ pub fn build_cosmos_native_connection_conf(
             None
         });
 
-    let canonical_asset = if let Some(asset) = chain
-        .chain(err)
-        .get_opt_key("canonicalAsset")
-        .parse_string()
-        .end()
-    {
-        Some(asset.to_string())
-    } else if let Some(hrp) = prefix {
-        Some(format!("u{}", hrp))
-    } else {
-        local_err.push(
-            &chain.cwp + "canonical_asset",
-            eyre!("Missing canonical asset for chain"),
-        );
-        None
-    };
-
     let gas_price = chain
         .chain(err)
         .get_opt_key("gasPrice")
@@ -279,29 +265,41 @@ pub fn build_cosmos_native_connection_conf(
 
     if !local_err.is_ok() {
         err.merge(local_err);
-        None
-    } else {
-        let gas_price = gas_price.unwrap();
-        let gas_price = h_cosmos_native::RawCosmosAmount {
-            denom: gas_price.denom,
-            amount: gas_price.amount,
-        };
-
-        Some(ChainConnectionConf::CosmosNative(
-            h_cosmos_native::ConnectionConf::new(
-                rpcs.to_owned(),
-                grpcs,
-                chain_id.unwrap().to_string(),
-                prefix.unwrap().to_string(),
-                canonical_asset.unwrap(),
-                gas_price,
-                gas_multiplier,
-                contract_address_bytes.unwrap().try_into().unwrap(),
-                operation_batch,
-                native_token,
-            ),
-        ))
+        return None;
     }
+    let gas_price = gas_price?;
+    let gas_price = h_cosmos_native::RawCosmosAmount {
+        denom: gas_price.denom,
+        amount: gas_price.amount,
+    };
+    let contract_address_bytes: usize = contract_address_bytes.and_then(|v| v.try_into().ok())?;
+
+    let chain_id = chain_id?;
+    let prefix = prefix?;
+    let canonical_asset = match chain
+        .chain(err)
+        .get_opt_key("canonicalAsset")
+        .parse_string()
+        .end()
+    {
+        Some(asset) => asset.to_string(),
+        None => format!("u{}", prefix),
+    };
+
+    Some(ChainConnectionConf::CosmosNative(
+        h_cosmos_native::ConnectionConf::new(
+            rpcs.to_owned(),
+            grpcs,
+            chain_id.to_string(),
+            prefix.to_string(),
+            canonical_asset,
+            gas_price,
+            gas_multiplier,
+            contract_address_bytes,
+            operation_batch,
+            native_token,
+        ),
+    ))
 }
 
 fn build_starknet_connection_conf(
@@ -346,16 +344,18 @@ fn build_sealevel_connection_conf(
 
     if !local_err.is_ok() {
         err.merge(local_err);
-        None
-    } else {
-        Some(ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
-            urls: urls.to_owned(),
-            op_submission_config: operation_batch,
-            native_token,
-            priority_fee_oracle: priority_fee_oracle.unwrap(),
-            transaction_submitter: transaction_submitter.unwrap(),
-        }))
+        return None;
     }
+
+    let priority_fee_oracle = priority_fee_oracle?;
+    let transaction_submitter = transaction_submitter?;
+    Some(ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
+        urls: urls.to_owned(),
+        op_submission_config: operation_batch,
+        native_token,
+        priority_fee_oracle,
+        transaction_submitter,
+    }))
 }
 
 fn parse_native_token(
@@ -419,15 +419,13 @@ fn parse_sealevel_priority_fee_oracle_config(
                 if !err.is_ok() {
                     return None;
                 }
-                let config = HeliusPriorityFeeOracleConfig {
-                    url: value_parser
-                        .chain(err)
-                        .get_key("url")
-                        .parse_from_str("Invalid url")
-                        .end()
-                        .unwrap(),
-                    fee_level: fee_level.unwrap(),
-                };
+                let url: Url = value_parser
+                    .chain(err)
+                    .get_key("url")
+                    .parse_from_str("Invalid url")
+                    .end()?;
+                let fee_level = fee_level?;
+                let config = HeliusPriorityFeeOracleConfig { url, fee_level };
                 Some(PriorityFeeOracleConfig::Helius(config))
             }
             _ => {
