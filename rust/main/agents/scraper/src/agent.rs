@@ -5,7 +5,7 @@ use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H512};
 use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle};
-use tracing::{info, info_span, trace, Instrument};
+use tracing::{info, info_span, instrument, trace, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
@@ -148,6 +148,7 @@ impl BaseAgent for Scraper {
 impl Scraper {
     /// Sync contract data and other blockchain with the current chain state.
     /// This will spawn long-running contract sync tasks
+    #[instrument(fields(domain=%scraper.domain.name()), skip_all)]
     async fn scrape(&self, scraper: &ChainScraper) -> eyre::Result<JoinHandle<()>> {
         let store = scraper.store.clone();
         let index_settings = scraper.index_settings.clone();
@@ -198,6 +199,7 @@ impl Scraper {
         ))
     }
 
+    #[instrument(fields(domain=%domain.name()), skip_all)]
     async fn build_chain_scraper(
         domain: &HyperlaneDomain,
         settings: &ScraperSettings,
