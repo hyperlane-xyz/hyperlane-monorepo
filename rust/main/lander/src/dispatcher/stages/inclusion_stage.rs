@@ -1,13 +1,13 @@
+use chrono::{DateTime, Utc};
+use derive_new::new;
+use eyre::{eyre, Result};
+use futures_util::future::try_join_all;
+use futures_util::try_join;
 use std::cmp::max;
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
-
-use derive_new::new;
-use eyre::{eyre, Result};
-use futures_util::future::try_join_all;
-use futures_util::try_join;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 use tracing::{error, info, info_span, instrument, warn, Instrument};
@@ -157,36 +157,8 @@ impl InclusionStage {
         let now = chrono::Utc::now();
 
         for (_, mut tx) in pool_snapshot {
-            // Implement per-transaction backoff: don't check transactions too frequently
-            if let Some(last_check) = tx.last_status_check {
-                let time_since_last_check = now.signed_duration_since(last_check);
-
-                // Calculate the backoff interval based on how long the transaction has been pending
-                let tx_age = now.signed_duration_since(tx.creation_timestamp);
-                let backoff_interval = if tx_age.num_seconds() < 30 {
-                    // New transactions: check every quarter of block time (responsive)
-                    // But for very new transactions (< 1 second), allow immediate recheck for testing
-                    if tx_age.num_seconds() < 1 {
-                        Duration::from_nanos(0) // Immediate for tests
-                    } else {
-                        max(base_interval / 4, MIN_TX_STATUS_CHECK_DELAY / 4)
-                    }
-                } else if tx_age.num_seconds() < 300 {
-                    // Medium age transactions: check every half of block time
-                    max(base_interval / 2, MIN_TX_STATUS_CHECK_DELAY / 2)
-                } else {
-                    // Old transactions: check every full block time
-                    max(base_interval, MIN_TX_STATUS_CHECK_DELAY)
-                };
-
-                // Skip this transaction if we checked it too recently
-                if time_since_last_check
-                    .to_std()
-                    .unwrap_or(Duration::from_secs(0))
-                    < backoff_interval
-                {
-                    continue;
-                }
+            if !Self::tx_ready_for_processing(base_interval, now, &mut tx) {
+                continue;
             }
 
             if let Err(err) =
@@ -197,6 +169,45 @@ impl InclusionStage {
             }
         }
         Ok(())
+    }
+
+    fn tx_ready_for_processing(
+        base_interval: Duration,
+        now: DateTime<Utc>,
+        tx: &Transaction,
+    ) -> bool {
+        // Implement per-transaction backoff: don't check transactions too frequently
+        if let Some(last_check) = tx.last_status_check {
+            let time_since_last_check = now.signed_duration_since(last_check);
+
+            // Calculate the backoff interval based on how long the transaction has been pending
+            let tx_age = now.signed_duration_since(tx.creation_timestamp);
+            let backoff_interval = if tx_age.num_seconds() < 30 {
+                // New transactions: check every quarter of block time (responsive)
+                // But for very new transactions (< 1 second), allow immediate recheck for testing
+                if tx_age.num_seconds() < 1 {
+                    Duration::from_nanos(0) // Immediate for tests
+                } else {
+                    max(base_interval / 4, MIN_TX_STATUS_CHECK_DELAY / 4)
+                }
+            } else if tx_age.num_seconds() < 300 {
+                // Medium age transactions: check every half of block time
+                max(base_interval / 2, MIN_TX_STATUS_CHECK_DELAY / 2)
+            } else {
+                // Old transactions: check every full block time
+                max(base_interval, MIN_TX_STATUS_CHECK_DELAY)
+            };
+
+            // Skip this transaction if we checked it too recently
+            if time_since_last_check
+                .to_std()
+                .unwrap_or(Duration::from_secs(0))
+                < backoff_interval
+            {
+                return false;
+            }
+        }
+        true
     }
 
     #[instrument(
