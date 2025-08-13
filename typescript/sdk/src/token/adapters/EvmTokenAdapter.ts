@@ -830,11 +830,12 @@ export class EvmHypNativeAdapter
       QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
       contractVersion,
     );
+    const igpQuote = await this.contract.quoteGasPayment(destination);
+    const igpQuoteBigInt = BigInt(igpQuote.toString());
 
     // Version does not support quoteTransferRemote defaulting to quoteGasPayment
     if (!hasQuoteTransferRemote) {
-      const gasPayment = await this.contract.quoteGasPayment(destination);
-      return { igpQuote: { amount: BigInt(gasPayment.toString()) } };
+      return { igpQuote: { amount: igpQuoteBigInt } };
     }
 
     assert(
@@ -844,19 +845,23 @@ export class EvmHypNativeAdapter
     assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    const [igpQuote] = await this.contract.quoteTransferRemote(
+
+    // quoteTransferRemote returns igp + fee + amount for native routes
+    const [combinedQuote] = await this.contract.quoteTransferRemote(
       destination,
       recipBytes32,
       amount.toString(),
     );
-    const [igpTokenAddressOrDenom, igpAmount] = igpQuote;
+    const [tokenAddressOrDenom, combinedAmount] = combinedQuote;
+    const fee = BigInt(combinedAmount.toString()) - amount - igpQuoteBigInt;
 
     return {
       igpQuote: {
-        addressOrDenom: igpTokenAddressOrDenom,
-        // Because the amount is added on the fees, we need to subtract it from the actual IGP/fees
-        // For native routes, the fee is returned as a single quote
-        amount: BigInt(igpAmount.toString()) - amount,
+        amount: igpQuoteBigInt,
+      },
+      tokenFeeQuote: {
+        amount: fee,
+        addressOrDenom: tokenAddressOrDenom,
       },
     };
   }
