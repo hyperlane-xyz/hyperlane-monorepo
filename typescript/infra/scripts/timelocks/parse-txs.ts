@@ -1,5 +1,4 @@
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
 import yargs from 'yargs';
 
 import { AnnotatedEV5Transaction } from '@hyperlane-xyz/sdk';
@@ -8,9 +7,10 @@ import {
   LogLevel,
   configureRootLogger,
   rootLogger,
+  stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
+import { getGovernanceTimelocks } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
 import {
   GovernTransaction,
@@ -18,24 +18,31 @@ import {
 } from '../../src/tx/govern-transaction-reader.js';
 import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { logTable } from '../../src/utils/log.js';
-import { getPendingTxsForChains, getSafeTx } from '../../src/utils/safe.js';
+import { getPendingTimelockTxs } from '../../src/utils/timelock.js';
+import { writeYamlAtPath } from '../../src/utils/utils.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
 
 async function main() {
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { chains, governanceType } = await withGovernanceType(
     withChains(yargs(process.argv.slice(2))),
   ).argv;
-  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
+
+  const timelocks = getGovernanceTimelocks(governanceType);
+  const timelockChains = Object.keys(timelocks);
+
+  const chainsToCheck = chains || timelockChains;
+  if (chainsToCheck.length === 0) {
+    rootLogger.error('No chains provided');
+    process.exit(1);
+  }
 
   // Get the multiprovider for the environment
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
-
-  // Get the relevant set of governance safes and icas
-  const safes = getGovernanceSafes(governanceType);
 
   // Initialize the transaction reader for the given governance type
   const reader = await GovernTransactionReader.create(
@@ -44,10 +51,10 @@ async function main() {
   );
 
   // Get the pending transactions for the relevant chains, for the chosen governance type
-  const pendingTxs = await getPendingTxsForChains(
-    !chains || chains.length === 0 ? Object.keys(safes) : chains,
+  const pendingTxs = await getPendingTimelockTxs(
+    chainsToCheck,
     multiProvider,
-    safes,
+    timelocks,
   );
   if (pendingTxs.length === 0) {
     rootLogger.info(chalk.green('No pending transactions found!'));
@@ -56,38 +63,32 @@ async function main() {
 
   logTable(pendingTxs, [
     'chain',
-    'nonce',
-    'submissionDate',
-    'fullTxHash',
-    'confs',
-    'threshold',
+    'id',
+    'predecessorId',
+    'salt',
     'status',
-    'balance',
+    'canSignerExecute',
   ]);
 
   const chainResultEntries = await Promise.all(
     pendingTxs.map(
       async ({
         chain,
-        nonce,
-        fullTxHash,
+        timelockAddress,
+        executeTransactionData,
+        id,
+        salt,
       }): Promise<[string, GovernTransaction]> => {
-        rootLogger.info(
-          chalk.gray.italic(`Reading tx ${fullTxHash} on ${chain}`),
-        );
-        const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
+        rootLogger.info(chalk.gray.italic(`Reading tx ${id} on ${chain}`));
         const tx: AnnotatedEV5Transaction = {
-          to: safeTx.to,
-          data: safeTx.data,
-          value: BigNumber.from(safeTx.value),
+          to: timelockAddress,
+          data: executeTransactionData,
         };
 
         try {
           const results = await reader.read(chain, tx);
-          rootLogger.info(
-            chalk.blue(`Finished reading tx ${fullTxHash} on ${chain}`),
-          );
-          return [`${chain}-${nonce}-${fullTxHash}`, results];
+          rootLogger.info(chalk.blue(`Finished reading tx ${id} on ${chain}`));
+          return [`${chain}-${salt}-${id}`, results];
         } catch (err) {
           rootLogger.error(
             chalk.red('Error reading transaction', err, chain, tx),
@@ -101,7 +102,7 @@ async function main() {
   processGovernorReaderResult(
     chainResultEntries,
     reader.errors,
-    'safe-tx-parse-results',
+    'timelock-tx-parse-result',
   );
 }
 

@@ -10,7 +10,13 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  arrayToObject,
+  objFilter,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import {
@@ -150,34 +156,59 @@ export class EvmTimelockReader {
   }
 
   async getReadyOperationIds(operationIds: string[]): Promise<Set<string>> {
-    const readyOperationIds = new Set<string>();
-    for (const operationId of operationIds) {
-      const isReady = await this.timelockInstance.isOperationReady(operationId);
+    const isReadyOperationByOperationId = await promiseObjAll(
+      objMap(arrayToObject(operationIds), (operationId, _) =>
+        this.timelockInstance.isOperationReady(operationId),
+      ),
+    );
 
-      if (isReady) {
-        readyOperationIds.add(operationId);
-      }
-    }
+    return new Set(
+      Object.keys(
+        objFilter(
+          isReadyOperationByOperationId,
+          (_operationId, isPendingOperation): isPendingOperation is boolean =>
+            isPendingOperation,
+        ),
+      ),
+    );
+  }
 
-    return readyOperationIds;
+  async getPendingOperationIds(operationIds: string[]): Promise<Set<string>> {
+    const isPendingOperationByOperationId = await promiseObjAll(
+      objMap(arrayToObject(operationIds), (operationId, _) =>
+        this.timelockInstance.isOperationPending(operationId),
+      ),
+    );
+
+    return new Set(
+      Object.keys(
+        objFilter(
+          isPendingOperationByOperationId,
+          (_operationId, isPendingOperation): isPendingOperation is boolean =>
+            isPendingOperation,
+        ),
+      ),
+    );
+  }
+
+  async getPendingScheduledOperations(): Promise<Record<string, TimelockTx>> {
+    const scheduledOperations = await this.getScheduledOperations();
+    const pendingOperationIds = await this.getPendingOperationIds(
+      Object.keys(scheduledOperations),
+    );
+
+    // Remove the operations that have been cancelled or executed
+    return objFilter(
+      scheduledOperations,
+      (id, _operation): _operation is TimelockTx => pendingOperationIds.has(id),
+    );
   }
 
   async getScheduledExecutableTransactions(): Promise<
     Record<string, ExecutableTimelockTx>
   > {
-    const [scheduledOperations, cancelledOperations, executedOperations] =
-      await Promise.all([
-        this.getScheduledOperations(),
-        this.getCancelledOperationIds(),
-        this.getExecutedOperationIds(),
-      ]);
-
-    // Remove the operations that have been cancelled or executed
-    const maybeExecutableOperations = objFilter(
-      scheduledOperations,
-      (id, _operation): _operation is TimelockTx =>
-        !(cancelledOperations.has(id) || executedOperations.has(id)),
-    );
+    const maybeExecutableOperations =
+      await this.getPendingScheduledOperations();
 
     const readyOperationIds = await this.getReadyOperationIds(
       Object.keys(maybeExecutableOperations),

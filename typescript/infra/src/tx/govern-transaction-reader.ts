@@ -73,7 +73,7 @@ import {
 } from '../governance.js';
 import { getSafeTx, parseSafeTx } from '../utils/safe.js';
 
-interface GovernTransaction extends Record<string, any> {
+export interface GovernTransaction extends Record<string, any> {
   chain: ChainName;
   nestedTx?: GovernTransaction;
 }
@@ -487,6 +487,7 @@ export class GovernTransactionReader {
     });
 
     let insight;
+    let calls;
     if (
       decoded.functionFragment.name ===
       timelockControllerInterface.functions[
@@ -513,10 +514,10 @@ export class GovernTransactionReader {
     ) {
       const [targets, values, data, _predecessor, _salt, delay] = decoded.args;
 
-      const innerTxs = [];
+      calls = [];
       const numOfTxs = targets.length;
       for (let i = 0; i < numOfTxs; i++) {
-        innerTxs.push(
+        calls.push(
           await this.read(chain, {
             to: targets[i],
             data: data[i],
@@ -527,7 +528,7 @@ export class GovernTransactionReader {
 
       const eta = new Date(Date.now() + delay.toNumber() * 1000);
 
-      insight = `Schedule for ${eta}: ${JSON.stringify(innerTxs, null, 2)}`;
+      insight = `Schedule for ${eta}`;
     }
 
     if (
@@ -538,6 +539,29 @@ export class GovernTransactionReader {
     ) {
       const [target, value, data, executor] = decoded.args;
       insight = `Execute ${target} with ${value} ${data}. Executor: ${executor}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
+        'executeBatch(address[],uint256[],bytes[],bytes32,bytes32)'
+      ].name
+    ) {
+      const [targets, values, data, _predecessor, _salt] = decoded.args;
+
+      calls = [];
+      const numOfTxs = targets.length;
+      for (let i = 0; i < numOfTxs; i++) {
+        calls.push(
+          await this.read(chain, {
+            to: targets[i],
+            data: data[i],
+            value: values[i],
+          }),
+        );
+      }
+
+      insight = `Execute batch on ${targets}`;
     }
 
     if (
@@ -557,6 +581,7 @@ export class GovernTransactionReader {
       chain,
       to: `Timelock Controller (${chain} ${tx.to})`,
       ...(insight ? { insight } : { args }),
+      ...(calls ? { innerTxs: calls } : {}),
     };
   }
 

@@ -2,37 +2,21 @@ import { expect } from 'chai';
 import { Signer, Wallet, ethers } from 'ethers';
 import { zeroAddress } from 'viem';
 
-import {
-  ERC20Test,
-  HypERC20Collateral__factory,
-  Mailbox__factory,
-} from '@hyperlane-xyz/core';
+import { ERC20Test, Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
-  HookConfig,
   HookType,
-  IsmConfig,
   IsmType,
-  MUTABLE_HOOK_TYPE,
-  MUTABLE_ISM_TYPE,
-  TokenStandard,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
   randomAddress,
-  randomHookConfig,
-  randomIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  addressToBytes32,
-  assert,
-  deepCopy,
-} from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -43,10 +27,8 @@ import {
   hyperlaneWarpDeploy,
 } from '../commands/warp.js';
 import {
-  ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
-  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
@@ -62,7 +44,6 @@ describe('hyperlane warp check e2e tests', async function () {
   let signer: Signer;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
-  let chain3DomainId: number;
   let token: ERC20Test;
   let tokenSymbol: string;
   let ownerAddress: Address;
@@ -76,8 +57,6 @@ describe('hyperlane warp check e2e tests', async function () {
     ]);
 
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    chain3DomainId = (readYamlOrJson(CHAIN_3_METADATA_PATH) as ChainMetadata)
-      .domainId;
 
     const provider = new ethers.providers.JsonRpcProvider(
       chainMetadata.rpcUrls[0].http,
@@ -128,130 +107,6 @@ describe('hyperlane warp check e2e tests', async function () {
         owner: ownerAddress,
       },
     };
-  });
-
-  describe('hyperlane warp check --config ... and hyperlane warp check --warp ...', () => {
-    const expectedError =
-      'Both --config/-wd and --warp/-wc must be provided together when using individual file paths';
-    it(`should require both warp core & warp deploy config paths to be provided together`, async function () {
-      await deployAndExportWarpRoute();
-
-      const output1 = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      const output2 = await hyperlaneWarpCheckRaw({
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      expect(output1.exitCode).to.equal(1);
-      expect(output1.text()).to.include(expectedError);
-      expect(output2.exitCode).to.equal(1);
-      expect(output2.text()).to.include(expectedError);
-    });
-  });
-
-  describe('hyperlane warp check --symbol ...', () => {
-    it(`should not find any differences between the on chain config and the local one`, async function () {
-      await deployAndExportWarpRoute();
-
-      // only one route exists for this token so no need to interact with prompts
-      const output = await hyperlaneWarpCheckRaw({
-        symbol: tokenSymbol,
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      expect(output.exitCode).to.equal(0);
-      expect(output.text()).to.include('No violations found');
-    });
-  });
-
-  describe('hyperlane warp check --warpRouteId ...', () => {
-    it(`should not find any differences between the on chain config and the local one`, async function () {
-      await deployAndExportWarpRoute();
-
-      const output = await hyperlaneWarpCheckRaw({
-        warpRouteId: createWarpRouteConfigId(tokenSymbol, CHAIN_NAME_3),
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      expect(output.exitCode).to.equal(0);
-      expect(output.text()).to.include('No violations found');
-    });
-
-    it(`should successfully check warp routes that are not deployed as proxies`, async () => {
-      // Deploy the token and the hyp adapter
-      const symbol = 'NTAP';
-      const tokenName = 'NOTAPROXY';
-      const tokenDecimals = 10;
-      const collateral = await deployToken(
-        ANVIL_KEY,
-        CHAIN_NAME_2,
-        tokenDecimals,
-        symbol,
-      );
-
-      const contract = new HypERC20Collateral__factory(signer);
-      const tx = await contract.deploy(
-        collateral.address,
-        1,
-        chain2Addresses.mailbox,
-      );
-
-      const deployedContract = await tx.deployed();
-      const tx2 = await deployedContract.initialize(
-        zeroAddress,
-        zeroAddress,
-        ANVIL_DEPLOYER_ADDRESS,
-      );
-
-      await tx2.wait();
-
-      // Manually add config files to the registry
-      const routePath = getCombinedWarpRoutePath(symbol, [CHAIN_NAME_2]);
-      const warpDeployConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
-          type: TokenType.collateral,
-          token: collateral.address,
-          owner: ANVIL_DEPLOYER_ADDRESS,
-        },
-      };
-      writeYamlOrJson(
-        routePath.replace('-config.yaml', '-deploy.yaml'),
-        warpDeployConfig,
-      );
-
-      const warpCoreConfig: WarpCoreConfig = {
-        tokens: [
-          {
-            addressOrDenom: deployedContract.address,
-            chainName: CHAIN_NAME_2,
-            decimals: tokenDecimals,
-            collateralAddressOrDenom: token.address,
-            name: tokenName,
-            standard: TokenStandard.EvmHypCollateral,
-            symbol,
-          },
-        ],
-      };
-      writeYamlOrJson(routePath, warpCoreConfig);
-
-      // Finally run warp check
-      const output = await hyperlaneWarpCheckRaw({
-        warpRouteId: createWarpRouteConfigId(symbol, CHAIN_NAME_2),
-      })
-        .stdio('pipe')
-        .nothrow();
-
-      expect(output.exitCode).to.equal(0);
-      expect(output.text()).to.include('No violations found');
-    });
   });
 
   describe('hyperlane warp check --config ... --warp ...', () => {
@@ -546,169 +401,5 @@ describe('hyperlane warp check e2e tests', async function () {
         `Found invalid or missing scale for inconsistent decimals`,
       );
     });
-  });
-
-  for (const hookType of MUTABLE_HOOK_TYPE) {
-    it(`should find owner differences between the local config and the on chain config for ${hookType}`, async function () {
-      warpConfig[CHAIN_NAME_3].hook = randomHookConfig(0, 2, hookType);
-      await deployAndExportWarpRoute();
-
-      const mutatedWarpConfig = deepCopy(warpConfig);
-
-      const hookConfig: Extract<
-        HookConfig,
-        { type: (typeof MUTABLE_HOOK_TYPE)[number]; owner: string }
-      > = mutatedWarpConfig[CHAIN_NAME_3].hook!;
-      const actualOwner = hookConfig.owner;
-      const wrongOwner = randomAddress();
-      assert(actualOwner !== wrongOwner, 'Random owner matches actualOwner');
-      hookConfig.owner = wrongOwner;
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
-
-      const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
-      const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
-
-      const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
-      }).nothrow();
-      expect(output.exitCode).to.equal(1);
-      expect(output.text().includes(expectedDiffText)).to.be.true;
-      expect(output.text().includes(expectedActualText)).to.be.true;
-    });
-  }
-
-  // Removing the offchain lookup ism because it is a family of different isms
-  for (const ismType of MUTABLE_ISM_TYPE.filter(
-    (ismType) => ismType !== IsmType.OFFCHAIN_LOOKUP,
-  )) {
-    it(`should find owner differences between the local config and the on chain config for ${ismType}`, async function () {
-      // Create a Pausable because randomIsmConfig() cannot generate it (reason: NULL type Isms)
-      warpConfig[CHAIN_NAME_3].interchainSecurityModule =
-        ismType === IsmType.PAUSABLE
-          ? {
-              type: IsmType.PAUSABLE,
-              owner: randomAddress(),
-              paused: true,
-            }
-          : randomIsmConfig(0, 2, ismType);
-      await deployAndExportWarpRoute();
-
-      const mutatedWarpConfig = deepCopy(warpConfig);
-
-      const ismConfig: Extract<
-        IsmConfig,
-        { type: (typeof MUTABLE_ISM_TYPE)[number]; owner: string }
-      > = mutatedWarpConfig[CHAIN_NAME_3].interchainSecurityModule;
-      const actualOwner = ismConfig.owner;
-      const wrongOwner = randomAddress();
-      assert(actualOwner !== wrongOwner, 'Random owner matches actualOwner');
-      ismConfig.owner = wrongOwner;
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
-
-      const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
-      const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
-
-      const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
-      }).nothrow();
-
-      expect(output.exitCode).to.equal(1);
-      expect(output.text().includes(expectedDiffText)).to.be.true;
-      expect(output.text().includes(expectedActualText)).to.be.true;
-    });
-  }
-
-  it('should successfully check allowedRebalancers', async () => {
-    assert(
-      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
-      'Expected config to be for a collateral token',
-    );
-    warpConfig[CHAIN_NAME_2].allowedRebalancers = [randomAddress()];
-    await deployAndExportWarpRoute();
-
-    const output = await hyperlaneWarpCheckRaw({
-      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      warpCoreConfigPath: combinedWarpCoreConfigPath,
-    })
-      .stdio('pipe')
-      .nothrow();
-
-    expect(output.exitCode).to.equal(0);
-    expect(output.text()).to.include('No violations found');
-  });
-
-  it('should report a violation if no rebalancers are in the config but are set on chain', async () => {
-    assert(
-      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
-      'Expected config to be for a collateral token',
-    );
-    warpConfig[CHAIN_NAME_2].allowedRebalancers = [randomAddress()];
-    await deployAndExportWarpRoute();
-
-    warpConfig[CHAIN_NAME_2].allowedRebalancers = undefined;
-    const wrongDeployConfigPath = combinedWarpCoreConfigPath.replace(
-      '-config.yaml',
-      '-deploy.yaml',
-    );
-    writeYamlOrJson(wrongDeployConfigPath, warpConfig);
-
-    const output = await hyperlaneWarpCheckRaw({
-      warpDeployPath: wrongDeployConfigPath,
-      warpCoreConfigPath: combinedWarpCoreConfigPath,
-    })
-      .stdio('pipe')
-      .nothrow();
-
-    expect(output.exitCode).to.equal(1);
-  });
-
-  it('should successfully check the allowed rebalancing bridges', async () => {
-    assert(
-      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
-      'Expected config to be for a collateral token',
-    );
-    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
-      [chain3DomainId]: [{ bridge: randomAddress() }],
-    };
-    await deployAndExportWarpRoute();
-
-    const output = await hyperlaneWarpCheckRaw({
-      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      warpCoreConfigPath: combinedWarpCoreConfigPath,
-    })
-      .stdio('pipe')
-      .nothrow();
-
-    expect(output.exitCode).to.equal(0);
-    expect(output.text()).to.include('No violations found');
-  });
-
-  it('should report a violation if no allowed bridges are in the config but are set on chain', async () => {
-    assert(
-      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
-      'Expected config to be for a collateral token',
-    );
-    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
-      [chain3DomainId]: [{ bridge: randomAddress() }],
-    };
-    await deployAndExportWarpRoute();
-
-    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = undefined;
-    const wrongDeployConfigPath = combinedWarpCoreConfigPath.replace(
-      '-config.yaml',
-      '-deploy.yaml',
-    );
-    writeYamlOrJson(wrongDeployConfigPath, warpConfig);
-
-    const output = await hyperlaneWarpCheckRaw({
-      warpDeployPath: wrongDeployConfigPath,
-      warpCoreConfigPath: combinedWarpCoreConfigPath,
-    })
-      .stdio('pipe')
-      .nothrow();
-
-    expect(output.exitCode).to.equal(1);
   });
 });

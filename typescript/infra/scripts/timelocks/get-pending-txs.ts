@@ -10,35 +10,28 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
+import { getGovernanceTimelocks } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
 import { logTable } from '../../src/utils/log.js';
 import {
-  SafeTxStatus,
-  executeTx,
-  getPendingTxsForChains,
-} from '../../src/utils/safe.js';
+  TimelockOperationStatus,
+  getPendingTimelockTxs,
+} from '../../src/utils/timelock.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
-  const { chains, fullTxHash, governanceType } = await withGovernanceType(
+  const { chains, governanceType } = await withGovernanceType(
     withChains(yargs(process.argv.slice(2))),
-  )
-    .describe(
-      'fullTxHash',
-      'If enabled, include the full tx hash in the output',
-    )
-    .boolean('fullTxHash')
-    .default('fullTxHash', false).argv;
+  ).argv;
 
-  const safes = getGovernanceSafes(governanceType);
-  const safeChains = Object.keys(safes);
+  const timelocks = getGovernanceTimelocks(governanceType);
+  const timelockChains = Object.keys(timelocks);
 
-  const chainsToCheck = chains || safeChains;
+  const chainsToCheck = chains || timelockChains;
   if (chainsToCheck.length === 0) {
     rootLogger.error('No chains provided');
     process.exit(1);
@@ -52,10 +45,10 @@ async function main() {
     chainsToCheck,
   );
 
-  const pendingTxs = await getPendingTxsForChains(
+  const pendingTxs = await getPendingTimelockTxs(
     chainsToCheck,
     multiProvider,
-    safes,
+    timelocks,
   );
   if (pendingTxs.length === 0) {
     rootLogger.info(chalk.green('No pending transactions found!'));
@@ -64,17 +57,17 @@ async function main() {
 
   logTable(pendingTxs, [
     'chain',
-    'nonce',
-    'submissionDate',
-    fullTxHash ? 'fullTxHash' : 'shortTxHash',
-    'confs',
-    'threshold',
+    'id',
+    'predecessorId',
+    'salt',
     'status',
-    'balance',
+    'canSignerExecute',
   ]);
 
   const executableTxs = pendingTxs.filter(
-    (tx) => tx.status === SafeTxStatus.READY_TO_EXECUTE,
+    (tx) =>
+      tx.status === TimelockOperationStatus.READY_TO_EXECUTE &&
+      tx.canSignerExecute,
   );
   if (executableTxs.length === 0) {
     rootLogger.info(chalk.green('No transactions to execute!'));
@@ -96,27 +89,25 @@ async function main() {
   }
 
   rootLogger.info(chalk.blueBright('Executing transactions...'));
-
   for (const tx of executableTxs) {
     const confirmExecuteTx = await confirm({
-      message: `Execute transaction ${tx.shortTxHash} on chain ${tx.chain}?`,
+      message: `Execute transaction ${tx.id} on chain ${tx.chain}?`,
       default: false,
     });
-    if (confirmExecuteTx) {
-      rootLogger.info(
-        `Executing transaction ${tx.shortTxHash} on chain ${tx.chain}`,
-      );
-      try {
-        await executeTx(
-          tx.chain,
-          multiProvider,
-          safes[tx.chain],
-          tx.fullTxHash,
-        );
-      } catch (error) {
-        rootLogger.error(chalk.red(`Error executing transaction: ${error}`));
-        return;
-      }
+
+    if (!confirmExecuteTx) {
+      continue;
+    }
+
+    rootLogger.info(`Executing transaction ${tx.id} on chain ${tx.chain}`);
+    try {
+      await multiProvider.sendTransaction(tx.chain, {
+        to: tx.timelockAddress,
+        data: tx.executeTransactionData,
+      });
+    } catch (error) {
+      rootLogger.error(chalk.red(`Error executing transaction: ${error}`));
+      return;
     }
   }
 
