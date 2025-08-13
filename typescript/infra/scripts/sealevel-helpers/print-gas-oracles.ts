@@ -101,8 +101,6 @@ function getChainConnections(
   if (environment === 'mainnet3') {
     // All the mainnet3 warp route chains
     connectedChains = [
-      // For the Rivalz team building out their own warp route
-      ['solanamainnet', 'rivalz'],
       ['solanamainnet', 'everclear'],
       ['solanamainnet', 'infinityvmmainnet'],
       ['solanamainnet', 'sophon'],

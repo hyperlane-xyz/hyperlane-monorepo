@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use tendermint_rpc::client::CompatMode;
-use tendermint_rpc::HttpClient;
+use cometbft_rpc::client::CompatMode;
+use cometbft_rpc::HttpClient;
 use url::Url;
 
 use hyperlane_core::rpc_clients::FallbackProvider;
@@ -18,7 +18,7 @@ use crate::rpc_clients::CosmosFallbackProvider;
 #[tokio::test]
 #[ignore]
 async fn test_fallback_provider() {
-    use tendermint_rpc::Client;
+    use cometbft_rpc::Client;
 
     // Neutron
     let url = "<neutron url>";
