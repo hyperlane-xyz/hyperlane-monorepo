@@ -156,6 +156,7 @@ export abstract class HyperlaneRouterDeployer<
     return deployedContractsMap;
   }
 
+  // TODO: Consider moving this somewhere else (see notes)
   async configureTokenFees(
     deployedContractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
