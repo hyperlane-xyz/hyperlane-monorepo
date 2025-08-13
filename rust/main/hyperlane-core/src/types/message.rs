@@ -166,3 +166,19 @@ impl HyperlaneMessage {
         H256::from_slice(Keccak256::new().chain(self.to_vec()).finalize().as_slice())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::HyperlaneMessage;
+
+    #[ignore]
+    #[test]
+    fn test_decode_from_raw_body() {
+        let raw = "0x03000010f90000044d00000000000000000000000046b4edaa761ef8d2934e9f7aaf32b5bf2c9c9f670000a4ec000000000000000000000000ad8676147360dbc010504ab69c7f1b187710952700000000000000000000000037a022b833fe3876ef2a9a6c61ae444295f1b7f80000000000000000000000000000000000000000000000008ac7230489e80000";
+
+        let raw_bytes = hex::decode(&raw[2..]).unwrap();
+        let msg = HyperlaneMessage::try_from(raw_bytes).unwrap();
+
+        eprintln!("{}\n{}\n{:?}", msg, msg.version, msg.body);
+    }
+}
