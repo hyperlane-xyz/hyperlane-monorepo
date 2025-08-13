@@ -60,3 +60,4 @@ hyperlane-sealevel-validator-announce = { path = "../programs/validator-announce
     "no-entrypoint",
 ] }
 hyperlane-sealevel-hello-world = { path = "../programs/helloworld" }
+hyperlane-sealevel-test-ism = { path = "../programs/ism/test-ism", features = ["no-entrypoint"] }

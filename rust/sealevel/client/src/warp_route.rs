@@ -458,7 +458,14 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         .with_client(client)
         .send_with_payer();
 
-        if let TokenType::Synthetic(token_metadata) = &app_config.token_type {
+        if matches!(
+            &app_config.token_type,
+            TokenType::Synthetic(_) | TokenType::SyntheticMemo(_)
+        ) {
+            let token_metadata = match &app_config.token_type {
+                TokenType::Synthetic(metadata) | TokenType::SyntheticMemo(metadata) => metadata,
+                _ => unreachable!(),
+            };
             let (mint_account, _mint_bump) =
                 Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
 
