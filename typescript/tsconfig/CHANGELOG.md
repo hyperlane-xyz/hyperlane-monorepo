@@ -1,5 +1,7 @@
 # @hyperlane-xyz/tsconfig
 
+## 16.2.0
+
 ## 16.1.1
 
 ## 16.1.0

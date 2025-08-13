@@ -23,7 +23,10 @@ use hyperlane_base::{
     },
     CoreMetrics,
 };
-use hyperlane_core::{config::OpSubmissionConfig, ContractLocator, HyperlaneDomain, H256, U256};
+use hyperlane_core::{
+    config::OpSubmissionConfig, ChainCommunicationError, ContractLocator, HyperlaneDomain, H256,
+    U256,
+};
 use hyperlane_ethereum::multicall::BatchCache;
 use hyperlane_ethereum::{
     multicall, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
@@ -320,9 +323,12 @@ impl EthereumAdapter {
             .await
             .map(|(tx, f)| EthereumTxPrecursor::new(tx, f));
 
-        let Ok(multi_precursor) = multi_precursor else {
-            error!("Failed to batch payloads");
-            return vec![];
+        let multi_precursor = match multi_precursor {
+            Ok(precursor) => precursor,
+            Err(e) => {
+                error!(error = ?e, "Failed to batch payloads");
+                return vec![];
+            }
         };
 
         let transaction = TransactionFactory::build(multi_precursor, payload_details.clone());
