@@ -118,8 +118,8 @@ impl InclusionStage {
         // Use adaptive polling interval based on block time, but never faster than 100ms
         // for small block time chains, and never slower than 1/4 block time for responsiveness
         let polling_interval = max(
-            base_interval / 4,          // Never slower than 1/4 block time for responsiveness
-            Duration::from_millis(100), // Never faster than 100ms to avoid excessive RPC calls
+            base_interval / 4,         // Never slower than 1/4 block time for responsiveness
+            MIN_TX_STATUS_CHECK_DELAY, // Never faster than 100ms to avoid excessive RPC calls
         );
 
         loop {
