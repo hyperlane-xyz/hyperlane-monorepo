@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::sync::Arc;
@@ -26,6 +27,8 @@ pub mod tests;
 pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionUuid, Transaction>>>;
 
 pub const STAGE_NAME: &str = "InclusionStage";
+
+const MIN_TX_STATUS_CHECK_DELAY: Duration = Duration::from_millis(100);
 
 pub struct InclusionStage {
     pub(crate) pool: InclusionStagePool,
@@ -112,17 +115,15 @@ impl InclusionStage {
         domain: String,
     ) -> Result<(), LanderError> {
         let base_interval = *state.adapter.estimated_block_time();
+        // Use adaptive polling interval based on block time, but never faster than 100ms
+        // for small block time chains, and never slower than 1/4 block time for responsiveness
+        let polling_interval = max(
+            base_interval / 4,          // Never slower than 1/4 block time for responsiveness
+            Duration::from_millis(100), // Never faster than 100ms to avoid excessive RPC calls
+        );
 
         loop {
-            // Use adaptive polling interval based on block time, but never faster than 100ms
-            // for small block time chains, and never slower than 1/4 block time for responsiveness
-            let polling_interval = std::cmp::max(
-                base_interval / 4,          // Never slower than 1/4 block time for responsiveness
-                Duration::from_millis(100), // Never faster than 100ms to avoid excessive RPC calls
-            );
-
             sleep(polling_interval).await;
-
             Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
         }
     }
@@ -160,22 +161,22 @@ impl InclusionStage {
             if let Some(last_check) = tx.last_status_check {
                 let time_since_last_check = now.signed_duration_since(last_check);
 
-                // Calculate backoff interval based on how long the transaction has been pending
+                // Calculate the backoff interval based on how long the transaction has been pending
                 let tx_age = now.signed_duration_since(tx.creation_timestamp);
                 let backoff_interval = if tx_age.num_seconds() < 30 {
-                    // New transactions: check every 1/4 block time (responsive)
+                    // New transactions: check every quarter of block time (responsive)
                     // But for very new transactions (< 1 second), allow immediate recheck for testing
                     if tx_age.num_seconds() < 1 {
                         Duration::from_nanos(1) // Effectively immediate for tests
                     } else {
-                        std::cmp::max(base_interval / 4, Duration::from_millis(10))
+                        max(base_interval / 4, MIN_TX_STATUS_CHECK_DELAY / 4)
                     }
                 } else if tx_age.num_seconds() < 300 {
-                    // Medium age transactions: check every 1/2 block time
-                    std::cmp::max(base_interval / 2, Duration::from_millis(50))
+                    // Medium age transactions: check every half of block time
+                    max(base_interval / 2, MIN_TX_STATUS_CHECK_DELAY / 2)
                 } else {
                     // Old transactions: check every full block time
-                    std::cmp::max(base_interval, Duration::from_millis(100))
+                    max(base_interval, MIN_TX_STATUS_CHECK_DELAY)
                 };
 
                 // Skip this transaction if we checked it too recently
@@ -211,7 +212,7 @@ impl InclusionStage {
     ) -> Result<()> {
         info!(?tx, "Processing inclusion stage transaction");
 
-        // Update last status check timestamp before querying
+        // Update the last status check timestamp before querying
         tx.last_status_check = Some(chrono::Utc::now());
 
         let tx_status = call_until_success_or_nonretryable_error(
