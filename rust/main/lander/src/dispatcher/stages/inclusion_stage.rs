@@ -167,7 +167,7 @@ impl InclusionStage {
                     // New transactions: check every quarter of block time (responsive)
                     // But for very new transactions (< 1 second), allow immediate recheck for testing
                     if tx_age.num_seconds() < 1 {
-                        Duration::from_nanos(1) // Effectively immediate for tests
+                        Duration::from_nanos(0) // Effectively immediate for tests
                     } else {
                         max(base_interval / 4, MIN_TX_STATUS_CHECK_DELAY / 4)
                     }
