@@ -2,7 +2,7 @@ import { Logger } from 'pino';
 
 import {
   type ChainMap,
-  type ChainMetadata,
+  ChainMetadataManager,
   type Token,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
@@ -11,6 +11,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 import type { WriteCommandContext } from '../../context/types.js';
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { Rebalancer } from '../core/Rebalancer.js';
+import { WithInflightGuard } from '../core/WithInflightGuard.js';
 import { WithSemaphore } from '../core/WithSemaphore.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
@@ -18,6 +19,7 @@ import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
+import { ExplorerClient } from '../utils/ExplorerClient.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 
 export class RebalancerContextFactory {
@@ -30,7 +32,6 @@ export class RebalancerContextFactory {
    */
   private constructor(
     private readonly config: RebalancerConfig,
-    private readonly metadata: ChainMap<ChainMetadata>,
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly context: WriteCommandContext,
@@ -53,7 +54,6 @@ export class RebalancerContextFactory {
       'Creating RebalancerContextFactory',
     );
     const { registry } = context;
-    const metadata = await registry.getMetadata();
     const addresses = await registry.getAddresses();
 
     // The Sealevel warp adapters require the Mailbox address, so we
@@ -81,7 +81,6 @@ export class RebalancerContextFactory {
     );
     return new RebalancerContextFactory(
       config,
-      metadata,
       warpCore,
       tokensByChainName,
       context,
@@ -103,7 +102,7 @@ export class RebalancerContextFactory {
       'Creating Metrics',
     );
     const tokenPriceGetter = PriceGetter.create(
-      this.metadata,
+      this.context.chainMetadata,
       this.logger,
       coingeckoApiKey,
     );
@@ -161,14 +160,29 @@ export class RebalancerContextFactory {
         override: v.override,
       })),
       this.warpCore,
-      this.metadata,
+      this.context.chainMetadata,
       this.tokensByChainName,
       this.context.multiProvider,
       this.logger,
       metrics,
     );
 
-    return new WithSemaphore(this.config, rebalancer, this.logger);
+    const explorerUrl =
+      process.env.EXPLORER_API_URL || 'https://api.hyperlane.xyz/v1/graphql';
+    const txSender = process.env.REBALANCER || '';
+    if (!txSender) {
+      throw new Error('REBALANCER env var is not set');
+    }
+    const explorer = new ExplorerClient(explorerUrl);
+    const withInflight = new WithInflightGuard(
+      this.config,
+      rebalancer,
+      explorer,
+      txSender,
+      new ChainMetadataManager(this.context.chainMetadata),
+      this.logger,
+    );
+    return new WithSemaphore(this.config, withInflight, this.logger);
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {
