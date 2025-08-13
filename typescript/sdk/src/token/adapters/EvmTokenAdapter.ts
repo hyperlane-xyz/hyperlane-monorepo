@@ -291,7 +291,7 @@ export class EvmHypSyntheticAdapter
       recipBytes32,
       amount.toString(),
     );
-    const [igpTokenAddressOrDenom, igpAmount] = igpQuote;
+    const [, igpAmount] = igpQuote;
 
     const tokenFeeQuotes: Quote[] = feeQuotes.map((quote) => ({
       addressOrDenom: quote[0],
@@ -306,7 +306,6 @@ export class EvmHypSyntheticAdapter
 
     return {
       igpQuote: {
-        addressOrDenom: igpTokenAddressOrDenom,
         amount: BigInt(igpAmount.toString()),
       },
       tokenFeeQuote,
@@ -369,6 +368,11 @@ export class EvmHypCollateralAdapter
     return new EvmTokenAdapter(this.chainName, this.multiProvider, {
       token: await this.getWrappedTokenAddress(),
     });
+  }
+
+  override async getBalance(address: Address): Promise<bigint> {
+    const collateral = await this.getWrappedTokenAdapter();
+    return collateral.getBalance(address);
   }
 
   override getBridgedSupply(): Promise<bigint | undefined> {

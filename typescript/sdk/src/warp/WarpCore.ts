@@ -138,7 +138,7 @@ export class WarpCore {
     destination: ChainNameOrId;
     sender?: Address;
     recipient: Address;
-  }): Promise<TokenAmount> {
+  }): Promise<{ igpQuote: TokenAmount; feeQuote?: TokenAmount }> {
     this.logger.debug(`Fetching interchain transfer quote to ${destination}`);
     const { amount, token: originToken } = originTokenAmount;
     const originName = originToken.chainName;
@@ -146,6 +146,8 @@ export class WarpCore {
 
     let gasAmount: bigint;
     let gasAddressOrDenom: string | undefined;
+    let feeAmount: bigint | undefined;
+    let feeAddressOrDenom: string | undefined;
     // Check constant quotes first
     const defaultQuote = this.interchainFeeConstants.find(
       (q) => q.origin === originName && q.destination === destinationName,
@@ -169,10 +171,12 @@ export class WarpCore {
       });
       gasAmount = BigInt(quote.igpQuote.amount);
       gasAddressOrDenom = quote.igpQuote.addressOrDenom;
+      feeAmount = quote.tokenFeeQuote?.amount;
+      feeAddressOrDenom = quote.tokenFeeQuote?.addressOrDenom;
     }
 
     let igpToken: Token;
-    if (!gasAddressOrDenom) {
+    if (!gasAddressOrDenom || isZeroishAddress(gasAddressOrDenom)) {
       // An empty/undefined addressOrDenom indicates the native token
       igpToken = Token.FromChainMetadataNativeToken(
         this.multiProvider.getChainMetadata(originName),
@@ -183,10 +187,28 @@ export class WarpCore {
       igpToken = searchResult;
     }
 
+    let feeTokenAmount: TokenAmount | undefined;
+    if (feeAmount && feeAddressOrDenom) {
+      // zero address is native amount
+      if (isZeroishAddress(feeAddressOrDenom)) {
+        const nativeToken = Token.FromChainMetadataNativeToken(
+          this.multiProvider.getChainMetadata(originName),
+        );
+        feeTokenAmount = new TokenAmount(feeAmount, nativeToken);
+      } else {
+        const searchResult = this.findToken(originName, feeAddressOrDenom);
+        assert(searchResult, `Fee token ${gasAddressOrDenom} is unknown`);
+        feeTokenAmount = new TokenAmount(feeAmount, searchResult);
+      }
+    }
+
     this.logger.debug(
       `Quoted interchain transfer fee: ${gasAmount} ${igpToken.symbol}`,
     );
-    return new TokenAmount(gasAmount, igpToken);
+    return {
+      igpQuote: new TokenAmount(gasAmount, igpToken),
+      feeQuote: feeTokenAmount,
+    };
   }
 
   /**
@@ -390,12 +412,13 @@ export class WarpCore {
     }
 
     if (!interchainFee) {
-      interchainFee = await this.getInterchainTransferFee({
+      const quote = await this.getInterchainTransferFee({
         originTokenAmount,
         destination,
         sender,
         recipient,
       });
+      interchainFee = quote.igpQuote;
     }
 
     // if the interchain fee is of protocol starknet we also have
@@ -482,7 +505,7 @@ export class WarpCore {
 
     // First get interchain gas quote (aka IGP quote)
     // Start with this because it's used in the local fee estimation
-    const interchainQuote = await this.getInterchainTransferFee({
+    const { igpQuote, feeQuote } = await this.getInterchainTransferFee({
       originTokenAmount,
       destination,
       sender,
@@ -495,12 +518,13 @@ export class WarpCore {
       destination,
       sender,
       senderPubKey,
-      interchainFee: interchainQuote,
+      interchainFee: igpQuote,
     });
 
     return {
-      interchainQuote,
+      interchainQuote: igpQuote,
       localQuote,
+      feeQuote,
     };
   }
 
@@ -839,7 +863,8 @@ export class WarpCore {
 
     // Check 2: Ensure the balance can cover interchain fee
     // Slightly redundant with Check 4 but gives more specific error messages
-    const interchainQuote = await this.getInterchainTransferFee({
+
+    const { igpQuote: interchainQuote } = await this.getInterchainTransferFee({
       originTokenAmount,
       destination,
       sender,
