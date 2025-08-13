@@ -316,8 +316,13 @@ export class EvmHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas({ destination });
+      interchainGas = await this.quoteTransferRemoteGas({
+        destination,
+        recipient,
+        amount: BigInt(weiAmountOrId),
+      });
 
+    console.log('interChainGas', interchainGas);
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
@@ -872,8 +877,13 @@ export class EvmHypNativeAdapter
     recipient,
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    const amount = BigInt(weiAmountOrId);
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas({ destination });
+      interchainGas = await this.quoteTransferRemoteGas({
+        destination,
+        amount,
+        recipient,
+      });
 
     let txValue: bigint | undefined = undefined;
     const {
@@ -881,7 +891,7 @@ export class EvmHypNativeAdapter
     } = interchainGas;
     // If the igp token is native Eth
     if (!igpAddressOrDenom) {
-      txValue = igpAmount + BigInt(weiAmountOrId);
+      txValue = igpAmount + amount;
     } else {
       txValue = igpAmount;
     }
