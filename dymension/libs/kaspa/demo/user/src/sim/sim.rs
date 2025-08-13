@@ -37,9 +37,9 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
-const DEFAULT_RPC_URL: &str = "https://dymension-rpc.polkachu.com:443";
-const DEFAULT_GRPC_URL: &str = "https://dymension-grpc.polkachu.com:443";
-const DEFAULT_CHAIN_ID: &str = "dymension_1100-1";
+const DEFAULT_RPC_URL: &str = "https://rpc-dymension-playground35.mzonder.com:443";
+const DEFAULT_GRPC_URL: &str = "https://grpc-dymension-playground35.mzonder.com:443";
+const DEFAULT_CHAIN_ID: &str = "dymension_3405-1";
 const DEFAULT_PREFIX: &str = "dym";
 const DEFAULT_DENOM: &str = "adym";
 const DEFAULT_DECIMALS: u32 = 18;
