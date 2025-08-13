@@ -594,6 +594,219 @@ describe(EvmTimelockReader.name, () => {
       }
     });
 
+    describe(`${EvmTimelockReader.prototype.getPendingOperationIds.name}`, () => {
+      it('should return empty set for empty input', async () => {
+        const pendingIds = await timelockReader.getPendingOperationIds([]);
+
+        expect(pendingIds.size).to.equal(0);
+      });
+
+      type PendingTestCase = {
+        title: string;
+        timelockTxs: Array<Omit<TimelockTx, 'id'>>;
+        cancelledTxIndexes?: number[];
+        executedTxIndexes?: number[];
+        expectedPendingCount: number;
+      };
+
+      const pendingTestCases: PendingTestCase[] = [
+        {
+          title: 'should return pending operations correctly',
+          timelockTxs: [
+            {
+              data: [
+                {
+                  to: randomAddress(),
+                  value: ethers.BigNumber.from(0),
+                  data: '0x1234',
+                },
+              ],
+              delay: 0,
+              predecessor: EMPTY_BYTES_32,
+              salt: ethers.utils.formatBytes32String('pending-test'),
+            },
+          ],
+          expectedPendingCount: 1,
+        },
+        {
+          title: 'should exclude cancelled operations from pending list',
+          timelockTxs: [
+            {
+              data: [
+                {
+                  to: randomAddress(),
+                  value: ethers.BigNumber.from(0),
+                  data: '0x1234',
+                },
+              ],
+              delay: 0,
+              predecessor: EMPTY_BYTES_32,
+              salt: ethers.utils.formatBytes32String('cancelled-pending'),
+            },
+          ],
+          cancelledTxIndexes: [0],
+          expectedPendingCount: 0,
+        },
+        {
+          title: 'should exclude executed operations from pending list',
+          timelockTxs: [
+            {
+              data: [
+                {
+                  to: randomAddress(),
+                  value: ethers.BigNumber.from(0),
+                  data: '0x',
+                },
+              ],
+              delay: 0,
+              predecessor: EMPTY_BYTES_32,
+              salt: ethers.utils.formatBytes32String('executed-pending'),
+            },
+          ],
+          executedTxIndexes: [0],
+          expectedPendingCount: 0,
+        },
+        {
+          title:
+            'should handle mixed pending, cancelled, and executed operations',
+          timelockTxs: [
+            {
+              data: [
+                {
+                  to: randomAddress(),
+                  value: ethers.BigNumber.from(0),
+                  data: '0x1234',
+                },
+              ],
+              delay: 0,
+              predecessor: EMPTY_BYTES_32,
+              salt: ethers.utils.formatBytes32String('pending-1'),
+            },
+            {
+              data: [
+                {
+                  to: randomAddress(),
+                  value: ethers.BigNumber.from(0),
+                  data: '0x5678',
+                },
+              ],
+              delay: 0,
+              predecessor: EMPTY_BYTES_32,
+              salt: ethers.utils.formatBytes32String('cancelled-pending-1'),
+            },
+            {
+              data: [
+                {
+                  to: randomAddress(),
+                  value: ethers.BigNumber.from(0),
+                  data: '0x',
+                },
+              ],
+              delay: 0,
+              predecessor: EMPTY_BYTES_32,
+              salt: ethers.utils.formatBytes32String('executed-pending-1'),
+            },
+          ],
+          cancelledTxIndexes: [1],
+          executedTxIndexes: [2],
+          expectedPendingCount: 1,
+        },
+      ];
+
+      for (const {
+        title,
+        timelockTxs,
+        cancelledTxIndexes,
+        executedTxIndexes,
+        expectedPendingCount,
+      } of pendingTestCases) {
+        it(title, async () => {
+          const proposerTimelock = TimelockController__factory.connect(
+            timelockAddress,
+            proposer,
+          );
+          const executorTimelock = TimelockController__factory.connect(
+            timelockAddress,
+            executor,
+          );
+
+          const operationIds: string[] = [];
+
+          // Schedule all transactions
+          for (const timelockTx of timelockTxs) {
+            const targets = timelockTx.data.map((tx) => tx.to);
+            const values = timelockTx.data.map((tx) => tx.value ?? '0');
+            const dataArray = timelockTx.data.map((tx) => tx.data);
+
+            // Schedule
+            const scheduleTx = await proposerTimelock.scheduleBatch(
+              targets,
+              values,
+              dataArray,
+              timelockTx.predecessor,
+              timelockTx.salt,
+              timelockTx.delay,
+            );
+            await scheduleTx.wait();
+
+            // Get operation ID
+            const operationId = await proposerTimelock.hashOperationBatch(
+              targets,
+              values,
+              dataArray,
+              timelockTx.predecessor,
+              timelockTx.salt,
+            );
+            operationIds.push(operationId);
+          }
+
+          const expectedPendingIds = operationIds.filter((_, index) => {
+            const isCancelled = cancelledTxIndexes?.includes(index) ?? false;
+            const isExecuted = executedTxIndexes?.includes(index) ?? false;
+            return !isCancelled && !isExecuted;
+          });
+
+          // Cancel specific transactions
+          if (cancelledTxIndexes) {
+            for (const index of cancelledTxIndexes) {
+              const cancelTx = await proposerTimelock.cancel(
+                operationIds[index],
+              );
+              await cancelTx.wait();
+            }
+          }
+
+          // Execute specific transactions
+          if (executedTxIndexes) {
+            for (const index of executedTxIndexes) {
+              const timelockTx = timelockTxs[index];
+              const targets = timelockTx.data.map((tx) => tx.to);
+              const values = timelockTx.data.map((tx) => tx.value ?? '0');
+              const dataArray = timelockTx.data.map((tx) => tx.data);
+
+              const executeTx = await executorTimelock.executeBatch(
+                targets,
+                values,
+                dataArray,
+                timelockTx.predecessor,
+                timelockTx.salt,
+              );
+              await executeTx.wait();
+            }
+          }
+
+          const pendingIds =
+            await timelockReader.getPendingOperationIds(operationIds);
+          expect(pendingIds.size).to.equal(expectedPendingCount);
+
+          expect(pendingIds.size).to.equal(expectedPendingIds.length);
+          for (const operationId of expectedPendingIds) {
+            expect(pendingIds.has(operationId)).to.be.true;
+          }
+        });
+      }
+    });
+
     describe(`${EvmTimelockReader.prototype.getScheduledExecutableTransactions.name}`, () => {
       it('should return empty object when no executable transactions exist', async () => {
         const executableTxs =

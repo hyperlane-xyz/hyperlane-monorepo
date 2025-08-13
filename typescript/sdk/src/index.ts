@@ -573,6 +573,8 @@ export {
   resolveRouterMapConfig,
   RouterAddress,
   RouterConfig,
+  MissingRouterViolation,
+  MissingEnrolledRouterViolation,
   RouterViolation,
   RouterViolationType,
 } from './router/types.js';
@@ -806,3 +808,4 @@ export {
   PROPOSER_ROLE,
 } from './timelock/evm/constants.js';
 export { EvmEventLogsReader } from './rpc/evm/EvmEventLogsReader.js';
+export { getTimelockExecutableTransactionFromBatch } from './timelock/evm/utils.js';
