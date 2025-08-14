@@ -84,6 +84,9 @@ pub enum ValidationError {
     #[error("Anchor not found in PSKT inputs: outpoint={o:?}")]
     AnchorNotFound { o: TransactionOutpoint },
 
+    #[error("Anchor shouldn't be spent in sweeping PSKT: outpoint={o:?}")]
+    AnchorSpent { o: TransactionOutpoint },
+
     #[error("Anchor is not escrow change: outpoint={o:?}")]
     NonEscrowAnchor { o: TransactionOutpoint },
 

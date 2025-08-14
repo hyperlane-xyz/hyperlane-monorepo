@@ -5,7 +5,7 @@ use corelib::escrow::*;
 use corelib::payload::MessageIDs;
 use corelib::util;
 use corelib::util::{get_recipient_script_pubkey, is_valid_sighash_type};
-use corelib::withdraw::filter_pending_withdrawals;
+use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hex::ToHex;
@@ -96,6 +96,39 @@ impl MustMatch {
     }
 }
 
+pub async fn validate_sign_withdrawal_fxg(
+    fxg: WithdrawFXG,
+    validation_enabled: bool,
+    cosmos: &CosmosGrpcClient,
+    escrow_public: EscrowPublic,
+    keypair: &SecpKeypair,
+    must_match: MustMatch,
+) -> Result<Bundle> {
+    // !! Safe bundle can be considered part of the validation, strictly speaking
+    let b = safe_bundle(&fxg.bundle)
+        .map_err(|e| eyre::eyre!("Safe bundle validation failed: {e:?}"))?;
+
+    // Call to validator.G()
+    if validation_enabled {
+        validate_withdrawal_batch(&b, &fxg.messages, cosmos, must_match)
+            .await
+            .map_err(|e| eyre::eyre!("Withdrawal validation failed: {:?}", e))?;
+
+        info!("Validator: pskts are valid");
+    }
+
+    // Only sign escrow inputs
+    let input_selector = move |i: &Input| match i.redeem_script.as_ref() {
+        Some(rs) => rs == &escrow_public.redeem_script,
+        None => false,
+    };
+
+    let bundle = sign_withdrawal_fxg(&b, keypair, Some(input_selector))
+        .map_err(|e| eyre::eyre!("Failed to sign withdrawal: {e}"))?;
+
+    Ok(bundle)
+}
+
 /// Validate WithdrawFXG received from the relayer against Kaspa and Hub.
 /// It verifies that:
 /// (0)  All messages should have Kaspa domain.
@@ -120,17 +153,23 @@ impl MustMatch {
 pub async fn validate_withdrawal_batch(
     bundle: &Bundle,
     messages: &[Vec<HyperlaneMessage>],
-    cosmos_client: &CosmosGrpcClient,
+    cosmos: &CosmosGrpcClient,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
-    let hub_anchor = validate_messages(messages, cosmos_client, &must_match).await?;
+    let hub_anchor = validate_messages(messages, cosmos, &must_match).await?;
 
     // At this point we know
     // - The set of messages is unique
     // - All the messages are dispatched on the hub
     // - None of the messages are already confirmed on the hub
 
-    validate_pskts(bundle, messages, hub_anchor, must_match)?;
+    validate_pskts(
+        bundle,
+        messages,
+        hub_anchor,
+        must_match.escrow_public,
+        must_match.address_prefix,
+    )?;
 
     info!("Withdrawal validation completed successfully for withdrawals");
 
@@ -139,7 +178,7 @@ pub async fn validate_withdrawal_batch(
 
 async fn validate_messages(
     messages: &[Vec<HyperlaneMessage>],
-    cosmos_client: &CosmosGrpcClient,
+    cosmos: &CosmosGrpcClient,
     must_match: &MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
     let messages: Vec<HyperlaneMessage> = messages.iter().flatten().cloned().collect();
@@ -161,7 +200,7 @@ async fn validate_messages(
         }
     }
     for id in msg_ids {
-        let res = cosmos_client
+        let res = cosmos
             .delivered(must_match.hub_mailbox_id.clone(), id.encode_hex())
             .await
             .map_err(|e| ValidationError::HubQueryError {
@@ -176,7 +215,7 @@ async fn validate_messages(
         }
     }
     debug!("All withdrawal fxg messages are dispatched on hub");
-    let (hub_anchor, pending_messages) = filter_pending_withdrawals(messages, cosmos_client)
+    let (hub_anchor, pending_messages) = filter_pending_withdrawals(messages, cosmos)
         .await
         .map_err(|e| ValidationError::HubQueryError {
             reason: format!("Failed to get pending withdrawals: {}", e),
@@ -190,27 +229,29 @@ async fn validate_messages(
 
 pub fn validate_pskts(
     bundle: &Bundle,
-    messages: &[Vec<HyperlaneMessage>],
+    expected_messages: &[Vec<HyperlaneMessage>],
     hub_anchor: TransactionOutpoint,
-    must_match: MustMatch,
+    escrow_public: EscrowPublic,
+    address_prefix: KaspaAddrPrefix,
 ) -> Result<(), ValidationError> {
-    if bundle.0.len() != messages.len() {
+    if bundle.0.len() != expected_messages.len() {
         return Err(ValidationError::MessageCacheLengthMismatch {
             expected: bundle.0.len(),
-            actual: messages.len(),
+            actual: expected_messages.len(),
         });
     }
 
     // PSKTs must be linked by anchor, starting with the current hub anchor
     let mut anchor_to_spend = hub_anchor;
     for (idx, pskt) in bundle.iter().enumerate() {
-        let messages = messages.get(idx).unwrap();
+        let messages = expected_messages.get(idx).unwrap();
 
         anchor_to_spend = validate_pskt(
             PSKT::<Signer>::from(pskt.clone()),
             anchor_to_spend,
             messages,
-            must_match.clone(),
+            &escrow_public,
+            address_prefix,
         )?;
     }
 
@@ -221,14 +262,40 @@ pub fn validate_pskt(
     pskt: PSKT<Signer>,
     must_spend: TransactionOutpoint,
     expected_messages: &Vec<HyperlaneMessage>,
-    must_match: MustMatch,
+    escrow_public: &EscrowPublic,
+    address_prefix: KaspaAddrPrefix,
 ) -> Result<TransactionOutpoint, ValidationError> {
     validate_pskt_impl_details(&pskt)?;
-    let ix = validate_pskt_application_semantics(&pskt, must_spend, expected_messages, must_match)?;
-    Ok(TransactionOutpoint::new(pskt.calculate_id(), ix))
+
+    let tx_id = pskt.calculate_id();
+
+    // If there are no messages and payload is empty, then the PSKT
+    // is a sweeping tx which does not spend the anchor
+    let tx_type = if expected_messages.is_empty() {
+        info!("PSKT is a sweeping tx: {tx_id}");
+        TxType::Sweeping
+    } else {
+        info!("PSKT is a withdrawal tx: {tx_id}");
+        TxType::Withdrawal
+    };
+
+    let ix = validate_pskt_application_semantics(
+        &pskt,
+        must_spend,
+        tx_type,
+        expected_messages,
+        escrow_public,
+        address_prefix,
+    )?;
+
+    match tx_type {
+        // In case of the sweeping tx, try to spend the anchor in the next PSKT
+        TxType::Sweeping => Ok(must_spend),
+        TxType::Withdrawal => Ok(TransactionOutpoint::new(pskt.calculate_id(), ix)),
+    }
 }
 
-pub fn validate_pskt_impl_details(pskt: &PSKT<Signer>) -> Result<(), ValidationError> {
+fn validate_pskt_impl_details(pskt: &PSKT<Signer>) -> Result<(), ValidationError> {
     if pskt
         .inputs
         .iter()
@@ -240,22 +307,36 @@ pub fn validate_pskt_impl_details(pskt: &PSKT<Signer>) -> Result<(), ValidationE
     Ok(())
 }
 
-pub fn validate_pskt_application_semantics(
-    pskt: &PSKT<Signer>,
-    must_spend: TransactionOutpoint,
-    expected_messages: &Vec<HyperlaneMessage>,
-    must_match: MustMatch,
-) -> Result<u32, ValidationError> {
-    if expected_messages.is_empty() {
-        return Err(ValidationError::NoMessages);
-    }
+#[derive(Clone, Copy)]
+enum TxType {
+    Sweeping,
+    Withdrawal,
+}
 
-    if !pskt
+fn validate_pskt_application_semantics(
+    pskt: &PSKT<Signer>,
+    current_anchor: TransactionOutpoint,
+    tx_type: TxType,
+    expected_messages: &Vec<HyperlaneMessage>,
+    escrow_public: &EscrowPublic,
+    address_prefix: KaspaAddrPrefix,
+) -> Result<u32, ValidationError> {
+    let anchor_found = pskt
         .inputs
         .iter()
-        .any(|input| input.previous_outpoint == must_spend)
-    {
-        return Err(ValidationError::AnchorNotFound { o: must_spend });
+        .any(|input| input.previous_outpoint == current_anchor);
+
+    // Check that the PSKT is a sweeping tx or a withdrawal tx.
+    // If it is a sweeping tx, then the anchor must not be spent.
+    // If it is a withdrawal tx, then the anchor must be spent.
+    match (tx_type, anchor_found) {
+        (TxType::Sweeping, true) => {
+            return Err(ValidationError::AnchorSpent { o: current_anchor });
+        }
+        (TxType::Withdrawal, false) => {
+            return Err(ValidationError::AnchorNotFound { o: current_anchor });
+        }
+        _ => {}
     }
 
     let payload_expect = MessageIDs::from(expected_messages).to_bytes();
@@ -271,7 +352,7 @@ pub fn validate_pskt_application_semantics(
     let escrow_inputs_sum = pskt.inputs.iter().fold(0, |acc, i| {
         // redeem_script is None for relayer input
         let rs = i.redeem_script.clone().unwrap_or_default();
-        if rs == must_match.escrow_public.redeem_script {
+        if rs == escrow_public.redeem_script {
             acc + i.utxo_entry.as_ref().unwrap().amount
         } else {
             acc
@@ -293,11 +374,11 @@ pub fn validate_pskt_application_semantics(
             }
         })?;
 
-        let recipient = get_recipient_script_pubkey(tm.recipient(), must_match.address_prefix);
+        let recipient = get_recipient_script_pubkey(tm.recipient(), address_prefix);
 
         // There are no withdrawals where escrow is set
         // as recepient. It would drastically complicate the confirmation flow.
-        if recipient == must_match.escrow_public.p2sh {
+        if recipient == escrow_public.p2sh {
             let message_id = m.id().encode_hex();
             return Err(ValidationError::EscrowWithdrawalNotAllowed { message_id });
         }
@@ -324,7 +405,7 @@ pub fn validate_pskt_application_semantics(
         }
 
         // Check that output is an anchor
-        if output.script_public_key == must_match.escrow_public.p2sh {
+        if output.script_public_key == escrow_public.p2sh {
             // Abort if there is more than one anchor candidate
             if next_anchor_idx.is_some() {
                 return Err(ValidationError::MultipleAnchors);
@@ -350,6 +431,9 @@ pub fn validate_pskt_application_semantics(
         });
     }
 
+    // In case of the sweeping tx, next_anchor_idx is not an anchor,
+    // but a swept output. It shouldn't necessarily be spent on the next iteration.
+    // But it still should be present in the PSKT.
     next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)
 }
 

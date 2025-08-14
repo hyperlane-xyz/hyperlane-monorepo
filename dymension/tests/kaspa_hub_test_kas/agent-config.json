@@ -16,7 +16,7 @@
       },
       "displayName": "Dymension Hub Local",
       "gasCurrencyCoinGeckoId": "dymension",
-      "domainId": 587907060,
+      "domainId": 1260813472,
       "gasPrice": {
         "amount": "100000000000.0",
         "denom": "adym"
@@ -69,7 +69,7 @@
       "mailbox": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "validatorAnnounce": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "maxBatchSize": 3,
+      "maxBatchSize": 100,
       "maxSubmitQueueLength": 100,
       "bypassBatchSimulation": false,
       "rpcUrls": [
@@ -77,17 +77,20 @@
           "http": "https://www.google.com"
         }
       ],
-      "walletSecret": "L1cinda_14",
+      "walletSecret": "123456qwe",
       "kaspaRpcUrl": "localhost:17210",
+      "kaspaUrlsWrpc": "localhost:17210",
       "kaspaRestUrl": "https://api-tn10.kaspa.org/",
+      "kaspaUrlsRest": "https://api-tn10.kaspa.org/",
       "validatorHosts": "http://localhost:9090",
-      "validatorPubsKaspa": "027b75fcbedee53f82ebc43c19a69697100afad2df27202f107c994c740e9df5b8",
-      "escrowAddress": "kaspatest:prmapgdl0nsdqjsmd45fjykxuq3242g4npryzkqe3aeqq9yhrp20k20ymjrlk",
-      "kaspaEscrowPrivateKey": "\"afa4bcc6e5828eb28d70138ea784a32e0212d3560dfcdfac85bfa1dbabb11ac9\"",
+      "kaspaMinDepositSompi": 4000000000,
+      "validatorPubsKaspa": "0306d242c171c1fbdb57cb47995e941a33597ce69ba955c3f3daadf046f7b3c700",
+      "escrowAddress": "kaspatest:ppg5lszd7m8u8hxru3yux3yhhlym3xt2v6perwz4mhhml6ganfm6wee839gfc",
+      "kaspaEscrowPrivateKey": "\"cb902d5457e17d35beff81e90d15aac31841cdb8ecdb4dc36a5acd5273f8fb2f\"",
       "kaspaMultisigThresholdHubIsm": 1,
       "kaspaMultisigThresholdEscrow": 1,
       "hubMailboxId": "0x68797065726c616e650000000000000000000000000000000000000000000000",
-      "depositLookBackMins": 120,
+      "depositLookBackMins": 3,
       "validateDeposit": true,
       "validateWithdrawal": true,
       "validateWithdrawalConfirmation": true,

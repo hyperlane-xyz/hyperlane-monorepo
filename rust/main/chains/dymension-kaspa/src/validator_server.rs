@@ -16,9 +16,7 @@ use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
-use dym_kas_validator::withdraw::{
-    safe_bundle, sign_withdrawal_fxg, validate_withdrawal_batch, MustMatch as WithdrawMustMatch,
-};
+use dym_kas_validator::withdraw::{validate_sign_withdrawal_fxg, MustMatch as WithdrawMustMatch};
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
 use hyperlane_core::{
@@ -205,49 +203,32 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     body: Bytes,
 ) -> HandlerResult<Json<Bundle>> {
     info!("Validator: signing pskts");
-    let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-    let b = safe_bundle(&fxg.bundle).map_err(|e| {
-        eprintln!("Safe bundle validation failed: {:?}", e);
-        AppError(e)
-    })?; // !! Safe bundle can be considered part of the validation, strictly speaking
-    let m = fxg.messages;
+    let fxg: WithdrawFXG = body.try_into().map_err(|e: Report| AppError(e))?;
+    let escrow = resources.must_escrow();
+    let val_stuff = resources.must_val_stuff();
 
-    // Call to validator.G()
-    if resources.must_val_stuff().toggles.withdrawal_enabled {
-        validate_withdrawal_batch(
-            &b,
-            &m,
-            resources.must_hub_rpc(),
-            WithdrawMustMatch::new(
-                resources.must_wallet().net.address_prefix,
-                resources.must_escrow(),
-                resources.must_val_stuff().hub_domain,
-                resources.must_val_stuff().hub_token_id,
-                resources.must_val_stuff().kas_domain,
-                resources.must_val_stuff().kas_token_placeholder,
-                resources.must_val_stuff().hub_mailbox_id.clone(),
-            ),
-        )
-        .await
-        .map_err(|e| {
-            eprintln!("Withdrawal validation failed: {:?}", e);
-            AppError(Report::from(e))
-        })?;
-        info!("Validator: pskts are valid");
-    }
-
-    let input_selector = {
-        // only sign escrow inputs
-        let expected_script = resources.must_escrow().redeem_script.clone();
-        move |i: &Input| match i.redeem_script.clone() {
-            Some(rs) => rs == expected_script,
-            None => false,
-        }
-    };
-
-    let bundle = sign_withdrawal_fxg(&b, &resources.must_kas_key(), Some(input_selector))
-        .map_err(AppError)?;
+    let bundle = validate_sign_withdrawal_fxg(
+        fxg,
+        val_stuff.toggles.withdrawal_enabled,
+        resources.must_hub_rpc(),
+        escrow,
+        &resources.must_kas_key(),
+        WithdrawMustMatch::new(
+            resources.must_wallet().net.address_prefix,
+            resources.must_escrow(),
+            val_stuff.hub_domain,
+            val_stuff.hub_token_id,
+            val_stuff.kas_domain,
+            val_stuff.kas_token_placeholder,
+            val_stuff.hub_mailbox_id.clone(),
+        ),
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Withdrawal validation and singing failed: {:?}", e);
+        AppError(Report::from(e))
+    })?;
 
     Ok(Json(bundle))
 }

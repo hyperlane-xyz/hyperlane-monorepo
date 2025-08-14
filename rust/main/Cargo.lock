@@ -11002,6 +11002,7 @@ dependencies = [
  "hyperlane-cosmos-native",
  "hyperlane-warp-route",
  "kaspa-addresses",
+ "kaspa-consensus-client",
  "kaspa-consensus-core",
  "kaspa-core 1.0.0 (git+https://github.com/dymensionxyz/rusty-kaspa?rev=a443c3f)",
  "kaspa-grpc-client",

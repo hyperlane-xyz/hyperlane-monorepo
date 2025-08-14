@@ -63,7 +63,7 @@ cargo run -- deposit \
 open
 connect
 select
-send 1 $ESCROW_ADDR
+send $ESCROW_ADDR 1
 
 # PUT THE WALLET SECRET KEY IN agent-config.json – "kaspatest10.walletSecret"
 
@@ -75,17 +75,17 @@ MONODIR=/Users/danwt/Documents/dym/d-hyperlane-monorepo
 
 # clean slate
 trash ~/.hyperlane; trash ~/.dymension
-mkdir ~/.hyperlane; cp -r $MONODIR/dymension/tests/kaspa_hub_test/chains ~/.hyperlane/chains
+mkdir ~/.hyperlane; cp -r $MONODIR/dymension/tests/kaspa_hub_test_kas/chains ~/.hyperlane/chains
 
 # install hub binary (dymension/)
 make install
-source $MONODIR/dymension/tests/kaspa_hub_test/env.sh
+source $MONODIR/dymension/tests/kaspa_hub_test_kas/env.sh
 scripts/setup_local.sh
 dymd start --log_level=debug
 
 # setup bridge objects on hub
 REMOTE_ROUTER_ADDRESS="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" # no smart contracts on kaspa 
-dymd tx kas setup-bridge --validators "$VALIDATOR_ISM_ADDR" --threshold 1 --remote-router-address "$REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
+dymd tx kas setup-bridge --validators "$VALIDATOR_ISM_ADDR" --threshold 1 --remote-router-address "$REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}" --counterparty-domain $KASTEST_DOMAIN --hub-domain $HUB_DOMAIN
 
 MAILBOX=$(dymd q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
 TOKEN_ID=$(dymd q warp tokens -o json | jq -r '.tokens[0].id')
@@ -102,7 +102,7 @@ KAS_TOKEN_ID=$(dymd q warp remote-routers $TOKEN_ID -o json | jq -r '.remote_rou
 AGENT_TMP=/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_kaspa/practical/e2e/tmp
 DB_VALIDATOR=$AGENT_TMP/dbs/hyperlane_db_validator
 DB_RELAYER=$AGENT_TMP/dbs/hyperlane_db_relayer
-export CONFIG_FILES=$MONODIR/dymension/tests/kaspa_hub_test/agent-config.json
+export CONFIG_FILES=$MONODIR/dymension/tests/kaspa_hub_test_kas/agent-config.json
 
 trash $AGENT_TMP/dbs
 mkdir $AGENT_TMP/dbs
@@ -151,7 +151,7 @@ echo $OUTPOINT | xxd -r -p | base64 # Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5z
 # query the hub entities and reference them (REQUIRES EDITING bootstrap.json)
 ISM=$(dymd q hyperlane ism isms -o json | jq -r '.isms[0].id')
 
-dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test/bootstrap.json \
+dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test_kas/bootstrap.json \
   --from hub-user \
   --gas auto \
   --fees 10000000000000000adym \
@@ -209,14 +209,15 @@ RUST_BACKTRACE=1 cargo run --release --bin relayer -- \
 
 HUB_USER_ADDR=$(dymd keys show -a hub-user) #dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
 
-DEPOSIT_AMT=100000000 # 100 million sompi = 1 TKAS
+DEPOSIT_AMT=10000000000 # 10_000 million sompi = 100 TKAS
 
 # get the HL message
 # <token id> <recipient> <amt> <kas_token_id>
-dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT $KAS_TOKEN_ID
+# TODO: Command "hl-message-kaspa" is deprecated, use 'create-hl-message --source=kaspa --dest=hub' instead
+dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT $KAS_TOKEN_ID $KASTEST_DOMAIN $HUB_DOMAIN
 
 # NOTE: payload should not have 0x prefix
-HL_PAYLOAD=$(dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT $KAS_TOKEN_ID | cut -c 3-)
+HL_PAYLOAD=$(dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT $KAS_TOKEN_ID $KASTEST_DOMAIN $HUB_DOMAIN | cut -c 3-)
 
 # In hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
 # Put payload in the arguments
@@ -246,7 +247,7 @@ KASPA_RECIPIENT=$(cargo run recipient kaspatest:qrjmshvw4ucgyhm8rlc257g4mz9fy64k
 # initiate the transfer
 # dymd tx warp transfer [token-id] [destination-domain] [recipient] [amount] [flags]
 # kastest10 domain is 897658017
-WITHDRAW_AMT=20000002 # just enough to not be dust
+WITHDRAW_AMT=4000000002 # more than min deposit, 40 KAS
 dymd tx warp transfer $TOKEN_ID $KASTEST_DOMAIN $KASPA_RECIPIENT $WITHDRAW_AMT --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
 
 # Validate the result

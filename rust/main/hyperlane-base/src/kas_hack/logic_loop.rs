@@ -4,12 +4,14 @@ use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
 use dym_kas_relayer::confirm::expensive_trace_transactions;
 use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
 use dymension_kaspa::{Deposit, KaspaProvider};
+use ethers::utils::hex::ToHex;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneLogStore,
     Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, Signature, SignedCheckpointWithMessageId,
     TxOutcome, H256,
 };
+use hyperlane_cosmos_native::h512_to_cosmos_hash;
 use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_core::time::unix_now;
@@ -386,9 +388,17 @@ where
             .await
             .map_err(|e| eyre::eyre!("Indicate progress failed: {}", e))?;
 
+        let tx_hash = h512_to_cosmos_hash(outcome.transaction_id).encode_hex_upper::<String>();
+
+        if !outcome.executed {
+            return Err(eyre::eyre!(
+                "Indicate progress failed, TX was not executed on-chain, tx hash: {tx_hash}"
+            ));
+        }
+
         info!(
-            "Dymension, indicated progress on hub: {:?}, outcome: {:?}",
-            fxg.progress_indication, outcome
+            "Dymension, indicated progress on hub: {:?}, outcome: {:?}, tx hash: {:?}",
+            fxg.progress_indication, outcome, tx_hash,
         );
 
         Ok(())

@@ -11,12 +11,16 @@ pub async fn check_balance<T: RpcApi + ?Sized>(
     rpc: &T,
     addr: &Address,
 ) -> Result<u64, Error> {
-    let balance = rpc
-        .get_balance_by_address(addr.clone())
+    let utxos = rpc
+        .get_utxos_by_addresses(vec![addr.clone()])
         .await
-        .map_err(|e| Error::Custom(format!("Getting balance for address: {e}")))?;
+        .map_err(|e| Error::Custom(format!("Getting UTXOs for address: {e}")))?;
 
-    info!("{} balance: {}", source, balance);
+    let num = utxos.len();
+    let balance: u64 = utxos.into_iter().map(|u| u.utxo_entry.amount).sum();
+
+    info!("{} has {} UTXOs and {} balance", source, num, balance);
+
     Ok(balance)
 }
 

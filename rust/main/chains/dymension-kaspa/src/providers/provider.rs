@@ -267,7 +267,7 @@ async fn get_easy_wallet(
 ) -> Result<EasyKaspaWallet> {
     let args = EasyKaspaWalletArgs {
         wallet_secret,
-        rpc_url,
+        wrpc_url: rpc_url,
         net: domain_to_kas_network(&domain),
         storage_folder,
     };

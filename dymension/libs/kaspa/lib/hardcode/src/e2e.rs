@@ -1,8 +1,6 @@
 /* For e2e tests and testing only */
 
-use super::tx::DUST_AMOUNT;
 use api_rs::apis::configuration;
-use hyperlane_core::U256;
 use kaspa_addresses::{Prefix, Version};
 use kaspa_consensus_core::network::{NetworkId, NetworkType};
 

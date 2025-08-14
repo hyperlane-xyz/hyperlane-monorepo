@@ -166,7 +166,7 @@ impl TrafficSim {
     pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
         let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
             wallet_secret: args.wallet.wallet_secret,
-            rpc_url: DEFAULT_WRPC_URL.to_string(),
+            wrpc_url: DEFAULT_WRPC_URL.to_string(),
             net: Network::KaspaTest10,
             storage_folder: None,
         })
