@@ -11,11 +11,14 @@ use crate::TransactionStatus;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum NonceAction {
+    // No action needed
     Noop,
+    // Assign provided nonce to tx
     Assign,
 }
 
 impl NonceManagerState {
+    /// Validates whether the transaction's nonce is valid
     pub(crate) async fn validate_assigned_nonce(
         &self,
         tx: &Transaction,
@@ -23,11 +26,25 @@ impl NonceManagerState {
         use NonceAction::{Assign, Noop};
         use NonceStatus::{Committed, Freed, Taken};
 
+        let nonce: Option<U256> = tx.precursor().tx.nonce().map(|s| s.into());
+        match nonce {
+            Some(nonce) => self.validate_nonce(tx, nonce).await,
+            None => Ok((Assign, None)),
+        }
+    }
+
+    /// Validates whether the nonce is valid for the given
+    /// transaction
+    pub(crate) async fn validate_nonce(
+        &self,
+        tx: &Transaction,
+        nonce: U256,
+    ) -> NonceResult<(NonceAction, Option<U256>)> {
+        use NonceAction::{Assign, Noop};
+        use NonceStatus::{Committed, Freed, Taken};
+
         let tx_uuid = tx.uuid.clone();
         let tx_status = tx.status.clone();
-        let Some(nonce): Option<U256> = tx.precursor().tx.nonce().map(Into::into) else {
-            return Ok((Assign, None));
-        };
         let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
 
         // Fetching the tracked transaction uuid

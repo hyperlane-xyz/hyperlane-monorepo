@@ -57,25 +57,16 @@ impl NonceManager {
         &self,
         tx: &Transaction,
     ) -> eyre::Result<Option<U256>, LanderError> {
-        use NonceAction::Noop;
+        use NonceAction::{Assign, Noop};
 
         let tx_uuid = tx.uuid.clone();
         let precursor = tx.precursor();
-
-        // if this tx was already assigned a nonce, re-use it.
-        if let Some(nonce) = self
-            .state
-            .nonce_db()
-            .retrieve_nonce_by_transaction_uuid(&tx_uuid)
-            .await?
-        {
-            return Ok(Some(nonce));
-        }
 
         let from = *precursor.tx.from().ok_or(LanderError::TxSubmissionError(
             "Transaction missing address".to_string(),
         ))?;
 
+        eprintln!("From: {:?} {:?}", from, self.address);
         if from != self.address {
             return Err(LanderError::TxSubmissionError(
                 "Transaction from address does not match nonce manager address".to_string(),
@@ -86,6 +77,26 @@ impl NonceManager {
             .update_boundaries()
             .await
             .map_err(|e| eyre::eyre!("Failed to update boundary nonces: {}", e))?;
+
+        // if this tx was already assigned a nonce, re-use it.
+        if let Some(nonce) = self
+            .state
+            .nonce_db()
+            .retrieve_nonce_by_transaction_uuid(&tx_uuid)
+            .await?
+        {
+            // make sure nonce is valid
+            let (action, nonce) = self
+                .state
+                .validate_nonce(tx, nonce)
+                .await
+                .map_err(|e| eyre::eyre!("Failed to validate nonce: {}", e))?;
+
+            // if valid, then use it
+            if matches!(action, Noop) {
+                return Ok(nonce);
+            }
+        }
 
         let (action, nonce) = self
             .state

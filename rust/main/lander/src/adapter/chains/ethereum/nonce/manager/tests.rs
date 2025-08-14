@@ -118,11 +118,11 @@ async fn test_assign_nonce_error_when_from_address_mismatch() {
         .contains("Transaction from address does not match nonce manager address"));
 }
 
+#[tracing_test::traced_test]
 #[tokio::test]
 async fn test_nonce_gets_loaded_from_db() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
-    let other_address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
     let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
     let nonce_updater = make_nonce_updater(address, state.clone());
@@ -138,7 +138,19 @@ async fn test_nonce_gets_loaded_from_db() {
     manager
         .state
         .nonce_db()
+        .store_transaction_uuid_by_nonce_and_signer_address(&expected_nonce, &address, &uuid)
+        .await
+        .expect("Failed to store nonce");
+    manager
+        .state
+        .nonce_db()
         .store_nonce_by_transaction_uuid(&uuid, &expected_nonce)
+        .await
+        .expect("Failed to store nonce");
+    manager
+        .state
+        .nonce_db()
+        .store_finalized_nonce_by_signer_address(&address, &U256::from(90))
         .await
         .expect("Failed to store nonce");
 
@@ -147,12 +159,63 @@ async fn test_nonce_gets_loaded_from_db() {
         uuid.clone(),
         TransactionStatus::PendingInclusion,
         None,
-        Some(other_address),
+        Some(address),
     );
 
     let nonce = manager
         .calculate_next_nonce(&mut tx)
         .await
-        .expect("Failed to calculate next once");
+        .expect("Failed to calculate next nonce");
+    assert_eq!(nonce, Some(expected_nonce));
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_nonce_gets_loaded_from_db_nonce_too_low() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+    let nonce_updater = make_nonce_updater(address, state.clone());
+    let manager = NonceManager {
+        address,
+        state,
+        nonce_updater,
+    };
+
+    let uuid = TransactionUuid::random();
+
+    let expected_nonce = U256::from(100);
+    manager
+        .state
+        .nonce_db()
+        .store_transaction_uuid_by_nonce_and_signer_address(&expected_nonce, &address, &uuid)
+        .await
+        .expect("Failed to store nonce");
+    manager
+        .state
+        .nonce_db()
+        .store_nonce_by_transaction_uuid(&uuid, &expected_nonce)
+        .await
+        .expect("Failed to store nonce");
+    manager
+        .state
+        .nonce_db()
+        .store_finalized_nonce_by_signer_address(&address, &U256::from(110))
+        .await
+        .expect("Failed to store nonce");
+
+    // From address does not match manager address
+    let mut tx = make_tx(
+        uuid.clone(),
+        TransactionStatus::PendingInclusion,
+        None,
+        Some(address),
+    );
+
+    let nonce = manager
+        .calculate_next_nonce(&mut tx)
+        .await
+        .expect("Failed to calculate next nonce");
     assert_eq!(nonce, Some(expected_nonce));
 }
