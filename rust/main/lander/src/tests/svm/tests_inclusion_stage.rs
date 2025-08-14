@@ -32,7 +32,7 @@ use crate::{
     TransactionStatus,
 };
 
-const TEST_BLOCK_TIME: Duration = Duration::from_millis(50);
+const TEST_BLOCK_TIME: Duration = Duration::from_millis(400);
 const TEST_DOMAIN: KnownHyperlaneDomain = KnownHyperlaneDomain::SolanaMainnet;
 
 #[tokio::test]
