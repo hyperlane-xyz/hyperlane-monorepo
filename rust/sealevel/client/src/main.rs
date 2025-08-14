@@ -77,11 +77,13 @@ mod registry;
 mod router;
 mod serde;
 mod squads;
+mod test_ism;
 mod warp_route;
 
 use crate::helloworld::process_helloworld_cmd;
 use crate::igp::process_igp_cmd;
 use crate::multisig_ism::process_multisig_ism_message_id_cmd;
+use crate::test_ism::process_test_ism_cmd;
 use crate::warp_route::process_warp_route_cmd;
 pub(crate) use crate::{context::*, core::*};
 
@@ -119,6 +121,7 @@ enum HyperlaneSealevelCmd {
     Igp(IgpCmd),
     ValidatorAnnounce(ValidatorAnnounceCmd),
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
+    TestIsm(TestIsmCmd),
     WarpRoute(WarpRouteCmd),
     HelloWorld(HelloWorldCmd),
     Squads(SquadsCmd),
@@ -719,6 +722,52 @@ pub(crate) struct HelloWorldQuery {
     program_id: Pubkey,
 }
 
+#[derive(Args)]
+struct TestIsmCmd {
+    #[command(subcommand)]
+    cmd: TestIsmSubCmd,
+}
+
+#[derive(Subcommand)]
+enum TestIsmSubCmd {
+    Deploy(TestIsmDeploy),
+    Init(TestIsmInit),
+    SetAccept(TestIsmSetAccept),
+    Query(TestIsmQuery),
+}
+
+#[derive(Args)]
+struct TestIsmDeploy {
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
+    #[arg(long)]
+    built_so_dir: PathBuf,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    context: String,
+}
+
+#[derive(Args)]
+struct TestIsmInit {
+    #[arg(long, short)]
+    program_id: Pubkey,
+}
+
+#[derive(Args)]
+struct TestIsmSetAccept {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    #[arg(long)]
+    accept: bool,
+}
+
+#[derive(Args)]
+struct TestIsmQuery {
+    #[arg(long, short)]
+    program_id: Pubkey,
+}
+
 fn main() {
     pretty_env_logger::init();
 
@@ -791,6 +840,7 @@ fn main() {
         HyperlaneSealevelCmd::MultisigIsmMessageId(cmd) => {
             process_multisig_ism_message_id_cmd(ctx, cmd)
         }
+        HyperlaneSealevelCmd::TestIsm(cmd) => process_test_ism_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Core(cmd) => process_core_cmd(ctx, cmd),
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
         HyperlaneSealevelCmd::HelloWorld(cmd) => process_helloworld_cmd(ctx, cmd),
