@@ -1,4 +1,4 @@
-import { BigNumber, constants } from 'ethers';
+import { constants } from 'ethers';
 
 import {
   BaseFee__factory,

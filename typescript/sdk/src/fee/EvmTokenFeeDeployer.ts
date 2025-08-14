@@ -11,6 +11,7 @@ import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories, evmTokenFeeFactories } from './contracts.js';
 import {
   OnchainTokenFeeType,
+  TokenFeeConfig,
   TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
@@ -40,20 +41,23 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     config: TokenFeeConfigInput,
   ): Promise<HyperlaneContracts<EvmTokenFeeFactories>> {
     const deployedContract: any = {}; // This is a partial HyperlaneContracts<EvmTokenFeeFactories>
+    const parsedConfig = TokenFeeConfigSchema.parse(config);
 
     switch (config.type) {
       case TokenFeeType.LinearFee:
       case TokenFeeType.ProgressiveFee:
       case TokenFeeType.RegressiveFee:
         deployedContract[config.type] = await this.deployFee(
-          config.type,
           chain,
-          config,
+          parsedConfig,
         );
         break;
       case TokenFeeType.RoutingFee: {
         // Return the routing fee and all the child fee contracts
-        const routingFeeResult = await this.deployRoutingFee(chain, config);
+        const routingFeeResult = await this.deployRoutingFee(
+          chain,
+          parsedConfig,
+        );
         deployedContract[TokenFeeType.RoutingFee] = routingFeeResult.routingFee;
         for (const [_, contract] of Object.entries(
           routingFeeResult.subFeeContracts,
@@ -69,33 +73,29 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
   }
 
   private async deployFee(
-    feeType: TokenFeeType,
     chain: ChainName,
-    config: TokenFeeConfigInput,
-  ): Promise<ReturnType<EvmTokenFeeFactories[typeof feeType]['deploy']>> {
-    const parsedConfig = TokenFeeConfigSchema.parse(config);
-
-    let { maxFee, halfAmount } = parsedConfig;
+    config: TokenFeeConfig,
+  ): Promise<
+    ReturnType<EvmTokenFeeFactories[TokenFeeConfig['type']]['deploy']>
+  > {
+    let { maxFee, halfAmount } = config;
     if (config.bps) {
       const { maxFee: calculatedMaxFee, halfAmount: calculatedHalfAmount } =
-        await this.tokenFeeReader.convertFromBps(
-          parsedConfig.bps,
-          config.token,
-        );
+        await this.tokenFeeReader.convertFromBps(config.bps, config.token);
       maxFee = calculatedMaxFee;
       halfAmount = calculatedHalfAmount;
     }
-    return this.deployContract(chain, feeType, [
+    return this.deployContract(chain, config.type, [
       config.token,
       maxFee,
       halfAmount,
-      parsedConfig.owner,
+      config.owner,
     ]);
   }
 
   private async deployRoutingFee(
     chain: ChainName,
-    config: TokenFeeConfigInput,
+    config: TokenFeeConfig,
   ): Promise<RoutingFeeDeploymentResult> {
     if (config.type !== TokenFeeType.RoutingFee) {
       throw new Error('Invalid config type for routing fee deployment');
@@ -114,11 +114,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       for (const [destinationChain, feeConfig] of Object.entries(
         config.feeContracts,
       )) {
-        const deployedFeeContract = await this.deployFee(
-          feeConfig.type,
-          chain,
-          feeConfig,
-        );
+        const deployedFeeContract = await this.deployFee(chain, feeConfig);
 
         await routingFee.setFeeContract(
           this.multiProvider.getChainId(destinationChain),
