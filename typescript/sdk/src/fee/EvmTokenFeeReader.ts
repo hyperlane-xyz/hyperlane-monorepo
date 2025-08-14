@@ -1,11 +1,22 @@
-import { BaseFee__factory, LinearFee__factory } from '@hyperlane-xyz/core';
+import { BigNumber, constants } from 'ethers';
+
+import {
+  BaseFee__factory,
+  ERC20__factory,
+  LinearFee__factory,
+} from '@hyperlane-xyz/core';
 import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
-import { OnchainTokenFeeType, TokenFeeConfig, TokenFeeType } from './types.js';
+import {
+  BaseTokenFeeConfig,
+  OnchainTokenFeeType,
+  TokenFeeConfig,
+  TokenFeeType,
+} from './types.js';
 
 type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 export class EvmTokenFeeReader extends HyperlaneReader {
@@ -55,9 +66,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       type: TokenFeeType.LinearFee,
       token: await tokenFee.token(),
       owner: await tokenFee.owner(),
-      maxFee: maxFee.toString(),
-      halfAmount: halfAmount.toString(),
-      bps: 0, // TODO: figure this out
+      maxFee: BigInt(maxFee.toString()),
+      halfAmount: BigInt(halfAmount.toString()),
+      bps: 0n, // TODO: figure this out
     };
   }
 
@@ -77,5 +88,38 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     _address: Address,
   ): Promise<DerivedTokenFeeConfig> {
     throw new Error('Not implemented');
+  }
+
+  async convertBpsToMaxFeeAndHalfAmount(
+    config: TokenFeeConfig,
+  ): Promise<Pick<BaseTokenFeeConfig, 'maxFee' | 'halfAmount'>> {
+    // If maxFee is not set, set it to uint256.max / token.totalSupply
+    const token = ERC20__factory.connect(config.token, this.provider);
+    const totalSupply = await token.totalSupply();
+    // TODO: Handle Native fees i.e address(0)
+
+    const maxFee = config.maxFee
+      ? BigNumber.from(config.maxFee)
+      : constants.MaxUint256.div(totalSupply);
+
+    // halfAmount is bps * maxFee * 5000, or maxFee / 2 if bps is not set
+    const halfAmount = config.bps
+      ? BigNumber.from(config.bps).mul(BigNumber.from(maxFee).mul(5000))
+      : maxFee.div(2);
+    return {
+      maxFee: BigInt(maxFee.toString()),
+      halfAmount: BigInt(halfAmount.toString()),
+    };
+  }
+
+  async convertMaxFeeAndHalfAmountToBps(
+    address: Address,
+  ): Promise<BaseTokenFeeConfig['bps']> {
+    const fee = BaseFee__factory.connect(address, this.provider);
+    const maxFee = await fee.maxFee();
+    const halfAmount = await fee.halfAmount();
+
+    const bps = BigNumber.from(halfAmount).mul(10000).div(maxFee.mul(5000));
+    return BigInt(bps.toString());
   }
 }

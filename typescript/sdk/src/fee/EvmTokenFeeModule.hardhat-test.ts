@@ -10,8 +10,8 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { TokenFeeConfig, TokenFeeType } from './types.js';
 
-const MAX_FEE = '100000000000000000000';
-const HALF_AMOUNT = '50000000000000000000';
+const MAX_FEE = 100000000000000000000n;
+const HALF_AMOUNT = 50000000000000000000n;
 describe('EvmTokenFeeModule', () => {
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;
@@ -29,7 +29,7 @@ describe('EvmTokenFeeModule', () => {
       token: token.address,
       maxFee: MAX_FEE,
       halfAmount: HALF_AMOUNT,
-      bps: 1000,
+      bps: 1000n,
     };
   });
   it('should create a new token fee', async () => {

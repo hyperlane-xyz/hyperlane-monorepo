@@ -37,7 +37,7 @@ export const BaseFeeConfigSchema = z.object({
   owner: ZHash,
   maxFee: ZBigNumberish.default(0n).transform(BigInt),
   halfAmount: ZBigNumberish.default(0n).transform(BigInt),
-  bps: z.number().default(0),
+  bps: ZBigNumberish.default(0n).transform(BigInt),
 });
 
 export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
