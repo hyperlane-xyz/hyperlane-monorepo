@@ -351,10 +351,6 @@ impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion>
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use hyperlane_core::test_utils::MockMerkleTreeHookBuilder;
-    use hyperlane_core::{HyperlaneMessage, ReorgPeriod};
-
     // We'll need mock implementations for testing
     // This is a placeholder for the actual test implementation
 
