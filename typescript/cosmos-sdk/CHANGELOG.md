@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- # @hyperlane-xyz/cosmos-types@15.0.0-beta.0
+- @hyperlane-xyz/cosmos-types@15.0.0-beta.0
 
 ## 16.2.0
 

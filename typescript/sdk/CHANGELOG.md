@@ -98,7 +98,7 @@
   - @hyperlane-xyz/core@10.0.0-beta.0
   - @hyperlane-xyz/utils@15.0.0-beta.0
   - @hyperlane-xyz/starknet-core@15.0.0-beta.0
-  - # @hyperlane-xyz/cosmos-sdk@15.0.0-beta.0
+  - @hyperlane-xyz/cosmos-sdk@15.0.0-beta.0
 - a33c8abd4: Use `convertToScaledAmount` in WarpCore
 - d16a853c0: Update paradex AW validator address.
 - Updated dependencies [451f3f6c3]
