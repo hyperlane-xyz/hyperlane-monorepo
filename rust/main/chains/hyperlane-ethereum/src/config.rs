@@ -101,6 +101,9 @@ pub struct TransactionOverrides {
     pub gas_price_multiplier_denominator: Option<U256>,
     /// Gas price multiplier numerator to use for transactions, eg 100
     pub gas_price_multiplier_numerator: Option<U256>,
+    /// Gas price cap multiplier to bound escalated prices by newly estimated prices.
+    /// Default value is 3 if not specified.
+    pub gas_price_cap_multiplier: Option<U256>,
 
     /// Gas price cap, in wei.
     pub gas_price_cap: Option<U256>,

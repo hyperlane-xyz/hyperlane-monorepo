@@ -140,6 +140,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -276,6 +277,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -412,6 +414,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -746,6 +749,12 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       name: 'superswap_ica_v2',
       matchingList: superswapIcaV2MatchingList,
     },
+    {
+      name: 'm0',
+      matchingList: consistentSenderRecipientMatchingList(
+        '0x36f586A30502AE3afb555b8aA4dCc05d233c2ecE',
+      ),
+    },
   ];
 };
 
@@ -806,7 +815,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7199ade-20250808-152553',
+      tag: 'e385270-20250813-160048',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -826,7 +835,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '7199ade-20250808-152553',
+      tag: 'e385270-20250813-160048',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -837,7 +846,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7199ade-20250808-152553',
+      tag: 'e385270-20250813-160048',
     },
     resources: scraperResources,
   },
@@ -852,7 +861,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7199ade-20250808-152553',
+      tag: 'e385270-20250813-160048',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

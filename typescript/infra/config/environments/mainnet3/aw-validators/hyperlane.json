@@ -254,6 +254,9 @@
   "miraclechain": {
     "validators": ["0x8fc655174e99194399822ce2d3a0f71d9fc2de7b"]
   },
+  "mitosis": {
+    "validators": ["0x3b3eb808d90a4e19bb601790a6b6297812d6a61f"]
+  },
   "mode": {
     "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
   },

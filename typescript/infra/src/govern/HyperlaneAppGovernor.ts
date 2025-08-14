@@ -27,8 +27,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { awIcasV2 } from '../../config/environments/mainnet3/governance/ica/aw2.js';
-import { regularIcasV2 } from '../../config/environments/mainnet3/governance/ica/regular2.js';
+import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_awLegacy.js';
+import { regularIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_regularLegacy.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { legacyEthIcaRouter, legacyIcaChainRouters } from '../config/chain.js';
 import {
@@ -389,11 +389,11 @@ export abstract class HyperlaneAppGovernor<
       let ownerType: Owner | null;
       let icaGovernanceType: GovernanceType;
 
-      // Temporary hack to handle Abacus Works ICA v2 til we migrate everything
-      if (eqAddress(account.address, awIcasV2[chain])) {
+      // Backstop to still be able to parse legacy Abacus Works ICAs
+      if (eqAddress(account.address, awIcasLegacy[chain])) {
         ownerType = Owner.ICA;
         icaGovernanceType = GovernanceType.AbacusWorks;
-      } else if (eqAddress(account.address, regularIcasV2[chain])) {
+      } else if (eqAddress(account.address, regularIcasLegacy[chain])) {
         ownerType = Owner.ICA;
         icaGovernanceType = GovernanceType.Regular;
       } else {

@@ -73,6 +73,7 @@ export const mainnet3SupportedChainNames = [
   'milkyway',
   'mint',
   'miraclechain',
+  'mitosis',
   'mode',
   'molten',
   'moonbeam',
