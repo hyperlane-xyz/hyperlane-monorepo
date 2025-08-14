@@ -96,14 +96,12 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   ): Promise<Pick<BaseTokenFeeConfig, 'maxFee' | 'halfAmount'>> {
     // Assume maxFee is uint256.max / token.totalSupply
     const token = ERC20__factory.connect(tokenAddress, this.provider);
-    const totalSupply = await token.totalSupply();
-    const maxFee = constants.MaxUint256.div(totalSupply);
-    const halfAmount = BigNumber.from(maxFee)
-      .mul(5_000)
-      .div(BigNumber.from(bps));
+    const totalSupplyBn = await token.totalSupply();
+    const maxFee = BigInt(constants.MaxUint256.div(totalSupplyBn).toString());
+    const halfAmount = (maxFee * 5_000n) / bps;
     return {
-      maxFee: BigInt(maxFee.toString()),
-      halfAmount: BigInt(halfAmount.toString()),
+      maxFee,
+      halfAmount,
     };
   }
 
