@@ -269,8 +269,8 @@ export class EvmHypSyntheticAdapter
     const contractVersion = await this.contract.PACKAGE_VERSION();
 
     const hasQuoteTransferRemote = isValidContractVersion(
-      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
       contractVersion,
+      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
     );
 
     // Version does not support quoteTransferRemote defaulting to quoteGasPayment
@@ -325,7 +325,6 @@ export class EvmHypSyntheticAdapter
         amount: BigInt(weiAmountOrId),
       });
 
-    console.log('interChainGas', interchainGas);
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
@@ -843,6 +842,11 @@ export class EvmHypNativeAdapter
     return false;
   }
 
+  override async getBalance(address: Address): Promise<bigint> {
+    const balance = await this.contract.balanceOf(address);
+    return BigInt(balance.toString());
+  }
+
   override async quoteTransferRemoteGas({
     destination,
     recipient,
@@ -851,8 +855,8 @@ export class EvmHypNativeAdapter
     const contractVersion = await this.contract.PACKAGE_VERSION();
 
     const hasQuoteTransferRemote = isValidContractVersion(
-      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
       contractVersion,
+      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
     );
     const igpQuote = await this.contract.quoteGasPayment(destination);
     const igpQuoteBigInt = BigInt(igpQuote.toString());
