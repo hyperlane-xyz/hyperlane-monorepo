@@ -68,7 +68,7 @@ pub async fn on_new_deposit(
 
     if !finality_status.is_final {
         let pending_confirmations = finality_status.required_confirmations - finality_status.confirmations;
-        // 0.1 second per pending confirmation
+        // we assume 10 confirmations per second, so retry after 0.1 seconds per confirmation needed
         let retry_after_secs = pending_confirmations as f64 * 0.1;
         
         warn!(
