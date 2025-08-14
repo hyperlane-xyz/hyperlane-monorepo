@@ -26,7 +26,7 @@ describe('EvmTokenFeeReader', () => {
 
   let config: TokenFeeConfigInput;
   const TOKEN_TOTAL_SUPPLY = '100000000000000000000';
-  const BPS = '10000';
+  const BPS = 10000n;
   beforeEach(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -61,8 +61,9 @@ describe('EvmTokenFeeReader', () => {
   });
 
   it('should convert maxFee and halfAmount to bps', async () => {
-    const maxFee = randomInt(1, 1_000_000);
-    const halfAmount = 5000 * maxFee;
+    const maxFee = randomInt(2, 100_000_000);
+    const halfAmount = maxFee / 2;
+
     const config: TokenFeeConfigInput = {
       type: TokenFeeType.LinearFee,
       owner: signer.address,
@@ -75,15 +76,15 @@ describe('EvmTokenFeeReader', () => {
       [TestChainName.test3]: config,
     });
     tokenFee = deployedContracts[TestChainName.test3][TokenFeeType.LinearFee];
-    const bps = await reader.convertToBpsForLinearFee(
+    const convertedBps = await reader.convertToBps(
       maxFee.toString(),
       halfAmount.toString(),
     );
-    expect(bps).to.equal('1');
+    expect(convertedBps).to.equal(BPS);
   });
 
   it('should be able to convert bps to maxFee and halfAmount, and back', async () => {
-    const bps = 1;
+    const bps = randomInt(1, 10_000);
     const config: TokenFeeConfig = TokenFeeConfigSchema.parse({
       type: TokenFeeType.LinearFee,
       owner: signer.address,
@@ -94,13 +95,13 @@ describe('EvmTokenFeeReader', () => {
     const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
     const parsedConfig = TokenFeeConfigSchema.parse(config);
     const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
-      await reader.convertFromBpsForLinearFee(
+      await reader.convertFromBps(
         parsedConfig.bps.toString(),
         parsedConfig.token,
       );
 
     // Get bps using helper function
-    const convertedBps = await reader.convertToBpsForLinearFee(
+    const convertedBps = await reader.convertToBps(
       convertedMaxFee.toString(),
       convertedHalfAmount.toString(),
     );

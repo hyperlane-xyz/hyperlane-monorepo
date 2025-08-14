@@ -94,7 +94,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     throw new Error('Not implemented');
   }
 
-  async convertFromBpsForLinearFee(
+  async convertFromBps(
     bps: string,
     tokenAddress: Address,
   ): Promise<Pick<BaseTokenFeeConfig, 'maxFee' | 'halfAmount'>> {
@@ -102,16 +102,16 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     const token = ERC20__factory.connect(tokenAddress, this.provider);
     const totalSupply = await token.totalSupply();
     const maxFee = constants.MaxUint256.div(totalSupply);
-    const halfAmount = BigNumber.from(bps).mul(
-      BigNumber.from(maxFee).mul(5_000),
-    );
+    const halfAmount = BigNumber.from(maxFee)
+      .mul(5_000)
+      .div(BigNumber.from(bps));
     return {
       maxFee: BigInt(maxFee.toString()),
       halfAmount: BigInt(halfAmount.toString()),
     };
   }
 
-  async convertToBpsForLinearFee(
+  async convertToBps(
     maxFee: string,
     halfAmount: string,
   ): Promise<BaseTokenFeeConfig['bps']> {
