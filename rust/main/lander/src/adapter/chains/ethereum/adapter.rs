@@ -23,7 +23,10 @@ use hyperlane_base::{
     },
     CoreMetrics,
 };
-use hyperlane_core::{config::OpSubmissionConfig, ContractLocator, HyperlaneDomain, H256, U256};
+use hyperlane_core::{
+    config::OpSubmissionConfig, ChainCommunicationError, ContractLocator, HyperlaneDomain, H256,
+    U256,
+};
 use hyperlane_ethereum::multicall::BatchCache;
 use hyperlane_ethereum::{
     multicall, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
@@ -143,8 +146,11 @@ impl EthereumAdapter {
         .await;
 
         // then, compare the estimated gas price with `current * escalation_multiplier`
-        let escalated_gas_price =
-            gas_price::escalate_gas_price_if_needed(&old_gas_price, &estimated_gas_price);
+        let escalated_gas_price = gas_price::escalate_gas_price_if_needed(
+            &old_gas_price,
+            &estimated_gas_price,
+            &self.transaction_overrides,
+        );
 
         let new_gas_price = match escalated_gas_price {
             GasPrice::None => estimated_gas_price,
@@ -320,9 +326,12 @@ impl EthereumAdapter {
             .await
             .map(|(tx, f)| EthereumTxPrecursor::new(tx, f));
 
-        let Ok(multi_precursor) = multi_precursor else {
-            error!("Failed to batch payloads");
-            return vec![];
+        let multi_precursor = match multi_precursor {
+            Ok(precursor) => precursor,
+            Err(e) => {
+                error!(error = ?e, "Failed to batch payloads");
+                return vec![];
+            }
         };
 
         let transaction = TransactionFactory::build(multi_precursor, payload_details.clone());
@@ -649,7 +658,7 @@ impl AdaptsChain for EthereumAdapter {
 }
 
 #[cfg(test)]
-pub use gas_limit_estimator::apply_estimate_buffer_to_ethers;
+pub use gas_limit_estimator::tests::apply_estimate_buffer_to_ethers;
 
 #[cfg(test)]
 mod tests;

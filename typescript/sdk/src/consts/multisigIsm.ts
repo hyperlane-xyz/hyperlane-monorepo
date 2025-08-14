@@ -1459,6 +1459,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  mitosis: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x3b3eb808d90a4e19bb601790a6b6297812d6a61f',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   mode: {
     threshold: 4,
     validators: [
