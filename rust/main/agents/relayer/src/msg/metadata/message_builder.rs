@@ -201,7 +201,6 @@ pub async fn build_message_metadata(
         ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(message_builder)),
         ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(message_builder)),
         ModuleType::Null => Box::new(NullMetadataBuilder::new()),
-        ModuleType::Unused => Box::new(NullMetadataBuilder::new()),
         ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder)),
         ModuleType::KaspaMultisig => Box::new(KaspaMetadataBuilder::new(message_builder)),
         _ => return Err(MetadataBuildError::UnsupportedModuleType(module_type)),
