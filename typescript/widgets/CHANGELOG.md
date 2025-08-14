@@ -76,7 +76,6 @@
   - @hyperlane-xyz/utils@15.0.0
   - @hyperlane-xyz/sdk@15.0.0
   - @hyperlane-xyz/cosmos-sdk@15.0.0
-    > > > > > > > main
 
 ## 14.4.0
 

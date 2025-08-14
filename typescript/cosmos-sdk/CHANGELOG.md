@@ -1,7 +1,5 @@
 # @hyperlane-xyz/cosmos-sdk
 
-<<<<<<< HEAD
-
 ## 15.0.0-beta.0
 
 ### Patch Changes
@@ -37,7 +35,6 @@
 ### Patch Changes
 
 - @hyperlane-xyz/cosmos-types@15.0.0
-  > > > > > > > main
 
 ## 14.4.0
 

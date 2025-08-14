@@ -1,7 +1,5 @@
 # @hyperlane-xyz/cli
 
-<<<<<<< HEAD
-
 ## 15.0.0-beta.0
 
 =======
@@ -25,8 +23,6 @@
 
 ## 15.0.0
 
-> > > > > > > main
-
 ### Minor Changes
 
 - 2bc17e200: Update submit command to be able to handle transaction file of multiple chains
@@ -34,7 +30,6 @@
   <<<<<<< HEAD
 - # e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additonal updates to types related to these changes.
 - e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additional updates to types related to these changes.
-  > > > > > > > main
 
 ### Patch Changes
 

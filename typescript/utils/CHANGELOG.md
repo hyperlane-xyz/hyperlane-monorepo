@@ -15,10 +15,7 @@
 ### Minor Changes
 
 - 451f3f6c3: Support pino-pretty in development
-  <<<<<<< HEAD
-  =======
 - a33c8abd4: Implement `convertToScaledAmount` for amounts that need scaling
-  > > > > > > > main
 
 ## 14.4.0
 
