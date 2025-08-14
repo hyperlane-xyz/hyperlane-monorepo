@@ -12,6 +12,7 @@ members = [
   "chains/hyperlane-fuel",
   "chains/hyperlane-sealevel",
   "chains/hyperlane-starknet",
+  "chains/hyperlane-dango",
   "ethers-prometheus",
   "hyperlane-base",
   "hyperlane-core",
@@ -159,7 +160,7 @@ static_assertions = "1.1"
 strum = "0.26.2"
 strum_macros = "0.26.2"
 tempfile = "3.3"
-tendermint = "0.40.1"
+tendermint = "0.40.4"
 tendermint-rpc = { version = "0.40.1", features = ["http-client", "tokio"] }
 thiserror = "1.0"
 time = "0.3"
@@ -184,6 +185,15 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 ya-gcp = { version = "0.11.3", features = ["storage"] }
+
+## dango
+grug = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
+grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
+grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
+grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "396665c" }
+dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
+dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
+dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "396665c" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"

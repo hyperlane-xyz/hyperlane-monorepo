@@ -11,8 +11,9 @@ use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, Native
 
 use hyperlane_starknet as h_starknet;
 
-use crate::settings::envs::*;
-use crate::settings::ChainConnectionConf;
+use hyperlane_dango as h_dango;
+
+use crate::settings::{envs::*, ChainConnectionConf};
 
 use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
 
@@ -302,6 +303,117 @@ pub fn build_cosmos_native_connection_conf(
     ))
 }
 
+fn build_dango_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+
+    let chain_id = chain
+        .chain(&mut local_err)
+        .get_key("chain_id")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain_id"));
+            None
+        });
+
+    // let httpd_url = parse_ur
+
+    let httpd_url = chain
+        .chain(&mut local_err)
+        .get_key("httpd_url")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(&chain.cwp + "httpd_url", eyre!("Missing httpd_url"));
+            None
+        })
+        .map(|str| match Url::parse(str) {
+            Ok(url) => Some(url),
+            Err(err) => {
+                local_err.push(&chain.cwp + "httpd_url", eyre!("Invalid url: {err}"));
+                None
+            }
+        })
+        .flatten();
+
+    let gas_price = chain
+        .chain(&mut local_err)
+        .get_key("gas_price")
+        .parse_value::<grug::Coin>("fails to deserialize grug::Coin")
+        .end();
+
+    let gas_scale = chain
+        .chain(&mut local_err)
+        .get_key("gas_scale")
+        .parse_f64()
+        .end()
+        .or_else(|| {
+            local_err.push(&chain.cwp + "gas_scale", eyre!("Missing gas_scale"));
+            None
+        });
+
+    let flat_gas_increase = chain
+        .chain(&mut local_err)
+        .get_key("flat_gas_increase")
+        .parse_u64()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                &chain.cwp + "flat_gas_increase",
+                eyre!("Missing flat_gas_increase"),
+            );
+            None
+        });
+
+    let search_sleep_duration = chain
+        .chain(&mut local_err)
+        .get_key("search_sleep_duration")
+        .parse_u64()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                &chain.cwp + "search_sleep_duration",
+                eyre!("Missing search_sleep_duration"),
+            );
+            None
+        });
+
+    let search_retry_attempts = chain
+        .chain(&mut local_err)
+        .get_key("search_retry_attempts")
+        .parse_u64()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                &chain.cwp + "search_retry_attempts",
+                eyre!("Missing search_retry_attempts"),
+            );
+            None
+        });
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        Some(ChainConnectionConf::Dango(h_dango::ConnectionConf {
+            httpd_url: httpd_url.unwrap(),
+            gas_price: gas_price.unwrap(),
+            gas_scale: gas_scale.unwrap(),
+            flat_gas_increase: flat_gas_increase.unwrap(),
+            search_sleep_duration: search_sleep_duration.unwrap(),
+            search_retry_attempts: search_retry_attempts.unwrap(),
+            chain_id: chain_id.unwrap().to_string(),
+            rpcs: rpcs.to_owned(),
+            operation_batch,
+        }))
+    }
+}
+
 fn build_starknet_connection_conf(
     urls: &[Url],
     chain: &ValueParser,
@@ -556,6 +668,9 @@ pub fn build_connection_conf(
         }
         HyperlaneDomainProtocol::CosmosNative => {
             build_cosmos_native_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        HyperlaneDomainProtocol::Dango => {
+            build_dango_connection_conf(rpcs, chain, err, operation_batch)
         }
     }
 }

@@ -96,7 +96,7 @@ impl LatestCheckpointReorgReporter {
         settings: &ValidatorSettings,
         origin: &HyperlaneDomain,
     ) -> Vec<(Url, ValidatorSettings)> {
-        use ChainConnectionConf::{Cosmos, CosmosNative, Ethereum, Fuel, Sealevel, Starknet};
+        use ChainConnectionConf::{Cosmos, CosmosNative, Ethereum, Fuel, Sealevel, Starknet, Dango};
 
         let chain_conf = settings
             .chains
@@ -139,6 +139,10 @@ impl LatestCheckpointReorgReporter {
                     updated_conn.urls = vec![url];
                     Starknet(updated_conn)
                 })
+            }
+            Dango(conn) => {
+                // TODO: currently we support 1 connection, need to be refractored
+                vec![(conn.httpd_url.clone(), Dango(conn))]
             }
         };
 

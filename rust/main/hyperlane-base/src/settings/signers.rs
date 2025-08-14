@@ -1,9 +1,12 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use dango_types::account_factory::Username;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
+use grug::{Addr, HexByteArray, Inner};
+use hyperlane_dango::DangoConvertor;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
 use tracing::instrument;
@@ -52,6 +55,15 @@ pub enum SignerConf {
     /// Assume node will sign on RPC calls
     #[default]
     Node,
+    /// Dango Specific key
+    Dango {
+        /// Username
+        username: Username,
+        /// Private key in hex
+        key: HexByteArray<32>,
+        /// Account address
+        address: Addr,
+    },
 }
 
 impl SignerConf {
@@ -105,6 +117,9 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 bail!("starkKey signer is not supported by Ethereum")
             }
             SignerConf::Node => bail!("Node signer"),
+            SignerConf::Dango { .. } => {
+                bail!("dangoKey signer is not supported by Ethereum")
+            }
         })
     }
 }
@@ -243,6 +258,36 @@ impl ChainSigner for hyperlane_cosmos_native::Signer {
     }
     fn address_h256(&self) -> H256 {
         self.address_h256()
+    }
+}
+
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_dango::DangoSigner {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        if let SignerConf::Dango {
+            username,
+            key,
+            address,
+        } = conf
+        {
+            Ok(hyperlane_dango::DangoSigner::new(
+                username.to_string().as_str(),
+                key.into_inner(),
+                *address,
+            )?)
+        } else {
+            bail!("{conf:?} key is not supported by dango");
+        }
+    }
+}
+
+impl ChainSigner for hyperlane_dango::DangoSigner {
+    fn address_string(&self) -> String {
+        self.address.to_string()
+    }
+
+    fn address_h256(&self) -> H256 {
+        self.address.convert()
     }
 }
 

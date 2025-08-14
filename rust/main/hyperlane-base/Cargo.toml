@@ -65,6 +65,11 @@ hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
 hyperlane-starknet = { path = "../chains/hyperlane-starknet" }
 hyperlane-cosmos-native = { path = "../chains/hyperlane-cosmos-native" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
+hyperlane-dango= { path = "../chains/hyperlane-dango" }
+
+grug.workspace = true
+dango-types.workspace = true
+
 
 # dependency version is determined by etheres
 rusoto_core = "*"
