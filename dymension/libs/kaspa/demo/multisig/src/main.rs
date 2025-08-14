@@ -1,62 +1,26 @@
-#![allow(unused)] // TODO: remove
-use eyre::{eyre, Result};
-
 mod x;
-
 use corelib::balance::*;
-use corelib::deposit::*;
 use corelib::escrow::*;
 use corelib::user::deposit::deposit_with_payload as deposit;
+use corelib::util::kaspa_address_to_h256;
 use corelib::wallet::*;
+use eyre::{eyre, Result};
 use hardcode::e2e::{
-    get_tn10_config as e2e_config, ADDRESS_PREFIX as e2e_address_prefix,
-    DEPOSIT_AMOUNT as e2e_deposit_amount, MIN_DEPOSIT_SOMPI as e2e_min_deposit_sompi,
-    NETWORK_ID as e2e_network_id, RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
+    ADDRESS_PREFIX as e2e_address_prefix, DEPOSIT_AMOUNT as e2e_deposit_amount,
+    MIN_DEPOSIT_SOMPI as e2e_min_deposit_sompi,
 };
-use hyperlane_core::U256;
-use relayer::withdraw::demo::*;
-use relayer::withdraw::hub_to_kaspa::{
-    build_withdrawal_pskt, combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee,
-    fetch_input_utxos,
-};
-use validator::withdraw::safe_bundle as validator_safe_bundle;
+use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::{Encode, U256};
+use hyperlane_warp_route::TokenMessage;
+use kaspa_consensus_core::tx::TransactionOutpoint;
+use kaspa_core::info;
+use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
+use relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee;
+use relayer::withdraw::messages::build_withdrawal_fxg;
 use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
+use validator::withdraw::{safe_bundle as validator_safe_bundle, validate_pskts};
 use x::args::Args;
 
-use std::sync::Arc;
-
-use corelib::withdraw::WithdrawFXG;
-use hyperlane_core::{HyperlaneMessage, H256};
-use kaspa_addresses::Address;
-use kaspa_consensus_core::{
-    constants::TX_VERSION,
-    sign::sign,
-    subnets::SUBNETWORK_ID_NATIVE,
-    tx::{
-        MutableTransaction, ScriptPublicKey, Transaction, TransactionInput, TransactionOutpoint,
-        TransactionOutput, UtxoEntry,
-    },
-};
-use kaspa_core::info;
-use kaspa_grpc_client::GrpcClient;
-use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
-use kaspa_wallet_core::error::Error;
-use kaspa_wallet_core::tx::Fees;
-
-use kaspa_wallet_core::prelude::*;
-use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
-
-use kaspa_txscript::{
-    extract_script_pub_key_address, multisig_redeem_script, pay_to_address_script,
-    pay_to_script_hash_script,
-};
-
-use secp256k1::{rand::thread_rng, Keypair};
-
-use corelib::payload::MessageIDs;
-use corelib::util::get_recipient_script_pubkey_address;
-use kaspa_rpc_core::api::rpc::RpcApi;
-use workflow_core::abortable::Abortable;
 /*
 Demo:
 The purpose is to test out using a multisig for securing an escrow address.
@@ -108,7 +72,7 @@ async fn load_wallet(args: &Args, url: Option<&str>) -> Result<EasyKaspaWallet> 
                 };
                 let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
                     wallet_secret: args.wallet_secret.as_ref().unwrap().clone(),
-                    rpc_url: full_url.clone(),
+                    wrpc_url: full_url.clone(),
                     net: Network::KaspaTest10,
                     storage_folder: None,
                 })
@@ -126,113 +90,117 @@ async fn load_wallet(args: &Args, url: Option<&str>) -> Result<EasyKaspaWallet> 
 async fn demo() -> Result<()> {
     kaspa_core::log::init_logger(None, "");
 
-    let args = Args::parse();
+    let mut args = Args::parse();
 
-    let w = load_wallet(&args, Some(e2e_url)).await?;
+    let w = load_wallet(&args, None).await?;
 
     let rpc = w.api();
 
-    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().change_address()?).await?;
 
-    let e = Escrow::new(2, 3);
-    info!(
-        "Created escrow address: {}",
-        e.public(e2e_address_prefix).addr
-    );
+    let e = Escrow::new(8, 8);
+    let e_public = e.public(e2e_address_prefix);
+    info!("Created escrow address: {}", e_public.addr);
 
     let amt = e2e_deposit_amount;
-    let escrow_addr = e.public(e2e_address_prefix).addr;
-    let tx_id = deposit(&w.wallet, &w.secret, escrow_addr, 2 * amt, vec![]).await?;
-    info!("Sent deposit transaction: {}", tx_id);
+    let escrow_addr = e_public.addr.clone();
 
-    workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
+    // Create 3 UTXOs on the escrow address
 
-    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
+    // Initial UTXO == anchor
+    let anchor_tx_id = deposit(&w.wallet, &w.secret, escrow_addr.clone(), amt * 2, vec![]).await?;
+    info!("Sent deposit transaction: initial anchor: {}", anchor_tx_id);
+    workflow_core::task::sleep(std::time::Duration::from_secs(1)).await;
 
-    let user_addr = w.account().receive_address()?;
+    // Simulate deposits
+    for i in 1..4 {
+        let tx_id = deposit(&w.wallet, &w.secret, escrow_addr.clone(), amt, vec![]).await?;
+        info!("Sent deposit transaction: deposit {}: {}", i, tx_id);
+        workflow_core::task::sleep(std::time::Duration::from_secs(1)).await;
+    }
 
-    let hl_msg = HyperlaneMessage::default();
+    // Wait maturity
+    workflow_core::task::sleep(std::time::Duration::from_secs(4)).await;
 
-    let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes();
+    check_balance("wallet", rpc.as_ref(), &w.account().change_address()?).await?;
+    check_balance("escrow", rpc.as_ref(), &e_public.addr).await?;
 
-    let current_anchor = TransactionOutpoint::new(tx_id, 0);
+    let token_message = TokenMessage::new(
+        kaspa_address_to_h256(w.account().receive_address()?),
+        U256::from(amt),
+        vec![],
+    );
+    let hl_msg = HyperlaneMessage {
+        body: token_message.to_vec(),
+        ..Default::default()
+    };
 
-    let inputs = fetch_input_utxos(
-        &rpc,
-        &e.public(e2e_address_prefix),
-        &w.account().change_address().unwrap(),
-        &current_anchor,
-        e2e_network_id,
-    )
-    .await
-    .map_err(|e| eyre::eyre!("Fetch input utxos: {}", e))?;
+    let current_anchor = TransactionOutpoint::new(anchor_tx_id, 0);
 
-    let pskt = build_withdrawal_pskt(
-        inputs,
-        vec![TransactionOutput::new(
-            amt,
-            get_recipient_script_pubkey_address(&user_addr),
-        )],
-        payload,
-        &e.public(e2e_address_prefix),
-        &w.account().change_address().unwrap(),
-        e2e_network_id,
+    let fxg = build_withdrawal_fxg(
+        vec![hl_msg],
+        current_anchor,
+        w.clone(),
+        e_public.clone(),
         U256::from(e2e_min_deposit_sompi),
     )
-    .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
+    .await
+    .map_err(|e| eyre!("Build withdrawal FXG: {}", e))?;
+
+    let fxg = fxg.ok_or(eyre!("Got none as withdrawal FXG"))?;
 
     info!("Constructed withdrawal PSKT");
-
-    let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
-
-    let fxg = WithdrawFXG::new(
-        Bundle::from(pskt),
-        vec![vec![hl_msg]],
-        vec![current_anchor, new_anchor],
-    );
 
     let safe_b = validator_safe_bundle(&fxg.bundle)?;
 
     let input_selector = |i: &Input| match i.redeem_script.clone() {
-        Some(rs) => rs == e.public(e2e_address_prefix).redeem_script,
+        Some(rs) => rs == e_public.redeem_script,
         None => false,
     };
 
+    let messages = fxg.messages.clone();
+    let old_anchor = fxg.anchors.first().cloned().unwrap();
     let val_bundles = e
         .keys
         .iter()
         .take(e.m())
-        .map(|k| validator_sign_withdrawal_fxg(&safe_b, k, Some(input_selector)))
+        .map(|k| {
+            validate_pskts(
+                &safe_b,
+                &*messages,
+                old_anchor,
+                e_public.clone(),
+                w.net.address_prefix,
+            )
+            .map_err(|e| eyre!("Failed to validate PSKT: {e}"))?;
+
+            validator_sign_withdrawal_fxg(&safe_b, k, Some(input_selector))
+        })
         .collect::<Result<Vec<_>>>()?;
 
     info!("Signed withdrawal PSKT");
 
-    let finalized = relayer_combine_bundles_and_pay_fee(
-        val_bundles,
-        &fxg,
-        e.m(),
-        &e.public(e2e_address_prefix),
-        &w,
-    )
-    .await?;
+    let finalized =
+        relayer_combine_bundles_and_pay_fee(val_bundles, &fxg, e.m(), &e_public, &w).await?;
 
     info!("Signed relayer fee and finalized withdrawal RPC TX");
 
-    finalized.iter().for_each(|tx| {
-        tx.outputs.iter().for_each(|o| {
-            info!("Output: {}", o.value);
+    finalized.iter().enumerate().for_each(|(tx_idx, tx)| {
+        tx.outputs.iter().enumerate().for_each(|(o_idx, o)| {
+            info!("TX #{} Output #{}: {}", tx_idx, o_idx, o.value);
         });
     });
 
-    let res = rpc
-        .submit_transaction(finalized.first().unwrap().clone(), false)
-        .await?;
+    for tx in finalized {
+        let allow_orphan = false; // TODO: false is good or not?
+        let tx_id = rpc.submit_transaction(tx, allow_orphan).await?;
+        info!("TX #{tx_id} is broadcasted");
+    }
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().change_address()?).await?;
+    check_balance("escrow", rpc.as_ref(), &e_public.addr).await?;
 
     w.wallet.stop().await?;
     Ok(())

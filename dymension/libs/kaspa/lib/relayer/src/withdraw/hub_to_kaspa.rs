@@ -1,4 +1,6 @@
+use super::messages::PopulatedInput;
 use super::minimum::{is_dust, is_small_value};
+use crate::withdraw::sweep::utxo_reference_from_populated_input;
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
 use corelib::message::parse_hyperlane_metadata;
@@ -8,15 +10,15 @@ use corelib::wallet::SigningResources;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
+use hardcode::tx::TX_MASS_MULTIPLIER;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use kaspa_addresses::Prefix;
 use kaspa_consensus_core::config::params::Params;
 use kaspa_consensus_core::constants::TX_VERSION;
-use kaspa_consensus_core::mass;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
-use kaspa_consensus_core::tx::{PopulatedTransaction, UtxoEntry};
+use kaspa_consensus_core::tx::UtxoEntry;
 use kaspa_consensus_core::tx::{
     Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
 };
@@ -24,64 +26,46 @@ use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
 use kaspa_wallet_core::prelude::DynRpcApi;
+use kaspa_wallet_core::tx::MassCalculator;
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::info;
 
-/// Fetches escrow and relayer balances and a combined list of all inputs
+/// Fetches UTXOs and combines a list of all populated inputs
 pub async fn fetch_input_utxos(
     kaspa_rpc: &Arc<DynRpcApi>,
-    escrow: &EscrowPublic,
-    relayer_address: &kaspa_addresses::Address,
-    current_anchor: &TransactionOutpoint,
+    address: &kaspa_addresses::Address,
+    redeem_script: Option<Vec<u8>>,
+    sig_op_count: u8,
     network_id: NetworkId,
-) -> Result<Vec<(TransactionInput, UtxoEntry)>> {
-    // Get all available UTXOs for multisig
-    let escrow_utxos = get_utxo_to_spend(&escrow.addr, kaspa_rpc, network_id).await?;
+) -> Result<Vec<PopulatedInput>> {
+    let utxos = get_utxo_to_spend(&address, kaspa_rpc, network_id).await?;
 
-    // Check if the current anchor is withing the list of multisig UTXOs
-    if !escrow_utxos.iter().any(|u| {
-        u.outpoint.transaction_id == current_anchor.transaction_id
-            && u.outpoint.index == current_anchor.index
-    }) {
-        return Err(eyre::eyre!(
-            "No UTXOs found for current anchor: {:?}",
-            current_anchor
-        ));
-    }
-
-    // Get all available UTXOs for relayer
-    let relayer_utxos = get_utxo_to_spend(relayer_address, kaspa_rpc, network_id).await?;
-
-    // Iterate through escrow and relayer UTXO – they are the transaction inputs.
-    // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
-    Ok(escrow_utxos
+    // Create a vector of "populated" inputs: TransactionInput, UtxoEntry, and optional redeem_script.
+    Ok(utxos
         .into_iter()
         .map(|utxo| {
             (
                 TransactionInput::new(
                     kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    escrow.redeem_script.clone(),
-                    0, // sequence does not matter
-                    escrow.n() as u8,
+                    vec![], // signature_script is empty for unsigned transactions
+                    0,      // sequence does not matter
+                    sig_op_count,
                 ),
                 UtxoEntry::from(utxo.utxo_entry),
+                redeem_script.clone(),
             )
         })
-        .chain(relayer_utxos.into_iter().map(|utxo| {
-            (
-                TransactionInput::new(
-                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    vec![],
-                    0,                                     // sequence does not matter
-                    corelib::consts::RELAYER_SIG_OP_COUNT, // only one signature from relayer is needed
-                ),
-                UtxoEntry::from(utxo.utxo_entry),
-            )
-        }))
         .collect())
+}
+
+pub async fn get_normal_bucket_feerate(kaspa_rpc: &Arc<DynRpcApi>) -> Result<f64> {
+    let feerate = kaspa_rpc.get_fee_estimate().await?;
+    // Due to the documentation:
+    // > The first value of this vector is guaranteed to exist
+    Ok(feerate.normal_buckets.first().unwrap().feerate)
 }
 
 /// Builds a single withdrawal PSKT.
@@ -121,13 +105,14 @@ pub async fn fetch_input_utxos(
 /// CONTRACT:
 /// Escrow change is always the last output.
 pub fn build_withdrawal_pskt(
-    inputs: Vec<(TransactionInput, UtxoEntry)>,
+    inputs: Vec<PopulatedInput>,
     mut outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
     escrow: &EscrowPublic,
     relayer_addr: &kaspa_addresses::Address,
     network_id: NetworkId,
     min_deposit_sompi: U256,
+    feerate: f64,
 ) -> Result<PSKT<Signer>> {
     //////////////////
     //   Balances   //
@@ -141,15 +126,18 @@ pub fn build_withdrawal_pskt(
     // in case of hyperinflation
 
     let (escrow_balance, relayer_balance) =
-        inputs.iter().fold((0, 0), |mut acc, (input, entry)| {
-            if input.signature_script.is_empty() {
-                // relayer has empty signature script
-                acc.1 += entry.amount;
-            } else {
-                acc.0 += entry.amount;
-            }
-            acc
-        });
+        inputs
+            .iter()
+            .fold((0, 0), |mut acc, (_input, entry, redeem_script)| {
+                if redeem_script.is_none() {
+                    // relayer has no redeem script
+                    acc.1 += entry.amount;
+                } else {
+                    // escrow has redeem script
+                    acc.0 += entry.amount;
+                }
+                acc
+            });
 
     let withdrawal_balance: u64 = outputs.iter().map(|w| w.value).sum();
 
@@ -172,10 +160,17 @@ pub fn build_withdrawal_pskt(
     //     Fee      //
     //////////////////
 
-    // Multiply the fee by 1.1 to give some space for adding change UTXOs.
-    // TODO: use feerate.
-    let tx_fee =
-        estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id) * 13 / 10;
+    let tx_mass = estimate_mass(
+        inputs.clone(),
+        outputs.clone(),
+        payload.clone(),
+        network_id,
+        escrow.m() as u16,
+    )
+    .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
+
+    // Apply TX mass multiplier and feerate
+    let tx_fee = (tx_mass as f64 * TX_MASS_MULTIPLIER * feerate).round() as u64;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
@@ -231,20 +226,26 @@ pub fn build_withdrawal_pskt(
     // Escrow change (new anchor) is always the last element
     outputs.extend(vec![relayer_change, escrow_change]);
 
+    let inputs_num = inputs.len();
+    let outputs_num = outputs.len();
+    let payload_len = payload.len();
+
+    info!("Kaspa relayer, withdrawal TX inputs: {inputs_num}, outputs: {outputs_num}, payload: {payload_len} bytes, mass: {tx_mass}, feerate: {feerate}, fee: {tx_fee}");
+
     create_withdrawal_pskt(inputs, outputs, payload)
 }
 
 /// CONTRACT:
 /// Escrow change is always the last output.
 fn create_withdrawal_pskt(
-    inputs: Vec<(TransactionInput, UtxoEntry)>,
+    inputs: Vec<PopulatedInput>,
     outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
 ) -> Result<PSKT<Signer>> {
     let mut pskt = PSKT::<Creator>::default().constructor();
 
     // Add inputs
-    for (input, entry) in inputs.into_iter() {
+    for (input, entry, redeem_script) in inputs.into_iter() {
         let mut b = InputBuilder::default();
 
         b.utxo_entry(entry)
@@ -252,9 +253,9 @@ fn create_withdrawal_pskt(
             .sig_op_count(input.sig_op_count)
             .sighash_type(input_sighash_type());
 
-        if !input.signature_script.is_empty() {
+        if let Some(script) = redeem_script {
             // escrow inputs need redeem_script
-            b.redeem_script(input.signature_script);
+            b.redeem_script(script);
         }
 
         pskt = pskt.input(
@@ -281,7 +282,9 @@ fn create_withdrawal_pskt(
         .signer())
 }
 
-pub fn filter_outputs_from_msgs(
+/// Return outputs generated based on the provided messages. Filter out messages
+/// with dust amount.
+pub fn get_outputs_from_msgs(
     messages: Vec<HyperlaneMessage>,
     prefix: Prefix,
     min_deposit_sompi: U256,
@@ -343,45 +346,57 @@ async fn get_utxo_to_spend(
     Ok(utxos)
 }
 
-fn estimate_fee(
-    populated_inputs: Vec<(TransactionInput, UtxoEntry)>,
+pub(crate) fn extract_current_anchor(
+    current_anchor: TransactionOutpoint,
+    mut escrow_inputs: Vec<PopulatedInput>,
+) -> Result<(PopulatedInput, Vec<PopulatedInput>)> {
+    let anchor_index = escrow_inputs
+        .iter()
+        .position(|(input, _, _)| input.previous_outpoint == current_anchor)
+        .ok_or(eyre::eyre!(
+            "Current anchor not found in escrow UTXO set: {current_anchor:?}"
+        ))?; // Should always be found
+
+    let anchor_input = escrow_inputs.swap_remove(anchor_index);
+
+    Ok((anchor_input, escrow_inputs))
+}
+
+fn estimate_mass(
+    populated_inputs: Vec<PopulatedInput>,
     outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
     network_id: NetworkId,
-) -> u64 {
-    let inputs = populated_inputs
-        .iter()
-        .map(|(input, _)| input.clone())
-        .collect();
-    let utxo_entries = populated_inputs
-        .iter()
-        .map(|(_, entry)| entry.clone())
-        .collect();
+    min_signatures: u16,
+) -> Result<u64> {
+    let (inputs, utxo_references): (Vec<_>, Vec<_>) = populated_inputs
+        .into_iter()
+        .map(|populated| {
+            let input = populated.0.clone();
+            let utxo_ref = utxo_reference_from_populated_input(populated);
+            (input, utxo_ref)
+        })
+        .unzip();
 
     let tx = Transaction::new(
         TX_VERSION,
         inputs,
-        outputs.clone(),
+        outputs,
         0, // no tx lock time
         SUBNETWORK_ID_NATIVE,
         0,
-        payload, // empty payload
+        payload,
     );
-    let ptx = PopulatedTransaction::new(&tx, utxo_entries);
 
     let p = Params::from(network_id);
-    let m = mass::MassCalculator::new_with_consensus_params(&p);
+    let m = MassCalculator::new(&p);
 
-    let ncm = m.calc_non_contextual_masses(&tx);
-    // Assumptions which must be verified before this call:
-    //     1. All output values are non-zero
-    //     2. At least one input (unless coinbase)
-    //
-    // Otherwise this function should never fail. As in our case.
-    let cm = m.calc_contextual_masses(&ptx).unwrap();
-
-    // TODO: Apply current feerate. It can be fetched from https://api.kaspa.org/info/fee-estimate.
-    cm.max(ncm)
+    m.calc_overall_mass_for_unsigned_consensus_transaction(
+        &tx,
+        utxo_references.as_slice(),
+        min_signatures,
+    )
+    .map_err(|e| eyre::eyre!(e))
 }
 
 pub async fn combine_bundles_with_fee(
@@ -435,7 +450,7 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
 
 /// accepts bundle of signer
 fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
-    // each bundle is from a different actor (validator or releayer), and is a vector of pskt
+    // each bundle is from a different actor (validator or relayer), and is a vector of pskt
     // therefore index i of each vector corresponds to the same TX i
 
     // make a list of lists, each top level element is a vector of pskt from a different actor
@@ -463,12 +478,21 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
 
     // walk across each tx and combine all the sigs for that tx into one combiner
     let mut ret = Vec::new();
-    for all_actor_sigs_for_tx in tx_sigs.iter() {
-        let mut combiner = all_actor_sigs_for_tx.first().unwrap().clone().combiner();
-        for tx_sig in all_actor_sigs_for_tx.iter().skip(1) {
-            info!("Combining PSKT");
+    for (pskt_idx, all_actor_sigs_for_tx) in tx_sigs.iter().enumerate() {
+        let pskt = all_actor_sigs_for_tx.first().unwrap().clone();
+
+        info!(
+            "Combining PSKT #{pskt_idx} with tx id {}",
+            pskt.calculate_id()
+        );
+
+        let mut combiner = pskt.combiner();
+
+        for (sig_idx, tx_sig) in all_actor_sigs_for_tx.iter().skip(1).enumerate() {
+            info!("Combining PSKT #{pskt_idx}, signature #{sig_idx}",);
             combiner = (combiner + tx_sig.clone())?;
         }
+
         ret.push(combiner);
     }
     Ok(ret)
@@ -592,9 +616,13 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PS
 mod tests {
     use super::*;
     use bytes::Bytes;
+    use corelib::escrow::Escrow;
     use corelib::util::is_valid_sighash_type;
     use corelib::withdraw::WithdrawFXG;
     use hyperlane_core::H256;
+    use kaspa_consensus_core::network::NetworkType::{Devnet, Testnet};
+    use kaspa_consensus_core::tx::ScriptPublicKey;
+    use std::str::FromStr;
 
     #[test]
     fn test_kaspa_address_conversion() {
@@ -674,6 +702,89 @@ mod tests {
             .sighash_type;
 
         assert!(is_valid_sighash_type(sighash_type_2));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_estimate_fee_with_different_inputs() -> Result<()> {
+        // Skip this test.
+        // It can be used to play with the TX mass estimation.
+        return Ok(());
+
+        const MIN_OUTPUTS: u32 = 2;
+        const MIN_INPUTS: u32 = 2;
+
+        const MAX_OUTPUTS: u32 = 15;
+        const MAX_INPUTS: u32 = 6;
+
+        let spk = ScriptPublicKey::from_str(
+            "20bcff7587f574e249b549329291239682d6d3481ccbc5997c79770a607ab3ec98ac",
+        )?;
+
+        let payload: Vec<u8> =
+            hex::decode("0a20f3b12fe3f4a43a7deb33be5f5a7a766ce22f76e9d8d6e1f77338e2f233db8e20")
+                .expect("Invalid hex payload");
+
+        let network_id = NetworkId::new(Devnet);
+
+        let mut res: Vec<Vec<u64>> = Vec::new();
+
+        for input_count in MIN_INPUTS..=MAX_INPUTS {
+            let inputs: Vec<PopulatedInput> = (0..input_count)
+                .map(|i| {
+                    (
+                        TransactionInput {
+                            previous_outpoint: TransactionOutpoint {
+                                transaction_id: "81b79b11b546e3769e91bebced62fc0ff7ce665258201fd501ea3c60d735ec7d".to_string().parse().unwrap(),
+                                index: 0,
+                            },
+                            signature_script: "41b31e2b858c19baef26cb352664b493cb9f7f3b3f94217a7ca857f740db5eb4cb1004c9a278449477e23fb1b09f141d1a939b7f8435c578af17549cd2ff79b7b4814129ab65d772387cfa300314597b0ab11d9900ffcbe2f072568cbb6cd76bdba057242e365d951d2f87ab98bb332527d6df07cf207164ab1be5a643a6d7edb9fde6814171641e6b8ce10fcf5b41e962cf3665020a5e295ddf35a6a07e791d619aa1580d5f43d37c7dfa3c115b648c25b92ad17868e61bd01ad782b04ead5177ce5f40958141bc5b0b3f6e3bbb468d8710aba0cb0c04e046371f1b0972aacf48121e9d0704233e7596685e9a25464b85857562427f4982ba6e84c3258e356d9bff67478bb4df81415177d6b9b39414dd75374089d98c38b145c332b7a960cf2cabeb9cdd397c090d7e81bc28619f0491b1a57483013adca9badff86df32d31598fee28fd4699ed15814123b9ae551e0201f106291923d294715800ffb47a7dc158f738e341f87f0656805b1d27f931bc1653d366ef7bf55f1a0be7c8c25ed510dbec3297fae0b51c96d4814d0b0156205461e2ab2584bc80435c2a3f51c4cf12285992b5e4fdec57f1f8b506134a90872018a9fcc6059c1995c70b8f31b2256ac3d4aeca5dffa331fb941a8c5d4bffdd7620d7a78be7d152498cfb9fb8a89b60723f011435303499e0de7c1bcbf88f87d1b920f02a8dc60f124b34e9a8800fb25cf25ac01a3bdcf5a6ea21d2e2569a173dd9b2208586f127129710cdac6ca1d86be1869bd8a8746db9a2339fde71278dff7fb4692014d0d6d828c2f3e5ce908978622c5677c1fc53372346a9cff60d1140c54b5e5e209035bddc82d62454b2d425e205533363d09dc5d9c0d0f74c1f937c2d211c15a120e4b95346367e49178c8571e8a649584981d8bd6f920c648e37bbe24f055baf9c58ae".as_bytes().to_vec(),
+                            sequence: u64::MAX,
+                            sig_op_count: 8,
+                        },
+                        UtxoEntry {
+                            amount: 4_000_000_000,
+                            script_public_key: spk.clone(),
+                            block_daa_score: 0,
+                            is_coinbase: false,
+                        },
+                    )
+                })
+                .collect();
+
+            let mut res_inner: Vec<u64> = Vec::new();
+            for output_count in MIN_OUTPUTS..=MAX_OUTPUTS {
+                let outputs: Vec<TransactionOutput> = (0..output_count)
+                    .map(|_| TransactionOutput {
+                        value: 4_000_000_000,
+                        script_public_key: spk.clone(),
+                    })
+                    .collect();
+
+                let inputs_num = inputs.len();
+                let outputs_num = outputs.len();
+                let payload_len = payload.len();
+
+                // Call the function under test
+                let v = estimate_mass(
+                    inputs.clone(),
+                    outputs.clone(),
+                    payload.clone(),
+                    network_id,
+                    8,
+                )?;
+
+                // println!("{inputs_num} inputs, {outputs_num} outputs, {payload_len} bytes payload, estimated mass is {v}");
+
+                res_inner.push(v);
+
+                print!("{v},");
+            }
+
+            res.push(res_inner);
+            println!();
+        }
 
         Ok(())
     }

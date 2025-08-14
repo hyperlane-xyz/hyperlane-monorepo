@@ -31,6 +31,10 @@ use hyperlane_sealevel_token_lib::{
         set_interchain_security_module_instruction, transfer_ownership_instruction, Init,
     },
 };
+use hyperlane_sealevel_token_memo::{
+    hyperlane_token_ata_payer_pda_seeds as hyperlane_token_ata_payer_pda_seeds_memo,
+    hyperlane_token_mint_pda_seeds as hyperlane_token_mint_pda_seeds_memo,
+};
 
 use crate::{
     cmd_utils::account_exists,
@@ -230,9 +234,18 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             if let Some(ata_payer_funding_amount) = self.ata_payer_funding_amount {
                 if matches!(
                     app_config.token_type,
-                    TokenType::Collateral(_) | TokenType::Synthetic(_)
+                    TokenType::Collateral(_)
+                        | TokenType::CollateralMemo(_)
+                        | TokenType::Synthetic(_)
+                        | TokenType::SyntheticMemo(_)
                 ) {
-                    fund_ata_payer_up_to(ctx, client, program_id, ata_payer_funding_amount);
+                    fund_ata_payer_up_to(
+                        ctx,
+                        client,
+                        program_id,
+                        &app_config.token_type,
+                        ata_payer_funding_amount,
+                    );
                 }
             }
         };
@@ -378,8 +391,10 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     .with_client(client)
                     .send_with_payer();
 
-                let (mint_account, _mint_bump) =
-                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+                let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                    hyperlane_token_mint_pda_seeds_memo!(),
+                    &program_id,
+                );
 
                 let mut cmd = Command::new(spl_token_binary_path.clone());
                 cmd.args([
@@ -466,8 +481,16 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 TokenType::Synthetic(metadata) | TokenType::SyntheticMemo(metadata) => metadata,
                 _ => unreachable!(),
             };
-            let (mint_account, _mint_bump) =
-                Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+            let (mint_account, _mint_bump) = match &app_config.token_type {
+                TokenType::Synthetic(_) => {
+                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id)
+                }
+                TokenType::SyntheticMemo(_) => Pubkey::find_program_address(
+                    hyperlane_token_mint_pda_seeds_memo!(),
+                    &program_id,
+                ),
+                _ => unreachable!(),
+            };
 
             let mut cmd = Command::new(spl_token_binary_path.clone());
             cmd.args([
@@ -543,41 +566,43 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
     ) {
         // We only have validations for SVM tokens at the moment.
         for (chain, config) in app_configs_to_deploy.iter() {
-            if let TokenType::Synthetic(synthetic) = &config.token_type {
-                // Verify that the metadata URI provided points to a valid JSON file.
-                let metadata_uri = match synthetic.uri.as_ref() {
-                    Some(uri) => uri,
-                    None => {
-                        if chain_metadatas
-                            .get(*chain)
-                            .unwrap()
-                            .is_testnet
-                            .unwrap_or(false)
-                        {
-                            // Skip validation for testnet chain
-                            println!(
-                                "Skipping metadata URI validation for testnet chain: {}",
-                                chain
-                            );
-                            continue;
-                        }
-                        panic!("URI not provided for token: {}", chain);
+            let synthetic = match &config.token_type {
+                TokenType::Synthetic(s) | TokenType::SyntheticMemo(s) => s,
+                _ => continue,
+            };
+            // Verify that the metadata URI provided points to a valid JSON file.
+            let metadata_uri = match synthetic.uri.as_ref() {
+                Some(uri) => uri,
+                None => {
+                    if chain_metadatas
+                        .get(*chain)
+                        .unwrap()
+                        .is_testnet
+                        .unwrap_or(false)
+                    {
+                        // Skip validation for testnet chain
+                        println!(
+                            "Skipping metadata URI validation for testnet chain: {}",
+                            chain
+                        );
+                        continue;
                     }
-                };
-                println!("Validating metadata URI: {}", metadata_uri);
-                let metadata_response = reqwest::blocking::get(metadata_uri).unwrap();
-                let metadata_contents: SplTokenOffchainMetadata = metadata_response
-                    .json()
-                    .expect("Failed to parse metadata JSON");
-                metadata_contents.validate();
+                    panic!("URI not provided for token: {}", chain);
+                }
+            };
+            println!("Validating metadata URI: {}", metadata_uri);
+            let metadata_response = reqwest::blocking::get(metadata_uri).unwrap();
+            let metadata_contents: SplTokenOffchainMetadata = metadata_response
+                .json()
+                .expect("Failed to parse metadata JSON");
+            metadata_contents.validate();
 
-                // Ensure that the metadata contents match the provided token config.
-                assert_eq!(metadata_contents.name, synthetic.name, "Name mismatch");
-                assert_eq!(
-                    metadata_contents.symbol, synthetic.symbol,
-                    "Symbol mismatch"
-                );
-            }
+            // Ensure that the metadata contents match the provided token config.
+            assert_eq!(metadata_contents.name, synthetic.name, "Name mismatch");
+            assert_eq!(
+                metadata_contents.symbol, synthetic.symbol,
+                "Symbol mismatch"
+            );
         }
     }
 
@@ -773,12 +798,23 @@ fn fund_ata_payer_up_to(
     ctx: &mut Context,
     client: &RpcClient,
     program_id: Pubkey,
+    token_type: &TokenType,
     ata_payer_funding_amount: u64,
 ) {
-    let (ata_payer_account, _ata_payer_bump) = Pubkey::find_program_address(
-        hyperlane_sealevel_token::hyperlane_token_ata_payer_pda_seeds!(),
-        &program_id,
-    );
+    let (ata_payer_account, _ata_payer_bump) = match token_type {
+        TokenType::Synthetic(_) | TokenType::Collateral(_) => Pubkey::find_program_address(
+            hyperlane_sealevel_token::hyperlane_token_ata_payer_pda_seeds!(),
+            &program_id,
+        ),
+        TokenType::SyntheticMemo(_) => {
+            Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds_memo!(), &program_id)
+        }
+        TokenType::CollateralMemo(_) => Pubkey::find_program_address(
+            hyperlane_sealevel_token_collateral_memo::hyperlane_token_ata_payer_pda_seeds!(),
+            &program_id,
+        ),
+        _ => unreachable!("Native tokens don't have ATA payers"),
+    };
 
     let current_balance = client.get_balance(&ata_payer_account).unwrap();
 

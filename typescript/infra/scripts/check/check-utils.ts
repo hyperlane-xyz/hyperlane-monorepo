@@ -10,10 +10,10 @@ import {
   HyperlaneIgpChecker,
   HyperlaneIsmFactory,
   InterchainAccount,
-  InterchainAccountChecker,
   InterchainAccountConfig,
   InterchainQuery,
   InterchainQueryChecker,
+  IsmType,
   MultiProvider,
   attachContractsMapAndGetForeignDeployments,
   hypERC20factories,
@@ -23,6 +23,7 @@ import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
+import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../../config/environments/utils.js';
 import { getWarpAddressesFrom } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
 import { chainsToSkip } from '../../src/config/chain.js';
@@ -140,25 +141,48 @@ export async function getGovernor(
     const checker = new HyperlaneIgpChecker(multiProvider, igp, envConfig.igp);
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const checker = new InterchainAccountChecker(
-      multiProvider,
-      ica,
-      objFilter(
-        routerConfig,
-        (chain, _): _ is InterchainAccountConfig => !!icaChainAddresses[chain],
-      ),
-    );
-    governor = new ProxiedRouterGovernor(checker);
+    chainsToSkip.forEach((chain) => delete routerConfig[chain]);
+
+    const icaConfig = Object.entries(routerConfig).reduce<
+      Record<string, InterchainAccountConfig>
+    >((acc, [chain, conf]) => {
+      if (icaChainAddresses[chain]) {
+        acc[chain] = {
+          ...conf,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            owner: conf.owner,
+            ownerOverrides: conf.ownerOverrides,
+            urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
+          },
+        };
+      }
+      return acc;
+    }, {});
+
+    const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
+    governor = new ProxiedRouterGovernor(icaChecker);
   } else if (module === Modules.HAAS) {
     chainsToSkip.forEach((chain) => delete routerConfig[chain]);
-    const icaChecker = new HyperlaneICAChecker(
-      multiProvider,
-      ica,
-      objFilter(
-        routerConfig,
-        (chain, _): _ is InterchainAccountConfig => !!icaChainAddresses[chain],
-      ),
-    );
+
+    const icaConfig = Object.entries(routerConfig).reduce<
+      Record<string, InterchainAccountConfig>
+    >((acc, [chain, conf]) => {
+      if (icaChainAddresses[chain]) {
+        acc[chain] = {
+          ...conf,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            owner: conf.owner,
+            ownerOverrides: conf.ownerOverrides,
+            urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
+          },
+        };
+      }
+      return acc;
+    }, {});
+
+    const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
     chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
     const coreChecker = new HyperlaneCoreChecker(
       multiProvider,

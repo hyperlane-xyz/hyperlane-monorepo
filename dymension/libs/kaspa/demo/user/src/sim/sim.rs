@@ -69,6 +69,7 @@ async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosNativeProvider> {
     let locator = ContractLocator::new(&d, H256::zero());
     let hub_key = EasyHubKey::from_hex(signer_key_hex);
     let signer = Some(hub_key.signer());
+    debug!("signer: {:?}", signer);
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
     CosmosNativeProvider::new(&conf, &locator, signer, metrics, chain).map_err(eyre::Report::from)
@@ -165,7 +166,7 @@ impl TrafficSim {
     pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
         let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
             wallet_secret: args.wallet.wallet_secret,
-            rpc_url: DEFAULT_WRPC_URL.to_string(),
+            wrpc_url: DEFAULT_WRPC_URL.to_string(),
             net: Network::KaspaTest10,
             storage_folder: None,
         })
@@ -284,14 +285,24 @@ async fn fund_hub_addr(
     let response = rpc.send(vec![a], gas_limit).await;
     match response {
         Ok(response) => {
-            if response.tx_result.code.is_ok() {
-                Ok(())
-            } else {
-                Err(eyre::eyre!(
-                    "Failed to fund hub address, non success code: {:?}",
-                    response.tx_result.code
-                ))
+            // Check check_tx for errors first (mempool validation)
+            if response.check_tx.code.is_err() {
+                return Err(eyre::eyre!(
+                    "Transaction failed during CheckTx with code {:?}: {}",
+                    response.check_tx.code,
+                    response.check_tx.log
+                ));
             }
+            // Then check tx_result for execution errors
+            if response.tx_result.code.is_err() {
+                return Err(eyre::eyre!(
+                    "Transaction failed during DeliverTx with code {:?}: {}",
+                    response.tx_result.code,
+                    response.tx_result.log
+                ));
+            }
+            info!("Funded hub address: {}", hub_addr);
+            Ok(())
         }
         Err(e) => Err(eyre::eyre!("Failed to fund hub address: {:?}", e)),
     }
@@ -307,5 +318,17 @@ mod tests {
         let h = H256::random();
         let s = format!("{:?}", h);
         println!("s: {}", s);
+    }
+
+    #[tokio::test]
+    async fn test_fund_hub_addr() {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+        let recipient = EasyHubKey::new();
+        println!("recipient: {:?}", recipient.signer().address_string);
+        let k = "7c3ea937a1578534cbe33bc22486d837436d99d0fb66cf1e5f9c9aa120e05964";
+        let hub = cosmos_provider(&k).await.unwrap();
+        fund_hub_addr(&recipient, &hub, 100).await.unwrap();
     }
 }

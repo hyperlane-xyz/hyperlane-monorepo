@@ -71,6 +71,9 @@ const EVM_GAS_UNDERPRICED_ERRORS: [&str; 4] = [
 
 const SVM_BLOCKHASH_NOT_FOUND_ERROR: &str = "Blockhash not found";
 
+// Add constant for block gas limit error
+const EVM_EXCEEDS_BLOCK_GAS_LIMIT_ERROR: &str = "exceeds block gas limit";
+
 // this error is returned randomly by the `TestTokenRecipient`,
 // to simulate delivery errors
 const SIMULATED_DELIVERY_FAILURE_ERROR: &str = "block hash ends in 0";
@@ -90,17 +93,21 @@ impl IsRetryable for LanderError {
                 false
             }
             ChainCommunicationError(err) => {
-                if err.to_string().contains(SIMULATED_DELIVERY_FAILURE_ERROR) {
+                let err_str = err.to_string();
+                // If error contains block gas limit, always non-retryable
+                if err_str.contains(EVM_EXCEEDS_BLOCK_GAS_LIMIT_ERROR) {
+                    return false;
+                }
+                if err_str.contains(SIMULATED_DELIVERY_FAILURE_ERROR) {
                     return true;
                 }
                 if EVM_GAS_UNDERPRICED_ERRORS
                     .iter()
-                    .any(|&e| err.to_string().contains(e))
+                    .any(|&e| err_str.contains(e))
                 {
                     return true;
                 }
-
-                if err.to_string().contains(SVM_BLOCKHASH_NOT_FOUND_ERROR) {
+                if err_str.contains(SVM_BLOCKHASH_NOT_FOUND_ERROR) {
                     return true;
                 }
                 // TODO: add logic to classify based on the error message
@@ -125,3 +132,6 @@ impl IsRetryable for LanderError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -2,6 +2,7 @@ use eyre::Result;
 use kaspa_addresses::{Prefix, Version};
 use kaspa_consensus_core::network::{NetworkId, NetworkType};
 use kaspa_core::info;
+use kaspa_wallet_core::account::pskb::PSKBSigner;
 use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::derivation::build_derivate_paths;
 use kaspa_wallet_core::error::Error;
@@ -14,7 +15,6 @@ use kaspa_wallet_pskt::prelude::KeySource;
 use kaspa_wrpc_client::Resolver;
 use std::fmt;
 use std::sync::Arc;
-use url::Url;
 
 pub async fn get_wallet(
     s: &Secret,
@@ -97,7 +97,7 @@ impl fmt::Debug for EasyKaspaWallet {
 
 pub struct EasyKaspaWalletArgs {
     pub wallet_secret: String, // this the short password that protects the keychain, not the private key of the crypto account
-    pub rpc_url: String,       // .e.g localhost:16210
+    pub wrpc_url: String,      // .e.g localhost:16210
     pub net: Network,
     pub storage_folder: Option<String>,
 }
@@ -105,7 +105,7 @@ pub struct EasyKaspaWalletArgs {
 impl EasyKaspaWallet {
     pub async fn try_new(args: EasyKaspaWalletArgs) -> Result<Self> {
         let s = Secret::from(args.wallet_secret);
-        let info = NetworkInfo::new(args.net, args.rpc_url);
+        let info = NetworkInfo::new(args.net, args.wrpc_url);
         let w = get_wallet(
             &s,
             info.clone().network_id,
@@ -133,6 +133,13 @@ impl EasyKaspaWallet {
 
     pub fn account(&self) -> Arc<dyn Account> {
         self.wallet.account().unwrap()
+    }
+
+    pub async fn pskb_signer(&self) -> Result<PSKBSigner> {
+        let acc = self.wallet.account()?;
+        let keydata = acc.prv_key_data(self.secret.clone()).await?;
+        let secret = self.secret.clone();
+        Ok(PSKBSigner::new(acc.as_dyn_arc(), keydata, Some(secret)))
     }
 
     pub async fn signing_resources(&self) -> Result<SigningResources> {
@@ -240,7 +247,7 @@ mod tests {
         let secret = "lkjsdf";
         let easy_wallet = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
             wallet_secret: secret.to_string(),
-            rpc_url: rpc_url.clone(),
+            wrpc_url: rpc_url.clone(),
             net: network,
             storage_folder: None,
         })

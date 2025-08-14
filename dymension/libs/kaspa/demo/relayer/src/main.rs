@@ -24,6 +24,7 @@ async fn main() {
         payload: args.payload,
         only_deposit: args.only_deposit,
         wallet_secret: args.wallet_secret.unwrap_or("".to_string()),
+        wprc_url: args.rpc_server,
     };
 
     if let Err(e) = demo(demo_args).await {

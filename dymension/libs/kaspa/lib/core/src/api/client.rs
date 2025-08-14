@@ -1,8 +1,6 @@
 use super::base::RateLimitConfig;
-use reqwest_middleware::ClientBuilder;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
-use std::time::Duration;
 
 use kaspa_consensus_core::tx::TransactionId;
 use kaspa_hashes::Hash as KaspaHash;

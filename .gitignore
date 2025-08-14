@@ -34,3 +34,6 @@ yarn-error.log
 tsconfig.editor.json
 
 .aider.*
+# yalc
+yalc.lock
+.yalc

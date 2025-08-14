@@ -1,150 +1,211 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This document provides guidance for AI assistants working with the Kaspa-Hub bridge implementation in this repository.
 
-## Repository Overview
+## System Overview
 
-This is a Rust library for Kaspa blockchain integration with Hyperlane, part of the Dymension fork of the Hyperlane monorepo. It provides:
+This is a 1-1 backed bridge between Kaspa and the Dymension Hub for the KAS token. The bridge guarantees:
 
-- **Core functionality**: Shared logic for validators and relayers to interact with Kaspa blockchain
-- **Multisig support**: Implementation of validator multisig escrow for cross-chain transfers
-- **PSKT (Partially Signed Kaspa Transactions)**: Support for cooperative transaction construction
-- **Hyperlane integration**: Bridge between Kaspa and other chains via Hyperlane protocol
+- **No double spending**: Each UTXO can only be spent once
+- **No lost funds**: Maintains permanent balance between escrow and minted tokens
+- **Eventual liveness**: Works correctly with an eventually honest relayer
 
-The library uses a fork of rusty-kaspa with payload support in PSKT for memo functionality.
+## Architecture
 
-## Common Development Commands
+### Key Components
 
-### Building and Testing
+1. **Kaspa Chain**: Uses UTXO model with multisig escrow address
+2. **Hub Chain**: Uses Hyperlane for minting/burning with Message ID Multisig ISM
+3. **Relayer**: Provides liveness by building and submitting transactions
+4. **Validator**: Provides safety by verifying and signing transactions
+5. **x/kas Module**: Hub module tracking withdrawal state and anchor UTXO
 
-```bash
-# Build all workspace members
-cargo build
+### Core Data Structures
 
-# Build in release mode
-cargo build --release
+- **Anchor UTXO (O)**: Current unspent transaction output that must be included in next withdrawal
+- **Last Processed Index (L)**: Index of last withdrawal confirmed on Kaspa
+- **Escrow**: Multisig address on Kaspa holding bridged funds
+- **WithdrawFXG**: Bundle containing PSKTs, messages, and anchor tracking
 
-# Run tests
-cargo test
+## Correctness Model
 
-# Run tests with output
-cargo test -- --nocapture
+### UTXO Chain Invariant
 
-# Build specific binary
-cargo build --release --bin <binary-name>
+The bridge maintains a linked chain of transactions where:
+
+1. Each transaction spends the previous anchor UTXO
+2. Each transaction creates a new anchor UTXO as its last output
+3. The anchor ensures exactly-once processing
+
+### State Synchronization Protocol
+
+**Hub State**: `(O_hub, L_hub)` - current anchor and last processed withdrawal
+
+**Kaspa State**: Actual UTXO state which may be ahead of Hub state
+
+**Synchronization**:
+
+1. If `O_hub` is spent on Kaspa, trace the TX chain to find new anchor
+2. Update Hub atomically using compare-and-set on `O_hub`
+3. Validator verifies trace before signing update
+
+### Message Processing
+
+**Kaspa → Hub (Deposits)**:
+
+- Each deposit includes unique TX outpoint
+- Hub maintains "seen" set for replay protection
+- Trivial correctness: unique outpoints ensure no double processing
+
+**Hub → Kaspa (Withdrawals)**:
+
+1. Withdrawals queued on Hub
+2. Relayer builds TX with `O_hub` as input
+3. TX payload contains `L'` (new last processed index)
+4. Validator checks: `L_hub < L'` and `O_hub` in inputs
+5. New anchor created as last TX output
+
+## Sweeping Mechanism (PR #220)
+
+### Purpose
+
+Consolidates multiple UTXOs to prevent transaction mass constraint failures.
+
+### Trigger Conditions
+
+- Escrow UTXO count exceeds `SWEEPING_THRESHOLD` (default: 3)
+- Excludes anchor UTXO from sweeping
+
+### Sweeping Process
+
+1. Extract anchor UTXO from escrow set
+2. Create sweeping bundle consolidating non-anchor UTXOs
+3. Sweeping TX outputs: consolidated escrow UTXO + relayer change
+4. Use swept outputs as inputs for withdrawal TX
+5. Anchor UTXO spent only in final withdrawal TX
+
+### Transaction Types
+
+- **Sweeping TX**: No messages, no payload, doesn't spend anchor
+- **Withdrawal TX**: Contains messages and payload, spends anchor
+
+## Security Properties
+
+### Double Spend Prevention
+
+- **Kaspa property**: Each UTXO spendable only once
+- **Hub property**: Message IDs processed only once (Hyperlane replay protection)
+- **Bridge property**: Anchor UTXO ensures sequential processing
+
+### Validator Checks
+
+**For Withdrawals**:
+
+1. Messages dispatched on Hub
+2. Messages not yet confirmed
+3. Current anchor matches Hub state
+4. Amounts match message content
+5. Proper message ordering (L < L')
+
+**For Sweeping**:
+
+1. No messages in sweeping TXs
+2. Anchor not spent in sweeping
+3. Proper UTXO consolidation
+4. Fee calculations correct
+
+**For State Updates**:
+
+1. Trace validity from old to new anchor
+2. Payload consistency
+3. Compare-and-set on anchor update
+
+### Attack Mitigation
+
+1. **Reordering attacks**: Compare-and-set prevents out-of-order updates
+2. **Double withdrawal**: Anchor UTXO ensures exactly-once processing
+3. **Fee manipulation**: Validators verify fee calculations
+4. **UTXO exhaustion**: Sweeping prevents accumulation
+
+## Key Algorithms
+
+### Anchor Tracking
+
+```
+Given: current_anchor (O)
+1. Check if O is UTXO
+2. If spent:
+   - Trace TX chain: O → TX1 → ... → TXn → O'
+   - Verify each TX in chain
+   - Extract L' from TXn payload
+   - Update Hub: (O, L) → (O', L') with CAS
+3. If UTXO:
+   - Process pending withdrawals
 ```
 
-### Running Demos
+### UTXO Consolidation (Sweeping)
 
-```bash
-# Multisig demo
-cd demo/multisig
-cargo run  # generates private key, needs funding
-cargo run -- -r  # run with existing funded key
-
-# Relayer demo
-cd demo/relayer
-cargo run
-
-# User demo
-cd demo/user
-cargo run
+```
+Given: escrow_utxos, threshold
+1. If len(escrow_utxos) > threshold:
+   - Remove anchor from set
+   - Create sweep TX: many_utxos → one_utxo
+   - Use swept UTXO for withdrawal
+2. Else:
+   - Use UTXOs directly for withdrawal
 ```
 
-### Kaspa Node Operations
+## Configuration Parameters
 
-```bash
-# Run kaspad node (requires config file)
-cargo run --release --bin kaspad -- -C <config.toml>
+- `SWEEPING_THRESHOLD`: Minimum UTXOs before sweeping (default: 3)
+- `TX_MASS_MULTIPLIER`: Safety factor for mass estimation (default: 1.3)
+- `RELAYER_SWEEPING_PRIORITY_FEE`: Additional fee for sweeping TXs (default: 3000)
+- `MIN_DEPOSIT_SOMPI`: Minimum deposit amount to prevent dust
 
-# Access CLI wallet
-cd wallet/native
-cargo run
-```
+## Implementation Notes
 
-## Architecture Overview
+### Transaction Building
 
-### Workspace Structure
+1. Always include anchor UTXO in withdrawal inputs
+2. Always create new anchor as last output
+3. Include message IDs in payload for tracking
+4. Apply feerate from network for accurate fees
 
-- **`lib/core`**: Shared types and logic for both validators and relayers
-  - API client for Kaspa blockchain
-  - Balance management
-  - Deposit/withdrawal logic
-  - PSKT utilities
-  - Wallet management
+### Error Handling
 
-- **`lib/relayer`**: Relayer-specific functionality
-  - Confirmation handling
-  - Deposit processing
-  - Hub-to-Kaspa withdrawals
+- Use specific error types for different validation failures
+- Distinguish between recoverable and fatal errors
+- Log validation failures with context
 
-- **`lib/validator`**: Validator-specific functionality
-  - Transaction signing
-  - Multisig participation
-  - Withdrawal validation
+### Testing Considerations
 
-- **`lib/api`**: Generated OpenAPI client for Kaspa blockchain API
+- Test concurrent sweeping attempts
+- Verify anchor preservation across all TX types
+- Test fee calculation edge cases
+- Validate message ordering enforcement
 
-- **`lib/hardcode`**: Hardcoded test data and configurations
+## Common Pitfalls
 
-- **`demo/`**: Self-contained demonstrations
-  - `multisig`: Basic multisig + relayer flow
-  - `relayer`: Relayer operations demo
-  - `user`: User operations and simulations
+1. **Anchor Management**: Never spend anchor without creating new one
+2. **Message Ordering**: Always verify L' > L before signing
+3. **UTXO Selection**: Separate escrow vs relayer UTXOs correctly
+4. **Fee Calculation**: Account for multisig size in mass estimation
+5. **Sweeping Logic**: Ensure anchor excluded from sweep inputs
 
-### Key Concepts
+## Glossary
 
-1. **WRPC Connection**: Clients must connect to Kaspa nodes via WRPC (WebSocket RPC). The node must have:
-   - GRPC server enabled
-   - UTXO index available
-   - Be fully synced
+- **Anchor**: UTXO that links transactions in sequence
+- **Escrow**: Multisig address holding bridged funds
+- **FXG**: Withdrawal bundle with PSKTs and messages
+- **Mass**: Kaspa's measure of transaction size/complexity
+- **Outpoint**: Reference to specific UTXO (txid + index)
+- **PSKT**: Partially Signed Kaspa Transaction
+- **Sweeping**: Consolidating multiple UTXOs into one
+- **Trace**: Sequence of linked transactions
 
-2. **Multisig Flow**:
-   - Validators create keypairs and collaborate to generate multisig redeem script
-   - Users escrow funds to the multisig address
-   - Relayer constructs PSKT with ANYONE_CAN_PAY for escrow inputs
-   - Validators sign their portions
-   - Relayer combines signatures and broadcasts
+## References
 
-3. **Transaction Construction**:
-   - Uses P2SH (pay-to-script-hash) for multisig
-   - Supports up to N=20 validators
-   - Transaction IDs don't include script signatures (no SegWit)
-
-### Important Technical Details
-
-- **Units**: 1 KAS = 100,000,000 sompis (similar to Bitcoin's satoshis)
-- **Addresses**: Three types - schnorr, ecdsa, script (multisig uses script/P2SH)
-- **Payload**: Transactions can include arbitrary data in the payload field
-- **Script Version**: Always 0 for script public keys
-
-## Development Workflow
-
-1. **For Core Library Changes**:
-   - Modify code in `lib/core/src/`
-   - Run `cargo test` in lib/core
-   - Test with demos to verify integration
-
-2. **For Agent Implementation**:
-   - Modify relayer code in `lib/relayer/src/`
-   - Modify validator code in `lib/validator/src/`
-   - Test with respective demos
-
-3. **For API Updates**:
-   - OpenAPI spec is in `scripts/open-api/openapi.json`
-   - Generated code is in `lib/api/src/`
-
-## Testing Approach
-
-- Unit tests: `cargo test` in each library crate
-- Integration tests: Run demos with local or testnet nodes
-- TestNet 10 endpoint: https://api-tn10.kaspa.org/
-- TestNet 10 faucet: https://faucet-tn10.kaspanet.io/
-
-## Important Notes
-
-- Always ensure Kaspa node is fully synced before testing
-- WRPC connection is required for wallet operations
-- Transaction construction requires understanding of UTXO model
-- Multisig operations require coordination between validators
-- Check existing patterns in demos before implementing new features
+- Kaspa TX structure: https://github.com/kaspanet/rusty-kaspa/blob/eaadfa6230fc376f314d9a504c4c70fbc0416844/consensus/core/src/tx.rs#L168-L187
+- Kaspa API: https://api.kaspa.org/docs
+- PR #220 (Sweeping): https://github.com/dymensionxyz/hyperlane-monorepo/pull/220
+- Issue #214 (TX Mass): https://github.com/dymensionxyz/hyperlane-monorepo/issues/214

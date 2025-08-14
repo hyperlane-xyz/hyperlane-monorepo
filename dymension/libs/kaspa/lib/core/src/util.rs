@@ -1,3 +1,4 @@
+use hex;
 use hyperlane_core::H256;
 use kaspa_addresses::{Address, Prefix, Version};
 use kaspa_consensus_core::hashing::sighash_type::{
@@ -7,7 +8,20 @@ use kaspa_consensus_core::tx::ScriptPublicKey;
 use kaspa_txscript::pay_to_address_script;
 use std::collections::HashSet;
 use std::hash::Hash;
-use std::str::FromStr;
+
+pub fn kaspa_address_to_h256(address: Address) -> H256 {
+    let bytes_32: [u8; 32] = address.payload.as_slice().try_into().unwrap();
+    H256::from_slice(&bytes_32)
+}
+
+/// Convert a kaspa address string to a hex string prefixed with "0x"
+/// for use as Hyperlane transfer recipient field
+pub fn kaspa_address_to_hex_recipient(kaspa_addr: &str) -> String {
+    let addr = Address::try_from(kaspa_addr).unwrap();
+    let h256 = kaspa_address_to_h256(addr);
+    format!("0x{}", hex::encode(h256.as_bytes()))
+}
+
 pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> Address {
     Address::new(
         prefix,
@@ -44,6 +58,17 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_kaspa_address_to_h256() {
+        let kaspa_str = "kaspatest:qq053k5up93kj5a3l08zens447s62ndstyrnuusserehq4laun7es8q29fwd4";
+        let kaspa = Address::constructor(kaspa_str);
+        let h256 = kaspa_address_to_h256(kaspa.clone());
+        let kaspa_actual = get_recipient_address(h256, Prefix::Testnet);
+
+        assert_eq!(kaspa, kaspa_actual)
+    }
 
     #[test]
     fn test_input_sighash_type() {
@@ -59,5 +84,11 @@ mod tests {
         println!("address: {:?}", address);
         let script_pubkey = get_recipient_script_pubkey(h256, Prefix::Testnet);
         println!("script_pubkey: {:?}", script_pubkey);
+    }
+
+    #[test]
+    fn test_find_duplicate() {
+        let v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        assert_eq!(find_duplicate(&v), None);
     }
 }

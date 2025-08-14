@@ -45,7 +45,10 @@ use hyperlane_sealevel_token::{
 use hyperlane_sealevel_token_collateral::{
     hyperlane_token_escrow_pda_seeds, plugin::CollateralPlugin,
 };
-use hyperlane_sealevel_token_collateral_memo::hyperlane_token_escrow_pda_seeds as hyperlane_token_escrow_pda_seeds_memo;
+use hyperlane_sealevel_token_collateral_memo::{
+    hyperlane_token_ata_payer_pda_seeds as hyperlane_token_ata_payer_pda_seeds_collateral_memo,
+    hyperlane_token_escrow_pda_seeds as hyperlane_token_escrow_pda_seeds_memo,
+};
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
@@ -1213,7 +1216,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     );
 
                     let (ata_payer_account, ata_payer_bump) = Pubkey::find_program_address(
-                        hyperlane_token_ata_payer_pda_seeds!(),
+                        hyperlane_token_ata_payer_pda_seeds_collateral_memo!(),
                         &query.program_id,
                     );
 

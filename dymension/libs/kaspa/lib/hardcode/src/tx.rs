@@ -1,7 +1,22 @@
-use kaspa_consensus_core::constants::SOMPI_PER_KASPA;
 use std::time::Duration;
 
 pub const DUST_AMOUNT: u64 = 20_000_001;
+
+// Kaspa sweeping PSKT generator incorrectly computes TX fee if there is one party in the multisig.
+// Add this small priproty fee to every sweeping TX to ensure the sufficient fee even if there
+// is one validator. 3_000 is a magic number.
+// TODO: make it configurable?
+pub const RELAYER_SWEEPING_PRIORITY_FEE: u64 = 3_000;
+
+// Only sweep is the threshold is exceeded. It doesn't make sense to sweep less UTXOs.
+// The value is the total number of UTXOs including the anchor UTXO.
+// TODO: make it configurable?
+pub const SWEEPING_THRESHOLD: usize = 3;
+
+// Multiply TX mass by the coefficient to give some space for adding
+// relayer and escrow change UTXOs.
+// TODO: make it configurable?
+pub const TX_MASS_MULTIPLIER: f64 = 1.3;
 
 /*
 In Kaspa, every node has a different and eventually converging view of the network.
