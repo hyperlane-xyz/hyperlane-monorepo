@@ -158,7 +158,7 @@ impl InclusionStage {
         let now = chrono::Utc::now();
 
         for (_, mut tx) in pool_snapshot {
-            if !Self::tx_ready_for_processing(base_interval, now, &mut tx) {
+            if !Self::tx_ready_for_processing(base_interval, now, &tx) {
                 continue;
             }
 
