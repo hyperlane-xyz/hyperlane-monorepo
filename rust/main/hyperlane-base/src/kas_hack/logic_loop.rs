@@ -195,10 +195,16 @@ where
                         operation.reset_attempts();
                     }
                     Err(e) => {
-                        error!("Dymension, gather sigs and send deposit to hub: {:?}", e);
-                        // This failed, queue for retry
-                        operation.mark_failed();
-                        self.deposit_queue.lock().await.requeue(operation);
+                        if self.is_retryable_chain_error(&e) {
+                            error!("Dymension, gather sigs and send deposit to hub (retryable): {:?}", e);
+                            // Retryable error, queue for retry
+                            operation.mark_failed();
+                            self.deposit_queue.lock().await.requeue(operation);
+                        } else {
+                            error!("Dymension, gather sigs and send deposit to hub (non-retryable): {:?}", e);
+                            // Non-retryable error, drop the operation
+                            info!("Dropping operation due to non-retryable error: {}", operation.deposit.id);
+                        }
                     }
                 }
             }
@@ -294,6 +300,12 @@ where
         self.hub_mailbox
             .process(&fxg.hl_message, &formatted_sigs, None)
             .await
+    }
+
+    /// Returns false only when error contains "TransactionRejected", true in all other cases
+    fn is_retryable_chain_error(&self, error: &ChainCommunicationError) -> bool {
+        let error_str = format!("{:?}", error);
+        !error_str.contains("TransactionRejected")
     }
 
     /// TODO: unused for now because we skirt the usual DB management
