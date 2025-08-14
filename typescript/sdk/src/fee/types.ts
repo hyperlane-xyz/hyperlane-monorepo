@@ -84,3 +84,4 @@ export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
 ]);
 
 export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
+export type TokenFeeConfigInput = z.input<typeof TokenFeeConfigSchema>; // Used to allow optional fields (maxFee, halfAmount, bps) in the input
