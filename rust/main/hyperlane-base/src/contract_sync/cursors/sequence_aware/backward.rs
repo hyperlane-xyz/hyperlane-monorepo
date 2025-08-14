@@ -642,6 +642,7 @@ mod test {
             start_block: INITIAL_START_BLOCK,
             index_mode: mode,
             metrics_data,
+            sql_store: None,
         };
         let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
 
@@ -994,6 +995,7 @@ mod test {
                 start_block: INITIAL_START_BLOCK,
                 index_mode: INDEX_MODE,
                 metrics_data,
+                sql_store: None,
             };
             let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
 
