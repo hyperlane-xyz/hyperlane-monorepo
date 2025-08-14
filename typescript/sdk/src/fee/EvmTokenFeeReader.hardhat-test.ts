@@ -26,6 +26,7 @@ describe('EvmTokenFeeReader', () => {
 
   let config: TokenFeeConfigInput;
   const TOKEN_TOTAL_SUPPLY = '100000000000000000000';
+  const BPS = '10000';
   beforeEach(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -52,7 +53,10 @@ describe('EvmTokenFeeReader', () => {
     tokenFee = deployedContracts[TestChainName.test2][TokenFeeType.LinearFee];
     const onchainConfig = await reader.deriveTokenFeeConfig(tokenFee.address);
     expect(normalizeConfig(onchainConfig)).to.deep.equal(
-      normalizeConfig(config),
+      normalizeConfig({
+        ...config,
+        bps: BPS,
+      }),
     );
   });
 
