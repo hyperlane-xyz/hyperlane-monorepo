@@ -20,7 +20,7 @@ import { ProxiedFactories } from '../router/types.js';
 import { ChainName } from '../types.js';
 
 import { HypERC20App } from './app.js';
-import { TokenType } from './config.js';
+import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import { HypERC20Factories } from './contracts.js';
 import {
   HypTokenRouterConfig,
@@ -146,7 +146,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       try {
         await this.multiProvider.estimateGas(chain, {
           to: hypToken.address,
-          from: await this.multiProvider.getSignerAddress(chain),
+          from: NON_ZERO_SENDER_ADDRESS,
           value: BigNumber.from(1),
         });
       } catch {
@@ -238,7 +238,8 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       decimals = await (hypToken as unknown as ERC20).decimals();
     } else if (
       isCollateralTokenConfig(expectedConfig) ||
-      isXERC20TokenConfig(expectedConfig)
+      isXERC20TokenConfig(expectedConfig) ||
+      isCctpTokenConfig(expectedConfig)
     ) {
       const collateralToken = await this.getCollateralToken(chain);
       decimals = await collateralToken.decimals();

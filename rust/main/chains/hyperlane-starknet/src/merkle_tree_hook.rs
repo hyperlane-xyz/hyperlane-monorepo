@@ -5,9 +5,9 @@ use async_trait::async_trait;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
-    ChainResult, Checkpoint, CheckpointAtBlock, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, MerkleTreeHook, ReorgPeriod,
-    H256,
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointAtBlock, ContractLocator,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
+    IncrementalMerkleAtBlock, MerkleTreeHook, ReorgPeriod, H256,
 };
 use starknet::core::types::Felt;
 use tracing::instrument;
@@ -111,10 +111,19 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
             .collect::<Vec<H256>>();
         branch.resize(TREE_DEPTH, H256::zero());
 
+        let branch_fixed: [H256; TREE_DEPTH] = branch.try_into().map_err(|_| {
+            ChainCommunicationError::CustomError(
+                "Failed to convert branch to fixed sized array".to_string(),
+            )
+        })?;
+        let tree_count: usize = tree.count.low.try_into().map_err(|_| {
+            ChainCommunicationError::CustomError("Failed to cast u128 to usize".to_string())
+        })?;
+
         Ok(IncrementalMerkleAtBlock {
             tree: IncrementalMerkle {
-                branch: branch.try_into().unwrap(),
-                count: tree.count.low.try_into().unwrap(),
+                branch: branch_fixed,
+                count: tree_count,
             },
             block_height: Some(block_number),
         })

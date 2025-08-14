@@ -152,15 +152,11 @@ export class ContractVerifier extends BaseContractVerifier {
     verificationLogger: Logger,
     options?: FormOptions<typeof action>,
   ): Promise<any> {
-    const {
-      apiUrl,
-      family,
-      apiKey = this.apiKeys[chain],
-    } = this.multiProvider.getExplorerApi(chain);
+    const { family } = this.multiProvider.getExplorerApi(chain);
+    const apiUrl = this.multiProvider.getExplorerApiUrl(chain);
     const params = new URLSearchParams();
     params.set('module', 'contract');
     params.set('action', action);
-    if (apiKey) params.set('apikey', apiKey);
 
     for (const [key, value] of Object.entries(options ?? {})) {
       params.set(key, value);
@@ -169,7 +165,13 @@ export class ContractVerifier extends BaseContractVerifier {
     let timeout: number = 1000;
     const url = new URL(apiUrl);
     const isGetRequest = EXPLORER_GET_ACTIONS.includes(action);
-    if (isGetRequest) url.search = params.toString();
+
+    // For GET requests, merge the parameters with existing ones instead of overwriting
+    if (isGetRequest) {
+      for (const [key, value] of params.entries()) {
+        url.searchParams.set(key, value);
+      }
+    }
 
     switch (family) {
       case ExplorerFamily.ZkSync:
@@ -194,6 +196,18 @@ export class ContractVerifier extends BaseContractVerifier {
     verificationLogger.trace(
       { apiUrl, chain },
       'Sending request to explorer...',
+    );
+
+    // Add debug logging to show the final URL
+    verificationLogger.debug(
+      {
+        apiUrl,
+        chain,
+        finalUrl: url.toString(),
+        isGetRequest,
+        family,
+      },
+      'Contract verification URL details',
     );
     let response: Response;
     if (isGetRequest) {

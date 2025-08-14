@@ -152,7 +152,7 @@
     "decimals": 9
   },
   "sepolia": {
-    "amount": "0.001411999",
+    "amount": "0.003089873",
     "decimals": 9
   },
   "solanatestnet": {
@@ -160,7 +160,7 @@
     "decimals": 1
   },
   "somniatestnet": {
-    "amount": "6.0",
+    "amount": "10.0",
     "decimals": 9
   },
   "soneiumtestnet": {
@@ -180,7 +180,7 @@
     "decimals": 9
   },
   "subtensortestnet": {
-    "amount": "10.0",
+    "amount": "20.134283587",
     "decimals": 9
   },
   "superpositiontestnet": {

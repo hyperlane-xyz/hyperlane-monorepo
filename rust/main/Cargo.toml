@@ -221,6 +221,13 @@ overflow-checks = true
 [profile.release.package.hyperlane-sealevel-validator-announce]
 overflow-checks = true
 
+[workspace.dependencies.cometbft]
+git = "https://github.com/hyperlane-xyz/cometbft-rs"
+tag = "2025-08-07"
+
+[workspace.dependencies.cometbft-rpc]
+git = "https://github.com/hyperlane-xyz/cometbft-rs"
+tag = "2025-08-07"
 
 [workspace.dependencies.ethers]
 features = []

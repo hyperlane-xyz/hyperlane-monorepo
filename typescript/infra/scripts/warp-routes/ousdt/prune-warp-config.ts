@@ -61,7 +61,7 @@ async function main() {
     if (collateralChains.includes(token.chainName)) {
       token.coinGeckoId = 'tether';
       token.name = 'USDT';
-      token.symbol = 'USD₮';
+      token.symbol = token.chainName === 'ethereum' ? 'USDT' : 'USD₮';
       token.standard = TokenStandard.EvmHypVSXERC20Lockbox;
       token.logoURI = isStaging
         ? undefined

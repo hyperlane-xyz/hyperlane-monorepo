@@ -1,0 +1,17 @@
+anvil3:
+  submitter:
+    type: timelockController
+    chain: anvil3
+    # Address of the deployed timelock
+    timelockAddress: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
+    # Optional, the salt to be used for computing the operation id
+    salt: '0x0000000000000000000000000000000000000000000000000000000000000000'
+    # Optional, minimum amount of time to wait for executing the operation
+    # after it has been proposed. By default it will use the minDelay configured on the timelock
+    delay: 0
+    # Optional, the id of the operation that should be executed before this one
+    predecessor: '0x0000000000000000000000000000000000000000000000000000000000000000'
+    # Optional, if not defined default to jsonRpc.
+    # Strategy to be used for proposing the transaction on the timelock.
+    proposerSubmitter:
+      type: jsonRpc

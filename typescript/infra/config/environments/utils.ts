@@ -10,6 +10,10 @@ import {
 } from '../../src/config/agent/validator.js';
 import { Contexts } from '../contexts.js';
 
+export const DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS = [
+  'https://offchain-lookup.services.hyperlane.xyz/callCommitments/getCallsFromRevealMessage',
+];
+
 export type ValidatorKey = {
   identifier: string;
   address: string;
@@ -87,6 +91,30 @@ export function getGnosisSafeBuilderStrategyConfigGenerator(
           submitter: {
             type: TxSubmitterType.GNOSIS_TX_BUILDER,
             version: '1.0',
+            chain,
+            safeAddress,
+          },
+        },
+      ]),
+    );
+  };
+}
+
+/**
+ * Create a GnosisSafe Submitter Strategy for each safe address
+ * @param safes Safe addresses for strategy
+ * @returns GnosisSafe Submitter Strategy for each safe address
+ */
+export function getGnosisSafeSubmitterStrategyConfigGenerator(
+  safes: Record<string, string>,
+) {
+  return (): ChainSubmissionStrategy => {
+    return Object.fromEntries(
+      Object.entries(safes).map(([chain, safeAddress]) => [
+        chain,
+        {
+          submitter: {
+            type: TxSubmitterType.GNOSIS_SAFE,
             chain,
             safeAddress,
           },

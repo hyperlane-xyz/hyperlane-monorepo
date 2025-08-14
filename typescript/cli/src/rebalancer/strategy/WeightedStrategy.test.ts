@@ -38,26 +38,7 @@ describe('WeightedStrategy', () => {
       ).to.throw('At least two chains must be configured');
     });
 
-    it('should throw an error when weight is less than or equal to 0', () => {
-      expect(
-        () =>
-          new WeightedStrategy(
-            {
-              [chain1]: {
-                weighted: { weight: 100n, tolerance: 0n },
-                bridge: ethers.constants.AddressZero,
-                bridgeLockTime: 1,
-              },
-              [chain2]: {
-                weighted: { weight: 0n, tolerance: 0n },
-                bridge: ethers.constants.AddressZero,
-                bridgeLockTime: 1,
-              },
-            },
-            testLogger,
-          ),
-      ).to.throw('Weight (0) must be greater than 0 for chain2');
-
+    it('should throw an error when weight is negative', () => {
       expect(
         () =>
           new WeightedStrategy(
@@ -75,7 +56,28 @@ describe('WeightedStrategy', () => {
             },
             testLogger,
           ),
-      ).to.throw('Weight (-1) must be greater than 0 for chain2');
+      ).to.throw('Weight (-1) must not be negative for chain2');
+    });
+
+    it('should throw an error when the total weight is 0', () => {
+      expect(
+        () =>
+          new WeightedStrategy(
+            {
+              [chain1]: {
+                weighted: { weight: 0n, tolerance: 0n },
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+              },
+              [chain2]: {
+                weighted: { weight: 0n, tolerance: 0n },
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+              },
+            },
+            testLogger,
+          ),
+      ).to.throw('The total weight for all chains must be greater than 0');
     });
 
     it('should throw an error when tolerance is less than 0 or greater than 100', () => {

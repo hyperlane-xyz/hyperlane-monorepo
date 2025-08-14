@@ -32,6 +32,38 @@
 - Updated dependencies [451f3f6c3]
   - @hyperlane-xyz/utils@15.0.0-beta.0
 
+## 9.0.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.2.0
+
+## 9.0.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.1.1
+
+## 9.0.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.1.0
+
+## 9.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.0.0
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [a33c8abd4]
+  - @hyperlane-xyz/utils@15.0.0
+
 ## 9.0.0
 
 ### Major Changes

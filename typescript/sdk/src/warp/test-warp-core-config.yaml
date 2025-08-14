@@ -26,6 +26,9 @@ tokens:
       - {
           token: ethereum|testxerc20lockbox|0x9876543210987654321098765432109876543218,
         }
+      - {
+          token: ethereum|testcollateralfiat|0x4234567890123456789012345678901234567890,
+        }
   # test2 HypSynthetic token
   - chainName: test2
     standard: EvmHypSynthetic
@@ -100,6 +103,15 @@ tokens:
       - {
           token: ethereum|testscale1|0x2234567890123456789012345678901234567890,
         }
+  # testcollateralfiat token
+  - chainName: testcollateralfiat
+    standard: EvmHypCollateralFiat
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x4234567890123456789012345678901234567890'
+    connections:
+      - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
   # testsealevel HypSynthetic
   - chainName: testsealevel
     standard: SealevelHypSynthetic

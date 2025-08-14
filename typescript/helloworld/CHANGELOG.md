@@ -20,6 +20,59 @@
   - @hyperlane-xyz/core@10.0.0-beta.0
   - @hyperlane-xyz/sdk@15.0.0-beta.0
 
+## 16.2.0
+
+### Patch Changes
+
+- Updated dependencies [22ceaa109]
+- Updated dependencies [ce4974214]
+- Updated dependencies [a89018a3f]
+  - @hyperlane-xyz/sdk@16.2.0
+  - @hyperlane-xyz/core@9.0.5
+
+## 16.1.1
+
+### Patch Changes
+
+- Updated dependencies [ea77b6ae4]
+  - @hyperlane-xyz/sdk@16.1.1
+  - @hyperlane-xyz/core@9.0.4
+
+## 16.1.0
+
+### Patch Changes
+
+- Updated dependencies [2a2c29c39]
+- Updated dependencies [e69ac9f62]
+- Updated dependencies [d9b8a7551]
+  - @hyperlane-xyz/sdk@16.1.0
+  - @hyperlane-xyz/core@9.0.3
+
+## 16.0.0
+
+### Patch Changes
+
+- Updated dependencies [9f3222962]
+- Updated dependencies [d200acfa8]
+- Updated dependencies [966ad8440]
+- Updated dependencies [fabb4a5af]
+- Updated dependencies [a71193486]
+- Updated dependencies [1f4412909]
+- Updated dependencies [af783be54]
+  - @hyperlane-xyz/sdk@16.0.0
+  - @hyperlane-xyz/core@9.0.2
+
+## 15.0.0
+
+### Patch Changes
+
+- Updated dependencies [23861b70a]
+- Updated dependencies [a33c8abd4]
+- Updated dependencies [e0ea8910c]
+- Updated dependencies [d16a853c0]
+  - @hyperlane-xyz/sdk@15.0.0
+  - @hyperlane-xyz/core@9.0.1
+
 ## 14.4.0
 
 ### Patch Changes

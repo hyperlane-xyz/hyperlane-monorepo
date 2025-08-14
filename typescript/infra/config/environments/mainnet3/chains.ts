@@ -50,12 +50,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 1 * 10 ** 6, // 0.001 gwei
     },
   },
-  rootstockmainnet: {
-    transactionOverrides: {
-      gasPrice: 7 * 10 ** 7, // 0.07 gwei
-      // gasLimit: 6800000, // set when deploying contracts
-    },
-  },
   // Deploy-only overrides, set when deploying contracts
   // chilizmainnet: {
   //   transactionOverrides: {
@@ -89,11 +83,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     // to large swings in gas prices.
   //     maxFeePerGas: 800 * 10 ** 9, // 800 gwei
   //     maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
-  //   },
-  // },
-  // unitzero: {
-  //   transactionOverrides: {
-  //     gasPrice: 600 * 10 ** 9, // 600 gwei
   //   },
   // },
   // matchain: {

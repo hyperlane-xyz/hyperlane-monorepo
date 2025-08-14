@@ -10,6 +10,8 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 
+import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
+
 const owners = {
   ethereum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
   superseed: '0x6652010BaCE855DF870D427daA6141c313994929',
@@ -20,14 +22,22 @@ const owners = {
   solanamainnet: 'JAPPhnuChtzCGmskmFdurvAxENWwcAqXCV5Jn5SSiuWE',
 };
 
+export const CONTRACT_VERSION = '8.0.0';
+
 export const getEthereumSuperseedUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
+    Object.keys(owners),
+  );
+
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     owner: owners.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
+    contractVersion: CONTRACT_VERSION,
+    ...rebalancingConfig.ethereum,
   };
 
   const superseed: HypTokenRouterConfig = {
@@ -42,6 +52,8 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     owner: owners.arbitrum,
     type: TokenType.collateral,
     token: tokens.arbitrum.USDC,
+    contractVersion: CONTRACT_VERSION,
+    ...rebalancingConfig.arbitrum,
   };
 
   const base: HypTokenRouterConfig = {
@@ -49,6 +61,8 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     owner: owners.base,
     type: TokenType.collateral,
     token: tokens.base.USDC,
+    contractVersion: CONTRACT_VERSION,
+    ...rebalancingConfig.base,
   };
 
   const optimism: HypTokenRouterConfig = {
@@ -56,6 +70,8 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     owner: owners.optimism,
     type: TokenType.collateral,
     token: tokens.optimism.USDC,
+    contractVersion: CONTRACT_VERSION,
+    ...rebalancingConfig.optimism,
   };
 
   const ink: HypTokenRouterConfig = {

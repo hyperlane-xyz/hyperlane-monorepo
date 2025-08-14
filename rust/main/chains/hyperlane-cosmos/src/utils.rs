@@ -2,12 +2,15 @@ use std::fmt::Debug;
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 
+use base64::prelude::BASE64_STANDARD_NO_PAD;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use cometbft::abci::EventAttribute;
+use cometbft::hash::Algorithm;
+use cometbft::Hash;
+use cosmrs::crypto::PublicKey;
 use futures::future;
 use once_cell::sync::Lazy;
-use tendermint::abci::EventAttribute;
-use tendermint::hash::Algorithm;
-use tendermint::Hash;
+use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 use tracing::warn;
 
@@ -15,6 +18,7 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, LogMeta, Reo
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
+use crate::HyperlaneCosmosError;
 
 type FutureChainResults<T> = Vec<JoinHandle<(ChainResult<Vec<(T, LogMeta)>>, u32)>>;
 
@@ -71,12 +75,10 @@ pub(crate) async fn parse_logs_in_tx<T: PartialEq + Send + Sync + Debug + 'stati
     parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     label: &'static str,
 ) -> ChainResult<Vec<(T, LogMeta)>> {
-    let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
+    let sha_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
         .expect("transaction hash should be of correct size");
 
-    provider
-        .get_logs_in_tx(tendermint_hash, parser, label)
-        .await
+    provider.get_logs_in_tx(sha_hash, parser, label).await
 }
 
 #[allow(clippy::type_complexity)]
@@ -109,12 +111,77 @@ pub(crate) async fn execute_and_parse_log_futures<T: Into<Indexed<T>>>(
 /// Helper function to create a Vec<EventAttribute> from a JSON string -
 /// crate::payloads::general::EventAttribute has a Deserialize impl while
 /// cosmrs::tendermint::abci::EventAttribute does not.
-pub(crate) fn event_attributes_from_str(
-    attrs_str: &str,
-) -> Vec<cosmrs::tendermint::abci::EventAttribute> {
+pub(crate) fn event_attributes_from_str(attrs_str: &str) -> Vec<cometbft::abci::EventAttribute> {
     serde_json::from_str::<Vec<crate::payloads::general::EventAttribute>>(attrs_str)
         .unwrap()
         .into_iter()
         .map(|attr| attr.into())
         .collect()
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct CosmosKeyJsonFormat {
+    #[serde(rename = "@type")]
+    pub key_type: &'static str,
+    pub key: String,
+}
+
+pub fn cometbft_pubkey_to_cosmrs_pubkey(
+    cometbft_key: &cometbft::PublicKey,
+) -> ChainResult<cosmrs::crypto::PublicKey> {
+    let cometbft_key_json = serde_json::to_string(&cometbft_key)
+        .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+
+    let cosmos_key_json = match cometbft_key {
+        cometbft::PublicKey::Ed25519(key) => CosmosKeyJsonFormat {
+            key_type: cosmrs::crypto::PublicKey::ED25519_TYPE_URL,
+            key: BASE64_STANDARD_NO_PAD.encode(key.as_bytes()),
+        },
+        cometbft::PublicKey::Secp256k1(key) => CosmosKeyJsonFormat {
+            key_type: cosmrs::crypto::PublicKey::SECP256K1_TYPE_URL,
+            key: BASE64_STANDARD_NO_PAD.encode(key.to_sec1_bytes()),
+        },
+        // not sure why it requires me to have this extra arm. But
+        // we should never reach this
+        _ => {
+            return Err(HyperlaneCosmosError::PublicKeyError("Invalid key".into()).into());
+        }
+    };
+
+    let json_val = serde_json::to_string(&cosmos_key_json)
+        .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+    let cosm_key = PublicKey::from_json(&json_val)
+        .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+    Ok(cosm_key)
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_cometbft_pubkey_to_cosmrs_pubkey_ed25519() {
+        let key_bytes =
+            hex::decode("F09E4D1CA00583669C8FB10B539DE25FB75CAD5A7C72569C2C3E08D05EB0DC71")
+                .expect("Failed to decode hex");
+        let key =
+            cometbft::PublicKey::from_raw_ed25519(&key_bytes).expect("Failed to parse ed25519 key");
+
+        let cosmos_key = cometbft_pubkey_to_cosmrs_pubkey(&key).expect("Failed to parse key");
+
+        println!("{:?}", cosmos_key);
+    }
+
+    #[test]
+    fn test_cometbft_pubkey_to_cosmrs_pubkey_secp256k1() {
+        let key_bytes = hex::decode("046da0967f2293b5ce9982ed7b0114cc36e4bb608d6e4d00140b9ee2a491af967448050dab0ae25263668e285acad1e91ea53b871b65f31aafc80ae6fb54e48567")
+            .expect("Failed to decode hex");
+        let key = cometbft::PublicKey::from_raw_secp256k1(&key_bytes)
+            .expect("Failed to parse secp256k1 key");
+
+        let cosmos_key = cometbft_pubkey_to_cosmrs_pubkey(&key).expect("Failed to parse key");
+
+        println!("{:?}", cosmos_key);
+    }
 }

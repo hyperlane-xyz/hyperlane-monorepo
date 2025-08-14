@@ -79,6 +79,9 @@ try {
     .demandCommand()
     .strict()
     .help()
+    .parserConfiguration({
+      'parse-numbers': false,
+    })
     .showHelpOnFail(false).argv;
 } catch (error: any) {
   errorRed('Error: ' + error.message);

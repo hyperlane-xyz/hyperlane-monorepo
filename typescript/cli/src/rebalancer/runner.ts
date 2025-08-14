@@ -84,9 +84,6 @@ export class RebalancerRunner {
       service: 'rebalancer',
       version: VERSION || 'unknown',
     });
-    logger.info('Starting rebalancer', {
-      args,
-    });
 
     if (manual && monitorOnly) {
       throw new Error(

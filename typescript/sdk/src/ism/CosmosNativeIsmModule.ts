@@ -146,14 +146,19 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
   }: {
     chain: ChainNameOrId;
     config: IsmConfig;
-    addresses: IsmModuleAddresses;
+    addresses: {
+      mailbox: string;
+    };
     multiProvider: MultiProvider;
     signer: SigningHyperlaneModuleClient;
   }): Promise<CosmosNativeIsmModule> {
     const module = new CosmosNativeIsmModule(
       multiProvider,
       {
-        addresses,
+        addresses: {
+          ...addresses,
+          deployedIsm: '',
+        },
         chain,
         config,
       },

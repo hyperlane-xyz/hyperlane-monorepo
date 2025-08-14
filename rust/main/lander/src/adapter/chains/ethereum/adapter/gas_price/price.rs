@@ -4,7 +4,7 @@ use hyperlane_core::U256;
 
 use crate::adapter::EthereumTxPrecursor;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum GasPrice {
     None,
     NonEip1559 {

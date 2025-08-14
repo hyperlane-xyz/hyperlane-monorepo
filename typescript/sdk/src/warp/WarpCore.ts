@@ -8,6 +8,7 @@ import {
   assert,
   convertDecimalsToIntegerString,
   convertToProtocolAddress,
+  convertToScaledAmount,
   isValidAddress,
   isZeroishAddress,
   rootLogger,
@@ -23,6 +24,7 @@ import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
+  LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
@@ -30,6 +32,7 @@ import {
 } from '../token/TokenStandard.js';
 import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
+  EvmHypCollateralFiatAdapter,
   EvmHypXERC20LockboxAdapter,
 } from '../token/adapters/EvmTokenAdapter.js';
 import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
@@ -135,7 +138,7 @@ export class WarpCore {
     destination: ChainNameOrId;
     sender?: Address;
     recipient: Address;
-  }): Promise<TokenAmount> {
+  }): Promise<{ igpQuote: TokenAmount; tokenFeeQuote?: TokenAmount }> {
     this.logger.debug(`Fetching interchain transfer quote to ${destination}`);
     const { amount, token: originToken } = originTokenAmount;
     const originName = originToken.chainName;
@@ -143,6 +146,8 @@ export class WarpCore {
 
     let gasAmount: bigint;
     let gasAddressOrDenom: string | undefined;
+    let feeAmount: bigint | undefined;
+    let feeAddressOrDenom: string | undefined;
     // Check constant quotes first
     const defaultQuote = this.interchainFeeConstants.find(
       (q) => q.origin === originName && q.destination === destinationName,
@@ -166,10 +171,12 @@ export class WarpCore {
       });
       gasAmount = BigInt(quote.igpQuote.amount);
       gasAddressOrDenom = quote.igpQuote.addressOrDenom;
+      feeAmount = quote.tokenFeeQuote?.amount;
+      feeAddressOrDenom = quote.tokenFeeQuote?.addressOrDenom;
     }
 
     let igpToken: Token;
-    if (!gasAddressOrDenom) {
+    if (!gasAddressOrDenom || isZeroishAddress(gasAddressOrDenom)) {
       // An empty/undefined addressOrDenom indicates the native token
       igpToken = Token.FromChainMetadataNativeToken(
         this.multiProvider.getChainMetadata(originName),
@@ -180,10 +187,27 @@ export class WarpCore {
       igpToken = searchResult;
     }
 
+    let feeTokenAmount: TokenAmount | undefined;
+    if (feeAmount && feeAddressOrDenom) {
+      // zero address is native route
+      if (isZeroishAddress(feeAddressOrDenom)) {
+        const nativeToken = Token.FromChainMetadataNativeToken(
+          this.multiProvider.getChainMetadata(originName),
+        );
+        feeTokenAmount = new TokenAmount(feeAmount, nativeToken);
+      } else {
+        // for non-native routes, fees will be in the current route token
+        feeTokenAmount = new TokenAmount(feeAmount, originToken);
+      }
+    }
+
     this.logger.debug(
       `Quoted interchain transfer fee: ${gasAmount} ${igpToken.symbol}`,
     );
-    return new TokenAmount(gasAmount, igpToken);
+    return {
+      igpQuote: new TokenAmount(gasAmount, igpToken),
+      tokenFeeQuote: feeTokenAmount,
+    };
   }
 
   /**
@@ -386,13 +410,14 @@ export class WarpCore {
       transactions.push(approveTx);
     }
 
+    const quote = await this.getInterchainTransferFee({
+      originTokenAmount,
+      destination,
+      sender,
+      recipient,
+    });
     if (!interchainFee) {
-      interchainFee = await this.getInterchainTransferFee({
-        originTokenAmount,
-        destination,
-        sender,
-        recipient,
-      });
+      interchainFee = quote.igpQuote;
     }
 
     // if the interchain fee is of protocol starknet we also have
@@ -444,6 +469,7 @@ export class WarpCore {
           amount: interchainFee.amount,
           addressOrDenom: interchainFee.token.addressOrDenom,
         },
+        tokenFeeQuote: quote.tokenFeeQuote,
       },
       customHook: token.igpTokenAddressOrDenom,
     });
@@ -479,7 +505,7 @@ export class WarpCore {
 
     // First get interchain gas quote (aka IGP quote)
     // Start with this because it's used in the local fee estimation
-    const interchainQuote = await this.getInterchainTransferFee({
+    const { igpQuote, tokenFeeQuote } = await this.getInterchainTransferFee({
       originTokenAmount,
       destination,
       sender,
@@ -492,12 +518,13 @@ export class WarpCore {
       destination,
       sender,
       senderPubKey,
-      interchainFee: interchainQuote,
+      interchainFee: igpQuote,
     });
 
     return {
-      interchainQuote,
+      interchainQuote: igpQuote,
       localQuote,
+      tokenFeeQuote,
     };
   }
 
@@ -547,10 +574,7 @@ export class WarpCore {
   }
 
   async getTokenCollateral(token: IToken): Promise<bigint> {
-    if (
-      token.standard === TokenStandard.EvmHypXERC20Lockbox ||
-      token.standard === TokenStandard.EvmHypVSXERC20Lockbox
-    ) {
+    if (LOCKBOX_STANDARDS.includes(token.standard)) {
       const adapter = token.getAdapter(
         this.multiProvider,
       ) as EvmHypXERC20LockboxAdapter;
@@ -605,9 +629,12 @@ export class WarpCore {
       originToken.scale !== destinationToken.scale
     ) {
       const precisionFactor = 100_000;
-      const scaledAmount =
-        amount *
-        BigInt((originToken.scale * precisionFactor) / destinationToken.scale);
+      const scaledAmount = convertToScaledAmount({
+        fromScale: originToken.scale,
+        toScale: destinationToken.scale,
+        amount,
+        precisionFactor,
+      });
 
       return (
         BigInt(destinationBalanceInOriginDecimals) * BigInt(precisionFactor) >=
@@ -836,7 +863,8 @@ export class WarpCore {
 
     // Check 2: Ensure the balance can cover interchain fee
     // Slightly redundant with Check 4 but gives more specific error messages
-    const interchainQuote = await this.getInterchainTransferFee({
+
+    const { igpQuote: interchainQuote } = await this.getInterchainTransferFee({
       originTokenAmount,
       destination,
       sender,
@@ -944,6 +972,13 @@ export class WarpCore {
           destinationMintLimit = max;
         }
       }
+    } else if (
+      destinationToken.standard === TokenStandard.EvmHypCollateralFiat
+    ) {
+      const adapter = destinationToken.getAdapter(
+        this.multiProvider,
+      ) as EvmHypCollateralFiatAdapter;
+      destinationMintLimit = await adapter.getMintLimit();
     }
 
     const destinationMintLimitInOriginDecimals = convertDecimalsToIntegerString(

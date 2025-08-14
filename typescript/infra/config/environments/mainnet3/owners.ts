@@ -2,8 +2,8 @@ import { ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { ethereumChainNames } from './chains.js';
-import { awIcas } from './governance/ica/aw.js';
-import { regularIcasV2 } from './governance/ica/regular2.js';
+import { awIcasLegacy } from './governance/ica/_awLegacy.js';
+import { regularIcasLegacy } from './governance/ica/_regularLegacy.js';
 import { regularIcas } from './governance/ica/regular.js';
 import { awSafes } from './governance/safe/aw.js';
 import { regularSafes } from './governance/safe/regular.js';
@@ -23,10 +23,10 @@ export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => {
     const owner =
-      regularIcasV2[local] ??
       regularIcas[local] ??
+      regularIcasLegacy[local] ??
       regularSafes[local] ??
-      awIcas[local] ??
+      awIcasLegacy[local] ??
       awSafes[local] ??
       DEPLOYER;
 
@@ -99,5 +99,8 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   },
   noble: {
     owner: 'TODO: configure noble owner',
+  },
+  celestia: {
+    owner: 'TODO: configure celestia owner',
   },
 };

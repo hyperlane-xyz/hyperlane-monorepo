@@ -413,7 +413,7 @@ mod tests {
             ))),
             transaction_gas_limit: Default::default(),
             metrics: dummy_submission_metrics(),
-            application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),
+            application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
         });
 
         let attempts = 2;

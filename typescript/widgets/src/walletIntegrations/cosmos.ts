@@ -13,6 +13,7 @@ import { cosmoshub } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
   ChainName,
+  IToken,
   MultiProtocolProvider,
   ProviderType,
   TypedTransactionReceipt,
@@ -28,7 +29,9 @@ import {
   ActiveChainInfo,
   ChainAddress,
   ChainTransactionFns,
+  SwitchNetworkFns,
   WalletDetails,
+  WatchAssetFns,
 } from './types.js';
 import { getChainsForProtocol } from './utils.js';
 
@@ -100,12 +103,9 @@ export function useCosmosActiveChain(
   return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
-export function useCosmosTransactionFns(
+export function useCosmosSwitchNetwork(
   multiProvider: MultiProtocolProvider,
-): ChainTransactionFns {
-  const cosmosChains = getCosmosChainNames(multiProvider);
-  const chainToContext = useChains(cosmosChains);
-
+): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
       const displayName =
@@ -117,6 +117,29 @@ export function useCosmosTransactionFns(
     },
     [multiProvider],
   );
+
+  return { switchNetwork: onSwitchNetwork };
+}
+
+export function useCosmosWatchAsset(
+  _multiProvider: MultiProtocolProvider,
+): WatchAssetFns {
+  const onAddAsset = useCallback(
+    async (_token: IToken, _activeChainName: ChainName) => {
+      throw new Error('Watch asset not available for cosmos');
+    },
+    [],
+  );
+
+  return { addAsset: onAddAsset };
+}
+
+export function useCosmosTransactionFns(
+  multiProvider: MultiProtocolProvider,
+): ChainTransactionFns {
+  const cosmosChains = getCosmosChainNames(multiProvider);
+  const chainToContext = useChains(cosmosChains);
+  const { switchNetwork } = useCosmosSwitchNetwork(multiProvider);
 
   const onSendTx = useCallback(
     async ({
@@ -133,7 +156,7 @@ export function useCosmosTransactionFns(
         throw new Error(`Cosmos wallet not connected for ${chainName}`);
 
       if (activeChainName && activeChainName !== chainName)
-        await onSwitchNetwork(chainName);
+        await switchNetwork(chainName);
 
       logger.debug(`Sending tx on chain ${chainName}`);
       const {
@@ -195,7 +218,7 @@ export function useCosmosTransactionFns(
       };
       return { hash: result.transactionHash, confirm };
     },
-    [onSwitchNetwork, chainToContext],
+    [switchNetwork, chainToContext],
   );
 
   const onMultiSendTx = useCallback(
@@ -210,13 +233,13 @@ export function useCosmosTransactionFns(
     }) => {
       throw new Error('Multi Transactions not supported on Cosmos');
     },
-    [onSwitchNetwork, multiProvider],
+    [],
   );
 
   return {
     sendTransaction: onSendTx,
     sendMultiTransaction: onMultiSendTx,
-    switchNetwork: onSwitchNetwork,
+    switchNetwork,
   };
 }
 

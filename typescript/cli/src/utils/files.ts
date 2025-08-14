@@ -149,43 +149,6 @@ export function writeYamlOrJson(
   );
 }
 
-function appendJson(filepath: string, obj: Record<string, any>) {
-  // if the file doesn't exist, create it
-  if (!isFile(filepath)) {
-    writeJson(filepath, obj);
-    return;
-  }
-
-  const content = readFileAtPath(filepath);
-  const json = JSON.parse(content);
-  writeJson(filepath, objMerge(json, obj));
-}
-
-function appendYaml(filepath: string, obj: Record<string, any>) {
-  // if the file doesn't exist, create it
-  if (!isFile(filepath)) {
-    writeYaml(filepath, obj);
-    return;
-  }
-
-  const content = readFileAtPath(filepath);
-  const yaml = yamlParse(content);
-  writeYaml(filepath, objMerge(yaml, obj));
-}
-
-export function appendYamlOrJson(
-  filepath: string,
-  obj: Record<string, any>,
-  format?: FileFormat,
-) {
-  return resolveYamlOrJsonFn(
-    filepath,
-    (f: string) => appendJson(f, obj),
-    (f: string) => appendYaml(f, obj),
-    format,
-  );
-}
-
 export function mergeYamlOrJson(
   filepath: string,
   obj: Record<string, any>,

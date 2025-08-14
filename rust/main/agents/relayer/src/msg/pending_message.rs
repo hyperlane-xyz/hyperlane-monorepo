@@ -80,7 +80,7 @@ pub struct MessageContext {
     pub transaction_gas_limit: Option<U256>,
     pub metrics: MessageSubmissionMetrics,
     /// Application operation verifier
-    pub application_operation_verifier: Option<Arc<dyn ApplicationOperationVerifier>>,
+    pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
 }
 
 /// A message that is pending processing and submission.
@@ -965,7 +965,6 @@ impl PendingMessage {
         match self
             .ctx
             .application_operation_verifier
-            .as_ref()?
             .verify(&self.app_context, &self.message)
             .await
         {
@@ -1036,6 +1035,13 @@ impl PendingMessage {
             }
             MetadataBuildError::MaxValidatorCountReached(count) => {
                 warn!(count, "Max validator count reached");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+            MetadataBuildError::MerkleRootMismatch {
+                root,
+                canonical_root,
+            } => {
+                warn!(?root, ?canonical_root, "Merkle root mismatch");
                 self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
             }
         });

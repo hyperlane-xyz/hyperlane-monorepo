@@ -6,18 +6,15 @@ import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
-  GetEventLogsResponse,
   getContractDeploymentTransaction,
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../block-explorer/etherscan.js';
-import {
-  BlockExplorer,
-  ExplorerFamily,
-} from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { GetEventLogsResponse } from '../rpc/evm/types.js';
+import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainNameOrId } from '../types.js';
 
-import { XERC20TokenExtraBridgesLimits } from './types.js';
+import { XERC20TokenExtraBridgesLimits, XERC20Type } from './types.js';
 
 const minimalXERC20VSABI = [
   {
@@ -63,25 +60,6 @@ export type GetExtraLockboxesOptions = {
   logger?: Logger;
 };
 
-function isEvmBlockExplorerAndNotEtherscan(
-  blockExplorer: BlockExplorer,
-): boolean {
-  if (!blockExplorer.family) {
-    return false;
-  }
-
-  const byFamily: Record<ExplorerFamily, boolean> = {
-    [ExplorerFamily.Blockscout]: true,
-    [ExplorerFamily.Etherscan]: false,
-    [ExplorerFamily.Other]: false,
-    [ExplorerFamily.Routescan]: true,
-    [ExplorerFamily.Voyager]: false,
-    [ExplorerFamily.ZkSync]: true,
-  };
-
-  return byFamily[blockExplorer.family] ?? false;
-}
-
 export async function getExtraLockBoxConfigs({
   xERC20Address,
   chain,
@@ -90,25 +68,7 @@ export async function getExtraLockBoxConfigs({
 }: Omit<GetExtraLockboxesOptions, 'explorerUrl' | 'apiKey'>): Promise<
   XERC20TokenExtraBridgesLimits[]
 > {
-  const defaultExplorer = multiProvider.getExplorerApi(chain);
-
-  const chainMetadata = multiProvider.getChainMetadata(chain);
-  const [fallBackExplorer] =
-    chainMetadata.blockExplorers?.filter((blockExplorer) =>
-      isEvmBlockExplorerAndNotEtherscan(blockExplorer),
-    ) ?? [];
-
-  // Fallback to use other block explorers if the default block explorer is etherscan and an API key is not
-  // configured
-  const isExplorerConfiguredCorrectly =
-    defaultExplorer.family === ExplorerFamily.Etherscan
-      ? !!defaultExplorer.apiKey
-      : true;
-  const canUseExplorerApi =
-    defaultExplorer.family !== ExplorerFamily.Other &&
-    isExplorerConfiguredCorrectly;
-
-  const explorer = canUseExplorerApi ? defaultExplorer : fallBackExplorer;
+  const explorer = multiProvider.tryGetEvmExplorerMetadata(chain);
   if (!explorer) {
     logger.warn(
       `No block explorer was configured correctly, skipping lockbox derivation on chain ${chain}`,
@@ -124,19 +84,7 @@ export async function getExtraLockBoxConfigs({
     apiKey: explorer.apiKey,
   });
 
-  const viemLogs = logs.map(
-    (log) =>
-      ({
-        address: log.address,
-        data: log.data,
-        blockNumber: BigInt(log.blockNumber),
-        transactionHash: log.transactionHash,
-        logIndex: Number(log.logIndex),
-        transactionIndex: Number(log.transactionIndex),
-        topics: log.topics,
-      }) as Log,
-  );
-
+  const viemLogs = logs.map(viemLogFromGetEventLogsResponse);
   return getLockboxesFromLogs(
     viemLogs,
     multiProvider.getProvider(chain),
@@ -243,6 +191,7 @@ async function getLockboxesFromLogs(
     .map((log) => ({
       lockbox: log.args.bridge,
       limits: {
+        type: XERC20Type.Velo,
         bufferCap: log.args.bufferCap.toString(),
         rateLimitPerSecond: log.args.rateLimitPerSecond.toString(),
       },

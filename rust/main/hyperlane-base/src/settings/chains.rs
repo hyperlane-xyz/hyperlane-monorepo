@@ -4,10 +4,11 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::prelude::Selector;
+use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use eyre::{eyre, Context, Report, Result};
 use serde_json::Value;
+use tracing::instrument;
 
-use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
     config::OpSubmissionConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
@@ -220,7 +221,7 @@ pub struct CoreContractAddresses {
 pub struct IndexSettings {
     /// The height at which to start indexing contracts for watermark synchs.
     /// The lowest sequence to index for sequence-aware synchs.
-    pub from: u32,
+    pub from: i64,
     /// The number of blocks to query at once when indexing contracts.
     pub chunk_size: u32,
     /// The indexing mode.
@@ -1056,6 +1057,7 @@ impl ChainConf {
         .context(ctx)
     }
 
+    #[instrument(skip_all, fields(domain=%self.domain.name()))]
     async fn signer<S: BuildableWithSignerConf>(&self) -> Result<Option<S>> {
         if let Some(conf) = &self.signer {
             Ok(Some(conf.build::<S>().await?))
@@ -1143,7 +1145,7 @@ impl ChainConf {
                     name: Some(name.into()),
                     functions: fns
                         .into_iter()
-                        .map(|s| (Selector::try_from(s.0).unwrap(), s.1))
+                        .map(|s| (Selector::try_from(s.0).expect("Failed to parse bytes"), s.1))
                         .collect(),
                 });
         };

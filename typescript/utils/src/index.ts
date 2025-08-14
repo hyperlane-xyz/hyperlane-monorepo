@@ -53,6 +53,7 @@ export {
   addBufferToGasLimit,
   convertDecimals,
   convertDecimalsToIntegerString,
+  convertToScaledAmount,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,

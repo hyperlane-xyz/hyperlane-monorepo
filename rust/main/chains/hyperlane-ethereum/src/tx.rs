@@ -348,9 +348,9 @@ where
     let mut tx = tx.clone();
     tx.set_from(
         // use the sender in the provider if one is set, otherwise default to the EVM relayer address
-        provider
-            .default_sender()
-            .unwrap_or(H160::from_str(EVM_RELAYER_ADDRESS).unwrap()),
+        provider.default_sender().unwrap_or_else(|| {
+            H160::from_str(EVM_RELAYER_ADDRESS).expect("Invalid EVM_RELAYER_ADDRESS value")
+        }),
     );
 
     let result = provider

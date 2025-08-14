@@ -80,6 +80,7 @@ export enum WarpRouteIds {
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
   oUSDT = 'oUSDT/production',
   oUSDTSTAGE = 'oUSDT/staging',
+  oXAUT = 'oXAUT/production',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
@@ -97,6 +98,7 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
+  LumiaUSDC = 'USDC/lumia',
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
 
@@ -106,7 +108,4 @@ export enum WarpRouteIds {
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
   stHYPER = 'stHYPER/bsc-ethereum',
-
-  // cttp token bridge
-  MainnetCctpUSDC = 'USDC/mainnet-cctp',
 }

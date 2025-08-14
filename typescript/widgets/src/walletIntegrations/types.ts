@@ -1,5 +1,6 @@
 import {
   ChainName,
+  IToken,
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
@@ -55,4 +56,12 @@ export interface ChainTransactionFns {
   sendTransaction: SendTransactionFn;
   sendMultiTransaction: SendMultiTransactionFn;
   switchNetwork?: SwitchNetworkFn;
+}
+
+export interface SwitchNetworkFns {
+  switchNetwork: SwitchNetworkFn;
+}
+
+export interface WatchAssetFns {
+  addAsset: (token: IToken, activeChainName: ChainName) => Promise<boolean>;
 }

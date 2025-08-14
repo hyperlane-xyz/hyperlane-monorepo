@@ -13,6 +13,7 @@ import {
   useCosmosDisconnectFn,
   useCosmosTransactionFns,
   useCosmosWalletDetails,
+  useCosmosWatchAsset,
 } from './cosmos.js';
 import {
   useEthereumAccount,
@@ -21,6 +22,7 @@ import {
   useEthereumDisconnectFn,
   useEthereumTransactionFns,
   useEthereumWalletDetails,
+  useEthereumWatchAsset,
 } from './ethereum.js';
 import {
   useSolanaAccount,
@@ -29,6 +31,7 @@ import {
   useSolanaDisconnectFn,
   useSolanaTransactionFns,
   useSolanaWalletDetails,
+  useSolanaWatchAsset,
 } from './solana.js';
 import {
   useStarknetAccount,
@@ -37,12 +40,14 @@ import {
   useStarknetDisconnectFn,
   useStarknetTransactionFns,
   useStarknetWalletDetails,
+  useStarknetWatchAsset,
 } from './starknet.js';
 import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
   WalletDetails,
+  WatchAssetFns,
 } from './types.js';
 
 const logger = widgetLogger.child({
@@ -359,5 +364,35 @@ export function useTransactionFns(
       onSendStarknetTx,
       onSwitchStarknetNetwork,
     ],
+  );
+}
+
+export function useWatchAsset(
+  multiProvider: MultiProtocolProvider,
+): Record<ProtocolType, WatchAssetFns> {
+  const { addAsset: evmAddAsset } = useEthereumWatchAsset(multiProvider);
+  const { addAsset: solanaAddAsset } = useSolanaWatchAsset(multiProvider);
+  const { addAsset: cosmosAddAsset } = useCosmosWatchAsset(multiProvider);
+  const { addAsset: starknetAddAsset } = useStarknetWatchAsset(multiProvider);
+
+  return useMemo(
+    () => ({
+      [ProtocolType.Ethereum]: {
+        addAsset: evmAddAsset,
+      },
+      [ProtocolType.Sealevel]: {
+        addAsset: solanaAddAsset,
+      },
+      [ProtocolType.Cosmos]: {
+        addAsset: cosmosAddAsset,
+      },
+      [ProtocolType.CosmosNative]: {
+        addAsset: cosmosAddAsset,
+      },
+      [ProtocolType.Starknet]: {
+        addAsset: starknetAddAsset,
+      },
+    }),
+    [evmAddAsset, solanaAddAsset, cosmosAddAsset, starknetAddAsset],
   );
 }

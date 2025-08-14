@@ -111,12 +111,6 @@ pub enum SignersError {
     WalletError(#[from] WalletError),
 }
 
-impl From<std::convert::Infallible> for SignersError {
-    fn from(_error: std::convert::Infallible) -> Self {
-        panic!("infallible")
-    }
-}
-
 #[cfg(test)]
 mod test {
     use hyperlane_core::{

@@ -1,6 +1,14 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use cometbft::abci::{Event, EventAttribute};
+use cometbft::hash::Algorithm;
+use cometbft::Hash;
+use cometbft_rpc::client::CompatMode;
+use cometbft_rpc::endpoint::block::Response as BlockResponse;
+use cometbft_rpc::endpoint::block_results::{self, Response as BlockResultsResponse};
+use cometbft_rpc::endpoint::tx;
+use cometbft_rpc::HttpClient;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::rpc::client::Client;
 use futures::StreamExt;
@@ -9,14 +17,6 @@ use hyperlane_metric::prometheus_metric::{
     ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
 use sha256::digest;
-use tendermint::abci::{Event, EventAttribute};
-use tendermint::hash::Algorithm;
-use tendermint::Hash;
-use tendermint_rpc::client::CompatMode;
-use tendermint_rpc::endpoint::block::Response as BlockResponse;
-use tendermint_rpc::endpoint::block_results::{self, Response as BlockResultsResponse};
-use tendermint_rpc::endpoint::tx;
-use tendermint_rpc::HttpClient;
 use time::OffsetDateTime;
 use tracing::{debug, info, instrument, trace};
 

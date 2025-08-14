@@ -82,3 +82,15 @@ export function validateQueryParam<T extends z.ZodTypeAny>(
     }
   };
 }
+
+export function joinPathSegments(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) {
+  if (Array.isArray(req.params.id)) {
+    // The splat route captures path segments as an array. Join them back together.
+    req.params.id = req.params.id.join('/');
+  }
+  next();
+}

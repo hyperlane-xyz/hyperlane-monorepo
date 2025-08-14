@@ -117,6 +117,7 @@ mock! {
     }
 }
 
+// used for localized tests for estimating, simulating, submitting txs etc
 struct MockProvider {}
 
 #[async_trait]
@@ -233,17 +234,17 @@ fn mock_client() -> MockClient {
     let mut client = MockClient::new();
     client
         .expect_get_block_with_commitment()
-        .returning(move |_, _| Ok(block()));
+        .returning(move |_, _| Ok(svm_block()));
     client
         .expect_get_transaction_with_commitment()
-        .returning(move |_, _| Ok(encoded_transaction()));
+        .returning(move |_, _| Ok(encoded_svm_transaction()));
     client
         .expect_simulate_transaction()
         .returning(move |_| Ok(result.clone()));
     client
 }
 
-fn block() -> UiConfirmedBlock {
+pub fn svm_block() -> UiConfirmedBlock {
     UiConfirmedBlock {
         previous_blockhash: "".to_string(),
         blockhash: "".to_string(),
@@ -256,7 +257,7 @@ fn block() -> UiConfirmedBlock {
     }
 }
 
-fn encoded_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
+pub fn encoded_svm_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
     EncodedConfirmedTransactionWithStatusMeta {
         slot: 43,
         transaction: EncodedTransactionWithStatusMeta {

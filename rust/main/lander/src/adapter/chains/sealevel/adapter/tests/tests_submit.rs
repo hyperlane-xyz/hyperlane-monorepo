@@ -47,8 +47,7 @@ async fn test_time_before_resubmission() {
     // the block time of SOON SVM is 50ms
     adapter.estimated_block_time = Duration::from_millis(50);
 
-    let expected_time_before_resubmission =
-        adapter.estimated_block_time.mul_f32(3.0) + Duration::from_millis(500);
+    let expected_time_before_resubmission = adapter.estimated_block_time.mul_f32(3.0);
 
     assert_eq!(
         adapter.time_before_resubmission(),

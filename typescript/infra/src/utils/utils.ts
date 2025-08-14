@@ -206,7 +206,11 @@ export function assertRole(roleStr: string) {
 
 export function assertFundableRole(roleStr: string): FundableRole {
   const role = roleStr as Role;
-  if (role !== Role.Relayer && role !== Role.Kathy) {
+  if (
+    role !== Role.Relayer &&
+    role !== Role.Kathy &&
+    role !== Role.Rebalancer
+  ) {
     throw Error(`Invalid fundable role ${role}`);
   }
   return role;

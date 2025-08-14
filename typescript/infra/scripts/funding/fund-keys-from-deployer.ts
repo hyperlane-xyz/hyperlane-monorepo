@@ -421,6 +421,7 @@ class ContextFunder {
     const fundableRoleKeys: Record<FundableRole, Address> = {
       [Role.Relayer]: '',
       [Role.Kathy]: '',
+      [Role.Rebalancer]: '',
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
     const { supportedChainNames } = getEnvironmentConfig(environment);
@@ -439,6 +440,7 @@ class ContextFunder {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],
             [Role.Kathy]: [],
+            [Role.Rebalancer]: [],
           };
         }
         roleKeysPerChain[chain][role] = [
@@ -465,6 +467,7 @@ class ContextFunder {
       igpClaimThresholdPerChain,
     );
   }
+
   // Funds all the roles in this.keysToFundPerChain.
   // Throws if any funding operations fail.
   async fund(): Promise<void> {
@@ -739,23 +742,23 @@ class ContextFunder {
         'Skipping funding for key',
       );
       return;
-    } else {
-      logger.info(
-        {
-          chain,
-          amount: ethers.utils.formatEther(fundingAmount),
-          key: keyInfo,
-          funder: {
-            address: funderAddress,
-            balance: ethers.utils.formatEther(
-              await this.multiProvider.getSigner(chain).getBalance(),
-            ),
-          },
-          context: this.context,
-        },
-        'Funding key',
-      );
     }
+
+    logger.info(
+      {
+        chain,
+        amount: ethers.utils.formatEther(fundingAmount),
+        key: keyInfo,
+        funder: {
+          address: funderAddress,
+          balance: ethers.utils.formatEther(
+            await this.multiProvider.getSigner(chain).getBalance(),
+          ),
+        },
+        context: this.context,
+      },
+      'Funding key',
+    );
 
     const tx = await this.multiProvider.sendTransaction(chain, {
       to: key.address,
@@ -955,7 +958,7 @@ function parseContextAndRoles(str: string): ContextAndRoles {
   }
 
   // For now, restrict the valid roles we think are reasonable to want to fund
-  const validRoles = new Set([Role.Relayer, Role.Kathy]);
+  const validRoles = new Set([Role.Relayer, Role.Kathy, Role.Rebalancer]);
   for (const role of roles) {
     if (!validRoles.has(role)) {
       throw Error(

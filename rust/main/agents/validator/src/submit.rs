@@ -192,32 +192,31 @@ impl ValidatorSubmitter {
         // tree.index() will panic if the tree is empty, so we use tree.count() instead
         // and convert the correctness_checkpoint.index to a count by adding 1.
         while tree.count() as u32 <= correctness_checkpoint.index {
-            if let Some(insertion) = self
+            let res = self
                 .db
                 .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))
-                .unwrap_or_else(|err| {
-                    panic!(
-                        "Error fetching merkle tree insertion for leaf index {}: {}",
-                        tree.count(),
-                        err
-                    )
-                })
-            {
-                let message_id = insertion.message_id();
-                tree.ingest(message_id);
+                .expect("Failed to fetch merkle tree insertion");
 
-                let checkpoint = self.checkpoint(tree);
+            let insertion = match res {
+                Some(insertion) => insertion,
+                None => {
+                    // If we haven't yet indexed the next merkle tree insertion but know that
+                    // it will soon exist (because we know the correctness checkpoint), wait a bit and
+                    // try again.
+                    sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+            };
 
-                checkpoint_queue.push(CheckpointWithMessageId {
-                    checkpoint,
-                    message_id,
-                });
-            } else {
-                // If we haven't yet indexed the next merkle tree insertion but know that
-                // it will soon exist (because we know the correctness checkpoint), wait a bit and
-                // try again.
-                sleep(Duration::from_millis(100)).await
-            }
+            let message_id = insertion.message_id();
+            tree.ingest(message_id);
+
+            let checkpoint = self.checkpoint(tree);
+
+            checkpoint_queue.push(CheckpointWithMessageId {
+                checkpoint,
+                message_id,
+            });
         }
 
         info!(

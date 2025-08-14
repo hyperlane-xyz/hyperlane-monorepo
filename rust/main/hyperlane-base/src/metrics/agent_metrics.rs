@@ -208,18 +208,6 @@ impl ChainSpecificMetricsUpdater {
     }
 
     async fn update_block_details(&self) {
-        if let HyperlaneDomain::Unknown {
-            domain_id,
-            domain_name,
-            ..
-        } = &self.conf.domain
-        {
-            debug!(
-                domain_id,
-                domain_name, "Unknown domain, skipping chain metrics"
-            );
-            return;
-        };
         let chain = self.conf.domain.name();
         debug!(chain, "Updating metrics");
         let chain_metrics = match self.provider.get_chain_metrics().await {
