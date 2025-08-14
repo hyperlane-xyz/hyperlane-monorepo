@@ -58,18 +58,17 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     address: Address,
   ): Promise<DerivedTokenFeeConfig> {
     const tokenFee = LinearFee__factory.connect(address, this.provider);
-    const maxFee = await tokenFee.maxFee();
-    const halfAmount = await tokenFee.halfAmount();
+    const maxFee = BigInt((await tokenFee.maxFee()).toString());
+    const halfAmount = BigInt((await tokenFee.halfAmount()).toString());
 
     return {
       address: tokenFee.address,
       type: TokenFeeType.LinearFee,
       token: await tokenFee.token(),
       owner: await tokenFee.owner(),
-      maxFee: BigInt(maxFee.toString()),
-      halfAmount: BigInt(halfAmount.toString()),
-
-      bps: await this.convertToBps(maxFee.toString(), halfAmount.toString()),
+      maxFee,
+      halfAmount,
+      bps: await this.convertToBps(maxFee, halfAmount),
     };
   }
 
@@ -92,7 +91,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   }
 
   async convertFromBps(
-    bps: string,
+    bps: bigint,
     tokenAddress: Address,
   ): Promise<Pick<BaseTokenFeeConfig, 'maxFee' | 'halfAmount'>> {
     // Assume maxFee is uint256.max / token.totalSupply
@@ -109,15 +108,12 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   }
 
   async convertToBps(
-    maxFee: string,
-    halfAmount: string,
+    maxFee: bigint,
+    halfAmount: bigint,
   ): Promise<BaseTokenFeeConfig['bps']> {
-    const maxFeeBN = BigNumber.from(maxFee);
-    const halfAmountBN = BigNumber.from(halfAmount);
+    const PRECISION = 10_000n;
+    const bps = (maxFee * PRECISION) / (halfAmount * 2n);
 
-    const PRECISION = 10_000;
-    const bps = maxFeeBN.mul(PRECISION).div(halfAmountBN.mul(2));
-
-    return BigInt(bps.toString());
+    return bps;
   }
 }

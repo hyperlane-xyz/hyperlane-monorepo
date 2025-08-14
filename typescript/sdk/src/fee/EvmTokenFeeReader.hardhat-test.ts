@@ -66,30 +66,27 @@ describe('EvmTokenFeeReader', () => {
   });
 
   it('should convert maxFee and halfAmount to bps', async () => {
-    const maxFee = randomInt(2, 100_000_000);
-    const halfAmount = maxFee / 2;
+    const maxFee = BigInt(randomInt(2, 100_000_000));
+    const halfAmount = maxFee / 2n;
 
     const config: TokenFeeConfigInput = {
       type: TokenFeeType.LinearFee,
       owner: signer.address,
       token: token.address,
-      maxFee: maxFee.toString(),
-      halfAmount: halfAmount.toString(),
+      maxFee,
+      halfAmount,
     };
     const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test3);
     deployedContracts = await deployer.deploy({
       [TestChainName.test3]: config,
     });
     tokenFee = deployedContracts[TestChainName.test3][TokenFeeType.LinearFee];
-    const convertedBps = await reader.convertToBps(
-      maxFee.toString(),
-      halfAmount.toString(),
-    );
+    const convertedBps = await reader.convertToBps(maxFee, halfAmount);
     expect(convertedBps).to.equal(BPS);
   });
 
   it('should be able to convert bps to maxFee and halfAmount, and back', async () => {
-    const bps = randomInt(1, 10_000);
+    const bps = BigInt(randomInt(1, 10_000));
     const config: TokenFeeConfig = TokenFeeConfigSchema.parse({
       type: TokenFeeType.LinearFee,
       owner: signer.address,
@@ -100,16 +97,13 @@ describe('EvmTokenFeeReader', () => {
     const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
     const parsedConfig = TokenFeeConfigSchema.parse(config);
     const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
-      await reader.convertFromBps(
-        parsedConfig.bps.toString(),
-        parsedConfig.token,
-      );
+      await reader.convertFromBps(parsedConfig.bps, parsedConfig.token);
 
     // Get bps using helper function
     const convertedBps = await reader.convertToBps(
-      convertedMaxFee.toString(),
-      convertedHalfAmount.toString(),
+      convertedMaxFee,
+      convertedHalfAmount,
     );
-    expect(convertedBps).to.equal(bps.toString());
+    expect(convertedBps).to.equal(bps);
   });
 });
