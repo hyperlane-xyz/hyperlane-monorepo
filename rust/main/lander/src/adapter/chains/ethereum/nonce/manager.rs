@@ -62,16 +62,6 @@ impl NonceManager {
         let tx_uuid = tx.uuid.clone();
         let precursor = tx.precursor();
 
-        // if this tx was already assigned a nonce, re-use it.
-        if let Some(nonce) = self
-            .state
-            .nonce_db()
-            .retrieve_nonce_by_transaction_uuid(&tx_uuid)
-            .await?
-        {
-            return Ok(Some(nonce));
-        }
-
         let from = *precursor.tx.from().ok_or(LanderError::TxSubmissionError(
             "Transaction missing address".to_string(),
         ))?;

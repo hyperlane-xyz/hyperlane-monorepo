@@ -126,6 +126,17 @@ impl EthereumAdapter {
     }
 
     async fn calculate_nonce(&self, tx: &Transaction) -> Result<Option<U256>, LanderError> {
+        // if this tx was already assigned a nonce, re-use it.
+        if let Some(nonce) = self
+            .nonce_manager
+            .state
+            .nonce_db()
+            .retrieve_nonce_by_transaction_uuid(&&tx.uuid)
+            .await?
+        {
+            return Ok(Some(nonce));
+        }
+
         self.nonce_manager.calculate_next_nonce(tx).await
     }
 

@@ -15,7 +15,7 @@ const FINALIZED_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str = "finalized_nonce_
 const UPPER_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str = "upper_nonce_by_signer_address_";
 const TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
     "transaction_uuid_by_nonce_and_signer_address_";
-const NONCE_BY_TRANSACTION_UUID_PREFIX: &str = "nonce_by_transaction_uuid_";
+const EVM_NONCE_BY_TRANSACTION_UUID_PREFIX: &str = "evm_nonce_by_transaction_uuid_";
 
 #[async_trait]
 pub trait NonceDb: Send + Sync {
@@ -140,7 +140,7 @@ impl NonceDb for HyperlaneRocksDB {
         &self,
         tx_uuid: &TransactionUuid,
     ) -> DbResult<Option<U256>> {
-        self.retrieve_value_by_key(NONCE_BY_TRANSACTION_UUID_PREFIX, tx_uuid)
+        self.retrieve_value_by_key(EVM_NONCE_BY_TRANSACTION_UUID_PREFIX, tx_uuid)
     }
 
     async fn store_nonce_by_transaction_uuid(
@@ -148,7 +148,7 @@ impl NonceDb for HyperlaneRocksDB {
         tx_uuid: &TransactionUuid,
         nonce: &U256,
     ) -> DbResult<()> {
-        self.store_value_by_key(NONCE_BY_TRANSACTION_UUID_PREFIX, tx_uuid, nonce)
+        self.store_value_by_key(EVM_NONCE_BY_TRANSACTION_UUID_PREFIX, tx_uuid, nonce)
     }
 }
 
