@@ -90,36 +90,33 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     throw new Error('Not implemented');
   }
 
-  async convertBpsToMaxFeeAndHalfAmount(
-    config: TokenFeeConfig,
+  async convertFromBpsForLinearFee(
+    bps: string,
+    tokenAddress: Address,
   ): Promise<Pick<BaseTokenFeeConfig, 'maxFee' | 'halfAmount'>> {
-    // If maxFee is not set, set it to uint256.max / token.totalSupply
-    const token = ERC20__factory.connect(config.token, this.provider);
+    // Assume maxFee is uint256.max / token.totalSupply
+    const token = ERC20__factory.connect(tokenAddress, this.provider);
     const totalSupply = await token.totalSupply();
-    // TODO: Handle Native fees i.e address(0)
-
-    const maxFee = config.maxFee
-      ? BigNumber.from(config.maxFee)
-      : constants.MaxUint256.div(totalSupply);
-
-    // halfAmount is bps * maxFee * 5000, or maxFee / 2 if bps is not set
-    const halfAmount = config.bps
-      ? BigNumber.from(config.bps).mul(BigNumber.from(maxFee).mul(5000))
-      : maxFee.div(2);
+    const maxFee = constants.MaxUint256.div(totalSupply);
+    const halfAmount = BigNumber.from(bps).mul(
+      BigNumber.from(maxFee).mul(5_000),
+    );
     return {
       maxFee: BigInt(maxFee.toString()),
       halfAmount: BigInt(halfAmount.toString()),
     };
   }
 
-  async convertMaxFeeAndHalfAmountToBps(
-    address: Address,
+  async convertToBpsForLinearFee(
+    maxFee: string,
+    halfAmount: string,
   ): Promise<BaseTokenFeeConfig['bps']> {
-    const fee = BaseFee__factory.connect(address, this.provider);
-    const maxFee = await fee.maxFee();
-    const halfAmount = await fee.halfAmount();
+    const maxFeeBN = BigNumber.from(maxFee);
+    const halfAmountBN = BigNumber.from(halfAmount);
 
-    const bps = BigNumber.from(halfAmount).mul(10000).div(maxFee.mul(5000));
+    const PRECISION = 10_000;
+    const bps = maxFeeBN.mul(PRECISION).div(halfAmountBN.mul(2));
+
     return BigInt(bps.toString());
   }
 }
