@@ -127,18 +127,36 @@ pub fn build_sovereign_node_docker_with_constants(rollup_dir: &Path, params: &So
 }
 
 #[apply(as_task)]
-pub fn start_sovereign_node_docker(params: SovereignParameters) -> AgentHandles {
+pub fn start_sovereign_node_docker(
+    params: SovereignParameters,
+    rollup_path: PathBuf,
+) -> AgentHandles {
     log!(
         "Starting Sovereign node '{}' with RPC port {} in Docker container",
         params.name,
         params.port,
     );
 
+    // Create temporary directories for volume mounting
+    let temp_dir = tempdir().expect("Failed to create temp directory");
+    let da_dir = temp_dir.path().join("da");
+    let state_dir = temp_dir.path().join("state");
+    fs::create_dir_all(&da_dir).expect("Failed to create da directory");
+    fs::create_dir_all(&state_dir).expect("Failed to create state directory");
+    let rollup_config = rollup_path.join("configs/mock/rollup-dockerized.toml");
+
     let node_name_static = Box::leak(params.name.clone().into_boxed_str());
     let sovereign_node = Program::new("docker")
         .cmd("run")
         .flag("rm")
+        .flag("privileged")
         .arg("name", &params.name)
+        .arg("volume", format!("{}:/mnt/da", da_dir.display()))
+        .arg("volume", format!("{}:/mnt/state", state_dir.display()))
+        .arg(
+            "volume",
+            format!("{}:/app/config/rollup.toml", rollup_config.display()),
+        )
         .arg("publish", format!("{}:12346", params.port))
         .cmd(params.docker_image())
         .spawn(node_name_static, None);
@@ -163,7 +181,7 @@ pub fn setup_sovereign_environment() -> (PathBuf, Vec<(AgentHandles, SovereignPa
     let rollup_path = env::var(SOVEREIGN_ROLLUP_PATH_ENV)
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("./sovereign-rollup"));
-    let rollup_dir = clone_sovereign_rollup(rollup_path);
+    let rollup_dir = clone_sovereign_rollup(rollup_path.clone());
 
     log!("Sovereign repository cloned to: {}", rollup_dir.display());
 
@@ -178,7 +196,7 @@ pub fn setup_sovereign_environment() -> (PathBuf, Vec<(AgentHandles, SovereignPa
     let mut agents = Vec::with_capacity(SOVEREIGN_NODE_COUNT);
     for i in 0..SOVEREIGN_NODE_COUNT {
         let params = SovereignParameters::for_index(i);
-        let agent = start_sovereign_node_docker(params.clone()).join();
+        let agent = start_sovereign_node_docker(params.clone(), rollup_path.clone()).join();
         agents.push((agent, params));
     }
 
