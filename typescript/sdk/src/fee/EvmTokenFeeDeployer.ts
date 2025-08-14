@@ -11,8 +11,8 @@ import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories, evmTokenFeeFactories } from './contracts.js';
 import {
   OnchainTokenFeeType,
-  TokenFeeConfig,
   TokenFeeConfigInput,
+  TokenFeeConfigSchema,
   TokenFeeType,
   onChainTypeToTokenFeeTypeMap,
 } from './types.js';
@@ -95,7 +95,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
 
   private async deployRoutingFee(
     chain: ChainName,
-    config: TokenFeeConfig,
+    config: TokenFeeConfigInput,
   ): Promise<RoutingFeeDeploymentResult> {
     if (config.type !== TokenFeeType.RoutingFee) {
       throw new Error('Invalid config type for routing fee deployment');

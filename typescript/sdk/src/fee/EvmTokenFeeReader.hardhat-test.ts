@@ -13,7 +13,12 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories } from './contracts.js';
-import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
+import {
+  TokenFeeConfig,
+  TokenFeeConfigInput,
+  TokenFeeConfigSchema,
+  TokenFeeType,
+} from './types.js';
 
 describe('EvmTokenFeeReader', () => {
   let multiProvider: MultiProvider;

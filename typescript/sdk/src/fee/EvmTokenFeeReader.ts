@@ -69,10 +69,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       maxFee: BigInt(maxFee.toString()),
       halfAmount: BigInt(halfAmount.toString()),
 
-      bps: await this.convertToBpsForLinearFee(
-        maxFee.toString(),
-        halfAmount.toString(),
-      ),
+      bps: await this.convertToBps(maxFee.toString(), halfAmount.toString()),
     };
   }
 
