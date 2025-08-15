@@ -66,16 +66,10 @@ contract DistributeNetworkRewards is Script {
 
         uint256 stakeAmount = NUM_EPOCHS * EPOCH_AMOUNT;
 
-        // 3. approve hyper to vault
-        collateral.approve(address(vault), stakeAmount);
+        // 3. approve HYPER to rewards
+        IERC20(address(collateral)).approve(address(rewards), stakeAmount);
 
-        // 4. deposit hyper to vault
-        vault.deposit(networkAddress, stakeAmount);
-
-        // 5. approve stHYPER to rewards
-        IERC20(address(vault)).approve(address(rewards), stakeAmount);
-
-        // 6. distribute stHYPER rewards
+        // 4. distribute HYPER rewards
         for (uint48 i = 0; i < NUM_EPOCHS; i++) {
             uint48 timestamp = EPOCH_START + EPOCH_DURATION * (i + 1);
 
@@ -88,11 +82,13 @@ contract DistributeNetworkRewards is Script {
 
             rewards.distributeRewards(
                 networkAddress,
-                address(vault),
+                address(collateral),
                 EPOCH_AMOUNT,
                 data
             );
         }
+
+        compoundStakerRewards.compound(networkAddress, stakeAmount);
 
         vm.stopBroadcast();
     }
