@@ -1,6 +1,8 @@
 use dymension_kaspa::Deposit;
 use std::time::{Duration, Instant};
-use tracing::{debug, error, info};
+use tracing::{debug, info};
+
+use super::config::KaspaDepositConfig;
 
 #[derive(Debug, Clone)]
 pub struct DepositOperation {
@@ -27,14 +29,16 @@ impl DepositOperation {
         }
     }
 
-    pub fn mark_failed(&mut self) {
+    pub fn mark_failed(&mut self, config: &KaspaDepositConfig) {
         self.retry_count += 1;
-        // Exponential backoff: 30s, 60s, 120s
-        let delay_secs = 30 * (1 << (self.retry_count - 1).min(3));
+        // Exponential backoff with configurable base
+        let delay_secs = config.base_retry_delay_secs * (1 << (self.retry_count - 1).min(5));
         self.next_attempt_after = Some(Instant::now() + Duration::from_secs(delay_secs));
         info!(
-            "Deposit operation failed, will retry in {}s (attempt {}): {}",
-            delay_secs, self.retry_count, self.deposit.id
+            deposit_id = %self.deposit.id,
+            retry_count = self.retry_count,
+            retry_after_secs = delay_secs,
+            "Deposit operation failed, scheduling retry"
         );
     }
 
@@ -43,11 +47,11 @@ impl DepositOperation {
         self.retry_count += 1;
         self.next_attempt_after = Some(Instant::now() + delay);
         info!(
-            "Deposit operation failed ({}), will retry in {:.1}s (attempt {}): {}",
-            reason,
-            delay.as_secs_f64(),
-            self.retry_count,
-            self.deposit.id
+            deposit_id = %self.deposit.id,
+            retry_count = self.retry_count,
+            retry_after_secs = delay.as_secs_f64(),
+            reason = %reason,
+            "Deposit operation failed with custom delay"
         );
     }
 

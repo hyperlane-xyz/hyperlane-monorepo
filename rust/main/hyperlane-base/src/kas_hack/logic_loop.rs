@@ -20,7 +20,11 @@ use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
 use tracing::{error, info, info_span, warn, Instrument};
 
-use super::deposit_operation::{DepositOpQueue, DepositOperation};
+use super::{
+    config::KaspaDepositConfig,
+    deposit_operation::{DepositOpQueue, DepositOperation},
+    error::KaspaDepositError,
+};
 
 pub struct Foo<C: MetadataConstructor> {
     provider: Box<KaspaProvider>,
@@ -28,6 +32,7 @@ pub struct Foo<C: MetadataConstructor> {
     metadata_constructor: C,
     deposit_cache: DepositCache,
     deposit_queue: Mutex<DepositOpQueue>,
+    config: KaspaDepositConfig,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -39,12 +44,14 @@ where
         hub_mailbox: Arc<CosmosNativeMailbox>,
         metadata_constructor: C,
     ) -> Self {
+        let config = KaspaDepositConfig::from_env();
         Self {
             provider,
             hub_mailbox,
             metadata_constructor,
             deposit_cache: DepositCache::new(),
             deposit_queue: Mutex::new(DepositOpQueue::new()),
+            config,
         }
     }
 
@@ -99,10 +106,7 @@ where
                 None => None, // unbounded
             };
         loop {
-            // Process retry queue first
             self.process_deposit_queue().await;
-
-            // Then fetch new deposits
             let deposits_res = self
                 .provider
                 .rest()
@@ -115,7 +119,7 @@ where
                 Ok(deposits) => deposits,
                 Err(e) => {
                     error!("Dymension, query new Kaspa deposits: {:?}", e);
-                    time::sleep(Duration::from_secs(10)).await; // TODO: should use proper retry library and check if error is transient
+                    time::sleep(self.config.poll_interval()).await;
                     continue;
                 }
             };
@@ -147,7 +151,6 @@ where
     async fn process_deposit_queue(&self) {
         let mut queue = self.deposit_queue.lock().await;
 
-        // Process ready operations
         while let Some(operation) = queue.pop_ready() {
             drop(queue); // Release lock before processing
             self.process_deposit_operation(operation).await;
@@ -157,9 +160,8 @@ where
 
     /// Process a single deposit operation, with retry logic on failure
     async fn process_deposit_operation(&self, mut operation: DepositOperation) {
-        info!("Processing deposit operation: {}", operation.deposit.id);
+        info!(deposit_id = %operation.deposit.id, "Processing deposit operation");
 
-        // Call to relayer.F()
         let new_deposit_res = relayer_on_new_deposit(
             &operation.escrow_address,
             &operation.deposit,
@@ -171,7 +173,6 @@ where
             Ok(Some(fxg)) => {
                 info!("Dymension, built new deposit FXG: {:?}", fxg);
 
-                // Check if already delivered
                 let delivered_res = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
                 match delivered_res {
                     Ok(true) => {
@@ -184,7 +185,7 @@ where
                     Err(e) => {
                         error!("Dymension, check if deposit is delivered: {:?}", e);
                         // This is a transient error, queue for retry
-                        operation.mark_failed();
+                        operation.mark_failed(&self.config);
                         self.deposit_queue.lock().await.requeue(operation);
                         return;
                     }
@@ -206,7 +207,7 @@ where
                                 e
                             );
                             // Retryable error, queue for retry
-                            operation.mark_failed();
+                            operation.mark_failed(&self.config);
                             self.deposit_queue.lock().await.requeue(operation);
                         } else {
                             error!("Dymension, gather sigs and send deposit to hub (non-retryable): {:?}", e);
@@ -222,7 +223,7 @@ where
             Ok(None) => {
                 error!("Dymension, F() new deposit returned none, will retry.");
                 // This could be transient, queue for retry
-                operation.mark_failed();
+                operation.mark_failed(&self.config);
                 self.deposit_queue.lock().await.requeue(operation);
             }
             Err(e) => {
@@ -241,7 +242,7 @@ where
                             e
                         );
                         // Use standard exponential backoff for processing errors
-                        operation.mark_failed();
+                        operation.mark_failed(&self.config);
                         self.deposit_queue.lock().await.requeue(operation);
                     }
                 }
@@ -291,7 +292,7 @@ where
                     }
                 }
                 None => {
-                    time::sleep(Duration::from_secs(10)).await;
+                    time::sleep(self.config.poll_interval()).await;
                 }
             }
         }
@@ -318,10 +319,11 @@ where
             .await
     }
 
-    /// Returns false only when error contains "TransactionRejected", true in all other cases
+    /// Check if a chain error is retryable based on error type
     fn is_retryable_chain_error(&self, error: &ChainCommunicationError) -> bool {
-        let error_str = format!("{:?}", error);
-        !error_str.contains("TransactionRejected")
+        // Check if error message contains "TransactionRejected" for now
+        // TODO: Use proper error type matching when available
+        !error.to_string().contains("TransactionRejected")
     }
 
     /// TODO: unused for now because we skirt the usual DB management
@@ -348,7 +350,7 @@ where
         let logs = Vec::from_iter(deduped_logs);
 
         if let Err(err) = store.store_logs(&logs).await {
-            warn!(?err, "Error storing logs in db");
+            debug!(error = ?err, "Error storing logs in db");
         }
 
         logs
