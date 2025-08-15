@@ -102,6 +102,7 @@ export enum WarpRouteIds {
 
   // Not present in the registry
   // TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
+  ETHEverclearTest = 'ETH/everclear-test',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',

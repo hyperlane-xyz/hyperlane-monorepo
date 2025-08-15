@@ -59,6 +59,7 @@ import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/co
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumZircuitRe7LRTWarpConfig.js';
+import { getETHEverclearTestWarpConfig } from './environments/mainnet3/warp/configGetters/getEverclearETHTestWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getMintSolanaMintWarpConfig } from './environments/mainnet3/warp/configGetters/getMintSolanaMintWarpConfig.js';
@@ -153,6 +154,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
   // Not present in the registry
   // [WarpRouteIds.TestnetCCTP]: getCCTPWarpConfig,
+  [WarpRouteIds.ETHEverclearTest]: getETHEverclearTestWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
