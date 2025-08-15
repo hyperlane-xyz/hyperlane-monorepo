@@ -1,9 +1,15 @@
 import { constants } from 'ethers';
 
-import { MailboxClient__factory, Router__factory } from '@hyperlane-xyz/core';
+import {
+  FungibleTokenRouter__factory,
+  MailboxClient__factory,
+  Router__factory,
+} from '@hyperlane-xyz/core';
 import { Address, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { EvmTokenFeeReader } from '../fee/EvmTokenFeeReader.js';
+import { TokenFeeConfig } from '../fee/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -21,6 +27,7 @@ export class EvmRouterReader extends HyperlaneReader {
   protected readonly logger = rootLogger.child({ module: 'EvmRouterReader' });
   protected evmHookReader: EvmHookReader;
   protected evmIsmReader: EvmIsmReader;
+  protected evmTokenFeeReader: EvmTokenFeeReader;
 
   constructor(
     multiProvider: MultiProvider,
@@ -30,6 +37,7 @@ export class EvmRouterReader extends HyperlaneReader {
     super(multiProvider, chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
     this.evmIsmReader = new EvmIsmReader(multiProvider, chain, concurrency);
+    this.evmTokenFeeReader = new EvmTokenFeeReader(multiProvider, chain);
   }
 
   public async readRouterConfig(
@@ -37,12 +45,23 @@ export class EvmRouterReader extends HyperlaneReader {
   ): Promise<DerivedRouterConfig> {
     const mailboxClientConfig = await this.fetchMailboxClientConfig(address);
     const remoteRouters = await this.fetchRemoteRouters(address);
+    const tokenFee = await this.fetchTokenFee(address);
     // proxyAdmin and foreignDeployment are not directly readable from a generic router
     // and depend on deployment context or specific router implementations.
     return {
       ...mailboxClientConfig,
+      tokenFee,
       remoteRouters,
     };
+  }
+
+  public async fetchTokenFee(address: Address): Promise<TokenFeeConfig> {
+    const fungibleTokenRouter = FungibleTokenRouter__factory.connect(
+      address,
+      this.provider,
+    );
+    const tokenFee = await fungibleTokenRouter.feeRecipient();
+    return this.evmTokenFeeReader.deriveTokenFeeConfig(tokenFee);
   }
 
   async fetchMailboxClientConfig(
