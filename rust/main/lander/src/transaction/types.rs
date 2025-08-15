@@ -36,6 +36,8 @@ pub struct Transaction {
     pub creation_timestamp: DateTime<Utc>,
     /// the date and time the transaction was last submitted
     pub last_submission_attempt: Option<DateTime<Utc>>,
+    /// the date and time the transaction status was last checked
+    pub last_status_check: Option<DateTime<Utc>>,
 }
 
 #[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Hash)]
