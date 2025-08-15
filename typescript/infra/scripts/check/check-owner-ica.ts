@@ -10,8 +10,8 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
+  getGovernanceIcas,
   getGovernanceSafes,
-  getLegacyGovernanceIcas,
 } from '../../config/environments/mainnet3/governance/utils.js';
 import {
   chainsToSkip,
@@ -52,7 +52,7 @@ async function main() {
     multiProvider,
   );
 
-  const icas = getLegacyGovernanceIcas(governanceType);
+  const icas = getGovernanceIcas(governanceType);
 
   const checkOwnerIcaChains = (
     chains?.length ? chains : Object.keys(icas)
