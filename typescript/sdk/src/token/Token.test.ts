@@ -265,23 +265,10 @@ describe('Token', () => {
         throw new Error(`No address for standard ${tokenArgs.standard}`);
 
       const sandbox = stubMultiProtocolProvider(multiProvider);
-
       // @ts-ignore simple extra mock for the Ethers V5 token contract call
       adapter.contract = {
         balanceOf: async () => '100',
       };
-
-      if ('getWrappedTokenAdapter' in adapter) {
-        const wrappedToken = new Token(tokenArgs);
-        const wrappedTokenAdapter = wrappedToken.getAdapter(multiProvider);
-        // @ts-ignore simple extra mock for the Ethers V5 token contract call
-        wrappedTokenAdapter.contract = {
-          balanceOf: async () => '100',
-        };
-        sandbox
-          .stub(adapter, 'getWrappedTokenAdapter')
-          .resolves(wrappedTokenAdapter);
-      }
 
       const balance = await adapter.getBalance(balanceCheckAddress);
       expect(typeof balance).to.eql('bigint');
