@@ -62,8 +62,6 @@ pub struct KaspaDepositConfig {
     pub finality_confirmations: u32,
     /// Base retry delay in seconds (used for exponential backoff)
     pub base_retry_delay_secs: u64,
-    /// Maximum number of retries before giving up
-    pub max_retries: u32,
     /// Polling interval for checking new deposits
     pub poll_interval_secs: u64,
 }
@@ -73,7 +71,6 @@ impl Default for KaspaDepositConfig {
         Self {
             finality_confirmations: 1000,
             base_retry_delay_secs: 30,
-            max_retries: 66,
             poll_interval_secs: 10,
         }
     }
