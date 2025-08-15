@@ -510,12 +510,6 @@ pub fn build_kaspa_connection_conf(
                 .parse_u64()
                 .end()
                 .unwrap_or(30),
-            max_retries: chain
-                .chain(err)
-                .get_opt_key("kaspaDepositMaxRetries")
-                .parse_u32()
-                .end()
-                .unwrap_or(66),
             poll_interval_secs: chain
                 .chain(err)
                 .get_opt_key("kaspaDepositPollIntervalSecs")
