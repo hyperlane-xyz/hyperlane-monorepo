@@ -78,26 +78,6 @@ impl NonceManager {
             .await
             .map_err(|e| eyre::eyre!("Failed to update boundary nonces: {}", e))?;
 
-        // if this tx was already assigned a nonce, re-use it.
-        if let Some(nonce) = self
-            .state
-            .nonce_db()
-            .retrieve_nonce_by_transaction_uuid(&tx_uuid)
-            .await?
-        {
-            // make sure nonce is valid
-            let (action, nonce) = self
-                .state
-                .validate_nonce(tx, nonce)
-                .await
-                .map_err(|e| eyre::eyre!("Failed to validate nonce: {}", e))?;
-
-            // if valid, then use it
-            if matches!(action, Noop) {
-                return Ok(nonce);
-            }
-        }
-
         let (action, nonce) = self
             .state
             .validate_assigned_nonce(tx)
