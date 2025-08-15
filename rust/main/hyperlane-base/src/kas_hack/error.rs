@@ -1,14 +1,12 @@
+use dym_kas_relayer::deposit::DepositError;
 use hyperlane_core::ChainCommunicationError;
 use thiserror::Error;
 
-/// Kaspa-specific deposit operation errors
+/// Extended Kaspa deposit operation errors with additional context
 #[derive(Error, Debug)]
 pub enum KaspaDepositError {
     #[error("Deposit not final enough: need {needed} confirmations, have {current}")]
-    NotFinalEnough { needed: u32, current: u32 },
-
-    #[error("Transaction rejected by chain")]
-    TransactionRejected,
+    NotFinalEnough { needed: i64, current: i64 },
 
     #[error("Failed to build deposit FXG: {0}")]
     ProcessingError(String),
@@ -21,6 +19,9 @@ pub enum KaspaDepositError {
 
     #[error("Failed to get validator signatures: {0}")]
     ValidatorError(String),
+
+    #[error("Transaction rejected by chain")]
+    TransactionRejected,
 }
 
 impl KaspaDepositError {
@@ -33,11 +34,26 @@ impl KaspaDepositError {
     pub fn retry_delay_hint(&self) -> Option<f64> {
         match self {
             Self::NotFinalEnough { needed, current } => {
-                // Calculate delay based on missing confirmations
                 let missing = needed.saturating_sub(*current);
-                Some(missing as f64 * 1.0) // ~1 second per confirmation
+                Some(missing as f64 * 0.1) // ~0.1 second per confirmation (10 confirmations per second)
             }
             _ => None,
+        }
+    }
+}
+
+impl From<DepositError> for KaspaDepositError {
+    fn from(err: DepositError) -> Self {
+        match err {
+            DepositError::NotFinalEnough {
+                confirmations,
+                required_confirmations,
+                ..
+            } => KaspaDepositError::NotFinalEnough {
+                needed: required_confirmations,
+                current: confirmations,
+            },
+            DepositError::ProcessingError(e) => KaspaDepositError::ProcessingError(e.to_string()),
         }
     }
 }
