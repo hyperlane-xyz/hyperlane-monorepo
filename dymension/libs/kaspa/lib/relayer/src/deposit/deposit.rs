@@ -1,14 +1,102 @@
 use corelib::deposit::DepositFXG;
+use corelib::finality::is_safe_against_reorg;
 use corelib::message::ParsedHL;
-use corelib::{api::client::Deposit, message::add_kaspa_metadata_hl_messsage};
-use eyre::Result;
+use corelib::{
+    api::client::{Deposit, HttpClient},
+    message::add_kaspa_metadata_hl_messsage,
+};
+use eyre::{eyre, Result};
 use hyperlane_core::U256;
 pub use secp256k1::PublicKey;
-use tracing::info;
+use tracing::{info, warn};
 
-pub async fn on_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<Option<DepositFXG>> {
+/// Error type for deposit processing that includes retry timing information
+#[derive(Debug)]
+pub enum DepositError {
+    NotFinalEnough {
+        confirmations: i64,
+        required_confirmations: i64,
+        retry_after_secs: f64,
+    },
+    ProcessingError(eyre::Error),
+}
+
+impl std::fmt::Display for DepositError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DepositError::NotFinalEnough {
+                confirmations,
+                required_confirmations,
+                retry_after_secs,
+            } => {
+                write!(
+                    f,
+                    "Deposit not final enough: {}/{} confirmations. Retry in {:.1}s",
+                    confirmations, required_confirmations, retry_after_secs
+                )
+            }
+            DepositError::ProcessingError(err) => {
+                write!(f, "Processing error: {}", err)
+            }
+        }
+    }
+}
+
+impl std::error::Error for DepositError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DepositError::NotFinalEnough { .. } => None,
+            DepositError::ProcessingError(err) => Some(err.as_ref()),
+        }
+    }
+}
+
+impl From<eyre::Error> for DepositError {
+    fn from(err: eyre::Error) -> Self {
+        DepositError::ProcessingError(err)
+    }
+}
+
+pub async fn on_new_deposit(
+    escrow_address: &str,
+    deposit: &Deposit,
+    rest_client: &HttpClient,
+) -> Result<Option<DepositFXG>, DepositError> {
+    // Check if the deposit is safe against reorg first
+    let finality_status = is_safe_against_reorg(
+        rest_client,
+        &deposit.id.to_string(),
+        Some(deposit.accepting_block_hash.clone()),
+    )
+    .await?;
+
+    if !finality_status.is_final() {
+        let pending_confirmations =
+            finality_status.required_confirmations - finality_status.confirmations;
+        // we assume 10 confirmations per second, so retry after 0.1 seconds per confirmation needed
+        let retry_after_secs = pending_confirmations as f64 * 0.1;
+
+        warn!(
+            "Deposit {} is not yet safe against reorg. Confirmations: {}/{}. Will retry in {:.1}s",
+            deposit.id,
+            finality_status.confirmations,
+            finality_status.required_confirmations,
+            retry_after_secs
+        );
+
+        return Err(DepositError::NotFinalEnough {
+            confirmations: finality_status.confirmations,
+            required_confirmations: finality_status.required_confirmations,
+            retry_after_secs,
+        });
+    }
+
+    info!(
+        "Deposit {} is safe against reorg with {} confirmations",
+        deposit.id, finality_status.confirmations
+    );
+
     // decode payload into Hyperlane message
-
     let payload = deposit.payload.clone().unwrap();
     let parsed_hl = ParsedHL::parse_string(&payload)?;
     info!(
@@ -30,7 +118,7 @@ pub async fn on_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<O
     let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)?;
 
     if deposit.block_hashes.is_empty() {
-        return Err(eyre::eyre!("kaspa deposit had no block hashes"));
+        return Err(eyre::eyre!("kaspa deposit had no block hashes").into());
     }
 
     // build response for validator

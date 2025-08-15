@@ -32,3 +32,4 @@ dymension-kaspa = { path = "../../../../../rust/main/chains/dymension-kaspa" }
 hyperlane-metric = { path = "../../../../../rust/main/hyperlane-metric" }
 url = "2.3"
 tracing = { workspace = true }
+eyre = { workspace = true }

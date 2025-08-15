@@ -1,7 +1,7 @@
 use crate::error::ValidationError;
 use corelib::api::client::HttpClient;
 use corelib::deposit::DepositFXG;
-use corelib::finality;
+use corelib::finality::is_safe_against_reorg;
 use corelib::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
 use corelib::wallet::NetworkInfo;
 use eyre::Result;
@@ -163,7 +163,7 @@ pub async fn validate_new_deposit_inner(
         }
     })?;
 
-    if !finality::is_safe_against_reorg(
+    let finality_status = is_safe_against_reorg(
         client_rest,
         &d_untrusted.tx_id,
         Some(containing_block_hash.to_string()),
@@ -171,9 +171,13 @@ pub async fn validate_new_deposit_inner(
     .await
     .map_err(|e| ValidationError::ExternalApiError {
         reason: e.to_string(),
-    })? {
+    })?;
+
+    if !finality_status.is_final() {
         return Err(ValidationError::NotSafeAgainstReorg {
             tx_id: d_untrusted.tx_id.clone(),
+            confirmations: finality_status.confirmations,
+            required: finality_status.required_confirmations,
         });
     }
 

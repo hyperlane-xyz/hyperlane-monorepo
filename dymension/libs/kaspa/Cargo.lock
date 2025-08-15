@@ -1806,6 +1806,7 @@ dependencies = [
  "clap",
  "core",
  "dymension-kaspa",
+ "eyre",
  "hardcode",
  "hex",
  "hyperlane-core",

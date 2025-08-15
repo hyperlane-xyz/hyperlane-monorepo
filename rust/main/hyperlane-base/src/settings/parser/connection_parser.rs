@@ -495,6 +495,32 @@ pub fn build_kaspa_connection_conf(
         None => H256::default(),
     };
 
+    // Parse KaspaDepositConfig if provided
+    let kaspa_deposit_config = if validator_hosts.len() > 0 {
+        Some(dymension_kaspa::KaspaDepositConfig {
+            finality_confirmations: chain
+                .chain(err)
+                .get_opt_key("kaspaDepositFinalityConfirmations")
+                .parse_u32()
+                .end()
+                .unwrap_or(1000),
+            base_retry_delay_secs: chain
+                .chain(err)
+                .get_opt_key("kaspaDepositBaseRetryDelaySecs")
+                .parse_u64()
+                .end()
+                .unwrap_or(30),
+            poll_interval_secs: chain
+                .chain(err)
+                .get_opt_key("kaspaDepositPollIntervalSecs")
+                .parse_u64()
+                .end()
+                .unwrap_or(10),
+        })
+    } else {
+        None
+    };
+
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
             wallet_secret.to_owned(),
@@ -512,6 +538,7 @@ pub fn build_kaspa_connection_conf(
             operation_batch,
             validation_conf,
             kaspa_min_deposit_sompi,
+            kaspa_deposit_config,
             hub_domain,
             hub_token_id,
             kas_domain,
