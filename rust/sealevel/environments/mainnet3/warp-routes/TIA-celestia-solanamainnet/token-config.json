@@ -1,0 +1,10 @@
+{
+  "solanamainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Celestia",
+    "symbol": "TIA",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/b21b78514a42e8c050b36472c8325fd4b5177366/deployments/warp_routes/TIA/metadata.json",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+  }
+}
