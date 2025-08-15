@@ -1460,11 +1460,21 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mitosis: {
-    threshold: 1,
+    threshold: 3,
     validators: [
       {
         address: '0x3b3eb808d90a4e19bb601790a6b6297812d6a61f',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0x401f25ff73769ed85bdb449a4347a4fd2678acfe',
+        alias: 'Enigma',
+      },
+      {
+        address: '0x340058f071e8376c2ecff219e1e6620deea8a3c7',
+        alias: 'Substance Labs',
       },
     ],
   },
