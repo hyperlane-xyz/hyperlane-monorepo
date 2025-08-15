@@ -8,6 +8,7 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
+anyhow = { workspace = true }
 async-trait.workspace = true
 axum.workspace = true
 aws-config.workspace = true
@@ -64,7 +65,18 @@ hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
 hyperlane-starknet = { path = "../chains/hyperlane-starknet" }
 hyperlane-cosmos-native = { path = "../chains/hyperlane-cosmos-native" }
+dymension-kaspa = { path = "../chains/dymension-kaspa" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
+dym_kas_core = { path = "../../../dymension/libs/kaspa/lib/core" , package="core"}
+dym_kas_hardcode = { path = "../../../dymension/libs/kaspa/lib/hardcode" , package="hardcode"}
+api-rs = { path = "../../../dymension/libs/kaspa/lib/api", package = "openapi" }
+dym_kas_relayer = { path = "../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
+dym_kas_validator = { path = "../../../dymension/libs/kaspa/lib/validator" , package="validator"}
+
+kaspa-consensus-core = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-hashes ={ git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
+kaspa-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "a443c3f" }
+
 
 # dependency version is determined by etheres
 rusoto_core = "*"

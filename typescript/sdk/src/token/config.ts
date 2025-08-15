@@ -1,8 +1,10 @@
 export enum TokenType {
   synthetic = 'synthetic',
+  syntheticMemo = 'syntheticMemo',
   syntheticRebase = 'syntheticRebase',
   syntheticUri = 'syntheticUri',
   collateral = 'collateral',
+  collateralMemo = 'collateralMemo',
   collateralVault = 'collateralVault',
   collateralVaultRebase = 'collateralVaultRebase',
   XERC20 = 'xERC20',
@@ -11,6 +13,7 @@ export enum TokenType {
   collateralUri = 'collateralUri',
   collateralCctp = 'collateralCctp',
   native = 'native',
+  nativeMemo = 'nativeMemo',
   nativeOpL2 = 'nativeOpL2',
   nativeOpL1 = 'nativeOpL1',
   // backwards compatible alias to native
@@ -28,11 +31,14 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.collateralUri]: false,
   [TokenType.collateralVault]: true,
   [TokenType.collateralVaultRebase]: true,
+  [TokenType.collateralMemo]: true,
   [TokenType.native]: true,
+  [TokenType.nativeMemo]: true,
   [TokenType.nativeOpL1]: false,
   [TokenType.nativeOpL2]: false,
   [TokenType.nativeScaled]: true,
   [TokenType.synthetic]: false,
+  [TokenType.syntheticMemo]: false,
   [TokenType.syntheticRebase]: false,
   [TokenType.syntheticUri]: false,
 } as const;
@@ -50,8 +56,10 @@ export function isMovableCollateralTokenType(type: TokenType): boolean {
 export const gasOverhead = (tokenType: TokenType): number => {
   switch (tokenType) {
     case TokenType.synthetic:
+    case TokenType.syntheticMemo:
       return 64_000;
     case TokenType.native:
+    case TokenType.nativeMemo:
       return 44_000;
     default:
       return 68_000;

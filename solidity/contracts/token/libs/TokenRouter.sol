@@ -55,7 +55,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId
-    ) external payable virtual returns (bytes32 messageId) {
+    ) public payable virtual returns (bytes32 messageId) {
         return
             _transferRemote(_destination, _recipient, _amountOrId, msg.value);
     }

@@ -42,6 +42,8 @@ pub enum ModuleType {
     Null,
     /// Ccip Read ISM (accepts offchain signature information)
     CcipRead,
+    /// Kaspa ISM (used for kaspa)
+    KaspaMultisig,
 }
 
 impl ModuleType {
@@ -56,6 +58,7 @@ impl ModuleType {
             Self::MessageIdMultisig => "message_id_multisig",
             Self::Null => "null",
             Self::CcipRead => "ccip_read",
+            Self::KaspaMultisig => "kaspa_multisig",
         }
     }
 }

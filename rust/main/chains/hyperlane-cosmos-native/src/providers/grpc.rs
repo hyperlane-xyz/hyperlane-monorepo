@@ -3,6 +3,10 @@ use std::time::Duration;
 use derive_new::new;
 use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::service_client::ServiceClient;
 use hyperlane_cosmos_rs::cosmos::base::tendermint::v1beta1::GetLatestBlockRequest;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
+    query_client::QueryClient as KasQueryClient, QueryOutpointRequest, QueryOutpointResponse,
+    QueryWithdrawalStatusRequest, QueryWithdrawalStatusResponse, WithdrawalId,
+};
 use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::{
     query_client::QueryClient as IsmQueryClient, QueryAnnouncedStorageLocationsRequest,
     QueryAnnouncedStorageLocationsResponse, QueryIsmRequest, QueryIsmResponse,
@@ -254,5 +258,59 @@ impl GrpcProvider {
                 Box::pin(future)
             })
             .await
+    }
+
+    /// Query the current outpoint (anchor) for Kaspa bridge
+    pub async fn outpoint(&self, height: Option<u32>) -> ChainResult<QueryOutpointResponse> {
+        self.fallback
+            .call(|client| {
+                let future = async move {
+                    let mut service = KasQueryClient::new(client.channel.clone());
+                    let result = service
+                        .outpoint(Self::request_at_height(QueryOutpointRequest {}, height))
+                        .await
+                        .map_err(HyperlaneCosmosError::from)?
+                        .into_inner();
+                    Ok(result)
+                };
+                Box::pin(future)
+            })
+            .await
+    }
+
+    /// Query withdrawal status by withdrawal ID
+    pub async fn withdrawal_status(
+        &self,
+        withdrawal_id: Vec<WithdrawalId>,
+        height: Option<u32>,
+    ) -> ChainResult<QueryWithdrawalStatusResponse> {
+        self.fallback
+            .call(|client| {
+                let withdrawal_id = withdrawal_id.clone();
+                let future = async move {
+                    let mut service = KasQueryClient::new(client.channel.clone());
+                    let result = service
+                        .withdrawal_status(Self::request_at_height(
+                            QueryWithdrawalStatusRequest { withdrawal_id },
+                            height,
+                        ))
+                        .await
+                        .map_err(HyperlaneCosmosError::from)?
+                        .into_inner();
+                    Ok(result)
+                };
+                Box::pin(future)
+            })
+            .await
+    }
+
+    /// bit of a hack, we can see if the hub x/kas is bootstrapped by doing an empty withdrawal query
+    /// https://github.com/dymensionxyz/dymension/blob/55468f6494cc233d7478a658964881c465c46555/x/kas/keeper/grpc_query.go#L30
+    pub async fn hub_bootstrapped(&self) -> ChainResult<bool> {
+        let ws_res = self.withdrawal_status(vec![], None).await;
+        match ws_res {
+            Ok(_) => Ok(true),
+            Err(e) => Err(e),
+        }
     }
 }

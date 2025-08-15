@@ -33,7 +33,7 @@ construct_uint! {
 construct_uint! {
     /// 256-bit unsigned integer.
     #[derive(BorshSerialize, BorshDeserialize)]
-    pub struct U256(4);
+    pub struct  U256(4);
 }
 
 construct_uint! {

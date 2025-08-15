@@ -21,6 +21,7 @@ use super::{
     aggregation::AggregationIsmMetadataBuilder,
     base::{IsmWithMetadataAndType, MessageMetadataBuildParams, MetadataBuildError},
     ccip_read::CcipReadIsmMetadataBuilder,
+    dymension_kaspa::KaspaMetadataBuilder,
     multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
     null_metadata::NullMetadataBuilder,
     routing::RoutingIsmMetadataBuilder,
@@ -200,7 +201,9 @@ pub async fn build_message_metadata(
         ModuleType::Routing => Box::new(RoutingIsmMetadataBuilder::new(message_builder)),
         ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(message_builder)),
         ModuleType::Null => Box::new(NullMetadataBuilder::new()),
+        ModuleType::Unused => Box::new(NullMetadataBuilder::new()),
         ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(message_builder)),
+        ModuleType::KaspaMultisig => Box::new(KaspaMetadataBuilder::new(message_builder)),
         _ => return Err(MetadataBuildError::UnsupportedModuleType(module_type)),
     };
     let metadata = metadata_builder.build(ism_address, message, params).await?;

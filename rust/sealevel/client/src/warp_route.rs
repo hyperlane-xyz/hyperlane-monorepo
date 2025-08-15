@@ -31,6 +31,10 @@ use hyperlane_sealevel_token_lib::{
         set_interchain_security_module_instruction, transfer_ownership_instruction, Init,
     },
 };
+use hyperlane_sealevel_token_memo::{
+    hyperlane_token_ata_payer_pda_seeds as hyperlane_token_ata_payer_pda_seeds_memo,
+    hyperlane_token_mint_pda_seeds as hyperlane_token_mint_pda_seeds_memo,
+};
 
 use crate::{
     cmd_utils::account_exists,
@@ -100,8 +104,11 @@ impl DecimalMetadata {
 #[serde(tag = "type", rename_all = "camelCase")]
 enum TokenType {
     Native,
+    NativeMemo,
     Synthetic(TokenMetadata),
+    SyntheticMemo(TokenMetadata),
     Collateral(CollateralInfo),
+    CollateralMemo(CollateralInfo),
 }
 
 impl TokenType {
@@ -112,8 +119,11 @@ impl TokenType {
         // enforce gas amounts to Sealevel chains.
         match &self {
             TokenType::Synthetic(_) => 64_000,
+            TokenType::SyntheticMemo(_) => 64_000,
             TokenType::Native => 44_000,
+            TokenType::NativeMemo => 44_000,
             TokenType::Collateral(_) => 68_000,
+            TokenType::CollateralMemo(_) => 68_000,
         }
     }
 }
@@ -188,8 +198,11 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
     fn program_name(&self, config: &TokenConfig) -> &str {
         match config.token_type {
             TokenType::Native => "hyperlane_sealevel_token_native",
+            TokenType::NativeMemo => "hyperlane_sealevel_token_native_memo",
             TokenType::Synthetic(_) => "hyperlane_sealevel_token",
+            TokenType::SyntheticMemo(_) => "hyperlane_sealevel_token_memo",
             TokenType::Collateral(_) => "hyperlane_sealevel_token_collateral",
+            TokenType::CollateralMemo(_) => "hyperlane_sealevel_token_collateral_memo",
         }
     }
 
@@ -221,9 +234,18 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             if let Some(ata_payer_funding_amount) = self.ata_payer_funding_amount {
                 if matches!(
                     app_config.token_type,
-                    TokenType::Collateral(_) | TokenType::Synthetic(_)
+                    TokenType::Collateral(_)
+                        | TokenType::CollateralMemo(_)
+                        | TokenType::Synthetic(_)
+                        | TokenType::SyntheticMemo(_)
                 ) {
-                    fund_ata_payer_up_to(ctx, client, program_id, ata_payer_funding_amount);
+                    fund_ata_payer_up_to(
+                        ctx,
+                        client,
+                        program_id,
+                        &app_config.token_type,
+                        ata_payer_funding_amount,
+                    );
                 }
             }
         };
@@ -291,6 +313,14 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 )
                 .unwrap(),
             ),
+            TokenType::NativeMemo => ctx.new_txn().add(
+                hyperlane_sealevel_token_native_memo::instruction::init_instruction(
+                    program_id,
+                    ctx.payer_pubkey,
+                    init,
+                )
+                .unwrap(),
+            ),
             TokenType::Synthetic(_token_metadata) => {
                 let decimals = init.decimals;
 
@@ -308,6 +338,63 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
                 let (mint_account, _mint_bump) =
                     Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+
+                let mut cmd = Command::new(spl_token_binary_path.clone());
+                cmd.args([
+                    "create-token",
+                    mint_account.to_string().as_str(),
+                    "--enable-metadata",
+                    "-p",
+                    spl_token_2022::id().to_string().as_str(),
+                    "--url",
+                    client.url().as_str(),
+                    "--with-compute-unit-limit",
+                    "500000",
+                    "--mint-authority",
+                    &ctx.payer_pubkey.to_string(),
+                    "--fee-payer",
+                    ctx.payer_keypair_path(),
+                ]);
+
+                println!("running command: {:?}", cmd);
+                let status = cmd
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .status()
+                    .expect("Failed to run command");
+
+                println!("initialized metadata pointer. Status: {status}");
+
+                ctx.new_txn().add(
+                    spl_token_2022::instruction::initialize_mint2(
+                        &spl_token_2022::id(),
+                        &mint_account,
+                        &ctx.payer_pubkey,
+                        None,
+                        decimals,
+                    )
+                    .unwrap(),
+                )
+            }
+            TokenType::SyntheticMemo(_token_metadata) => {
+                let decimals = init.decimals;
+
+                ctx.new_txn()
+                    .add(
+                        hyperlane_sealevel_token_memo::instruction::init_instruction(
+                            program_id,
+                            ctx.payer_pubkey,
+                            init,
+                        )
+                        .unwrap(),
+                    )
+                    .with_client(client)
+                    .send_with_payer();
+
+                let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                    hyperlane_token_mint_pda_seeds_memo!(),
+                    &program_id,
+                );
 
                 let mut cmd = Command::new(spl_token_binary_path.clone());
                 cmd.args([
@@ -364,13 +451,46 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     .unwrap(),
                 )
             }
+            TokenType::CollateralMemo(collateral_info) => {
+                let collateral_mint = collateral_info.mint.parse().expect("Invalid mint address");
+                let collateral_mint_account = client.get_account(&collateral_mint).unwrap();
+                // The owner of the mint account is the SPL Token program responsible for it
+                // (either spl-token or spl-token-2022).
+                let collateral_spl_token_program = collateral_mint_account.owner;
+
+                ctx.new_txn().add(
+                    hyperlane_sealevel_token_collateral_memo::instruction::init_instruction(
+                        program_id,
+                        ctx.payer_pubkey,
+                        init,
+                        collateral_spl_token_program,
+                        collateral_mint,
+                    )
+                    .unwrap(),
+                )
+            }
         }
         .with_client(client)
         .send_with_payer();
 
-        if let TokenType::Synthetic(token_metadata) = &app_config.token_type {
-            let (mint_account, _mint_bump) =
-                Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+        if matches!(
+            &app_config.token_type,
+            TokenType::Synthetic(_) | TokenType::SyntheticMemo(_)
+        ) {
+            let token_metadata = match &app_config.token_type {
+                TokenType::Synthetic(metadata) | TokenType::SyntheticMemo(metadata) => metadata,
+                _ => unreachable!(),
+            };
+            let (mint_account, _mint_bump) = match &app_config.token_type {
+                TokenType::Synthetic(_) => {
+                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id)
+                }
+                TokenType::SyntheticMemo(_) => Pubkey::find_program_address(
+                    hyperlane_token_mint_pda_seeds_memo!(),
+                    &program_id,
+                ),
+                _ => unreachable!(),
+            };
 
             let mut cmd = Command::new(spl_token_binary_path.clone());
             cmd.args([
@@ -446,41 +566,43 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
     ) {
         // We only have validations for SVM tokens at the moment.
         for (chain, config) in app_configs_to_deploy.iter() {
-            if let TokenType::Synthetic(synthetic) = &config.token_type {
-                // Verify that the metadata URI provided points to a valid JSON file.
-                let metadata_uri = match synthetic.uri.as_ref() {
-                    Some(uri) => uri,
-                    None => {
-                        if chain_metadatas
-                            .get(*chain)
-                            .unwrap()
-                            .is_testnet
-                            .unwrap_or(false)
-                        {
-                            // Skip validation for testnet chain
-                            println!(
-                                "Skipping metadata URI validation for testnet chain: {}",
-                                chain
-                            );
-                            continue;
-                        }
-                        panic!("URI not provided for token: {}", chain);
+            let synthetic = match &config.token_type {
+                TokenType::Synthetic(s) | TokenType::SyntheticMemo(s) => s,
+                _ => continue,
+            };
+            // Verify that the metadata URI provided points to a valid JSON file.
+            let metadata_uri = match synthetic.uri.as_ref() {
+                Some(uri) => uri,
+                None => {
+                    if chain_metadatas
+                        .get(*chain)
+                        .unwrap()
+                        .is_testnet
+                        .unwrap_or(false)
+                    {
+                        // Skip validation for testnet chain
+                        println!(
+                            "Skipping metadata URI validation for testnet chain: {}",
+                            chain
+                        );
+                        continue;
                     }
-                };
-                println!("Validating metadata URI: {}", metadata_uri);
-                let metadata_response = reqwest::blocking::get(metadata_uri).unwrap();
-                let metadata_contents: SplTokenOffchainMetadata = metadata_response
-                    .json()
-                    .expect("Failed to parse metadata JSON");
-                metadata_contents.validate();
+                    panic!("URI not provided for token: {}", chain);
+                }
+            };
+            println!("Validating metadata URI: {}", metadata_uri);
+            let metadata_response = reqwest::blocking::get(metadata_uri).unwrap();
+            let metadata_contents: SplTokenOffchainMetadata = metadata_response
+                .json()
+                .expect("Failed to parse metadata JSON");
+            metadata_contents.validate();
 
-                // Ensure that the metadata contents match the provided token config.
-                assert_eq!(metadata_contents.name, synthetic.name, "Name mismatch");
-                assert_eq!(
-                    metadata_contents.symbol, synthetic.symbol,
-                    "Symbol mismatch"
-                );
-            }
+            // Ensure that the metadata contents match the provided token config.
+            assert_eq!(metadata_contents.name, synthetic.name, "Name mismatch");
+            assert_eq!(
+                metadata_contents.symbol, synthetic.symbol,
+                "Symbol mismatch"
+            );
         }
     }
 
@@ -676,12 +798,23 @@ fn fund_ata_payer_up_to(
     ctx: &mut Context,
     client: &RpcClient,
     program_id: Pubkey,
+    token_type: &TokenType,
     ata_payer_funding_amount: u64,
 ) {
-    let (ata_payer_account, _ata_payer_bump) = Pubkey::find_program_address(
-        hyperlane_sealevel_token::hyperlane_token_ata_payer_pda_seeds!(),
-        &program_id,
-    );
+    let (ata_payer_account, _ata_payer_bump) = match token_type {
+        TokenType::Synthetic(_) | TokenType::Collateral(_) => Pubkey::find_program_address(
+            hyperlane_sealevel_token::hyperlane_token_ata_payer_pda_seeds!(),
+            &program_id,
+        ),
+        TokenType::SyntheticMemo(_) => {
+            Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds_memo!(), &program_id)
+        }
+        TokenType::CollateralMemo(_) => Pubkey::find_program_address(
+            hyperlane_sealevel_token_collateral_memo::hyperlane_token_ata_payer_pda_seeds!(),
+            &program_id,
+        ),
+        _ => unreachable!("Native tokens don't have ATA payers"),
+    };
 
     let current_balance = client.get_balance(&ata_payer_account).unwrap();
 
@@ -717,15 +850,15 @@ pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
     }
 
     match token_type {
-        FlatTokenType::Native => {
+        FlatTokenType::Native | FlatTokenType::NativeMemo => {
             let res = HyperlaneTokenAccount::<NativePlugin>::fetch(data);
             print_data_or_err(res);
         }
-        FlatTokenType::Synthetic => {
+        FlatTokenType::Synthetic | FlatTokenType::SyntheticMemo => {
             let res = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(data);
             print_data_or_err(res);
         }
-        FlatTokenType::Collateral => {
+        FlatTokenType::Collateral | FlatTokenType::CollateralMemo => {
             let res = HyperlaneTokenAccount::<CollateralPlugin>::fetch(data);
             print_data_or_err(res);
         }

@@ -1,21 +1,26 @@
+/// Cosmos Native Mailbox
 use cosmrs::Any;
 use hex::ToHex;
-use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
-use hyperlane_cosmos_rs::prost::{Message, Name};
-use tonic::async_trait;
-
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
-    RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
+    RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};
+use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
+use hyperlane_cosmos_rs::prost::{Message, Name};
+use tendermint::hash::Algorithm;
+use tendermint::Hash;
+use tonic::async_trait;
+use tracing::info;
 
 use crate::CosmosNativeProvider;
 
 /// Cosmos Native Mailbox
 #[derive(Debug, Clone)]
 pub struct CosmosNativeMailbox {
-    provider: CosmosNativeProvider,
+    /// CosmosNativeProvider
+    pub provider: CosmosNativeProvider,
     domain: HyperlaneDomain,
     address: H256,
 }
@@ -52,6 +57,11 @@ impl CosmosNativeMailbox {
             type_url: MsgProcessMessage::type_url(),
             value: process.encode_to_vec(),
         })
+    }
+
+    /// A provider for the chain
+    pub fn provider(&self) -> CosmosNativeProvider {
+        self.provider.clone()
     }
 }
 
@@ -185,5 +195,76 @@ impl Mailbox for CosmosNativeMailbox {
 
     fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
+    }
+}
+
+/// DYMENSION: required for Kaspa bridge, a special indicate progress TX
+/// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L29
+impl CosmosNativeMailbox {
+    /// atomically update the hub with a new outpoint anchor and set of completed withdrawals
+    pub async fn indicate_progress(
+        &self,
+        metadata: &[u8],
+        u: &ProgressIndication,
+    ) -> ChainResult<TxOutcome> {
+        let msg = MsgIndicateProgress {
+            signer: self.provider.rpc().get_signer()?.address_string.clone(),
+            metadata: metadata.to_vec(),
+            payload: Some(u.clone()),
+        };
+        let a = Any {
+            type_url: MsgIndicateProgress::type_url(),
+            value: msg.encode_to_vec(),
+        };
+        let gas_limit = None;
+        let response = self.provider.rpc().send(vec![a], gas_limit).await?;
+
+        // we assume that the underlying cosmos chain does not have gas refunds
+        // in that case the gas paid will always be:
+        // gas_wanted * gas_price
+        let gas_price =
+            FixedPointNumber::from(response.tx_result.gas_wanted) * self.provider.rpc().gas_price();
+
+        let executed = response.tx_result.code.is_ok() && response.check_tx.code.is_ok();
+
+        // Logging here is a hack to get a reject reason.
+        // TxOutcome doesn't have a field for the reject reason.
+        // Cosmos doesn't save rejected TXs on-chain.
+        // Logging here is the easiest way to see what happened.
+        if !executed {
+            info!("Dymension, indicate progress is not executed on-chain: {response:?}");
+        }
+
+        Ok(TxOutcome {
+            transaction_id: H256::from_slice(response.hash.as_bytes()).into(),
+            executed,
+            gas_used: response.tx_result.gas_used.into(),
+            gas_price,
+        })
+    }
+}
+
+pub fn h512_to_cosmos_hash(h: H512) -> Hash {
+    let h_256: H256 = h.into();
+    Hash::from_bytes(Algorithm::Sha256, h_256.as_bytes()).unwrap()
+}
+
+mod test {
+    #[test]
+    fn test_hash() {
+        // From cosmos hex to HL transaction ID
+        let cosmos_hex = "5F3C6367A3AAC0B7E0B1F63CE25FEEDA3914F57FA9EAEC0F6A10CD84740BA010";
+        let cosmos_hash = Hash::from_hex_upper(Algorithm::Sha256, cosmos_hex).unwrap();
+        let cosmos_bytes = cosmos_hash.as_bytes();
+
+        let tx_id: H512 = H256::from_slice(cosmos_bytes).into();
+
+        // From HL transaction ID to cosmos hex
+        let tx_id_256: H256 = tx_id.into();
+        let cosmos_bytes_1 = tx_id_256.as_bytes();
+        let cosmos_hash_1 = Hash::from_bytes(Algorithm::Sha256, cosmos_bytes_1).unwrap();
+        let cosmos_hex_1 = cosmos_hash_1.encode_hex_upper::<String>();
+
+        assert_eq!(cosmos_hex, cosmos_hex_1.as_str());
     }
 }

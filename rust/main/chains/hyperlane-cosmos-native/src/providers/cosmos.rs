@@ -61,7 +61,7 @@ where
 #[derive(Debug, Clone)]
 pub struct CosmosNativeProvider {
     conf: ConnectionConf,
-    rpc: RpcProvider,
+    pub rpc: RpcProvider,
     domain: HyperlaneDomain,
     grpc: GrpcProvider,
 }

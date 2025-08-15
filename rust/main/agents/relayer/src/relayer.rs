@@ -20,22 +20,7 @@ use tokio::{
 use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, warn, Instrument};
 
-use hyperlane_base::{
-    broadcast::BroadcastMpscSender,
-    cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
-    db::{HyperlaneRocksDB, DB},
-    metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
-    settings::IndexSettings,
-    AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
-    HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
-};
-use hyperlane_core::{
-    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
-    H512, U256,
-};
-use lander::DispatcherMetrics;
-
+use super::msg::metadata::dymension_kaspa::PendingMessageMetadataGetter;
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
     db_loader::DbLoaderExt,
@@ -56,6 +41,25 @@ use crate::{
     server::{self as relayer_server},
     settings::{matching_list::MatchingList, RelayerSettings},
 };
+use dymension_kaspa::{is_dym, is_kas, KaspaProvider};
+use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
+use hyperlane_base::{
+    broadcast::BroadcastMpscSender,
+    cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
+    db::{HyperlaneRocksDB, DB},
+    metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
+    settings::IndexSettings,
+    AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
+    HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
+};
+use hyperlane_core::Mailbox;
+use hyperlane_core::{
+    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
+    H512, U256,
+};
+use hyperlane_cosmos_native::CosmosNativeMailbox;
+use lander::DispatcherMetrics;
 
 use destination::{Destination, FactoryError};
 
@@ -99,6 +103,7 @@ pub struct Relayer {
     runtime_metrics: RuntimeMetrics,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
+    dymension_kaspa_args: Option<DymensionKaspaArgs>,
 
     /// The origin chains and their associated structures
     origins: HashMap<HyperlaneDomain, Origin>,
@@ -185,6 +190,7 @@ impl BaseAgent for Relayer {
         )
         .await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized destination chains", "Relayer startup duration measurement");
+        let dymension_args = Self::get_dymension_kaspa_args(&destinations).await?;
 
         let message_whitelist = Arc::new(settings.whitelist);
         let message_blacklist = Arc::new(settings.blacklist);
@@ -293,6 +299,7 @@ impl BaseAgent for Relayer {
             chain_metrics,
             runtime_metrics,
             tokio_console_server: Some(tokio_console_server),
+            dymension_kaspa_args: dymension_args,
             origins,
             destinations,
         })
@@ -425,6 +432,16 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         for (origin_domain, origin) in self.origins.iter() {
+            if is_kas(&origin.domain) && self.dymension_kaspa_args.is_some() {
+                self.launch_dymension_kaspa_tasks(
+                    origin,
+                    &mut tasks,
+                    task_monitor.clone(),
+                    send_channels.clone(),
+                )
+                .await;
+                continue;
+            }
             let maybe_broadcaster = origin.message_sync.get_broadcaster();
 
             let message_sync = match self.run_message_sync(origin, task_monitor.clone()).await {
@@ -1013,6 +1030,80 @@ impl Relayer {
             .origin_chains
             .iter()
             .for_each(|origin| chain_metrics.set_critical_error(origin.name(), false));
+    }
+}
+
+#[derive(Debug, Clone)]
+struct DymensionKaspaArgs {
+    kas_provider: Box<KaspaProvider>,
+    dym_mailbox: Arc<CosmosNativeMailbox>,
+}
+
+impl Relayer {
+    async fn get_dymension_kaspa_args(
+        dsts: &HashMap<HyperlaneDomain, Destination>,
+    ) -> Result<Option<DymensionKaspaArgs>> {
+        let kas_mailbox_trait = match dsts.iter().find(|(d, _)| is_kas(d)) {
+            Some((_, dst)) => dst.mailbox.clone(),
+            None => return Ok(None),
+        };
+        let kas_provider_trait = kas_mailbox_trait.provider();
+        let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
+
+        let dym_mailbox_trait = {
+            dsts.iter()
+                .find(|(d, _)| is_dym(d))
+                .unwrap()
+                .1
+                .mailbox
+                .clone()
+        };
+
+        let dym_mailbox = dym_mailbox_trait
+            .downcast_arc::<CosmosNativeMailbox>()
+            .unwrap();
+
+        Ok(Some(DymensionKaspaArgs {
+            kas_provider,
+            dym_mailbox,
+        }))
+    }
+
+    async fn launch_dymension_kaspa_tasks(
+        &self,
+        origin: &Origin,
+        tasks: &mut Vec<JoinHandle<()>>,
+        task_monitor: TaskMonitor,
+        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+    ) {
+        let args = self.dymension_kaspa_args.as_ref().unwrap();
+
+        let kas_provider = args.kas_provider.clone();
+        let hub_mailbox = args.dym_mailbox.clone();
+
+        let metadata_getter = PendingMessageMetadataGetter::new();
+
+        let b = KaspaBridgeFoo::new(kas_provider.clone(), hub_mailbox.clone(), metadata_getter);
+
+        // sync relayer before starting other tasks
+        b.sync_hub_if_needed().await.unwrap();
+
+        tasks.push(b.run_loops(task_monitor.clone()));
+        // it observes the local db and makes sure messages are eventually written to the destination chain
+        let message_db_loader =
+            match self.run_message_db_loader(origin, send_channels.clone(), task_monitor.clone()) {
+                Ok(task) => task,
+                Err(err) => {
+                    Self::record_critical_error(
+                        &origin.domain,
+                        &self.chain_metrics,
+                        &err,
+                        "Failed to run message db loader",
+                    );
+                    return;
+                }
+            };
+        tasks.push(message_db_loader);
     }
 }
 

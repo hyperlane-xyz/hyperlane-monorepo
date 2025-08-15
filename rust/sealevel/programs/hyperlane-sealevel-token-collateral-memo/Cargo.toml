@@ -1,0 +1,47 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel-token-collateral-memo"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+borsh.workspace = true
+num-derive.workspace = true
+num-traits.workspace = true
+solana-program.workspace = true
+spl-associated-token-account.workspace = true
+spl-noop.workspace = true
+spl-token-2022.workspace = true               # FIXME Should we actually use 2022 here or try normal token program?
+spl-token.workspace = true
+thiserror.workspace = true
+
+account-utils = { path = "../../libraries/account-utils" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
+hyperlane-sealevel-connection-client = { path = "../../libraries/hyperlane-sealevel-connection-client" }
+hyperlane-sealevel-mailbox = { path = "../mailbox", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-igp = { path = "../hyperlane-sealevel-igp", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
+hyperlane-sealevel-token-lib = { path = "../../libraries/hyperlane-sealevel-token" }
+hyperlane-warp-route = { path = "../../../main/applications/hyperlane-warp-route" }
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+hyperlane-sealevel-token-collateral = { path = "../hyperlane-sealevel-token-collateral" }
+
+[dev-dependencies]
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+
+hyperlane-test-utils = { path = "../../libraries/test-utils" }
+hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = [
+    "no-entrypoint",
+] }
+
+[lib]
+crate-type = ["cdylib", "lib"]

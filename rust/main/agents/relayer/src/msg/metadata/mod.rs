@@ -2,8 +2,9 @@ mod aggregation;
 mod base;
 mod base_builder;
 mod ccip_read;
+pub mod dymension_kaspa;
 mod message_builder;
-mod multisig;
+pub mod multisig;
 mod null_metadata;
 mod routing;
 
@@ -13,5 +14,7 @@ pub(crate) use base::{
     MetadataBuildError, MetadataBuilder,
 };
 #[allow(unused_imports)]
-pub(crate) use base_builder::{BaseMetadataBuilder, BuildsBaseMetadata, IsmBuildMetricsParams};
+pub(crate) use base_builder::{
+    BaseMetadataBuilder, BuildsBaseMetadata, DummyBuildsBaseMetadata, IsmBuildMetricsParams,
+};
 pub(crate) use message_builder::MessageMetadataBuilder;
