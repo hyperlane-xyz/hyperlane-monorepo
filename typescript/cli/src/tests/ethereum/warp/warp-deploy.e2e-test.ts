@@ -21,6 +21,8 @@ import {
   HookType,
   IsmConfig,
   IsmType,
+  TokenFeeConfigSchema,
+  TokenFeeType,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
@@ -828,6 +830,53 @@ describe('hyperlane warp deploy e2e tests', async function () {
           ),
         );
       }
+    });
+
+    it('should deploy with a token fee config', async () => {
+      const tokenFee = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.LinearFee,
+        token: tokenChain2.address,
+        owner: ownerAddress,
+        bps: 1,
+      });
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateralVaultRebase,
+          token: vaultChain2.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: chain2Addresses.mailbox,
+          tokenFee,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.syntheticRebase,
+          mailbox: chain3Addresses.mailbox,
+          owner: chain3Addresses.mailbox,
+          collateralChainName: CHAIN_NAME_2,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      // Check collateralRebase
+      const collateralRebaseConfig = (
+        await readWarpConfig(
+          CHAIN_NAME_2,
+          WARP_CORE_CONFIG_PATH_2_3,
+          WARP_DEPLOY_OUTPUT_PATH,
+        )
+      )[CHAIN_NAME_2];
+
+      expect(normalizeConfig(collateralRebaseConfig.tokenFee)).to.deep.equal(
+        normalizeConfig({
+          ...tokenFee,
+          // These numbers are transformed by readYamlOrJson
+          bps: 1,
+          maxFee: 1.1579208923731619e57,
+          halfAmount: 5.78960446186581e60,
+        }),
+      );
     });
   });
 });
