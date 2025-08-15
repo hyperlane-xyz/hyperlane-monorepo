@@ -57,6 +57,7 @@ export class MultiChainResolver implements ChainResolver {
       case ChainSelectionMode.CORE_DEPLOY:
         return this.resolveCoreDeployChains(argv);
       case ChainSelectionMode.DEFAULT:
+      default:
         return this.resolveRelayerChains(argv);
     }
   }
