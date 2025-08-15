@@ -33,11 +33,30 @@ export const onChainTypeToTokenFeeTypeMap: Record<
 };
 
 export const BaseFeeConfigSchema = z.object({
-  token: ZHash,
-  owner: ZHash,
+  // Use optional with transfer to allow for optional fields in the input, but required in the output
+  token: ZHash.optional().transform((v, ctx) => {
+    if (v === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'token is required',
+      });
+      return z.NEVER;
+    }
+    return v;
+  }),
+  owner: ZHash.optional().transform((v, ctx) => {
+    if (v === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'owner is required',
+      });
+      return z.NEVER;
+    }
+    return v;
+  }),
   maxFee: ZBigNumberish.default(0n).transform(BigInt),
   halfAmount: ZBigNumberish.default(0n).transform(BigInt),
-  bps: z.number().default(0),
+  bps: ZBigNumberish.default(0n).transform(BigInt),
 });
 
 export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
@@ -84,3 +103,4 @@ export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
 ]);
 
 export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
+export type TokenFeeConfigInput = z.input<typeof TokenFeeConfigSchema>; // Used to allow optional fields (maxFee, halfAmount, bps) in the input
