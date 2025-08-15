@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 16.3.0
+
+### Patch Changes
+
+- e0bda316a: Ignore dynamic import in webpack builds
+
 ## 16.2.0
 
 ## 16.1.1

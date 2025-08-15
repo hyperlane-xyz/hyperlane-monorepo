@@ -1,5 +1,15 @@
 # @hyperlane-xyz/http-registry-server
 
+## 16.3.0
+
+### Patch Changes
+
+- Updated dependencies [400c02460]
+- Updated dependencies [6583df016]
+- Updated dependencies [e0bda316a]
+  - @hyperlane-xyz/sdk@16.3.0
+  - @hyperlane-xyz/utils@16.3.0
+
 ## 16.2.0
 
 ### Patch Changes
