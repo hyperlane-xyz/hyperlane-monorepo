@@ -70,7 +70,7 @@ pub async fn on_new_deposit(
     )
     .await?;
 
-    if !finality_status.is_final {
+    if !finality_status.is_final() {
         let pending_confirmations =
             finality_status.required_confirmations - finality_status.confirmations;
         // we assume 10 confirmations per second, so retry after 0.1 seconds per confirmation needed

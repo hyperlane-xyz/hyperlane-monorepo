@@ -134,7 +134,7 @@ pub async fn validate_confirmed_withdrawals(
                     reason: e.to_string(),
                 })?;
 
-            if !finality_status.is_final {
+            if !finality_status.is_final() {
                 return Err(ValidationError::NotSafeAgainstReorg {
                     tx_id: tx_id.clone(),
                     confirmations: finality_status.confirmations,

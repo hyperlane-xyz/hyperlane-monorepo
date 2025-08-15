@@ -173,7 +173,7 @@ pub async fn validate_new_deposit_inner(
         reason: e.to_string(),
     })?;
 
-    if !finality_status.is_final {
+    if !finality_status.is_final() {
         return Err(ValidationError::NotSafeAgainstReorg {
             tx_id: d_untrusted.tx_id.clone(),
             confirmations: finality_status.confirmations,

@@ -18,9 +18,14 @@ pub fn is_mature(daa_score_block: u64, daa_score_virtual: u64, network_id: Netwo
 /// Result of finality check with detailed status information
 #[derive(Debug, Clone)]
 pub struct FinalityStatus {
-    pub is_final: bool,
     pub confirmations: i64,
     pub required_confirmations: i64,
+}
+
+impl FinalityStatus {
+    pub fn is_final(&self) -> bool {
+        self.confirmations >= self.required_confirmations
+    }
 }
 
 /// Returns detailed finality status including confirmation count
@@ -56,7 +61,6 @@ pub async fn is_safe_against_reorg_n_confs(
         .await?;
     if !tx.is_accepted.unwrap_or(false) {
         return Ok(FinalityStatus {
-            is_final: false,
             confirmations: 0,
             required_confirmations,
         });
@@ -69,7 +73,6 @@ pub async fn is_safe_against_reorg_n_confs(
     let is_final = confirmations >= required_confirmations;
 
     Ok(FinalityStatus {
-        is_final,
         confirmations,
         required_confirmations,
     })
