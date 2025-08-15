@@ -20,7 +20,7 @@ import {
   TokenFeeType,
 } from './types.js';
 
-describe('EvmTokenFeeReader', () => {
+describe.only('EvmTokenFeeReader', () => {
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;
   let reader: EvmTokenFeeReader;
@@ -53,57 +53,63 @@ describe('EvmTokenFeeReader', () => {
     });
   });
 
-  it('should read the token fee config', async () => {
-    reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
-    tokenFee = deployedContracts[TestChainName.test2][TokenFeeType.LinearFee];
-    const onchainConfig = await reader.deriveTokenFeeConfig(tokenFee.address);
-    expect(normalizeConfig(onchainConfig)).to.deep.equal(
-      normalizeConfig({
-        ...config,
-        bps: BPS,
-      }),
-    );
-  });
-
-  it('should convert maxFee and halfAmount to bps', async () => {
-    const maxFee = BigInt(randomInt(2, 100_000_000));
-    const halfAmount = maxFee / 2n;
-
-    const config: TokenFeeConfigInput = {
-      type: TokenFeeType.LinearFee,
-      owner: signer.address,
-      token: token.address,
-      maxFee,
-      halfAmount,
-    };
-    const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test3);
-    deployedContracts = await deployer.deploy({
-      [TestChainName.test3]: config,
-    });
-    tokenFee = deployedContracts[TestChainName.test3][TokenFeeType.LinearFee];
-    const convertedBps = await reader.convertToBps(maxFee, halfAmount);
-    expect(convertedBps).to.equal(BPS);
-  });
-
-  it('should be able to convert bps to maxFee and halfAmount, and back', async () => {
-    const bps = BigInt(randomInt(1, 10_000));
-    const config: TokenFeeConfig = TokenFeeConfigSchema.parse({
-      type: TokenFeeType.LinearFee,
-      owner: signer.address,
-      token: token.address,
-      bps,
+  describe('LinearFee', async () => {
+    it('should read the token fee config', async () => {
+      reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      tokenFee = deployedContracts[TestChainName.test2][TokenFeeType.LinearFee];
+      const onchainConfig = await reader.deriveTokenFeeConfig(tokenFee.address);
+      expect(normalizeConfig(onchainConfig)).to.deep.equal(
+        normalizeConfig({
+          ...config,
+          bps: BPS,
+        }),
+      );
     });
 
-    const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
-    const parsedConfig = TokenFeeConfigSchema.parse(config);
-    const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
-      await reader.convertFromBps(parsedConfig.bps, parsedConfig.token);
+    it('should convert maxFee and halfAmount to bps', async () => {
+      const maxFee = BigInt(randomInt(2, 100_000_000));
+      const halfAmount = maxFee / 2n;
 
-    // Get bps using helper function
-    const convertedBps = await reader.convertToBps(
-      convertedMaxFee,
-      convertedHalfAmount,
-    );
-    expect(convertedBps).to.equal(bps);
+      const config: TokenFeeConfigInput = {
+        type: TokenFeeType.LinearFee,
+        owner: signer.address,
+        token: token.address,
+        maxFee,
+        halfAmount,
+      };
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test3);
+      deployedContracts = await deployer.deploy({
+        [TestChainName.test3]: config,
+      });
+      tokenFee = deployedContracts[TestChainName.test3][TokenFeeType.LinearFee];
+      const convertedBps = await reader.convertToBps(maxFee, halfAmount);
+      expect(convertedBps).to.equal(BPS);
+    });
+
+    it('should be able to convert bps to maxFee and halfAmount, and back', async () => {
+      const bps = BigInt(randomInt(1, 10_000));
+      const config: TokenFeeConfig = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.LinearFee,
+        owner: signer.address,
+        token: token.address,
+        bps,
+      });
+
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const parsedConfig = TokenFeeConfigSchema.parse(config);
+      const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
+        await reader.convertFromBps(parsedConfig.bps, parsedConfig.token);
+
+      // Get bps using helper function
+      const convertedBps = await reader.convertToBps(
+        convertedMaxFee,
+        convertedHalfAmount,
+      );
+      expect(convertedBps).to.equal(bps);
+    });
+  });
+
+  describe('RoutingFee', async () => {
+    it('should be able to ');
   });
 });

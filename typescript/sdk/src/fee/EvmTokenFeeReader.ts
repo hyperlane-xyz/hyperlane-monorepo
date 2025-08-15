@@ -58,17 +58,24 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     address: Address,
   ): Promise<DerivedTokenFeeConfig> {
     const tokenFee = LinearFee__factory.connect(address, this.provider);
-    const maxFee = BigInt((await tokenFee.maxFee()).toString());
-    const halfAmount = BigInt((await tokenFee.halfAmount()).toString());
+    const [token, owner, maxFee, halfAmount] = await Promise.all([
+      tokenFee.token(),
+      tokenFee.owner(),
+      tokenFee.maxFee(),
+      tokenFee.halfAmount(),
+    ]);
+    const maxFeeBn = BigInt(maxFee.toString());
+    const halfAmountBn = BigInt(halfAmount.toString());
+    const bps = await this.convertToBps(maxFeeBn, halfAmountBn);
 
     return {
-      address: tokenFee.address,
+      token,
+      owner,
+      address,
       type: TokenFeeType.LinearFee,
-      token: await tokenFee.token(),
-      owner: await tokenFee.owner(),
-      maxFee,
-      halfAmount,
-      bps: await this.convertToBps(maxFee, halfAmount),
+      maxFee: maxFeeBn,
+      halfAmount: halfAmountBn,
+      bps,
     };
   }
 
