@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { z } from 'zod';
 
 import {
@@ -34,16 +35,7 @@ export const onChainTypeToTokenFeeTypeMap: Record<
 
 export const BaseFeeConfigSchema = z.object({
   // Use optional with transfer to allow for optional fields in the input, but required in the output
-  token: ZHash.optional().transform((v, ctx) => {
-    if (v === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'token is required',
-      });
-      return z.NEVER;
-    }
-    return v;
-  }),
+  token: ZHash.optional().default(ethers.constants.AddressZero), // Address(0) for native fees
   owner: ZHash.optional().transform((v, ctx) => {
     if (v === undefined) {
       ctx.addIssue({

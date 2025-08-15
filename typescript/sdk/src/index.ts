@@ -778,3 +778,9 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+
+export {
+  TokenFeeType,
+  TokenFeeConfigSchema,
+  TokenFeeConfigInput,
+} from './fee/types.js';
