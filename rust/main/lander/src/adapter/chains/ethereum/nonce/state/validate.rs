@@ -11,11 +11,14 @@ use crate::TransactionStatus;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum NonceAction {
+    // No action needed
     Noop,
+    // Assign provided nonce to tx
     Assign,
 }
 
 impl NonceManagerState {
+    /// Validates whether the transaction's nonce is valid
     pub(crate) async fn validate_assigned_nonce(
         &self,
         tx: &Transaction,
@@ -25,9 +28,43 @@ impl NonceManagerState {
 
         let tx_uuid = tx.uuid.clone();
         let tx_status = tx.status.clone();
-        let Some(nonce): Option<U256> = tx.precursor().tx.nonce().map(Into::into) else {
-            return Ok((Assign, None));
+
+        let db_nonce = self
+            .nonce_db()
+            .retrieve_nonce_by_transaction_uuid(&tx_uuid)
+            .await?;
+
+        let tx_nonce: Option<U256> = tx.precursor().tx.nonce().map(Into::into);
+
+        let nonce = match (db_nonce, tx_nonce) {
+            (Some(db_nonce), Some(tx_nonce)) => {
+                if db_nonce != tx_nonce {
+                    warn!(
+                        ?tx_nonce,
+                        ?db_nonce,
+                        "EVM Transaction nonce differs from nonce in db"
+                    );
+                }
+                db_nonce
+            }
+            (None, Some(tx_nonce)) => tx_nonce,
+            (Some(db_nonce), None) => db_nonce,
+            (None, None) => {
+                return Ok((Assign, None));
+            }
         };
+
+        let db_tx = self
+            .nonce_db()
+            .retrieve_transaction_uuid_by_nonce_and_signer_address(&nonce, &self.address)
+            .await;
+
+        if let Ok(Some(db_tx)) = db_tx {
+            if db_tx != tx_uuid {
+                warn!(?db_tx, ?tx_uuid, "Database tx does not match provided tx");
+            }
+        }
+
         let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
 
         // Fetching the tracked transaction uuid
