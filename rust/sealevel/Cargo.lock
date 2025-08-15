@@ -2455,6 +2455,7 @@ dependencies = [
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-multisig-ism-message-id",
+ "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-token",
  "hyperlane-sealevel-token-collateral",
  "hyperlane-sealevel-token-lib",
