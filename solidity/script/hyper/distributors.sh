@@ -4,7 +4,9 @@ ARTIFACTS_PATH="$HOME/hyperlane/merkle-distributor/scripts"
 source $HOME/hyperlane/runes.sh
 
 export STAKE_RPC_URL="$(rpc mainnet3 ethereum)"
-export STAKED_WARP_ROUTE_ADDRESS="0x9F6E6d150977dabc82d5D4EaaBDB1F1Ab0D25F92"
+
+# TODO: get staging stHYPER address from registry
+export STAKED_WARP_ROUTE_ADDRESS="0x0C919509663cb273E156B706f065b9F7e6331891"
 
 echo "[]" > ./transactions.json
 
