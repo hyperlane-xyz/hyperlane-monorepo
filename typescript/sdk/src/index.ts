@@ -643,6 +643,8 @@ export {
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
   isMovableCollateralTokenConfig,
+  MovableTokenConfig,
+  EverclearCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,

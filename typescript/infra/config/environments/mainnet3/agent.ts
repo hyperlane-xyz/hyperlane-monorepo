@@ -627,7 +627,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('starknet') },
       { destinationDomain: getDomainId('paradex') },
       // Temporary workaround for some high gas amount estimates on Treasure
-      ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
+      // ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
   },
   {

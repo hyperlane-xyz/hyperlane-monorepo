@@ -1,5 +1,6 @@
 import {
   ChainMap,
+  EverclearCollateralTokenConfig,
   HypTokenRouterConfig,
   OwnableConfig,
   TokenType,
@@ -31,6 +32,30 @@ const everclearDomainIdByChain: Record<EthEverclearChain, number> = {
   optimism: 10,
 };
 
+const feeParamsByChain: Record<
+  EthEverclearChain,
+  EverclearCollateralTokenConfig['everclearFeeParams']
+> = {
+  arbitrum: {
+    fee: 1000000000000,
+    deadline: 1753302081,
+    signature:
+      '0x706f864759e9315d1cc5303a8eb1b02e4e494b4bad9bf8602d5749fa5740ca9134fb2a071f891a35bb949e269f29d4972d2e424dfc2c439275ef8c5af67d82ca1b',
+  },
+  // Dummy values for now
+  base: {
+    deadline: Date.now() + 24 * 60 * 60,
+    fee: 0,
+    signature: '0x42',
+  },
+  optimism: {
+    fee: 1000000000000,
+    deadline: 1753306369,
+    signature:
+      '0x3f9a555cc805205c882e5ffba911b5c8427b4537b64b271d6af15ebf0e4e8eac6b0642f6ccc465649f41e85ce92b9bd26d0b20c4582be5807b9eb4e162d828e71b',
+  },
+};
+
 export const getETHEverclearTestWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
@@ -49,6 +74,9 @@ export const getETHEverclearTestWarpConfig = async (
         `Everclear fee adapter address not found for ${chain}`,
       );
 
+      const feeParams = feeParamsByChain[chain];
+      assert(feeParams, `Everclear feeParams not found for ${chain}`);
+
       const outputAssets = Object.fromEntries(
         ETH_EVERCLEAR_CHAINS.filter(
           (currentChain) => currentChain !== chain,
@@ -64,12 +92,7 @@ export const getETHEverclearTestWarpConfig = async (
         type: TokenType.ethEverclear,
         wethAddress,
         everclearBridgeAddress,
-        // Dummy values for now
-        everclearFeeParams: {
-          deadline: Date.now() + 24 * 60 * 60,
-          fee: 0,
-          signature: '0x42',
-        },
+        everclearFeeParams: feeParams,
         outputAssets,
       };
 

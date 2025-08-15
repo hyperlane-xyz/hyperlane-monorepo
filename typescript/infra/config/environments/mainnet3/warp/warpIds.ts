@@ -7,7 +7,7 @@ export enum WarpRouteIds {
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
   ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
-  ArbitrumTreasureMAGIC = 'MAGIC/arbitrum-treasure',
+  // ArbitrumTreasureMAGIC = 'MAGIC/arbitrum-treasure',
   ArtelaBaseSolanaART = 'ART/artela-base-solanamainnet',
   BscEthereumLumiaPrismPNDR = 'PNDR/bsc-ethereum-lumiaprism',
   BaseSolanamainnetTONY = 'TONY/base-solanamainnet',
@@ -103,6 +103,7 @@ export enum WarpRouteIds {
   // Not present in the registry
   // TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
   ETHEverclearTest = 'ETH/everclear-test',
+  ETHRebalanceableTest = 'ETH/rebalanceable-test',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
