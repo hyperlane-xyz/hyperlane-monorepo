@@ -500,34 +500,28 @@ pub fn build_kaspa_connection_conf(
         Some(dymension_kaspa::KaspaDepositConfig {
             finality_confirmations: chain
                 .chain(err)
-                .get_opt_key("kaspaFinalityConfirmations")
+                .get_opt_key("kaspaDepositFinalityConfirmations")
                 .parse_u32()
                 .end()
                 .unwrap_or(1000),
             base_retry_delay_secs: chain
                 .chain(err)
-                .get_opt_key("kaspaBaseRetryDelaySecs")
+                .get_opt_key("kaspaDepositBaseRetryDelaySecs")
                 .parse_u64()
                 .end()
                 .unwrap_or(30),
             max_retries: chain
                 .chain(err)
-                .get_opt_key("kaspaMaxRetries")
+                .get_opt_key("kaspaDepositMaxRetries")
                 .parse_u32()
                 .end()
                 .unwrap_or(66),
             poll_interval_secs: chain
                 .chain(err)
-                .get_opt_key("kaspaPollIntervalSecs")
+                .get_opt_key("kaspaDepositPollIntervalSecs")
                 .parse_u64()
                 .end()
                 .unwrap_or(10),
-            secs_per_confirmation: chain
-                .chain(err)
-                .get_opt_key("kaspaSecsPerConfirmation")
-                .parse_f64()
-                .end()
-                .unwrap_or(0.1),
         })
     } else {
         None

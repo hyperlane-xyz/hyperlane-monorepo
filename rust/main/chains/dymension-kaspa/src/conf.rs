@@ -53,11 +53,9 @@ pub struct ValidatorStuff {
 pub struct RelayerStuff {
     pub validator_hosts: Vec<String>,
     pub deposit_look_back_mins: Option<u64>,
-    /// Kaspa deposit processing configuration
     pub kaspa_deposit_config: KaspaDepositConfig,
 }
 
-/// Configuration for Kaspa deposit processing
 #[derive(Debug, Clone)]
 pub struct KaspaDepositConfig {
     /// Number of blue score confirmations required for finality
@@ -68,8 +66,6 @@ pub struct KaspaDepositConfig {
     pub max_retries: u32,
     /// Polling interval for checking new deposits
     pub poll_interval_secs: u64,
-    /// Seconds per confirmation (for calculating retry delays)
-    pub secs_per_confirmation: f64,
 }
 
 impl Default for KaspaDepositConfig {
@@ -79,7 +75,6 @@ impl Default for KaspaDepositConfig {
             base_retry_delay_secs: 30,
             max_retries: 66,
             poll_interval_secs: 10,
-            secs_per_confirmation: 0.1, // 10 confirmations per second
         }
     }
 }
