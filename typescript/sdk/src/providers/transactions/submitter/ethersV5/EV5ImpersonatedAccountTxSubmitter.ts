@@ -1,10 +1,12 @@
 import { TransactionReceipt } from '@ethersproject/providers';
+import { ethers } from 'hardhat';
 import { Logger } from 'pino';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   impersonateAccount,
+  setBalance,
   stopImpersonatingAccount,
 } from '../../../../utils/fork.js';
 import { MultiProvider } from '../../../MultiProvider.js';
@@ -39,7 +41,12 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
       this.props.userAddress,
       anvilEndpoint,
     );
-    this.multiProvider.setSharedSigner(impersonatedAccount);
+    await setBalance(
+      this.props.userAddress,
+      ethers.utils.parseEther('100').toString(),
+      anvilEndpoint,
+    );
+    this.multiProvider.setSigner(this.props.chain, impersonatedAccount);
     const transactionReceipts = await super.submit(...txs);
     await stopImpersonatingAccount(this.props.userAddress, anvilEndpoint);
     return transactionReceipts;
