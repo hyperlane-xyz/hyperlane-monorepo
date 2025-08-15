@@ -34,11 +34,8 @@ impl DepositOperation {
         self.next_attempt_after = Some(Instant::now() + Duration::from_secs(delay_secs));
         info!(
             "Deposit operation failed, will retry in {}s (attempt {}): {}",
-            delay_secs,
-            self.retry_count,
-            self.deposit.id
+            delay_secs, self.retry_count, self.deposit.id
         );
-
     }
 
     /// Mark failed with custom retry timing (for finality-based delays)
@@ -52,7 +49,6 @@ impl DepositOperation {
             self.retry_count,
             self.deposit.id
         );
-
     }
 
     pub fn reset_attempts(&mut self) {
@@ -81,11 +77,7 @@ impl DepositOpQueue {
     }
 
     pub fn pop_ready(&mut self) -> Option<DepositOperation> {
-        if let Some(pos) = self
-            .operations
-            .iter()
-            .position(|op| op.is_ready())
-        {
+        if let Some(pos) = self.operations.iter().position(|op| op.is_ready()) {
             self.operations.remove(pos)
         } else {
             None
@@ -96,7 +88,6 @@ impl DepositOpQueue {
         let operation_id = operation.deposit.id;
         self.operations.push_back(operation);
         debug!("Re-queued deposit operation: {}", operation_id);
-
     }
 
     pub fn len(&self) -> usize {
@@ -106,5 +97,4 @@ impl DepositOpQueue {
     pub fn is_empty(&self) -> bool {
         self.operations.is_empty()
     }
-
 }

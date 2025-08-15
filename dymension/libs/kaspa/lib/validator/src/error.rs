@@ -16,10 +16,11 @@ pub enum ValidationError {
     },
 
     #[error("Transaction is not safe against reorg: {tx_id} confirmations={confirmations} required={required}")]
-    NotSafeAgainstReorg { 
+    NotSafeAgainstReorg {
         tx_id: String,
-        confirmations: i64, 
-        required: i64 },
+        confirmations: i64,
+        required: i64,
+    },
 
     #[error("Hub is not bootstrapped")]
     HubNotBootstrapped,

@@ -2,6 +2,7 @@ use crate::error::ValidationError;
 use api_rs::models::{TxModel, TxOutput};
 use corelib::api::client::HttpClient;
 use corelib::confirmation::ConfirmationFXG;
+use corelib::finality::is_safe_against_reorg;
 use corelib::payload::{MessageID, MessageIDs};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use kaspa_addresses::Address;
@@ -9,7 +10,6 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_hashes::Hash as KaspaHash;
 use std::collections::HashSet;
 use tracing::info;
-use corelib::finality::is_safe_against_reorg;
 
 // FIXME: add address validation
 
@@ -127,19 +127,14 @@ pub async fn validate_confirmed_withdrawals(
                 }
                 None => None,
             };
-            let finality_status = is_safe_against_reorg(
-                client_rest,
-                tx_id,
-                hint,
-            ).await.map_err(|e| {
-                ValidationError::FinalityCheckError {
+            let finality_status = is_safe_against_reorg(client_rest, tx_id, hint)
+                .await
+                .map_err(|e| ValidationError::FinalityCheckError {
                     tx_id: tx_id.to_string(),
                     reason: e.to_string(),
-                }
-            })?;
+                })?;
 
-            if !finality_status.is_final
-            {
+            if !finality_status.is_final {
                 return Err(ValidationError::NotSafeAgainstReorg {
                     tx_id: tx_id.clone(),
                     confirmations: finality_status.confirmations,

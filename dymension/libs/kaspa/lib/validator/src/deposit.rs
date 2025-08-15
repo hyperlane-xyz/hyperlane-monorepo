@@ -1,6 +1,7 @@
 use crate::error::ValidationError;
 use corelib::api::client::HttpClient;
 use corelib::deposit::DepositFXG;
+use corelib::finality::is_safe_against_reorg;
 use corelib::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
 use corelib::wallet::NetworkInfo;
 use eyre::Result;
@@ -15,7 +16,6 @@ use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
 use kaspa_txscript::extract_script_pub_key_address;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use std::sync::Arc;
-use corelib::finality::is_safe_against_reorg;
 
 #[derive(Clone, Default)]
 pub struct MustMatch {

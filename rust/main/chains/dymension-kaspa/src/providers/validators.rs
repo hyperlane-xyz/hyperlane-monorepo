@@ -240,7 +240,7 @@ pub async fn request_validate_new_deposits(
     } else {
         // Try to extract the error message from the response body
         let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
-        
+
         // Create more specific errors based on HTTP status code
         let error = match status {
             StatusCode::ACCEPTED => {
@@ -248,7 +248,7 @@ pub async fn request_validate_new_deposits(
                 eyre::eyre!("DepositNotFinal: {}", error_msg)
             }
             StatusCode::UNPROCESSABLE_ENTITY => {
-                // 422: Transaction rejected (non-retryable)  
+                // 422: Transaction rejected (non-retryable)
                 eyre::eyre!("TransactionRejected: {}", error_msg)
             }
             StatusCode::SERVICE_UNAVAILABLE => {
@@ -260,7 +260,7 @@ pub async fn request_validate_new_deposits(
                 eyre::eyre!("ValidationFailed: {} - {}", status, error_msg)
             }
         };
-        
+
         Err(error)
     }
 }

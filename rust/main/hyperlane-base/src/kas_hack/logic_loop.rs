@@ -101,7 +101,7 @@ where
         loop {
             // Process retry queue first
             self.process_deposit_queue().await;
-            
+
             // Then fetch new deposits
             let deposits_res = self
                 .provider
@@ -137,7 +137,8 @@ where
         }
 
         for d in &deposits_new {
-            let operation = DepositOperation::new(d.clone(), self.provider.escrow_address().to_string());
+            let operation =
+                DepositOperation::new(d.clone(), self.provider.escrow_address().to_string());
             self.process_deposit_operation(operation).await;
         }
     }
@@ -145,7 +146,7 @@ where
     /// Process the retry queue for failed deposit operations
     async fn process_deposit_queue(&self) {
         let mut queue = self.deposit_queue.lock().await;
-        
+
         // Process ready operations
         while let Some(operation) = queue.pop_ready() {
             drop(queue); // Release lock before processing
@@ -157,15 +158,19 @@ where
     /// Process a single deposit operation, with retry logic on failure
     async fn process_deposit_operation(&self, mut operation: DepositOperation) {
         info!("Processing deposit operation: {}", operation.deposit.id);
-        
+
         // Call to relayer.F()
-        let new_deposit_res =
-            relayer_on_new_deposit(&operation.escrow_address, &operation.deposit, &self.provider.rest().client.client).await;
-        
+        let new_deposit_res = relayer_on_new_deposit(
+            &operation.escrow_address,
+            &operation.deposit,
+            &self.provider.rest().client.client,
+        )
+        .await;
+
         match new_deposit_res {
             Ok(Some(fxg)) => {
                 info!("Dymension, built new deposit FXG: {:?}", fxg);
-                
+
                 // Check if already delivered
                 let delivered_res = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
                 match delivered_res {
@@ -185,7 +190,7 @@ where
                     }
                     _ => {} // Not delivered, continue processing
                 };
-                
+
                 // Send to hub
                 let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
                 match res {
@@ -196,14 +201,20 @@ where
                     }
                     Err(e) => {
                         if self.is_retryable_chain_error(&e) {
-                            error!("Dymension, gather sigs and send deposit to hub (retryable): {:?}", e);
+                            error!(
+                                "Dymension, gather sigs and send deposit to hub (retryable): {:?}",
+                                e
+                            );
                             // Retryable error, queue for retry
                             operation.mark_failed();
                             self.deposit_queue.lock().await.requeue(operation);
                         } else {
                             error!("Dymension, gather sigs and send deposit to hub (non-retryable): {:?}", e);
                             // Non-retryable error, drop the operation
-                            info!("Dropping operation due to non-retryable error: {}", operation.deposit.id);
+                            info!(
+                                "Dropping operation due to non-retryable error: {}",
+                                operation.deposit.id
+                            );
                         }
                     }
                 }
@@ -216,14 +227,19 @@ where
             }
             Err(e) => {
                 match e {
-                    DepositError::NotFinalEnough { retry_after_secs, .. } => {
+                    DepositError::NotFinalEnough {
+                        retry_after_secs, ..
+                    } => {
                         // Use the calculated retry delay based on pending confirmations
                         let delay = Duration::from_secs_f64(retry_after_secs);
                         operation.mark_failed_with_custom_delay(delay, &e.to_string());
                         self.deposit_queue.lock().await.requeue(operation);
                     }
                     DepositError::ProcessingError(_) => {
-                        error!("Dymension, F() new deposit processing error: {:?}, will retry.", e);
+                        error!(
+                            "Dymension, F() new deposit processing error: {:?}, will retry.",
+                            e
+                        );
                         // Use standard exponential backoff for processing errors
                         operation.mark_failed();
                         self.deposit_queue.lock().await.requeue(operation);

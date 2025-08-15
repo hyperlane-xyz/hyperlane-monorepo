@@ -9,9 +9,9 @@ use corelib::escrow::*;
 use corelib::user::deposit::deposit_with_payload;
 use corelib::wallet::*;
 use dymension_kaspa::KaspaHttpClient;
+use eyre;
 use hardcode::e2e::*;
 use hex;
-use eyre;
 use hyperlane_core::ChainCommunicationError;
 use hyperlane_core::ChainResult;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
@@ -218,7 +218,8 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
 
     let escrow = escrow_address.clone();
     // handle deposit (relayer operation)
-    let deposit_fxg = on_new_deposit(&escrow.address_to_string(), &result, &client.client).await
+    let deposit_fxg = on_new_deposit(&escrow.address_to_string(), &result, &client.client)
+        .await
         .map_err(|e| eyre::eyre!("Deposit processing failed: {}", e))?;
 
     // deposit encode to bytes

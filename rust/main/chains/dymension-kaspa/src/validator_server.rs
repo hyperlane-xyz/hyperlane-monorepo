@@ -47,19 +47,19 @@ impl IntoResponse for AppError {
             // Use 202 Accepted for non-final deposits (retryable)
             (
                 StatusCode::ACCEPTED,
-                format!("Deposit not final: {}", err_msg)
+                format!("Deposit not final: {}", err_msg),
             )
         } else if err_msg.contains("Hub is not bootstrapped") {
             // Use 503 Service Unavailable for infrastructure issues (retryable)
             (
                 StatusCode::SERVICE_UNAVAILABLE,
-                format!("Service unavailable: {}", err_msg)
+                format!("Service unavailable: {}", err_msg),
             )
         } else {
             // Default to 500 for other validation errors
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Validation failed: {}", err_msg)
+                format!("Validation failed: {}", err_msg),
             )
         };
 
