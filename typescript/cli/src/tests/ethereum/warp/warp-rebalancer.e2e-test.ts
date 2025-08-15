@@ -253,6 +253,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       destination?: string;
       amount?: string;
       key?: string;
+      explorerUrl?: string;
     } = {},
   ): ProcessPromise {
     const {
@@ -264,6 +265,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       destination,
       amount,
       key,
+      explorerUrl,
     } = options;
 
     return hyperlaneWarpRebalancer(
@@ -276,6 +278,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       destination,
       amount,
       key,
+      explorerUrl,
     );
   }
 
@@ -291,6 +294,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       destination?: string;
       amount?: string;
       key?: string;
+      explorerUrl?: string;
     } = {},
   ) {
     const {
@@ -303,6 +307,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       destination,
       amount,
       key,
+      explorerUrl,
     } = options;
 
     const rebalancer = startRebalancer({
@@ -314,6 +319,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       destination,
       amount,
       key,
+      explorerUrl,
     });
 
     let timeoutId: NodeJS.Timeout;
@@ -398,6 +404,129 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should successfully start the rebalancer', async () => {
     await startRebalancerAndExpectLog('Rebalancer started successfully 🚀');
+  });
+
+  it('should skip when inflight detected by explorer', async () => {
+    // Simple mock GraphQL server
+    const http = await import('http');
+    const server = http.createServer((req, res) => {
+      if (req.method === 'POST') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        // Return a non-empty message_view to simulate inflight
+        res.end(JSON.stringify({ data: { message_view: [{ msg_id: '1' }] } }));
+      } else {
+        res.statusCode = 404;
+        res.end();
+      }
+    });
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address: any = server.address();
+    const explorerUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      // Ensure there is a potential route by creating an imbalance
+      writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+        warpRouteId,
+        strategy: {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            [CHAIN_NAME_2]: {
+              weighted: { weight: '25', tolerance: '0' },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
+            [CHAIN_NAME_3]: {
+              weighted: { weight: '75', tolerance: '0' },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
+          },
+        },
+      });
+
+      await startRebalancerAndExpectLog(
+        'Inflight rebalance detected via Explorer; skipping this cycle',
+        { explorerUrl, checkFrequency: 2000 },
+      );
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('should proceed when no inflight detected by explorer', async () => {
+    const http = await import('http');
+    const server = http.createServer((req, res) => {
+      if (req.method === 'POST') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        // Return empty message_view to simulate no inflight
+        res.end(JSON.stringify({ data: { message_view: [] } }));
+      } else {
+        res.statusCode = 404;
+        res.end();
+      }
+    });
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address: any = server.address();
+    const explorerUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      // Deploy and allow a bridge so the route can succeed
+      const chain3Provider = new ethers.providers.JsonRpcProvider(
+        chain3Metadata.rpcUrls[0].http,
+      );
+      const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+      const chain3CollateralContract = HypERC20Collateral__factory.connect(
+        getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
+        chain3Signer,
+      );
+
+      const bridgeContract = await new MockValueTransferBridge__factory(
+        chain3Signer,
+      ).deploy();
+
+      await chain3CollateralContract.addBridge(
+        chain2Metadata.domainId,
+        bridgeContract.address,
+      );
+
+      // Configure imbalance and set bridge on origin chain
+      writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+        warpRouteId,
+        strategy: {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            [CHAIN_NAME_2]: {
+              weighted: { weight: '75', tolerance: '0' },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
+            [CHAIN_NAME_3]: {
+              weighted: { weight: '25', tolerance: '0' },
+              bridge: bridgeContract.address,
+              bridgeLockTime: 1,
+            },
+          },
+        },
+      });
+
+      await startRebalancerAndExpectLog(
+        [
+          'Found rebalancing routes',
+          'Preparing all rebalance transactions.',
+          'Preparing transaction for route',
+          'Sending valid transactions.',
+          'Sending transaction for route',
+          'Transaction confirmed for route.',
+          '✅ Rebalance successful',
+        ],
+        {
+          explorerUrl,
+          timeout: 30000,
+        },
+      );
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 
   it('should throw when strategy config file does not exist', async () => {
