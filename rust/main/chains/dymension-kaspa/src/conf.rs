@@ -53,6 +53,71 @@ pub struct ValidatorStuff {
 pub struct RelayerStuff {
     pub validator_hosts: Vec<String>,
     pub deposit_look_back_mins: Option<u64>,
+    /// Kaspa deposit processing configuration
+    pub kaspa_deposit_config: KaspaDepositConfig,
+}
+
+/// Configuration for Kaspa deposit processing
+#[derive(Debug, Clone)]
+pub struct KaspaDepositConfig {
+    /// Number of blue score confirmations required for finality
+    pub finality_confirmations: u32,
+    /// Base retry delay in seconds (used for exponential backoff)
+    pub base_retry_delay_secs: u64,
+    /// Maximum number of retries before giving up
+    pub max_retries: u32,
+    /// Polling interval for checking new deposits
+    pub poll_interval_secs: u64,
+    /// Seconds per confirmation (for calculating retry delays)
+    pub secs_per_confirmation: f64,
+}
+
+impl Default for KaspaDepositConfig {
+    fn default() -> Self {
+        Self {
+            finality_confirmations: 1000,
+            base_retry_delay_secs: 30,
+            max_retries: 66,
+            poll_interval_secs: 10,
+            secs_per_confirmation: 0.1, // 10 confirmations per second
+        }
+    }
+}
+
+impl KaspaDepositConfig {
+    /// Create configuration from environment variables with defaults
+    pub fn from_env() -> Self {
+        Self {
+            finality_confirmations: std::env::var("KASPA_FINALITY_CONFIRMATIONS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(1000),
+            base_retry_delay_secs: std::env::var("KASPA_BASE_RETRY_DELAY_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(30),
+            max_retries: std::env::var("KASPA_MAX_RETRIES")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(66),
+            poll_interval_secs: std::env::var("KASPA_POLL_INTERVAL_SECS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(10),
+            secs_per_confirmation: std::env::var("KASPA_SECS_PER_CONFIRMATION")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0.1),
+        }
+    }
+
+    pub fn poll_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.poll_interval_secs)
+    }
+
+    pub fn base_retry_delay(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.base_retry_delay_secs)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -123,6 +188,7 @@ impl ConnectionConf {
             _ => Some(RelayerStuff {
                 deposit_look_back_mins,
                 validator_hosts,
+                kaspa_deposit_config: KaspaDepositConfig::from_env(),
             }),
         };
 

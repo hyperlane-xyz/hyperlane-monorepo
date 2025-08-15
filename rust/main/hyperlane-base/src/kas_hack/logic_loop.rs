@@ -21,10 +21,10 @@ use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, Instrument};
 
 use super::{
-    config::KaspaDepositConfig,
     deposit_operation::{DepositOpQueue, DepositOperation},
     error::KaspaDepositError,
 };
+use dymension_kaspa::conf::KaspaDepositConfig;
 
 pub struct Foo<C: MetadataConstructor> {
     provider: Box<KaspaProvider>,
@@ -44,7 +44,10 @@ where
         hub_mailbox: Arc<CosmosNativeMailbox>,
         metadata_constructor: C,
     ) -> Self {
-        let config = KaspaDepositConfig::from_env();
+        // Get config from provider, or use defaults if not available
+        let config = provider
+            .kaspa_deposit_config()
+            .unwrap_or_else(KaspaDepositConfig::default);
         Self {
             provider,
             hub_mailbox,

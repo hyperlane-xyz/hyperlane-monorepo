@@ -5,7 +5,7 @@
 
 #[allow(missing_docs)]
 pub mod application;
-mod conf;
+pub mod conf;
 mod consts;
 mod error;
 mod indexers;

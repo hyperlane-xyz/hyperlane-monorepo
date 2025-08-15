@@ -147,6 +147,14 @@ impl KaspaProvider {
         self.conf.relayer_stuff.as_ref().unwrap()
     }
 
+    /// Get the Kaspa deposit configuration if available
+    pub fn kaspa_deposit_config(&self) -> Option<crate::conf::KaspaDepositConfig> {
+        self.conf
+            .relayer_stuff
+            .as_ref()
+            .map(|r| r.kaspa_deposit_config.clone())
+    }
+
     /// dococo
     /// Returns next outpoint
     pub async fn process_withdrawal_messages(

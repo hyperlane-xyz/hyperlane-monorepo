@@ -1,8 +1,6 @@
-use dymension_kaspa::Deposit;
+use dymension_kaspa::{conf::KaspaDepositConfig, Deposit};
 use std::time::{Duration, Instant};
 use tracing::{debug, info};
-
-use super::config::KaspaDepositConfig;
 
 #[derive(Debug, Clone)]
 pub struct DepositOperation {
