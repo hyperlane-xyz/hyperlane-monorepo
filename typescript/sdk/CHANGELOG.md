@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 16.3.0
+
+### Minor Changes
+
+- 400c02460: Add fallback logic to the `EvmEventLogsReader` to use the rpc when the block explorer api request fails
+- 6583df016: Add the getPendingScheduledOperations and getPendingOperationIds methods on the EvmTimelockReader class and export getTimelockExecutableTransactionFromBatch from sdk
+
+### Patch Changes
+
+- Updated dependencies [e0bda316a]
+  - @hyperlane-xyz/utils@16.3.0
+  - @hyperlane-xyz/core@9.0.6
+  - @hyperlane-xyz/starknet-core@16.3.0
+  - @hyperlane-xyz/cosmos-sdk@16.3.0
+
 ## 16.2.0
 
 ### Minor Changes
