@@ -23,7 +23,7 @@ contract DistributeNetworkRewards is Script {
 
     uint48 EPOCH_START = uint48(vm.envUint("EPOCH_START"));
     uint48 EPOCH_DURATION = uint48(vm.envUint("EPOCH_DURATION"));
-    uint256 EPOCH_AMOUNT = vm.envUint("EPOCH_AMOUNT");
+    uint256 EPOCH_AMOUNT = vm.envUint("EPOCH_AMOUNT") * 10 ** 18;
     uint256 NUM_EPOCHS = vm.envUint("NUM_EPOCHS");
 
     address STAKED_WARP_ROUTE_ADDRESS =
