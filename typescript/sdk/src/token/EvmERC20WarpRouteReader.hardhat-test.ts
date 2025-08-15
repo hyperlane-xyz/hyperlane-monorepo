@@ -26,6 +26,7 @@ import {
   HyperlaneContractsMap,
   RouterConfig,
   TestChainName,
+  TokenFeeType,
   WarpRouteDeployConfigMailboxRequired,
   proxyAdmin,
   proxyImplementation,
@@ -672,5 +673,30 @@ describe('ERC20WarpRouterReader', async () => {
     // Restore stub
     connectStub.restore();
     isLocalRpcStub.restore();
+  });
+
+  it.only('should derive token fee config correctly', async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+
+    expect(derivedConfig.tokenFee).to.deep.equal({
+      [chain]: {
+        type: TokenFeeType.LinearFee,
+        token: token.address,
+        owner: mailbox.address,
+      },
+    });
   });
 });
