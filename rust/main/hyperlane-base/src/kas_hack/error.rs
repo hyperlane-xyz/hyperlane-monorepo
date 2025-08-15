@@ -8,26 +8,15 @@ pub enum KaspaDepositError {
     #[error("Deposit not final enough: need {needed} confirmations, have {current}")]
     NotFinalEnough { needed: i64, current: i64 },
 
-    #[error("Failed to build deposit FXG: {0}")]
+    #[error("Processing error: {0}")]
     ProcessingError(String),
-
-    #[error("Message already delivered")]
-    AlreadyDelivered,
-
-    #[error("Failed to check delivery status: {0}")]
-    DeliveryCheckError(String),
-
-    #[error("Failed to get validator signatures: {0}")]
-    ValidatorError(String),
-
-    #[error("Transaction rejected by chain")]
-    TransactionRejected,
 }
 
 impl KaspaDepositError {
-    /// Check if this error is retryable
+    /// Check if this error is retryable  
     pub fn is_retryable(&self) -> bool {
-        !matches!(self, Self::TransactionRejected | Self::AlreadyDelivered)
+        // All errors are retryable in this simplified version
+        true
     }
 
     /// Get retry delay hint in seconds (if applicable)

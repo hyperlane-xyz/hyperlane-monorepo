@@ -85,32 +85,6 @@ impl Default for KaspaDepositConfig {
 }
 
 impl KaspaDepositConfig {
-    /// Create configuration from environment variables with defaults
-    pub fn from_env() -> Self {
-        Self {
-            finality_confirmations: std::env::var("KASPA_FINALITY_CONFIRMATIONS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(1000),
-            base_retry_delay_secs: std::env::var("KASPA_BASE_RETRY_DELAY_SECS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(30),
-            max_retries: std::env::var("KASPA_MAX_RETRIES")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(66),
-            poll_interval_secs: std::env::var("KASPA_POLL_INTERVAL_SECS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(10),
-            secs_per_confirmation: std::env::var("KASPA_SECS_PER_CONFIRMATION")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0.1),
-        }
-    }
-
     pub fn poll_interval(&self) -> std::time::Duration {
         std::time::Duration::from_secs(self.poll_interval_secs)
     }
@@ -156,6 +130,7 @@ impl ConnectionConf {
         op_submission_config: OpSubmissionConfig,
         validation_conf: ValidationConf,
         min_deposit_sompi: U256,
+        kaspa_deposit_config: Option<KaspaDepositConfig>,
 
         // we could query these two instead
         hub_domain: u32,
@@ -188,7 +163,7 @@ impl ConnectionConf {
             _ => Some(RelayerStuff {
                 deposit_look_back_mins,
                 validator_hosts,
-                kaspa_deposit_config: KaspaDepositConfig::from_env(),
+                kaspa_deposit_config: kaspa_deposit_config.unwrap_or_default(),
             }),
         };
 

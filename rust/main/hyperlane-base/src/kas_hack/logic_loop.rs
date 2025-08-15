@@ -326,20 +326,10 @@ where
             .await
     }
 
-    /// Convert chain communication error to Kaspa error for better handling
+    /// Convert chain communication error to Kaspa error
     fn chain_error_to_kaspa_error(&self, error: &ChainCommunicationError) -> KaspaDepositError {
-        // Check if error message contains specific patterns to categorize
-        let error_str = error.to_string();
-        if error_str.contains("TransactionRejected") {
-            KaspaDepositError::TransactionRejected
-        } else if error_str.contains("already delivered") || error_str.contains("already processed")
-        {
-            KaspaDepositError::AlreadyDelivered
-        } else if error_str.contains("validator") || error_str.contains("signature") {
-            KaspaDepositError::ValidatorError(error_str)
-        } else {
-            KaspaDepositError::ProcessingError(error_str)
-        }
+        // Just return a processing error - we shouldn't try to parse error strings
+        KaspaDepositError::ProcessingError(error.to_string())
     }
 
     /// TODO: unused for now because we skirt the usual DB management
