@@ -9,10 +9,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { DEPLOYER } from '../../owners.js';
 
-// 0x8f51e8e0Ce90CC1B6E60a3E434c7E63DeaD13612
-const mitosisOwner = DEPLOYER;
+const mitosisOwner = '0x8f51e8e0Ce90CC1B6E60a3E434c7E63DeaD13612';
 
 export const getMitosisMITOWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
