@@ -427,6 +427,22 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 is_legacy,
             })
         }};
+        (radixKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_opt_key("key")
+                .parse_private_key()
+                .unwrap_or_default();
+            let suffix = signer
+                .chain(&mut err)
+                .get_opt_key("suffix")
+                .parse_string()
+                .unwrap_or_default();
+            err.into_result(SignerConf::RadixKey {
+                key,
+                suffix: suffix.to_owned(),
+            })
+        }};
     }
 
     match signer_type {
@@ -434,6 +450,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
         Some("aws") => parse_signer!(aws),
         Some("cosmosKey") => parse_signer!(cosmosKey),
         Some("starkKey") => parse_signer!(starkKey),
+        Some("radixKey") => parse_signer!(radixKey),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")
         }

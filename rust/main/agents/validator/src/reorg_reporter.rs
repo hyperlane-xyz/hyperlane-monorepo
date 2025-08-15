@@ -96,7 +96,9 @@ impl LatestCheckpointReorgReporter {
         settings: &ValidatorSettings,
         origin: &HyperlaneDomain,
     ) -> Vec<(Url, ValidatorSettings)> {
-        use ChainConnectionConf::{Cosmos, CosmosNative, Ethereum, Fuel, Sealevel, Starknet};
+        use ChainConnectionConf::{
+            Cosmos, CosmosNative, Ethereum, Fuel, Radix, Sealevel, Starknet,
+        };
 
         let chain_conf = settings
             .chains
@@ -140,6 +142,7 @@ impl LatestCheckpointReorgReporter {
                     Starknet(updated_conn)
                 })
             }
+            Radix(conn) => vec![(conn.clone().core, Radix(conn))],
         };
 
         chain_conn_confs

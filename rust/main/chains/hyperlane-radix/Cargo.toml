@@ -1,0 +1,50 @@
+[package]
+name = "hyperlane-radix"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+radix-engine-interface = { workspace = true }
+scrypto = { workspace = true, features = ["serde"] }
+core-api-client = { workspace = true }
+gateway-api-client = { workspace = true }
+scrypto-derive = { workspace = true }
+sbor = { workspace = true, features = ["serde"] }
+radix-common = { workspace = true }
+radix-transactions = { workspace = true }
+url = { workspace = true }
+async-trait = { workspace = true }
+bech32 = { workspace = true }
+crypto = { path = "../../utils/crypto" }
+derive-new = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+http = { workspace = true }
+hyper = { workspace = true }
+hyper-tls = { workspace = true }
+itertools = { workspace = true }
+once_cell = { workspace = true }
+ripemd = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sha256 = { workspace = true }
+time = { workspace = true }
+thiserror = { workspace = true }
+regex = { workspace = true }
+env_logger = "0.10.0"
+tokio = { workspace = true, features = [
+    "rt",
+    "macros",
+    "parking_lot",
+    "rt-multi-thread",
+] }
+tokio-metrics.workspace = true
+tracing = { workspace = true }
+tracing-futures = { workspace = true }
+reqwest = "0.12.15"
+chrono = "0.4"
+hyperlane-metric = { path = "../../hyperlane-metric" }
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
+hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
