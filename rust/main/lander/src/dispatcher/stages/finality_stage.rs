@@ -64,16 +64,43 @@ impl FinalityStage {
             state,
             domain,
         } = self;
-        let futures = vec![
-            tokio::spawn(
-                Self::receive_txs(tx_receiver, pool.clone(), state.clone(), domain.clone())
-                    .instrument(info_span!("receive_txs")),
-            ),
-            tokio::spawn(
-                Self::process_txs(pool, building_stage_queue, state, domain)
-                    .instrument(info_span!("process_txs")),
-            ),
-        ];
+
+        let receive_task = {
+            let pool_clone = pool.clone();
+            let state_clone = state.clone();
+            let domain_clone = domain.clone();
+            tokio::spawn(async move {
+                let res = Self::receive_txs(tx_receiver, pool_clone, state_clone, domain_clone)
+                    .instrument(info_span!("receive_txs"))
+                    .await;
+                let stage = format!("{}::receive_txs", STAGE_NAME);
+                match res.as_ref() {
+                    Ok(_) => {
+                        error!(?stage, "Future ended unexpectedly");
+                    }
+                    Err(err) => {
+                        error!(?stage, ?err, "Future panicked");
+                    }
+                }
+                res
+            })
+        };
+        let process_task = tokio::spawn(async move {
+            let res = Self::process_txs(pool, building_stage_queue, state, domain)
+                .instrument(info_span!("process_txs"))
+                .await;
+            let stage = format!("{}::process_txs", STAGE_NAME);
+            match res.as_ref() {
+                Ok(_) => {
+                    error!(?stage, "Future ended unexpectedly");
+                }
+                Err(err) => {
+                    error!(?stage, ?err, "Future panicked");
+                }
+            }
+            res
+        });
+        let futures = vec![receive_task, process_task];
         if let Err(err) = try_join_all(futures).await {
             error!(
                 error=?err,
