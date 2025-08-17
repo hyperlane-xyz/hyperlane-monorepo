@@ -17,6 +17,23 @@ contract TokenBridgeOftScript is Script {
         vm.startBroadcast(pk);
         TokenBridgeOft oft = new TokenBridgeOft(erc20, scale, mailbox);
         oft.initialize(hook, ism, owner);
+
+        bool hasRemote = vm.envBool("ENROLL_REMOTE");
+        if (hasRemote) {
+            uint32 remoteDomain = uint32(vm.envUint("REMOTE_DOMAIN"));
+            bytes32 remoteRouter = vm.envBytes32("REMOTE_ROUTER");
+            oft.enrollRemoteRouter(remoteDomain, remoteRouter);
+        }
+
+        bool hasDomainMap = vm.envBool("SET_LZ_EID");
+        if (hasDomainMap) {
+            uint32 hypDomain = uint32(vm.envUint("DST_HYP_DOMAIN"));
+            uint32 lzEid = uint32(vm.envUint("DST_LZ_EID"));
+            bytes memory dstVault = vm.envBytes("DST_VAULT");
+            bytes memory adapterParams = vm.envBytes("ADAPTER_PARAMS");
+            oft.addDomain(hypDomain, lzEid, dstVault, adapterParams);
+        }
+
         vm.stopBroadcast();
     }
 }
