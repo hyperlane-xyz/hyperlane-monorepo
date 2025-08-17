@@ -1,12 +1,12 @@
 {
-  "warpRouteId": "REPLACE_WITH_WARP_ROUTE_ID",
+  "warpRouteId": "SYMBOL/chaina-chainb",
   "strategy": {
     "rebalanceStrategy": "weighted",
     "chains": {
       "sepolia": {
         "bridge": "0xREPLACE_SEPOLIA_TOKENBRIDGEOFT",
         "bridgeLockTime": 300,
-        "bridgeMinAcceptedAmount": "100000000000000000", 
+        "bridgeMinAcceptedAmount": "100000000000000000",
         "weighted": { "weight": 100, "tolerance": 5 }
       },
       "arbitrumsepolia": {
@@ -21,51 +21,6 @@
     "domains": {
       "sepolia": { "chainId": 11155111, "lzEid": 40161 },
       "arbitrumsepolia": { "chainId": 421614, "lzEid": 40231 }
-    }
-  }
-}
-
-{
-  "warpRouteId": "WARP_ROUTE_ID",
-  "strategy": {
-    "rebalanceStrategy": "weighted",
-    "chains": {
-      "chainA": {
-        "weighted": { "weight": 100, "tolerance": 0 },
-        "bridge": "0x1111111111111111111111111111111111111111",
-        "bridgeMinAcceptedAmount": "0",
-        "bridgeLockTime": 1,
-        "override": {
-          "chainB": {
-            "bridge": "0x1111111111111111111111111111111111111111",
-            "bridgeMinAcceptedAmount": "0"
-          }
-        }
-      },
-      "chainB": {
-        "weighted": { "weight": 100, "tolerance": 0 },
-        "bridge": "0x2222222222222222222222222222222222222222",
-        "bridgeMinAcceptedAmount": "0",
-        "bridgeLockTime": 1,
-        "override": {
-          "chainA": {
-            "bridge": "0x2222222222222222222222222222222222222222",
-            "bridgeMinAcceptedAmount": "0"
-          }
-        }
-      }
-    }
-  },
-  "oft": {
-    "domains": {
-      "chainA": {
-        "lzEid": 40161,
-        "endpoint": "0xEndpointIfTracked"
-      },
-      "chainB": {
-        "lzEid": 40231,
-        "endpoint": "0xEndpointIfTracked"
-      }
     }
   }
 }
