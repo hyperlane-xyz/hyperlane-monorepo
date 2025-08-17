@@ -1,28 +1,28 @@
 {
   "warpRouteId": "WARP_ROUTE_ID",
   "strategy": {
-    "rebalanceStrategy": "Weighted",
+    "rebalanceStrategy": "weighted",
     "chains": {
       "chainA": {
         "weighted": { "weight": 100, "tolerance": 0 },
-        "bridge": "0xYourTokenBridgeOftOnChainA",
+        "bridge": "0x1111111111111111111111111111111111111111",
         "bridgeMinAcceptedAmount": "0",
         "bridgeLockTime": 1,
         "override": {
           "chainB": {
-            "bridge": "0xYourTokenBridgeOftOnChainA",
+            "bridge": "0x1111111111111111111111111111111111111111",
             "bridgeMinAcceptedAmount": "0"
           }
         }
       },
       "chainB": {
         "weighted": { "weight": 100, "tolerance": 0 },
-        "bridge": "0xYourTokenBridgeOftOnChainB",
+        "bridge": "0x2222222222222222222222222222222222222222",
         "bridgeMinAcceptedAmount": "0",
         "bridgeLockTime": 1,
         "override": {
           "chainA": {
-            "bridge": "0xYourTokenBridgeOftOnChainB",
+            "bridge": "0x2222222222222222222222222222222222222222",
             "bridgeMinAcceptedAmount": "0"
           }
         }
