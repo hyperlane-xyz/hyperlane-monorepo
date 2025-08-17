@@ -175,3 +175,12 @@ hyperlane warp rebalancer \
   --destination arbitrumsepolia \
   --amount 100
 ```
+## Selecting a bridge (CCTP vs OFT)
+
+The rebalancer uses a per-chain bridge address from your config. To use LayerZero OFT, deploy and configure a TokenBridgeOft contract per chain and set its address as the `bridge` for that chain. You can optionally use `override` to specify a different bridge when sending to particular destination chains.
+
+- Keep `bridgeIsWarp: false` for OFT (default).
+- Continue to use rebalance(domain, amount, bridge) via the SDK; no signature changes are required.
+
+See an OFT example config at:
+- typescript/cli/examples/rebalancer.oft.example.json
