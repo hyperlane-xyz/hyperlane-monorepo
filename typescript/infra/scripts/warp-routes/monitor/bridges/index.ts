@@ -1,0 +1,1 @@
+export { OftBridgeAdapter } from "./oftBridgeAdapter";
