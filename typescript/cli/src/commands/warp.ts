@@ -1,4 +1,4 @@
-import util from 'util';
+import * as util from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
