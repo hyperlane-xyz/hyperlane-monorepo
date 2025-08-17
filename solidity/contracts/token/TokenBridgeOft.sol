@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {ValueTransferBridge, Quote} from "./interfaces/ValueTransferBridge.sol";
+import {ValueTransferBridge} from "./interfaces/ValueTransferBridge.sol";
+import {Quote} from "./interfaces/ValueTransferBridge.sol";
 import {IOFTCore} from "./interfaces/IOFTCore.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
