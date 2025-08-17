@@ -6,6 +6,12 @@ Prereqs
 - Local or public registry available to the CLI
 - Funded OFT balances on the route’s router addresses to avoid zero readings when starting
 
+Update or deploy a warp route over your OFT
+
+- hyperlane warp deploy --config /path/to/warp-deploy.yaml
+- hyperlane warp read --symbol &lt;SYMBOL&gt; --json &gt; /tmp/warp.json
+- jq -r '.warpRouteId // .routeId // empty' /tmp/warp.json
+
 Monitor-only run
 node ./typescript/cli/cli-bundle/index.js warp rebalancer --config /path/to/rebalancer.oft.json --monitorOnly --checkFrequency 30
 
