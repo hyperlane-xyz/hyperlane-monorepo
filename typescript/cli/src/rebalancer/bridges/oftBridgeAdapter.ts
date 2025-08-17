@@ -25,7 +25,7 @@ const TokenBridgeOftAbi = [
 export class OftBridgeAdapter {
   constructor(private params: OFTAdapterParams) {}
 
-  quoteTransferRemote(
+  async quoteTransferRemote(
     _destination: number,
     _recipient: string,
     _amount: string,
@@ -38,6 +38,7 @@ export class OftBridgeAdapter {
     recipient: string,
     amount: string,
     chain: string,
+    valueWei?: string,
   ) {
     const bridgeAddress = this.params.bridges[chain];
     const signer = this.params.signerForChain(chain);
@@ -46,9 +47,15 @@ export class OftBridgeAdapter {
       TokenBridgeOftAbi,
       signer,
     );
-    const tx = await contract.transferRemote(destination, recipient, amount, {
-      value: 0,
-    });
+    const overrides = valueWei
+      ? { value: ethers.BigNumber.from(valueWei) }
+      : {};
+    const tx = await contract.transferRemote(
+      destination,
+      recipient,
+      amount,
+      overrides,
+    );
     const receipt = await tx.wait();
     return receipt?.transactionHash ?? tx.hash;
   }
