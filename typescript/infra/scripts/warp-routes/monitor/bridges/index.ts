@@ -1,1 +1,1 @@
-export { OftBridgeAdapter } from "./oftBridgeAdapter";
+export { OftBridgeAdapter } from "./oftBridgeAdapter.js";
