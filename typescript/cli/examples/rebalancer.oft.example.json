@@ -28,5 +28,17 @@
         }
       }
     }
+  },
+  "oft": {
+    "domains": {
+      "chainA": {
+        "lzEid": 10161,
+        "endpoint": "0xEndpointIfTracked"
+      },
+      "chainB": {
+        "lzEid": 10143,
+        "endpoint": "0xEndpointIfTracked"
+      }
+    }
   }
 }

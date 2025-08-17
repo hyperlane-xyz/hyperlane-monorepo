@@ -1,3 +1,25 @@
+OFT Rebalancer support
+
+- The CLI rebalancer supports both CCTP and OFT bridges.
+- Bridge selection is config-driven; providing per-chain TokenBridgeOft addresses selects the OFT adapter.
+- Authoritative LayerZero mappings (Hyperlane domain → LZ EID) are configured on-chain via owner-only addDomain in TokenBridgeOft.
+- Optional visibility-only CLI block: you may include "oft.domains" to document EIDs/endpoints; the agent will not use this for routing, but may log mismatches with on-chain mappings in future versions.
+
+Example config snippet:
+{
+"warpRouteId": "0x...",
+"strategy": { "rebalanceStrategy": "weighted", "chains": { "sepolia": { "bridge": "0xTokenBridgeOft..." } } },
+"oft": {
+"domains": {
+"sepolia": { "lzEid": 10161, "endpoint": "0xEndpointIfTracked" },
+"arbitrumsepolia": { "lzEid": 10143, "endpoint": "0xEndpointIfTracked" }
+}
+}
+}
+
+Run monitor-only:
+node ./typescript/cli/cli-bundle/index.js warp rebalancer --config ./typescript/cli/examples/rebalancer.oft.example.json --monitorOnly --checkFrequency 30
+
 # Hyperlane Warp Rebalancer
 
 The Hyperlane Warp Rebalancer is a tool that automatically manages the balance of collateral across chains in a Warp Route. It ensures that each chain maintains an optimal balance of tokens based on the configured strategy.
@@ -175,6 +197,7 @@ hyperlane warp rebalancer \
   --destination arbitrumsepolia \
   --amount 100
 ```
+
 ## Selecting a bridge (CCTP vs OFT)
 
 The rebalancer uses a per-chain bridge address from your config. To use LayerZero OFT, deploy and configure a TokenBridgeOft contract per chain and set its address as the `bridge` for that chain. You can optionally use `override` to specify a different bridge when sending to particular destination chains.
@@ -183,4 +206,5 @@ The rebalancer uses a per-chain bridge address from your config. To use LayerZer
 - Continue to use rebalance(domain, amount, bridge) via the SDK; no signature changes are required.
 
 See an OFT example config at:
+
 - typescript/cli/examples/rebalancer.oft.example.json
