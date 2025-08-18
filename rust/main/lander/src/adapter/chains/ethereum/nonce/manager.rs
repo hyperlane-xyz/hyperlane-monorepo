@@ -66,7 +66,6 @@ impl NonceManager {
             "Transaction missing address".to_string(),
         ))?;
 
-        eprintln!("From: {:?} {:?}", from, self.address);
         if from != self.address {
             return Err(LanderError::TxSubmissionError(
                 "Transaction from address does not match nonce manager address".to_string(),
