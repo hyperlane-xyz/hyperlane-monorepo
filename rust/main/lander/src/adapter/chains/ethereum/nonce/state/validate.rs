@@ -28,7 +28,6 @@ impl NonceManagerState {
 
         let tx_uuid = tx.uuid.clone();
         let tx_status = tx.status.clone();
-
         let tx_nonce: Option<U256> = tx.precursor().tx.nonce().map(Into::into);
 
         let nonce = match tx_nonce {
@@ -37,7 +36,6 @@ impl NonceManagerState {
                 return Ok((Assign, None));
             }
         };
-
         let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
 
         // Fetching the tracked transaction uuid
@@ -87,7 +85,6 @@ impl NonceManagerState {
             }
             (Taken(_), _) => {
                 // If the nonce is taken or committed, we don't need to do anything.
-
                 info!(
                     ?nonce,
                     ?nonce_status,

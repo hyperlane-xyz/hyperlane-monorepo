@@ -98,7 +98,7 @@ impl NonceManagerState {
     ) -> NonceResult<Option<U256>> {
         let nonce = self
             .nonce_db
-            .retrieve_nonce_by_transaction_uuid(&tx_uuid)
+            .retrieve_nonce_by_transaction_uuid(tx_uuid)
             .await?;
         Ok(nonce)
     }

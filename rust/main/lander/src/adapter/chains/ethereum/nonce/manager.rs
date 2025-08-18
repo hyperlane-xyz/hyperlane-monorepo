@@ -58,7 +58,7 @@ impl NonceManager {
         &self,
         tx: &Transaction,
     ) -> eyre::Result<Option<U256>, LanderError> {
-        use NonceAction::{Assign, Noop};
+        use NonceAction::Noop;
 
         let tx_uuid = tx.uuid.clone();
         let precursor = tx.precursor();
