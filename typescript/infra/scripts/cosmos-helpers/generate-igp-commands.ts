@@ -1,8 +1,9 @@
 import { Argv } from 'yargs';
 
+import rawGasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
+import rawTokenPrices from '../../config/environments/mainnet3/tokenPrices.json' with { type: 'json' };
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
-import { readFile } from 'fs/promises';
 
 export function withOriginChain<T>(args: Argv<T>) {
   return args
@@ -40,19 +41,17 @@ async function main() {
     throw new Error('Chains must be provided');
   }
 
-  const gasPrices = JSON.parse(
-    await readFile('config/environments/mainnet3/gasPrices.json', 'utf-8'),
-  );
-  const tokenPrices = JSON.parse(
-    await readFile('config/environments/mainnet3/tokenPrices.json', 'utf-8'),
-  );
+  const gasPrices = rawGasPrices as unknown as {
+    [key: string]: { amount: string; decimals: number };
+  };
+  const tokenPrices = rawTokenPrices as unknown as { [key: string]: string };
 
   const tokenPriceConfigs = chains.map((chain) => {
-    if (!tokenPrices.hasOwnProperty(chain)) {
+    if (!tokenPrices[chain]) {
       throw Error(`No token price found for ${chain}`);
     }
-    if (!gasPrices.hasOwnProperty(chain)) {
-      throw Error(`No token price found for ${chain}`);
+    if (!gasPrices[chain]) {
+      throw Error(`No gas price found for ${chain}`);
     }
 
     return {
@@ -60,11 +59,11 @@ async function main() {
       domain_id: multiProvider.getDomainId(chain),
       token_price: tokenPrices[chain],
       gas_price_amount: gasPrices[chain].amount,
-      gas_price_decimals: gasPrices[chain].amount,
+      gas_price_decimals: gasPrices[chain].decimals,
     };
   });
 
-  if (!tokenPrices.hasOwnProperty(originChain)) {
+  if (!tokenPrices[originChain]) {
     throw Error(`No token price found for ${originChain}`);
   }
 
