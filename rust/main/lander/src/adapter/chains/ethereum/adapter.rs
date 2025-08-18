@@ -158,6 +158,20 @@ impl EthereumAdapter {
         Ok(new_gas_price)
     }
 
+    pub async fn assign_nonce_from_db(
+        nonce_manager: &NonceManager,
+        tx: &mut Transaction,
+    ) -> Result<(), LanderError> {
+        nonce_manager
+            .assign_nonce_from_db(tx)
+            .await
+            .map_err(|err| {
+                error!(?err, "Failed to assign nonce from db");
+                eyre!("Failed to assign nonce from db")
+            })?;
+        Ok(())
+    }
+
     fn update_tx(&self, tx: &mut Transaction, nonce: Option<U256>, gas_price: GasPrice) {
         let precursor = tx.precursor_mut();
 
@@ -575,6 +589,9 @@ impl AdaptsChain for EthereumAdapter {
 
         let tx_for_nonce = tx.clone();
         let tx_for_gas_price = tx.clone();
+
+        // Try and load nonce from db, if it exists
+        Self::assign_nonce_from_db(&self.nonce_manager, tx).await?;
 
         let (nonce, gas_price) = try_join!(
             self.calculate_nonce(&tx_for_nonce),

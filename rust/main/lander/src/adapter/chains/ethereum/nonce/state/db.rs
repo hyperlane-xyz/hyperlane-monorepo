@@ -32,7 +32,7 @@ impl NonceManagerState {
         Ok(())
     }
 
-    pub(super) async fn set_tracked_tx_uuid(
+    pub async fn set_tracked_tx_uuid(
         &self,
         nonce: &U256,
         tx_uuid: &TransactionUuid,
@@ -92,7 +92,7 @@ impl NonceManagerState {
         Ok(nonce)
     }
 
-    pub(super) async fn get_tx_nonce(
+    pub(crate) async fn get_tx_nonce(
         &self,
         tx_uuid: &TransactionUuid,
     ) -> NonceResult<Option<U256>> {

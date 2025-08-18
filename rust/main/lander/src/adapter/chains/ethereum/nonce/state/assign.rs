@@ -2,8 +2,9 @@ use tracing::{debug, warn};
 
 use hyperlane_core::U256;
 
-use crate::transaction::TransactionUuid;
+use crate::transaction::{Transaction, TransactionUuid};
 
+use super::super::super::transaction::Precursor;
 use super::super::error::{NonceError, NonceResult};
 use super::super::status::NonceStatus;
 use super::NonceManagerState;

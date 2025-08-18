@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use ethers::signers::Signer;
 use ethers_core::types::Address;
-use tracing::info;
+use tracing::{info, warn};
 
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::settings::{ChainConf, SignerConf};
 use hyperlane_core::U256;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, Signers};
 
+use crate::adapter::chains::ethereum::nonce::error::NonceResult;
 use crate::dispatcher::TransactionDb;
 use crate::transaction::{Transaction, TransactionUuid};
 use crate::{LanderError, TransactionStatus};
@@ -100,6 +101,28 @@ impl NonceManager {
             })?;
 
         Ok(Some(next_nonce))
+    }
+
+    pub async fn assign_nonce_from_db(&self, tx: &mut Transaction) -> NonceResult<()> {
+        let tx_uuid = tx.uuid.clone();
+
+        let db_nonce = self.state.get_tx_nonce(&tx_uuid).await?;
+        let tx_nonce: Option<U256> = tx.precursor().tx.nonce().map(Into::into);
+
+        if let Some(db_nonce) = db_nonce {
+            if let Some(tx_nonce) = tx_nonce {
+                if db_nonce != tx_nonce {
+                    warn!(
+                        ?tx_nonce,
+                        ?db_nonce,
+                        "EVM Transaction nonce differs from nonce in db"
+                    );
+                }
+            }
+            tx.precursor_mut().tx.set_nonce(db_nonce);
+        }
+
+        Ok(())
     }
 
     async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {

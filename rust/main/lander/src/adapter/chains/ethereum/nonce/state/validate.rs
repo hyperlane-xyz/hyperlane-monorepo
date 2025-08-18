@@ -29,24 +29,11 @@ impl NonceManagerState {
         let tx_uuid = tx.uuid.clone();
         let tx_status = tx.status.clone();
 
-        let db_nonce = self.get_tx_nonce(&&tx_uuid).await?;
-
         let tx_nonce: Option<U256> = tx.precursor().tx.nonce().map(Into::into);
 
-        let nonce = match (db_nonce, tx_nonce) {
-            (Some(db_nonce), Some(tx_nonce)) => {
-                if db_nonce != tx_nonce {
-                    warn!(
-                        ?tx_nonce,
-                        ?db_nonce,
-                        "EVM Transaction nonce differs from nonce in db"
-                    );
-                }
-                db_nonce
-            }
-            (None, Some(tx_nonce)) => tx_nonce,
-            (Some(db_nonce), None) => db_nonce,
-            (None, None) => {
+        let nonce = match tx_nonce {
+            Some(n) => n,
+            None => {
                 return Ok((Assign, None));
             }
         };
@@ -100,6 +87,7 @@ impl NonceManagerState {
             }
             (Taken(_), _) => {
                 // If the nonce is taken or committed, we don't need to do anything.
+
                 info!(
                     ?nonce,
                     ?nonce_status,
