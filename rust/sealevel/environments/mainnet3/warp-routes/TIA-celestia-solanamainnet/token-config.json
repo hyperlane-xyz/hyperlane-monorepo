@@ -1,4 +1,9 @@
 {
+  "celestia" : {
+    "decimals": 6,
+    "foreignDeployment": "0x726f757465725f61707000000000000000000000000000010000000000000003",
+    "type": "native"
+  },
   "solanamainnet": {
     "type": "synthetic",
     "decimals": 6,
