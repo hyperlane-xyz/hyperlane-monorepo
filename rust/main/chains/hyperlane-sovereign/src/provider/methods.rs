@@ -118,9 +118,9 @@ impl SovereignClient {
                 }
             },
         });
-        let (tx_hash, _) = self.build_and_submit(call_message).await?;
+        let (result, _) = self.build_and_submit(call_message).await?;
 
-        let tx_details = self.get_tx_by_hash(tx_hash).await?;
+        let tx_details = self.get_tx_by_hash(result.id).await?;
         let gas_used = U256::from(
             tx_details
                 .receipt
@@ -205,11 +205,14 @@ impl SovereignClient {
 
         let receipt = response.apply_tx_result.receipt.clone();
         if receipt.receipt.outcome != "successful" {
-            let reason = BASE64_STANDARD
-                .decode(&receipt.receipt.content)
-                .expect("failed to decode base64");
+            let reason = String::from_utf8(
+                BASE64_STANDARD
+                    .decode(&receipt.receipt.content)
+                    .expect("failed to decode base64"),
+            )
+            .unwrap();
             return Err(custom_err!(
-                "Transaction simulation reverted: {:?}, reason: {:?} (raw: {:?})",
+                "Transaction simulation reverted: {:?}, reason: {} (raw: {:?})",
                 receipt,
                 String::from_utf8_lossy(&reason),
                 &reason,
@@ -404,7 +407,7 @@ impl SovereignClient {
 
         // Upstream logic is only concerned with `executed` status is we've made it this far.
         Ok(TxOutcome {
-            transaction_id: res.0.into(),
+            transaction_id: res.0.id.into(),
             executed: true,
             gas_used: U256::default(),
             gas_price: FixedPointNumber::default(),

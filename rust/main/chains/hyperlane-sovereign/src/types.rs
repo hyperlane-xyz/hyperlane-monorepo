@@ -115,3 +115,14 @@ pub struct ConstantsResponse {
     /// The name of the rollup
     pub chain_name: String,
 }
+
+/// Response from POST `/sequencer/txs` endpoint.
+#[derive(Debug, Deserialize)]
+pub struct SubmitTxResponse {
+    /// The id of the submitted tx.
+    pub id: H256,
+    /// The status of the submitted tx.
+    pub status: TxStatus,
+    /// The events emitted by the endpoint, if any.
+    pub events: Option<Vec<TxEvent>>,
+}

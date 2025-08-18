@@ -6,7 +6,6 @@ use base64::Engine;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use hyperlane_core::{ChainResult, H256};
-use serde::Deserialize;
 use serde_json::{json, Value};
 use sov_universal_wallet::schema::RollupRoots;
 use tokio::time::{timeout_at, Instant};
@@ -17,20 +16,23 @@ type WsSubscription<T> = BoxStream<'static, ChainResult<T>>;
 
 use super::client::SovereignClient;
 use crate::signers::Crypto;
-use crate::types::{TxInfo, TxStatus};
+use crate::types::{SubmitTxResponse, TxInfo, TxStatus};
 
 impl SovereignClient {
     /// Build a transaction and submit it to the rollup.
-    pub async fn build_and_submit(&self, call_message: Value) -> ChainResult<(H256, String)> {
+    pub async fn build_and_submit(
+        &self,
+        call_message: Value,
+    ) -> ChainResult<(SubmitTxResponse, String)> {
         let utx = self.build_tx_json(&call_message);
 
         let tx = self.sign_tx(utx.clone(), &self.signer).await?;
         let body = self.serialize_tx(&tx).await?;
-        let hash = self.submit_tx(body.clone()).await?;
+        let response = self.submit_tx(body.clone()).await?;
 
-        self.wait_for_tx(hash).await?;
+        self.wait_for_tx(response.id).await?;
 
-        Ok((hash, body))
+        Ok((response, body))
     }
 
     async fn wait_for_tx(&self, tx_hash: H256) -> ChainResult<()> {
@@ -145,17 +147,11 @@ impl SovereignClient {
         Ok(BASE64_STANDARD.encode(&tx_bytes))
     }
 
-    async fn submit_tx(&self, tx: String) -> ChainResult<H256> {
-        #[derive(Debug, Deserialize)]
-        struct Data {
-            id: H256,
-        }
-
-        let data: Data = self
+    async fn submit_tx(&self, tx: String) -> ChainResult<SubmitTxResponse> {
+        let data: SubmitTxResponse = self
             .http_post("/sequencer/txs", &json!({ "body": tx }))
             .await?;
-
-        Ok(data.id)
+        Ok(data)
     }
 
     /// Subscribe to a websocket for status updates.

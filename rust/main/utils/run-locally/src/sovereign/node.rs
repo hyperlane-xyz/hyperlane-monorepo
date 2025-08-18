@@ -14,7 +14,7 @@ use toml_edit::{value, Document};
 use crate::{
     logging::log,
     program::Program,
-    utils::{as_task, concat_path, AgentHandles, TaskHandle},
+    utils::{as_task, AgentHandles, TaskHandle},
 };
 
 const SOVEREIGN_ROLLUP_REPO: &str = "git@github.com:Sovereign-Labs/rollup-starter.git";
@@ -76,6 +76,10 @@ impl SovereignParameters {
 
     pub fn docker_image(&self) -> String {
         format!("sovereign-rollup:{}", self.name)
+    }
+
+    pub fn chain_name(&self) -> String {
+        self.name.replace("-", "")
     }
 }
 
@@ -190,7 +194,7 @@ pub fn setup_sovereign_environment() -> (PathBuf, Vec<(AgentHandles, SovereignPa
     for i in 0..SOVEREIGN_NODE_COUNT {
         let params = SovereignParameters::for_index(i);
         log!("Building Docker image for {}", params.name);
-        let _ = build_sovereign_node_docker_with_constants(&rollup_dir, &params);
+        build_sovereign_node_docker_with_constants(&rollup_dir, &params);
     }
 
     let mut agents = Vec::with_capacity(SOVEREIGN_NODE_COUNT);
