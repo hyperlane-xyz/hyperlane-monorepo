@@ -8,7 +8,7 @@ use scrypto::{
 
 use crate::HyperlaneRadixError;
 
-/// Encodes a bytes array into a bech32 radix component addresse
+/// Encodes a bytes array into a bech32 radix component address
 pub fn encode_component_address(network: &NetworkDefinition, address: H256) -> ChainResult<String> {
     encode_module_address("component", &network.hrp_suffix, address) // TODO: there has to be a constant in radix that defines this
 }

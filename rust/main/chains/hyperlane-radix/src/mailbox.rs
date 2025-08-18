@@ -152,7 +152,7 @@ impl Mailbox for RadixMailbox {
                 break;
             }
 
-            // luckly there is an fixed error message if a node is not visible
+            // luckily there is an fixed error message if a node is not visible
             // we match against that error message and extract the invisible component
             let error_message = result.error_message.unwrap_or_default();
             if let Some(matched) = self.component_regex.find(&error_message) {
