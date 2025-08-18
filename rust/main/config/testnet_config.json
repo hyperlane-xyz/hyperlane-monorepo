@@ -3375,6 +3375,37 @@
       "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000000",
       "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
+    },
+    "dangotestnet1": {
+      "displayName": "dango1",
+      "domainId": 88888887,
+      "name": "dangotestnet1",
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 5
+      },
+      "rpcUrls": [
+        {
+          "http": "http://localhost:26657"
+        }
+      ],
+      "protocol": "dango",
+      "gas_price": {
+        "denom": "dango",
+        "amount": "0"
+      },
+      "gas_scale": 1.2,
+      "flat_gas_increase": 1000000,
+      "search_sleep_duration": 1,
+      "search_retry_attempts": 10,
+      "checkpointSyncer": {
+        "type": "localStorage"
+      },
+      "index": {
+        "chunk": 10,
+        "from": 1
+      }
     }
   }
 }

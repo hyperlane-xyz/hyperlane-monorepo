@@ -323,6 +323,8 @@ pub enum KnownHyperlaneDomain {
     SubtensorTestnet = 945,
     SuperpositionTestnet = 98985,
     UnichainTestnet = 1301,
+    DangoTestnet1 = 88888887,
+    DangoTestnet2 = 88888888,
 
     // -- Local chains --
     //
@@ -411,7 +413,7 @@ pub enum HyperlaneDomainProtocol {
     /// A Cosmos based chain with uses a module instead of a contract.
     CosmosNative,
     /// A Grug based chain type
-    Dango
+    Dango,
 }
 
 impl HyperlaneDomainProtocol {
@@ -557,6 +559,7 @@ impl KnownHyperlaneDomain {
             | Paradex
             | ParadexSepolia
             | PragmaDevnet => HyperlaneDomainProtocol::Starknet,
+            DangoTestnet1 | DangoTestnet2 => HyperlaneDomainProtocol::Dango,
             _ => HyperlaneDomainProtocol::Ethereum
         }
     }

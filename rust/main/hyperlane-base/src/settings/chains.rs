@@ -35,6 +35,7 @@ use hyperlane_sealevel::{
 use hyperlane_starknet::{self as h_starknet};
 
 use hyperlane_dango as h_dango;
+use warp::filters::log::Info;
 
 use crate::{
     metrics::AgentMetricsConf,
@@ -381,7 +382,7 @@ impl ChainConf {
                     .map_err(Into::into)
             }
             ChainConnectionConf::Dango(conf) => {
-                let signer = self.dango_signer().await.context(ctx)?;
+                let signer: Option<hyperlane_dango::DangoSigner> = self.dango_signer().await.context(ctx)?;
                 Ok(
                     Box::new(h_dango::contracts::DangoMailbox::new(conf, &locator, signer)?)
                         as Box<dyn Mailbox>,

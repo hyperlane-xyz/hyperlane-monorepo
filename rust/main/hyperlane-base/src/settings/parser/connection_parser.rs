@@ -321,8 +321,6 @@ fn build_dango_connection_conf(
             None
         });
 
-    // let httpd_url = parse_ur
-
     let httpd_url = chain
         .chain(&mut local_err)
         .get_key("httpd_url")
@@ -340,6 +338,8 @@ fn build_dango_connection_conf(
             }
         })
         .flatten();
+
+    println!("httpd_url: {}", httpd_url.clone().unwrap().to_string());
 
     let gas_price = chain
         .chain(&mut local_err)
