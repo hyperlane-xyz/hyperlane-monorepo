@@ -47,7 +47,7 @@ async fn test_assign_nonce_sets_nonce_when_none_present() {
     };
 
     let uuid = TransactionUuid::random();
-    let mut tx = make_tx(
+    let tx = make_tx(
         uuid.clone(),
         TransactionStatus::PendingInclusion,
         None,
@@ -55,11 +55,7 @@ async fn test_assign_nonce_sets_nonce_when_none_present() {
     );
 
     // Should assign nonce 1, since mock provider returns 1
-    let nonce = manager
-        .calculate_next_nonce(&mut tx)
-        .await
-        .unwrap()
-        .unwrap();
+    let nonce = manager.calculate_next_nonce(&tx).await.unwrap().unwrap();
     assert_eq!(nonce, U256::one());
 }
 
@@ -78,14 +74,14 @@ async fn test_assign_nonce_error_when_from_address_missing() {
 
     let uuid = TransactionUuid::random();
     // Address is not set
-    let mut tx = make_tx(
+    let tx = make_tx(
         uuid.clone(),
         TransactionStatus::PendingInclusion,
         None,
         None,
     );
 
-    let err = manager.calculate_next_nonce(&mut tx).await.unwrap_err();
+    let err = manager.calculate_next_nonce(&tx).await.unwrap_err();
     assert!(err.to_string().contains("Transaction missing address"));
 }
 
@@ -105,14 +101,14 @@ async fn test_assign_nonce_error_when_from_address_mismatch() {
 
     let uuid = TransactionUuid::random();
     // From address does not match manager address
-    let mut tx = make_tx(
+    let tx = make_tx(
         uuid.clone(),
         TransactionStatus::PendingInclusion,
         None,
         Some(other_address),
     );
 
-    let err = manager.calculate_next_nonce(&mut tx).await.unwrap_err();
+    let err = manager.calculate_next_nonce(&tx).await.unwrap_err();
     assert!(err
         .to_string()
         .contains("Transaction from address does not match nonce manager address"));
