@@ -141,7 +141,7 @@ async fn test_assign_nonce_from_db() {
     let mut tx = make_tx(
         uuid.clone(),
         TransactionStatus::PendingInclusion,
-        None,
+        Some(U256::from(200)),
         Some(address),
     );
 
@@ -149,8 +149,41 @@ async fn test_assign_nonce_from_db() {
         .assign_nonce_from_db(&mut tx)
         .await
         .expect("Failed to assign nonce from db");
-    assert_eq!(
-        tx.precursor().tx.nonce().map(|v| v.into()),
-        Some(expected_nonce)
+
+    let assigned_nonce = tx.precursor().tx.nonce().map(|v| v.into());
+    assert_eq!(assigned_nonce, Some(expected_nonce));
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_assign_nonce_from_db_does_not_exist() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+    let nonce_updater = make_nonce_updater(address, state.clone());
+    let manager = NonceManager {
+        address,
+        state,
+        nonce_updater,
+    };
+
+    let uuid = TransactionUuid::random();
+
+    // From address does not match manager address
+    let mut tx = make_tx(
+        uuid.clone(),
+        TransactionStatus::PendingInclusion,
+        Some(U256::from(1000)),
+        Some(address),
     );
+
+    manager
+        .assign_nonce_from_db(&mut tx)
+        .await
+        .expect("Failed to assign nonce from db");
+
+    let assigned_nonce = tx.precursor().tx.nonce().map(|v| v.into());
+    let expected_nonce = U256::from(1000);
+    assert_eq!(assigned_nonce, Some(expected_nonce));
 }
