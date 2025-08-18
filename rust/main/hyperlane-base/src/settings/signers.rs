@@ -40,7 +40,7 @@ pub enum SignerConf {
         /// Account address type for cosmos address
         account_address_type: AccountAddressType,
     },
-    /// Radix Sepcific key
+    /// Radix Specific key
     RadixKey {
         /// private key
         key: H256,

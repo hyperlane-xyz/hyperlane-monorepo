@@ -13,7 +13,7 @@ pub fn encode_component_address(network: &NetworkDefinition, address: H256) -> C
     encode_module_address("component", &network.hrp_suffix, address) // TODO: there has to be a constant in radix that defines this
 }
 
-/// Encodes a bytes array into a bech32 radix addresse
+/// Encodes a bytes array into a bech32 radix address
 /// radix bech32 addresses always follow a certain schema: {module}_{network_prefix}_xxxxxxxxxxx
 pub fn encode_module_address(module: &str, suffix: &str, address: H256) -> ChainResult<String> {
     let slice: &[u8; 32] = address.as_fixed_bytes();
@@ -28,7 +28,7 @@ pub fn encode_module_address(module: &str, suffix: &str, address: H256) -> Chain
     Ok(encoded)
 }
 
-/// Encodes a bytes array into a bech32 radix addresse
+/// Encodes a bytes array into a bech32 radix address
 /// radix bech32 addresses always follow a certain schema: txid_{network_prefix}_xxxxxxxxxxx
 pub fn encode_tx(network: &NetworkDefinition, address: H256) -> ChainResult<String> {
     let slice: &[u8; 32] = address.as_fixed_bytes();

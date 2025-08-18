@@ -107,7 +107,7 @@ pub struct MerkleTree {
     pub count: usize,
 }
 
-/// IsmTypes for the radix iplementation
+/// IsmTypes for the radix implementation
 /// equal to the relayer implementation, just needed for the sbor encoding
 #[derive(ScryptoSbor, ScryptoEvent)]
 pub enum IsmTypes {
