@@ -1,9 +1,13 @@
-use std::{ops::RangeInclusive, time::Duration};
+use std::{
+    ops::{Deref, RangeInclusive},
+    time::Duration,
+};
 
 use crate::{
     decimal_to_u256, decode_bech32, encode_tx, signer::RadixSigner, ConnectionConf,
-    HyperlaneRadixError,
+    HyperlaneRadixError, RadixBaseCoreProvider, RadixBaseGatewayProvider, RadixCoreProvider,
 };
+use crate::{provider::RadixGatewayProvider, RadixFallbackProvider};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use core_api_client::{
@@ -20,13 +24,13 @@ use gateway_api_client::{
         self, CommittedTransactionInfo, CompiledPreviewTransaction, LedgerState,
         LedgerStateSelector, ProgrammaticScryptoSborValue, StateEntityDetailsRequest,
         StreamTransactionsRequest, TransactionCommittedDetailsRequest, TransactionDetailsOptIns,
-        TransactionPreviewV2Request, TransactionStatusRequest, TransactionStatusResponse,
-        TransactionSubmitRequest, TransactionSubmitResponse,
+        TransactionPreviewV2Request, TransactionStatusResponse,
     },
 };
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, LogMeta, ReorgPeriod, TxOutcome, TxnInfo, H256, H512, U256,
+    rpc_clients::FallbackProvider, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
+    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, LogMeta, ReorgPeriod,
+    TxOutcome, TxnInfo, H256, H512, U256,
 };
 use radix_common::traits::ScryptoEvent;
 use radix_transactions::{
@@ -51,50 +55,75 @@ use scrypto::{
 /// Radix provider
 #[derive(Debug, Clone)]
 pub struct RadixProvider {
-    core_config: CoreConfig,
-    gateway_config: GatewayConfig,
-
+    provider: RadixFallbackProvider,
     signer: Option<RadixSigner>,
     conf: ConnectionConf,
-
     domain: HyperlaneDomain,
 }
 
+impl Deref for RadixProvider {
+    type Target = RadixFallbackProvider;
+
+    fn deref(&self) -> &Self::Target {
+        &self.provider
+    }
+}
+
 impl RadixProvider {
+    fn build_fallback_provider(conf: &ConnectionConf) -> ChainResult<RadixFallbackProvider> {
+        let mut gateway_provider = Vec::with_capacity(conf.gateway.len());
+        for (index, url) in conf.gateway.iter().enumerate() {
+            let map = conf.gateway_header.get(index).cloned().unwrap_or_default();
+            let header = reqwest::header::HeaderMap::try_from(&map)
+                .map_err(ChainCommunicationError::from_other)?;
+
+            let client = ClientBuilder::new()
+                .default_headers(header)
+                .build()
+                .map_err(ChainCommunicationError::from_other)?;
+
+            let provider = RadixBaseGatewayProvider::new(GatewayConfig {
+                client,
+                base_path: url.to_string().trim_end_matches('/').to_string(),
+                ..Default::default()
+            });
+            gateway_provider.push(provider);
+        }
+
+        let mut core_provider = Vec::with_capacity(conf.core.len());
+        for (index, url) in conf.core.iter().enumerate() {
+            let map = conf.core_header.get(index).cloned().unwrap_or_default();
+            let header = reqwest::header::HeaderMap::try_from(&map)
+                .map_err(ChainCommunicationError::from_other)?;
+
+            let client = ClientBuilder::new()
+                .default_headers(header)
+                .build()
+                .map_err(ChainCommunicationError::from_other)?;
+
+            let provider = RadixBaseCoreProvider::new(CoreConfig {
+                client,
+                base_path: url.to_string().trim_end_matches('/').to_string(),
+                ..Default::default()
+            });
+            core_provider.push(provider);
+        }
+        Ok(RadixFallbackProvider::new(
+            FallbackProvider::new(core_provider),
+            FallbackProvider::new(gateway_provider),
+        ))
+    }
+
     /// Create a new Radix Provider
     pub fn new(
         signer: Option<RadixSigner>,
         conf: &ConnectionConf,
         locator: &ContractLocator,
     ) -> ChainResult<RadixProvider> {
-        let core_header = reqwest::header::HeaderMap::try_from(&conf.core_header)
-            .map_err(ChainCommunicationError::from_other)?;
-        let gateway_header = reqwest::header::HeaderMap::try_from(&conf.gateway_header)
-            .map_err(ChainCommunicationError::from_other)?;
-
-        let core_client = ClientBuilder::new()
-            .default_headers(core_header)
-            .build()
-            .map_err(HyperlaneRadixError::from)?;
-
-        let gateway_client = ClientBuilder::new()
-            .default_headers(gateway_header)
-            .build()
-            .map_err(HyperlaneRadixError::from)?;
-
         Ok(Self {
             domain: locator.domain.clone(),
             signer,
-            core_config: CoreConfig {
-                base_path: conf.core.to_string().trim_end_matches('/').to_string(),
-                client: core_client,
-                ..Default::default()
-            },
-            gateway_config: GatewayConfig {
-                base_path: conf.gateway.to_string().trim_end_matches('/').to_string(),
-                client: gateway_client,
-                ..Default::default()
-            },
+            provider: Self::build_fallback_provider(conf)?,
             conf: conf.clone(),
         })
     }
@@ -123,9 +152,9 @@ impl RadixProvider {
 
         let args = raw_args.into_iter().map(hex::encode).collect();
 
-        let result = core_api_client::apis::transaction_api::transaction_call_preview_post(
-            &self.core_config,
-            TransactionCallPreviewRequest {
+        let result = self
+            .provider
+            .call_preview(TransactionCallPreviewRequest {
                 arguments: args,
                 at_ledger_state: selector,
                 target: TargetIdentifier::Method(ComponentMethodTargetIdentifier {
@@ -133,10 +162,8 @@ impl RadixProvider {
                     method_name: method.to_owned(),
                 }),
                 network: self.conf.network.logical_name.to_string(),
-            },
-        )
-        .await
-        .map_err(HyperlaneRadixError::from)?;
+            })
+            .await?;
         match result.status {
             TransactionStatus::Succeeded => {
                 if let Some(output) = result.output {
@@ -175,9 +202,7 @@ impl RadixProvider {
 
     /// Returns the latest ledger state of the chain
     pub async fn get_status(&self, reorg: &ReorgPeriod) -> ChainResult<LedgerState> {
-        let status = gateway_api_client::apis::status_api::gateway_status(&self.gateway_config)
-            .await
-            .map_err(HyperlaneRadixError::from)?;
+        let status = self.gateway_status().await?;
         let mut state = status.ledger_state;
 
         let offset = match reorg {
@@ -298,9 +323,8 @@ impl RadixProvider {
     pub async fn get_tx_by_hash(&self, hash: &H512) -> ChainResult<CommittedTransactionInfo> {
         let hash: H256 = (*hash).into();
         let hash = encode_tx(&self.conf.network, hash)?;
-        let response = gateway_api_client::apis::transaction_api::transaction_committed_details(
-            &self.gateway_config,
-            TransactionCommittedDetailsRequest {
+        let response = self
+            .transaction_committed(TransactionCommittedDetailsRequest {
                 intent_hash: hash,
                 opt_ins: Some(TransactionDetailsOptIns {
                     receipt_events: Some(true),
@@ -308,11 +332,9 @@ impl RadixProvider {
                     ..Default::default()
                 }),
                 ..Default::default()
-            },
-        )
-        .await
-        .map_err(HyperlaneRadixError::from)?;
-        Ok(response.transaction)
+            })
+            .await?;
+        Ok(response)
     }
 
     /// Returns a raw radix transaction
@@ -346,15 +368,12 @@ impl RadixProvider {
         let mut txs = vec![];
 
         loop {
-            let response = gateway_api_client::apis::stream_api::stream_transactions(
-                &self.gateway_config,
-                StreamTransactionsRequest {
+            let response = self
+                .stream_txs(StreamTransactionsRequest {
                     cursor,
                     ..request.clone()
-                },
-            )
-            .await
-            .map_err(HyperlaneRadixError::from)?;
+                })
+                .await?;
 
             for item in response.items {
                 // the cursor is open end and will go up to the most recent state version
@@ -413,7 +432,7 @@ impl RadixProvider {
             .notarize(&private_key)
             .build();
 
-        self.send_raw_tx(tx.raw.to_vec()).await?;
+        self.submit_transaction(tx.raw.to_vec()).await?;
 
         let tx_hash: H512 =
             H256::from_slice(tx.transaction_hashes.transaction_intent_hash.0.as_bytes()).into();
@@ -471,19 +490,6 @@ impl RadixProvider {
         })
     }
 
-    /// Send a raw tx to the gateway to be included
-    pub async fn send_raw_tx(&self, tx: Vec<u8>) -> ChainResult<TransactionSubmitResponse> {
-        let response = gateway_api_client::apis::transaction_api::transaction_submit(
-            &self.gateway_config,
-            TransactionSubmitRequest {
-                notarized_transaction_hex: hex::encode(tx),
-            },
-        )
-        .await
-        .map_err(HyperlaneRadixError::from)?;
-        Ok(response)
-    }
-
     /// Sends a tx to the gateway
     /// NOTE: does not wait for inclusion
     pub async fn simulate_tx(
@@ -503,9 +509,8 @@ impl RadixProvider {
 
     /// Simulates a raw tx to the gateway to be included
     pub async fn simulate_raw_tx(&self, tx: Vec<u8>) -> ChainResult<TransactionReceipt> {
-        let response = gateway_api_client::apis::transaction_api::transaction_preview_v2(
-            &self.gateway_config,
-            TransactionPreviewV2Request {
+        let response = self
+            .transaction_preview(TransactionPreviewV2Request {
                 flags: Some(gateway_api_client::models::PreviewFlags {
                     use_free_credit: Some(true),
 
@@ -520,10 +525,8 @@ impl RadixProvider {
                     core_api_receipt: Some(true),
                     ..Default::default()
                 }),
-            },
-        )
-        .await
-        .map_err(HyperlaneRadixError::from)?;
+            })
+            .await?;
 
         let Some(receipt) = response.receipt else {
             return Err(HyperlaneRadixError::ParsingError("receipt".to_owned()).into());
@@ -537,12 +540,7 @@ impl RadixProvider {
     pub async fn get_tx_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse> {
         let hash: H256 = hash.into();
         let hash = encode_tx(&self.conf.network, hash)?;
-        let response = gateway_api_client::apis::transaction_api::transaction_status(
-            &self.gateway_config,
-            TransactionStatusRequest { intent_hash: hash },
-        )
-        .await
-        .map_err(HyperlaneRadixError::from)?;
+        let response = self.transaction_status(hash).await?;
         Ok(response)
     }
 }
@@ -565,19 +563,16 @@ impl HyperlaneProvider for RadixProvider {
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         // Radix doesn't have any blocks
         // we will fetch TXs at the given height instead and return the resulting information from them
-        let tx = gateway_api_client::apis::stream_api::stream_transactions(
-            &self.gateway_config,
-            StreamTransactionsRequest {
+        let tx = self
+            .stream_txs(StreamTransactionsRequest {
                 at_ledger_state: Some(Some(LedgerStateSelector {
                     state_version: Some(Some(height)),
                     ..Default::default()
                 })),
                 limit_per_page: Some(Some(1)),
                 ..Default::default()
-            },
-        )
-        .await
-        .map_err(HyperlaneRadixError::from)?;
+            })
+            .await?;
 
         if tx.items.is_empty() {
             return Err(HyperlaneRadixError::Other(format!(
@@ -652,19 +647,16 @@ impl HyperlaneProvider for RadixProvider {
 
     /// Fetch the balance of the wallet address associated with the chain provider.
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        let details = gateway_api_client::apis::state_api::state_entity_details(
-            &self.gateway_config,
-            StateEntityDetailsRequest {
+        let details = self
+            .entity_details(StateEntityDetailsRequest {
                 addresses: vec![address],
                 opt_ins: Some(models::StateEntityDetailsOptIns {
                     native_resource_details: Some(true),
                     ..Default::default()
                 }),
                 ..Default::default()
-            },
-        )
-        .await
-        .map_err(HyperlaneRadixError::from)?;
+            })
+            .await?;
 
         for d in details.items {
             if let Some(resources) = d.fungible_resources {

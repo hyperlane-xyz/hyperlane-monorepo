@@ -554,16 +554,16 @@ pub fn build_radix_connection_conf(
             None
         });
 
-    let gateway_header: HashMap<String, String> = chain
+    let gateway_header: Vec<HashMap<String, String>> = chain
         .chain(&mut local_err)
         .get_opt_key("gatewayHeader")
-        .parse_value::<HashMap<String, String>>("failed to parse gateway headers")
+        .parse_value::<Vec<HashMap<String, String>>>("failed to parse gateway headers")
         .unwrap_or_default();
 
-    let core_header: HashMap<String, String> = chain
+    let core_header: Vec<HashMap<String, String>> = chain
         .chain(&mut local_err)
         .get_opt_key("coreHeader")
-        .parse_value::<HashMap<String, String>>("failed to parse core headers")
+        .parse_value::<Vec<HashMap<String, String>>>("failed to parse core headers")
         .unwrap_or_default();
 
     if !local_err.is_ok() {
@@ -572,8 +572,8 @@ pub fn build_radix_connection_conf(
     } else {
         Some(ChainConnectionConf::Radix(
             hyperlane_radix::ConnectionConf::new(
-                rpcs[0].to_owned(),
-                gateway_urls[0].to_owned(),
+                rpcs.to_vec(),
+                gateway_urls,
                 network_name?.to_string(),
                 core_header,
                 gateway_header,
