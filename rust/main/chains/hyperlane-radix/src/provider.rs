@@ -86,12 +86,12 @@ impl RadixProvider {
             domain: locator.domain.clone(),
             signer,
             core_config: CoreConfig {
-                base_path: conf.core.to_string(),
+                base_path: conf.core.to_string().trim_end_matches('/').to_string(),
                 client: core_client,
                 ..Default::default()
             },
             gateway_config: GatewayConfig {
-                base_path: conf.gateway.to_string(),
+                base_path: conf.gateway.to_string().trim_end_matches('/').to_string(),
                 client: gateway_client,
                 ..Default::default()
             },

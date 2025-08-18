@@ -16,7 +16,7 @@ use crate::decimal_to_u256;
 
 const WARP_ROUTE_MARKER: &str = "/";
 
-/// Application operation verifier for Cosmos
+/// Application operation verifier for Radix
 #[derive(new)]
 pub struct RadixApplicationOperationVerifier {}
 

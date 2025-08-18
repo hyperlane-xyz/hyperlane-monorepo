@@ -264,7 +264,7 @@ impl BuildableWithSignerConf for hyperlane_radix::RadixSigner {
                 suffix.to_string(),
             )?)
         } else {
-            bail!(format!("{conf:?} key is not supported by cosmos"));
+            bail!(format!("{conf:?} key is not supported by radix"));
         }
     }
 }
