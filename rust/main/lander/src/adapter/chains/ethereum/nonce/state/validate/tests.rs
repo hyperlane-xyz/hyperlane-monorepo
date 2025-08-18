@@ -268,3 +268,36 @@ async fn test_validate_assigned_nonce_from_db_does_not_exist() {
 
     assert_eq!(res, (NonceAction::Assign, Some(expected_nonce)));
 }
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_validate_assigned_nonce_from_db_same_value() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let uuid = TransactionUuid::random();
+
+    let expected_nonce = U256::from(1000);
+
+    state
+        .set_tracked_tx_uuid(&expected_nonce, &uuid)
+        .await
+        .expect("Failed to store nonce and uuid");
+
+    // From address does not match manager address
+    let tx = make_tx(
+        uuid.clone(),
+        TransactionStatus::PendingInclusion,
+        Some(U256::from(1000)),
+        Some(address),
+    );
+
+    let res = state
+        .validate_assigned_nonce(&tx)
+        .await
+        .expect("Failed to validate assigned nonce");
+
+    assert_eq!(res, (NonceAction::Noop, Some(expected_nonce)));
+}
