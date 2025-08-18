@@ -15,6 +15,8 @@ pub(crate) enum NonceAction {
     Noop,
     // Assign provided nonce to tx
     Assign,
+    // Assign provided nonce to tx
+    AssignFromDb,
 }
 
 impl NonceManagerState {
@@ -23,19 +25,35 @@ impl NonceManagerState {
         &self,
         tx: &Transaction,
     ) -> NonceResult<(NonceAction, Option<U256>)> {
-        use NonceAction::{Assign, Noop};
+        use NonceAction::{Assign, AssignFromDb, Noop};
         use NonceStatus::{Committed, Freed, Taken};
 
         let tx_uuid = tx.uuid.clone();
         let tx_status = tx.status.clone();
         let tx_nonce: Option<U256> = tx.precursor().tx.nonce().map(Into::into);
 
-        let nonce = match tx_nonce {
-            Some(n) => n,
-            None => {
+        let db_nonce = self.get_tx_nonce(&tx_uuid).await?;
+        let nonce = match (db_nonce, tx_nonce) {
+            (Some(db_nonce), Some(tx_nonce)) => {
+                if db_nonce != tx_nonce {
+                    warn!(
+                        ?tx_nonce,
+                        ?db_nonce,
+                        "EVM Transaction nonce differs from nonce in db"
+                    );
+                    return Ok((AssignFromDb, Some(db_nonce)));
+                }
+                db_nonce
+            }
+            (None, Some(tx_nonce)) => tx_nonce,
+            (Some(db_nonce), None) => {
+                return Ok((AssignFromDb, Some(db_nonce)));
+            }
+            (None, None) => {
                 return Ok((Assign, None));
             }
         };
+
         let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
 
         // Fetching the tracked transaction uuid

@@ -58,7 +58,7 @@ impl NonceManager {
         &self,
         tx: &Transaction,
     ) -> eyre::Result<Option<U256>, LanderError> {
-        use NonceAction::Noop;
+        use NonceAction::{Assign, AssignFromDb, Noop};
 
         let tx_uuid = tx.uuid.clone();
         let precursor = tx.precursor();
@@ -87,6 +87,14 @@ impl NonceManager {
         if matches!(action, Noop) {
             return Ok(None);
         }
+        // Assign nonce from db
+        if let (AssignFromDb, Some(nonce)) = (action, nonce) {
+            self.state
+                .set_tracked_tx_uuid(&nonce, &tx_uuid)
+                .await
+                .map_err(|e| eyre::eyre!("Failed to set tracked tx uuid: {}", e))?;
+            return Ok(Some(nonce));
+        }
 
         let next_nonce = self
             .state
@@ -101,28 +109,6 @@ impl NonceManager {
             })?;
 
         Ok(Some(next_nonce))
-    }
-
-    pub async fn assign_nonce_from_db(&self, tx: &mut Transaction) -> NonceResult<()> {
-        let tx_uuid = tx.uuid.clone();
-
-        let db_nonce = self.state.get_tx_nonce(&tx_uuid).await?;
-        let tx_nonce: Option<U256> = tx.precursor().tx.nonce().map(Into::into);
-
-        if let Some(db_nonce) = db_nonce {
-            if let Some(tx_nonce) = tx_nonce {
-                if db_nonce != tx_nonce {
-                    warn!(
-                        ?tx_nonce,
-                        ?db_nonce,
-                        "EVM Transaction nonce differs from nonce in db"
-                    );
-                }
-            }
-            tx.precursor_mut().tx.set_nonce(db_nonce);
-        }
-
-        Ok(())
     }
 
     async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {

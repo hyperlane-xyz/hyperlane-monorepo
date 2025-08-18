@@ -576,15 +576,6 @@ impl AdaptsChain for EthereumAdapter {
         let tx_for_nonce = tx.clone();
         let tx_for_gas_price = tx.clone();
 
-        // Try and load nonce from db, if it exists
-        self.nonce_manager
-            .assign_nonce_from_db(tx)
-            .await
-            .map_err(|err| {
-                error!(?err, "Failed to assign nonce from db");
-                eyre!("Failed to assign nonce from db")
-            })?;
-
         let (nonce, gas_price) = try_join!(
             self.calculate_nonce(&tx_for_nonce),
             self.estimate_gas_price(&tx_for_gas_price)
