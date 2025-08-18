@@ -91,6 +91,17 @@ impl NonceManagerState {
 
         Ok(nonce)
     }
+
+    pub(super) async fn get_tx_nonce(
+        &self,
+        tx_uuid: &TransactionUuid,
+    ) -> NonceResult<Option<U256>> {
+        let nonce = self
+            .nonce_db
+            .retrieve_nonce_by_transaction_uuid(&tx_uuid)
+            .await?;
+        Ok(nonce)
+    }
 }
 
 #[cfg(test)]

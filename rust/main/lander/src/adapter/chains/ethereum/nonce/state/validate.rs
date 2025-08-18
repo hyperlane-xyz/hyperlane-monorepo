@@ -29,10 +29,7 @@ impl NonceManagerState {
         let tx_uuid = tx.uuid.clone();
         let tx_status = tx.status.clone();
 
-        let db_nonce = self
-            .nonce_db()
-            .retrieve_nonce_by_transaction_uuid(&tx_uuid)
-            .await?;
+        let db_nonce = self.get_tx_nonce(&&tx_uuid).await?;
 
         let tx_nonce: Option<U256> = tx.precursor().tx.nonce().map(Into::into);
 
@@ -53,17 +50,6 @@ impl NonceManagerState {
                 return Ok((Assign, None));
             }
         };
-
-        let db_tx = self
-            .nonce_db()
-            .retrieve_transaction_uuid_by_nonce_and_signer_address(&nonce, &self.address)
-            .await;
-
-        if let Ok(Some(db_tx)) = db_tx {
-            if db_tx != tx_uuid {
-                warn!(?db_tx, ?tx_uuid, "Database tx does not match provided tx");
-            }
-        }
 
         let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
 
