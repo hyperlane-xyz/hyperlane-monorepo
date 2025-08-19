@@ -8,7 +8,7 @@ use std::time::Duration;
 use crate::{KnownHyperlaneDomain, H160, H256, U256};
 
 /// Converts a hex or base58 string to an H256.
-pub fn hex_or_base56_or_bech32_to_h256(string: &str) -> Result<H256> {
+pub fn hex_or_base58_or_bech32_to_h256(string: &str) -> Result<H256> {
     let h256 = if string.starts_with("0x") {
         match string.len() {
             66 => H256::from_str(string)?,

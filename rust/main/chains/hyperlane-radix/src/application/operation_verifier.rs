@@ -86,7 +86,7 @@ mod test {
     }
 
     #[test]
-    fn test_amount_mot_too_big() {
+    fn test_amount_not_too_big() {
         let app_context = Some("H/warp-route".to_string());
         let amount = decimal_to_u256(Decimal::MAX);
 

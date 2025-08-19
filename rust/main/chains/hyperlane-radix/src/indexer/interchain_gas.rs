@@ -10,7 +10,7 @@ use hyperlane_core::{
 
 use crate::{encode_component_address, parse_gas_payment_event, ConnectionConf, RadixProvider};
 
-/// Radix Dispatch Indexer
+/// Radix Interchain Gas Indexer
 #[derive(Debug)]
 pub struct RadixInterchainGasIndexer {
     provider: RadixProvider,

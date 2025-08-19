@@ -4,35 +4,40 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-radix-engine-interface = { workspace = true }
-scrypto = { workspace = true, features = ["serde"] }
-core-api-client = { workspace = true }
-gateway-api-client = { workspace = true }
-scrypto-derive = { workspace = true }
-sbor = { workspace = true, features = ["serde"] }
-radix-common = { workspace = true }
-radix-transactions = { workspace = true }
-url = { workspace = true }
 async-trait = { workspace = true }
 bech32 = { workspace = true }
+chrono = "0.4"
+core-api-client = { workspace = true }
 crypto = { path = "../../utils/crypto" }
 derive-new = { workspace = true }
+env_logger = "0.10.0"
 futures = { workspace = true }
+gateway-api-client = { workspace = true }
 hex = { workspace = true }
 http = { workspace = true }
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-metric = { path = "../../hyperlane-metric" }
+hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
+hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 hyper = { workspace = true }
 hyper-tls = { workspace = true }
 itertools = { workspace = true }
 once_cell = { workspace = true }
+radix-common = { workspace = true }
+radix-engine-interface = { workspace = true }
+radix-transactions = { workspace = true }
+regex = { workspace = true }
+reqwest = "0.12.15"
 ripemd = { workspace = true }
+sbor = { workspace = true, features = ["serde"] }
+scrypto = { workspace = true, features = ["serde"] }
+scrypto-derive = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 sha256 = { workspace = true }
-time = { workspace = true }
 thiserror = { workspace = true }
-regex = { workspace = true }
-env_logger = "0.10.0"
+time = { workspace = true }
 tokio = { workspace = true, features = [
     "rt",
     "macros",
@@ -42,9 +47,4 @@ tokio = { workspace = true, features = [
 tokio-metrics.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
-reqwest = "0.12.15"
-chrono = "0.4"
-hyperlane-metric = { path = "../../hyperlane-metric" }
-hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
-hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
-hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
+url = { workspace = true }

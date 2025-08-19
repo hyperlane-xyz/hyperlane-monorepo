@@ -43,7 +43,7 @@ use radix_transactions::{
 };
 use reqwest::ClientBuilder;
 use scrypto::{
-    constants::{FINALIZATION_COST_UNIT_PRICE_IN_XRD, XRD},
+    constants::XRD,
     crypto::IsHash,
     data::{
         manifest::{manifest_encode, ManifestEncode},
@@ -256,8 +256,7 @@ impl RadixProvider {
                     EventEmitterIdentifier::Method(method)
                         if method.entity.entity_address == contract =>
                     {
-                        let (_, address) = bech32::decode(&method.entity.entity_address)
-                            .map_err(HyperlaneRadixError::from)?;
+                        let address = decode_bech32(&method.entity.entity_address)?;
 
                         // Pad address to 32 bytes with zeros
                         let mut padded_address = [0u8; 32];
@@ -306,12 +305,7 @@ impl RadixProvider {
         parse: fn(ProgrammaticScryptoSborValue) -> ChainResult<T>,
     ) -> ChainResult<Vec<(T, LogMeta)>> {
         let txs = self
-            .get_raw_txs(
-                *range.start() as u64,
-                *range.end() as u64,
-                Some(contract),
-                None,
-            )
+            .get_raw_txs(*range.start() as u64, *range.end() as u64, Some(contract))
             .await?;
 
         Self::filter_parsed_logs(contract, txs, parse)
@@ -347,7 +341,6 @@ impl RadixProvider {
         from_state_version: u64,
         end_state_version: u64,
         emitter: Option<&str>,
-        limit: Option<i32>,
     ) -> ChainResult<Vec<CommittedTransactionInfo>> {
         let selector = LedgerStateSelector {
             state_version: Some(Some(from_state_version)),
@@ -357,13 +350,11 @@ impl RadixProvider {
         let mut request = StreamTransactionsRequest::new();
         request.from_ledger_state = Some(Some(selector));
         request.event_global_emitters_filter = emitter.map(|emitter| vec![emitter.to_owned()]);
-        request.limit_per_page = Some(limit);
         request.order = Some(gateway_api_client::models::stream_transactions_request::Order::Asc);
         request.opt_ins = Some(TransactionDetailsOptIns {
             receipt_events: Some(true),
             ..Default::default()
         });
-        request.limit_per_page = Some(Some(50));
 
         let mut cursor = None;
         let mut txs = vec![];
@@ -419,6 +410,7 @@ impl RadixProvider {
         Ok((tx, signer, private_key))
     }
 
+    /// Returns the total Fee that was paid
     pub fn total_fee(fee_summary: FeeSummary) -> ChainResult<Decimal> {
         let execution = Decimal::try_from(fee_summary.xrd_total_execution_cost)
             .map_err(HyperlaneRadixError::from)?;

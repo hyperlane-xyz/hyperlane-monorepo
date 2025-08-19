@@ -603,7 +603,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
-                let indexer = h_radix::RaidxDeliveryIndexer::new(provider, &locator, conf)?;
+                let indexer = h_radix::RadixDeliveryIndexer::new(provider, &locator, conf)?;
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }

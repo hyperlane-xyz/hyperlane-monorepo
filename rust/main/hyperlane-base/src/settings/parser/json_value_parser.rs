@@ -3,7 +3,7 @@ use std::{fmt::Debug, str::FromStr};
 use convert_case::{Case, Casing};
 use derive_new::new;
 use eyre::{eyre, Context};
-use hyperlane_core::{config::*, utils::hex_or_base56_or_bech32_to_h256, H256, U256};
+use hyperlane_core::{config::*, utils::hex_or_base58_or_bech32_to_h256, H256, U256};
 use itertools::Itertools;
 use serde::de::{DeserializeOwned, StdError};
 use serde_json::Value;
@@ -237,8 +237,8 @@ impl<'v> ValueParser<'v> {
     /// Parse an address hash allowing for it to be represented as a hex, bech32 or base58 string.
     pub fn parse_address_hash(&self) -> ConfigResult<H256> {
         match self.val {
-            Value::String(s) => hex_or_base56_or_bech32_to_h256(s)
-                .context("Expected a valid address hash in hex or base58"),
+            Value::String(s) => hex_or_base58_or_bech32_to_h256(s)
+                .context("Expected a valid address hash in hex, base58 or bech32"),
             _ => Err(eyre!("Expected an address string, got `{:?}`", self.val)),
         }
         .into_config_result(|| self.cwp.clone())
@@ -247,8 +247,8 @@ impl<'v> ValueParser<'v> {
     /// Parse a private key allowing for it to be represented as a hex or base58 string.
     pub fn parse_private_key(&self) -> ConfigResult<H256> {
         match self.val {
-            Value::String(s) => hex_or_base56_or_bech32_to_h256(s)
-                .context("Expected a valid private key in hex or base58"),
+            Value::String(s) => hex_or_base58_or_bech32_to_h256(s)
+                .context("Expected a valid private key in hex, base58 or bech32"),
             _ => Err(eyre!("Expected a private key string")),
         }
         .into_config_result(|| self.cwp.clone())

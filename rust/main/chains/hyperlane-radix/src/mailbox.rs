@@ -1,7 +1,7 @@
-use std::{ops::Div, str::FromStr};
+use std::str::FromStr;
 
 use async_trait::async_trait;
-use core_api_client::models::{fee_summary, FeeSummary, TransactionStatus};
+use core_api_client::models::{FeeSummary, TransactionStatus};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
@@ -17,8 +17,8 @@ use scrypto::{
 };
 
 use crate::{
-    address_from_h256, address_to_h256, decimal_to_u256, encode_component_address, Bytes32,
-    ConnectionConf, HyperlaneRadixError, RadixProvider,
+    address_from_h256, address_to_h256, encode_component_address, Bytes32, ConnectionConf,
+    HyperlaneRadixError, RadixProvider,
 };
 
 // the number of simulate calls we do to get the necessary addresses
@@ -86,7 +86,7 @@ impl RadixMailbox {
                 break;
             }
 
-            // luckily there is an fixed error message if a node is not visible
+            // luckily there is a fixed error message if a node is not visible
             // we match against that error message and extract the invisible component
             let error_message = result.error_message.unwrap_or_default();
             if let Some(matched) = self.component_regex.find(&error_message) {
@@ -95,6 +95,9 @@ impl RadixMailbox {
                 {
                     visible_components.push(component_address);
                 }
+            } else {
+                // early return if the error message is caused by something else than an invisible node
+                return Ok((visible_components, fee_summary));
             }
         }
 
@@ -153,8 +156,7 @@ impl Mailbox for RadixMailbox {
 
     /// Get the recipient ism address
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let bytes = &recipient.0[2..];
-        let recipient = ComponentAddress::new_or_panic(bytes.try_into().unwrap()); // TODO: error handling
+        let recipient = address_from_h256(recipient);
 
         let default_ism: Option<ComponentAddress> = self
             .provider

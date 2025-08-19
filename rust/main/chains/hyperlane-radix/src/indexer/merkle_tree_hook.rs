@@ -13,7 +13,7 @@ use crate::{
     RadixProvider,
 };
 
-/// Radix Dispatch Indexer
+/// Radix Merkle Tree Indexer
 #[derive(Debug)]
 pub struct RadixMerkleTreeIndexer {
     provider: RadixProvider,
@@ -85,10 +85,21 @@ impl MerkleTreeHook for RadixMerkleTreeIndexer {
     }
 
     /// Gets the current leaf count of the merkle tree
-    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let state_version = self
+            .provider
+            .get_status(reorg_period)
+            .await?
+            .state_version
+            .try_into()?;
         let count: u32 = self
             .provider
-            .call_method(&self.encoded_address, "count", None, Vec::new())
+            .call_method(
+                &self.encoded_address,
+                "count",
+                Some(state_version),
+                Vec::new(),
+            )
             .await?;
         Ok(count)
     }

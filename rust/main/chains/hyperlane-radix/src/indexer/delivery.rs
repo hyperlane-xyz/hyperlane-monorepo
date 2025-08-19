@@ -10,12 +10,12 @@ use crate::{encode_component_address, parse_process_id_event, ConnectionConf, Ra
 
 /// Radix Delivery Indexer
 #[derive(Debug)]
-pub struct RaidxDeliveryIndexer {
+pub struct RadixDeliveryIndexer {
     provider: RadixProvider,
     address: String,
 }
 
-impl RaidxDeliveryIndexer {
+impl RadixDeliveryIndexer {
     /// New Deilvery indexer instance
     pub fn new(
         provider: RadixProvider,
@@ -28,7 +28,7 @@ impl RaidxDeliveryIndexer {
 }
 
 #[async_trait]
-impl Indexer<H256> for RaidxDeliveryIndexer {
+impl Indexer<H256> for RadixDeliveryIndexer {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
@@ -79,7 +79,7 @@ impl Indexer<H256> for RaidxDeliveryIndexer {
 }
 
 #[async_trait]
-impl SequenceAwareIndexer<H256> for RaidxDeliveryIndexer {
+impl SequenceAwareIndexer<H256> for RadixDeliveryIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let status = self.provider.get_status(&ReorgPeriod::None).await?;
         let sequence: u32 = self

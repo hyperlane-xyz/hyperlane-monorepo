@@ -1,5 +1,5 @@
 use hyperlane_core::{
-    utils::hex_or_base56_or_bech32_to_h256, Encode, HyperlaneMessage, H256, U256,
+    utils::hex_or_base58_or_bech32_to_h256, Encode, HyperlaneMessage, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifierReport::{
     AmountBelowMinimum, MalformedMessage,
@@ -70,7 +70,7 @@ async fn test_message_not_native_warp_route_recipient() {
     // given
     let app_context = Some("SOL/warp-route".to_string());
     let message = HyperlaneMessage {
-        recipient: hex_or_base56_or_bech32_to_h256("5dDyfdy9fannAdHEkYghgQpiPZrQPHadxBLa1WsGHPFi")
+        recipient: hex_or_base58_or_bech32_to_h256("5dDyfdy9fannAdHEkYghgQpiPZrQPHadxBLa1WsGHPFi")
             .unwrap(),
         ..Default::default()
     };
@@ -93,7 +93,7 @@ async fn test_message_is_not_token_message() {
     // given
     let app_context = Some("SOL/warp-route".to_string());
     let message = HyperlaneMessage {
-        recipient: hex_or_base56_or_bech32_to_h256("8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc")
+        recipient: hex_or_base58_or_bech32_to_h256("8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc")
             .unwrap(),
         ..Default::default()
     };
@@ -117,7 +117,7 @@ async fn test_token_recipient_exists_or_communication_error() {
     let app_context = Some("SOL/warp-route".to_string());
     let token_message = TokenMessage::new(H256::zero(), U256::one(), vec![]);
     let message = HyperlaneMessage {
-        recipient: hex_or_base56_or_bech32_to_h256("8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc")
+        recipient: hex_or_base58_or_bech32_to_h256("8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc")
             .unwrap(),
         body: encode(token_message),
         ..Default::default()
@@ -144,7 +144,7 @@ async fn test_below_minimum() {
     let minimum = U256::one() * 2;
     let token_message = TokenMessage::new(H256::zero(), amount, vec![]);
     let message = HyperlaneMessage {
-        recipient: hex_or_base56_or_bech32_to_h256("8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc")
+        recipient: hex_or_base58_or_bech32_to_h256("8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc")
             .unwrap(),
         body: encode(token_message),
         ..Default::default()
@@ -177,7 +177,7 @@ async fn test_above_minimum() {
     let minimum = U256::one();
     let token_message = TokenMessage::new(H256::zero(), amount, vec![]);
     let message = HyperlaneMessage {
-        recipient: hex_or_base56_or_bech32_to_h256("8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc")
+        recipient: hex_or_base58_or_bech32_to_h256("8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc")
             .unwrap(),
         body: encode(token_message),
         ..Default::default()

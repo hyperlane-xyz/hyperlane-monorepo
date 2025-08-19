@@ -3,7 +3,7 @@ use ethers_core::types::{BlockId, BlockNumber};
 use url::Url;
 
 use hyperlane_core::{
-    config::OpSubmissionConfig, utils::hex_or_base56_or_bech32_to_h256, ChainCommunicationError,
+    config::OpSubmissionConfig, utils::hex_or_base58_or_bech32_to_h256, ChainCommunicationError,
     ChainResult, ReorgPeriod, H256, U256,
 };
 
@@ -69,7 +69,7 @@ impl ConnectionConf {
         self.op_submission_config
             .batch_contract_address
             .unwrap_or_else(|| {
-                hex_or_base56_or_bech32_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT)
+                hex_or_base58_or_bech32_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT)
                     .expect("Invalid default batch contract address")
             })
     }

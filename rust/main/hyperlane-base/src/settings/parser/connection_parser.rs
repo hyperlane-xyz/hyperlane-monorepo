@@ -536,7 +536,7 @@ pub fn build_radix_connection_conf(
     let gateway_urls = parse_base_and_override_urls(
         chain,
         "gatewayUrls",
-        "cusotmGatewayUrls",
+        "customGatewayUrls",
         "http",
         &mut local_err,
     );
