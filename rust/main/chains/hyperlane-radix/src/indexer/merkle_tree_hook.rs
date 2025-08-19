@@ -223,6 +223,6 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for RadixMerkleTreeIndexer {
                 Vec::new(),
             )
             .await?;
-        Ok((Some(sequence), status.state_version.try_into()?)) // TODO: check u32 bounds
+        Ok((Some(sequence), status.state_version.try_into()?))
     }
 }
