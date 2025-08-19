@@ -102,11 +102,14 @@ impl RadixProvider {
                 .build()
                 .map_err(ChainCommunicationError::from_other)?;
 
-            let provider = RadixBaseCoreProvider::new(CoreConfig {
-                client,
-                base_path: url.to_string().trim_end_matches('/').to_string(),
-                ..Default::default()
-            });
+            let provider = RadixBaseCoreProvider::new(
+                CoreConfig {
+                    client,
+                    base_path: url.to_string().trim_end_matches('/').to_string(),
+                    ..Default::default()
+                },
+                conf.network.clone(),
+            );
             core_provider.push(provider);
         }
         Ok(RadixFallbackProvider::new(

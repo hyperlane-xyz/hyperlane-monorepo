@@ -1,7 +1,10 @@
 use async_trait::async_trait;
 use core_api_client::apis::configuration::Configuration as CoreConfig;
-use core_api_client::models::{TransactionCallPreviewRequest, TransactionCallPreviewResponse};
+use core_api_client::models::{
+    NetworkStatusRequest, TransactionCallPreviewRequest, TransactionCallPreviewResponse,
+};
 use derive_new::new;
+use futures::future::ok;
 use gateway_api_client::apis::configuration::Configuration as GatewayConfig;
 use gateway_api_client::models::{
     CommittedTransactionInfo, GatewayStatusResponse, StateEntityDetailsRequest,
@@ -12,6 +15,7 @@ use gateway_api_client::models::{
 };
 use hyperlane_core::rpc_clients::BlockNumberGetter;
 use hyperlane_core::ChainResult;
+use scrypto::network::NetworkDefinition;
 
 use crate::HyperlaneRadixError;
 
@@ -76,13 +80,15 @@ pub struct RadixBaseGatewayProvider {
 #[derive(new, Debug, Clone)]
 pub struct RadixBaseCoreProvider {
     core: CoreConfig,
+    network: NetworkDefinition,
 }
 
 #[async_trait]
 impl BlockNumberGetter for RadixBaseGatewayProvider {
     /// Latest block number getter
     async fn get_block_number(&self) -> ChainResult<u64> {
-        todo!()
+        let state = self.gateway_status().await?;
+        Ok(state.ledger_state.state_version as u64)
     }
 }
 
@@ -90,7 +96,15 @@ impl BlockNumberGetter for RadixBaseGatewayProvider {
 impl BlockNumberGetter for RadixBaseCoreProvider {
     /// Latest block number getter
     async fn get_block_number(&self) -> ChainResult<u64> {
-        todo!()
+        let state = core_api_client::apis::status_api::status_network_status_post(
+            &self.core,
+            NetworkStatusRequest {
+                network: self.network.logical_name.to_string(),
+            },
+        )
+        .await
+        .map_err(HyperlaneRadixError::from)?;
+        Ok(state.current_state_identifier.state_version)
     }
 }
 
