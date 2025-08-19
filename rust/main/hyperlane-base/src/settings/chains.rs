@@ -272,7 +272,7 @@ impl ChainConf {
             )
                 as Box<dyn ApplicationOperationVerifier>),
             ChainConnectionConf::Radix(_) => Ok(Box::new(
-                h_cosmos::application::CosmosApplicationOperationVerifier::new(),
+                h_radix::application::RadixApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
         };

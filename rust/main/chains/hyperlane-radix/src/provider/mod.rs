@@ -4,7 +4,6 @@ use core_api_client::models::{
     NetworkStatusRequest, TransactionCallPreviewRequest, TransactionCallPreviewResponse,
 };
 use derive_new::new;
-use futures::future::ok;
 use gateway_api_client::apis::configuration::Configuration as GatewayConfig;
 use gateway_api_client::models::{
     CommittedTransactionInfo, GatewayStatusResponse, StateEntityDetailsRequest,

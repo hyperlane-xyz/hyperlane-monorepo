@@ -5,12 +5,12 @@ use derive_new::new;
 use scrypto::math::Decimal;
 use tracing::trace;
 
-use hyperlane_core::{Decode, HyperlaneMessage, U256};
+use hyperlane_core::{Decode, HyperlaneMessage};
 use hyperlane_operation_verifier::{
     ApplicationOperationVerifier, ApplicationOperationVerifierReport,
 };
 use hyperlane_warp_route::TokenMessage;
-use ApplicationOperationVerifierReport::{MalformedMessage, ZeroAmount};
+use ApplicationOperationVerifierReport::MalformedMessage;
 
 use crate::decimal_to_u256;
 
