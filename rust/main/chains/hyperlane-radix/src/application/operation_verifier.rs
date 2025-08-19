@@ -59,10 +59,6 @@ impl RadixApplicationOperationVerifier {
             Err(_) => return Some(MalformedMessage(message.clone())),
         };
 
-        if token_message.amount() == U256::zero() {
-            return Some(ZeroAmount);
-        }
-
         if token_message.amount() > decimal_to_u256(Decimal::MAX) {
             return Some(MalformedMessage(message.clone()));
         }

@@ -508,12 +508,13 @@ impl RadixProvider {
         }?;
 
         let details = self.get_txn_by_hash(&tx_hash).await?;
+        let gas_price = details.gas_price.unwrap_or_default().try_into()?;
 
         Ok(TxOutcome {
             transaction_id: tx_hash,
             executed: status == models::TransactionStatus::CommittedSuccess,
             gas_used: details.gas_limit,
-            gas_price: details.gas_price.unwrap().try_into().unwrap(), // TODO: error handling
+            gas_price,
         })
     }
 
