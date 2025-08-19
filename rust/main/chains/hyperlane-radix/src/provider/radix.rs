@@ -216,7 +216,7 @@ impl RadixProvider {
                 .into())
             }
         };
-        state.state_version = state.state_version.saturating_sub(offset as i64 + 5);
+        state.state_version = state.state_version.saturating_sub(offset as i64);
         Ok(state)
     }
 
