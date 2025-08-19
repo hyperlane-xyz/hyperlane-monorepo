@@ -44,8 +44,8 @@ use std::{
 
 use hyperlane_core::{
     rpc_clients::FallbackProvider, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
-    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, LogMeta, ReorgPeriod,
-    TxOutcome, TxnInfo, H256, H512, U256,
+    ContractLocator, Encode, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, LogMeta,
+    ReorgPeriod, TxOutcome, TxnInfo, H256, H512, U256,
 };
 
 use crate::{
@@ -268,10 +268,12 @@ impl RadixProvider {
                         padded_address[32 - len..].copy_from_slice(&address[..len]);
                         let address: H256 = padded_address.into();
 
+                        let height = U256::from(tx.state_version).to_vec();
+
                         let meta = LogMeta {
                             address,
                             block_number: tx.state_version.try_into()?,
-                            block_hash: H256::zero(), // TODO: double check if this is okay to set to zero
+                            block_hash: H256::from_slice(&height),
                             transaction_id: hash.into(),
                             transaction_index: tx.state_version.try_into()?, // the state version is the absolute identifier for a transaction
                             log_index: event_index.into(),
@@ -614,8 +616,10 @@ impl HyperlaneProvider for RadixProvider {
             .map_err(HyperlaneRadixError::from)?;
         let timestamp = datetime.with_timezone(&Utc).timestamp() as u64;
 
+        let height_bytes = U256::from(tx.ledger_state.state_version).to_vec();
+
         Ok(BlockInfo {
-            hash: H256::zero(),
+            hash: H256::from_slice(&height_bytes),
             timestamp,
             number: height,
         })
