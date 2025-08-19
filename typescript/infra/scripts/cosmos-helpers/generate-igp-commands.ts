@@ -46,6 +46,8 @@ async function main() {
   };
   const tokenPrices = rawTokenPrices as unknown as { [key: string]: string };
 
+  const registry = await config.getRegistry(false);
+
   const tokenPriceConfigs = chains.map((chain) => {
     if (!tokenPrices[chain]) {
       throw Error(`No token price found for ${chain}`);
@@ -71,11 +73,28 @@ async function main() {
     const token_price = parseFloat(entry.token_price);
     const origin_token_price = parseFloat(tokenPrices[originChain]);
 
-    let ratio = origin_token_price / token_price;
+    const destNativeTokenDecimals = (
+      await registry.getChainMetadata(entry.name)
+    )?.nativeToken?.decimals!;
+    const originNativeTokenDecimals = (
+      await registry.getChainMetadata(originChain)
+    )?.nativeToken?.decimals!;
+
+    let ratio = token_price / origin_token_price;
+
+    let gasPriceSmallestUnit =
+      parseFloat(entry.gas_price_amount) *
+      Math.pow(10, entry.gas_price_decimals);
+    let originDestDecimalsRatio = Math.pow(
+      10,
+      originNativeTokenDecimals - destNativeTokenDecimals,
+    );
+
+    let gasPrice = gasPriceSmallestUnit * originDestDecimalsRatio;
 
     // Split scaling factor equally between price and ratio
-    ratio = Math.round(ratio * 10000);
-    const gas_price = Math.round(parseFloat(entry.gas_price_amount) * 10000);
+    ratio = Math.round(ratio * 1000);
+    const gas_price = Math.round(gasPrice * 10000000);
 
     console.log(`${entry.name}: ${entry.domain_id}`);
     console.log(
