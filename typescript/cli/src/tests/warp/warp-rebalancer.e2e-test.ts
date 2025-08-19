@@ -18,6 +18,7 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -88,6 +89,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   let tokenChain2: ERC20;
   let tokenChain3: ERC20;
+
+  const bridgeAddress = randomAddress();
 
   let warpRouteDeployConfig: WarpRouteDeployConfig;
 
@@ -196,7 +199,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               weight: '100',
               tolerance: '0',
             },
-            bridge: ethers.constants.AddressZero,
+            bridge: bridgeAddress,
             bridgeLockTime: 1,
           },
           [CHAIN_NAME_3]: {
@@ -204,7 +207,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               weight: '100',
               tolerance: '0',
             },
-            bridge: ethers.constants.AddressZero,
+            bridge: bridgeAddress,
             bridgeLockTime: 1,
           },
         },
@@ -350,6 +353,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         // Wait for the process to output the expected log.
         for await (let chunk of rebalancer.stdout) {
           chunk = typeof chunk === 'string' ? chunk : chunk.toString();
+          console.log(chunk);
           const lines = chunk.split('\n').filter(Boolean); // handle empty lines
 
           for (const line of lines) {
@@ -751,7 +755,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               weight: '75',
               tolerance: '0',
             },
-            bridge: ethers.constants.AddressZero,
+            bridge: bridgeAddress,
             bridgeLockTime: 1,
           },
           [CHAIN_NAME_3]: {
@@ -759,7 +763,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               weight: '25',
               tolerance: '0',
             },
-            bridge: ethers.constants.AddressZero,
+            bridge: bridgeAddress,
             bridgeLockTime: 1,
           },
         },
@@ -777,10 +781,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     // Allow bridge
-    await chain3CollateralContract.addBridge(
+    const tx3 = await chain3CollateralContract.addBridge(
       chain2Metadata.domainId,
-      ethers.constants.AddressZero,
+      bridgeAddress,
     );
+
+    await tx3.wait();
 
     await startRebalancerAndExpectLog('Failed to get quotes for route.');
   });
