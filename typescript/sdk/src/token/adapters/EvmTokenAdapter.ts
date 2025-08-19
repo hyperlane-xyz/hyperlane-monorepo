@@ -313,6 +313,11 @@ export class EvmHypCollateralAdapter
     });
   }
 
+  override async getBalance(address: Address): Promise<bigint> {
+    const wrappedToken = await this.getWrappedTokenAdapter();
+    return wrappedToken.getBalance(address);
+  }
+
   override getBridgedSupply(): Promise<bigint | undefined> {
     return this.getBalance(this.addresses.token);
   }
@@ -756,6 +761,13 @@ export class EvmHypNativeAdapter
   extends EvmHypCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
+  override async getBalance(address: Address): Promise<bigint> {
+    const provider = this.getProvider();
+    const balance = await provider.getBalance(address);
+
+    return BigInt(balance.toString());
+  }
+
   override async isApproveRequired(): Promise<boolean> {
     return false;
   }
