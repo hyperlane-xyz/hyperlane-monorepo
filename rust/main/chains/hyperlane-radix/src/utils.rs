@@ -1,10 +1,11 @@
 use bech32::{Bech32m, Hrp};
-use hyperlane_core::{ChainResult, H256, U256};
 use scrypto::{
     math::{Decimal, I192},
     network::NetworkDefinition,
     types::{ComponentAddress, NodeId},
 };
+
+use hyperlane_core::{ChainResult, H256, U256};
 
 use crate::HyperlaneRadixError;
 

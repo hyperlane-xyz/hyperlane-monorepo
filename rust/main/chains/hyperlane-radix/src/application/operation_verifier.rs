@@ -1,8 +1,7 @@
-use std::io::Cursor;
-
 use async_trait::async_trait;
 use derive_new::new;
 use scrypto::math::Decimal;
+use std::io::Cursor;
 use tracing::trace;
 
 use hyperlane_core::{Decode, HyperlaneMessage};

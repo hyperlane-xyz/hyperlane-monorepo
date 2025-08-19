@@ -1,6 +1,7 @@
-use hyperlane_core::{ChainResult, H256};
 use radix_transactions::signing::PrivateKey;
 use scrypto::{crypto::Ed25519PrivateKey, types::ComponentAddress};
+
+use hyperlane_core::{ChainResult, H256};
 
 use crate::{address_to_h256, encode_module_address, HyperlaneRadixError};
 

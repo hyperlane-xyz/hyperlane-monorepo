@@ -1,11 +1,12 @@
 use async_trait::async_trait;
+use radix_common::manifest_args;
+use scrypto::data::manifest::ManifestArgs;
+use scrypto::types::ComponentAddress;
+
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
-use radix_common::manifest_args;
-use scrypto::data::manifest::ManifestArgs;
-use scrypto::types::ComponentAddress;
 
 use crate::{
     address_from_h256, encode_component_address, ConnectionConf, EthAddress, RadixProvider,

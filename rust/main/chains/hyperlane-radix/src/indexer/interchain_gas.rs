@@ -1,7 +1,5 @@
-#![allow(clippy::enum_variant_names)]
-#![allow(missing_docs)]
-
 use async_trait::async_trait;
+
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,

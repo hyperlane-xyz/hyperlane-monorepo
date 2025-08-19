@@ -2,8 +2,9 @@ use bech32::{DecodeError, EncodeError};
 use chrono::ParseError;
 use core_api_client::apis::Error as CoreError;
 use gateway_api_client::apis::Error as GatewayError;
-use hyperlane_core::ChainCommunicationError;
 use scrypto::math::ParseDecimalError;
+
+use hyperlane_core::ChainCommunicationError;
 
 use crate::EventParseError;
 

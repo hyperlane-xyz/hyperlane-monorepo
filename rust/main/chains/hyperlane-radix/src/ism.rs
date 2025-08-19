@@ -1,10 +1,11 @@
 use async_trait::async_trait;
+use scrypto::{data::manifest::manifest_encode, types::ComponentAddress};
+
 use hyperlane_core::{
     ChainResult, ContractLocator, Encode, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, MultisigIsm,
     RoutingIsm, H160, H256, U256,
 };
-use scrypto::{data::manifest::manifest_encode, types::ComponentAddress};
 
 use crate::{
     address_to_h256, encode_component_address, ConnectionConf, EthAddress, HyperlaneRadixError,
