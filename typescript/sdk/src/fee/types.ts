@@ -35,8 +35,8 @@ export const onChainTypeToTokenFeeTypeMap: Record<
 export const BaseFeeConfigSchema = z.object({
   token: ZHash,
   owner: ZHash,
-  maxFee: ZBigNumberish.transform(BigInt),
-  halfAmount: ZBigNumberish.transform(BigInt),
+  maxFee: ZBigNumberish,
+  halfAmount: ZBigNumberish,
 });
 export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
 
