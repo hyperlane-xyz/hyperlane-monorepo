@@ -5,11 +5,13 @@ import {
   DeployedCoreAddressesSchema,
   EvmCoreModule,
   MultiProvider,
+  WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
+import { RebalancerConfig } from '../../../rebalancer/config/RebalancerConfig.js';
 import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
@@ -23,6 +25,7 @@ enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
   WARP_APPLY,
+  WARP_REBALANCER,
   STRATEGY,
   CORE_APPLY,
   CORE_DEPLOY,
@@ -40,10 +43,13 @@ export class MultiChainResolver implements ChainResolver {
 
   async resolveChains(argv: ChainMap<any>): Promise<ChainName[]> {
     switch (this.mode) {
+      case ChainSelectionMode.STRATEGY:
       case ChainSelectionMode.WARP_CONFIG:
         return this.resolveWarpRouteConfigChains(argv);
       case ChainSelectionMode.WARP_APPLY:
         return this.resolveWarpApplyChains(argv);
+      case ChainSelectionMode.WARP_REBALANCER:
+        return this.resolveWarpRebalancerChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
       case ChainSelectionMode.CORE_APPLY:
@@ -93,6 +99,36 @@ export class MultiChainResolver implements ChainResolver {
       'No chains found in warp route deployment config',
     );
     return argv.context.chains;
+  }
+
+  private async resolveWarpRebalancerChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    // Load rebalancer config to get the warp route ID
+    const rebalancerConfig = RebalancerConfig.load(argv.config);
+
+    // Get warp route config from registry using the warp route ID
+    const warpCoreConfig = await argv.context.registry.getWarpRoute(
+      rebalancerConfig.warpRouteId,
+    );
+    if (!warpCoreConfig) {
+      throw new Error(
+        `Warp route config for ${rebalancerConfig.warpRouteId} not found in registry`,
+      );
+    }
+
+    // Create WarpCore instance to extract chain names from tokens
+    const warpCore = WarpCore.FromConfig(
+      argv.context.multiProvider,
+      warpCoreConfig,
+    );
+
+    // Extract chain names from the tokens in the warp core
+    const chains = warpCore.tokens.map((token) => token.chainName);
+
+    assert(chains.length !== 0, 'No chains found in warp route config');
+
+    return chains;
   }
 
   private async resolveAgentChains(
@@ -268,6 +304,10 @@ export class MultiChainResolver implements ChainResolver {
   }
   static forWarpApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_APPLY);
+  }
+
+  static forWarpRebalancer(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.WARP_REBALANCER);
   }
 
   static forCoreApply(): MultiChainResolver {
