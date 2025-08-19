@@ -93,8 +93,8 @@ async function main() {
     let gasPrice = gasPriceSmallestUnit * originDestDecimalsRatio;
 
     // Split scaling factor equally between price and ratio
-    ratio = Math.round(ratio * 1000);
-    const gas_price = Math.round(gasPrice * 10000000);
+    ratio = Math.round(ratio);
+    const gas_price = Math.round(gasPrice * 1e10);
 
     console.log(`${entry.name}: ${entry.domain_id}`);
     console.log(
