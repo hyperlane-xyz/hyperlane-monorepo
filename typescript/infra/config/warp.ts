@@ -63,6 +63,7 @@ import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/con
 import { getLumiaUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getLumiaUSDCWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getMintSolanaMintWarpConfig } from './environments/mainnet3/warp/configGetters/getMintSolanaMintWarpConfig.js';
+import { getMitosisMITOWarpConfig } from './environments/mainnet3/warp/configGetters/getMitosisMITOWarpConfig.js';
 import { getParadexUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getParadexUSDCWarpConfig.js';
 import {
   getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
@@ -161,6 +162,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.TestnetCCTP]: getTestnetCCTPWarpConfig,
   [WarpRouteIds.MainnetCCTP]: getMainnetCCTPWarpConfig,
   [WarpRouteIds.LumiaUSDC]: getLumiaUSDCWarpConfig,
+  [WarpRouteIds.MitosisMITO]: getMitosisMITOWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
