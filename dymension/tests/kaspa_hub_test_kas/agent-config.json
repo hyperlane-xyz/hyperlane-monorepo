@@ -16,7 +16,7 @@
       },
       "displayName": "Dymension Hub Local",
       "gasCurrencyCoinGeckoId": "dymension",
-      "domainId": 1260813472,
+      "domainId": 587907060,
       "gasPrice": {
         "amount": "100000000000.0",
         "denom": "adym"
@@ -64,12 +64,12 @@
     "kaspatest10": {
       "protocol": "kaspa",
       "name": "kaspatest10",
-      "domainId": 80808082,
+      "domainId": 897658017,
       "interchainGasPaymaster": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "mailbox": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "validatorAnnounce": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "maxBatchSize": 100,
+      "maxBatchSize": 3,
       "maxSubmitQueueLength": 100,
       "bypassBatchSimulation": false,
       "rpcUrls": [
@@ -77,20 +77,19 @@
           "http": "https://www.google.com"
         }
       ],
-      "walletSecret": "123456qwe",
-      "kaspaRpcUrl": "localhost:17210",
+      "walletSecret": "L1cinda_14",
       "kaspaUrlsWrpc": "localhost:17210",
-      "kaspaRestUrl": "https://api-tn10.kaspa.org/",
+      "kaspaRpcUrl": "localhost:17210",
       "kaspaUrlsRest": "https://api-tn10.kaspa.org/",
       "validatorHosts": "http://localhost:9090",
-      "kaspaMinDepositSompi": 4000000000,
-      "validatorPubsKaspa": "0306d242c171c1fbdb57cb47995e941a33597ce69ba955c3f3daadf046f7b3c700",
-      "escrowAddress": "kaspatest:ppg5lszd7m8u8hxru3yux3yhhlym3xt2v6perwz4mhhml6ganfm6wee839gfc",
-      "kaspaEscrowPrivateKey": "\"cb902d5457e17d35beff81e90d15aac31841cdb8ecdb4dc36a5acd5273f8fb2f\"",
+      "validatorPubsKaspa": "03f35bf7816ee8a5db4da3e3afe232d4cc44af4a024508fa0fbf1c3d607ba63f44",
+      "escrowAddress": "kaspatest:pqfgrydxkckusrwktt5hwup4hut8ssgp2tu90aq5ngkm8qcvzug2k3acau7c0",
+      "kaspaEscrowPrivateKey": "\"2750dccfc088f8d50f5b59e6c802759587b9d010799cb3ef0534fa89ffef30fb\"",
       "kaspaMultisigThresholdHubIsm": 1,
       "kaspaMultisigThresholdEscrow": 1,
       "hubMailboxId": "0x68797065726c616e650000000000000000000000000000000000000000000000",
-      "depositLookBackMins": 3,
+      "depositLookBackMins": 120,
+      "kaspaMinDepositSompi": 1000000000,
       "validateDeposit": true,
       "validateWithdrawal": true,
       "validateWithdrawalConfirmation": true,
@@ -99,8 +98,8 @@
           "http": "http://127.0.0.1:8090"
         }
       ],
-      "hubDomain": 1260813472,
-      "kasDomain": 80808082,
+      "hubDomain": 587907060,
+      "kasDomain": 897658017,
       "hubTokenId": "0x726f757465725f61707000000000000000000000000000020000000000000000",
       "kasTokenId": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
     }

@@ -70,7 +70,6 @@ pub async fn is_safe_against_reorg_n_confs(
         .ok_or(eyre::eyre!("Accepting block blue score is missing"))?;
 
     let confirmations = virtual_blue_score - accepting_blue_score;
-    let is_final = confirmations >= required_confirmations;
 
     Ok(FinalityStatus {
         confirmations,

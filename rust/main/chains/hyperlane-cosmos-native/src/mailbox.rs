@@ -250,6 +250,12 @@ pub fn h512_to_cosmos_hash(h: H512) -> Hash {
 }
 
 mod test {
+    use tendermint::hash::Algorithm;
+    use tendermint::Hash;
+    use hyperlane_core::{
+        ChainResult, HyperlaneDomain, H256, H512,
+    };
+    
     #[test]
     fn test_hash() {
         // From cosmos hex to HL transaction ID

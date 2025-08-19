@@ -1,5 +1,5 @@
 use crate::contract_sync::cursors::Indexable;
-use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
+use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, finality::is_safe_against_reorg};
 use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
 use dym_kas_relayer::confirm::expensive_trace_transactions;
 use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
@@ -280,11 +280,7 @@ where
             // TODO: what happens if at some point no one is bridging and we have failed confirmations?
 
             // we wait for finality time before sending to hub in case there is a confirmation pending, but without consuming first to be able to detect pending confirmations in withdrawal flow
-            time::sleep(self.config.poll_interval()).await;
 
-            /*if self.provider.has_pending_confirmation() {
-                time::sleep(FINALITY_APPROX_WAIT_TIME).await;
-            }*/
             let confirmation = self.provider.get_pending_confirmation().await;
 
             match confirmation {
@@ -304,6 +300,7 @@ where
                     time::sleep(self.config.poll_interval()).await;
                 }
             }
+            time::sleep(self.config.poll_interval()).await;
         }
     }
 
@@ -457,7 +454,8 @@ where
     /// needs to satisfy
     /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
     /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
-    async fn confirm_withdrawal_on_hub(&self, fxg: ConfirmationFXG) -> Result<()> {
+    async fn confirm_withdrawal_on_hub(&self, fxg: ConfirmationFXG) -> Result<(),KaspaTxError> {
+
         let mut sigs = self
             .provider
             .validators()
