@@ -1,5 +1,6 @@
 use std::{
     ops::{Deref, RangeInclusive},
+    str::FromStr,
     time::Duration,
 };
 
@@ -42,7 +43,7 @@ use radix_transactions::{
 };
 use reqwest::ClientBuilder;
 use scrypto::{
-    constants::XRD,
+    constants::{FINALIZATION_COST_UNIT_PRICE_IN_XRD, XRD},
     crypto::IsHash,
     data::{
         manifest::{manifest_encode, ManifestEncode},
@@ -418,16 +419,43 @@ impl RadixProvider {
         Ok((tx, signer, private_key))
     }
 
+    pub fn total_fee(fee_summary: FeeSummary) -> ChainResult<Decimal> {
+        let execution = Decimal::try_from(fee_summary.xrd_total_execution_cost)
+            .map_err(HyperlaneRadixError::from)?;
+        let finaliztaion = Decimal::try_from(fee_summary.xrd_total_finalization_cost)
+            .map_err(HyperlaneRadixError::from)?;
+        let royalty = Decimal::try_from(fee_summary.xrd_total_royalty_cost)
+            .map_err(HyperlaneRadixError::from)?;
+        let storage_cost = Decimal::try_from(fee_summary.xrd_total_storage_cost)
+            .map_err(HyperlaneRadixError::from)?;
+
+        Ok(execution + finaliztaion + royalty + storage_cost)
+    }
+
     /// Sends a tx to the gateway
     /// NOTE: does not wait for inclusion
     pub async fn send_tx(
         &self,
-        build_manifest: impl FnOnce(TransactionManifestV2Builder) -> TransactionManifestV2Builder,
+        build_manifest: impl Fn(TransactionManifestV2Builder) -> TransactionManifestV2Builder,
     ) -> ChainResult<TxOutcome> {
-        let (tx, signer, private_key) = self.get_tx_builder().await?;
+        let (tx_builder, signer, private_key) = self.get_tx_builder().await?;
 
-        let tx = tx
-            .manifest_builder(|builder| build_manifest(builder.lock_fee(signer.address, 200))) // TODO: we have to simulate the tx first and then lock the fee accordingly
+        let manifest = build_manifest(ManifestBuilder::new_v2()).build();
+        let simulation = tx_builder
+            .clone()
+            .manifest(manifest)
+            .build_preview_transaction(vec![])
+            .to_raw()
+            .map_err(HyperlaneRadixError::from)?;
+
+        let simulation = self.simulate_raw_tx(simulation.to_vec()).await?;
+        let simulated_xrd = Self::total_fee(simulation.fee_summary)?
+            * Decimal::from_str("1.25").map_err(HyperlaneRadixError::from)?;
+
+        let tx = tx_builder
+            .manifest_builder(|builder| {
+                build_manifest(builder.lock_fee(signer.address, simulated_xrd))
+            })
             .sign(&private_key)
             .notarize(&private_key)
             .build();

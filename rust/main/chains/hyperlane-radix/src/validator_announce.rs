@@ -83,7 +83,7 @@ impl ValidatorAnnounce for RadixValidatorAnnounce {
                 builder.call_method(
                     self.address,
                     "announce",
-                    manifest_args!(address, location, signature),
+                    manifest_args!(address, &location, &signature),
                 )
             })
             .await

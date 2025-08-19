@@ -1,3 +1,5 @@
+use std::{ops::Div, str::FromStr};
+
 use async_trait::async_trait;
 use core_api_client::models::TransactionStatus;
 use hyperlane_core::{
@@ -15,8 +17,8 @@ use scrypto::{
 };
 
 use crate::{
-    address_from_h256, address_to_h256, encode_component_address, Bytes32, ConnectionConf,
-    HyperlaneRadixError, RadixProvider,
+    address_from_h256, address_to_h256, decimal_to_u256, encode_component_address, Bytes32,
+    ConnectionConf, HyperlaneRadixError, RadixProvider,
 };
 
 // the number of simulate calls we do to get the necessary addresses
@@ -54,6 +56,47 @@ impl RadixMailbox {
             provider,
             address_256: locator.address,
         })
+    }
+
+    async fn visible_components(
+        &self,
+        message: &[u8],
+        metadata: &[u8],
+    ) -> ChainResult<Vec<ComponentAddress>> {
+        let decoder = AddressBech32Decoder::new(&self.network);
+        let mut visible_components = Vec::new();
+
+        // in radix all addresses/node have to visible for a transaction to be valid
+        // we simulate the tx first to get the necessary addresses
+        for _ in 0..NODE_DEPTH {
+            // we need to simulate the tx multiple times to get all the necessary addresses
+            let result = self
+                .provider
+                .simulate_tx(|builder| {
+                    builder.call_method(
+                        self.address,
+                        "process",
+                        manifest_args!(&metadata, &message, visible_components.clone()),
+                    )
+                })
+                .await?;
+            if result.status == TransactionStatus::Succeeded {
+                break;
+            }
+
+            // luckily there is an fixed error message if a node is not visible
+            // we match against that error message and extract the invisible component
+            let error_message = result.error_message.unwrap_or_default();
+            if let Some(matched) = self.component_regex.find(&error_message) {
+                if let Some(component_address) =
+                    ComponentAddress::try_from_bech32(&decoder, matched.as_str())
+                {
+                    visible_components.push(component_address);
+                }
+            }
+        }
+
+        Ok(visible_components)
     }
 }
 
@@ -130,46 +173,13 @@ impl Mailbox for RadixMailbox {
     ) -> ChainResult<TxOutcome> {
         let message = message.to_vec();
         let metadata = metadata.to_vec();
-
-        let decoder = AddressBech32Decoder::new(&self.network);
-        let mut visible_components = Vec::new();
-
-        // in radix all addresses/node have to visible for a transaction to be valid
-        // we simulate the tx first to get the necessary addresses
-        for _ in 0..NODE_DEPTH {
-            // we need to simulate the tx multiple times to get all the necessary addresses
-            let result = self
-                .provider
-                .simulate_tx(|builder| {
-                    builder.call_method(
-                        self.address,
-                        "process",
-                        manifest_args!(&metadata, &message, visible_components.clone()),
-                    )
-                })
-                .await?;
-            if result.status == TransactionStatus::Succeeded {
-                break;
-            }
-
-            // luckily there is an fixed error message if a node is not visible
-            // we match against that error message and extract the invisible component
-            let error_message = result.error_message.unwrap_or_default();
-            if let Some(matched) = self.component_regex.find(&error_message) {
-                if let Some(component_address) =
-                    ComponentAddress::try_from_bech32(&decoder, matched.as_str())
-                {
-                    visible_components.push(component_address);
-                }
-            }
-        }
-
+        let visible_components = self.visible_components(&message, &metadata).await?;
         self.provider
             .send_tx(|builder| {
                 builder.call_method(
                     self.address,
                     "process",
-                    manifest_args!(metadata, message, visible_components),
+                    manifest_args!(&metadata, &message, &visible_components),
                 )
             })
             .await
@@ -178,13 +188,38 @@ impl Mailbox for RadixMailbox {
     /// Estimate transaction costs to process a message.
     async fn process_estimate_costs(
         &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        message: &HyperlaneMessage,
+        metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
+        let message = message.to_vec();
+        let metadata = metadata.to_vec();
+        let visible_components = self.visible_components(&message, &metadata).await?;
+        let simulation = self
+            .provider
+            .simulate_tx(|builder| {
+                builder.call_method(
+                    self.address,
+                    "process",
+                    manifest_args!(&metadata, &message, &visible_components),
+                )
+            })
+            .await?;
+
+        let summary = simulation.fee_summary;
+        let total_units =
+            summary.execution_cost_units_consumed + summary.finalization_cost_units_consumed;
+
+        let paid = RadixProvider::total_fee(summary)?;
+        let paid = if total_units == 0 {
+            paid
+        } else {
+            paid / total_units
+        };
+
         // TODO:
         Ok(TxCostEstimate {
-            gas_limit: U256::one(),
-            gas_price: FixedPointNumber::zero(),
+            gas_limit: total_units.into(),
+            gas_price: FixedPointNumber::from_str(&paid.to_string())?,
             l2_gas_limit: None,
         })
     }
