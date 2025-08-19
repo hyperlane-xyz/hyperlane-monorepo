@@ -34,4 +34,5 @@ dango-testing = { workspace = true }
 hyperlane-base = { path = "../../hyperlane-base" }
 # ethers = { version = "2"}
 k256 = { workspace = true }
+validator = { path = "../../agents/validator" }
 

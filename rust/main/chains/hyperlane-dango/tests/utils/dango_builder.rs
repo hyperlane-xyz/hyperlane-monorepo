@@ -62,7 +62,7 @@ impl DangoBuilder {
 
         let httpd_url = format!("http://127.0.0.1:{}", port);
 
-        let client = ClientWrapper::new(Arc::new(HttpClient::new(&httpd_url)));
+        let client = ClientWrapper::new(Arc::new(HttpClient::new(&httpd_url)?));
 
         while test_accounts.lock().unwrap().is_none() {
             tokio::time::sleep(Duration::from_millis(10)).await;

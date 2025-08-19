@@ -187,15 +187,15 @@ which = "4.3"
 ya-gcp = { version = "0.12.0", features = ["storage"] }
 
 ## dango
-grug = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
-grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
-grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
-grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "396665c" }
-dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
-dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
-dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "396665c" }
-dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
-dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "396665c" }
+grug = { git = "https://github.com/left-curve/left-curve.git", rev = "1a5760b" }
+grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "1a5760b" }
+grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "1a5760b" }
+grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "1a5760b" }
+dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "1a5760b" }
+dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "1a5760b" }
+dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "1a5760b" }
+dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "1a5760b" }
+dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "1a5760b" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"

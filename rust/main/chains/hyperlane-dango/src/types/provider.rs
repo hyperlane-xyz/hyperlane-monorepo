@@ -8,9 +8,9 @@ use {
     dango_types::{account::spot, auth::Metadata},
     futures_util::future::try_join_all,
     grug::{
-        Addr, BlockClient, BroadcastClientExt, ClientWrapper, Defined, GasOption, Hash256,
-        Inner, JsonDeExt, Message, NonEmpty, QueryClient, QueryClientExt, SearchTxClient,
-        SearchTxOutcome, Signer,
+        Addr, BlockClient, BroadcastClientExt, ClientWrapper, Defined, GasOption, Hash256, Inner,
+        JsonDeExt, Message, NonEmpty, QueryClient, QueryClientExt, SearchTxClient, SearchTxOutcome,
+        Signer,
     },
     grug_indexer_client::HttpClient,
     hyperlane_core::{
@@ -142,7 +142,7 @@ impl DangoProvider {
         domain: &HyperlaneDomain,
         signer: Option<DangoSigner>,
     ) -> DangoResult<Self> {
-        let client = HttpClient::new(config.httpd_url.as_str());
+        let client = HttpClient::new(config.httpd_url.clone())?;
 
         Ok(DangoProvider {
             domain: domain.clone(),
