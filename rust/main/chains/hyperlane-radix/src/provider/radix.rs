@@ -266,10 +266,10 @@ impl RadixProvider {
 
                         let meta = LogMeta {
                             address,
-                            block_number: tx.state_version as u64,
+                            block_number: tx.state_version.try_into()?,
                             block_hash: H256::zero(), // TODO: double check if this is okay to set to zero
                             transaction_id: hash.into(),
-                            transaction_index: tx.state_version as u64, // the state version is the absolute identifier for a transaction
+                            transaction_index: tx.state_version.try_into()?, // the state version is the absolute identifier for a transaction
                             log_index: event_index.into(),
                         };
 
@@ -306,7 +306,7 @@ impl RadixProvider {
     ) -> ChainResult<Vec<(T, LogMeta)>> {
         let txs = self
             .get_raw_txs(
-                *range.start() as u64, // TODO: this should be a range of u64
+                *range.start() as u64,
                 *range.end() as u64,
                 Some(contract),
                 None,
@@ -513,7 +513,6 @@ impl RadixProvider {
             .transaction_preview(TransactionPreviewV2Request {
                 flags: Some(gateway_api_client::models::PreviewFlags {
                     use_free_credit: Some(true),
-
                     ..Default::default()
                 }),
                 preview_transaction: gateway_api_client::models::PreviewTransaction::Compiled(

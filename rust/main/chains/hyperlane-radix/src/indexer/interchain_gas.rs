@@ -82,7 +82,8 @@ impl Indexer<InterchainGasPayment> for RadixInterchainGasIndexer {
             .provider
             .get_status(&ReorgPeriod::None)
             .await?
-            .state_version as u32)
+            .state_version
+            .try_into()?)
     }
 
     /// Fetch list of logs emitted in a transaction with the given hash.
@@ -119,6 +120,6 @@ impl SequenceAwareIndexer<InterchainGasPayment> for RadixInterchainGasIndexer {
                 Vec::new(),
             )
             .await?;
-        Ok((Some(sequence), status.state_version as u32)) // TODO: check u32 bounds
+        Ok((Some(sequence), status.state_version.try_into()?))
     }
 }

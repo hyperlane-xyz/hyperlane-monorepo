@@ -54,7 +54,8 @@ impl Indexer<HyperlaneMessage> for RadixDispatchIndexer {
             .provider
             .get_status(&ReorgPeriod::None)
             .await?
-            .state_version as u32)
+            .state_version
+            .try_into()?)
     }
 
     async fn fetch_logs_by_tx_hash(
@@ -90,6 +91,6 @@ impl SequenceAwareIndexer<HyperlaneMessage> for RadixDispatchIndexer {
                 Vec::new(),
             )
             .await?;
-        Ok((Some(sequence), status.state_version as u32)) // TODO: check u32 bounds
+        Ok((Some(sequence), status.state_version.try_into()?)) // TODO: check u32 bounds
     }
 }

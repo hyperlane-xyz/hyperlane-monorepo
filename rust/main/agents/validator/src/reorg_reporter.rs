@@ -142,7 +142,13 @@ impl LatestCheckpointReorgReporter {
                     Starknet(updated_conn)
                 })
             }
-            Radix(conn) => vec![(conn.clone().core, Radix(conn))],
+            Radix(conn) => {
+                Self::map_urls_to_connections(conn.gateway.clone(), conn, |conn, url| {
+                    let mut updated_conn = conn.clone();
+                    updated_conn.gateway = vec![url];
+                    Radix(updated_conn)
+                })
+            }
         };
 
         chain_conn_confs

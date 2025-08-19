@@ -66,7 +66,7 @@ impl MerkleTreeHook for RadixMerkleTreeIndexer {
             .call_method(
                 &self.encoded_address,
                 "tree",
-                Some(state_version as u64),
+                Some(state_version.try_into()?),
                 Vec::new(),
             )
             .await?;
@@ -80,7 +80,7 @@ impl MerkleTreeHook for RadixMerkleTreeIndexer {
 
         Ok(IncrementalMerkleAtBlock {
             tree,
-            block_height: Some(state_version as u64),
+            block_height: Some(state_version.try_into()?),
         })
     }
 
@@ -97,7 +97,12 @@ impl MerkleTreeHook for RadixMerkleTreeIndexer {
         &self,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<CheckpointAtBlock> {
-        let state_version = self.provider.get_status(reorg_period).await?.state_version as u64; // TODO: make this checked
+        let state_version = self
+            .provider
+            .get_status(reorg_period)
+            .await?
+            .state_version
+            .try_into()?;
         self.latest_checkpoint_at_block(state_version).await
     }
 
@@ -165,7 +170,8 @@ impl Indexer<MerkleTreeInsertion> for RadixMerkleTreeIndexer {
             .provider
             .get_status(&ReorgPeriod::None)
             .await?
-            .state_version as u32)
+            .state_version
+            .try_into()?)
     }
 
     async fn fetch_logs_by_tx_hash(
@@ -202,10 +208,10 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for RadixMerkleTreeIndexer {
             .call_method(
                 &self.encoded_address,
                 "count",
-                Some(status.state_version as u64),
+                Some(status.state_version.try_into()?),
                 Vec::new(),
             )
             .await?;
-        Ok((Some(sequence), status.state_version as u32)) // TODO: check u32 bounds
+        Ok((Some(sequence), status.state_version.try_into()?)) // TODO: check u32 bounds
     }
 }

@@ -8,7 +8,7 @@ use hyperlane_core::{
 
 use crate::{encode_component_address, parse_process_id_event, ConnectionConf, RadixProvider};
 
-/// Radix Dispatch Indexer
+/// Radix Delivery Indexer
 #[derive(Debug)]
 pub struct RaidxDeliveryIndexer {
     provider: RadixProvider,
@@ -54,7 +54,8 @@ impl Indexer<H256> for RaidxDeliveryIndexer {
             .provider
             .get_status(&ReorgPeriod::None)
             .await?
-            .state_version as u32)
+            .state_version
+            .try_into()?)
     }
 
     async fn fetch_logs_by_tx_hash(
@@ -90,6 +91,6 @@ impl SequenceAwareIndexer<H256> for RaidxDeliveryIndexer {
                 Vec::new(),
             )
             .await?;
-        Ok((Some(sequence), status.state_version as u32)) // TODO: check u32 bounds
+        Ok((Some(sequence), status.state_version.try_into()?))
     }
 }
