@@ -1,7 +1,7 @@
 use std::{ops::Div, str::FromStr};
 
 use async_trait::async_trait;
-use core_api_client::models::TransactionStatus;
+use core_api_client::models::{fee_summary, FeeSummary, TransactionStatus};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
@@ -62,9 +62,10 @@ impl RadixMailbox {
         &self,
         message: &[u8],
         metadata: &[u8],
-    ) -> ChainResult<Vec<ComponentAddress>> {
+    ) -> ChainResult<(Vec<ComponentAddress>, FeeSummary)> {
         let decoder = AddressBech32Decoder::new(&self.network);
         let mut visible_components = Vec::new();
+        let mut fee_summary = FeeSummary::default();
 
         // in radix all addresses/node have to visible for a transaction to be valid
         // we simulate the tx first to get the necessary addresses
@@ -80,6 +81,7 @@ impl RadixMailbox {
                     )
                 })
                 .await?;
+            fee_summary = result.fee_summary;
             if result.status == TransactionStatus::Succeeded {
                 break;
             }
@@ -96,7 +98,7 @@ impl RadixMailbox {
             }
         }
 
-        Ok(visible_components)
+        Ok((visible_components, fee_summary))
     }
 }
 
@@ -173,15 +175,19 @@ impl Mailbox for RadixMailbox {
     ) -> ChainResult<TxOutcome> {
         let message = message.to_vec();
         let metadata = metadata.to_vec();
-        let visible_components = self.visible_components(&message, &metadata).await?;
+        let (visible_components, fee_summary) =
+            self.visible_components(&message, &metadata).await?;
         self.provider
-            .send_tx(|builder| {
-                builder.call_method(
-                    self.address,
-                    "process",
-                    manifest_args!(&metadata, &message, &visible_components),
-                )
-            })
+            .send_tx(
+                |builder| {
+                    builder.call_method(
+                        self.address,
+                        "process",
+                        manifest_args!(&metadata, &message, &visible_components),
+                    )
+                },
+                Some(fee_summary),
+            )
             .await
     }
 
@@ -193,19 +199,7 @@ impl Mailbox for RadixMailbox {
     ) -> ChainResult<TxCostEstimate> {
         let message = message.to_vec();
         let metadata = metadata.to_vec();
-        let visible_components = self.visible_components(&message, &metadata).await?;
-        let simulation = self
-            .provider
-            .simulate_tx(|builder| {
-                builder.call_method(
-                    self.address,
-                    "process",
-                    manifest_args!(&metadata, &message, &visible_components),
-                )
-            })
-            .await?;
-
-        let summary = simulation.fee_summary;
+        let (_, summary) = self.visible_components(&message, &metadata).await?;
         let total_units =
             summary.execution_cost_units_consumed + summary.finalization_cost_units_consumed;
 

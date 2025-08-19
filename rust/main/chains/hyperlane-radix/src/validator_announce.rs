@@ -79,13 +79,16 @@ impl ValidatorAnnounce for RadixValidatorAnnounce {
         let location = announcement.value.storage_location;
         let signature = announcement.signature.to_vec();
         self.provider
-            .send_tx(|builder| {
-                builder.call_method(
-                    self.address,
-                    "announce",
-                    manifest_args!(address, &location, &signature),
-                )
-            })
+            .send_tx(
+                |builder| {
+                    builder.call_method(
+                        self.address,
+                        "announce",
+                        manifest_args!(address, &location, &signature),
+                    )
+                },
+                None,
+            )
             .await
     }
 

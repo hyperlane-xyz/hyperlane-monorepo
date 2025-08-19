@@ -437,6 +437,7 @@ impl RadixProvider {
     pub async fn send_tx(
         &self,
         build_manifest: impl Fn(TransactionManifestV2Builder) -> TransactionManifestV2Builder,
+        fee: Option<FeeSummary>,
     ) -> ChainResult<TxOutcome> {
         let (tx_builder, signer, private_key) = self.get_tx_builder().await?;
 
@@ -448,8 +449,11 @@ impl RadixProvider {
             .to_raw()
             .map_err(HyperlaneRadixError::from)?;
 
-        let simulation = self.simulate_raw_tx(simulation.to_vec()).await?;
-        let simulated_xrd = Self::total_fee(simulation.fee_summary)?
+        let simulation = match fee {
+            Some(summary) => summary,
+            None => self.simulate_raw_tx(simulation.to_vec()).await?.fee_summary,
+        };
+        let simulated_xrd = Self::total_fee(simulation)?
             * Decimal::from_str("1.25").map_err(HyperlaneRadixError::from)?;
 
         let tx = tx_builder
