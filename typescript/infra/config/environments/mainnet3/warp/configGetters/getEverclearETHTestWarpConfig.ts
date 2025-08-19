@@ -36,11 +36,12 @@ const feeParamsByChain: Record<
   EthEverclearChain,
   EverclearCollateralTokenConfig['everclearFeeParams']
 > = {
+  // Only valid for ARB -> OP
   arbitrum: {
-    fee: 1000000000000,
-    deadline: 1753302081,
+    fee: 250000000000000,
+    deadline: 1758184098,
     signature:
-      '0x706f864759e9315d1cc5303a8eb1b02e4e494b4bad9bf8602d5749fa5740ca9134fb2a071f891a35bb949e269f29d4972d2e424dfc2c439275ef8c5af67d82ca1b',
+      '0x0d126b17f86ee8b7b8609a6d2222053637e37fb4aab135e8f133d590c355c1a9371d7ff0214c58240d805323387d86ecdc0d3eca805f06a4c077b129765b6f3a1c',
   },
   // Dummy values for now
   base: {
@@ -48,11 +49,12 @@ const feeParamsByChain: Record<
     fee: 0,
     signature: '0x42',
   },
+  // Only valid for OP -> ARB
   optimism: {
-    fee: 1000000000000,
-    deadline: 1753306369,
+    fee: 250000000000000,
+    deadline: 1758184172,
     signature:
-      '0x3f9a555cc805205c882e5ffba911b5c8427b4537b64b271d6af15ebf0e4e8eac6b0642f6ccc465649f41e85ce92b9bd26d0b20c4582be5807b9eb4e162d828e71b',
+      '0x1515ff1f5a8a168e93a08bf1e3a2aae4599894dbbfbe185a20a2c3fff33091bb6300bbd54bd4c2455717129a683f4314f47a3f5fae3d5648afd7ed040877e2c21c',
   },
 };
 
