@@ -78,7 +78,7 @@ impl Indexer<InterchainGasPayment> for RadixInterchainGasIndexer {
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
             .provider
-            .get_status(&ReorgPeriod::None)
+            .get_status(None)
             .await?
             .state_version
             .try_into()?)
@@ -108,7 +108,7 @@ impl Indexer<InterchainGasPayment> for RadixInterchainGasIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<InterchainGasPayment> for RadixInterchainGasIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let status = self.provider.get_status(&ReorgPeriod::None).await?;
+        let status = self.provider.get_status(Some(&ReorgPeriod::None)).await?;
         let sequence: u32 = self
             .provider
             .call_method(

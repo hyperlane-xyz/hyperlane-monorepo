@@ -61,6 +61,7 @@ pub struct RadixProvider {
     signer: Option<RadixSigner>,
     conf: ConnectionConf,
     domain: HyperlaneDomain,
+    reorg: ReorgPeriod,
 }
 
 impl Deref for RadixProvider {
@@ -124,10 +125,12 @@ impl RadixProvider {
         signer: Option<RadixSigner>,
         conf: &ConnectionConf,
         locator: &ContractLocator,
+        reorg: &ReorgPeriod,
     ) -> ChainResult<RadixProvider> {
         Ok(Self {
             domain: locator.domain.clone(),
             signer,
+            reorg: reorg.clone(),
             provider: Self::build_fallback_provider(conf)?,
             conf: conf.clone(),
         })
@@ -206,10 +209,10 @@ impl RadixProvider {
     }
 
     /// Returns the latest ledger state of the chain
-    pub async fn get_status(&self, reorg: &ReorgPeriod) -> ChainResult<LedgerState> {
+    pub async fn get_status(&self, reorg: Option<&ReorgPeriod>) -> ChainResult<LedgerState> {
         let status = self.gateway_status().await?;
         let mut state = status.ledger_state;
-
+        let reorg = reorg.unwrap_or(&self.reorg);
         let offset = match reorg {
             ReorgPeriod::None => 0,
             ReorgPeriod::Blocks(blocks) => blocks.get(),
@@ -398,7 +401,7 @@ impl RadixProvider {
         let signer = self.get_signer()?;
         let private_key = signer.get_signer()?;
 
-        let epoch = self.get_status(&ReorgPeriod::None).await?.epoch as u64;
+        let epoch = self.get_status(None).await?.epoch as u64;
         let tx = TransactionBuilder::new_v2()
             .transaction_header(TransactionHeaderV2 {
                 notary_public_key: private_key.public_key(),
