@@ -35,6 +35,7 @@ import {
   addressToByteHexString,
   addressToBytes32,
   bytes32ToAddress,
+  normalizeAddress,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
@@ -385,7 +386,9 @@ export class EvmHypCollateralAdapter
   async isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean> {
     const allowedBridges = await this.collateralContract.allowedBridges(domain);
 
-    return allowedBridges.includes(bridge);
+    return allowedBridges
+      .map((bridgeAddress) => normalizeAddress(bridgeAddress))
+      .includes(normalizeAddress(bridge));
   }
 
   async getRebalanceQuotes(
