@@ -29,7 +29,10 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     super(multiProvider, chain);
   }
 
-  async deriveTokenFeeConfig(address: Address): Promise<DerivedTokenFeeConfig> {
+  async deriveTokenFeeConfig(
+    address: Address,
+    destinations?: number[],
+  ): Promise<DerivedTokenFeeConfig> {
     const tokenFee = BaseFee__factory.connect(address, this.provider);
 
     let derivedConfig: DerivedTokenFeeConfig;
@@ -45,7 +48,14 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         derivedConfig = await this.deriveRegressiveFeeConfig(address);
         break;
       case OnchainTokenFeeType.RoutingFee:
-        derivedConfig = await this.deriveRoutingFeeConfig(address);
+        assert(
+          destinations,
+          `Destinations required for ${onChainTypeToTokenFeeTypeMap[onchainFeeType]}`,
+        );
+        derivedConfig = await this.deriveRoutingFeeConfig(
+          address,
+          destinations,
+        );
         break;
       default:
         throw new Error(
@@ -94,9 +104,38 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   }
 
   private async deriveRoutingFeeConfig(
-    _address: Address,
+    address: Address,
+    destinations: number[],
   ): Promise<DerivedTokenFeeConfig> {
-    throw new Error('Not implemented');
+    const routingFee = RoutingFee__factory.connect(address, this.provider);
+    const [token, owner, maxFee, halfAmount] = await Promise.all([
+      routingFee.token(),
+      routingFee.owner(),
+      routingFee.maxFee(),
+      routingFee.halfAmount(),
+    ]);
+
+    const maxFeeBn = BigInt(maxFee.toString());
+    const halfAmountBn = BigInt(halfAmount.toString());
+
+    const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
+    await Promise.all(
+      destinations.map(async (destination) => {
+        const subFeeAddress = await routingFee.feeContracts(destination);
+        const chainName = this.multiProvider.getChainName(destination);
+        feeContracts[chainName] =
+          await this.deriveTokenFeeConfig(subFeeAddress);
+      }),
+    );
+    return {
+      type: TokenFeeType.RoutingFee,
+      maxFee: maxFeeBn,
+      halfAmount: halfAmountBn,
+      address,
+      token,
+      owner,
+      feeContracts,
+    };
   }
 
   async convertFromBps(
