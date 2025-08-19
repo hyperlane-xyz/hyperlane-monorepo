@@ -16,7 +16,7 @@ pub struct RadixDeliveryIndexer {
 }
 
 impl RadixDeliveryIndexer {
-    /// New Deilvery indexer instance
+    /// New Delivery indexer instance
     pub fn new(
         provider: RadixProvider,
         locator: &ContractLocator,

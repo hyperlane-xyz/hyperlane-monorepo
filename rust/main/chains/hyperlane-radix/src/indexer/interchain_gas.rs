@@ -20,7 +20,7 @@ pub struct RadixInterchainGasIndexer {
 }
 
 impl RadixInterchainGasIndexer {
-    /// New Deilvery indexer instance
+    /// New Interchain Gas indexer instance
     pub fn new(
         provider: RadixProvider,
         locator: &ContractLocator,
