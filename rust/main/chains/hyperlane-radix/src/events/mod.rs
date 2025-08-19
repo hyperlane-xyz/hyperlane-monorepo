@@ -49,11 +49,6 @@ impl Bytes32 {
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
-
-    /// converts to a vec
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
 }
 
 impl From<[u8; 32]> for Bytes32 {

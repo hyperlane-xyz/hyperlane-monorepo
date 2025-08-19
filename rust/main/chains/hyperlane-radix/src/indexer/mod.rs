@@ -3,4 +3,7 @@ mod dispatch;
 mod interchain_gas;
 mod merkle_tree_hook;
 
-pub use {delivery::*, dispatch::*, interchain_gas::*, merkle_tree_hook::*};
+pub use {
+    delivery::RadixDeliveryIndexer, dispatch::RadixDispatchIndexer,
+    interchain_gas::RadixInterchainGasIndexer, merkle_tree_hook::RadixMerkleTreeIndexer,
+};

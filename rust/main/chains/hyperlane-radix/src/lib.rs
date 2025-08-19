@@ -7,7 +7,8 @@ pub mod application;
 mod config;
 mod error;
 mod events;
-mod indexer;
+/// Hyperlane Radix indexer
+pub mod indexer;
 mod ism;
 mod mailbox;
 mod parse;
@@ -16,7 +17,9 @@ mod signer;
 mod utils;
 mod validator_announce;
 
+pub(crate) use {events::*, parse::*, provider::*, utils::*};
+
 pub use {
-    config::*, error::*, events::*, indexer::*, ism::*, mailbox::*, parse::*, provider::*,
-    signer::*, utils::*, validator_announce::*,
+    config::ConnectionConf, error::HyperlaneRadixError, ism::RadixIsm, mailbox::RadixMailbox,
+    provider::RadixProvider, signer::RadixSigner, validator_announce::RadixValidatorAnnounce,
 };

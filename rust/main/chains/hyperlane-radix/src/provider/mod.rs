@@ -21,7 +21,7 @@ use crate::HyperlaneRadixError;
 mod fallback;
 mod radix;
 
-pub use {fallback::*, radix::*};
+pub use {fallback::RadixFallbackProvider, radix::RadixProvider};
 
 /// Base Raidx provider
 /// defined the most basic methods the provider has to implement.

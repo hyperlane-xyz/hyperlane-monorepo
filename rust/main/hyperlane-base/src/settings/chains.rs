@@ -439,7 +439,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
-                let hook = h_radix::RadixMerkleTreeIndexer::new(provider, &locator, conf)?;
+                let hook = h_radix::indexer::RadixMerkleTreeIndexer::new(provider, &locator, conf)?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
@@ -526,7 +526,8 @@ impl ChainConf {
             }
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
-                let indexer = h_radix::RadixDispatchIndexer::new(provider, &locator, conf)?;
+                let indexer =
+                    h_radix::indexer::RadixDispatchIndexer::new(provider, &locator, conf)?;
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
@@ -603,7 +604,8 @@ impl ChainConf {
             }
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
-                let indexer = h_radix::RadixDeliveryIndexer::new(provider, &locator, conf)?;
+                let indexer =
+                    h_radix::indexer::RadixDeliveryIndexer::new(provider, &locator, conf)?;
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
@@ -664,7 +666,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(h_radix::RadixInterchainGasIndexer::new(
+                let indexer = Box::new(h_radix::indexer::RadixInterchainGasIndexer::new(
                     provider, &locator, conf,
                 )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
@@ -741,7 +743,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(h_radix::RadixInterchainGasIndexer::new(
+                let indexer = Box::new(h_radix::indexer::RadixInterchainGasIndexer::new(
                     provider, &locator, conf,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
@@ -828,7 +830,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(h_radix::RadixMerkleTreeIndexer::new(
+                let indexer = Box::new(h_radix::indexer::RadixMerkleTreeIndexer::new(
                     provider, &locator, conf,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
