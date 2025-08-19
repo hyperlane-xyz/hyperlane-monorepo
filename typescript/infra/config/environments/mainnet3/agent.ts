@@ -140,6 +140,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -276,6 +277,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -412,6 +414,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -812,7 +815,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8355592-20250812-151725',
+      tag: '5d4f60e-20250814-113115',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -832,7 +835,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '7199ade-20250808-152553',
+      tag: 'e385270-20250813-160048',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -843,7 +846,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7199ade-20250808-152553',
+      tag: 'e385270-20250813-160048',
     },
     resources: scraperResources,
   },
@@ -858,7 +861,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8355592-20250812-151725',
+      tag: '5d4f60e-20250814-113115',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
