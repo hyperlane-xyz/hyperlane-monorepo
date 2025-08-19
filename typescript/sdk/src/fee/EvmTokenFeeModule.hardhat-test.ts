@@ -1,5 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
-import { expect } from 'chai';
+import { assert, expect } from 'chai';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
@@ -10,8 +10,8 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import {
-  TokenFeeConfigInput,
-  TokenFeeConfigSchema,
+  LinearFeeConfig,
+  LinearFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
 
@@ -21,14 +21,14 @@ describe('EvmTokenFeeModule', () => {
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;
   let token: ERC20Test;
-  let config: TokenFeeConfigInput;
+  let config: LinearFeeConfig;
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const factory = new ERC20Test__factory(signer);
     token = await factory.deploy('fake', 'FAKE', '100000000000000000000', 18);
     await token.deployed();
-    config = TokenFeeConfigSchema.parse({
+    config = LinearFeeConfigSchema.parse({
       type: TokenFeeType.LinearFee,
       owner: signer.address,
       token: token.address,
@@ -58,6 +58,10 @@ describe('EvmTokenFeeModule', () => {
       },
     });
     const onchainConfig = await module.read();
+    assert(
+      onchainConfig.type === TokenFeeType.LinearFee,
+      `Must be ${TokenFeeType.LinearFee}`,
+    );
     expect(onchainConfig.bps).to.equal(10000n);
   });
 });

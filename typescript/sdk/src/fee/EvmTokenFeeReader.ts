@@ -4,11 +4,12 @@ import {
   BaseFee__factory,
   ERC20__factory,
   LinearFee__factory,
+  RoutingFee__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
@@ -16,6 +17,7 @@ import {
   OnchainTokenFeeType,
   TokenFeeConfig,
   TokenFeeType,
+  onChainTypeToTokenFeeTypeMap,
 } from './types.js';
 
 type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
@@ -69,13 +71,13 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     const bps = await this.convertToBps(maxFeeBn, halfAmountBn);
 
     return {
-      token,
-      owner,
-      address,
       type: TokenFeeType.LinearFee,
       maxFee: maxFeeBn,
       halfAmount: halfAmountBn,
+      address,
       bps,
+      token,
+      owner,
     };
   }
 
@@ -112,10 +114,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     };
   }
 
-  async convertToBps(
-    maxFee: bigint,
-    halfAmount: bigint,
-  ): Promise<BaseTokenFeeConfig['bps']> {
+  async convertToBps(maxFee: bigint, halfAmount: bigint): Promise<bigint> {
     const PRECISION = 10_000n;
     const bps = (maxFee * PRECISION) / (halfAmount * 2n);
 

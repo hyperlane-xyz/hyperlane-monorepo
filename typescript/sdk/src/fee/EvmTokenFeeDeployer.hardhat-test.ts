@@ -10,6 +10,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import {
+  LinearFeeConfig,
   RoutingFeeConfigSchema,
   TokenFeeConfig,
   TokenFeeConfigInput,
@@ -48,7 +49,7 @@ describe('EvmTokenFeeDeployer', () => {
           maxFee: MAX_FEE,
           halfAmount: HALF_AMOUNT,
           bps: 1000n,
-        },
+        } as LinearFeeConfig,
       },
       {
         title: 'should deploy ProgressiveFee with correct parameters',
@@ -56,7 +57,6 @@ describe('EvmTokenFeeDeployer', () => {
           type: TokenFeeType.ProgressiveFee,
           maxFee: MAX_FEE,
           halfAmount: HALF_AMOUNT,
-          bps: 1000n,
         },
       },
       {
@@ -65,7 +65,6 @@ describe('EvmTokenFeeDeployer', () => {
           type: TokenFeeType.RegressiveFee,
           maxFee: MAX_FEE,
           halfAmount: HALF_AMOUNT,
-          bps: 1000n,
         },
       },
     ];
