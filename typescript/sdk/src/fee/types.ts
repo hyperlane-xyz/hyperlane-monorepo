@@ -33,53 +33,38 @@ export const onChainTypeToTokenFeeTypeMap: Record<
 };
 
 export const BaseFeeConfigSchema = z.object({
-  // Use optional with transfer to allow for optional fields in the input, but required in the output
-  token: ZHash.optional().transform((v, ctx) => {
-    if (v === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'token is required',
-      });
-      return z.NEVER;
-    }
-    return v;
-  }),
-  owner: ZHash.optional().transform((v, ctx) => {
-    if (v === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'owner is required',
-      });
-      return z.NEVER;
-    }
-    return v;
-  }),
-  maxFee: ZBigNumberish.default(0n).transform(BigInt),
-  halfAmount: ZBigNumberish.default(0n).transform(BigInt),
-  bps: ZBigNumberish.default(0n).transform(BigInt),
+  token: ZHash,
+  owner: ZHash,
+  maxFee: ZBigNumberish.transform(BigInt),
+  halfAmount: ZBigNumberish.transform(BigInt),
 });
-
 export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
 
-const LinearFeeConfigSchema = z.object({
+export const LinearFeeConfigSchema = z.object({
   type: z.literal(TokenFeeType.LinearFee),
   ...BaseFeeConfigSchema.shape,
+  bps: ZBigNumberish,
 });
-
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
+
+export const LinearFeeInputConfigSchema = z.object({
+  ...LinearFeeConfigSchema.shape,
+  maxFee: ZBigNumberish.optional(),
+  halfAmount: ZBigNumberish.optional(),
+  bps: ZBigNumberish.optional(),
+});
+export type LinearFeeInputConfig = z.infer<typeof LinearFeeInputConfigSchema>;
 
 const ProgressiveFeeConfigSchema = z.object({
   type: z.literal(TokenFeeType.ProgressiveFee),
   ...BaseFeeConfigSchema.shape,
 });
-
 export type ProgressiveFeeConfig = z.infer<typeof ProgressiveFeeConfigSchema>;
 
 const RegressiveFeeConfigSchema = z.object({
   type: z.literal(TokenFeeType.RegressiveFee),
   ...BaseFeeConfigSchema.shape,
 });
-
 export type RegressiveFeeConfig = z.infer<typeof RegressiveFeeConfigSchema>;
 
 export const RoutingFeeConfigSchema = z.object({
@@ -92,7 +77,6 @@ export const RoutingFeeConfigSchema = z.object({
     .optional(), // Destination -> Fee
   ...BaseFeeConfigSchema.shape,
 });
-
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 
 export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
@@ -101,6 +85,12 @@ export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
   RegressiveFeeConfigSchema,
   RoutingFeeConfigSchema,
 ]);
-
 export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
-export type TokenFeeConfigInput = z.input<typeof TokenFeeConfigSchema>; // Used to allow optional fields (maxFee, halfAmount, bps) in the input
+
+export const TokenFeeConfigInputSchema = z.discriminatedUnion('type', [
+  LinearFeeInputConfigSchema,
+  ProgressiveFeeConfigSchema,
+  RegressiveFeeConfigSchema,
+  RoutingFeeConfigSchema,
+]);
+export type TokenFeeConfigInput = z.infer<typeof TokenFeeConfigInputSchema>;
