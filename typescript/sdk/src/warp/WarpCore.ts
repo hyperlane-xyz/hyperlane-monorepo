@@ -421,8 +421,9 @@ export class WarpCore {
     }
 
     if (isApproveRequired) {
-      const feeQuote = tokenFeeQuote?.amount;
-      const amountToApprove = amount + (feeQuote || 0n);
+      // feeQuote is required to be approved for routes that have fees set
+      const feeQuote = tokenFeeQuote?.amount ?? 0n;
+      const amountToApprove = amount + feeQuote;
       preTransferRemoteTxs.push([
         amountToApprove.toString(),
         WarpTxCategory.Approval,

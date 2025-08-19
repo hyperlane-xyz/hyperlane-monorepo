@@ -356,7 +356,7 @@ export class EvmHypCollateralAdapter
     );
   }
 
-  async getWrappedTokenAddress(): Promise<Address> {
+  protected async getWrappedTokenAddress(): Promise<Address> {
     if (!this.wrappedTokenAddress) {
       this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
     }
