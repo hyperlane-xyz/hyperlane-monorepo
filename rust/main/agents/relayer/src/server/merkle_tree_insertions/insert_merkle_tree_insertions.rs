@@ -58,7 +58,7 @@ pub async fn handler(
                             },
                         )
                     })?;
-                insertion_count += 1;
+                insertion_count = insertion_count.saturating_add(1);
             }
             None => {
                 tracing::debug!(?insertion, "No db found for chain");

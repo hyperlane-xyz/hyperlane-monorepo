@@ -142,7 +142,7 @@ impl OpQueue {
                             return;
                         }
                         // update retry metrics
-                        retry_response.matched += 1;
+                        retry_response.matched = retry_response.matched.saturating_add(1);
                         matched = true;
                     });
                 if matched {

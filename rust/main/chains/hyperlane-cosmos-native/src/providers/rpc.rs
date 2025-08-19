@@ -1,5 +1,5 @@
-use std::future::Future;
 use std::time::Instant;
+use std::{future::Future, ops::Mul};
 
 use cosmrs::{
     proto::cosmos::{
@@ -339,7 +339,8 @@ impl RpcProvider {
         let tx_body = tx::Body::new(msgs, String::default(), 0u32);
         let signer_info = SignerInfo::single_direct(Some(signer.public_key), account_info.sequence);
 
-        let amount: u128 = (FixedPointNumber::from(gas_limit) * self.gas_price())
+        let amount: u128 = FixedPointNumber::from(gas_limit)
+            .mul(self.gas_price())
             .ceil_to_integer()
             .try_into()?;
         let fee_coin = Coin::new(

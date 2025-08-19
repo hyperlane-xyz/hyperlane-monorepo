@@ -85,7 +85,7 @@ impl TransactionDb for HyperlaneRocksDB {
             .is_none()
         {
             let highest_index = self.retrieve_highest_transaction_index().await?;
-            let tx_index = highest_index + 1;
+            let tx_index = highest_index.saturating_add(1);
             self.store_highest_transaction_index(tx_index).await?;
             self.store_transaction_index_by_uuid(tx_index, &tx.uuid)
                 .await?;

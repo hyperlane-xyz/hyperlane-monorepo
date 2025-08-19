@@ -68,7 +68,7 @@ const ATTO_EXPONENT: u32 = 18;
 /// Converts `value` expressed with `decimals` into `atto` (`10^-18`) decimals.
 pub fn to_atto(value: U256, decimals: u32) -> Option<U256> {
     assert!(decimals <= ATTO_EXPONENT);
-    let exponent = ATTO_EXPONENT - decimals;
+    let exponent = ATTO_EXPONENT.saturating_sub(decimals);
     let coefficient = U256::from(10u128.pow(exponent));
     value.checked_mul(coefficient)
 }

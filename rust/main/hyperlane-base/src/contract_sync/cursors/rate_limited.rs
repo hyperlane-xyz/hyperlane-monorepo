@@ -45,7 +45,7 @@ impl SyncState {
         let (from, to) = match self.direction {
             SyncDirection::Forward => {
                 let from = self.next_block;
-                let mut to = from + self.chunk_size;
+                let mut to = from.saturating_add(self.chunk_size);
                 to = u32::min(to, tip);
                 (from, to)
             }
@@ -61,7 +61,7 @@ impl SyncState {
     fn update_range(&mut self, range: RangeInclusive<u32>) {
         match self.direction {
             SyncDirection::Forward => {
-                self.next_block = *range.end() + 1;
+                self.next_block = range.end().saturating_add(1);
             }
             SyncDirection::Backward => {
                 self.next_block = range.start().saturating_sub(1);
@@ -146,7 +146,12 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
     /// Wait based on how close we are to the tip and update the tip,
     /// i.e. the highest block we may scrape.
     async fn get_rate_limit(&self) -> Result<Option<Duration>> {
-        if self.sync_state.next_block + self.sync_state.chunk_size < self.tip {
+        if self
+            .sync_state
+            .next_block
+            .saturating_add(self.sync_state.chunk_size)
+            < self.tip
+        {
             // If doing the full chunk wouldn't exceed the already known tip we do not need to rate limit.
             return Ok(None);
         }
@@ -180,7 +185,10 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
 
     fn sync_eta(&mut self) -> Duration {
         let sync_end = self.sync_end();
-        let to = u32::min(sync_end, self.sync_position() + self.sync_step());
+        let to = u32::min(
+            sync_end,
+            self.sync_position().saturating_add(self.sync_step()),
+        );
         let from = self.sync_position();
         if to < sync_end {
             self.eta_calculator.calculate(from, sync_end)

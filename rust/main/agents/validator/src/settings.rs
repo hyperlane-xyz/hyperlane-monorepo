@@ -4,7 +4,7 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, path::PathBuf, time::Duration};
+use std::{collections::HashSet, ops::Add, path::PathBuf, time::Duration};
 
 use aws_config::Region;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
@@ -108,7 +108,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         {
             base.lookup_domain(origin_chain_name)
                 .context("Missing configuration for the origin chain")
-                .take_err(&mut err, || cwp + "origin_chain_name")
+                .take_err(&mut err, || cwp.add("origin_chain_name"))
         } else {
             None
         };
@@ -334,9 +334,8 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 user_secrets,
             })
         }
-        Some(_) => {
-            Err(eyre!("Unknown checkpoint syncer type")).into_config_result(|| &syncer.cwp + "type")
-        }
+        Some(_) => Err(eyre!("Unknown checkpoint syncer type"))
+            .into_config_result(|| (&syncer.cwp).add("type")),
         None => Err(err),
     }
 }

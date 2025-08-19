@@ -138,7 +138,7 @@ impl MultisigCheckpointSyncer {
         // the highest index for which we (supposedly) have (n+1) signed checkpoints
         latest_indices.sort_by(|a, b| b.1.cmp(&a.1));
 
-        if let Some(&(_, highest_quorum_index)) = latest_indices.get(threshold - 1) {
+        if let Some(&(_, highest_quorum_index)) = latest_indices.get(threshold.saturating_sub(1)) {
             // The highest viable checkpoint index is the minimum of the highest index
             // we (supposedly) have a quorum for, and the maximum index for which we can
             // generate a proof.

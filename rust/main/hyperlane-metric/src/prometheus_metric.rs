@@ -113,7 +113,7 @@ impl PrometheusClientMetrics {
         if let Some(counter) = &self.request_duration_seconds {
             counter
                 .with(&labels)
-                .inc_by((Instant::now() - start).as_secs_f64())
+                .inc_by((Instant::now().saturating_duration_since(start)).as_secs_f64())
         };
     }
 }

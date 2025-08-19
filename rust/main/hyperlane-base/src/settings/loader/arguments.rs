@@ -142,7 +142,7 @@ impl Iterator for ArgumentParser {
                 self.0.remove(idx);
             }
             PairKind::TwoArguments => {
-                self.0.remove(idx + 1);
+                self.0.remove(idx.saturating_add(1));
                 self.0.remove(idx);
             }
         }
@@ -172,13 +172,13 @@ impl ArgumentParser {
                     // A closing quote must be the same as an opening one.
                     return Err(Error::UnmatchedQuote(key));
                 }
-                &value[1..value.len() - 1]
+                &value[1..value.len().saturating_sub(1)]
             } else if starts_with(value, b'\'') {
                 if !ends_with(value, b'\'') {
                     // A closing quote must be the same as an opening one.
                     return Err(Error::UnmatchedQuote(key));
                 }
-                &value[1..value.len() - 1]
+                &value[1..value.len().saturating_sub(1)]
             } else {
                 value
             };
@@ -189,7 +189,7 @@ impl ArgumentParser {
             let key = term.to_owned();
             let value = self
                 .0
-                .get(idx + 1)
+                .get(idx.saturating_add(1))
                 .map(|v| os_to_str(v))
                 .transpose()?
                 .unwrap_or("");
@@ -229,11 +229,11 @@ fn starts_with(text: &str, c: u8) -> bool {
 
 #[inline]
 fn ends_with(text: &str, c: u8) -> bool {
-    if text.is_empty() {
-        false
-    } else {
-        text.as_bytes()[text.len() - 1] == c
-    }
+    text.as_bytes()
+        .iter()
+        .last()
+        .map(|v| *v == c)
+        .unwrap_or(false)
 }
 
 #[inline]
