@@ -148,11 +148,11 @@ impl KaspaProvider {
     }
 
     /// Get the Kaspa deposit configuration if available
-    pub fn kaspa_deposit_config(&self) -> Option<crate::conf::KaspaDepositConfig> {
+    pub fn kaspa_time_config(&self) -> Option<crate::conf::KaspaTimeConfig> {
         self.conf
             .relayer_stuff
             .as_ref()
-            .map(|r| r.kaspa_deposit_config.clone())
+            .map(|r| r.kaspa_time_config.clone())
     }
 
     /// dococo

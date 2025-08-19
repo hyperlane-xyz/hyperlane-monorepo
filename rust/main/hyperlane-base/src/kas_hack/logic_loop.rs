@@ -24,7 +24,7 @@ use super::{
     deposit_operation::{DepositOpQueue, DepositOperation},
     error::KaspaDepositError,
 };
-use dymension_kaspa::conf::KaspaDepositConfig;
+use dymension_kaspa::conf::KaspaTimeConfig;
 
 pub struct Foo<C: MetadataConstructor> {
     provider: Box<KaspaProvider>,
@@ -32,7 +32,7 @@ pub struct Foo<C: MetadataConstructor> {
     metadata_constructor: C,
     deposit_cache: DepositCache,
     deposit_queue: Mutex<DepositOpQueue>,
-    config: KaspaDepositConfig,
+    config: KaspaTimeConfig,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -46,8 +46,8 @@ where
     ) -> Self {
         // Get config from provider, or use defaults if not available
         let config = provider
-            .kaspa_deposit_config()
-            .unwrap_or_else(KaspaDepositConfig::default);
+            .kaspa_time_config()
+            .unwrap_or_else(KaspaTimeConfig::default);
         Self {
             provider,
             hub_mailbox,
@@ -131,7 +131,7 @@ where
                 deposit_count = deposits.len(),
                 "Dymension, queried kaspa deposits"
             );
-            time::sleep(Duration::from_secs(1)).await;
+            time::sleep(self.config.poll_interval()).await;
             self.handle_new_deposits(deposits).await;
         }
     }
@@ -280,9 +280,11 @@ where
             // TODO: what happens if at some point no one is bridging and we have failed confirmations?
 
             // we wait for finality time before sending to hub in case there is a confirmation pending, but without consuming first to be able to detect pending confirmations in withdrawal flow
-            if self.provider.has_pending_confirmation() {
+            time::sleep(self.config.poll_interval()).await;
+
+            /*if self.provider.has_pending_confirmation() {
                 time::sleep(FINALITY_APPROX_WAIT_TIME).await;
-            }
+            }*/
             let confirmation = self.provider.get_pending_confirmation().await;
 
             match confirmation {

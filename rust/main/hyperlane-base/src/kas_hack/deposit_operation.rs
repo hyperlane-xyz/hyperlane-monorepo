@@ -1,4 +1,4 @@
-use dymension_kaspa::{conf::KaspaDepositConfig, Deposit};
+use dymension_kaspa::{conf::KaspaTimeConfig, Deposit};
 use std::time::{Duration, Instant};
 use tracing::{debug, info};
 
@@ -27,7 +27,7 @@ impl DepositOperation {
         }
     }
 
-    pub fn mark_failed(&mut self, config: &KaspaDepositConfig) {
+    pub fn mark_failed(&mut self, config: &KaspaTimeConfig) {
         self.retry_count += 1;
         // Exponential backoff with configurable base
         let delay_secs = config.base_retry_delay_secs * (1 << (self.retry_count - 1).min(5));

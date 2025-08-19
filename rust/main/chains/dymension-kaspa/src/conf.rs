@@ -53,30 +53,27 @@ pub struct ValidatorStuff {
 pub struct RelayerStuff {
     pub validator_hosts: Vec<String>,
     pub deposit_look_back_mins: Option<u64>,
-    pub kaspa_deposit_config: KaspaDepositConfig,
+    pub kaspa_time_config: KaspaTimeConfig,
 }
 
 #[derive(Debug, Clone)]
-pub struct KaspaDepositConfig {
-    /// Number of blue score confirmations required for finality
-    pub finality_confirmations: u32,
+pub struct KaspaTimeConfig {
     /// Base retry delay in seconds (used for exponential backoff)
     pub base_retry_delay_secs: u64,
     /// Polling interval for checking new deposits
     pub poll_interval_secs: u64,
 }
 
-impl Default for KaspaDepositConfig {
+impl Default for KaspaTimeConfig {
     fn default() -> Self {
         Self {
-            finality_confirmations: 1000,
             base_retry_delay_secs: 30,
-            poll_interval_secs: 10,
+            poll_interval_secs: 5,
         }
     }
 }
 
-impl KaspaDepositConfig {
+impl KaspaTimeConfig {
     pub fn poll_interval(&self) -> std::time::Duration {
         std::time::Duration::from_secs(self.poll_interval_secs)
     }
@@ -122,7 +119,7 @@ impl ConnectionConf {
         op_submission_config: OpSubmissionConfig,
         validation_conf: ValidationConf,
         min_deposit_sompi: U256,
-        kaspa_deposit_config: Option<KaspaDepositConfig>,
+        kaspa_time_config: Option<KaspaTimeConfig>,
 
         // we could query these two instead
         hub_domain: u32,
@@ -155,7 +152,7 @@ impl ConnectionConf {
             _ => Some(RelayerStuff {
                 deposit_look_back_mins,
                 validator_hosts,
-                kaspa_deposit_config: kaspa_deposit_config.unwrap_or_default(),
+                kaspa_time_config: kaspa_time_config.unwrap_or_default(),
             }),
         };
 
