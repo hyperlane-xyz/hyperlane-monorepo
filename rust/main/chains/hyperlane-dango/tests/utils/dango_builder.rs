@@ -1,18 +1,20 @@
-use std::{
-    net::TcpListener,
-    sync::{Arc, Mutex},
-    time::Duration,
+use {
+    crate::utils::dango_helper::ChainHelper,
+    dango_genesis::HyperlaneOption,
+    dango_mock_httpd::{GenesisOption, Preset, TestOption},
+    grug::{BlockCreation, ClientWrapper},
+    grug_indexer_client::HttpClient,
+    std::{
+        net::TcpListener,
+        sync::{Arc, Mutex},
+        time::Duration,
+    },
 };
-
-use dango_mock_httpd::{GenesisOption, Preset, TestOption};
-use grug::ClientWrapper;
-use grug_indexer_client::HttpClient;
-
-use crate::utils::dango_helper::ChainHelper;
 
 pub struct DangoBuilder {
     chain_id: String,
     hyperlane_domain: u32,
+    block_creation: BlockCreation,
 }
 
 impl DangoBuilder {
@@ -20,7 +22,13 @@ impl DangoBuilder {
         Self {
             chain_id: chain_id.to_string(),
             hyperlane_domain,
+            block_creation: BlockCreation::Timed,
         }
+    }
+
+    pub fn with_block_creation(mut self, block_creation: BlockCreation) -> Self {
+        self.block_creation = block_creation;
+        self
     }
 
     pub async fn run(self) -> anyhow::Result<ChainHelper> {
@@ -42,13 +50,19 @@ impl DangoBuilder {
             rt.block_on(async move {
                 dango_mock_httpd::run_with_callback(
                     port,
-                    grug::BlockCreation::OnBroadcast,
+                    self.block_creation,
                     None,
                     TestOption {
                         chain_id: self.chain_id,
                         ..Preset::preset_test()
                     },
-                    GenesisOption::preset_test(),
+                    GenesisOption {
+                        hyperlane: HyperlaneOption {
+                            local_domain: self.hyperlane_domain,
+                            ..Preset::preset_test()
+                        },
+                        ..Preset::preset_test()
+                    },
                     true,
                     None,
                     |accounts, _, _, _| {

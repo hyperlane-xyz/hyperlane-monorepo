@@ -8,7 +8,7 @@ use {
         collections::{BTreeMap, BTreeSet},
         fs,
         path::PathBuf,
-        process::{Child, Command, Stdio},
+        process::{Child, Command},
         vec,
     },
 };
@@ -24,7 +24,6 @@ pub struct AgentBuilder<'a> {
     validator_signer: Option<ValidatorSigner>,
     relay_chains: Option<RelayChains<'a>>,
     metrics_port: Option<MetricsPort>,
-    piped: bool,
     db: Option<Db>,
     chain_helpers: BTreeMap<&'a str, &'a ChainHelper>,
 }
@@ -71,11 +70,6 @@ impl<'a> AgentBuilder<'a> {
         self
     }
 
-    pub fn piped(mut self, piped: bool) -> Self {
-        self.piped = piped;
-        self
-    }
-
     pub fn with_chain_signer<S>(mut self, chain: &'a str, signer: S) -> Self
     where
         S: IntoSignerConf,
@@ -101,12 +95,6 @@ impl<'a> AgentBuilder<'a> {
 
     pub fn launch(self) -> Child {
         let path = format!("./target/debug/{}", self.agent.args().first().unwrap());
-
-        let (stdout, stderr) = if self.piped {
-            (Stdio::piped(), Stdio::piped())
-        } else {
-            (Stdio::null(), Stdio::null())
-        };
 
         let mut db_args = self.db.args();
 
@@ -146,8 +134,6 @@ impl<'a> AgentBuilder<'a> {
             .args(self.metrics_port.args())
             .args(db_args)
             .current_dir(workspace())
-            // .stdout(stdout)
-            // .stderr(stderr)
             .spawn()
             .unwrap()
     }

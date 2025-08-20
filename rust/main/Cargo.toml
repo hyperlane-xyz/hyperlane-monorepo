@@ -196,6 +196,7 @@ dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "1a
 dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "1a5760b" }
 dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "1a5760b" }
 dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "1a5760b" }
+dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "1a5760b" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"

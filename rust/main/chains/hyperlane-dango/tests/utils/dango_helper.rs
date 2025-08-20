@@ -1,18 +1,16 @@
 use {
     async_trait::async_trait,
-    dango_client::SingleSigner,
     dango_testing::{TestAccount, TestAccounts},
-    dango_types::{auth::Nonce, config::AppConfig, gateway},
+    dango_types::{
+        config::AppConfig,
+        gateway::{self, Remote},
+    },
     grug::{
-        Addr, BroadcastClientExt, ClientWrapper, Coin, Defined, GasOption, HexByteArray, Message,
-        QueryClientExt, SearchTxClient, SearchTxOutcome, Signer,
+        btree_set, Addr, BroadcastClientExt, ClientWrapper, Coin, Coins, GasOption, HexByteArray,
+        Message, Part, QueryClientExt, SearchTxClient, SearchTxOutcome, Signer,
     },
     hyperlane_base::settings::SignerConf,
-    std::{
-        collections::BTreeMap,
-        ops::{Deref, DerefMut, Index, IndexMut},
-        time::Duration,
-    },
+    std::time::Duration,
     tokio::time::sleep,
 };
 
@@ -77,40 +75,39 @@ impl ChainHelper {
             )
             .await
     }
-}
-pub struct Accounts(BTreeMap<String, SingleSigner<Defined<Nonce>>>);
 
-impl Deref for Accounts {
-    type Target = BTreeMap<String, SingleSigner<Defined<Nonce>>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Accounts {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl<S> Index<S> for Accounts
-where
-    S: AsRef<str>,
-{
-    type Output = SingleSigner<Defined<Nonce>>;
-
-    fn index(&self, index: S) -> &Self::Output {
-        self.get(index.as_ref()).expect("account not found")
-    }
-}
-
-impl<S> IndexMut<S> for Accounts
-where
-    S: AsRef<str>,
-{
-    fn index_mut(&mut self, index: S) -> &mut Self::Output {
-        self.get_mut(index.as_ref()).expect("account not found")
+    pub async fn set_route<P>(
+        &mut self,
+        part: P,
+        remote_warp: Addr,
+        remote_domain: u32,
+    ) -> anyhow::Result<SearchTxOutcome>
+    where
+        P: TryInto<Part>,
+        P::Error: std::error::Error + Send + Sync + 'static,
+    {
+        let part: Part = part.try_into()?;
+        self.client
+            .broadcast_and_find(
+                &mut self.accounts.owner,
+                Message::execute(
+                    self.cfg.addresses.gateway,
+                    &gateway::ExecuteMsg::SetRoutes(btree_set!((
+                        part,
+                        self.cfg.addresses.warp,
+                        Remote::Warp {
+                            domain: remote_domain,
+                            contract: remote_warp.into()
+                        }
+                    ))),
+                    Coins::default(),
+                )?,
+                GasOption::Predefined {
+                    gas_limit: 10_000_000,
+                },
+                &self.chain_id,
+            )
+            .await
     }
 }
 

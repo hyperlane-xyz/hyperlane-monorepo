@@ -32,7 +32,5 @@ tracing = { workspace = true }
 dango-mock-httpd = { workspace = true }
 dango-testing = { workspace = true }
 hyperlane-base = { path = "../../hyperlane-base" }
-# ethers = { version = "2"}
 k256 = { workspace = true }
-validator = { path = "../../agents/validator" }
-
+dango-genesis = { workspace = true }

@@ -8638,6 +8638,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "dango-client",
+ "dango-genesis",
  "dango-mock-httpd",
  "dango-testing",
  "dango-types",
@@ -8658,7 +8659,6 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "validator",
 ]
 
 [[package]]
