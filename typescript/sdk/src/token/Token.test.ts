@@ -270,6 +270,11 @@ describe('Token', () => {
         balanceOf: async () => '100',
       };
 
+      // @ts-ignore
+      adapter.getWrappedTokenAdapter = () => ({
+        getBalance: async () => 100n,
+      });
+
       const balance = await adapter.getBalance(balanceCheckAddress);
       expect(typeof balance).to.eql('bigint');
       sandbox.restore();
