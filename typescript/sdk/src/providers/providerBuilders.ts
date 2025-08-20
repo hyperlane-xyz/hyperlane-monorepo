@@ -7,6 +7,7 @@ import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
 
 import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
@@ -17,6 +18,7 @@ import {
   CosmJsWasmProvider,
   EthersV5Provider,
   ProviderType,
+  RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
   TypedProvider,
@@ -145,6 +147,16 @@ export function defaultZKSyncProviderBuilder(
   return { type: ProviderType.ZkSync, provider };
 }
 
+export function defaultRadixProviderBuilder(
+  _rpcUrls: RpcUrl[],
+  network: string | number,
+): RadixProvider {
+  const provider = new RadixSDK({
+    networkId: +network,
+  });
+  return { provider, type: ProviderType.Radix };
+}
+
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
@@ -174,6 +186,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.CosmJsNative]: defaultCosmJsNativeProviderBuilder,
   [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
+  [ProviderType.Radix]: defaultRadixProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -185,4 +198,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
   [ProtocolType.CosmosNative]: defaultCosmJsNativeProviderBuilder,
   [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
+  [ProtocolType.Radix]: defaultRadixProviderBuilder,
 };

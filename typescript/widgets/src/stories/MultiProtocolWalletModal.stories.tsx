@@ -15,7 +15,7 @@ import { sepolia } from '@starknet-react/chains';
 import { StarknetConfig, publicProvider } from '@starknet-react/core';
 import { Meta, StoryObj } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React, { PropsWithChildren, useState } from 'react';
+import { PropsWithChildren, useState } from 'react';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 
 import { cosmoshub, ethereum, solanamainnet } from '@hyperlane-xyz/registry';
