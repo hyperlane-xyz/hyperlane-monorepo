@@ -58,7 +58,7 @@ impl AggregationIsmMetadataBuilder {
         }
         let range_tuples_size = METADATA_RANGE_SIZE
             .saturating_mul(2)
-            .saturating_sub(ism_count);
+            .saturating_mul(ism_count);
         //  Format of metadata:
         //  [????:????] Metadata start/end uint32 ranges, packed as uint64
         //  [????:????] ISM metadata, packed encoding

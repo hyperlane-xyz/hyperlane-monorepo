@@ -884,7 +884,7 @@ async fn confirm_lander_task(
                 let status_results_len = status_results.len();
                 let successes = filter_status_results(status_results);
 
-                if status_results_len.saturating_sub(successes.len()) > 0 {
+                if status_results_len > successes.len() {
                     warn!(?op, "Error retrieving payload status",);
                     send_back_on_failed_submission(
                         op,
