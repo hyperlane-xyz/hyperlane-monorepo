@@ -214,7 +214,7 @@ impl SealevelProviderForLander for SealevelProvider {
         let simulation_compute_units = MAX_COMPUTE_UNITS.min(
             simulation_compute_units
                 .saturating_mul(COMPUTE_UNIT_MULTIPLIER_NUMERATOR)
-                .wrapping_div(COMPUTE_UNIT_MULTIPLIER_DENOMINATOR),
+                .saturating_div(COMPUTE_UNIT_MULTIPLIER_DENOMINATOR),
         );
 
         let mut priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
@@ -239,7 +239,7 @@ impl SealevelProviderForLander for SealevelProvider {
         // Bump the priority fee to be conservative
         let priority_fee = priority_fee
             .saturating_mul(priority_fee_numerator)
-            .wrapping_div(PRIORITY_FEE_MULTIPLIER_DENOMINATOR);
+            .saturating_div(PRIORITY_FEE_MULTIPLIER_DENOMINATOR);
 
         Ok(SealevelTxCostEstimate {
             compute_units: simulation_compute_units,
@@ -562,7 +562,7 @@ impl HyperlaneProvider for SealevelProvider {
             warn!(tx_hash = ?hash, ?fee, ?gas_used, "calculated fee is less than gas used. it will result in zero gas price");
         }
 
-        let gas_price = Some(fee.div_mod(gas_used).0);
+        let gas_price = fee.checked_div(gas_used);
 
         let receipt = TxnReceiptInfo {
             gas_used,

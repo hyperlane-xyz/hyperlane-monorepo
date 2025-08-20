@@ -49,7 +49,7 @@ pub async fn fetch_merkle_tree_insertions(
             .saturating_add(1)
             .saturating_sub(leaf_index_start) as usize,
     );
-    for leaf_index in leaf_index_start..leaf_index_end.saturating_add(1) {
+    for leaf_index in leaf_index_start..=leaf_index_end {
         let block_number_res = db
             .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&leaf_index)
             .map_err(|err| {

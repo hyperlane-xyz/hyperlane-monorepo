@@ -1,3 +1,4 @@
+use std::ops::Rem;
 use std::time::Duration;
 
 use cainome::cairo_serde::CairoSerde;
@@ -247,9 +248,7 @@ message_converter!(routing_ism::Message);
 /// Convert a byte slice to a starknet bytes by padding the bytes to 16 bytes chunks
 pub fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {
     // Calculate the required padding
-    let padding = 16usize
-        .saturating_sub(bytes.len().wrapping_rem(16))
-        .wrapping_rem(16);
+    let padding = 16usize.saturating_sub(bytes.len().rem(16)).rem(16);
     let total_len = bytes.len().saturating_add(padding);
 
     // Create a new byte vector with the necessary padding

@@ -94,7 +94,7 @@ where
             let mut rate_limited = false;
             let backoff_ms = self
                 .base_retry_ms
-                .saturating_mul(2u64.pow(i.saturating_sub(1)));
+                .saturating_mul(2u64.saturating_pow(i.saturating_sub(1)));
             if let Some(ref last_err) = last_err {
                 // `last_err` is always expected to be `Some` if `i > 1`
                 warn!(attempt = i, ?last_err, "Dispatching request");

@@ -172,13 +172,13 @@ impl ArgumentParser {
                     // A closing quote must be the same as an opening one.
                     return Err(Error::UnmatchedQuote(key));
                 }
-                &value[1..value.len().saturating_sub(1)]
+                &value[1..]
             } else if starts_with(value, b'\'') {
                 if !ends_with(value, b'\'') {
                     // A closing quote must be the same as an opening one.
                     return Err(Error::UnmatchedQuote(key));
                 }
-                &value[1..value.len().saturating_sub(1)]
+                &value[1..]
             } else {
                 value
             };
