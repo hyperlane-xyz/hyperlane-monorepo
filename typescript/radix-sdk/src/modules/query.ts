@@ -10,8 +10,8 @@ import {
   TransactionManifest,
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
-import BigNumber from 'bignumber.js';
-import { randomBytes } from 'crypto';
+import { BigNumber } from 'bignumber.js';
+import { utils } from 'ethers';
 
 import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
@@ -41,7 +41,7 @@ export class RadixQuery {
   }: {
     transactionManifest: TransactionManifest;
   }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
-    const pk = new PrivateKey.Ed25519(new Uint8Array(randomBytes(32)));
+    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
 
@@ -220,7 +220,7 @@ export class RadixQuery {
           await this.gateway.transaction.innerClient.transactionStatus({
             transactionStatusRequest: { intent_hash: intentHashTransactionId },
           });
-      } catch (err) {
+      } catch {
         await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
         continue;
       }
@@ -708,7 +708,7 @@ export class RadixQuery {
     token: string;
     destination_domain: number;
   }): Promise<{ resource: string; amount: bigint }> {
-    const pk = new PrivateKey.Ed25519(new Uint8Array(randomBytes(32)));
+    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
 
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();

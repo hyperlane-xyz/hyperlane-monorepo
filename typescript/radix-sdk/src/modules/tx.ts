@@ -69,7 +69,7 @@ export class RadixTx {
     const intentHashTransactionId =
       await this.signAndBroadcast(transactionManifest);
 
-    return await this.getNewComponent(intentHashTransactionId);
+    return this.getNewComponent(intentHashTransactionId);
   }
 
   public async createMerkleTreeHook({ mailbox }: { mailbox: string }) {
@@ -81,7 +81,7 @@ export class RadixTx {
     const intentHashTransactionId =
       await this.signAndBroadcast(transactionManifest);
 
-    return await this.getNewComponent(intentHashTransactionId);
+    return this.getNewComponent(intentHashTransactionId);
   }
 
   public async createMerkleRootMultisigIsm({
@@ -100,7 +100,7 @@ export class RadixTx {
     const intentHashTransactionId =
       await this.signAndBroadcast(transactionManifest);
 
-    return await this.getNewComponent(intentHashTransactionId);
+    return this.getNewComponent(intentHashTransactionId);
   }
 
   public async createMessageIdMultisigIsm({
@@ -119,7 +119,7 @@ export class RadixTx {
     const intentHashTransactionId =
       await this.signAndBroadcast(transactionManifest);
 
-    return await this.getNewComponent(intentHashTransactionId);
+    return this.getNewComponent(intentHashTransactionId);
   }
 
   public async createRoutingIsm({
@@ -135,7 +135,7 @@ export class RadixTx {
     const intentHashTransactionId =
       await this.signAndBroadcast(transactionManifest);
 
-    return await this.getNewComponent(intentHashTransactionId);
+    return this.getNewComponent(intentHashTransactionId);
   }
 
   public async createNoopIsm() {
@@ -146,7 +146,7 @@ export class RadixTx {
     const intentHashTransactionId =
       await this.signAndBroadcast(transactionManifest);
 
-    return await this.getNewComponent(intentHashTransactionId);
+    return this.getNewComponent(intentHashTransactionId);
   }
 
   public async createIgp({ denom }: { denom: string }) {
@@ -158,7 +158,7 @@ export class RadixTx {
     const intentHashTransactionId =
       await this.signAndBroadcast(transactionManifest);
 
-    return await this.getNewComponent(intentHashTransactionId);
+    return this.getNewComponent(intentHashTransactionId);
   }
 
   public async setIgpOwner({
@@ -225,7 +225,7 @@ export class RadixTx {
     const intentHashTransactionId =
       await this.signAndBroadcast(transactionManifest);
 
-    return await this.getNewComponent(intentHashTransactionId);
+    return this.getNewComponent(intentHashTransactionId);
   }
 
   public async setRequiredHook({
@@ -292,7 +292,7 @@ export class RadixTx {
     const intentHashTransactionId =
       await this.signAndBroadcast(transactionManifest);
 
-    return await this.getNewComponent(intentHashTransactionId);
+    return this.getNewComponent(intentHashTransactionId);
   }
 
   public async createSyntheticToken({
@@ -320,7 +320,7 @@ export class RadixTx {
     const intentHashTransactionId =
       await this.signAndBroadcast(transactionManifest);
 
-    return await this.getNewComponent(intentHashTransactionId);
+    return this.getNewComponent(intentHashTransactionId);
   }
 
   public async setTokenOwner({

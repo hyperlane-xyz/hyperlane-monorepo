@@ -1,6 +1,6 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { NetworkId } from '@radixdlt/radix-engine-toolkit';
-import { randomBytes } from 'crypto';
+import { utils } from 'ethers';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
@@ -91,7 +91,7 @@ export class RadixSigningSDK extends RadixSDK {
   }
 
   public static async fromRandomPrivateKey(options?: RadixSDKOptions) {
-    const privateKey = Buffer.from(randomBytes(32)).toString('hex');
+    const privateKey = Buffer.from(utils.randomBytes(32)).toString('hex');
     const account = await generateNewEd25519VirtualAccount(
       privateKey,
       options?.networkId ?? NetworkId.Mainnet,
