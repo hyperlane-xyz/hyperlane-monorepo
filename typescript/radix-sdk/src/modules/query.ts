@@ -95,8 +95,9 @@ export class RadixQuery {
         .toFixed(0),
     );
     const gasPrice =
-      parseFloat(costing_parameters.execution_cost_unit_price) +
-      parseFloat(costing_parameters.finalization_cost_unit_price) * 0.5; // average out the cost parameters to get a more accurate estimate
+      (parseFloat(costing_parameters.execution_cost_unit_price) +
+        parseFloat(costing_parameters.finalization_cost_unit_price)) *
+      0.5; // average out the cost parameters to get a more accurate estimate
 
     return {
       gasUnits,
