@@ -148,16 +148,15 @@ export abstract class HyperlaneRouterDeployer<
       configMap,
       foreignDeployments,
     );
+    await this.deployAndConfigureTokenFees(deployedContractsMap, configMap);
     await this.configureClients(deployedContractsMap, configMap);
-    await this.configureTokenFees(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
     this.logger.debug(`Finished deploying router contracts for all chains.`);
 
     return deployedContractsMap;
   }
 
-  // TODO: Consider moving this somewhere else (see notes)
-  async configureTokenFees(
+  async deployAndConfigureTokenFees(
     deployedContractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {

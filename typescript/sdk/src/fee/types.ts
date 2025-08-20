@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { z } from 'zod';
 
 import {
@@ -36,35 +35,40 @@ export const onChainTypeToTokenFeeTypeMap: Record<
 export const BaseFeeConfigSchema = z.object({
   token: ZHash,
   owner: ZHash,
-  maxFee: ZBigNumberish,
-  halfAmount: ZBigNumberish,
 });
 export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
 
 export const LinearFeeConfigSchema = z.object({
   type: z.literal(TokenFeeType.LinearFee),
   ...BaseFeeConfigSchema.shape,
+  maxFee: ZBigNumberish,
+  halfAmount: ZBigNumberish,
   bps: ZBigNumberish,
 });
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
 
 export const LinearFeeInputConfigSchema = z.object({
-  ...LinearFeeConfigSchema.shape,
-  maxFee: ZBigNumberish.optional(),
-  halfAmount: ZBigNumberish.optional(),
-  bps: ZBigNumberish.optional(),
+  type: LinearFeeConfigSchema.shape.type,
+  token: BaseFeeConfigSchema.shape.token,
+  owner: BaseFeeConfigSchema.shape.owner,
+  bps: ZBigNumberish,
 });
+
 export type LinearFeeInputConfig = z.infer<typeof LinearFeeInputConfigSchema>;
 
 const ProgressiveFeeConfigSchema = z.object({
   type: z.literal(TokenFeeType.ProgressiveFee),
   ...BaseFeeConfigSchema.shape,
+  maxFee: ZBigNumberish,
+  halfAmount: ZBigNumberish,
 });
 export type ProgressiveFeeConfig = z.infer<typeof ProgressiveFeeConfigSchema>;
 
 const RegressiveFeeConfigSchema = z.object({
   type: z.literal(TokenFeeType.RegressiveFee),
   ...BaseFeeConfigSchema.shape,
+  maxFee: ZBigNumberish,
+  halfAmount: ZBigNumberish,
 });
 export type RegressiveFeeConfig = z.infer<typeof RegressiveFeeConfigSchema>;
 
@@ -77,6 +81,8 @@ export const RoutingFeeConfigSchema = z.object({
     )
     .optional(), // Destination -> Fee
   ...BaseFeeConfigSchema.shape,
+  maxFee: ZBigNumberish.optional(),
+  halfAmount: ZBigNumberish.optional(),
 });
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 

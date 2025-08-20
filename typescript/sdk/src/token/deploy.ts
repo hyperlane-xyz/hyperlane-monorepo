@@ -583,36 +583,6 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     );
   }
 
-  async configureTokenFees(
-    deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
-    configMap: ChainMap<HypTokenRouterConfig>,
-  ): Promise<void> {
-    await Promise.all(
-      Object.keys(deployedContractsMap).map(async (chain) => {
-        const config = configMap[chain];
-        const tokenFee = config?.tokenFee;
-        if (!tokenFee) return;
-
-        if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-          this.logger.debug(`Skipping token fee on non-EVM chain ${chain}`);
-          return;
-        }
-
-        this.logger.debug(`Deploying token fee on ${chain}...`);
-        // tokenFee.token = config.tokenFee?.token ?? tokenFee.token;
-        const module = await EvmTokenFeeModule.create({
-          multiProvider: this.multiProvider,
-          chain,
-          config: tokenFee,
-        });
-
-        const router = this.router(deployedContractsMap[chain]);
-        const tx = await router.setFeeRecipient(module.getDeployedFeeAddress());
-        await this.multiProvider.handleTx(chain, tx);
-      }),
-    );
-  }
-
   router(
     contracts: HyperlaneContracts<HypERC20Factories>,
   ): FungibleTokenRouter {
@@ -663,6 +633,36 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
       initializeArgs,
       shouldRecover,
       implementationAddress,
+    );
+  }
+
+  async deployAndConfigureTokenFees(
+    deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
+    configMap: ChainMap<HypTokenRouterConfig>,
+  ): Promise<void> {
+    await Promise.all(
+      Object.keys(deployedContractsMap).map(async (chain) => {
+        const config = configMap[chain];
+        const tokenFee = config?.tokenFee;
+        if (!tokenFee) return;
+
+        if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+          this.logger.debug(`Skipping token fee on non-EVM chain ${chain}`);
+          return;
+        }
+
+        this.logger.debug(`Deploying token fee on ${chain}...`);
+        // tokenFee.token = config.tokenFee?.token ?? tokenFee.token;
+        const module = await EvmTokenFeeModule.create({
+          multiProvider: this.multiProvider,
+          chain,
+          config: tokenFee,
+        });
+
+        const router = this.router(deployedContractsMap[chain]);
+        const tx = await router.setFeeRecipient(module.getDeployedFeeAddress());
+        await this.multiProvider.handleTx(chain, tx);
+      }),
     );
   }
 }
