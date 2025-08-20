@@ -752,7 +752,7 @@ CALL_METHOD
     assert(entries.length > 0, `quote_remote_transfer returned no resources`);
     assert(
       entries.length < 2,
-      `quote_remote_transfer returned muliple resources`,
+      `quote_remote_transfer returned multiple resources`,
     );
 
     return {
