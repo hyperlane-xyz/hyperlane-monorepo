@@ -6,6 +6,8 @@ import {
   ERC20Test,
   ERC20Test__factory,
   ERC4626Test__factory,
+  FiatTokenTest,
+  FiatTokenTest__factory,
   XERC20LockboxTest,
   XERC20LockboxTest__factory,
   XERC20VSTest,
@@ -475,6 +477,28 @@ export async function deployToken(
   multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
 
   const token = await new ERC20Test__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(name, symbol.toLocaleUpperCase(), '100000000000000000000', decimals);
+  await token.deployed();
+
+  return token;
+}
+
+export async function deployFiatToken(
+  privateKey: string,
+  chain: string,
+  decimals = 18,
+  symbol = 'FIAT TOKEN',
+  name = 'fiat token',
+): Promise<FiatTokenTest> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
+  const token = await new FiatTokenTest__factory(
     multiProvider.getSigner(chain),
   ).deploy(name, symbol.toLocaleUpperCase(), '100000000000000000000', decimals);
   await token.deployed();
