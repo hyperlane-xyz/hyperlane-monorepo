@@ -1,5 +1,6 @@
-use scrypto::network::NetworkDefinition;
 use std::{collections::HashMap, str::FromStr};
+
+use scrypto::network::NetworkDefinition;
 use url::Url;
 
 /// Radix connection config

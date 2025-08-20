@@ -7,6 +7,7 @@ use gateway_api_client::models::{
     TransactionCommittedDetailsRequest, TransactionPreviewV2Request, TransactionPreviewV2Response,
     TransactionStatusResponse, TransactionSubmitResponse,
 };
+
 use hyperlane_core::{rpc_clients::FallbackProvider, ChainResult};
 
 use crate::{

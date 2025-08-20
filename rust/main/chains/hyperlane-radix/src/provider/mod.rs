@@ -12,9 +12,10 @@ use gateway_api_client::models::{
     TransactionStatusRequest, TransactionStatusResponse, TransactionSubmitRequest,
     TransactionSubmitResponse,
 };
+use scrypto::network::NetworkDefinition;
+
 use hyperlane_core::rpc_clients::BlockNumberGetter;
 use hyperlane_core::ChainResult;
-use scrypto::network::NetworkDefinition;
 
 use crate::HyperlaneRadixError;
 

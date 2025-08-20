@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use core_api_client::models::{FeeSummary, TransactionStatus};
 use radix_common::manifest_args;
@@ -7,7 +9,6 @@ use scrypto::{
     address::AddressBech32Decoder, data::manifest::manifest_encode, network::NetworkDefinition,
     types::ComponentAddress,
 };
-use std::str::FromStr;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,

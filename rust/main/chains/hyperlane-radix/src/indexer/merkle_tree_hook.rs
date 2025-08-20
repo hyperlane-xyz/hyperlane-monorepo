@@ -1,6 +1,7 @@
 use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
+
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainResult, Checkpoint, CheckpointAtBlock,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
