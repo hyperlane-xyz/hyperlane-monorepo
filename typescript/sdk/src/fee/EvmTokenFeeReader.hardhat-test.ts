@@ -13,13 +13,7 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories } from './contracts.js';
-import {
-  LinearFeeInputConfig,
-  TokenFeeConfig,
-  TokenFeeConfigInput,
-  TokenFeeConfigSchema,
-  TokenFeeType,
-} from './types.js';
+import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
 
 describe('EvmTokenFeeReader', () => {
   let multiProvider: MultiProvider;
@@ -30,7 +24,7 @@ describe('EvmTokenFeeReader', () => {
   let deployedContracts: HyperlaneContractsMap<EvmTokenFeeFactories>;
   let token: ERC20Test;
 
-  let config: TokenFeeConfigInput;
+  let config: TokenFeeConfig;
   const TOKEN_TOTAL_SUPPLY = '100000000000000000000';
   const BPS = 10000n;
   beforeEach(async () => {
@@ -45,6 +39,7 @@ describe('EvmTokenFeeReader', () => {
       type: TokenFeeType.LinearFee,
       maxFee: 10000000n,
       halfAmount: 5000000n,
+      bps: BPS,
       token: token.address,
       owner: signer.address,
     });
@@ -62,6 +57,9 @@ describe('EvmTokenFeeReader', () => {
       expect(normalizeConfig(onchainConfig)).to.deep.equal(
         normalizeConfig({
           ...config,
+          maxFee: 1157920892373161954235709850086879078532699846656405640394n,
+          halfAmount:
+            578960446186580977117854925043439539266349923328202820197n,
           bps: BPS,
         }),
       );
@@ -71,19 +69,23 @@ describe('EvmTokenFeeReader', () => {
       const maxFee = BigInt(randomInt(2, 100_000_000));
       const halfAmount = maxFee / 2n;
 
-      const config: LinearFeeInputConfig = {
+      const config = {
         type: TokenFeeType.LinearFee,
         owner: signer.address,
         token: token.address,
         maxFee,
         halfAmount,
+        bps: await EvmTokenFeeReader.convertToBps(maxFee, halfAmount),
       };
-      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test3);
+      const parsedConfig = TokenFeeConfigSchema.parse(config);
       deployedContracts = await deployer.deploy({
-        [TestChainName.test3]: config,
+        [TestChainName.test3]: parsedConfig,
       });
       tokenFee = deployedContracts[TestChainName.test3][TokenFeeType.LinearFee];
-      const convertedBps = await reader.convertToBps(maxFee, halfAmount);
+      const convertedBps = await EvmTokenFeeReader.convertToBps(
+        maxFee,
+        halfAmount,
+      );
       expect(convertedBps).to.equal(BPS);
     });
 
@@ -101,7 +103,7 @@ describe('EvmTokenFeeReader', () => {
         await reader.convertFromBps(config.bps, config.token);
 
       // Get bps using helper function
-      const convertedBps = await reader.convertToBps(
+      const convertedBps = await EvmTokenFeeReader.convertToBps(
         convertedMaxFee,
         convertedHalfAmount,
       );

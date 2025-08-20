@@ -28,6 +28,7 @@ import {
   TestChainName,
   TokenFeeType,
   WarpRouteDeployConfigMailboxRequired,
+  normalizeConfig,
   proxyAdmin,
   proxyImplementation,
   test3,
@@ -675,13 +676,22 @@ describe('ERC20WarpRouterReader', async () => {
     isLocalRpcStub.restore();
   });
 
-  it.only('should derive token fee config correctly', async () => {
+  it('should derive token fee config correctly', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
+        ...baseConfig,
         type: TokenType.collateral,
         token: token.address,
         hook: await mailbox.defaultHook(),
-        ...baseConfig,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: mailbox.address,
+          token: token.address,
+          maxFee: 1157920892373161954235709850086879078532699846656405640394n,
+          halfAmount:
+            5789604461865809771178549250434395392663499233282028201970n,
+          bps: 1000n,
+        },
       },
     };
     // Deploy with config
@@ -691,12 +701,8 @@ describe('ERC20WarpRouterReader', async () => {
       warpRoute[chain].collateral.address,
     );
 
-    expect(derivedConfig.tokenFee).to.deep.equal({
-      [chain]: {
-        type: TokenFeeType.LinearFee,
-        token: token.address,
-        owner: mailbox.address,
-      },
-    });
+    expect(normalizeConfig(derivedConfig.tokenFee)).to.deep.equal(
+      normalizeConfig(config[chain].tokenFee),
+    );
   });
 });

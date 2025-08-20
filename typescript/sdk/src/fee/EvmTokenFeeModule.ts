@@ -1,3 +1,5 @@
+import { constants } from 'ethers';
+
 import {
   Address,
   Annotated,
@@ -19,7 +21,12 @@ import {
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
 } from './EvmTokenFeeReader.js';
-import { TokenFeeConfigInput } from './types.js';
+import {
+  TokenFeeConfig,
+  TokenFeeConfigInput,
+  TokenFeeConfigSchema,
+  TokenFeeType,
+} from './types.js';
 
 type TokenFeeModuleAddresses = {
   deployedFee: Address;
@@ -61,18 +68,33 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     const deployer = new EvmTokenFeeDeployer(multiProvider, chainName, {
       contractVerifier: contractVerifier,
     });
-    const contracts = await deployer.deploy({ [chain]: config });
+
     const module = new EvmTokenFeeModule(
       multiProvider,
       {
         addresses: {
-          deployedFee: contracts[chain][config.type].address,
+          deployedFee: constants.AddressZero,
         },
         chain,
         config,
       },
       contractVerifier,
     );
+
+    const intermediaryConfig: Partial<TokenFeeConfig> = { ...config };
+    if (config.type === TokenFeeType.LinearFee) {
+      const { maxFee, halfAmount } = await module.reader.convertFromBps(
+        config.bps,
+        config.token,
+      );
+      intermediaryConfig.maxFee = maxFee;
+      intermediaryConfig.halfAmount = halfAmount;
+    }
+    const finalizedConfig = TokenFeeConfigSchema.parse(intermediaryConfig);
+
+    const contracts = await deployer.deploy({ [chain]: finalizedConfig });
+    module.args.addresses.deployedFee = contracts[chain][config.type].address;
+
     return module;
   }
 
