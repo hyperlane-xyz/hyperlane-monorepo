@@ -1,3 +1,5 @@
+import { BigNumber } from 'bignumber.js';
+
 import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   Address,
@@ -239,7 +241,9 @@ export class RadixHypCollateralAdapter
         custom_hook_metadata: '',
         max_fee: {
           denom: params.interchainGas.addressOrDenom || '',
-          amount: (Number(params.interchainGas.amount) / 1e18).toString(), // convert to float with precision
+          amount: new BigNumber(params.interchainGas.amount.toString())
+            .div(new BigNumber(10).pow(18))
+            .toString(), // convert to float with precision
         },
       }),
     };

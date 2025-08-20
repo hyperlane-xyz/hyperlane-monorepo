@@ -757,7 +757,12 @@ CALL_METHOD
 
     return {
       resource: entries[0].key.value,
-      amount: BigInt(Math.floor(+entries[0].value.value * 1e18)),
+      amount: BigInt(
+        new BigNumber(entries[0].value.value)
+          .times(new BigNumber(10).pow(18))
+          .integerValue(BigNumber.ROUND_FLOOR)
+          .toFixed(0),
+      ),
     };
   }
 }

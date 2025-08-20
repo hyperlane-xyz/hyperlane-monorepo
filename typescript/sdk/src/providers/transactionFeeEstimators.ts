@@ -5,7 +5,6 @@ import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
-import { transaction } from 'starknet';
 
 import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 
