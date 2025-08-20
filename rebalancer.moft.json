@@ -1,0 +1,32 @@
+{
+  "warpRouteId": "MOFT/sepolia-arbitrumsepolia",
+  "strategy": {
+    "rebalanceStrategy": "weighted",
+    "chains": {
+      "sepolia": {
+        "bridge": "0x8f2a074421098E10ab7083e198E177D4d215a9A5",
+        "bridgeLockTime": 300,
+        "bridgeMinAcceptedAmount": "1000000000000000000",
+        "weighted": { "weight": 100, "tolerance": 5 }
+      },
+      "arbitrumsepolia": {
+        "bridge": "0x5bbd1FC7b11AE8d5984e6B399C4c9BD04f61BdcF",
+        "bridgeLockTime": 300,
+        "bridgeMinAcceptedAmount": "1000000000000000000",
+        "weighted": { "weight": 100, "tolerance": 5 }
+      }
+    }
+  },
+  "oft": {
+    "domains": {
+      "sepolia": { 
+        "lzEid": 40161,
+        "oftToken": "0x85A99C9445a95e4E8220B8dAB8d3e5d8e4c34553"
+      },
+      "arbitrumsepolia": { 
+        "lzEid": 40231,
+        "oftToken": "0x507153B0975bd45F7E5Db31dEB37Cf8D30968740"
+      }
+    }
+  }
+}

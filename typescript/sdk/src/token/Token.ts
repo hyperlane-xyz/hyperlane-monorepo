@@ -55,6 +55,7 @@ import {
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './adapters/EvmTokenAdapter.js';
+import { TokenBridgeOftAdapter } from './adapters/TokenBridgeOftAdapter.js';
 import type {
   IHypTokenAdapter,
   ITokenAdapter,
@@ -238,6 +239,17 @@ export class Token implements IToken {
       return new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
+    } else if (standard === TokenStandard.TokenBridgeOft) {
+      assert(
+        collateralAddressOrDenom,
+        `collateralAddressOrDenom (OFT token address) required for TokenBridgeOft`,
+      );
+      return new TokenBridgeOftAdapter(
+        chainName,
+        multiProvider,
+        { token: addressOrDenom },
+        collateralAddressOrDenom,
+      );
     } else if (standard === TokenStandard.SealevelHypNative) {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
       return new SealevelHypNativeAdapter(chainName, multiProvider, {

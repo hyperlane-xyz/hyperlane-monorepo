@@ -62,7 +62,9 @@ export class RebalancerContextFactory {
     const provider =
       context.multiProtocolProvider.extendChainMetadata(mailboxes);
 
-    const warpCoreConfig = await registry.getWarpRoute(config.warpRouteId);
+    const warpCoreConfig = (context as any).warpCoreConfigOverride
+      ? (context as any).warpCoreConfigOverride
+      : await registry.getWarpRoute(config.warpRouteId);
     if (!warpCoreConfig) {
       throw new Error(
         `Warp route config for ${config.warpRouteId} not found in registry`,

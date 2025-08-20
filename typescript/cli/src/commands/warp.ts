@@ -32,6 +32,8 @@ import {
 } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { RebalancerRunner } from '../rebalancer/runner.js';
+import { runOftSetup } from '../oft/setup.js';
+import { runOftRegister } from '../oft/register.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -74,6 +76,8 @@ export const warpCommand: CommandModule = {
       .command(apply)
       .command(check)
       .command(deploy)
+      .command(oftSetup)
+      .command(oftRegister)
       .command(fork)
       .command(init)
       .command(read)
@@ -427,6 +431,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   checkFrequency: number;
   withMetrics: boolean;
   monitorOnly: boolean;
+  warp?: string;
   manual?: boolean;
   origin?: string;
   destination?: string;
@@ -441,6 +446,12 @@ export const rebalancer: CommandModuleWithWriteContext<{
         'The path to a rebalancer configuration file (.json or .yaml)',
       demandOption: true,
       alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
+    },
+    warp: {
+      type: 'string',
+      description:
+        'Optional: path to a local Warp Core config file to override registry lookup',
+      demandOption: false,
     },
     checkFrequency: {
       type: 'number',
@@ -490,7 +501,10 @@ export const rebalancer: CommandModuleWithWriteContext<{
   handler: async (args) => {
     let runner: RebalancerRunner;
     try {
-      const { context, ...rest } = args;
+      const { context, warp, ...rest } = args as any;
+      if (warp) {
+        (context as any).warpCoreConfigOverride = readYamlOrJson(warp);
+      }
       runner = await RebalancerRunner.create(rest, context);
     } catch (e: any) {
       // exit on startup errors
@@ -504,6 +518,59 @@ export const rebalancer: CommandModuleWithWriteContext<{
       errorRed('Rebalancer error:', util.format(e));
       process.exit(1);
     }
+  },
+};
+
+export const oftSetup: CommandModuleWithWriteContext<{
+  config: string;
+}> = {
+  command: 'oft-setup',
+  describe: 'Setup OFT bridges for a Warp Route: enroll peers and set LayerZero EIDs',
+  builder: {
+    config: {
+      type: 'string',
+      description: 'Path to an OFT rebalancer config (.json or .yaml) with strategy.chains and oft.domains',
+      demandOption: true,
+    },
+  },
+  handler: async ({ context, config }) => {
+    logCommandHeader('Hyperlane Warp OFT Setup');
+    await runOftSetup({ context, configPath: config });
+    logGreen('✅ OFT peers enrolled and LayerZero EIDs configured');
+    process.exit(0);
+  },
+};
+
+export const oftRegister: CommandModuleWithWriteContext<{
+  config: string;
+}> = {
+  command: 'oft-register',
+  describe: 'Register an OFT Warp Core config into the registry for rebalancer',
+  builder: {
+    config: {
+      type: 'string',
+      description: 'Path to an OFT rebalancer config (.json or .yaml) with strategy.chains',
+      demandOption: true,
+    },
+  },
+  handler: async ({ context, config }) => {
+    logCommandHeader('Hyperlane Warp OFT Register');
+    const cfg = readYamlOrJson(config) as any;
+    await runOftRegister({
+      context,
+      input: {
+        symbol: cfg?.warpRouteId?.split('/')[0] || cfg?.symbol || 'OFT',
+        chains: Object.fromEntries(
+          Object.entries(cfg?.strategy?.chains || {}).map(([k, v]: any) => [
+            k,
+            { bridge: v.bridge, decimals: cfg?.oft?.decimals || 18 },
+          ]),
+        ),
+        warpRouteId: cfg?.warpRouteId,
+      },
+    });
+    logGreen('✅ OFT warp route registered');
+    process.exit(0);
   },
 };
 

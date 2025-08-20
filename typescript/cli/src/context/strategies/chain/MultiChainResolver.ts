@@ -18,6 +18,7 @@ import {
 } from '../../../utils/chains.js';
 import { getWarpConfigs } from '../../../utils/warp.js';
 import { requestAndSaveApiKeys } from '../../context.js';
+import { readYamlOrJson } from '../../../utils/files.js';
 
 import { ChainResolver } from './types.js';
 
@@ -26,6 +27,7 @@ enum ChainSelectionMode {
   WARP_CONFIG,
   WARP_APPLY,
   WARP_REBALANCER,
+  OFT_SETUP,
   STRATEGY,
   CORE_APPLY,
   CORE_DEPLOY,
@@ -50,6 +52,8 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveWarpApplyChains(argv);
       case ChainSelectionMode.WARP_REBALANCER:
         return this.resolveWarpRebalancerChains(argv);
+      case ChainSelectionMode.OFT_SETUP:
+        return this.resolveOftSetupChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
       case ChainSelectionMode.CORE_APPLY:
@@ -107,10 +111,10 @@ export class MultiChainResolver implements ChainResolver {
     // Load rebalancer config to get the warp route ID
     const rebalancerConfig = RebalancerConfig.load(argv.config);
 
-    // Get warp route config from registry using the warp route ID
-    const warpCoreConfig = await argv.context.registry.getWarpRoute(
-      rebalancerConfig.warpRouteId,
-    );
+    // If a local warp core file is provided, load that instead of registry
+    const warpCoreConfig = argv.warp
+      ? readYamlOrJson(argv.warp)
+      : await argv.context.registry.getWarpRoute(rebalancerConfig.warpRouteId);
     if (!warpCoreConfig) {
       throw new Error(
         `Warp route config for ${rebalancerConfig.warpRouteId} not found in registry`,
@@ -129,6 +133,18 @@ export class MultiChainResolver implements ChainResolver {
     assert(chains.length !== 0, 'No chains found in warp route config');
 
     return chains;
+  }
+
+  private async resolveOftSetupChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    const rc = RebalancerConfig.load(argv.config);
+    const chains = Object.keys((rc as any)?.strategyConfig?.chains || {});
+    assert(
+      chains.length > 0,
+      'No chains found in rebalancer config strategy.chains',
+    );
+    return chains as ChainName[];
   }
 
   private async resolveAgentChains(
@@ -308,6 +324,10 @@ export class MultiChainResolver implements ChainResolver {
 
   static forWarpRebalancer(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_REBALANCER);
+  }
+
+  static forOftSetup(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.OFT_SETUP);
   }
 
   static forCoreApply(): MultiChainResolver {
