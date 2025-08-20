@@ -351,7 +351,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         // Wait for the process to output the expected log.
         for await (let chunk of rebalancer.stdout) {
           chunk = typeof chunk === 'string' ? chunk : chunk.toString();
-          console.log(chunk);
           const lines = chunk.split('\n').filter(Boolean); // handle empty lines
 
           for (const line of lines) {
