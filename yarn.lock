@@ -8278,7 +8278,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/eslint-config@workspace:typescript/eslint-config":
+"@hyperlane-xyz/eslint-config@workspace:^, @hyperlane-xyz/eslint-config@workspace:typescript/eslint-config":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/eslint-config@workspace:typescript/eslint-config"
   dependencies:
@@ -8489,9 +8489,9 @@ __metadata:
     "@chain-registry/types": "npm:^0.50.122"
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
-    "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/core": "npm:10.0.0-beta.0"
     "@hyperlane-xyz/cosmos-sdk": "npm:15.0.0-beta.0"
+    "@hyperlane-xyz/eslint-config": "workspace:^"
     "@hyperlane-xyz/starknet-core": "npm:15.0.0-beta.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:15.0.0-beta.0"
@@ -8509,8 +8509,6 @@ __metadata:
     "@types/sinon": "npm:^17.0.1"
     "@types/sinon-chai": "npm:^3.2.12"
     "@types/ws": "npm:^8.5.5"
-    "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
-    "@typescript-eslint/parser": "npm:^8.1.6"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.5.0"
     chai-as-promised: "npm:^8.0.1"
@@ -8519,9 +8517,6 @@ __metadata:
     cross-fetch: "npm:^3.1.5"
     dotenv: "npm:^10.0.0"
     eslint: "npm:^9.31.0"
-    eslint-config-prettier: "npm:^10.1.8"
-    eslint-import-resolver-typescript: "npm:^4.4.4"
-    eslint-plugin-import: "npm:^2.32.0"
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.8.0"
     hardhat: "npm:^2.22.2"
