@@ -15,6 +15,10 @@ import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories } from './contracts.js';
 import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
 
+const MAX_FEE = 1157920892373161954235709850086879078532699846656405640394n;
+const HALF_AMOUNT = 5789604461865809771178549250434395392663499233282028201970n;
+const BPS = EvmTokenFeeReader.convertToBps(MAX_FEE, HALF_AMOUNT); // 0.1 or 1000bps
+
 describe('EvmTokenFeeReader', () => {
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;
@@ -26,7 +30,6 @@ describe('EvmTokenFeeReader', () => {
 
   let config: TokenFeeConfig;
   const TOKEN_TOTAL_SUPPLY = '100000000000000000000';
-  const BPS = 10000n;
   beforeEach(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -37,8 +40,8 @@ describe('EvmTokenFeeReader', () => {
 
     config = TokenFeeConfigSchema.parse({
       type: TokenFeeType.LinearFee,
-      maxFee: 10000000n,
-      halfAmount: 5000000n,
+      maxFee: MAX_FEE,
+      halfAmount: HALF_AMOUNT,
       bps: BPS,
       token: token.address,
       owner: signer.address,
@@ -57,9 +60,8 @@ describe('EvmTokenFeeReader', () => {
       expect(normalizeConfig(onchainConfig)).to.deep.equal(
         normalizeConfig({
           ...config,
-          maxFee: 1157920892373161954235709850086879078532699846656405640394n,
-          halfAmount:
-            578960446186580977117854925043439539266349923328202820197n,
+          maxFee: MAX_FEE,
+          halfAmount: HALF_AMOUNT,
           bps: BPS,
         }),
       );
@@ -75,17 +77,14 @@ describe('EvmTokenFeeReader', () => {
         token: token.address,
         maxFee,
         halfAmount,
-        bps: await EvmTokenFeeReader.convertToBps(maxFee, halfAmount),
+        bps: EvmTokenFeeReader.convertToBps(maxFee, halfAmount),
       };
       const parsedConfig = TokenFeeConfigSchema.parse(config);
       deployedContracts = await deployer.deploy({
         [TestChainName.test3]: parsedConfig,
       });
       tokenFee = deployedContracts[TestChainName.test3][TokenFeeType.LinearFee];
-      const convertedBps = await EvmTokenFeeReader.convertToBps(
-        maxFee,
-        halfAmount,
-      );
+      const convertedBps = EvmTokenFeeReader.convertToBps(maxFee, halfAmount);
       expect(convertedBps).to.equal(BPS);
     });
 
@@ -103,7 +102,7 @@ describe('EvmTokenFeeReader', () => {
         await reader.convertFromBps(config.bps, config.token);
 
       // Get bps using helper function
-      const convertedBps = await EvmTokenFeeReader.convertToBps(
+      const convertedBps = EvmTokenFeeReader.convertToBps(
         convertedMaxFee,
         convertedHalfAmount,
       );
@@ -117,35 +116,23 @@ describe('EvmTokenFeeReader', () => {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
         token: token.address,
-        maxFee: BigInt(
-          '115792089237316195423570985008687907853269984665640564039457584007913129639935', // Gets set as default at the smart contract level
-        ),
-        halfAmount: BigInt(
-          '115792089237316195423570985008687907853269984665640564039457584007913129639935',
-        ),
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
         feeContracts: {
           [TestChainName.test2]: {
             owner: signer.address,
             token: token.address,
             type: TokenFeeType.LinearFee,
-            maxFee: BigInt(
-              '1157920892373161954235709850086879078532699846656405640394',
-            ),
-            halfAmount: BigInt(
-              '578960446186580977117854925043439539266349923328202820197',
-            ),
+            maxFee: MAX_FEE,
+            halfAmount: HALF_AMOUNT,
             bps: BPS,
           },
           [TestChainName.test3]: {
             owner: signer.address,
             token: token.address,
             type: TokenFeeType.LinearFee,
-            maxFee: BigInt(
-              '1157920892373161954235709850086879078532699846656405640394',
-            ),
-            halfAmount: BigInt(
-              '578960446186580977117854925043439539266349923328202820197',
-            ),
+            maxFee: MAX_FEE,
+            halfAmount: HALF_AMOUNT,
             bps: BPS,
           },
         },
