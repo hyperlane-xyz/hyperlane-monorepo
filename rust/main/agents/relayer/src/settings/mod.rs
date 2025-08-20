@@ -217,17 +217,25 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                             .take_err(&mut err, || (&policy.cwp).add("gas_fraction"))
                             .unwrap_or(("1", "1"));
 
+                        let gas_fraction_numerator = numerator
+                            .parse()
+                            .context("Error parsing gas fraction numerator")
+                            .take_err(&mut err, || (&policy.cwp).add("gas_fraction"))
+                            .unwrap_or(1);
+                        let gas_fraction_denominator = denominator
+                            .parse()
+                            .context("Error parsing gas fraction denominator")
+                            .take_err(&mut err, || (&policy.cwp).add("gas_fraction"))
+                            .unwrap_or(1);
+                        if gas_fraction_denominator == 0 {
+                            err.push(
+                                (&policy.cwp).add("gas_fraction"),
+                                eyre!("gas_fraction denominator cannot be 0"),
+                            );
+                        }
                         Some(GasPaymentEnforcementPolicy::OnChainFeeQuoting {
-                            gas_fraction_numerator: numerator
-                                .parse()
-                                .context("Error parsing gas fraction numerator")
-                                .take_err(&mut err, || (&policy.cwp).add("gas_fraction"))
-                                .unwrap_or(1),
-                            gas_fraction_denominator: denominator
-                                .parse()
-                                .context("Error parsing gas fraction denominator")
-                                .take_err(&mut err, || (&policy.cwp).add("gas_fraction"))
-                                .unwrap_or(1),
+                            gas_fraction_numerator,
+                            gas_fraction_denominator,
                         })
                     }
                     Some(pt) => Err(eyre!("Unknown gas payment enforcement policy type `{pt}`"))
