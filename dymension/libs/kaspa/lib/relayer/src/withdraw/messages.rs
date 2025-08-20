@@ -28,6 +28,7 @@ pub async fn on_new_withdrawals(
     cosmos: CosmosGrpcClient,
     escrow_public: EscrowPublic,
     min_deposit_sompi: U256,
+    tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
     info!("Kaspa relayer, getting pending withdrawals");
 
@@ -43,6 +44,7 @@ pub async fn on_new_withdrawals(
         relayer,
         escrow_public,
         min_deposit_sompi,
+        tx_fee_multiplier,
     )
     .await
 }
@@ -53,6 +55,7 @@ pub async fn build_withdrawal_fxg(
     relayer: EasyKaspaWallet,
     escrow_public: EscrowPublic,
     min_deposit_sompi: U256,
+    tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
     // Get sample inputs for mass estimation
     let escrow_inputs = fetch_input_utxos(
@@ -155,7 +158,7 @@ pub async fn build_withdrawal_fxg(
         &relayer_address,
         relayer.net.network_id,
         min_deposit_sompi,
-        feerate,
+        feerate*tx_fee_multiplier,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 

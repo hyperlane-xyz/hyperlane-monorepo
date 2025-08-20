@@ -167,6 +167,7 @@ impl KaspaProvider {
             self.cosmos_rpc.clone(),
             self.escrow(),
             self.conf.min_deposit_sompi,
+            self.must_relayer_stuff().tx_fee_multiplier,
         )
         .await?;
         info!("Kaspa provider, constructed withdrawal TXs");

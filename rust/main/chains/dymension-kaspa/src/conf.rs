@@ -33,7 +33,6 @@ pub struct ConnectionConf {
     pub op_submission_config: OpSubmissionConfig,
 
     pub min_deposit_sompi: U256,
-
     pub validator_stuff: Option<ValidatorStuff>,
     pub relayer_stuff: Option<RelayerStuff>,
 }
@@ -54,6 +53,7 @@ pub struct RelayerStuff {
     pub validator_hosts: Vec<String>,
     pub deposit_look_back_mins: Option<u64>,
     pub kaspa_time_config: KaspaTimeConfig,
+    pub tx_fee_multiplier: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -120,13 +120,14 @@ impl ConnectionConf {
         validation_conf: ValidationConf,
         min_deposit_sompi: U256,
         kaspa_time_config: Option<KaspaTimeConfig>,
-
+        
         // we could query these two instead
         hub_domain: u32,
         hub_token_id: H256,
 
         kas_domain: u32,
         kas_token_placeholder: H256,
+        kas_tx_fee_multiplier: f64,
     ) -> Self {
         let v = match &kaspa_escrow_private_key {
             Some(kas_escrow_private) => {
@@ -153,6 +154,7 @@ impl ConnectionConf {
                 deposit_look_back_mins,
                 validator_hosts,
                 kaspa_time_config: kaspa_time_config.unwrap_or_default(),
+                tx_fee_multiplier: kas_tx_fee_multiplier,
             }),
         };
 

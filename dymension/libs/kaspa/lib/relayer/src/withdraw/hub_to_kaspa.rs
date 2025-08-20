@@ -11,7 +11,6 @@ use corelib::wallet::SigningResources;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
-use hardcode::tx::TX_MASS_MULTIPLIER;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use kaspa_addresses::Prefix;
@@ -171,7 +170,7 @@ pub fn build_withdrawal_pskt(
     .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
 
     // Apply TX mass multiplier and feerate
-    let tx_fee = (tx_mass as f64 * TX_MASS_MULTIPLIER * feerate).round() as u64;
+    let tx_fee = (tx_mass as f64 * feerate).round() as u64;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(

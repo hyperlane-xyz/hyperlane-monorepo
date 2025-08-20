@@ -13,10 +13,6 @@ pub const RELAYER_SWEEPING_PRIORITY_FEE: u64 = 3_000;
 // TODO: make it configurable?
 pub const SWEEPING_THRESHOLD: usize = 3;
 
-// Multiply TX mass by the coefficient to give some space for adding
-// relayer and escrow change UTXOs.
-// TODO: make it configurable?
-pub const TX_MASS_MULTIPLIER: f64 = 1.3;
 
 /*
 In Kaspa, every node has a different and eventually converging view of the network.
