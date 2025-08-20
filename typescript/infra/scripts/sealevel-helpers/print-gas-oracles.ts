@@ -124,6 +124,9 @@ function getChainConnections(
       // for solaxy routes
       ['solaxy', 'solanamainnet'],
       ['solaxy', 'ethereum'],
+      // for celestia svm routes
+      ['celestia', 'solanamainnet'],
+      ['celestia', 'eclipsemainnet'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
