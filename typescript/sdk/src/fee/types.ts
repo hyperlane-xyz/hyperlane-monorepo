@@ -32,47 +32,49 @@ export const onChainTypeToTokenFeeTypeMap: Record<
   [OnchainTokenFeeType.RoutingFee]: TokenFeeType.RoutingFee,
 };
 
+// ====== SHARED SCHEMAS ======
+
 export const BaseFeeConfigSchema = z.object({
   token: ZHash,
   owner: ZHash,
 });
 export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
 
-export const LinearFeeConfigSchema = z.object({
-  type: z.literal(TokenFeeType.LinearFee),
-  ...BaseFeeConfigSchema.shape,
+export const FeeParametersSchema = z.object({
   maxFee: ZBigNumberish,
   halfAmount: ZBigNumberish,
+});
+export type FeeParameters = z.infer<typeof FeeParametersSchema>;
+
+const StandardFeeConfigBaseSchema =
+  BaseFeeConfigSchema.merge(FeeParametersSchema);
+
+// ====== INDIVIDUAL FEE SCHEMAS ======
+
+export const LinearFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
+  type: z.literal(TokenFeeType.LinearFee),
   bps: ZBigNumberish,
 });
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
 
-export const LinearFeeInputConfigSchema = z.object({
-  type: LinearFeeConfigSchema.shape.type,
-  token: BaseFeeConfigSchema.shape.token,
-  owner: BaseFeeConfigSchema.shape.owner,
+// Linear Fee Input - only requires bps
+export const LinearFeeInputConfigSchema = BaseFeeConfigSchema.extend({
+  type: z.literal(TokenFeeType.LinearFee),
   bps: ZBigNumberish,
 });
-
 export type LinearFeeInputConfig = z.infer<typeof LinearFeeInputConfigSchema>;
 
-const ProgressiveFeeConfigSchema = z.object({
+export const ProgressiveFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.ProgressiveFee),
-  ...BaseFeeConfigSchema.shape,
-  maxFee: ZBigNumberish,
-  halfAmount: ZBigNumberish,
 });
 export type ProgressiveFeeConfig = z.infer<typeof ProgressiveFeeConfigSchema>;
 
-const RegressiveFeeConfigSchema = z.object({
+export const RegressiveFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.RegressiveFee),
-  ...BaseFeeConfigSchema.shape,
-  maxFee: ZBigNumberish,
-  halfAmount: ZBigNumberish,
 });
 export type RegressiveFeeConfig = z.infer<typeof RegressiveFeeConfigSchema>;
 
-export const RoutingFeeConfigSchema = z.object({
+export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
   type: z.literal(TokenFeeType.RoutingFee),
   feeContracts: z
     .record(
@@ -80,11 +82,12 @@ export const RoutingFeeConfigSchema = z.object({
       z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
     )
     .optional(), // Destination -> Fee
-  ...BaseFeeConfigSchema.shape,
   maxFee: ZBigNumberish.optional(),
   halfAmount: ZBigNumberish.optional(),
 });
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
+
+// ====== UNION SCHEMAS ======
 
 export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
   LinearFeeConfigSchema,

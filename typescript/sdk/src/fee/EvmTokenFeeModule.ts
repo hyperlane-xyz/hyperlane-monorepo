@@ -83,10 +83,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     });
 
     const contracts = await module.deploy({
-      config: finalizedConfig,
       multiProvider,
       chainName,
       contractVerifier,
+      config: finalizedConfig,
     });
     module.args.addresses.deployedFee = contracts[chain][config.type].address;
 
