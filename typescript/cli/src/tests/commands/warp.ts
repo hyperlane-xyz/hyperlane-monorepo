@@ -279,6 +279,7 @@ type GetWarpTokenConfigByTokenTypeOptions = {
   token: Address;
   fiatToken: Address;
   xerc20: Address;
+  xerc20Lockbox: Address;
   vault: Address;
   otherChain: ChainName;
 };
@@ -292,6 +293,7 @@ function getWarpTokenConfigForType({
   vault,
   fiatToken,
   xerc20,
+  xerc20Lockbox,
 }: GetWarpTokenConfigByTokenTypeOptions): HypTokenRouterConfig {
   let tokenConfig: HypTokenRouterConfig;
   switch (tokenType) {
@@ -324,7 +326,7 @@ function getWarpTokenConfigForType({
         type: TokenType.XERC20Lockbox,
         mailbox,
         owner,
-        token: xerc20,
+        token: xerc20Lockbox,
       };
       break;
     case TokenType.collateralVault:
@@ -390,6 +392,7 @@ type GetWarpTokenConfigOptions = {
   chainName: ChainName;
   fiatToken: Address;
   xerc20: Address;
+  xerc20Lockbox: Address;
 };
 
 export function generateWarpConfigs(
@@ -397,7 +400,6 @@ export function generateWarpConfigs(
   chain2Config: GetWarpTokenConfigOptions,
 ): ReadonlyArray<WarpRouteDeployConfig> {
   const ignoreTokenTypes = new Set([
-    TokenType.XERC20Lockbox,
     TokenType.collateralUri,
     TokenType.syntheticUri,
     // TODO Fix: sender not mailbox or relaying simply fails
