@@ -7,6 +7,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { HyperlaneContractsMap } from '../contracts/types.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
@@ -65,10 +66,6 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     contractVerifier?: ContractVerifier;
   }): Promise<EvmTokenFeeModule> {
     const chainName = multiProvider.getChainName(chain);
-    const deployer = new EvmTokenFeeDeployer(multiProvider, chainName, {
-      contractVerifier: contractVerifier,
-    });
-
     const module = new EvmTokenFeeModule(
       multiProvider,
       {
@@ -81,21 +78,60 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       contractVerifier,
     );
 
-    const intermediaryConfig: Partial<TokenFeeConfig> = { ...config };
-    if (config.type === TokenFeeType.LinearFee) {
-      const { maxFee, halfAmount } = await module.reader.convertFromBps(
-        config.bps,
-        config.token,
+    const finalizedConfig = await module.processConfig({
+      config,
+      multiProvider,
+      chainName,
+    });
+
+    const contracts = await module.deploy({
+      config: finalizedConfig,
+      multiProvider,
+      chainName,
+      contractVerifier,
+    });
+    module.args.addresses.deployedFee = contracts[chain][config.type].address;
+
+    return module;
+  }
+
+  // Processes the Input config to the Final config
+  // For LinearFee, it converts the bps to maxFee and halfAmount
+  private async processConfig(params: {
+    config: TokenFeeConfigInput;
+    multiProvider: MultiProvider;
+    chainName: string;
+  }): Promise<TokenFeeConfig> {
+    const intermediaryConfig: Partial<TokenFeeConfig> = { ...params.config };
+    if (params.config.type === TokenFeeType.LinearFee) {
+      const reader = new EvmTokenFeeReader(
+        params.multiProvider,
+        params.chainName,
+      );
+      const { maxFee, halfAmount } = await reader.convertFromBps(
+        params.config.bps,
+        params.config.token,
       );
       intermediaryConfig.maxFee = maxFee;
       intermediaryConfig.halfAmount = halfAmount;
     }
-    const finalizedConfig = TokenFeeConfigSchema.parse(intermediaryConfig);
+    return TokenFeeConfigSchema.parse(intermediaryConfig);
+  }
 
-    const contracts = await deployer.deploy({ [chain]: finalizedConfig });
-    module.args.addresses.deployedFee = contracts[chain][config.type].address;
-
-    return module;
+  private async deploy(params: {
+    config: TokenFeeConfig;
+    multiProvider: MultiProvider;
+    chainName: string;
+    contractVerifier?: ContractVerifier;
+  }): Promise<HyperlaneContractsMap<EvmTokenFeeFactories>> {
+    const deployer = new EvmTokenFeeDeployer(
+      params.multiProvider,
+      params.chainName,
+      {
+        contractVerifier: params.contractVerifier,
+      },
+    );
+    return deployer.deploy({ [params.chainName]: params.config });
   }
 
   // Public accessor for the deployed fee contract address
