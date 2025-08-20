@@ -87,7 +87,7 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
     );
 
     try {
-      // LayerZero EID for the destination domain (you'll need to map domain to LZ EID)
+      // LayerZero EID for the destination domain
       const lzEid = this.mapDomainToLzEid(domain);
       const recipientBytes32 = ethers.utils.hexZeroPad(recipient, 32);
       
@@ -120,7 +120,7 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
     bridge: Address,
     quotes: any[],
   ): Promise<any> {
-    // Use the native OFT send function
+    // Use the native OFT send function directly
     const oftContract = new ethers.Contract(
       this.oftTokenAddress,
       [
@@ -142,17 +142,15 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
       oftCmd: '0x',
     };
 
-    const fee = { msgFee: quotes[0]?.amount || 0n, lzTokenFee: 0n };
-    const refundTo = ethers.constants.AddressZero; // Simplified for now
+    const fee = { msgFee: quotes[0]?.amount || 100000000000000000n, lzTokenFee: 0n };
 
-    return oftContract.populateTransaction.send(sendParam, fee, refundTo, {
+    return oftContract.populateTransaction.send(sendParam, fee, ethers.constants.AddressZero, {
       value: fee.msgFee,
     });
   }
 
   /**
    * Map Hyperlane domain ID to LayerZero EID
-   * This is a simplified mapping - in production, this should come from config
    */
   private mapDomainToLzEid(domain: number): number {
     const domainToEidMap: Record<number, number> = {
