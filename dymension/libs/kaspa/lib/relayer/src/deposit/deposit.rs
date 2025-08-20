@@ -117,7 +117,7 @@ pub async fn on_new_deposit(
             U256::from(utxo.amount) >= amt_hl
                 && utxo.script_public_key_address.as_ref().unwrap() == escrow_address
         })
-        .ok_or(eyre::eyre!("kaspa deposit had insufficient sompi amount"))?;
+        .ok_or(eyre::eyre!("kaspa deposit {} had insufficient sompi amount",deposit.id))?;
 
     let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)?;
 
