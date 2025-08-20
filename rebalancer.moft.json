@@ -6,14 +6,24 @@
       "sepolia": {
         "bridge": "0x8f2a074421098E10ab7083e198E177D4d215a9A5",
         "bridgeLockTime": 60,
-        "bridgeMinAcceptedAmount": "0.001",
-        "weighted": { "weight": 100, "tolerance": 5 }
+        "bridgeMinAcceptedAmount": "0.1",
+        "weighted": { "weight": 100, "tolerance": 5 },
+        "override": {
+          "arbitrumsepolia": {
+            "bridge": "0x5bbd1FC7b11AE8d5984e6B399C4c9BD04f61BdcF"
+          }
+        }
       },
       "arbitrumsepolia": {
         "bridge": "0x5bbd1FC7b11AE8d5984e6B399C4c9BD04f61BdcF",
         "bridgeLockTime": 60,
-        "bridgeMinAcceptedAmount": "0.001",
-        "weighted": { "weight": 100, "tolerance": 5 }
+        "bridgeMinAcceptedAmount": "0.1",
+        "weighted": { "weight": 100, "tolerance": 5 },
+        "override": {
+          "sepolia": {
+            "bridge": "0x8f2a074421098E10ab7083e198E177D4d215a9A5"
+          }
+        }
       }
     }
   }
