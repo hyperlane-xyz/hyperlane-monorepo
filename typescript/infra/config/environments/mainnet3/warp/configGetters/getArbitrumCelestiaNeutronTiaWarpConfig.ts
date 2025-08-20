@@ -4,10 +4,19 @@ import {
   OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
+import { objFilter } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getGnosisSafeSubmitterStrategyConfigGenerator } from '../../../utils.js';
+import { awSafes } from '../../governance/safe/aw.js';
 
-export const getArbitrumNeutronTiaWarpConfig = async (
+const chainsToDeploy = ['arbitrum'];
+const ownerMap: ChainMap<string> = objFilter(
+  awSafes,
+  (chain, safe): safe is string => chainsToDeploy.includes(chain),
+);
+
+export const getArbitrumCelestiaNeutronTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
@@ -34,8 +43,24 @@ export const getArbitrumNeutronTiaWarpConfig = async (
     gas: 600_000,
   };
 
+  const celestia: HypTokenRouterConfig = {
+    ...routerConfig.celestia,
+    type: TokenType.collateral,
+    owner: 'celestia1lcl2vhj4rsalr9qqyg4tkkdk8laqfmz5xqgl5k',
+    name: 'TIA',
+    symbol: 'TIA',
+    token: 'utia',
+    decimals: 6,
+    foreignDeployment:
+      '0x726f757465725f61707000000000000000000000000000010000000000000005',
+  };
+
   return {
     arbitrum,
+    celestia,
     neutron,
   };
 };
+
+export const getTIAGnosisSafeSubmitterStrategyConfig =
+  getGnosisSafeSubmitterStrategyConfigGenerator(ownerMap);
