@@ -9,12 +9,9 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
-import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
+import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import { TokenFeeConfigInput, TokenFeeType } from './types.js';
 
-const MAX_FEE = 1157920892373161954235709850086879078532699846656405640394n;
-const HALF_AMOUNT = 578960446186580977117854925043439539266349923328202820197n;
-const BPS = EvmTokenFeeReader.convertToBps(MAX_FEE, HALF_AMOUNT);
 describe('EvmTokenFeeModule', () => {
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;

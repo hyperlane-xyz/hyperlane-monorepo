@@ -40,6 +40,11 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { VerifyContractTypes } from '../deploy/verify/types.js';
+import {
+  BPS,
+  HALF_AMOUNT,
+  MAX_FEE,
+} from '../fee/EvmTokenFeeReader.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
@@ -687,10 +692,9 @@ describe('ERC20WarpRouterReader', async () => {
           type: TokenFeeType.LinearFee,
           owner: mailbox.address,
           token: token.address,
-          maxFee: 1157920892373161954235709850086879078532699846656405640394n,
-          halfAmount:
-            5789604461865809771178549250434395392663499233282028201970n,
-          bps: 1000n,
+          maxFee: MAX_FEE,
+          halfAmount: HALF_AMOUNT,
+          bps: BPS,
         },
       },
     };
