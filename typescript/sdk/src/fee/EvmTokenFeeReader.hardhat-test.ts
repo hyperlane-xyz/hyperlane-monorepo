@@ -14,9 +14,11 @@ import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
 
-const MAX_FEE = 1157920892373161954235709850086879078532699846656405640394n;
-const HALF_AMOUNT = 5789604461865809771178549250434395392663499233282028201970n;
-const BPS = EvmTokenFeeReader.convertToBps(MAX_FEE, HALF_AMOUNT);
+export const MAX_FEE =
+  1157920892373161954235709850086879078532699846656405640394n;
+export const HALF_AMOUNT =
+  5789604461865809771178549250434395392663499233282028201970n;
+export const BPS = EvmTokenFeeReader.convertToBps(MAX_FEE, HALF_AMOUNT);
 
 describe('EvmTokenFeeReader', () => {
   let multiProvider: MultiProvider;
