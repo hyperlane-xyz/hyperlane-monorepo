@@ -21,7 +21,7 @@ import {
   HookType,
   IsmConfig,
   IsmType,
-  TokenFeeConfigSchema,
+  TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
   WarpCoreConfig,
@@ -833,12 +833,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
 
     it('should deploy with a token fee config', async () => {
-      const tokenFee = TokenFeeConfigSchema.parse({
+      const tokenFee: TokenFeeConfigInput = {
         type: TokenFeeType.LinearFee,
         token: tokenChain2.address,
         owner: ownerAddress,
-        bps: 1,
-      });
+        bps: 1n,
+      };
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
