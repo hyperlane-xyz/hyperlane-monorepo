@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { addressToBytes32, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -36,7 +36,7 @@ describe('EvmTokenFeeDeployer', () => {
     title: string;
     config: DistributiveOmit<
       LinearFeeConfig | ProgressiveFeeConfig | RegressiveFeeConfig,
-      'owner' | 'token'
+      'owner' | 'token' // Omit owner and token because they are created after the beforeEach
     >;
   };
 
@@ -142,14 +142,15 @@ describe('EvmTokenFeeDeployer', () => {
 
     await routingFeeContract.setFeeContract(1, linearFeeContract.address);
 
+    const amount = randomInt(1, 10000000000000);
     const quote = await routingFeeContract.quoteTransferRemote(
       1,
       addressToBytes32(signer.address),
-      100000000000000,
+      amount,
     );
 
     expect(quote.length).to.equal(1);
-    expect(quote[0].amount).to.be.equal(10000000000000);
+    expect(quote[0].amount).to.be.equal((BigInt(amount) * BPS) / 10_000n);
     expect(quote[0].token).to.equal(token.address);
 
     // If no fee contract is set, the quote should be zero
