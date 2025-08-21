@@ -290,7 +290,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     chain: ChainName,
     hypToken: TokenRouter,
     chainDecimals: Record<ChainName, number | undefined>,
-    decimalType: string,
+    decimalType: 'actual' | 'config',
     nonEmpty: boolean,
   ) {
     const definedDecimals = Object.values(chainDecimals).filter(
@@ -306,7 +306,9 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         type: 'TokenDecimalsMismatch',
         chain,
         expected: `consistent ${decimalType} decimals specified across all chains (considering scale)`,
-        actual: JSON.stringify(chainDecimals),
+        actual: JSON.stringify(chainDecimals, (_k, v) =>
+          v === undefined ? 'undefined' : v,
+        ),
         tokenAddress: hypToken.address,
       };
       this.addViolation(violation);
@@ -319,7 +321,9 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         type: 'TokenDecimalsMismatch',
         chain,
         expected: `non-empty and consistent ${decimalType} decimals (considering scale)`,
-        actual: JSON.stringify(chainDecimals),
+        actual: JSON.stringify(chainDecimals, (_k, v) =>
+          v === undefined ? 'undefined' : v,
+        ),
         tokenAddress: hypToken.address,
       };
       this.addViolation(violation);
@@ -337,7 +341,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
           name: this.configMap[chn]?.name ?? 'unknown',
           symbol: this.configMap[chn]?.symbol ?? 'unknown',
           decimals: decimals as number,
-          scale: this.configMap[chn]?.scale || 1,
+          scale: this.configMap[chn]?.scale ?? 1,
         },
       ]),
     );
@@ -350,7 +354,9 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       type: 'TokenDecimalsMismatch',
       chain,
       expected: `consistent ${decimalType} decimals (considering scale)`,
-      actual: JSON.stringify(chainDecimals),
+      actual: JSON.stringify(chainDecimals, (_k, v) =>
+        v === undefined ? 'undefined' : v,
+      ),
       tokenAddress: hypToken.address,
     };
     this.addViolation(violation);

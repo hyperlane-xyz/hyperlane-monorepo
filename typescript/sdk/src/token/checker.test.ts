@@ -24,7 +24,7 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
   }
 
   const owner = '0x000000000000000000000000000000000000dEaD';
-  const mailbox = '0x000000000000000000000000000000000000b0x1';
+  const mailbox = '0x000000000000000000000000000000000000b001';
 
   it('does not add violation when decimals are uniform (unscaled)', () => {
     const config: ChainMap<HypTokenRouterConfig> = {
@@ -142,7 +142,7 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
   });
 
   it('adds violation when nonEmpty is true and all decimals are undefined', () => {
-    const config: ChainMap<HypTokenRouterConfig> = {
+    const config: ChainMap<Partial<HypTokenRouterConfig>> = {
       [TestChainName.test1]: {
         type: TokenType.native,
         owner,
@@ -157,9 +157,9 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
         name: 'TKN',
         symbol: 'TKN',
       },
-    } as unknown as ChainMap<HypTokenRouterConfig>;
+    };
 
-    const checker = buildChecker(config);
+    const checker = buildChecker(config as ChainMap<HypTokenRouterConfig>);
     const chainDecimals = {
       [TestChainName.test1]: undefined,
       [TestChainName.test2]: undefined,
@@ -178,7 +178,7 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
   });
 
   it('adds violation when some chains define decimals and others do not (nonEmpty=false)', () => {
-    const config: ChainMap<HypTokenRouterConfig> = {
+    const config: ChainMap<Partial<HypTokenRouterConfig>> = {
       [TestChainName.test1]: {
         type: TokenType.native,
         owner,
@@ -203,9 +203,9 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
         symbol: 'TKN',
         decimals: 18,
       },
-    } as unknown as ChainMap<HypTokenRouterConfig>;
+    };
 
-    const checker = buildChecker(config);
+    const checker = buildChecker(config as ChainMap<HypTokenRouterConfig>);
     const chainDecimals = {
       [TestChainName.test1]: 18,
       [TestChainName.test2]: undefined,
@@ -225,7 +225,7 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
   });
 
   it('adds violation when some chains define decimals and others do not (nonEmpty=true)', () => {
-    const config: ChainMap<HypTokenRouterConfig> = {
+    const config: ChainMap<Partial<HypTokenRouterConfig>> = {
       [TestChainName.test1]: {
         type: TokenType.native,
         owner,
@@ -250,9 +250,9 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
         symbol: 'TKN',
         decimals: 18,
       },
-    } as unknown as ChainMap<HypTokenRouterConfig>;
+    };
 
-    const checker = buildChecker(config);
+    const checker = buildChecker(config as ChainMap<HypTokenRouterConfig>);
     const chainDecimals = {
       [TestChainName.test1]: 18,
       [TestChainName.test2]: undefined,
