@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
+use std::num::TryFromIntError;
 use std::ops::Deref;
 
 use bigdecimal::ParseBigDecimalError;
@@ -159,6 +160,9 @@ pub enum ChainCommunicationError {
     /// Invalid reorg period
     #[error("Invalid reorg period: {0:?}")]
     InvalidReorgPeriod(ReorgPeriod),
+    /// Convert Integer Error
+    #[error("{0}")]
+    TryFromIntError(#[from] TryFromIntError),
 }
 
 impl ChainCommunicationError {

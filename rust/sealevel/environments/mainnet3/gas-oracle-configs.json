@@ -56,6 +56,14 @@
       },
       "overhead": 166887
     },
+    "celestia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "12854471798067",
+        "gasPrice": "2000",
+        "tokenDecimals": 6
+      },
+      "overhead": 600000
+    },
     "eclipsemainnet": {
       "oracleConfig": {
         "tokenExchangeRate": "30244936117170458",
@@ -242,6 +250,14 @@
     }
   },
   "eclipsemainnet": {
+    "celestia": {
+      "oracleConfig": {
+        "tokenExchangeRate": "637518545994",
+        "gasPrice": "2000",
+        "tokenDecimals": 6
+      },
+      "overhead": 600000
+    },
     "ethereum": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",

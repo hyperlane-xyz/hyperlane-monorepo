@@ -48,6 +48,7 @@ export enum ProviderType {
   GnosisTxBuilder = 'gnosis-txBuilder',
   Starknet = 'starknet',
   ZkSync = 'zksync',
+  Radix = 'radix',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -59,6 +60,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
   [ProtocolType.CosmosNative]: ProviderType.CosmJsNative,
   [ProtocolType.Starknet]: ProviderType.Starknet,
+  [ProtocolType.Radix]: ProviderType.Radix,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -93,6 +95,12 @@ type ProtocolTypesMapping = {
     provider: StarknetJsProvider;
     contract: StarknetJsContract;
     receipt: StarknetJsTransactionReceipt;
+  };
+  [ProtocolType.Radix]: {
+    transaction: any;
+    provider: any;
+    contract: any;
+    receipt: any;
   };
 };
 

@@ -1,4 +1,4 @@
-use hyperlane_core::{utils::hex_or_base58_to_h256, H256};
+use hyperlane_core::{utils::hex_or_base58_or_bech32_to_h256, H256};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -319,7 +319,7 @@ pub(crate) fn deploy_routers<
                     let chain_metadata = chain_metadatas.get(chain_name).unwrap();
                     (
                         chain_metadata.domain_id,
-                        hex_or_base58_to_h256(foreign_deployment).unwrap(),
+                        hex_or_base58_or_bech32_to_h256(foreign_deployment).unwrap(),
                     )
                 })
         })

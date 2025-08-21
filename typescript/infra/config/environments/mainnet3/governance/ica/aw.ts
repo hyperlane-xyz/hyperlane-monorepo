@@ -124,4 +124,8 @@ export const awIcas: ChainMap<Address> = {
   zetachain: '0x6F3665B9cA225A53dcf9d77A356bbff782C15196',
   zircuit: '0x83075a810feE2390D95b3d281E78e5Ada8b5A9C9',
   zoramainnet: '0xAd92FA49D4dcB010999B7e4289e790C644f3b853',
+
+  // Aug 18, 2025 - Mitosis
+  // ----------------------------------------------------------
+  mitosis: '0x8C94C6c26c752fAa33bACD377b9198FE7fae0bF5',
 } as const;

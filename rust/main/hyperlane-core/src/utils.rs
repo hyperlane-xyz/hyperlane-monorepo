@@ -8,7 +8,7 @@ use std::time::Duration;
 use crate::{KnownHyperlaneDomain, H160, H256, U256};
 
 /// Converts a hex or base58 string to an H256.
-pub fn hex_or_base58_to_h256(string: &str) -> Result<H256> {
+pub fn hex_or_base58_or_bech32_to_h256(string: &str) -> Result<H256> {
     let h256 = if string.starts_with("0x") {
         match string.len() {
             66 => H256::from_str(string)?,
@@ -16,11 +16,22 @@ pub fn hex_or_base58_to_h256(string: &str) -> Result<H256> {
             _ => eyre::bail!("Invalid hex string"),
         }
     } else {
-        let bytes = bs58::decode(string).into_vec()?;
-        if bytes.len() != 32 {
-            eyre::bail!("Invalid length of base58 string")
+        let bytes = bech32::decode(string);
+        if let Ok((_, bytes)) = bytes {
+            if bytes.len() > 32 {
+                eyre::bail!("Invalid length of bech32 string")
+            }
+            // We pad bech32 address to be 32 bytes long
+            let mut padded = vec![0; 32 - bytes.len()];
+            padded.extend_from_slice(&bytes);
+            H256::from_slice(padded.as_slice())
+        } else {
+            let bytes = bs58::decode(string).into_vec()?;
+            if bytes.len() != 32 {
+                eyre::bail!("Invalid length of base58 string")
+            }
+            H256::from_slice(bytes.as_slice())
         }
-        H256::from_slice(bytes.as_slice())
     };
 
     Ok(h256)

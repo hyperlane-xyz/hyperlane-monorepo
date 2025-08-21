@@ -1,5 +1,7 @@
 # @hyperlane-xyz/eslint-config
 
+## 17.0.0
+
 ## 16.2.0
 
 ## 16.1.1

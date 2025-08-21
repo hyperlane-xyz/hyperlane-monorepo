@@ -1,5 +1,17 @@
 # @hyperlane-xyz/helloworld
 
+## 17.0.0
+
+### Patch Changes
+
+- Updated dependencies [400c02460]
+- Updated dependencies [8c15edc67]
+- Updated dependencies [76a5db49a]
+- Updated dependencies [6583df016]
+- Updated dependencies [7f542b288]
+  - @hyperlane-xyz/sdk@17.0.0
+  - @hyperlane-xyz/core@9.0.6
+
 ## 16.2.0
 
 ### Patch Changes

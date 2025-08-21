@@ -50,10 +50,15 @@ export enum TokenStandard {
   CosmNativeHypCollateral = 'CosmosNativeHypCollateral',
   CosmNativeHypSynthetic = 'CosmosNativeHypSynthetic',
 
-  //Starknet
+  // Starknet
   StarknetHypNative = 'StarknetHypNative',
   StarknetHypCollateral = 'StarknetHypCollateral',
   StarknetHypSynthetic = 'StarknetHypSynthetic',
+
+  // Radix
+  RadixNative = 'RadixNative',
+  RadixHypCollateral = 'RadixHypCollateral',
+  RadixHypSynthetic = 'RadixHypSynthetic',
 }
 
 // Allows for omission of protocol field in token args
@@ -104,6 +109,11 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   StarknetHypCollateral: ProtocolType.Starknet,
   StarknetHypNative: ProtocolType.Starknet,
   StarknetHypSynthetic: ProtocolType.Starknet,
+
+  // Radix
+  RadixNative: ProtocolType.Radix,
+  RadixHypCollateral: ProtocolType.Radix,
+  RadixHypSynthetic: ProtocolType.Radix,
 };
 
 export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
@@ -182,6 +192,8 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.StarknetHypNative,
   TokenStandard.StarknetHypCollateral,
   TokenStandard.StarknetHypSynthetic,
+  TokenStandard.RadixHypCollateral,
+  TokenStandard.RadixHypSynthetic,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
@@ -220,7 +232,22 @@ export const tokenTypeToStandard = (
       }
 
       throw new Error(
-        `token type ${tokenType} not available on protocol Cosmos Native`,
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+    }
+    case ProtocolType.Radix: {
+      if (
+        RADIX_SUPPORTED_TOKEN_TYPES.includes(
+          tokenType as RadixSupportedTokenTypes,
+        )
+      ) {
+        return RADIX_TOKEN_TYPE_TO_STANDARD[
+          tokenType as RadixSupportedTokenTypes
+        ];
+      }
+
+      throw new Error(
+        `token type ${tokenType} not available on protocol ${protocolType}`,
       );
     }
     default: {
@@ -285,6 +312,21 @@ export const STARKNET_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.synthetic]: TokenStandard.StarknetHypSynthetic,
 };
 
+export const RADIX_SUPPORTED_TOKEN_TYPES = [
+  TokenType.collateral,
+  TokenType.synthetic,
+] as const;
+
+type RadixSupportedTokenTypes = (typeof RADIX_SUPPORTED_TOKEN_TYPES)[number];
+
+export const RADIX_TOKEN_TYPE_TO_STANDARD: Record<
+  RadixSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.collateral]: TokenStandard.RadixHypCollateral,
+  [TokenType.synthetic]: TokenStandard.RadixHypSynthetic,
+};
+
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
   {
     [ProtocolType.Ethereum]: TokenStandard.EvmNative,
@@ -292,4 +334,5 @@ export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
     [ProtocolType.CosmosNative]: TokenStandard.CosmosNative,
     [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
     [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
+    [ProtocolType.Radix]: TokenStandard.RadixNative,
   };

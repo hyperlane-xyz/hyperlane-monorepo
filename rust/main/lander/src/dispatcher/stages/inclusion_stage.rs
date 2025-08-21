@@ -81,6 +81,7 @@ impl InclusionStage {
         }
     }
 
+    #[instrument(skip_all, fields(domain))]
     pub async fn receive_txs(
         mut building_stage_receiver: mpsc::Receiver<Transaction>,
         pool: InclusionStagePool,
@@ -109,6 +110,7 @@ impl InclusionStage {
         }
     }
 
+    #[instrument(skip_all, fields(domain))]
     async fn process_txs(
         pool: InclusionStagePool,
         finality_stage_sender: mpsc::Sender<Transaction>,

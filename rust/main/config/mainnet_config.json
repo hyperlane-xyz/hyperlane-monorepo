@@ -9080,6 +9080,7 @@
       "testRecipient": "0x72246331d057741008751AB3976a8297Ce7267Bc",
       "validatorAnnounce": "0xdf4aA3905e0391C7763e33CB6A08fFa97221D49B",
       "index": {
+        "chunk": 1000,
         "from": 127654
       }
     }

@@ -1,5 +1,20 @@
 # @hyperlane-xyz/infra
 
+## 17.0.0
+
+### Patch Changes
+
+- b23bcd111: Fix: Corrected logger usage by avoiding destructured debug method calls
+- Updated dependencies [400c02460]
+- Updated dependencies [8c15edc67]
+- Updated dependencies [76a5db49a]
+- Updated dependencies [6583df016]
+- Updated dependencies [e0bda316a]
+- Updated dependencies [7f542b288]
+  - @hyperlane-xyz/sdk@17.0.0
+  - @hyperlane-xyz/utils@17.0.0
+  - @hyperlane-xyz/helloworld@17.0.0
+
 ## 16.2.0
 
 ### Patch Changes

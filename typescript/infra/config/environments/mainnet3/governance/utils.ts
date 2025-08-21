@@ -23,6 +23,10 @@ export function getGovernanceTimelocks(governanceType: GovernanceType) {
       return regularTimelocks;
     case GovernanceType.AbacusWorks:
       return awTimelocks;
+    case GovernanceType.Irregular:
+      return {};
+    case GovernanceType.OUSDT:
+      return {};
     default:
       throw new Error(`Unsupported governance type: ${governanceType}`);
   }
@@ -49,6 +53,10 @@ export function getLegacyGovernanceIcas(governanceType: GovernanceType) {
       return regularIcasLegacy;
     case GovernanceType.AbacusWorks:
       return awIcasLegacy;
+    case GovernanceType.Irregular:
+      return {};
+    case GovernanceType.OUSDT:
+      return {};
     default:
       throw new Error(`Unsupported governance type: ${governanceType}`);
   }

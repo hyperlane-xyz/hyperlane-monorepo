@@ -94,6 +94,7 @@ export function useAccounts(
         [ProtocolType.Cosmos]: cosmAccountInfo,
         [ProtocolType.CosmosNative]: cosmAccountInfo,
         [ProtocolType.Starknet]: starknetAccountInfo,
+        [ProtocolType.Radix]: evmAccountInfo, // TODO: implement this once we have a radix wallet connection
       },
       readyAccounts,
     }),
@@ -203,6 +204,7 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
       [ProtocolType.Cosmos]: cosmosWallet,
       [ProtocolType.CosmosNative]: cosmosWallet,
       [ProtocolType.Starknet]: starknetWallet,
+      [ProtocolType.Radix]: evmWallet, // TODO: implement this once we have a radix wallet connection
     }),
     [evmWallet, solWallet, cosmosWallet, starknetWallet],
   );
@@ -221,6 +223,7 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
       [ProtocolType.Cosmos]: onConnectCosmos,
       [ProtocolType.CosmosNative]: onConnectCosmos,
       [ProtocolType.Starknet]: onConnectStarknet,
+      [ProtocolType.Radix]: () => {}, // TODO: implement this once we have a radix wallet connection
     }),
     [onConnectEthereum, onConnectSolana, onConnectCosmos, onConnectStarknet],
   );
@@ -265,6 +268,7 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
         ProtocolType.Starknet,
         disconnectStarknet,
       ),
+      [ProtocolType.Radix]: onClickDisconnect(ProtocolType.Radix, () => {}), // TODO: implement once we have radix wallet connection
     }),
     [disconnectEvm, disconnectSol, disconnectCosmos, disconnectStarknet],
   );
@@ -295,6 +299,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Cosmos]: cosmChain,
         [ProtocolType.CosmosNative]: cosmChain,
         [ProtocolType.Starknet]: starknetChain,
+        [ProtocolType.Radix]: evmChain, // TODO: replace this once we have a radix implementation
       },
       readyChains,
     }),
@@ -353,6 +358,12 @@ export function useTransactionFns(
         sendMultiTransaction: onSendMultiStarknetTx,
         switchNetwork: onSwitchStarknetNetwork,
       },
+      [ProtocolType.Radix]: {
+        // TODO: implement once we have radix wallet connection
+        sendTransaction: (): any => {},
+        sendMultiTransaction: (): any => {},
+        switchNetwork: (): any => {},
+      },
     }),
     [
       onSendEvmTx,
@@ -391,6 +402,9 @@ export function useWatchAsset(
       },
       [ProtocolType.Starknet]: {
         addAsset: starknetAddAsset,
+      },
+      [ProtocolType.Radix]: {
+        addAsset: (): any => {}, // TODO: implement once we have radix wallet connection
       },
     }),
     [evmAddAsset, solanaAddAsset, cosmosAddAsset, starknetAddAsset],
