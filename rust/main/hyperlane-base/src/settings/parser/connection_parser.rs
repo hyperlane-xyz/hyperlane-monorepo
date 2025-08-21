@@ -549,7 +549,7 @@ pub fn build_radix_connection_conf(
         .end()
         .or_else(|| {
             local_err.push(
-                &chain.cwp + "network_name",
+                (&chain.cwp).add("network_name"),
                 eyre!("Missing network name for chain"),
             );
             None
