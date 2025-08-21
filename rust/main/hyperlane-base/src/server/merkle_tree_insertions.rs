@@ -46,8 +46,7 @@ pub async fn fetch_merkle_tree_insertions(
 ) -> ServerResult<Vec<TreeInsertion>> {
     let capacity = leaf_index_end
         .saturating_add(1)
-        .saturating_sub(leaf_index_start)
-        .min(u32::MAX) as usize;
+        .saturating_sub(leaf_index_start) as usize;
     let mut merkle_tree_insertions = Vec::with_capacity(capacity);
     for leaf_index in leaf_index_start..=leaf_index_end {
         let block_number_res = db
