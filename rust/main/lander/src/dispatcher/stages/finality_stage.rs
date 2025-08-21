@@ -82,6 +82,7 @@ impl FinalityStage {
         }
     }
 
+    #[instrument(skip_all, fields(domain))]
     async fn receive_txs(
         mut tx_receiver: mpsc::Receiver<Transaction>,
         pool: FinalityStagePool,
@@ -102,6 +103,7 @@ impl FinalityStage {
         }
     }
 
+    #[instrument(skip_all, fields(domain))]
     async fn process_txs(
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
