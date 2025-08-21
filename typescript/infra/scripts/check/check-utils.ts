@@ -68,6 +68,12 @@ export function getCheckDeployArgs() {
   return withRegistryUris(withWarpRouteId(withModule(getCheckBaseArgs())));
 }
 
+const ICA_ENABLED_MODULES = [
+  Modules.INTERCHAIN_ACCOUNTS,
+  Modules.HAAS,
+  Modules.WARP,
+];
+
 export async function getGovernor(
   module: Modules,
   context: Contexts,
@@ -121,10 +127,10 @@ export async function getGovernor(
     (chain, _): _ is Record<string, string> =>
       !!chainAddresses[chain]?.interchainAccountRouter,
   );
-  const ica = InterchainAccount.fromAddressesMap(
-    icaChainAddresses,
-    multiProvider,
-  );
+
+  const ica = ICA_ENABLED_MODULES.includes(module)
+    ? InterchainAccount.fromAddressesMap(icaChainAddresses, multiProvider)
+    : undefined;
 
   if (module === Modules.CORE) {
     chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
@@ -135,7 +141,7 @@ export async function getGovernor(
       ismFactory,
       chainAddresses,
     );
-    governor = new HyperlaneCoreGovernor(checker, ica);
+    governor = new HyperlaneCoreGovernor(checker);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromAddressesMap(chainAddresses, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, envConfig.igp);
