@@ -174,6 +174,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.CosmJsNative]: defaultCosmJsNativeProviderBuilder,
   [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
+  [ProtocolType.Radix]: defaultEthersV5ProviderBuilder, // TODO: replace with radix provider once implemented
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -185,4 +186,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
   [ProtocolType.CosmosNative]: defaultCosmJsNativeProviderBuilder,
   [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
+  [ProtocolType.Radix]: defaultEthersV5ProviderBuilder, // TODO: replace with radix provider once implemented
 };
