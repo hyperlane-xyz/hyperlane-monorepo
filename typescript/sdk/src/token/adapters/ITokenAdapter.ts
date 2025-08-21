@@ -74,6 +74,7 @@ export interface IMovableCollateralRouterAdapter<Tx> extends ITokenAdapter<Tx> {
     amount: Numberish,
     isWarp: boolean,
   ): Promise<InterchainGasQuote[]>;
+  getWrappedTokenAddress(): Promise<Address>;
 
   populateRebalanceTx(
     domain: Domain,
