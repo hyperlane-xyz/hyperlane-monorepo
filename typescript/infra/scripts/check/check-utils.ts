@@ -128,9 +128,11 @@ export async function getGovernor(
       !!chainAddresses[chain]?.interchainAccountRouter,
   );
 
-  const ica = ICA_ENABLED_MODULES.includes(module)
-    ? InterchainAccount.fromAddressesMap(icaChainAddresses, multiProvider)
-    : undefined;
+  const ica =
+    ICA_ENABLED_MODULES.includes(module) &&
+    Object.keys(icaChainAddresses).length > 0
+      ? InterchainAccount.fromAddressesMap(icaChainAddresses, multiProvider)
+      : undefined;
 
   if (module === Modules.CORE) {
     chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
