@@ -8435,7 +8435,7 @@ __metadata:
     prettier: "npm:^3.5.3"
     prom-client: "npm:^14.0.1"
     prompts: "npm:^2.4.2"
-    tmp: "npm:^0.2.3"
+    tmp: "npm:^0.2.4"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
@@ -38658,10 +38658,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tmp@npm:^0.2.3":
-  version: 0.2.3
-  resolution: "tmp@npm:0.2.3"
-  checksum: 10/7b13696787f159c9754793a83aa79a24f1522d47b87462ddb57c18ee93ff26c74cbb2b8d9138f571d2e0e765c728fb2739863a672b280528512c6d83d511c6fa
+"tmp@npm:^0.2.4":
+  version: 0.2.5
+  resolution: "tmp@npm:0.2.5"
+  checksum: 10/dd4b78b32385eab4899d3ae296007b34482b035b6d73e1201c4a9aede40860e90997a1452c65a2d21aee73d53e93cd167d741c3db4015d90e63b6d568a93d7ec
   languageName: node
   linkType: hard
 
