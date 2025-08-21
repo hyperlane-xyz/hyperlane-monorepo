@@ -1,5 +1,15 @@
 # @hyperlane-xyz/utils
 
+## 17.0.0
+
+### Major Changes
+
+- 8c15edc67: Added Radix Protocol Type
+
+### Patch Changes
+
+- e0bda316a: Ignore dynamic import in webpack builds
+
 ## 16.2.0
 
 ## 16.1.1
