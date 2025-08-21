@@ -143,6 +143,7 @@ async fn demo() -> Result<()> {
         w.clone(),
         e_public.clone(),
         U256::from(e2e_min_deposit_sompi),
+        1.3, // tx_fee_multiplier
     )
     .await
     .map_err(|e| eyre!("Build withdrawal FXG: {}", e))?;
