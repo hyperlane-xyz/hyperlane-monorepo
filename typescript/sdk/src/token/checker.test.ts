@@ -176,4 +176,98 @@ describe('HypERC20Checker.checkDecimalConsistency', () => {
     expect(checker.violations).to.have.length(1);
     expect(checker.violations[0].type).to.equal('TokenDecimalsMismatch');
   });
+
+  it('adds violation when some chains define decimals and others do not (nonEmpty=false)', () => {
+    const config: ChainMap<HypTokenRouterConfig> = {
+      [TestChainName.test1]: {
+        type: TokenType.native,
+        owner,
+        mailbox,
+        name: 'TKN',
+        symbol: 'TKN',
+        decimals: 18,
+      },
+      [TestChainName.test2]: {
+        type: TokenType.native,
+        owner,
+        mailbox,
+        name: 'TKN',
+        symbol: 'TKN',
+        // decimals omitted
+      },
+      [TestChainName.test3]: {
+        type: TokenType.native,
+        owner,
+        mailbox,
+        name: 'TKN',
+        symbol: 'TKN',
+        decimals: 18,
+      },
+    } as unknown as ChainMap<HypTokenRouterConfig>;
+
+    const checker = buildChecker(config);
+    const chainDecimals = {
+      [TestChainName.test1]: 18,
+      [TestChainName.test2]: undefined,
+      [TestChainName.test3]: 18,
+    } as Record<string, number | undefined>;
+
+    checker.checkDecimalConsistency(
+      TestChainName.test1,
+      dummyToken('0x5555555555555555555555555555555555555555'),
+      chainDecimals,
+      'config',
+      false,
+    );
+
+    expect(checker.violations).to.have.length(1);
+    expect(checker.violations[0].type).to.equal('TokenDecimalsMismatch');
+  });
+
+  it('adds violation when some chains define decimals and others do not (nonEmpty=true)', () => {
+    const config: ChainMap<HypTokenRouterConfig> = {
+      [TestChainName.test1]: {
+        type: TokenType.native,
+        owner,
+        mailbox,
+        name: 'TKN',
+        symbol: 'TKN',
+        decimals: 18,
+      },
+      [TestChainName.test2]: {
+        type: TokenType.native,
+        owner,
+        mailbox,
+        name: 'TKN',
+        symbol: 'TKN',
+        // decimals omitted
+      },
+      [TestChainName.test3]: {
+        type: TokenType.native,
+        owner,
+        mailbox,
+        name: 'TKN',
+        symbol: 'TKN',
+        decimals: 18,
+      },
+    } as unknown as ChainMap<HypTokenRouterConfig>;
+
+    const checker = buildChecker(config);
+    const chainDecimals = {
+      [TestChainName.test1]: 18,
+      [TestChainName.test2]: undefined,
+      [TestChainName.test3]: 18,
+    } as Record<string, number | undefined>;
+
+    checker.checkDecimalConsistency(
+      TestChainName.test1,
+      dummyToken('0x6666666666666666666666666666666666666666'),
+      chainDecimals,
+      'actual',
+      true,
+    );
+
+    expect(checker.violations).to.have.length(1);
+    expect(checker.violations[0].type).to.equal('TokenDecimalsMismatch');
+  });
 });

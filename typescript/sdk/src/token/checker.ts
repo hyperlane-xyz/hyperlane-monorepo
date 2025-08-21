@@ -298,6 +298,21 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     );
     const uniqueChainDecimals = new Set(definedDecimals);
 
+    // Disallow partial specification: some chains define decimals while others don't
+    const totalChains = Object.keys(chainDecimals).length;
+    const definedCount = definedDecimals.length;
+    if (definedCount > 0 && definedCount < totalChains) {
+      const violation: TokenMismatchViolation = {
+        type: 'TokenDecimalsMismatch',
+        chain,
+        expected: `consistent ${decimalType} decimals specified across all chains (considering scale)`,
+        actual: JSON.stringify(chainDecimals),
+        tokenAddress: hypToken.address,
+      };
+      this.addViolation(violation);
+      return;
+    }
+
     // If we require non-empty and nothing is defined, report immediately
     if (nonEmpty && uniqueChainDecimals.size === 0) {
       const violation: TokenMismatchViolation = {
@@ -314,28 +329,21 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     // If unscaled decimals agree, no need to check scale
     if (uniqueChainDecimals.size <= 1) return;
 
-    // Build a TokenMetadata map with provided decimals and configured scales for chains that define decimals
-    const entriesWithDecimals = Object.entries(chainDecimals).filter(
-      ([_, d]) => d !== undefined,
-    ) as Array<[ChainName, number]>;
+    // Build a TokenMetadata map from all chains; at this point decimals are defined on all chains
+    const metadataMap = new Map<string, TokenMetadata>(
+      Object.entries(chainDecimals).map(([chn, decimals]) => [
+        chn,
+        {
+          name: this.configMap[chn]?.name ?? 'unknown',
+          symbol: this.configMap[chn]?.symbol ?? 'unknown',
+          decimals: decimals as number,
+          scale: this.configMap[chn]?.scale || 1,
+        },
+      ]),
+    );
 
-    // Only run scale verification if at least two chains have defined decimals
-    if (entriesWithDecimals.length >= 2) {
-      const metadataMap = new Map<string, TokenMetadata>(
-        entriesWithDecimals.map(([chn, decimals]) => [
-          chn,
-          {
-            name: this.configMap[chn]?.name ?? 'unknown',
-            symbol: this.configMap[chn]?.symbol ?? 'unknown',
-            decimals,
-            scale: this.configMap[chn]?.scale || 1,
-          },
-        ]),
-      );
-
-      if (verifyScale(metadataMap)) {
-        return; // Decimals are consistent when accounting for scale
-      }
+    if (verifyScale(metadataMap)) {
+      return; // Decimals are consistent when accounting for scale
     }
 
     const violation: TokenMismatchViolation = {
