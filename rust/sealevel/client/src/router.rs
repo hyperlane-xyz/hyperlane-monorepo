@@ -371,18 +371,42 @@ pub(crate) fn deploy_routers<
             H256::from_slice(&program_id.to_bytes()[..]),
         );
 
-        configure_connection_client(ctx, &deployer, &program_id, app_config.router_config(), chain_metadata);
+        configure_connection_client(
+            ctx,
+            &deployer,
+            &program_id,
+            app_config.router_config(),
+            chain_metadata,
+        );
 
-        configure_owner(ctx, &deployer, &program_id, app_config.router_config(), chain_metadata);
+        configure_owner(
+            ctx,
+            &deployer,
+            &program_id,
+            app_config.router_config(),
+            chain_metadata,
+        );
 
         configure_upgrade_authority(ctx, &program_id, app_config.router_config(), chain_metadata);
     }
 
     // Now enroll all the routers.
-    enroll_all_remote_routers(&deployer, ctx, &app_configs_to_deploy, &chain_metadatas, &routers);
+    enroll_all_remote_routers(
+        &deployer,
+        ctx,
+        &app_configs_to_deploy,
+        &chain_metadatas,
+        &routers,
+    );
 
     // Call the post-deploy hook.
-    deployer.post_deploy(ctx, &app_configs, &app_configs_to_deploy, &chain_metadatas, &routers);
+    deployer.post_deploy(
+        ctx,
+        &app_configs,
+        &app_configs_to_deploy,
+        &chain_metadatas,
+        &routers,
+    );
 
     // Now write the program ids to a file!
     let routers_by_name: HashMap<String, H256> = routers
@@ -504,10 +528,7 @@ fn configure_owner(
                     ),
                 )
                 .with_client(&client)
-                .send_with_pubkey_signer(
-                    &actual_owner,
-                    Option::from(chain_metadata.clone().name),
-                );
+                .send_with_pubkey_signer(&actual_owner, Option::from(chain_metadata.clone().name));
 
             // If the transaction was not submitted (e.g. multisig flow writing YAML),
             // skip post-change verification.

@@ -258,8 +258,16 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         let new_entry = TransactionEntry {
             chain_name: chain_name.clone(),
             descriptions,
-            message_base58: if solana { None } else { Some(message_base58.clone()) },
-            transaction_base58: if solana { Some(transaction_base58.clone()) } else { None },
+            message_base58: if solana {
+                None
+            } else {
+                Some(message_base58.clone())
+            },
+            transaction_base58: if solana {
+                Some(transaction_base58.clone())
+            } else {
+                None
+            },
             instructions: if solana {
                 "https://hyperlanexyz.notion.site/Solana-Using-Squads-2016d35200d6802480acfce20350db8d".to_string()
             } else {
