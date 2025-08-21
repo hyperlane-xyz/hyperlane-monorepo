@@ -16,5 +16,5 @@ export const PROTOCOL_TO_LOGO: Record<
   [ProtocolType.Cosmos]: CosmosLogo,
   [ProtocolType.CosmosNative]: CosmosLogo,
   [ProtocolType.Starknet]: StarknetLogo,
-  [ProtocolType.Radix]: EthereumLogo,
+  [ProtocolType.Radix]: EthereumLogo, // TODO: replace with actual logo once radix is implemented
 };
