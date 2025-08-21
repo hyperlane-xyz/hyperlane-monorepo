@@ -29,7 +29,6 @@ export const getArbitrumCelestiaNeutronTiaWarpConfig = async (
     type: TokenType.collateral,
     token:
       'ibc/773B4D0A3CD667B2275D5A4A7A2F0909C0BA0F4059C0B9181E680DDF4965DCC7',
-    foreignDeployment: neutronRouter,
     gas: 600000,
   };
 
@@ -41,6 +40,15 @@ export const getArbitrumCelestiaNeutronTiaWarpConfig = async (
     symbol: 'TIA.n',
     decimals: 6,
     gas: 600_000,
+    remoteRouters: {
+      celestia: {
+        address:
+          '0x726f757465725f61707000000000000000000000000000010000000000000005',
+      },
+      neutron: {
+        address: neutronRouter,
+      },
+    },
   };
 
   const celestia: HypTokenRouterConfig = {
@@ -51,8 +59,6 @@ export const getArbitrumCelestiaNeutronTiaWarpConfig = async (
     symbol: 'TIA',
     token: 'utia',
     decimals: 6,
-    foreignDeployment:
-      '0x726f757465725f61707000000000000000000000000000010000000000000005',
   };
 
   return {
