@@ -240,7 +240,6 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 ],
                 &ctx.payer_pubkey,
                 None,
-                None,
             );
 
             println!(
