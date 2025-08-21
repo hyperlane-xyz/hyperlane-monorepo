@@ -35,7 +35,10 @@ import {
   EvmHypCollateralFiatAdapter,
   EvmHypXERC20LockboxAdapter,
 } from '../token/adapters/EvmTokenAdapter.js';
-import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
+import {
+  IHypXERC20Adapter,
+  InterchainGasQuote,
+} from '../token/adapters/ITokenAdapter.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -219,12 +222,14 @@ export class WarpCore {
     sender,
     senderPubKey,
     interchainFee,
+    tokenFeeQuote,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
+    tokenFeeQuote?: TokenAmount;
   }): Promise<TransactionFeeEstimate> {
     this.logger.debug(`Estimating local transfer gas to ${destination}`);
     const originMetadata = this.multiProvider.getChainMetadata(
@@ -255,6 +260,7 @@ export class WarpCore {
       sender,
       recipient,
       interchainFee,
+      tokenFeeQuote,
     });
 
     // Starknet does not support gas estimation without starknet account
@@ -311,12 +317,14 @@ export class WarpCore {
     sender,
     senderPubKey,
     interchainFee,
+    tokenFeeQuote,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
+    tokenFeeQuote?: TokenAmount;
   }): Promise<TokenAmount> {
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
@@ -335,6 +343,7 @@ export class WarpCore {
       sender,
       senderPubKey,
       interchainFee,
+      tokenFeeQuote,
     });
 
     // Get the local gas token. This assumes the chain's native token will pay for local gas
@@ -353,12 +362,14 @@ export class WarpCore {
     sender,
     recipient,
     interchainFee,
+    tokenFeeQuote,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
     interchainFee?: TokenAmount;
+    tokenFeeQuote?: TokenAmount;
   }): Promise<Array<WarpTypedTransaction>> {
     const transactions: Array<WarpTypedTransaction> = [];
 
@@ -367,6 +378,27 @@ export class WarpCore {
     const destinationDomainId = this.multiProvider.getDomainId(destination);
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
     const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
+
+    if (!interchainFee || !tokenFeeQuote) {
+      const transferFee = await this.getInterchainTransferFee({
+        originTokenAmount,
+        destination,
+        sender,
+        recipient,
+      });
+      interchainFee = transferFee.igpQuote;
+      tokenFeeQuote = transferFee.tokenFeeQuote;
+    }
+    const interchainGas: InterchainGasQuote = {
+      igpQuote: {
+        amount: interchainFee.amount,
+        addressOrDenom: interchainFee.token.addressOrDenom,
+      },
+      tokenFeeQuote: tokenFeeQuote && {
+        amount: tokenFeeQuote.amount,
+        addressOrDenom: tokenFeeQuote.token.addressOrDenom,
+      },
+    };
 
     const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
       this.isApproveRequired({
@@ -389,7 +421,13 @@ export class WarpCore {
     }
 
     if (isApproveRequired) {
-      preTransferRemoteTxs.push([amount.toString(), WarpTxCategory.Approval]);
+      // feeQuote is required to be approved for routes that have fees set
+      const feeQuote = tokenFeeQuote?.amount ?? 0n;
+      const amountToApprove = amount + feeQuote;
+      preTransferRemoteTxs.push([
+        amountToApprove.toString(),
+        WarpTxCategory.Approval,
+      ]);
     }
 
     for (const [approveAmount, txCategory] of preTransferRemoteTxs) {
@@ -399,6 +437,7 @@ export class WarpCore {
       const approveTxReq = await hypAdapter.populateApproveTx({
         weiAmountOrId: approveAmount,
         recipient: token.addressOrDenom,
+        interchainGas,
       });
       this.logger.debug(`${txCategory} tx for ${token.symbol} populated`);
 
@@ -408,16 +447,6 @@ export class WarpCore {
         transaction: approveTxReq,
       } as WarpTypedTransaction;
       transactions.push(approveTx);
-    }
-
-    const quote = await this.getInterchainTransferFee({
-      originTokenAmount,
-      destination,
-      sender,
-      recipient,
-    });
-    if (!interchainFee) {
-      interchainFee = quote.igpQuote;
     }
 
     // if the interchain fee is of protocol starknet we also have
@@ -464,15 +493,10 @@ export class WarpCore {
       destination: destinationDomainId,
       fromAccountOwner: sender,
       recipient,
-      interchainGas: {
-        igpQuote: {
-          amount: interchainFee.amount,
-          addressOrDenom: interchainFee.token.addressOrDenom,
-        },
-        tokenFeeQuote: quote.tokenFeeQuote,
-      },
+      interchainGas,
       customHook: token.igpTokenAddressOrDenom,
     });
+
     this.logger.debug(`Remote transfer tx for ${token.symbol} populated`);
 
     const transferTx = {
@@ -519,6 +543,7 @@ export class WarpCore {
       sender,
       senderPubKey,
       interchainFee: igpQuote,
+      tokenFeeQuote,
     });
 
     return {
@@ -864,12 +889,13 @@ export class WarpCore {
     // Check 2: Ensure the balance can cover interchain fee
     // Slightly redundant with Check 4 but gives more specific error messages
 
-    const { igpQuote: interchainQuote } = await this.getInterchainTransferFee({
-      originTokenAmount,
-      destination,
-      sender,
-      recipient,
-    });
+    const { igpQuote: interchainQuote, tokenFeeQuote } =
+      await this.getInterchainTransferFee({
+        originTokenAmount,
+        destination,
+        sender,
+        recipient,
+      });
     // Get balance of the IGP fee token, which may be different from the transfer token
     const interchainQuoteTokenBalance = originToken.isFungibleWith(
       interchainQuote.token,
@@ -889,6 +915,7 @@ export class WarpCore {
       sender,
       senderPubKey,
       interchainFee: interchainQuote,
+      tokenFeeQuote,
     });
 
     const feeEstimate = { interchainQuote, localQuote };
