@@ -37,11 +37,7 @@ import {
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import {
-  isInitialized,
-  proxyAdmin,
-  proxyAdminUpdateTxs,
-} from '../deploy/proxy.js';
+import { isInitialized, proxyAdmin } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ExplorerLicenseType } from '../deploy/verify/types.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
@@ -155,28 +151,28 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         actualConfig,
         expectedConfig,
       )),
-      ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
-      ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
+      // ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
+      // ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
         actualConfig,
         expectedConfig,
       ),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
-      ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
-      ...this.createRemoveRebalancersUpdateTxs(actualConfig, expectedConfig),
-      ...(await this.createAddAllowedBridgesUpdateTxs(
-        actualConfig,
-        expectedConfig,
-      )),
-      ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
+      // ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
+      // ...this.createRemoveRebalancersUpdateTxs(actualConfig, expectedConfig),
+      // ...(await this.createAddAllowedBridgesUpdateTxs(
+      //   actualConfig,
+      //   expectedConfig,
+      // )),
+      // ...this.createRemoveBridgesTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
-      ...proxyAdminUpdateTxs(
-        this.chainId,
-        this.args.addresses.deployedTokenRoute,
-        actualConfig,
-        expectedConfig,
-      ),
+      // ...proxyAdminUpdateTxs(
+      //   this.chainId,
+      //   this.args.addresses.deployedTokenRoute,
+      //   actualConfig,
+      //   expectedConfig,
+      // ),
     );
 
     return transactions;
