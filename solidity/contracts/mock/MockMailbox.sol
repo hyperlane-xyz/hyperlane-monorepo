@@ -68,19 +68,37 @@ contract MockMailbox is Mailbox {
         return id;
     }
 
-    /// @dev addInboundMessage is used to add a message to the mailbox
-    function addInboundMessage(bytes calldata message) public {
+    function addInboundMessage(bytes calldata message) external {
         inboundMessages[inboundUnprocessedNonce] = message;
         inboundUnprocessedNonce++;
     }
 
-    /// @dev processNextInboundMessage is used to process the next inbound message
     function processNextInboundMessage() public payable {
-        processInboundMessage(inboundProcessedNonce);
+        bytes memory _message = inboundMessages[inboundProcessedNonce];
+        Mailbox(address(this)).process{value: msg.value}("", _message);
         inboundProcessedNonce++;
     }
 
-    /// @dev processInboundMessage is used to process an inbound message
+    function handleNextInboundMessage() public payable {
+        bytes memory _message = inboundMessages[inboundProcessedNonce];
+        MockMailbox(address(this)).handleMessage(_message);
+        inboundProcessedNonce++;
+    }
+
+    function handleAllInboundMessages() public payable {
+        while (inboundProcessedNonce < inboundUnprocessedNonce) {
+            handleNextInboundMessage();
+        }
+    }
+
+    function handleMessage(bytes calldata message) external {
+        IMessageRecipient(message.recipientAddress()).handle(
+            message.origin(),
+            message.sender(),
+            message.body()
+        );
+    }
+
     function processInboundMessage(uint32 _nonce) public payable {
         bytes memory _message = inboundMessages[_nonce];
         bytes memory _metadata = inboundMetadata[_nonce];
