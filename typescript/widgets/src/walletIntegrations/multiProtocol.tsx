@@ -94,7 +94,7 @@ export function useAccounts(
         [ProtocolType.Cosmos]: cosmAccountInfo,
         [ProtocolType.CosmosNative]: cosmAccountInfo,
         [ProtocolType.Starknet]: starknetAccountInfo,
-        [ProtocolType.Radix]: {} as any, // TODO: implement this once we have a radix wallet connection
+        [ProtocolType.Radix]: evmAccountInfo, // TODO: implement this once we have a radix wallet connection
       },
       readyAccounts,
     }),
@@ -204,7 +204,7 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
       [ProtocolType.Cosmos]: cosmosWallet,
       [ProtocolType.CosmosNative]: cosmosWallet,
       [ProtocolType.Starknet]: starknetWallet,
-      [ProtocolType.Radix]: {}, // TODO: implement this once we have a radix wallet connection
+      [ProtocolType.Radix]: evmWallet, // TODO: implement this once we have a radix wallet connection
     }),
     [evmWallet, solWallet, cosmosWallet, starknetWallet],
   );
@@ -299,7 +299,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Cosmos]: cosmChain,
         [ProtocolType.CosmosNative]: cosmChain,
         [ProtocolType.Starknet]: starknetChain,
-        [ProtocolType.Radix]: starknetChain, // TODO: replace this once we have a radix implementation
+        [ProtocolType.Radix]: evmChain, // TODO: replace this once we have a radix implementation
       },
       readyChains,
     }),
