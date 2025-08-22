@@ -28,6 +28,7 @@ use radix_transactions::{
     builder::{
         ManifestBuilder, TransactionBuilder, TransactionManifestV2Builder, TransactionV2Builder,
     },
+    manifest::BlobProvider,
     model::{IntentHeaderV2, TransactionHeaderV2, TransactionPayload},
     signing::PrivateKey,
 };
@@ -46,13 +47,13 @@ use scrypto::{
 use hyperlane_core::{
     rpc_clients::FallbackProvider, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
     ContractLocator, Encode, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, LogMeta,
-    ReorgPeriod, TxOutcome, TxnInfo, H256, H512, U256,
+    ReorgPeriod, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
 use crate::{
-    decimal_to_u256, decode_bech32, encode_tx, provider::RadixGatewayProvider, signer::RadixSigner,
-    ConnectionConf, HyperlaneRadixError, RadixBaseCoreProvider, RadixBaseGatewayProvider,
-    RadixCoreProvider, RadixFallbackProvider,
+    decimal_to_u256, decode_bech32, encode_tx, manifest::find_fee_payer_from_manifest,
+    provider::RadixGatewayProvider, signer::RadixSigner, ConnectionConf, HyperlaneRadixError,
+    RadixBaseCoreProvider, RadixBaseGatewayProvider, RadixCoreProvider, RadixFallbackProvider,
 };
 
 /// Radix provider
@@ -332,6 +333,7 @@ impl RadixProvider {
             .transaction_committed(TransactionCommittedDetailsRequest {
                 intent_hash: hash,
                 opt_ins: Some(TransactionDetailsOptIns {
+                    manifest_instructions: Some(true),
                     receipt_events: Some(true),
                     receipt_fee_summary: Some(true),
                     ..Default::default()
@@ -636,6 +638,20 @@ impl HyperlaneProvider for RadixProvider {
             return Err(HyperlaneRadixError::ParsingError("receipt".to_owned()).into());
         };
 
+        let Some(tx_manifest) = tx.manifest_instructions else {
+            return Err(
+                HyperlaneRadixError::ParsingError("manifest_instructions".to_owned()).into(),
+            );
+        };
+
+        let blob_provider = BlobProvider::new();
+        // We assume the account that locked up XRD to pay for fees is the sender of the transaction
+        let fee_payer =
+            find_fee_payer_from_manifest(&tx_manifest, &self.conf.network, blob_provider)
+                .ok_or_else(|| {
+                    HyperlaneRadixError::ParsingError("fee_payer not found".to_owned())
+                })?;
+
         let Some(fee_summary) = receipt.fee_summary else {
             return Err(
                 HyperlaneRadixError::ParsingError("expected fee summary".to_owned()).into(),
@@ -668,10 +684,16 @@ impl HyperlaneProvider for RadixProvider {
             max_priority_fee_per_gas: None,
             max_fee_per_gas: None,
             gas_price: Some(gas_price),
-            nonce: 0, // TODO: double check if we need a nonce, there are no nonces in radix, we might want to use the discriminator instead
-            sender: H256::zero(), // TODO: this is not easy to figure out, we can use the notary public key, but it is not always the sender
-            recipient: None, // TODO: hard to tell what the tx interacted with, this can be with more than just one person, maybe use the the first component address?
-            receipt: None,
+            // TODO: double check if we need a nonce, there are no nonces in radix, we might want to use the discriminator instead
+            nonce: 0,
+            sender: fee_payer,
+            // TODO: hard to tell what the tx interacted with, this can be with more than just one person, maybe use the the first component address?
+            recipient: None,
+            receipt: Some(TxnReceiptInfo {
+                gas_used: decimal_to_u256(fee_paid),
+                cumulative_gas_used: gas_price,
+                effective_gas_price: Some(gas_price),
+            }),
             raw_input_data: None,
         })
     }
