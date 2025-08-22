@@ -495,24 +495,18 @@ pub fn build_kaspa_connection_conf(
         None => H256::default(),
     };
 
-    // Parse KaspaDepositConfig if provided
-    let kaspa_deposit_config = if validator_hosts.len() > 0 {
-        Some(dymension_kaspa::KaspaDepositConfig {
-            finality_confirmations: chain
-                .chain(err)
-                .get_opt_key("kaspaDepositFinalityConfirmations")
-                .parse_u32()
-                .end()
-                .unwrap_or(1000),
+    // Parse KaspaTimeConfig if provided
+    let kaspa_time_config = if validator_hosts.len() > 0 {
+        Some(dymension_kaspa::KaspaTimeConfig {
             base_retry_delay_secs: chain
                 .chain(err)
-                .get_opt_key("kaspaDepositBaseRetryDelaySecs")
+                .get_opt_key("kaspaTimeBaseRetryDelaySecs")
                 .parse_u64()
                 .end()
                 .unwrap_or(30),
             poll_interval_secs: chain
                 .chain(err)
-                .get_opt_key("kaspaDepositPollIntervalSecs")
+                .get_opt_key("kaspaTimePollIntervalSecs")
                 .parse_u64()
                 .end()
                 .unwrap_or(10),
@@ -538,7 +532,7 @@ pub fn build_kaspa_connection_conf(
             operation_batch,
             validation_conf,
             kaspa_min_deposit_sompi,
-            kaspa_deposit_config,
+            kaspa_time_config,
             hub_domain,
             hub_token_id,
             kas_domain,

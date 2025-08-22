@@ -1,8 +1,8 @@
 use crate::contract_sync::cursors::Indexable;
-use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
+use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, finality::is_safe_against_reorg};
 use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
 use dym_kas_relayer::confirm::expensive_trace_transactions;
-use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
+use dym_kas_relayer::deposit::{on_new_deposit as relayer_on_new_deposit, KaspaTxError};
 use dymension_kaspa::{Deposit, KaspaProvider};
 use ethers::utils::hex::ToHex;
 use eyre::Result;
@@ -24,7 +24,7 @@ use super::{
     deposit_operation::{DepositOpQueue, DepositOperation},
     error::KaspaDepositError,
 };
-use dymension_kaspa::conf::KaspaDepositConfig;
+use dymension_kaspa::conf::KaspaTimeConfig;
 
 pub struct Foo<C: MetadataConstructor> {
     provider: Box<KaspaProvider>,
@@ -32,7 +32,7 @@ pub struct Foo<C: MetadataConstructor> {
     metadata_constructor: C,
     deposit_cache: DepositCache,
     deposit_queue: Mutex<DepositOpQueue>,
-    config: KaspaDepositConfig,
+    config: KaspaTimeConfig,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -46,8 +46,8 @@ where
     ) -> Self {
         // Get config from provider, or use defaults if not available
         let config = provider
-            .kaspa_deposit_config()
-            .unwrap_or_else(KaspaDepositConfig::default);
+            .kaspa_time_config()
+            .unwrap_or_else(KaspaTimeConfig::default);
         Self {
             provider,
             hub_mailbox,
@@ -131,7 +131,7 @@ where
                 deposit_count = deposits.len(),
                 "Dymension, queried kaspa deposits"
             );
-            time::sleep(Duration::from_secs(1)).await;
+            time::sleep(self.config.poll_interval()).await;
             self.handle_new_deposits(deposits).await;
         }
     }
@@ -280,9 +280,7 @@ where
             // TODO: what happens if at some point no one is bridging and we have failed confirmations?
 
             // we wait for finality time before sending to hub in case there is a confirmation pending, but without consuming first to be able to detect pending confirmations in withdrawal flow
-            if self.provider.has_pending_confirmation() {
-                time::sleep(FINALITY_APPROX_WAIT_TIME).await;
-            }
+
             let confirmation = self.provider.get_pending_confirmation().await;
 
             match confirmation {
@@ -293,15 +291,24 @@ where
                             info!(confirmation = ?confirmation, "Dymension, confirmed withdrawal on hub");
                             self.provider.consume_pending_confirmation();
                         }
+                        Err(KaspaTxError::NotFinalError { retry_after_secs, .. }) => {
+                            info!(
+                                retry_after_secs = retry_after_secs,
+                                "Dymension, withdrawal not final yet, sleeping before retry"
+                            );
+                            time::sleep(Duration::from_secs_f64(retry_after_secs)).await;
+                            continue; // Retry after waiting
+                        }
                         Err(e) => {
                             error!("Dymension, confirm withdrawal on hub: {:?}", e);
                         }
                     }
                 }
                 None => {
-                    time::sleep(self.config.poll_interval()).await;
+                    info!("Dymension, no pending confirmation found.");
                 }
             }
+            time::sleep(self.config.poll_interval()).await;
         }
     }
 
@@ -455,18 +462,47 @@ where
     /// needs to satisfy
     /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
     /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
-    async fn confirm_withdrawal_on_hub(&self, fxg: ConfirmationFXG) -> Result<()> {
+    async fn confirm_withdrawal_on_hub(&self, fxg: ConfirmationFXG) -> Result<(),KaspaTxError> {
+        // Check finality status before confirming withdrawal
+        // Use the last outpoint (new anchor) from the sequence
+        let new_anchor = fxg.outpoints.last()
+            .ok_or_else(|| KaspaTxError::ProcessingError(eyre::eyre!("No outpoints in confirmation FXG")))?;
+        
+        let finality_status = is_safe_against_reorg(
+            &self.provider.rest().client.client,
+            &new_anchor.transaction_id.to_string(),
+            None,
+        )
+        .await
+        .map_err(|e| KaspaTxError::ProcessingError(e))?;
+
+        if !finality_status.is_final() {
+            return Err(KaspaTxError::NotFinalError {
+                confirmations: finality_status.confirmations,
+                required_confirmations: finality_status.required_confirmations,
+                retry_after_secs: (finality_status.required_confirmations - finality_status.confirmations) as f64 * 0.1,
+            });
+        }
+
+        info!(
+            confirmations = finality_status.confirmations,
+            required = finality_status.required_confirmations,
+            "Finality check passed for withdrawal confirmation"
+        );
+
         let mut sigs = self
             .provider
             .validators()
             .get_confirmation_sigs(&fxg)
-            .await?;
+            .await
+            .map_err(|e| KaspaTxError::ProcessingError(eyre::eyre!("Failed to get confirmation sigs: {}", e)))?;
 
         info!(sig_count = sigs.len(), "Dymension, got confirmation sigs");
         let formatted_sigs = self.format_ad_hoc_signatures(
             &mut sigs,
             self.provider.validators().multisig_threshold_hub_ism() as usize,
-        )?;
+        )
+        .map_err(|e| KaspaTxError::ProcessingError(eyre::eyre!("Failed to format signatures: {}", e)))?;
 
         info!(
             "Dymension, formatted confirmation sigs: {:?}",
@@ -477,14 +513,14 @@ where
             .hub_mailbox
             .indicate_progress(&formatted_sigs, &fxg.progress_indication)
             .await
-            .map_err(|e| eyre::eyre!("Indicate progress failed: {}", e))?;
+            .map_err(|e| KaspaTxError::ProcessingError(eyre::eyre!("Indicate progress failed: {}", e)))?;
 
         let tx_hash = h512_to_cosmos_hash(outcome.transaction_id).encode_hex_upper::<String>();
 
         if !outcome.executed {
-            return Err(eyre::eyre!(
+            return Err(KaspaTxError::ProcessingError(eyre::eyre!(
                 "Indicate progress failed, TX was not executed on-chain, tx hash: {tx_hash}"
-            ));
+            )));
         }
 
         info!(

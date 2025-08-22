@@ -12,8 +12,8 @@ use tracing::{info, warn};
 
 /// Error type for deposit processing that includes retry timing information
 #[derive(Debug)]
-pub enum DepositError {
-    NotFinalEnough {
+pub enum KaspaTxError {
+    NotFinalError {
         confirmations: i64,
         required_confirmations: i64,
         retry_after_secs: f64,
@@ -21,10 +21,10 @@ pub enum DepositError {
     ProcessingError(eyre::Error),
 }
 
-impl std::fmt::Display for DepositError {
+impl std::fmt::Display for KaspaTxError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DepositError::NotFinalEnough {
+            KaspaTxError::NotFinalError {
                 confirmations,
                 required_confirmations,
                 retry_after_secs,
@@ -35,25 +35,25 @@ impl std::fmt::Display for DepositError {
                     confirmations, required_confirmations, retry_after_secs
                 )
             }
-            DepositError::ProcessingError(err) => {
+            KaspaTxError::ProcessingError(err) => {
                 write!(f, "Processing error: {}", err)
             }
         }
     }
 }
 
-impl std::error::Error for DepositError {
+impl std::error::Error for KaspaTxError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            DepositError::NotFinalEnough { .. } => None,
-            DepositError::ProcessingError(err) => Some(err.as_ref()),
+            KaspaTxError::NotFinalError { .. } => None,
+            KaspaTxError::ProcessingError(err) => Some(err.as_ref()),
         }
     }
 }
 
-impl From<eyre::Error> for DepositError {
+impl From<eyre::Error> for KaspaTxError {
     fn from(err: eyre::Error) -> Self {
-        DepositError::ProcessingError(err)
+        KaspaTxError::ProcessingError(err)
     }
 }
 
@@ -61,7 +61,7 @@ pub async fn on_new_deposit(
     escrow_address: &str,
     deposit: &Deposit,
     rest_client: &HttpClient,
-) -> Result<Option<DepositFXG>, DepositError> {
+) -> Result<Option<DepositFXG>, KaspaTxError> {
     // Check if the deposit is safe against reorg first
     let finality_status = is_safe_against_reorg(
         rest_client,
@@ -74,8 +74,12 @@ pub async fn on_new_deposit(
         let pending_confirmations =
             finality_status.required_confirmations - finality_status.confirmations;
         // we assume 10 confirmations per second, so retry after 0.1 seconds per confirmation needed
-        let retry_after_secs = pending_confirmations as f64 * 0.1;
-
+        let mut retry_after_secs;
+        if pending_confirmations > 0 {
+            retry_after_secs = pending_confirmations as f64 * 0.1;
+        } else {
+            retry_after_secs = 10.0; // Fallback to 10 seconds if no confirmations returned, since it can happen if the accepting block is not yet known to the node
+        }
         warn!(
             "Deposit {} is not yet safe against reorg. Confirmations: {}/{}. Will retry in {:.1}s",
             deposit.id,
@@ -84,7 +88,7 @@ pub async fn on_new_deposit(
             retry_after_secs
         );
 
-        return Err(DepositError::NotFinalEnough {
+        return Err(KaspaTxError::NotFinalError {
             confirmations: finality_status.confirmations,
             required_confirmations: finality_status.required_confirmations,
             retry_after_secs,

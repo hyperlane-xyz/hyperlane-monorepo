@@ -3,7 +3,7 @@ use eyre::Result;
 use hardcode::tx::REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_wallet_core::utxo::NetworkParams;
-
+use tracing::error;
 /// Returns true if the block is unlikely to be reorged
 /// Suitable only for sending transactions to Kaspa: the tranaction will fail if any input
 /// is reorged.
@@ -69,9 +69,15 @@ pub async fn is_safe_against_reorg_n_confs(
         .accepting_block_blue_score
         .ok_or(eyre::eyre!("Accepting block blue score is missing"))?;
 
-    let confirmations = virtual_blue_score - accepting_blue_score;
-    let is_final = confirmations >= required_confirmations;
-
+    let mut confirmations = virtual_blue_score - accepting_blue_score;
+    if confirmations < 0 {
+        confirmations = 0; // This can happen if the accepting block is not yet known to the node
+        error!(
+            "Virtual blue score {} is less than accepting block blue score {}",
+            virtual_blue_score,
+            accepting_blue_score
+        );
+    }
     Ok(FinalityStatus {
         confirmations,
         required_confirmations,

@@ -34,7 +34,7 @@ use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
 use kaspa_wallet_core::tx::Fees;
 use kaspa_wallet_core::utxo::NetworkParams;
-use relayer::deposit::{on_new_deposit, DepositError};
+use relayer::deposit::on_new_deposit;
 use relayer::withdraw::*;
 use std::collections::HashSet;
 use std::error::Error;
