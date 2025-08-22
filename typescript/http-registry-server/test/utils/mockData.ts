@@ -6,12 +6,15 @@ import {
 import {
   ChainMetadata,
   TokenStandard,
+  TokenType,
   WarpCoreConfig,
+  WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 // Mock constants from existing registry tests
 export const MOCK_CHAIN_NAME = 'mockchain';
+export const MOCK_CHAIN_NAME_2 = 'mockchain2';
 export const MOCK_ADDRESS = '0x0000000000000000000000000000000000000001';
 export const MOCK_DISPLAY_NAME = 'faketherum';
 export const MOCK_SYMBOL = 'MOCK';
@@ -57,6 +60,19 @@ export const mockWarpRoutes: WarpCoreConfig[] = [
         decimals: 18,
       },
     ],
+  },
+];
+
+export const mockWarpRouteDeploys: WarpRouteDeployConfig[] = [
+  {
+    [MOCK_CHAIN_NAME]: {
+      type: TokenType.native,
+      owner: MOCK_ADDRESS,
+    },
+    [MOCK_CHAIN_NAME_2]: {
+      type: TokenType.synthetic,
+      owner: MOCK_ADDRESS,
+    },
   },
 ];
 

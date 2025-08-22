@@ -1,11 +1,12 @@
 import { z } from 'zod';
 
-import { eqAddress, objMap } from '@hyperlane-xyz/utils';
+import { assert, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { ZChainName } from '../../../../metadata/customZodTypes.js';
-import { ChainMap } from '../../../../types.js';
+import { ChainMap, ChainName } from '../../../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
-import { EvmIcaTxSubmitterProps, SubmitterMetadataSchema } from '../types.js';
+import { EvmIcaTxSubmitterProps } from '../ethersV5/types.js';
+import { SubmitterMetadata, SubmitterMetadataSchema } from '../types.js';
 
 export const SubmissionStrategySchema = z
   .object({
@@ -18,58 +19,20 @@ export type SubmissionStrategy = z.infer<typeof SubmissionStrategySchema>;
 export function preprocessChainSubmissionStrategy<
   T extends { submitter: { type: string } },
 >(value: unknown): ChainMap<T> {
-  // Add the chain property to the internal submitter config before validation
-  // to avoid having to set the field manually when writing the config
-  const castedValued = value as ChainMap<T>;
+  const castedValued = value as ChainMap<SubmissionStrategy>;
 
-  const parsedValue = objMap(castedValued, (chainName, strategy): T => {
-    if (strategy.submitter.type !== TxSubmitterType.INTERCHAIN_ACCOUNT) {
-      return strategy;
-    }
-
-    // The strategy.submitter is cast to the specific ICA type to allow for
-    // access to ICA-specific properties.
-    const submitter = strategy.submitter as EvmIcaTxSubmitterProps;
-
-    // Setting the default internal submitter config for interchain accounts here
-    // instead of using zod's default() modifier because we require the chain property to be set
-    const {
-      internalSubmitter = {
-        type: TxSubmitterType.JSON_RPC,
-        chain: submitter.chain,
-      },
-      destinationChain,
-    } = submitter;
-    const formattedInternalSubmitter: EvmIcaTxSubmitterProps['internalSubmitter'] =
-      {
-        ...internalSubmitter,
-        chain: submitter.chain,
+  const parsedValue = objMap(
+    castedValued,
+    (chainName, strategy): SubmissionStrategy => {
+      return {
+        submitter: preprocessSubmissionStrategy(chainName, strategy.submitter),
       };
+    },
+  );
 
-    let owner = submitter.owner;
-    // When the internal submitter of the interchain account is a Multisig, the owner address and the multisig address need to match
-    if (
-      formattedInternalSubmitter.type === TxSubmitterType.GNOSIS_SAFE ||
-      formattedInternalSubmitter.type === TxSubmitterType.GNOSIS_TX_BUILDER
-    ) {
-      owner = submitter.owner ?? formattedInternalSubmitter.safeAddress;
-    }
-
-    return {
-      ...strategy,
-      submitter: {
-        ...submitter,
-        owner,
-        // Setting the destinationChain here so that it can be omitted in the input config
-        // as its value should be the same as the key value in the mapping
-        destinationChain: destinationChain ?? chainName,
-        internalSubmitter: formattedInternalSubmitter,
-      },
-    };
-  });
-
-  return parsedValue;
+  return parsedValue as ChainMap<T>;
 }
+
 export function refineChainSubmissionStrategy<
   T extends { submitter: { type: string } },
 >(value: Record<string, T>, ctx: z.RefinementCtx) {
@@ -99,6 +62,102 @@ export const ChainSubmissionStrategySchema = z.preprocess(
     .record(ZChainName, SubmissionStrategySchema)
     .superRefine(refineChainSubmissionStrategy),
 );
+
+function preprocessSubmissionStrategy(
+  chainName: ChainName,
+  strategy: SubmitterMetadata,
+): SubmitterMetadata {
+  if (strategy.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
+    return preprocessIcaSubmitter(chainName, strategy);
+  } else if (strategy.type === TxSubmitterType.TIMELOCK_CONTROLLER) {
+    return preprocessTimelockSubmitter(chainName, strategy);
+  }
+
+  return {
+    ...strategy,
+    // If the chain was not set use the current key to set it
+    // to avoid having to set it again in the source config
+    chain: strategy.chain ?? chainName,
+  };
+}
+
+const preprocessIcaSubmitter = (
+  chainName: ChainName,
+  strategy: Extract<
+    SubmitterMetadata,
+    { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
+  >,
+): SubmitterMetadata => {
+  assert(
+    strategy.type === TxSubmitterType.INTERCHAIN_ACCOUNT,
+    `[ChainSubmissionStrategy] Expected ${TxSubmitterType.INTERCHAIN_ACCOUNT} strategy but got ${strategy.type}`,
+  );
+
+  // Setting the default internal submitter config for interchain accounts here
+  // instead of using zod's default() modifier because we require the chain property to be set
+  const {
+    internalSubmitter = {
+      type: TxSubmitterType.JSON_RPC,
+      chain: strategy.chain,
+    },
+    destinationChain,
+  } = strategy;
+  const formattedInternalSubmitter: EvmIcaTxSubmitterProps['internalSubmitter'] =
+    {
+      ...internalSubmitter,
+      chain: internalSubmitter.chain ?? strategy.chain,
+    };
+
+  // When the internal submitter of the interchain account is a Multisig, the owner address and the multisig address need to match
+  if (
+    formattedInternalSubmitter.type === TxSubmitterType.GNOSIS_SAFE ||
+    formattedInternalSubmitter.type === TxSubmitterType.GNOSIS_TX_BUILDER
+  ) {
+    strategy.owner = strategy.owner ?? formattedInternalSubmitter.safeAddress;
+  }
+
+  return {
+    ...strategy,
+    // Setting the destinationChain here so that it can be omitted in the input config
+    // as its value should be the same as the key value in the mapping
+    destinationChain: destinationChain ?? chainName,
+    internalSubmitter: preprocessSubmissionStrategy(
+      // Here the chain changes to the one of the ICA because transactions
+      // are sent to the destination chain from another one
+      strategy.chain,
+      formattedInternalSubmitter,
+    ),
+  };
+};
+
+const preprocessTimelockSubmitter = (
+  chainName: ChainName,
+  strategy: SubmitterMetadata,
+): SubmitterMetadata => {
+  assert(
+    strategy.type === TxSubmitterType.TIMELOCK_CONTROLLER,
+    `[ChainSubmissionStrategy] Expected ${TxSubmitterType.TIMELOCK_CONTROLLER} strategy but got ${strategy.type}`,
+  );
+
+  const {
+    proposerSubmitter = { type: TxSubmitterType.JSON_RPC, chain: chainName },
+  } = strategy;
+
+  const formattedProposerSubmitter = {
+    ...proposerSubmitter,
+    // Override the chain if it hasn't been set
+    chain: proposerSubmitter.chain ?? chainName,
+  };
+
+  return {
+    ...strategy,
+    chain: strategy.chain ?? chainName,
+    proposerSubmitter: preprocessSubmissionStrategy(
+      chainName,
+      formattedProposerSubmitter,
+    ),
+  };
+};
 
 export type ChainSubmissionStrategy = z.infer<
   typeof ChainSubmissionStrategySchema

@@ -131,6 +131,15 @@ mod tests {
             .expect("DB Error")
     }
 
+    fn insert_merkle_tree_insertion_block_number(
+        db: &HyperlaneRocksDB,
+        leaf_index: u32,
+        block_number: u64,
+    ) {
+        db.store_merkle_tree_insertion_block_number_by_leaf_index(&leaf_index, &block_number)
+            .expect("DB Error")
+    }
+
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_list_merkle_tree_insertions_empty_db() {
@@ -163,6 +172,9 @@ mod tests {
         for insertion in insertions.iter() {
             insert_merkle_tree_insertion(&db, insertion.index(), insertion);
         }
+        for insertion in insertions.iter().take(2) {
+            insert_merkle_tree_insertion_block_number(&db, insertion.index(), 100);
+        }
 
         let leaf_index_start = 100;
         let leaf_index_end = 102;
@@ -175,14 +187,17 @@ mod tests {
 
         let expected_list = [
             TreeInsertion {
+                insertion_block_number: Some(100),
                 leaf_index: 100,
                 message_id: format!("{:?}", H256::from_low_u64_be(100)),
             },
             TreeInsertion {
+                insertion_block_number: Some(100),
                 leaf_index: 101,
                 message_id: format!("{:?}", H256::from_low_u64_be(101)),
             },
             TreeInsertion {
+                insertion_block_number: None,
                 leaf_index: 102,
                 message_id: format!("{:?}", H256::from_low_u64_be(102)),
             },

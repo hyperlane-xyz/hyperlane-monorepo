@@ -31,7 +31,7 @@ impl MultisigCheckpointSyncer {
         validators: &[H256],
         origin: &HyperlaneDomain,
         destination: &HyperlaneDomain,
-    ) -> Vec<(H160, u32)> {
+    ) -> eyre::Result<Vec<(H160, u32)>> {
         // Get the latest_index from each validator's checkpoint syncer.
         // If a validator does not return a latest index, None is recorded so
         // this can be surfaced in the metrics.
@@ -88,14 +88,14 @@ impl MultisigCheckpointSyncer {
                     app_context.clone(),
                     &latest_indices,
                 )
-                .await;
+                .await?;
         }
 
         // Filter out any validators that did not return a latest index
-        latest_indices
+        Ok(latest_indices
             .into_iter()
             .filter_map(|(address, index)| index.map(|i| (address, i)))
-            .collect()
+            .collect())
     }
 
     /// Attempts to get the latest checkpoint with a quorum of signatures among
@@ -122,7 +122,7 @@ impl MultisigCheckpointSyncer {
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         let mut latest_indices = self
             .get_validator_latest_checkpoints_and_update_metrics(validators, origin, destination)
-            .await;
+            .await?;
 
         debug!(
             ?latest_indices,
@@ -423,7 +423,8 @@ pub mod test {
                 &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
             )
-            .await;
+            .await
+            .expect("Failed to get_validator_latest_checkpoints_and_update_metrics");
         latest_indices.sort_by(|a, b| b.cmp(a));
 
         let lowest_index = *latest_indices.last().unwrap();
@@ -480,6 +481,7 @@ pub mod test {
                 &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
             )
             .await
+            .expect("Failed to get_validator_latest_checkpoints_and_update_metrics")
             .into_iter()
             .collect();
 

@@ -64,6 +64,7 @@ pub(crate) fn dummy_tx(payloads: Vec<FullPayload>, status: TransactionStatus) ->
         submission_attempts: 0,
         creation_timestamp: chrono::Utc::now(),
         last_submission_attempt: None,
+        last_status_check: None,
     }
 }
 

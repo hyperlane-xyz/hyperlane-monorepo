@@ -44,6 +44,8 @@ pub enum MetadataBuildError {
     AggregationThresholdNotMet(u32),
     #[error("Fast path error ({0})")]
     FastPathError(String),
+    #[error("Merkle root mismatch ({root}, {canonical_root})")]
+    MerkleRootMismatch { root: H256, canonical_root: H256 },
 }
 
 #[derive(Clone, Debug, new)]

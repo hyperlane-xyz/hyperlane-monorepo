@@ -69,7 +69,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     hyperliquidevmtestnet: true,
-    infinityvmmonza: true,
+    infinityvmmonza: false,
     inksepolia: true,
     kyvetestnet: false,
     megaethtestnet: true,
@@ -120,7 +120,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     hyperliquidevmtestnet: true,
-    infinityvmmonza: true,
+    infinityvmmonza: false,
     inksepolia: true,
     kyvetestnet: false,
     megaethtestnet: true,
@@ -171,7 +171,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     hyperliquidevmtestnet: true,
-    infinityvmmonza: true,
+    infinityvmmonza: false,
     inksepolia: true,
     kyvetestnet: false,
     megaethtestnet: true,
@@ -250,6 +250,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       {
         originDomain: getDomainId('bsctestnet'),
         destinationDomain: getDomainId('milkywaytestnet'),
+      },
+      // Workaround for gas price fluctuations
+      // Works in tandem with increased igp overhead
+      {
+        destinationDomain: getDomainId('somniatestnet'),
       },
     ],
   },
@@ -405,7 +410,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '33b3649-20250612-161513',
+      tag: 'cb7d42b-20250801-092506',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -435,7 +440,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '373482a-20250707-140617',
+      tag: 'cb7d42b-20250801-092506',
     },
     resources: scraperResources,
   },
@@ -450,7 +455,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '373482a-20250707-140617',
+      tag: 'cb7d42b-20250801-092506',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -485,6 +490,11 @@ export const kesselRunnerNetworks = [
   'bsctestnet',
   'optimismsepolia',
 ];
+
+// Relayer Neutron Testnet is not running at the moment, but we keep the config
+// If you would like to run it for testing purposes, you should configure it
+// only for chains you would like to run it.
+// Relayer Neutron Testnet should not relay messages for `infinityvmmonza`.
 const neutron: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Neutron,
