@@ -13,6 +13,7 @@ import {
   TokenBridgeCctpBase__factory,
 } from '@hyperlane-xyz/core';
 import {
+  Address,
   ProtocolType,
   assert,
   objFilter,
@@ -471,7 +472,41 @@ abstract class TokenDeployer<
           });
         });
 
-        for (const bridgeConfig of tokenApprovalTxs) {
+        // Find which bridges already have the required approval to avoid
+        // safeApproval to fail because it requires approvals to be set to 0
+        // before setting a new value
+        const tokens = new Set(tokenApprovalTxs.map(({ token }) => token));
+        const bridgesWithAllowanceAlreadySet: Record<
+          Address,
+          Set<string>
+        > = Object.fromEntries(
+          Array.from(tokens).map((token) => [token, new Set()]),
+        );
+        await Promise.all(
+          tokenApprovalTxs.map(async ({ bridge, token }): Promise<void> => {
+            const tokenInstance = ERC20__factory.connect(
+              token,
+              this.multiProvider.getSigner(chain),
+            );
+
+            const currentAllowance = await tokenInstance.allowance(
+              movableToken.address,
+              bridge,
+            );
+
+            if (currentAllowance.gt(0)) {
+              bridgesWithAllowanceAlreadySet[token].add(bridge);
+            }
+          }),
+        );
+
+        const filteredTokenApprovalTxs = tokenApprovalTxs.filter(
+          ({ bridge, token }) =>
+            bridgesWithAllowanceAlreadySet[token] &&
+            !bridgesWithAllowanceAlreadySet[token].has(bridge),
+        );
+
+        for (const bridgeConfig of filteredTokenApprovalTxs) {
           await this.multiProvider.handleTx(
             chain,
             movableToken.approveTokenForBridge(
