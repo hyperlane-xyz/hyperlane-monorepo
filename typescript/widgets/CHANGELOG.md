@@ -2,16 +2,81 @@
 
 ## 15.0.0-beta.0
 
+## 16.2.0
+
+### Minor Changes
+
+- a89018a3f: Include lockbox check for `useEthereumWatchAsset`
+
+### Patch Changes
+
+- Updated dependencies [22ceaa109]
+- Updated dependencies [ce4974214]
+- Updated dependencies [a89018a3f]
+  - @hyperlane-xyz/sdk@16.2.0
+  - @hyperlane-xyz/cosmos-sdk@16.2.0
+  - @hyperlane-xyz/utils@16.2.0
+
+## 16.1.1
+
+### Patch Changes
+
+- Updated dependencies [ea77b6ae4]
+  - @hyperlane-xyz/sdk@16.1.1
+  - @hyperlane-xyz/cosmos-sdk@16.1.1
+  - @hyperlane-xyz/utils@16.1.1
+
+## 16.1.0
+
+### Minor Changes
+
+- b9753277e: Add useWatchAsset fns and refactor switchNetwork
+
+### Patch Changes
+
+- Updated dependencies [2a2c29c39]
+- Updated dependencies [e69ac9f62]
+- Updated dependencies [d9b8a7551]
+  - @hyperlane-xyz/sdk@16.1.0
+  - @hyperlane-xyz/cosmos-sdk@16.1.0
+  - @hyperlane-xyz/utils@16.1.0
+
+## 16.0.0
+
+### Patch Changes
+
+- Updated dependencies [9f3222962]
+- Updated dependencies [d200acfa8]
+- Updated dependencies [966ad8440]
+- Updated dependencies [fabb4a5af]
+- Updated dependencies [a71193486]
+- Updated dependencies [1f4412909]
+- Updated dependencies [af783be54]
+  - @hyperlane-xyz/sdk@16.0.0
+  - @hyperlane-xyz/cosmos-sdk@16.0.0
+  - @hyperlane-xyz/utils@16.0.0
+
+## 15.0.0
+
 ### Patch Changes
 
 - Updated dependencies [451f3f6c3]
 - Updated dependencies [23861b70a]
+  <<<<<<< HEAD
 - Updated dependencies [e0c69e255]
 - Updated dependencies [e0ea8910c]
 - Updated dependencies [d16a853c0]
   - @hyperlane-xyz/utils@15.0.0-beta.0
   - @hyperlane-xyz/sdk@15.0.0-beta.0
-  - @hyperlane-xyz/cosmos-sdk@15.0.0-beta.0
+  - # @hyperlane-xyz/cosmos-sdk@15.0.0-beta.0
+- Updated dependencies [a33c8abd4]
+- Updated dependencies [a33c8abd4]
+- Updated dependencies [e0ea8910c]
+- Updated dependencies [d16a853c0]
+  - @hyperlane-xyz/utils@15.0.0
+  - @hyperlane-xyz/sdk@15.0.0
+  - @hyperlane-xyz/cosmos-sdk@15.0.0
+    > > > > > > > main
 
 ## 14.4.0
 
