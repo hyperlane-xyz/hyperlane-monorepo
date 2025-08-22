@@ -1,11 +1,11 @@
 use {
-    crate::utils::dango_helper::ChainHelper,
+    crate::utils::{dango_helper::ChainHelper, get_free_port},
     dango_genesis::HyperlaneOption,
     dango_mock_httpd::{GenesisOption, Preset, TestOption},
     grug::{BlockCreation, ClientWrapper},
     grug_indexer_client::HttpClient,
     std::{
-        net::TcpListener, sync::{Arc, Mutex}, thread, time::Duration
+        sync::{Arc, Mutex}, thread, time::Duration
     },
 };
 
@@ -31,9 +31,7 @@ impl DangoBuilder {
 
     pub async fn run(self) -> anyhow::Result<ChainHelper> {
         // find a free port
-        let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind");
-        let port = listener.local_addr().unwrap().port();
-        drop(listener);
+        let port = get_free_port();
 
         let test_accounts = Arc::new(Mutex::new(None));
 

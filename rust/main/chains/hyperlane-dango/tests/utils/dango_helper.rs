@@ -129,6 +129,13 @@ impl ChainHelper {
             )
             .await
     }
+
+    pub fn get_account(&self, username: &str) -> &TestAccount {
+        self.accounts
+            .users()
+            .find(|user| user.username.to_string() == username)
+            .expect(&format!("account not found: {}", username))
+    }
 }
 
 #[async_trait]

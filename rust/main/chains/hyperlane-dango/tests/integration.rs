@@ -1,5 +1,8 @@
 use {
-    crate::utils::{Agent, AgentBuilder, CheckpointSyncerLocation, DangoBuilder, ValidatorKey},
+    crate::utils::{
+        startup_tests, try_for, Agent, AgentBuilder, CheckpointSyncerLocation, DangoBuilder,
+        SetupChain, ValidatorKey,
+    },
     dango_types::{constants::dango, gateway::TokenOrigin},
     grug::{
         btree_set, setup_tracing_subscriber, BlockCreation, Coin, Denom, Part, QueryClientExt,
@@ -104,6 +107,104 @@ async fn dango_integration() -> anyhow::Result<()> {
 
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn dango_multiple_chains() -> anyhow::Result<()> {
+    setup_tracing_subscriber(Level::INFO);
+    let (mut ch1, mut ch2) = startup_tests(
+        SetupChain {
+            validators: 3,
+            threshold: 2,
+            route: TokenOrigin::Native(dango::DENOM.clone()),
+        },
+        SetupChain {
+            validators: 1,
+            threshold: 1,
+            route: TokenOrigin::Remote(Part::new_unchecked("foo")),
+        },
+    )
+    .await?;
+
+    let remote_denom = Denom::new_unchecked(["bridge", "foo"]);
+
+    ch1.send_remote(
+        "user1",
+        Coin::new(dango::DENOM.clone(), 100)?,
+        ch2.hyperlane_domain,
+        ch2.cfg.addresses.warp,
+        ch2.accounts.user1.address.into_inner(),
+    )
+    .await?
+    .outcome
+    .should_succeed();
+
+    try_for(
+        Duration::from_secs(20),
+        Duration::from_millis(100),
+        || async {
+            let balance = ch2
+                .client
+                .query_balance(
+                    ch2.accounts.user1.address.into_inner(),
+                    remote_denom.clone(),
+                    None,
+                )
+                .await?;
+
+            if balance.0 == 100 {
+                Ok(())
+            } else {
+                Err(anyhow::anyhow!("Balance is not 100"))
+            }
+        },
+    )
+    .await?;
+
+    let current_balance = ch1
+        .client
+        .query_balance(
+            ch1.accounts.user1.address.into_inner(),
+            dango::DENOM.clone(),
+            None,
+        )
+        .await?;
+
+    // Send back
+    ch2.send_remote(
+        "user1",
+        Coin::new(remote_denom, 100)?,
+        ch1.hyperlane_domain,
+        ch1.cfg.addresses.warp,
+        ch1.accounts.user1.address.into_inner(),
+    )
+    .await?
+    .outcome
+    .should_succeed();
+
+    try_for(
+        Duration::from_secs(20),
+        Duration::from_millis(100),
+        || async {
+            let balance = ch1
+                .client
+                .query_balance(
+                    ch1.accounts.user1.address.into_inner(),
+                    dango::DENOM.clone(),
+                    None,
+                )
+                .await?;
+
+            if balance.0 - current_balance.0 == 100 {
+                Ok(())
+            } else {
+                Err(anyhow::anyhow!("Balance is not 100"))
+            }
+        },
+    )
+    .await?;
 
     Ok(())
 }
