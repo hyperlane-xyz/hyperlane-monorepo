@@ -361,8 +361,32 @@ export const WarpRouteDeployConfigSchema = z
     return hookConfigHasMissingIsms || ismConfigHasMissingHooks
       ? z.NEVER
       : warpRouteDeployConfig;
-  });
+  })
+  // Verify that xERC20 are only with xERC20s
+  .transform((warpRouteDeployConfig, ctx) => {
+    const isXERC20Route = Object.values(warpRouteDeployConfig).some(
+      isXERC20TokenConfig,
+    );
 
+    if (!isXERC20Route) {
+      return warpRouteDeployConfig;
+    }
+
+    const isAllXERC20s = Object.values(warpRouteDeployConfig).every(
+      isXERC20TokenConfig,
+    );
+
+    if (!isAllXERC20s) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `All chains must be xERC20 warp route tokens`,
+      });
+
+      return z.NEVER;
+    }
+
+    return warpRouteDeployConfig;
+  });
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
 
 const _RequiredMailboxSchema = z.record(

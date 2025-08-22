@@ -37,6 +37,7 @@ import {
   addressToByteHexString,
   addressToBytes32,
   bytes32ToAddress,
+  normalizeAddress,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
@@ -313,6 +314,11 @@ export class EvmHypCollateralAdapter
     });
   }
 
+  override async getBalance(address: Address): Promise<bigint> {
+    const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
+    return wrappedTokenAdapter.getBalance(address);
+  }
+
   override getBridgedSupply(): Promise<bigint | undefined> {
     return this.getBalance(this.addresses.token);
   }
@@ -393,7 +399,9 @@ export class EvmMovableCollateralAdapter
     const allowedBridges =
       await this.movableCollateral().allowedBridges(domain);
 
-    return allowedBridges.includes(bridge);
+    return allowedBridges
+      .map((bridgeAddress) => normalizeAddress(bridgeAddress))
+      .includes(normalizeAddress(bridge));
   }
 
   async getRebalanceQuotes(
@@ -769,6 +777,13 @@ export class EvmHypNativeAdapter
   extends EvmMovableCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
+  override async getBalance(address: Address): Promise<bigint> {
+    const provider = this.getProvider();
+    const balance = await provider.getBalance(address);
+
+    return BigInt(balance.toString());
+  }
+
   override async isApproveRequired(): Promise<boolean> {
     return false;
   }
