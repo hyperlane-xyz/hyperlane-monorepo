@@ -1,10 +1,10 @@
 use super::hub_to_kaspa::{
     build_withdrawal_pskt, extract_current_anchor, fetch_input_utxos, get_normal_bucket_feerate,
-    get_outputs_from_msgs,
+    get_outputs_from_msgs_with_mass_limit,
 };
 use crate::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping_bundle};
 use corelib::consts::RELAYER_SIG_OP_COUNT;
-use corelib::escrow::EscrowPublic;
+use corelib::escrow::{self, EscrowPublic};
 use corelib::payload::MessageIDs;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
@@ -54,9 +54,26 @@ pub async fn build_withdrawal_fxg(
     escrow_public: EscrowPublic,
     min_deposit_sompi: U256,
 ) -> Result<Option<WithdrawFXG>> {
-    // Filter out dust messages and create Kaspa outputs for the rest
-    let (valid_msgs, outputs) =
-        get_outputs_from_msgs(pending_msgs, relayer.net.address_prefix, min_deposit_sompi);
+    // Get sample inputs for mass estimation
+    let escrow_inputs = fetch_input_utxos(
+        &relayer.api(),
+        &escrow_public.addr,
+        Some(escrow_public.redeem_script.clone()),
+        escrow_public.n() as u8,
+        relayer.net.network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Fetch sample escrow UTXOs for mass estimation: {}", e))?;
+    
+    // Filter out dust messages and create Kaspa outputs with mass limit
+    let (valid_msgs, outputs) = get_outputs_from_msgs_with_mass_limit(
+        pending_msgs,
+        relayer.net.address_prefix,
+        min_deposit_sompi,
+        escrow_inputs.clone(),
+        relayer.net.network_id,
+        escrow_public.m() as u16,
+    );
 
     let feerate = get_normal_bucket_feerate(&relayer.api())
         .await
@@ -70,17 +87,6 @@ pub async fn build_withdrawal_fxg(
         "Kaspa relayer, got pending withdrawals, building PSKT, withdrawal num: {}",
         outputs.len()
     );
-
-    // Get all the UTXOs for the escrow and the relayer
-    let escrow_inputs = fetch_input_utxos(
-        &relayer.api(),
-        &escrow_public.addr,
-        Some(escrow_public.redeem_script.clone()),
-        escrow_public.n() as u8,
-        relayer.net.network_id,
-    )
-    .await
-    .map_err(|e| eyre::eyre!("Fetch escrow UTXOs: {}", e))?;
 
     let relayer_address = relayer.account().change_address()?;
     let relayer_inputs = fetch_input_utxos(

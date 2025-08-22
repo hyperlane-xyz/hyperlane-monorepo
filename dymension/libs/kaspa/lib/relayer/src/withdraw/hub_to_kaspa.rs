@@ -4,6 +4,7 @@ use crate::withdraw::sweep::utxo_reference_from_populated_input;
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
 use corelib::message::parse_hyperlane_metadata;
+use corelib::payload::MessageIDs;
 use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::SigningResources;
@@ -26,7 +27,7 @@ use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
 use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_core::tx::MassCalculator;
+use kaspa_wallet_core::tx::{MassCalculator, MAXIMUM_STANDARD_TRANSACTION_MASS};
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
@@ -283,14 +284,18 @@ fn create_withdrawal_pskt(
 }
 
 /// Return outputs generated based on the provided messages. Filter out messages
-/// with dust amount.
-pub fn get_outputs_from_msgs(
+/// with dust amount. It limits outputs based on transaction mass estimation
+pub fn get_outputs_from_msgs_with_mass_limit(
     messages: Vec<HyperlaneMessage>,
     prefix: Prefix,
     min_deposit_sompi: U256,
+    inputs: Vec<PopulatedInput>,
+    network_id: NetworkId,
+    min_signatures: u16,
 ) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();
+    
     for m in messages {
         let tm = match parse_hyperlane_metadata(&m) {
             Ok(tm) => tm,
@@ -304,7 +309,6 @@ pub fn get_outputs_from_msgs(
         };
 
         let recipient = get_recipient_script_pubkey(tm.recipient(), prefix);
-
         let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
 
         if is_dust(&o, min_deposit_sompi) {
@@ -312,9 +316,49 @@ pub fn get_outputs_from_msgs(
             continue;
         }
 
+        // Check if adding this output would exceed mass limit
+        let mut test_outputs = outputs.clone();
+        test_outputs.push(o.clone());
+        
+        // Create test messages list with the current message added
+        let mut test_msgs = hl_msgs.clone();
+        test_msgs.push(m.clone());
+        
+
+        // Calculate actual payload size from current messages
+        let payload = Vec::<u8>::from(&MessageIDs::from(&test_msgs));
+        
+        match estimate_mass(
+            inputs.clone(),
+            test_outputs,
+            payload,
+            network_id,
+            min_signatures,
+        ) {
+            Ok(estimated_mass) => {
+                if estimated_mass > MAXIMUM_STANDARD_TRANSACTION_MASS {
+                    info!(
+                        "Kaspa relayer, stopping at {} outputs due to mass limit. Estimated mass: {}, limit: {}, messages: {}",
+                        outputs.len(),
+                        estimated_mass,
+                        MAXIMUM_STANDARD_TRANSACTION_MASS,
+                        test_msgs.len()
+                    );
+                    break;
+                }
+            }
+            Err(e) => {
+                info!("Kaspa relayer, failed to estimate mass, continuing without limit: {}", e);
+            }
+        }
+        // If we are here, it means the output is valid and does not exceed mass limit
+    
         outputs.push(o);
         hl_msgs.push(m);
     }
+    
+    info!("Kaspa relayer, selected {} outputs from {} messages",outputs.len(),hl_msgs.len());
+    
     (hl_msgs, outputs)
 }
 
