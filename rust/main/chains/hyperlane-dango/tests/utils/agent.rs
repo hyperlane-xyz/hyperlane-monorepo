@@ -1,30 +1,33 @@
 use {
     crate::utils::dango_helper::{ChainHelper, IntoSignerConf},
     dango_types::config::AppAddresses,
-    hyperlane_base::settings::{CheckpointSyncerConf, SignerConf},
+    hyperlane_base::settings::SignerConf,
     hyperlane_core::H256,
     hyperlane_dango::DangoConvertor,
     std::{
         collections::{BTreeMap, BTreeSet},
-        fs,
         path::PathBuf,
         process::{Child, Command},
         vec,
     },
+    tempfile::TempDir,
 };
+
+pub enum CheckpointSyncerLocation {
+    LocalStorage,
+}
 
 #[derive(Default)]
 pub struct AgentBuilder<'a> {
     agent: Agent,
     addresses: BTreeMap<&'a str, AppAddresses>,
-    checkpoint_syncer: Option<CheckpointSyncerConf>,
+    checkpoint_syncer: Option<CheckpointSyncerLocation>,
     origin_chain_name: Option<OriginChainName>,
     allow_local_checkpoint_syncer: Option<AllowLocalCheckpointSyncer>,
     chain_signers: BTreeMap<&'a str, SignerConf>,
     validator_signer: Option<ValidatorSigner>,
     relay_chains: Option<RelayChains<'a>>,
     metrics_port: Option<MetricsPort>,
-    db: Option<Db>,
     chain_helpers: BTreeMap<&'a str, &'a ChainHelper>,
 }
 
@@ -51,7 +54,7 @@ impl<'a> AgentBuilder<'a> {
         self
     }
 
-    pub fn with_checkpoint_syncer(mut self, checkpoint_syncer: CheckpointSyncerConf) -> Self {
+    pub fn with_checkpoint_syncer(mut self, checkpoint_syncer: CheckpointSyncerLocation) -> Self {
         self.checkpoint_syncer = Some(checkpoint_syncer);
         self
     }
@@ -88,39 +91,8 @@ impl<'a> AgentBuilder<'a> {
         self
     }
 
-    pub fn with_db(mut self, db: &str) -> Self {
-        self.db = Some(Db(db.to_string()));
-        self
-    }
-
     pub fn launch(self) -> Child {
         let path = format!("./target/debug/{}", self.agent.args().first().unwrap());
-
-        let mut db_args = self.db.args();
-
-        if db_args.is_empty() {
-            let db_path = PathBuf::from(match self.agent.clone() {
-                Agent::Validator => {
-                    format!(
-                        "validator_db_{}",
-                        self.origin_chain_name
-                            .clone()
-                            .unwrap_or(OriginChainName("chain".to_string()))
-                            .0
-                    )
-                }
-                Agent::Relayer => "relayer".to_string(),
-            });
-
-            let relative_path = adding_cache_folder_path(&db_path);
-
-            if let Err(e) = fs::create_dir_all(workspace().join(relative_path.clone())) {
-                panic!("Failed to create the directory {:?} : {}", relative_path, e);
-            }
-
-            let db = Db(relative_path.to_string_lossy().to_string());
-            db_args = db.args();
-        }
 
         Command::new(path)
             .args(self.chain_helpers.args())
@@ -132,44 +104,30 @@ impl<'a> AgentBuilder<'a> {
             .args(self.relay_chains.args())
             .args(self.allow_local_checkpoint_syncer.args())
             .args(self.metrics_port.args())
-            .args(db_args)
+            .args(Db.args())
             .current_dir(workspace())
             .spawn()
             .unwrap()
     }
 }
 
-pub fn workspace() -> PathBuf {
-    let target_subpath = "hyperlane-monorepo/rust/main";
-
-    let current_dir = std::env::current_dir()
-        .unwrap()
-        .to_string_lossy()
-        .into_owned();
-
-    let index = current_dir.find(target_subpath).unwrap();
-    let base_path = &current_dir[..index + target_subpath.len()];
-    PathBuf::from(base_path)
-}
+// -------------------------------- Args trait ---------------------------------
 
 pub trait Args {
     fn args(self) -> Vec<String>;
 }
 
-impl Args for CheckpointSyncerConf {
+impl Args for CheckpointSyncerLocation {
     fn args(self) -> Vec<String> {
         match self {
-            Self::LocalStorage { path } => {
+            Self::LocalStorage => {
                 vec![
                     "--checkpointSyncer.type".to_string(),
                     "localStorage".to_string(),
                     "--checkpointSyncer.path".to_string(),
-                    adding_cache_folder_path(&path)
-                        .to_string_lossy()
-                        .to_string(),
+                    TempDir::new().unwrap().path().to_string_lossy().to_string(),
                 ]
             }
-            _ => unimplemented!(),
         }
     }
 }
@@ -309,16 +267,14 @@ impl Args for MetricsPort {
     }
 }
 
-pub struct Db(String);
+pub struct Db;
 
 impl Args for Db {
     fn args(self) -> Vec<String> {
-        let path = workspace().join(self.0);
-        vec!["--db".to_string(), path.to_string_lossy().to_string()]
+        vec!["--db".to_string(), tempdir()]
     }
 }
 
-// Specify addresses for a specific chain
 #[derive(Clone)]
 pub struct Addresses {
     addresses: AppAddresses,
@@ -426,8 +382,19 @@ impl Args for BTreeMap<&str, &ChainHelper> {
     }
 }
 
-pub fn adding_cache_folder_path(path: &PathBuf) -> PathBuf {
-    let mut new_path = PathBuf::from("cache_test");
-    new_path.push(path);
-    new_path
+fn tempdir() -> String {
+    TempDir::new().unwrap().path().to_string_lossy().to_string()
+}
+
+fn workspace() -> PathBuf {
+    let target_subpath = "hyperlane-monorepo/rust/main";
+
+    let current_dir = std::env::current_dir()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+
+    let index = current_dir.find(target_subpath).unwrap();
+    let base_path = &current_dir[..index + target_subpath.len()];
+    PathBuf::from(base_path)
 }

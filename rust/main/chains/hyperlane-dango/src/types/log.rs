@@ -162,6 +162,7 @@ impl SearchLog for BlockLogs {
                     .search_event::<CheckedContractEvent>(),
             );
             if !res.is_empty() {
+                tracing::info!("found {} events in tx {}", res.len(), idx);
                 outcome_tx.push((idx as u32, outcome.tx, res));
             }
         }

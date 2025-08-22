@@ -44,6 +44,7 @@ impl MerkleTreeHook for DangoMerkleTree {
         Ok(IncrementalMerkleAtBlock { tree, block_height })
     }
 
+    #[tracing::instrument("merkle_tree_hook::count", skip_all)]
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         Ok(self.dango_tree(reorg_period.clone().into()).await?.1.count as u32)
     }
@@ -108,6 +109,8 @@ impl DangoMerkleTree {
             )
             .await
             .into_dango_error()?;
+
+        tracing::info!("block height: {:?} - count: {:?}", block_height, tree.count);
 
         Ok((block_height, tree))
     }

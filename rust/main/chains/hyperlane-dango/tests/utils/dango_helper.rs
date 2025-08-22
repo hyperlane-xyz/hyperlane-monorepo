@@ -1,17 +1,22 @@
 use {
     async_trait::async_trait,
+    dango_hyperlane_types::isms,
     dango_testing::{TestAccount, TestAccounts},
     dango_types::{
         config::AppConfig,
-        gateway::{self, Remote},
+        gateway::{self, Remote, TokenOrigin},
     },
     grug::{
         btree_set, Addr, BroadcastClientExt, ClientWrapper, Coin, Coins, GasOption, HexByteArray,
-        Message, Part, QueryClientExt, SearchTxClient, SearchTxOutcome, Signer,
+        Message, QueryClientExt, SearchTxClient, SearchTxOutcome, Signer,
     },
     hyperlane_base::settings::SignerConf,
-    std::time::Duration,
+    std::{collections::BTreeSet, time::Duration},
     tokio::time::sleep,
+};
+
+const PREDEFINED_GAS: GasOption = GasOption::Predefined {
+    gas_limit: 10_000_000,
 };
 
 pub struct ChainHelper {
@@ -58,7 +63,7 @@ impl ChainHelper {
                     .find(|user| user.username.to_string() == sender)
                     .expect(&format!("account not found: {}", sender)),
                 Message::execute(
-                    self.cfg.addresses.warp,
+                    self.cfg.addresses.gateway,
                     &gateway::ExecuteMsg::TransferRemote {
                         remote: gateway::Remote::Warp {
                             domain: destination_domain,
@@ -68,32 +73,25 @@ impl ChainHelper {
                     },
                     coin.clone(),
                 )?,
-                GasOption::Predefined {
-                    gas_limit: 10_000_000,
-                },
+                PREDEFINED_GAS,
                 &self.chain_id,
             )
             .await
     }
 
-    pub async fn set_route<P>(
+    pub async fn set_route(
         &mut self,
-        part: P,
+        token: TokenOrigin,
         remote_warp: Addr,
         remote_domain: u32,
-    ) -> anyhow::Result<SearchTxOutcome>
-    where
-        P: TryInto<Part>,
-        P::Error: std::error::Error + Send + Sync + 'static,
-    {
-        let part: Part = part.try_into()?;
+    ) -> anyhow::Result<SearchTxOutcome> {
         self.client
             .broadcast_and_find(
                 &mut self.accounts.owner,
                 Message::execute(
                     self.cfg.addresses.gateway,
                     &gateway::ExecuteMsg::SetRoutes(btree_set!((
-                        part,
+                        token,
                         self.cfg.addresses.warp,
                         Remote::Warp {
                             domain: remote_domain,
@@ -102,9 +100,31 @@ impl ChainHelper {
                     ))),
                     Coins::default(),
                 )?,
-                GasOption::Predefined {
-                    gas_limit: 10_000_000,
-                },
+                PREDEFINED_GAS,
+                &self.chain_id,
+            )
+            .await
+    }
+
+    pub async fn set_validator_set(
+        &mut self,
+        remote_domain: u32,
+        threshold: u32,
+        validators: BTreeSet<HexByteArray<20>>,
+    ) -> anyhow::Result<SearchTxOutcome> {
+        self.client
+            .broadcast_and_find(
+                &mut self.accounts.owner,
+                Message::execute(
+                    self.cfg.addresses.hyperlane.ism,
+                    &isms::multisig::ExecuteMsg::SetValidators {
+                        domain: remote_domain,
+                        threshold,
+                        validators,
+                    },
+                    Coins::default(),
+                )?,
+                PREDEFINED_GAS,
                 &self.chain_id,
             )
             .await

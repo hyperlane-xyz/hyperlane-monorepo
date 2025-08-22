@@ -1,7 +1,7 @@
 use {
     crate::{
-        BlockLogs, ConnectionConf, DangoConvertor, DangoResult, DangoSigner, ExecutionBlock,
-        IntoDangoError, TryDangoConvertor,
+        BlockLogs, ConnectionConf, DangoConvertor, DangoError, DangoResult, DangoSigner,
+        ExecutionBlock, IntoDangoError, TryDangoConvertor,
     },
     anyhow::anyhow,
     async_trait::async_trait,
@@ -290,7 +290,14 @@ impl DangoProvider {
         let block_height = match reorg_period {
             ReorgPeriod::Blocks(blocks) => {
                 let last_block = self.query_block(None).await?;
-                let block_height = last_block.info.height - blocks.get() as u64;
+                let block_height = last_block
+                    .info
+                    .height
+                    .checked_sub(blocks.get() as u64)
+                    .ok_or(DangoError::ReorgPeriodTooLarge {
+                        current_block_height: last_block.info.height,
+                        reorg_period: blocks.get() as u64,
+                    })?;
                 Some(block_height)
             }
             ReorgPeriod::None => None,

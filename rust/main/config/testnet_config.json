@@ -3383,7 +3383,38 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 3,
-        "reorgPeriod": 5
+        "reorgPeriod": 0
+      },
+      "rpcUrls": [
+        {
+          "http": "http://localhost:26657"
+        }
+      ],
+      "protocol": "dango",
+      "gas_price": {
+        "denom": "dango",
+        "amount": "0"
+      },
+      "gas_scale": 1.2,
+      "flat_gas_increase": 1000000,
+      "search_sleep_duration": 1,
+      "search_retry_attempts": 10,
+      "checkpointSyncer": {
+        "type": "localStorage"
+      },
+      "index": {
+        "chunk": 10,
+        "from": 1
+      }
+    },
+    "dangotestnet2": {
+      "displayName": "dango1",
+      "domainId": 88888888,
+      "name": "dangotestnet2",
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 0
       },
       "rpcUrls": [
         {

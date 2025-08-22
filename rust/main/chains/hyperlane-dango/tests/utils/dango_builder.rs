@@ -5,9 +5,7 @@ use {
     grug::{BlockCreation, ClientWrapper},
     grug_indexer_client::HttpClient,
     std::{
-        net::TcpListener,
-        sync::{Arc, Mutex},
-        time::Duration,
+        net::TcpListener, sync::{Arc, Mutex}, thread, time::Duration
     },
 };
 
@@ -44,7 +42,7 @@ impl DangoBuilder {
         let domain = self.hyperlane_domain;
         let chain_id = self.chain_id.clone();
 
-        tokio::task::spawn_blocking(move || {
+        thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
 
             rt.block_on(async move {

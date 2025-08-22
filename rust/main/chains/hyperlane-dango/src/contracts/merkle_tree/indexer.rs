@@ -17,6 +17,7 @@ use {
 #[async_trait]
 impl Indexer<MerkleTreeInsertion> for DangoMerkleTree {
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
+    #[tracing::instrument("indexer::fetch_logs_in_range", skip_all)]
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,

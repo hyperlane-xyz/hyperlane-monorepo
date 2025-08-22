@@ -24,6 +24,12 @@ pub enum DangoError {
         reason: String,
     },
 
+    #[error("reorg period is too large: current block height: {current_block_height}, reorg period: {reorg_period}")]
+    ReorgPeriodTooLarge {
+        current_block_height: u64,
+        reorg_period: u64,
+    },
+
     #[error("transaction not found: {hash}")]
     TxNotFound { hash: Hash256 },
 

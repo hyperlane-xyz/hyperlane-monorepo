@@ -1,5 +1,5 @@
 use {
-    grug::{Addr, HashExt},
+    grug::{HashExt, HexByteArray},
     hyperlane_core::H256,
     k256::{ecdsa::SigningKey, elliptic_curve::rand_core::OsRng},
 };
@@ -14,7 +14,7 @@ impl ValidatorKey {
         let key = H256::from(Into::<[u8; 32]>::into(sk.to_bytes()));
         Self { key }
     }
-    pub fn address(&self) -> Addr {
+    pub fn address(&self) -> HexByteArray<20> {
         let sk = SigningKey::from_bytes(self.key.as_ref().into()).unwrap();
         let pk = sk
             .verifying_key()
@@ -23,7 +23,7 @@ impl ValidatorKey {
             .to_vec();
         let b = &pk[1..];
         let pk_hash = b.keccak256();
-        let address = Addr::from_inner(pk_hash[12..].try_into().unwrap());
+        let address = HexByteArray::from_inner(pk_hash[12..].try_into().unwrap());
         address
     }
 }
