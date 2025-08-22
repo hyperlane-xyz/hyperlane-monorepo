@@ -239,6 +239,13 @@ impl RadixProvider {
             let Some(receipt) = tx.receipt else {
                 return Err(HyperlaneRadixError::ParsingError("receipt".to_owned()).into());
             };
+
+            // filter out failed transactions
+            let status = receipt.status.unwrap_or_default();
+            if status != models::TransactionStatus::CommittedSuccess {
+                continue;
+            }
+
             let Some(hash) = tx.intent_hash else {
                 return Err(HyperlaneRadixError::ParsingError(
                     "failed to parse intent hash".to_owned(),
