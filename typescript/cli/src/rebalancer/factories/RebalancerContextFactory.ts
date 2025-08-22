@@ -62,14 +62,25 @@ export class RebalancerContextFactory {
     const provider =
       context.multiProtocolProvider.extendChainMetadata(mailboxes);
 
-    const warpCoreConfig = (context as any).warpCoreConfigOverride
-      ? (context as any).warpCoreConfigOverride
-      : await registry.getWarpRoute(config.warpRouteId);
-    if (!warpCoreConfig) {
-      throw new Error(
-        `Warp route config for ${config.warpRouteId} not found in registry`,
-      );
+    let warpCoreConfig;
+    if ((context as any).warpCoreConfigOverride) {
+      logger.info('Using warp override config instead of registry');
+      warpCoreConfig = (context as any).warpCoreConfigOverride;
+    } else {
+      warpCoreConfig = await registry.getWarpRoute(config.warpRouteId);
+      if (!warpCoreConfig) {
+        throw new Error(
+          `Warp route config for ${config.warpRouteId} not found in registry`,
+        );
+      }
     }
+    
+    // Log router addresses being used
+    logger.debug('Warp core config tokens:');
+    for (const token of warpCoreConfig.tokens || []) {
+      logger.debug(`  ${token.chainName}: router=${token.addressOrDenom}, oft=${token.collateralAddressOrDenom || 'N/A'}`);
+    }
+    
     const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
     const tokensByChainName = Object.fromEntries(
       warpCore.tokens.map((t) => [t.chainName, t]),
@@ -155,13 +166,19 @@ export class RebalancerContextFactory {
       { warpRouteId: this.config.warpRouteId },
       'Creating Rebalancer',
     );
+    
+    // Use adapter addresses if available in config (similar to CCTP bridge pattern)
+    const oftAdapters = (this.config as any).oft?.adapters || {};
+    
+    const bridgeConfigs = objMap(this.config.strategyConfig.chains, (chainName, v) => ({
+      bridge: oftAdapters[chainName] || v.bridge,  // Prefer adapter over router
+      bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0,
+      bridgeIsWarp: v.bridgeIsWarp ?? false,
+      override: v.override,
+    }));
+    
     const rebalancer = new Rebalancer(
-      objMap(this.config.strategyConfig.chains, (_, v) => ({
-        bridge: v.bridge,
-        bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0,
-        bridgeIsWarp: v.bridgeIsWarp ?? false,
-        override: v.override,
-      })),
+      bridgeConfigs,
       this.warpCore,
       this.metadata,
       this.tokensByChainName,

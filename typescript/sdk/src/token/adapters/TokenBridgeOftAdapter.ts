@@ -11,6 +11,8 @@ import { EvmHypCollateralAdapter, EvmTokenAdapter } from './EvmTokenAdapter.js';
  * Extends EvmHypCollateralAdapter since it behaves like collateral (holds underlying tokens).
  */
 export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
+  private tokenBridgeOftContract: ethers.Contract;
+  
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
@@ -18,6 +20,18 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
     public readonly oftTokenAddress: Address,
   ) {
     super(chainName, multiProvider, addresses);
+    
+    // Create a contract instance with the rebalanceOft function
+    const tokenBridgeOftABI = [
+      ...this.collateralContract.interface.fragments,
+      'function rebalanceOft(uint32 domain, uint256 amount) payable',
+    ];
+    
+    this.tokenBridgeOftContract = new ethers.Contract(
+      addresses.token,
+      tokenBridgeOftABI,
+      this.getProvider(),
+    );
   }
 
   /**
@@ -36,7 +50,7 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
       const balance = await oftTokenContract.balanceOf(this.addresses.token);
       return BigInt(balance.toString());
     } catch (error) {
-      console.error(`Failed to get OFT balance for ${this.chainName}:`, error);
+      // Failed to get OFT balance
       return undefined;
     }
   }
@@ -54,7 +68,7 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
   /**
    * Override to bypass rebalancer permission check since we use native OFT bridging
    */
-  override async isRebalancer(address: Address): Promise<boolean> {
+  override async isRebalancer(_address: Address): Promise<boolean> {
     // Since we use native OFT send() directly, we don't need rebalancer permissions
     return true;
   }
@@ -62,109 +76,72 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
   /**
    * Override to allow any bridge since we use native OFT bridging
    */
-  override async isBridgeAllowed(domain: number, bridge: Address): Promise<boolean> {
+  override async isBridgeAllowed(_domain: number, _bridge: Address): Promise<boolean> {
     // Since we use native OFT send() directly, any bridge is allowed
     return true;
   }
 
   /**
-   * Override to get quotes from the native OFT instead of trying to call the bridge
+   * Override to get quotes from the TokenBridgeOft router (Hyperlane protocol fees)
    */
   override async getRebalanceQuotes(
-    bridge: string,
+    _bridge: string,
     domain: number,
-    recipient: string,
+    _recipient: string,
     amount: string | number | bigint,
-    isWarp: boolean,
+    _isWarp: boolean,
   ): Promise<any[]> {
-    // Use the native OFT quoteSend function since TokenBridgeOft doesn't implement quoteTransferRemote properly
-    const oftContract = new ethers.Contract(
-      this.oftTokenAddress,
+    // Use the TokenBridgeOft quoteTransferRemote function to get Hyperlane protocol fees
+    const routerContract = new ethers.Contract(
+      this.addresses.token, // This is the TokenBridgeOft router address
       [
-        'function quoteSend((uint32 dstEid, bytes32 to, uint256 amountLD, uint256 minAmountLD, bytes extraOptions, bytes composeMsg, bytes oftCmd), bool payInLzToken) view returns (uint256 msgFee, uint256 lzTokenFee)',
+        'function quoteTransferRemote(uint32 destination, bytes32 recipient, uint256 amount) view returns (tuple(address token, uint256 amount)[])',
       ],
       this.getProvider(),
     );
 
     try {
-      // Map domain to LayerZero EID
-      const lzEid = this.mapDomainToLzEid(domain);
-      const recipientBytes32 = ethers.utils.hexZeroPad(recipient, 32);
+      const recipientBytes32 = ethers.utils.hexZeroPad(_recipient, 32);
+      const quotes = await routerContract.quoteTransferRemote(domain, recipientBytes32, amount);
       
-      const sendParam = {
-        dstEid: lzEid,
-        to: recipientBytes32,
-        amountLD: amount,
-        minAmountLD: amount,
-        extraOptions: '0x',
-        composeMsg: '0x',
-        oftCmd: '0x',
-      };
-
-      const [msgFee] = await oftContract.quoteSend(sendParam, false);
-      
-      return [{ amount: BigInt(msgFee.toString()) }];
+      // Convert quotes to expected format - quotes[0] is the protocol fee quote
+      return quotes.map((quote: any) => ({ amount: BigInt(quote.amount.toString()) }));
     } catch (error) {
-      console.error(`Failed to get OFT quote for ${this.chainName}:`, error);
+      // Failed to get TokenBridgeOft quote, using default
       // Return a default quote to avoid blocking
       return [{ amount: 100000000000000000n }]; // 0.1 ETH default
     }
   }
 
-  /**
-   * Map Hyperlane domain ID to LayerZero EID
-   */
-  private mapDomainToLzEid(domain: number): number {
-    const domainToEidMap: Record<number, number> = {
-      11155111: 40161, // Sepolia
-      421614: 40231,   // Arbitrum Sepolia
-      11155420: 40232, // Optimism Sepolia
-    };
-    
-    const eid = domainToEidMap[domain];
-    if (!eid) {
-      throw new Error(`No LayerZero EID mapping found for domain ${domain}`);
-    }
-    return eid;
-  }
 
   /**
-   * Override to use native OFT send instead of TokenBridgeOft rebalance
-   * This bypasses the TokenBridgeOft wrapper and uses LayerZero directly
+   * Router-to-router: call router.rebalanceOft() for OFT tokens.
+   * This avoids approval issues since the router already holds the tokens.
+   * Use LayerZero protocol fees from the quotes.
    */
   override async populateRebalanceTx(
     domain: number,
     amount: string | number | bigint,
-    bridge: string,
+    _bridge: string,
     quotes: any[],
   ): Promise<any> {
-    // Use the native OFT send function directly
-    const oftContract = new ethers.Contract(
-      this.oftTokenAddress,
-      [
-        'function send((uint32 dstEid, bytes32 to, uint256 amountLD, uint256 minAmountLD, bytes extraOptions, bytes composeMsg, bytes oftCmd), (uint256 msgFee, uint256 lzTokenFee), address refundTo) payable returns (uint256 amountSentLD, uint256 amountReceivedLD)',
-      ],
-      this.getProvider(),
+    // Use the protocol fee from quotes (first quote is the protocol fee)
+    let nativeValue = 0n;
+    if (quotes && quotes.length > 0 && quotes[0].amount) {
+      nativeValue = BigInt(quotes[0].amount.toString());
+    }
+
+    // Call the router's rebalanceOft function (no bridge parameter needed)
+    // rebalanceOft only takes domain and amount, uses router itself as bridge
+    const tx = await this.tokenBridgeOftContract.populateTransaction.rebalanceOft(
+      domain,
+      amount,
+      {
+        value: nativeValue, // Include LayerZero protocol fee
+        gasLimit: 500000,
+      },
     );
-
-    const lzEid = this.mapDomainToLzEid(domain);
-    const bridgeBytes32 = ethers.utils.hexZeroPad(bridge, 32);
-    
-    const sendParam = {
-      dstEid: lzEid,
-      to: bridgeBytes32,
-      amountLD: amount,
-      minAmountLD: amount,
-      extraOptions: '0x',
-      composeMsg: '0x',
-      oftCmd: '0x',
-    };
-
-    const fee = { msgFee: quotes[0]?.amount || 100000000000000000n, lzTokenFee: 0n };
-
-    return oftContract.populateTransaction.send(sendParam, fee, ethers.constants.AddressZero, {
-      value: fee.msgFee,
-    });
+    return tx;
   }
 
 

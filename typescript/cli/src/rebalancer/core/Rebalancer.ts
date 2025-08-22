@@ -152,6 +152,19 @@ export class Rebalancer implements IRebalancer {
       destination,
       this.logger,
     );
+    
+    // Log the addresses being used
+    this.logger.info(
+      {
+        origin,
+        destination,
+        originRouter: originToken.addressOrDenom,
+        bridgeAddress: bridge,
+        destinationRouter: destinationToken.addressOrDenom,
+        bridgeIsWarp,
+      },
+      'Using addresses for rebalance',
+    );
 
     // 2. Get quotes
     let quotes: InterchainGasQuote[];
@@ -330,9 +343,21 @@ export class Rebalancer implements IRebalancer {
       'Estimating gas for all prepared transactions.',
     );
 
-    // 1. Estimate gas
+    // 1. Estimate gas (skip if gasLimit already set for OFT transactions)
     const gasEstimateResults = await Promise.allSettled(
       transactions.map(async (transaction) => {
+        // Skip gas estimation if transaction already has gasLimit (e.g., for OFT transactions)
+        if (transaction.populatedTx.gasLimit) {
+          this.logger.debug(
+            {
+              origin: transaction.route.origin,
+              gasLimit: transaction.populatedTx.gasLimit.toString(),
+            },
+            'Skipping gas estimation - gasLimit already set'
+          );
+          return transaction;
+        }
+        
         await this.multiProvider.estimateGas(
           transaction.route.origin,
           transaction.populatedTx,
@@ -386,12 +411,29 @@ export class Rebalancer implements IRebalancer {
         const decimalFormattedAmount =
           transaction.originTokenAmount.getDecimalFormattedAmount();
         const tokenName = transaction.originTokenAmount.token.name;
+        
+        // Verify transaction target matches expected router
+        const expectedRouter = transaction.originTokenAmount.token.addressOrDenom;
+        if (transaction.populatedTx.to?.toLowerCase() !== expectedRouter.toLowerCase()) {
+          this.logger.error(
+            {
+              origin,
+              destination,
+              expectedRouter,
+              actualTo: transaction.populatedTx.to,
+            },
+            'Transaction target does not match expected router!',
+          );
+          throw new Error(`Transaction target mismatch: expected ${expectedRouter}, got ${transaction.populatedTx.to}`);
+        }
+        
         this.logger.info(
           {
             origin,
             destination,
             amount: decimalFormattedAmount,
             tokenName,
+            transactionTo: transaction.populatedTx.to,
           },
           'Sending transaction for route.',
         );

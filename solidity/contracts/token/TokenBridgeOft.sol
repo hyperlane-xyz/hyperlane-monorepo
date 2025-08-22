@@ -3,8 +3,9 @@ pragma solidity >=0.8.0;
 
 import {HypERC20Collateral} from "./HypERC20Collateral.sol";
 import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
-import {IOFTCore} from "./interfaces/IOFTCore.sol";
+import {IOFTV2} from "./interfaces/IOFTV2.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
+import {ValueTransferBridge} from "./interfaces/ValueTransferBridge.sol";
 
 contract TokenBridgeOft is HypERC20Collateral {
     struct Domain {
@@ -74,10 +75,50 @@ contract TokenBridgeOft is HypERC20Collateral {
         uint256 _amount
     ) external view override returns (Quote[] memory quotes) {
         quotes = new Quote[](2);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destinationDomain, _recipient, _amount)
-        });
+        
+        // Quote LayerZero V2 fees instead of Hyperlane fees
+        Domain memory d = _domainMap[_destinationDomain];
+        if (d.hyperlane == _destinationDomain && d.dstVault.length == 32) {
+            // Convert dstVault to bytes32 for the quote
+            bytes memory vault = d.dstVault;
+            bytes32 dstVaultBytes32;
+            assembly {
+                dstVaultBytes32 := mload(add(vault, 32))
+            }
+            
+            // Build send parameters for quoting
+            IOFTV2.SendParam memory sendParam = IOFTV2.SendParam({
+                dstEid: uint32(d.lzEid),
+                to: dstVaultBytes32,
+                amountLD: _amount,
+                minAmountLD: _amount,
+                extraOptions: d.adapterParams,
+                composeMsg: bytes(""),
+                oftCmd: bytes("")
+            });
+            
+            try IOFTV2(address(wrappedToken)).quoteSend(sendParam, false) returns (
+                IOFTV2.MessagingFee memory fee
+            ) {
+                quotes[0] = Quote({
+                    token: address(0),
+                    amount: fee.nativeFee
+                });
+            } catch {
+                // Fallback to a reasonable default fee if quote fails
+                quotes[0] = Quote({
+                    token: address(0),
+                    amount: 0.01 ether
+                });
+            }
+        } else {
+            // No domain configured, return minimal fee
+            quotes[0] = Quote({
+                token: address(0),
+                amount: 0.01 ether
+            });
+        }
+        
         quotes[1] = Quote({token: address(wrappedToken), amount: _amount});
     }
 
@@ -92,36 +133,56 @@ contract TokenBridgeOft is HypERC20Collateral {
         bytes32 enrolledRouter = _mustHaveRemoteRouter(_destination);
         require(_recipient == enrolledRouter, "Invalid recipient");
 
-        HypERC20Collateral._transferFromSender(_amount);
+        // When called via router.rebalance(), this contract (router) calls its own transferRemote,
+        // so msg.sender == address(this). In that case, the collateral is already held by the router
+        // and pulling via transferFrom(msg.sender) is unnecessary and may revert. Only pull when
+        // an external EOA is the sender (user-initiated transferRemote).
+        if (msg.sender != address(this)) {
+            HypERC20Collateral._transferFromSender(_amount);
+        }
 
         uint256 outbound = _outboundAmount(_amount);
-        bytes memory _tokenMessage = TokenMessage.format(
-            _recipient,
-            outbound,
-            bytes("")
-        );
-
-        messageId = _Router_dispatch(
-            _destination,
-            _value,
-            _tokenMessage,
-            _hookMetadata,
-            _hook
-        );
-
+        
+        // For OFT rebalancing, we only use LayerZero, not Hyperlane messaging
+        // So we skip the Hyperlane dispatch and only do the LayerZero send
         Domain memory d = _domainMap[_destination];
         require(d.hyperlane == _destination, "EID not configured");
 
-        IOFTCore(address(wrappedToken)).sendFrom{value: 0}(
-            address(this),
-            d.lzEid,
-            d.dstVault,
-            outbound,
-            d.adapterParams
+        // Build LayerZero V2 send parameters
+        // Convert dstVault from bytes to bytes32
+        bytes memory vault = d.dstVault;
+        bytes32 dstVaultBytes32;
+        require(vault.length == 32, "Invalid dstVault length");
+        assembly {
+            dstVaultBytes32 := mload(add(vault, 32))
+        }
+        
+        IOFTV2.SendParam memory sendParam = IOFTV2.SendParam({
+            dstEid: uint32(d.lzEid),
+            to: dstVaultBytes32,  // Destination router address as bytes32
+            amountLD: outbound,
+            minAmountLD: outbound,  // No slippage for router-to-router
+            extraOptions: d.adapterParams,
+            composeMsg: bytes(""),
+            oftCmd: bytes("")
+        });
+
+        // Use the entire msg.value for LayerZero fees (no Hyperlane protocol fee needed)
+        IOFTV2.MessagingFee memory fee = IOFTV2.MessagingFee({
+            nativeFee: msg.value,
+            lzTokenFee: 0
+        });
+
+        // Send via LayerZero V2
+        messageId = IOFTV2(address(wrappedToken)).send{value: msg.value}(
+            sendParam,
+            fee,
+            address(this)  // Refund address
         );
 
         emit SentTransferRemote(_destination, _recipient, outbound);
     }
 
     function _transferTo(address, uint256, bytes calldata) internal override {}
+
 }
