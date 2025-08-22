@@ -10,9 +10,8 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import {
-  LinearFeeConfig,
+  LinearFeeInputConfig,
   RoutingFeeConfigSchema,
-  TokenFeeConfig,
   TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
@@ -28,7 +27,7 @@ describe('EvmTokenFeeDeployer', () => {
 
   type TestCase = {
     title: string;
-    config: Omit<TokenFeeConfig, 'owner' | 'token'>;
+    config: Omit<TokenFeeConfigInput, 'owner' | 'token'>;
   };
 
   beforeEach(async () => {
@@ -49,7 +48,7 @@ describe('EvmTokenFeeDeployer', () => {
           maxFee: MAX_FEE,
           halfAmount: HALF_AMOUNT,
           bps: 1000n,
-        } as LinearFeeConfig,
+        } as LinearFeeInputConfig, // Does not correctly infer due to Omit
       },
       {
         title: 'should deploy ProgressiveFee with correct parameters',
