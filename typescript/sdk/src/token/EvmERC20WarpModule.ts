@@ -147,10 +147,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
      * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
      */
     transactions.push(
-      ...(await this.upgradeWarpRouteImplementationTx(
-        actualConfig,
-        expectedConfig,
-      )),
+      // ...(await this.upgradeWarpRouteImplementationTx(
+      //   actualConfig,
+      //   expectedConfig,
+      // )),
       // ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       // ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
@@ -558,6 +558,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
+    console.log({ actualConfig, expectedConfig });
+
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.destinationGas) {
       return [];
@@ -577,6 +579,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       this.multiProvider,
       expectedConfig.destinationGas,
     );
+
+    console.log({ actualDestinationGas, expectedDestinationGas });
 
     if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
       const contractToUpdate = GasRouter__factory.connect(
