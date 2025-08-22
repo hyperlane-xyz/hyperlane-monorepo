@@ -1,3 +1,5 @@
+use std::os::unix::process;
+
 use super::consts::*;
 use crate::KaspaProvider;
 use dym_kas_relayer::withdraw::minimum::is_small_value;
@@ -9,7 +11,7 @@ use hyperlane_core::{
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
 use tonic::async_trait;
-use tracing::info;
+use tracing::{error, info, warn};
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
@@ -138,10 +140,22 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        let processed_messages = self
+        let result_processed_messages = self
             .provider
             .process_withdrawal_messages(messages.clone())
-            .await?;
+            .await;
+
+        let processed_messages = match result_processed_messages {
+            Ok(messages) => {
+                info!("Kaspa mailbox, processed withdrawals TXs");
+                messages
+            }
+            Err(e) => {
+                error!("Kaspa mailbox, failed to process withdrawals TXs: {:?}", e);
+                Vec::new()
+            }
+        };
+
         info!("Kaspa mailbox, processed withdrawals TXs");
 
         // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
@@ -155,6 +169,10 @@ impl Mailbox for KaspaMailbox {
                     failed.push(i);
                 }
             }
+            warn!(
+                "Kaspa mailbox, processed batch, failed indexes: {:?}",
+                failed
+            );
             failed
         };
 
