@@ -315,8 +315,8 @@ export class EvmHypCollateralAdapter
   }
 
   override async getBalance(address: Address): Promise<bigint> {
-    const wrappedToken = await this.getWrappedTokenAdapter();
-    return wrappedToken.getBalance(address);
+    const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
+    return wrappedTokenAdapter.getBalance(address);
   }
 
   override getBridgedSupply(): Promise<bigint | undefined> {
