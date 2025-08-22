@@ -1,15 +1,15 @@
 use std::future::Future;
 use std::time::Instant;
 
+use cometbft::Hash;
+use cometbft_rpc::client::CompatMode;
+use cometbft_rpc::endpoint::{block, block_by_hash, block_results, tx};
+use cometbft_rpc::{Client, HttpClient, HttpClientUrl, Url as TendermintUrl};
 use cosmrs::proto::tendermint::blocksync::BlockResponse;
 use hyperlane_core::rpc_clients::BlockNumberGetter;
 use hyperlane_metric::prometheus_metric::{
     PrometheusClientMetrics, PrometheusConfig, PrometheusConfigExt,
 };
-use tendermint::Hash;
-use tendermint_rpc::client::CompatMode;
-use tendermint_rpc::endpoint::{block, block_by_hash, block_results, tx};
-use tendermint_rpc::{Client, HttpClient, HttpClientUrl, Url as TendermintUrl};
 
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 use tonic::async_trait;
@@ -49,16 +49,16 @@ impl CosmosRpcClient {
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
     ) -> ChainResult<Self> {
-        let tendermint_url = tendermint_rpc::Url::try_from(url.to_owned())
+        let rpc_url = cometbft_rpc::Url::try_from(url.to_owned())
             .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
-        let url = tendermint_rpc::HttpClientUrl::try_from(tendermint_url)
+        let url = cometbft_rpc::HttpClientUrl::try_from(rpc_url)
             .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         let client = HttpClient::builder(url)
             // Consider supporting different compatibility modes.
-            .compat_mode(CompatMode::V0_37)
+            .compat_mode(CompatMode::latest())
             .build()
             .map_err(Box::new)
             .map_err(Into::<HyperlaneCosmosError>::into)?;

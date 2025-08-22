@@ -36,7 +36,7 @@ impl Into<IncrementalMerkle> for Tree {
             // we're iterating over a fixed-size array and want to collect into a
             // fixed-size array of the same size (32), so this is safe
             .try_into()
-            .unwrap();
+            .expect("Failed to convert vec into fixed sized array");
         IncrementalMerkle::new(branch, self.count.as_usize())
     }
 }

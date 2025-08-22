@@ -81,9 +81,8 @@ impl LatestCheckpointReorgReporter {
 
         let mut merkle_tree_hooks = HashMap::new();
         for (url, settings) in Self::settings_with_single_rpc(settings, origin) {
-            let merkle_tree_hook = settings
-                .build_merkle_tree_hook(&settings.origin_chain, metrics)
-                .await?;
+            let chain_setup = settings.chain_setup(&settings.origin_chain)?;
+            let merkle_tree_hook = chain_setup.build_merkle_tree_hook(metrics).await?;
 
             merkle_tree_hooks.insert(url, merkle_tree_hook.into());
         }
@@ -101,7 +100,7 @@ impl LatestCheckpointReorgReporter {
 
         let chain_conf = settings
             .chains
-            .get(origin.name())
+            .get(origin)
             .expect("Chain configuration is not found")
             .clone();
 
@@ -149,13 +148,11 @@ impl LatestCheckpointReorgReporter {
                 let mut updated_settings = settings.clone();
                 let mut chain_conf = settings
                     .chains
-                    .get(origin.name())
+                    .get(origin)
                     .expect("Chain configuration is not found")
                     .clone();
                 chain_conf.connection = conn;
-                updated_settings
-                    .chains
-                    .insert(origin.name().to_string(), chain_conf);
+                updated_settings.chains.insert(origin.clone(), chain_conf);
                 (url, updated_settings)
             })
             .collect::<Vec<_>>()
