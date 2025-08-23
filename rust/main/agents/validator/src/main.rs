@@ -13,6 +13,7 @@ use crate::validator::Validator;
 mod reorg_reporter;
 mod server;
 mod settings;
+mod sql_indexer;
 mod submit;
 mod validator;
 
