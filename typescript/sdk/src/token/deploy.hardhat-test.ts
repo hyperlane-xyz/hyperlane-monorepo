@@ -50,6 +50,7 @@ function addOverridesToConfig(
     }),
   );
 }
+
 describe('TokenDeployer', async () => {
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
@@ -85,26 +86,30 @@ describe('TokenDeployer', async () => {
   });
 
   beforeEach(async () => {
-    const { name, decimals, symbol } = config[chain];
+    const { name = 'TOKEN', decimals = 18, symbol = 'TOK' } = config[chain];
     const implementation = await new XERC20Test__factory(signer).deploy(
-      name!,
-      symbol!,
-      totalSupply!,
-      decimals!,
+      name,
+      symbol,
+      totalSupply,
+      decimals,
     );
     admin = await new ProxyAdmin__factory(signer).deploy();
     const proxy = await new TransparentUpgradeableProxy__factory(signer).deploy(
       implementation.address,
       admin.address,
-      XERC20Test__factory.createInterface().encodeFunctionData('initialize'),
+      XERC20Test__factory.createInterface().encodeFunctionData(
+        'initialize(string,string)',
+        [name, symbol],
+      ),
     );
     token = proxy.address;
     xerc20 = XERC20Test__factory.connect(token, signer);
+
     erc20 = await new ERC20Test__factory(signer).deploy(
-      name!,
-      symbol!,
-      totalSupply!,
-      decimals!,
+      name,
+      symbol,
+      totalSupply,
+      decimals,
     );
 
     deployer = new HypERC20Deployer(multiProvider);

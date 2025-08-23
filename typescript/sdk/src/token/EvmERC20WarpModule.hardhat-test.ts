@@ -21,20 +21,6 @@ import {
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
-  EvmIsmModule,
-  HookConfig,
-  HookType,
-  HyperlaneAddresses,
-  HyperlaneContractsMap,
-  IsmConfig,
-  IsmType,
-  RouterConfig,
-  TestChainName,
-  proxyAdmin,
-  proxyImplementation,
-  serializeContracts,
-} from '@hyperlane-xyz/sdk';
-import {
   Address,
   addressToBytes32,
   assert,
@@ -44,14 +30,24 @@ import {
   randomInt,
 } from '@hyperlane-xyz/utils';
 
+import { TestChainName } from '../consts/testChains.js';
+import { serializeContracts } from '../contracts/contracts.js';
+import {
+  HyperlaneAddresses,
+  HyperlaneContractsMap,
+} from '../contracts/types.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { proxyAdmin, proxyImplementation } from '../deploy/proxy.js';
+import { HookConfig, HookType } from '../hook/types.js';
+import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { RemoteRouters } from '../router/types.js';
+import { RemoteRouters, RouterConfig } from '../router/types.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
