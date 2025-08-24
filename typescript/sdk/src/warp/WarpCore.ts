@@ -129,16 +129,19 @@ export class WarpCore {
    * Sender is only required for Sealevel origins.
    */
   async getInterchainTransferFee({
-    originToken,
+    originTokenAmount,
     destination,
     sender,
+    recipient,
   }: {
-    originToken: IToken;
+    originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     sender?: Address;
+    recipient: Address;
   }): Promise<TokenAmount> {
     this.logger.debug(`Fetching interchain transfer quote to ${destination}`);
-    const { chainName: originName } = originToken;
+    const { amount, token: originToken } = originTokenAmount;
+    const originName = originToken.chainName;
     const destinationName = this.multiProvider.getChainName(destination);
 
     let gasAmount: bigint;
@@ -157,13 +160,15 @@ export class WarpCore {
         destinationName,
       );
       const destinationDomainId = this.multiProvider.getDomainId(destination);
-      const quote = await hypAdapter.quoteTransferRemoteGas(
-        destinationDomainId,
+      const quote = await hypAdapter.quoteTransferRemoteGas({
+        destination: destinationDomainId,
         sender,
-        originToken.igpTokenAddressOrDenom,
-      );
-      gasAmount = BigInt(quote.amount);
-      gasAddressOrDenom = quote.addressOrDenom;
+        customHook: originToken.igpTokenAddressOrDenom,
+        recipient,
+        amount,
+      });
+      gasAmount = BigInt(quote.igpQuote.amount);
+      gasAddressOrDenom = quote.igpQuote.addressOrDenom;
     }
 
     let igpToken: Token;
@@ -386,9 +391,10 @@ export class WarpCore {
 
     if (!interchainFee) {
       interchainFee = await this.getInterchainTransferFee({
-        originToken: token,
+        originTokenAmount,
         destination,
         sender,
+        recipient,
       });
     }
 
@@ -437,8 +443,10 @@ export class WarpCore {
       fromAccountOwner: sender,
       recipient,
       interchainGas: {
-        amount: interchainFee.amount,
-        addressOrDenom: interchainFee.token.addressOrDenom,
+        igpQuote: {
+          amount: interchainFee.amount,
+          addressOrDenom: interchainFee.token.addressOrDenom,
+        },
       },
       customHook: token.igpTokenAddressOrDenom,
     });
@@ -458,13 +466,15 @@ export class WarpCore {
    * Fetch local and interchain fee estimates for a remote transfer
    */
   async estimateTransferRemoteFees({
-    originToken,
+    originTokenAmount,
     destination,
+    recipient,
     sender,
     senderPubKey,
   }: {
-    originToken: IToken;
+    originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
+    recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
   }): Promise<WarpCoreFeeEstimate> {
@@ -473,14 +483,15 @@ export class WarpCore {
     // First get interchain gas quote (aka IGP quote)
     // Start with this because it's used in the local fee estimation
     const interchainQuote = await this.getInterchainTransferFee({
-      originToken,
+      originTokenAmount,
       destination,
       sender,
+      recipient,
     });
 
     // Next, get the local gas quote
     const localQuote = await this.getLocalTransferFeeAmount({
-      originToken,
+      originToken: originTokenAmount.token,
       destination,
       sender,
       senderPubKey,
@@ -500,12 +511,14 @@ export class WarpCore {
   async getMaxTransferAmount({
     balance,
     destination,
+    recipient,
     sender,
     senderPubKey,
     feeEstimate,
   }: {
     balance: TokenAmount;
     destination: ChainNameOrId;
+    recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
     feeEstimate?: WarpCoreFeeEstimate;
@@ -514,8 +527,9 @@ export class WarpCore {
 
     if (!feeEstimate) {
       feeEstimate = await this.estimateTransferRemoteFees({
-        originToken,
+        originTokenAmount: balance,
         destination,
+        recipient,
         sender,
         senderPubKey,
       });
@@ -690,6 +704,7 @@ export class WarpCore {
       originTokenAmount,
       destination,
       sender,
+      recipient,
       senderPubKey,
     );
     if (balancesError) return balancesError;
@@ -808,6 +823,7 @@ export class WarpCore {
     originTokenAmount: TokenAmount,
     destination: ChainNameOrId,
     sender: Address,
+    recipient: Address,
     senderPubKey?: HexString,
   ): Promise<Record<string, string> | null> {
     const { token: originToken, amount } = originTokenAmount;
@@ -824,9 +840,10 @@ export class WarpCore {
     // Check 2: Ensure the balance can cover interchain fee
     // Slightly redundant with Check 4 but gives more specific error messages
     const interchainQuote = await this.getInterchainTransferFee({
-      originToken,
+      originTokenAmount,
       destination,
       sender,
+      recipient,
     });
     // Get balance of the IGP fee token, which may be different from the transfer token
     const interchainQuoteTokenBalance = originToken.isFungibleWith(
@@ -855,6 +872,7 @@ export class WarpCore {
     const maxTransfer = await this.getMaxTransferAmount({
       balance: senderBalanceAmount,
       destination,
+      recipient,
       sender,
       senderPubKey,
       feeEstimate,

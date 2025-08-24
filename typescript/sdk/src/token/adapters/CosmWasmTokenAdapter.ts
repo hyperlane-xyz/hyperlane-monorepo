@@ -36,6 +36,7 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -306,9 +307,9 @@ export class CwHypSyntheticAdapter
     return this.getTotalSupply();
   }
 
-  async quoteTransferRemoteGas(
-    _destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination: _destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     // TODO this may require separate queries to get the hook and/or mailbox
     // before making a query for the QuoteDispatchResponse
     // Punting on this given that only static quotes are used for now
@@ -331,8 +332,10 @@ export class CwHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<ExecuteInstruction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas(destination);
-    const { addressOrDenom: igpDenom, amount: igpAmount } = interchainGas;
+      interchainGas = await this.quoteTransferRemoteGas({ destination });
+    const {
+      igpQuote: { addressOrDenom: igpDenom, amount: igpAmount },
+    } = interchainGas;
     assert(igpDenom, 'Interchain gas denom required for Cosmos');
 
     return this.prepareRouter(
@@ -402,8 +405,10 @@ export class CwHypNativeAdapter
     return this.getBalance(this.addresses.warpRouter);
   }
 
-  quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote> {
-    return this.cw20adapter.quoteTransferRemoteGas(destination);
+  async quoteTransferRemoteGas({
+    destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
+    return this.cw20adapter.quoteTransferRemoteGas({ destination });
   }
 
   async getDenom(): Promise<string> {
@@ -426,8 +431,10 @@ export class CwHypNativeAdapter
     const collateralDenom = await this.getDenom();
 
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas(destination);
-    const { addressOrDenom: igpDenom, amount: igpAmount } = interchainGas;
+      interchainGas = await this.quoteTransferRemoteGas({ destination });
+    const {
+      igpQuote: { addressOrDenom: igpDenom, amount: igpAmount },
+    } = interchainGas;
     assert(igpDenom, 'Interchain gas denom required for Cosmos');
 
     // If more than one denom is used as funds, they must be sorted by the denom
