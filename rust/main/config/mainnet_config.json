@@ -99,11 +99,7 @@
       },
       "interchainAccountRouter": "0xF90A3d406C6F8321fe118861A357F4D7107760D7",
       "interchainGasPaymaster": "0x3b6044acd6767f017e99318AA6Ef93b7B06A5a22",
-<<<<<<< HEAD
-      "interchainSecurityModule": "0xc9E547dc93b5A6075eD844816a94CBa3e52DfC26",
-=======
       "interchainSecurityModule": "0x09Dab52D44825423C6f0F452E2e28E0a83e3a760",
->>>>>>> xaroz/update-quote-transfer-gas
       "mailbox": "0x979Ca5202784112f4738403dBec5D0F3B9daabB9",
       "merkleTreeHook": "0x748040afB89B8FdBb992799808215419d36A0930",
       "name": "arbitrum",
@@ -266,11 +262,7 @@
       },
       "interchainAccountRouter": "0x44647Cd983E80558793780f9a0c7C2aa9F384D07",
       "interchainGasPaymaster": "0xc3F23848Ed2e04C0c6d41bd7804fa8f89F940B94",
-<<<<<<< HEAD
-      "interchainSecurityModule": "0xBa05388aE47866c677bE665DDF762295e7fC513A",
-=======
       "interchainSecurityModule": "0x134212B119216528b0Be7f2A33331c797f3a01d5",
->>>>>>> xaroz/update-quote-transfer-gas
       "mailbox": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
       "merkleTreeHook": "0x19dc38aeae620380430C200a6E990D5Af5480117",
       "name": "base",
@@ -970,11 +962,7 @@
       },
       "interchainAccountRouter": "0xC00b94c115742f711a6F9EA90373c33e9B72A4A9",
       "interchainGasPaymaster": "0x9e6B1022bE9BBF5aFd152483DAD9b88911bC8611",
-<<<<<<< HEAD
-      "interchainSecurityModule": "0x427Af5b61CdEbf660123C1c3fA9CAa83756E1B70",
-=======
       "interchainSecurityModule": "0x71D66dC022a235B4976A9379a17e13449CB6b6B9",
->>>>>>> xaroz/update-quote-transfer-gas
       "mailbox": "0xc005dc82818d67AF737725bD4bf75435d065D239",
       "merkleTreeHook": "0x48e6c30B97748d1e2e03bf3e9FbE3890ca5f8CCA",
       "name": "ethereum",
@@ -9040,8 +9028,6 @@
       "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000000",
       "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
-<<<<<<< HEAD
-=======
     },
     "mitosis": {
       "blocks": {
@@ -9097,7 +9083,6 @@
         "chunk": 1000,
         "from": 127654
       }
->>>>>>> xaroz/update-quote-transfer-gas
     }
   }
 }
