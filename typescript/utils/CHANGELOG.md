@@ -2,9 +2,23 @@
 
 ## 15.0.0-beta.0
 
+## 16.2.0
+
+## 16.1.1
+
+## 16.1.0
+
+## 16.0.0
+
+## 15.0.0
+
 ### Minor Changes
 
 - 451f3f6c3: Support pino-pretty in development
+  <<<<<<< HEAD
+  =======
+- a33c8abd4: Implement `convertToScaledAmount` for amounts that need scaling
+  > > > > > > > main
 
 ## 14.4.0
 

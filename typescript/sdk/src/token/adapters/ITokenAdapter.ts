@@ -43,6 +43,11 @@ export interface RateLimitMidPoint {
   midPoint: bigint;
 }
 
+export interface xERC20Limits {
+  mint: bigint;
+  burn: bigint;
+}
+
 export interface ITokenAdapter<Tx> {
   getBalance(address: Address): Promise<bigint>;
   getTotalSupply(): Promise<bigint | undefined>;
@@ -69,6 +74,7 @@ export interface IMovableCollateralRouterAdapter<Tx> extends ITokenAdapter<Tx> {
     amount: Numberish,
     isWarp: boolean,
   ): Promise<InterchainGasQuote[]>;
+  getWrappedTokenAddress(): Promise<Address>;
 
   populateRebalanceTx(
     domain: Domain,
@@ -125,4 +131,12 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
     rateLimitPerSecond: bigint,
     bridge: Address,
   ): Promise<Tx>;
+}
+
+export interface IXERC20Adapter<Tx> extends ITokenAdapter<Tx> {
+  getLimits(bridge: Address): Promise<xERC20Limits>;
+}
+
+export interface IHypCollateralFiatAdapter<Tx> extends IHypTokenAdapter<Tx> {
+  getMintLimit(): Promise<bigint>;
 }

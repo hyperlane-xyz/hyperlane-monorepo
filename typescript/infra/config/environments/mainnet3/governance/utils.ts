@@ -3,6 +3,8 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { GovernanceType } from '../../../../src/governance.js';
 
+import { awIcasLegacy } from './ica/_awLegacy.js';
+import { regularIcasLegacy } from './ica/_regularLegacy.js';
 import { awIcas } from './ica/aw.js';
 import { regularIcas } from './ica/regular.js';
 import { awSafes } from './safe/aw.js';
@@ -12,6 +14,19 @@ import { regularSafes } from './safe/regular.js';
 import { awSigners, awThreshold } from './signers/aw.js';
 import { irregularSigners, irregularThreshold } from './signers/irregular.js';
 import { regularSigners, regularThreshold } from './signers/regular.js';
+import { awTimelocks } from './timelock/aw.js';
+import { regularTimelocks } from './timelock/regular.js';
+
+export function getGovernanceTimelocks(governanceType: GovernanceType) {
+  switch (governanceType) {
+    case GovernanceType.Regular:
+      return regularTimelocks;
+    case GovernanceType.AbacusWorks:
+      return awTimelocks;
+    default:
+      throw new Error(`Unsupported governance type: ${governanceType}`);
+  }
+}
 
 export function getGovernanceSafes(governanceType: GovernanceType) {
   switch (governanceType) {
@@ -24,7 +39,18 @@ export function getGovernanceSafes(governanceType: GovernanceType) {
     case GovernanceType.OUSDT:
       return ousdtSafes;
     default:
-      throw new Error(`Unknown governance type: ${governanceType}`);
+      throw new Error(`Unsupported governance type: ${governanceType}`);
+  }
+}
+
+export function getLegacyGovernanceIcas(governanceType: GovernanceType) {
+  switch (governanceType) {
+    case GovernanceType.Regular:
+      return regularIcasLegacy;
+    case GovernanceType.AbacusWorks:
+      return awIcasLegacy;
+    default:
+      throw new Error(`Unsupported governance type: ${governanceType}`);
   }
 }
 

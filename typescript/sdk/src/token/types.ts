@@ -115,22 +115,42 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
 export type CollateralTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
 export const isCollateralTokenConfig = isCompliant(CollateralTokenConfigSchema);
 
-const xERC20LimitConfigSchema = z.object({
+export enum XERC20Type {
+  Velo = 'velo',
+  Standard = 'standard',
+}
+
+// Velo variant
+const XERC20VSLimitConfigSchema = z.object({
+  type: z.literal(XERC20Type.Velo),
   bufferCap: z.string().optional(),
   rateLimitPerSecond: z.string().optional(),
 });
-export type XERC20LimitConfig = z.infer<typeof xERC20LimitConfigSchema>;
+export type XERC20VSLimitConfig = z.infer<typeof XERC20VSLimitConfigSchema>;
 
+const XERC20StandardLimitConfigSchema = z.object({
+  type: z.literal(XERC20Type.Standard),
+  mint: z.string().optional(),
+  burn: z.string().optional(),
+});
+export type XERC20StandardLimitConfig = z.infer<
+  typeof XERC20StandardLimitConfigSchema
+>;
+
+const xERC20Limits = z.discriminatedUnion('type', [
+  XERC20VSLimitConfigSchema,
+  XERC20StandardLimitConfigSchema,
+]);
 const xERC20ExtraBridgesLimitConfigsSchema = z.object({
   lockbox: z.string(),
-  limits: xERC20LimitConfigSchema,
+  limits: xERC20Limits,
 });
 
 const xERC20TokenMetadataSchema = z.object({
   xERC20: z
     .object({
       extraBridges: z.array(xERC20ExtraBridgesLimitConfigsSchema).optional(),
-      warpRouteLimits: xERC20LimitConfigSchema,
+      warpRouteLimits: xERC20Limits,
     })
     .optional(),
 });
@@ -375,8 +395,32 @@ export const WarpRouteDeployConfigSchema = z
     return hookConfigHasMissingIsms || ismConfigHasMissingHooks
       ? z.NEVER
       : warpRouteDeployConfig;
-  });
+  })
+  // Verify that xERC20 are only with xERC20s
+  .transform((warpRouteDeployConfig, ctx) => {
+    const isXERC20Route = Object.values(warpRouteDeployConfig).some(
+      isXERC20TokenConfig,
+    );
 
+    if (!isXERC20Route) {
+      return warpRouteDeployConfig;
+    }
+
+    const isAllXERC20s = Object.values(warpRouteDeployConfig).every(
+      isXERC20TokenConfig,
+    );
+
+    if (!isAllXERC20s) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `All chains must be xERC20 warp route tokens`,
+      });
+
+      return z.NEVER;
+    }
+
+    return warpRouteDeployConfig;
+  });
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
 
 const _RequiredMailboxSchema = z.record(

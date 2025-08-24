@@ -284,7 +284,7 @@ jobs:
           job_name: 'CLI Install Test'
           result: ${{ needs.cli-install-test-run.result }}
 
-  cli-e2e-matrix:
+  cli-evm-e2e-matrix:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
@@ -301,18 +301,22 @@ jobs:
           # Other commands
           - relay
           # Warp Commands
-          - warp-apply
+          - warp-apply-1
+          - warp-apply-2
+          - warp-apply-submitters
           - warp-bridge-1
           - warp-bridge-2
-          - warp-check
+          - warp-check-1
+          - warp-check-2
+          - warp-check-3
           - warp-deploy
           - warp-extend-basic
           - warp-extend-config
           - warp-extend-recovery
           - warp-init
           - warp-read
-          - warp-send
           - warp-rebalancer
+          - warp-send
     steps:
       - uses: actions/checkout@v4
         with:
@@ -333,22 +337,68 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: CLI e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:e2e
+      - name: CLI ethereum e2e tests (${{ matrix.test }})
+        run: yarn --cwd typescript/cli test:ethereum:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-cosmos-e2e-matrix:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-apply
+          - core-check
+          - core-deploy
+          - core-read
+          # Warp Commands
+          - warp-deploy
+          - warp-read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: foundry-install
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI cosmosnative e2e tests (${{ matrix.test }})
+        run: yarn --cwd typescript/cli test:cosmosnative:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-e2e:
     runs-on: ubuntu-latest
-    needs: [cli-e2e-matrix]
+    needs: [cli-evm-e2e-matrix, cli-cosmos-e2e-matrix]
     if: always()
     steps:
       - uses: actions/checkout@v4
-      - name: Check cli-e2e matrix status
+      - name: Check CLI EVM E2E status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'CLI E2E'
-          result: ${{ needs.cli-e2e-matrix.result }}
+          job_name: 'CLI EVM E2E'
+          result: ${{ needs.cli-evm-e2e-matrix.result }}
+      - name: Check CLI CosmosNative E2E status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI CosmosNative E2E'
+          result: ${{ needs.cli-cosmos-e2e-matrix.result }}
 
   cosmos-sdk-e2e-run:
     runs-on: depot-ubuntu-latest

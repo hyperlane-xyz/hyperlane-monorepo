@@ -59,6 +59,7 @@ export async function runForkCommand({
     readYamlOrJson,
   );
   const chainMetadataOverrides: ChainMap<{
+    blocks: ChainMetadata['blocks'];
     rpcUrls: ChainMetadata['rpcUrls'];
   }> = {};
   for (const chainName of filteredChainsToFork) {
@@ -69,7 +70,10 @@ export async function runForkCommand({
       kill,
       parsedForkConfig[chainName],
     );
-    chainMetadataOverrides[chainName] = { rpcUrls: [{ http: endpoint }] };
+    chainMetadataOverrides[chainName] = {
+      blocks: { confirmations: 1 },
+      rpcUrls: [{ http: endpoint }],
+    };
 
     port++;
   }
