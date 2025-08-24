@@ -77,6 +77,7 @@
 ### Patch Changes
 
 - 23861b70a: Don't `handleTx` for zksync, since the zksync deployer itself will handle it.
+  <<<<<<< HEAD
 - e0c69e255: Implement token fees on FungibleTokenRouter
 
   Removes `metadata` from return type of internal `TokenRouter._transferFromSender` hook

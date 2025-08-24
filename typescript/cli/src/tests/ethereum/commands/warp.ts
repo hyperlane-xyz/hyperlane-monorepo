@@ -376,6 +376,9 @@ type GetWarpTokenConfigOptions = {
   owner: Address;
   token: Address;
   vault: Address;
+  fiatToken: Address;
+  xerc20: Address;
+  xerc20Lockbox: Address;
   chainName: ChainName;
 };
 

@@ -658,7 +658,7 @@ impl AdaptsChain for EthereumAdapter {
 }
 
 #[cfg(test)]
-pub use gas_limit_estimator::apply_estimate_buffer_to_ethers;
+pub use gas_limit_estimator::tests::apply_estimate_buffer_to_ethers;
 
 #[cfg(test)]
 mod tests;

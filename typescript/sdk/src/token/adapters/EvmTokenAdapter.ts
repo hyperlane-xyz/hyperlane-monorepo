@@ -38,6 +38,7 @@ import {
   assert,
   bytes32ToAddress,
   isNullish,
+  normalizeAddress,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
@@ -356,7 +357,7 @@ export class EvmHypCollateralAdapter
     );
   }
 
-  protected async getWrappedTokenAddress(): Promise<Address> {
+  async getWrappedTokenAddress(): Promise<Address> {
     if (!this.wrappedTokenAddress) {
       this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
     }
@@ -370,8 +371,8 @@ export class EvmHypCollateralAdapter
   }
 
   override async getBalance(address: Address): Promise<bigint> {
-    const collateral = await this.getWrappedTokenAdapter();
-    return collateral.getBalance(address);
+    const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
+    return wrappedTokenAdapter.getBalance(address);
   }
 
   override getBridgedSupply(): Promise<bigint | undefined> {
@@ -441,7 +442,9 @@ export class EvmHypCollateralAdapter
   async isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean> {
     const allowedBridges = await this.collateralContract.allowedBridges(domain);
 
-    return allowedBridges.includes(bridge);
+    return allowedBridges
+      .map((bridgeAddress) => normalizeAddress(bridgeAddress))
+      .includes(normalizeAddress(bridge));
   }
 
   async getRebalanceQuotes(
@@ -831,6 +834,13 @@ export class EvmHypNativeAdapter
   extends EvmHypCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
+  override async getBalance(address: Address): Promise<bigint> {
+    const provider = this.getProvider();
+    const balance = await provider.getBalance(address);
+
+    return BigInt(balance.toString());
+  }
+
   override async isApproveRequired(): Promise<boolean> {
     return false;
   }

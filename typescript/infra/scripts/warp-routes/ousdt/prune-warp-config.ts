@@ -4,24 +4,30 @@ import yargs from 'yargs';
 import {
   TokenStandard,
   WarpCoreConfig,
+  getTokenConnectionId,
   parseTokenConnectionId,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../../config/environments/mainnet3/warp/warpIds.js';
 import { getRegistry } from '../../../config/registry.js';
 
 const collateralChains = ['celo', 'ethereum'];
-const chainsToPrune = [
-  'worldchain',
-  'ronin',
-  'bitlayer',
-  'linea',
-  'mantle',
-  'sonic',
-];
+const chainsToPrune = ['worldchain', 'linea'];
 
 function pruneProdConfig({ tokens, options }: WarpCoreConfig): WarpCoreConfig {
   const prunedTokens = tokens.map((token) => {
+    // first force-add all connections and then prune the ones we don't want
+    token.connections = tokens
+      .filter((t) => t.chainName !== token.chainName)
+      .map((t) => ({
+        token: getTokenConnectionId(
+          ProtocolType.Ethereum,
+          t.chainName,
+          t.addressOrDenom!,
+        ),
+      }));
+
     if (chainsToPrune.includes(token.chainName)) {
       return { ...token, connections: undefined };
     }
