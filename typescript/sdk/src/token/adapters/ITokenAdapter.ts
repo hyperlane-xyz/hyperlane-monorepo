@@ -9,11 +9,11 @@ export interface TransferParams {
   fromAccountOwner?: Address;
   // Required for Solana
   fromTokenAccount?: Address;
+  interchainGas?: InterchainGasQuote;
 }
 
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
-  interchainGas?: InterchainGasQuote;
   customHook?: Address;
 }
 
