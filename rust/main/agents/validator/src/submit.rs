@@ -386,7 +386,10 @@ impl ValidatorSubmitter {
     /// Signs and submits any previously unsubmitted checkpoints.
     async fn sign_and_submit_checkpoints(&self, mut checkpoints: Vec<CheckpointWithMessageId>) {
         // The checkpoints are ordered by index, so the last one is the highest index.
-        let last_checkpoint_index = checkpoints[checkpoints.len() - 1].index;
+        let last_checkpoint_index = match checkpoints.last() {
+            Some(c) => c.index,
+            None => return,
+        };
 
         let arc_self = Arc::new(self.clone());
 
@@ -468,7 +471,7 @@ impl ValidatorSubmitter {
 fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree: &IncrementalMerkle) -> bool {
     // tree.index() will panic if the tree is empty, so we use tree.count() instead
     // and convert the correctness_checkpoint.index to a count by adding 1.
-    checkpoint.index + 1 < tree.count() as u32
+    checkpoint.index.saturating_add(1) < tree.count() as u32
 }
 
 #[derive(Clone)]

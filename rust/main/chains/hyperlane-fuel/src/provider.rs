@@ -123,7 +123,7 @@ impl FuelProvider {
         &self,
         range: std::ops::RangeInclusive<u32>,
     ) -> ChainResult<(Vec<Block>, HashMap<Bytes32, (Bytes32, u64)>)> {
-        let result_amount = range.end() - range.start() + 1;
+        let result_amount = range.end().saturating_add(1).saturating_sub(*range.start());
         let req = PaginationRequest {
             cursor: Some(range.start().to_string()),
             results: i32::try_from(result_amount).expect("Invalid range"),

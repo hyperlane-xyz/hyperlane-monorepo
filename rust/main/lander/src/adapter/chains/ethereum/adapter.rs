@@ -1,3 +1,4 @@
+use std::ops::Sub;
 use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
@@ -362,7 +363,7 @@ impl AdaptsChain for EthereumAdapter {
             // If the transaction has never been submitted, it is ready for resubmission
             return true;
         };
-        let elapsed = chrono::Utc::now() - last_submission_time;
+        let elapsed = chrono::Utc::now().sub(last_submission_time);
         let elapsed = match elapsed.to_std() {
             Ok(duration) => duration,
             Err(err) => {

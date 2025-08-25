@@ -55,7 +55,7 @@ impl CosmosAddress {
             return Err(Overflow.into());
         }
 
-        let remainder_bytes_start = untruncated_bytes.len() - byte_count;
+        let remainder_bytes_start = untruncated_bytes.len().saturating_sub(byte_count);
         // Left-truncate the digest to the desired length
         let bytes = &untruncated_bytes[remainder_bytes_start..];
 

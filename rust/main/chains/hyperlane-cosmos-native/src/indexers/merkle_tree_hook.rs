@@ -72,7 +72,7 @@ impl CosmosNativeMerkleTreeHook {
         height: u32,
     ) -> ChainResult<CheckpointAtBlock> {
         let root = H256::from_slice(&tree.root);
-        let index = if tree.count == 0 { 0 } else { tree.count - 1 };
+        let index = tree.count.saturating_sub(1);
 
         let checkpoint = Checkpoint {
             merkle_tree_hook_address: self.address,

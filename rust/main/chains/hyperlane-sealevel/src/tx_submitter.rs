@@ -116,7 +116,9 @@ impl TransactionSubmitter for JitoTransactionSubmitter {
         payer: &Pubkey,
     ) -> Instruction {
         // Divide by 1_000_000 to convert from microlamports to lamports.
-        let tip_lamports = (compute_units * compute_unit_price_micro_lamports) / 1_000_000;
+        let tip_lamports = compute_units
+            .saturating_mul(compute_unit_price_micro_lamports)
+            .saturating_div(1_000_000);
         let tip_lamports = tip_lamports.max(Self::MINIMUM_TIP_LAMPORTS);
 
         // The tip is a standalone transfer to a Jito fee account.

@@ -1,6 +1,6 @@
 //! Load a settings object from the config locations.
 
-use std::{env, error::Error, fmt::Debug, path::PathBuf};
+use std::{env, error::Error, fmt::Debug, ops::Add, path::PathBuf};
 
 use config::{Config, File};
 use convert_case::Case;
@@ -38,7 +38,7 @@ where
     {
         let entry = entry.map_err(|err| {
             let mut config_err = ConfigParsingError::default();
-            let config_path = ConfigPath::default() + "./config";
+            let config_path = ConfigPath::default().add("./config");
             config_err.push(config_path, eyre::eyre!(err.to_string()));
             config_err
         })?;

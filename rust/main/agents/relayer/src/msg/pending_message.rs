@@ -520,7 +520,7 @@ impl PendingOperation for PendingMessage {
     }
 
     fn set_next_attempt_after(&mut self, delay: Duration) {
-        self.next_attempt_after = Some(Instant::now() + delay);
+        self.next_attempt_after = Instant::now().checked_add(delay);
     }
 
     fn reset_attempts(&mut self) {
@@ -597,7 +597,7 @@ impl PendingMessage {
 
     fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
         PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
-            .map(|dur| Instant::now() + dur)
+            .and_then(|dur| Instant::now().checked_add(dur))
     }
 
     fn get_retries_or_skip(
@@ -887,14 +887,14 @@ impl PendingMessage {
     }
 
     fn inc_attempts(&mut self) {
-        self.set_retries(self.num_retries + 1);
+        self.set_retries(self.num_retries.saturating_add(1));
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = PendingMessage::calculate_msg_backoff(
             self.num_retries,
             self.max_retries,
             Some(self.message.id()),
         )
-        .map(|dur| self.last_attempted_at + dur);
+        .and_then(|dur| self.last_attempted_at.checked_add(dur));
     }
 
     fn set_retries(&mut self, retries: u32) {
@@ -926,23 +926,29 @@ impl PendingMessage {
             2 => 10,
             3 => 30,
             4 => 60,
-            i if (5..25).contains(&i) => 60 * 3,
+            i if (5..25).contains(&i) => 60u64.saturating_mul(3),
             // linearly increase from 5min to ~25min, adding 1.5min for each additional attempt
-            i if (25..40).contains(&i) => 60 * 5 + (i as u64 - 25) * 90,
+            i if (25..40).contains(&i) => 60u64
+                .saturating_mul(5)
+                .saturating_add((i as u64).saturating_sub(25).saturating_mul(90)),
             // wait 30min for the next 5 attempts
-            i if (40..45).contains(&i) => 60 * 30,
+            i if (40..45).contains(&i) => 60u64.saturating_mul(30),
             // wait 60min for the next 5 attempts
-            i if (45..50).contains(&i) => 60 * 60,
+            i if (45..50).contains(&i) => 60u64.saturating_mul(60),
             // linearly increase the backoff time, adding 1h for each additional attempt
             i if (50..max_retries).contains(&i) => {
-                let hour: u64 = 60 * 60;
-                let two_hours: u64 = hour * 2;
+                let hour: u64 = 60u64.saturating_mul(60);
+                let two_hours: u64 = hour.saturating_mul(2);
                 // To be extra safe, `max` to make sure it's at least 2 hours.
-                let target = two_hours.max((num_retries - 49) as u64 * two_hours);
+                let target = two_hours
+                    .max((num_retries.saturating_sub(49) as u64).saturating_mul(two_hours));
                 // Schedule it at some random point in the next 6 hours to
                 // avoid scheduling messages with the same # of retries
                 // at the exact same time and starve new messages.
-                target + (rand::random::<u64>() % (6 * hour))
+
+                let six_hours = hour.saturating_mul(6);
+                let random_val = rand::random::<u64>();
+                target.saturating_add(random_val.overflowing_rem(six_hours).0)
             }
             // after `max_message_retries`, the message is considered undeliverable
             // and the backoff is set as far into the future as possible

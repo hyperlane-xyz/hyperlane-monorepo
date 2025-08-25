@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![deny(warnings)]
+#![deny(clippy::arithmetic_side_effects)]
 
 pub use error::*;
 pub use indexer::*;
@@ -16,8 +17,9 @@ pub use trait_builder::*;
 pub use utils::*;
 pub use validator_announce::*;
 
-#[allow(clippy::all)]
 #[rustfmt::skip]
+#[allow(clippy::all)]
+#[allow(clippy::arithmetic_side_effects)]
 pub mod contracts;
 
 /// Application specific functionality

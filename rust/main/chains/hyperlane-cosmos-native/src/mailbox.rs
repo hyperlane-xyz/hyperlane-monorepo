@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 use cosmrs::Any;
 use hex::ToHex;
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
@@ -43,7 +45,7 @@ impl CosmosNativeMailbox {
         let metadata = hex::encode(metadata);
         let signer = self.provider.rpc().get_signer()?.address_string.clone();
         let process = MsgProcessMessage {
-            mailbox_id: "0x".to_string() + &mailbox_id,
+            mailbox_id: format!("0x{mailbox_id}"),
             metadata,
             message,
             relayer: signer,
@@ -146,8 +148,8 @@ impl Mailbox for CosmosNativeMailbox {
         // we assume that the underlying cosmos chain does not have gas refunds
         // in that case the gas paid will always be:
         // gas_wanted * gas_price
-        let gas_price =
-            FixedPointNumber::from(response.tx_result.gas_wanted) * self.provider.rpc().gas_price();
+        let gas_price = FixedPointNumber::from(response.tx_result.gas_wanted)
+            .mul(self.provider.rpc().gas_price());
 
         Ok(TxOutcome {
             transaction_id: H256::from_slice(response.hash.as_bytes()).into(),

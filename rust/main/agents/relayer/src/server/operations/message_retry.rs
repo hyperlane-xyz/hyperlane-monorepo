@@ -61,7 +61,7 @@ async fn handler(
     // message retry responses.
     // 3 queues for each chain (prepare, submit, confirm)
     let (transmitter, mut receiver) =
-        mpsc::channel(MESSAGE_PROCESSOR_QUEUE_COUNT * state.destination_chains);
+        mpsc::channel(MESSAGE_PROCESSOR_QUEUE_COUNT.saturating_mul(state.destination_chains));
     state
         .retry_request_transmitter
         .send(MessageRetryRequest {
@@ -89,8 +89,8 @@ async fn handler(
             matched = relayer_resp.matched,
             "Received relayer response"
         );
-        resp.evaluated += relayer_resp.evaluated;
-        resp.matched += relayer_resp.matched;
+        resp.evaluated = resp.evaluated.saturating_add(relayer_resp.evaluated);
+        resp.matched = resp.matched.saturating_add(relayer_resp.matched);
     }
 
     Ok(Json(resp))
