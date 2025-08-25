@@ -17,10 +17,10 @@ use core_api_client::{
 use gateway_api_client::{
     apis::configuration::Configuration as GatewayConfig,
     models::{
-        self, CommittedTransactionInfo, CompiledPreviewTransaction, LedgerState,
-        LedgerStateSelector, ProgrammaticScryptoSborValue, StateEntityDetailsRequest,
-        StreamTransactionsRequest, TransactionCommittedDetailsRequest, TransactionDetailsOptIns,
-        TransactionPreviewV2Request, TransactionStatusResponse,
+        self, CommittedTransactionInfo, CompiledPreviewTransaction, LedgerStateSelector,
+        ProgrammaticScryptoSborValue, StateEntityDetailsRequest, StreamTransactionsRequest,
+        TransactionCommittedDetailsRequest, TransactionDetailsOptIns, TransactionPreviewV2Request,
+        TransactionStatusResponse,
     },
 };
 use radix_common::traits::ScryptoEvent;
@@ -210,9 +210,9 @@ impl RadixProvider {
     }
 
     /// Returns the latest ledger state of the chain
-    pub async fn get_status(&self, reorg: Option<&ReorgPeriod>) -> ChainResult<LedgerState> {
-        let status = self.gateway_status().await?;
-        let mut state = status.ledger_state;
+    pub async fn get_state_version(&self, reorg: Option<&ReorgPeriod>) -> ChainResult<u64> {
+        let status = self.core_status().await?;
+        let state = status.current_state_identifier.state_version;
         let reorg = reorg.unwrap_or(&self.reorg);
         let offset = match reorg {
             ReorgPeriod::None => 0,
@@ -224,8 +224,7 @@ impl RadixProvider {
                 .into())
             }
         };
-        state.state_version = state.state_version.saturating_sub(offset as i64);
-        Ok(state)
+        Ok(state.saturating_sub(offset as u64))
     }
 
     fn filter_parsed_logs<T: ScryptoEvent>(
@@ -239,6 +238,12 @@ impl RadixProvider {
             let Some(receipt) = tx.receipt else {
                 return Err(HyperlaneRadixError::ParsingError("receipt".to_owned()).into());
             };
+
+            // filter out failed transactions
+            if receipt.status != Some(models::TransactionStatus::CommittedSuccess) {
+                continue;
+            }
+
             let Some(hash) = tx.intent_hash else {
                 return Err(HyperlaneRadixError::ParsingError(
                     "failed to parse intent hash".to_owned(),
@@ -249,7 +254,7 @@ impl RadixProvider {
             let hash = H256::from_slice(&hash);
             let Some(raw_events) = receipt.events else {
                 return Err(
-                    HyperlaneRadixError::ParsingError("events no present".to_owned()).into(),
+                    HyperlaneRadixError::ParsingError("events not present".to_owned()).into(),
                 );
             };
 
@@ -403,7 +408,7 @@ impl RadixProvider {
         let signer = self.get_signer()?;
         let private_key = signer.get_signer()?;
 
-        let epoch = self.get_status(None).await?.epoch as u64;
+        let epoch = self.provider.gateway_status().await?.ledger_state.epoch as u64;
         let tx = TransactionBuilder::new_v2()
             .transaction_header(TransactionHeaderV2 {
                 notary_public_key: private_key.public_key(),
@@ -457,7 +462,7 @@ impl RadixProvider {
             None => self.simulate_raw_tx(simulation.to_vec()).await?.fee_summary,
         };
         let simulated_xrd = Self::total_fee(simulation)?
-            * Decimal::from_str("1.25").map_err(HyperlaneRadixError::from)?;
+            * Decimal::from_str("1.5").map_err(HyperlaneRadixError::from)?;
 
         let tx = tx_builder
             .manifest_builder(|builder| {

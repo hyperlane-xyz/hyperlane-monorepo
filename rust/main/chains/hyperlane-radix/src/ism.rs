@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use scrypto::{data::manifest::manifest_encode, types::ComponentAddress};
+use scrypto::types::ComponentAddress;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, Encode, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -8,8 +8,7 @@ use hyperlane_core::{
 };
 
 use crate::{
-    address_to_h256, encode_component_address, ConnectionConf, EthAddress, HyperlaneRadixError,
-    IsmTypes, RadixProvider,
+    address_to_h256, encode_component_address, ConnectionConf, EthAddress, IsmTypes, RadixProvider,
 };
 
 /// Radix ISM
@@ -94,15 +93,14 @@ impl MultisigIsm for RadixIsm {
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
         let message = message.to_vec();
-        let message = manifest_encode(&message).map_err(HyperlaneRadixError::from)?;
 
         let (validators, threshold): (Vec<EthAddress>, usize) = self
             .provider
-            .call_method(
+            .call_method_with_arg(
                 &self.encoded_address,
                 "validators_and_threshold",
                 None,
-                vec![message],
+                &message,
             )
             .await?;
 
@@ -120,9 +118,10 @@ impl MultisigIsm for RadixIsm {
 impl RoutingIsm for RadixIsm {
     /// Returns the ISM needed to verify message
     async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
+        let message = message.to_vec();
         let route: ComponentAddress = self
             .provider
-            .call_method(&self.encoded_address, "route", None, vec![message.to_vec()])
+            .call_method_with_arg(&self.encoded_address, "route", None, &message)
             .await?;
 
         Ok(address_to_h256(route))

@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use core_api_client::apis::configuration::Configuration as CoreConfig;
 use core_api_client::models::{
-    NetworkStatusRequest, TransactionCallPreviewRequest, TransactionCallPreviewResponse,
+    NetworkStatusRequest, NetworkStatusResponse, TransactionCallPreviewRequest,
+    TransactionCallPreviewResponse,
 };
 use derive_new::new;
 use gateway_api_client::apis::configuration::Configuration as GatewayConfig;
@@ -63,6 +64,8 @@ pub trait RadixGatewayProvider {
 #[async_trait]
 /// Radix core provider
 pub trait RadixCoreProvider {
+    /// Core status
+    async fn core_status(&self) -> ChainResult<NetworkStatusResponse>;
     /// Call preview a contract method
     async fn call_preview(
         &self,
@@ -199,6 +202,19 @@ impl RadixGatewayProvider for RadixBaseGatewayProvider {
 
 #[async_trait]
 impl RadixCoreProvider for RadixBaseCoreProvider {
+    async fn core_status(&self) -> ChainResult<NetworkStatusResponse> {
+        Ok(
+            core_api_client::apis::status_api::status_network_status_post(
+                &self.core,
+                NetworkStatusRequest {
+                    network: self.network.logical_name.to_string(),
+                },
+            )
+            .await
+            .map_err(HyperlaneRadixError::from)?,
+        )
+    }
+
     async fn call_preview(
         &self,
         request: TransactionCallPreviewRequest,
