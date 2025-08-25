@@ -241,8 +241,7 @@ impl RadixProvider {
             };
 
             // filter out failed transactions
-            let status = receipt.status.unwrap_or_default();
-            if status != models::TransactionStatus::CommittedSuccess {
+            if receipt.status != Some(models::TransactionStatus::CommittedSuccess) {
                 continue;
             }
 
@@ -256,7 +255,7 @@ impl RadixProvider {
             let hash = H256::from_slice(&hash);
             let Some(raw_events) = receipt.events else {
                 return Err(
-                    HyperlaneRadixError::ParsingError("events no present".to_owned()).into(),
+                    HyperlaneRadixError::ParsingError("events not present".to_owned()).into(),
                 );
             };
 

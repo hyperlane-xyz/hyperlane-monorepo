@@ -1,3 +1,5 @@
+use std::ops::Div;
+
 use hyperlane_core::{InterchainGasPayment, H160, H256};
 use radix_common::prelude::*;
 
@@ -143,11 +145,14 @@ pub struct GasPayment {
 
 impl From<GasPayment> for InterchainGasPayment {
     fn from(value: GasPayment) -> Self {
+        // Convert gas_amount from Radix decimal (with 18 decimal places) to a plain integer
+        // by dividing by Decimal::SCALE, since we only need the whole number portion
+        let gas_amount = decimal_to_u256(value.gas_amount).div(Decimal::SCALE);
         Self {
             message_id: value.message_id.into(),
             destination: value.destination_domain,
             payment: decimal_to_u256(value.payment),
-            gas_amount: decimal_to_u256(value.gas_amount),
+            gas_amount,
         }
     }
 }
