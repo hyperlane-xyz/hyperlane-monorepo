@@ -9,17 +9,16 @@ import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
-import { evmTokenFeeFactories } from './contracts.js';
 import {
-  LinearFeeConfig,
+  LinearFeeInputConfig,
   RoutingFeeConfigSchema,
-  TokenFeeConfig,
+  TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
 
-const MAX_FEE = 100000000000000000000n;
-const HALF_AMOUNT = 50000000000000000000n;
+const MAX_FEE = 1157920892373161954235709850086879078532699846656405640394n;
+const HALF_AMOUNT = 5789604461865809771178549250434395392663499233282028201970n;
 describe('EvmTokenFeeDeployer', () => {
   let multiProvider: MultiProvider;
   let deployer: EvmTokenFeeDeployer;
@@ -28,13 +27,13 @@ describe('EvmTokenFeeDeployer', () => {
 
   type TestCase = {
     title: string;
-    config: Omit<TokenFeeConfig, 'owner' | 'token'>;
+    config: Omit<TokenFeeConfigInput, 'owner' | 'token'>;
   };
 
   beforeEach(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    deployer = new EvmTokenFeeDeployer(multiProvider, evmTokenFeeFactories);
+    deployer = new EvmTokenFeeDeployer(multiProvider, TestChainName.test2);
     const factory = new ERC20Test__factory(signer);
     token = await factory.deploy('fake', 'FAKE', '100000000000000000000', 18);
     await token.deployed();
@@ -48,8 +47,8 @@ describe('EvmTokenFeeDeployer', () => {
           type: TokenFeeType.LinearFee,
           maxFee: MAX_FEE,
           halfAmount: HALF_AMOUNT,
-          bps: 1000,
-        },
+          bps: 1000n,
+        } as LinearFeeInputConfig, // Does not correctly infer due to Omit
       },
       {
         title: 'should deploy ProgressiveFee with correct parameters',
@@ -57,7 +56,6 @@ describe('EvmTokenFeeDeployer', () => {
           type: TokenFeeType.ProgressiveFee,
           maxFee: MAX_FEE,
           halfAmount: HALF_AMOUNT,
-          bps: 1000,
         },
       },
       {
@@ -66,7 +64,6 @@ describe('EvmTokenFeeDeployer', () => {
           type: TokenFeeType.RegressiveFee,
           maxFee: MAX_FEE,
           halfAmount: HALF_AMOUNT,
-          bps: 1000,
         },
       },
     ];
@@ -111,13 +108,11 @@ describe('EvmTokenFeeDeployer', () => {
     expect(await routingFeeContract.token()).to.equal(config.token);
 
     // Deploy and set a LinearFee
-    const linearFeeConfig: LinearFeeConfig = {
+    const linearFeeConfig: TokenFeeConfigInput = {
       type: TokenFeeType.LinearFee,
       token: token.address,
       owner: signer.address,
-      maxFee: MAX_FEE,
-      halfAmount: HALF_AMOUNT,
-      bps: 1000,
+      bps: 10000n,
     };
     const linearFeeDeployer = await deployer.deploy({
       [TestChainName.test2]: linearFeeConfig,
@@ -131,11 +126,11 @@ describe('EvmTokenFeeDeployer', () => {
     const quote = await routingFeeContract.quoteTransferRemote(
       1,
       addressToBytes32(signer.address),
-      MAX_FEE,
+      1,
     );
 
     expect(quote.length).to.equal(1);
-    expect(quote[0].amount).to.be.equal(MAX_FEE);
+    expect(quote[0].amount).to.be.equal(1);
     expect(quote[0].token).to.equal(token.address);
 
     // If no fee contract is set, the quote should be zero
@@ -159,7 +154,7 @@ describe('EvmTokenFeeDeployer', () => {
           owner: signer.address,
           maxFee: MAX_FEE,
           halfAmount: HALF_AMOUNT,
-          bps: 1000,
+          bps: 1000n,
         },
       },
     });

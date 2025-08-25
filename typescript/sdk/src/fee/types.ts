@@ -35,32 +35,36 @@ export const onChainTypeToTokenFeeTypeMap: Record<
 export const BaseFeeConfigSchema = z.object({
   token: ZHash,
   owner: ZHash,
-  maxFee: ZBigNumberish.default(0n).transform(BigInt),
-  halfAmount: ZBigNumberish.default(0n).transform(BigInt),
-  bps: z.number().default(0),
+  maxFee: ZBigNumberish,
+  halfAmount: ZBigNumberish,
 });
-
 export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
 
-const LinearFeeConfigSchema = z.object({
+export const LinearFeeConfigSchema = z.object({
   type: z.literal(TokenFeeType.LinearFee),
   ...BaseFeeConfigSchema.shape,
+  bps: ZBigNumberish,
 });
-
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
+
+export const LinearFeeInputConfigSchema = z.object({
+  ...LinearFeeConfigSchema.shape,
+  maxFee: ZBigNumberish.optional(),
+  halfAmount: ZBigNumberish.optional(),
+  bps: ZBigNumberish.optional(),
+});
+export type LinearFeeInputConfig = z.infer<typeof LinearFeeInputConfigSchema>;
 
 const ProgressiveFeeConfigSchema = z.object({
   type: z.literal(TokenFeeType.ProgressiveFee),
   ...BaseFeeConfigSchema.shape,
 });
-
 export type ProgressiveFeeConfig = z.infer<typeof ProgressiveFeeConfigSchema>;
 
 const RegressiveFeeConfigSchema = z.object({
   type: z.literal(TokenFeeType.RegressiveFee),
   ...BaseFeeConfigSchema.shape,
 });
-
 export type RegressiveFeeConfig = z.infer<typeof RegressiveFeeConfigSchema>;
 
 export const RoutingFeeConfigSchema = z.object({
@@ -73,7 +77,6 @@ export const RoutingFeeConfigSchema = z.object({
     .optional(), // Destination -> Fee
   ...BaseFeeConfigSchema.shape,
 });
-
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 
 export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
@@ -82,5 +85,12 @@ export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
   RegressiveFeeConfigSchema,
   RoutingFeeConfigSchema,
 ]);
-
 export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
+
+export const TokenFeeConfigInputSchema = z.discriminatedUnion('type', [
+  LinearFeeInputConfigSchema,
+  ProgressiveFeeConfigSchema,
+  RegressiveFeeConfigSchema,
+  RoutingFeeConfigSchema,
+]);
+export type TokenFeeConfigInput = z.infer<typeof TokenFeeConfigInputSchema>;
