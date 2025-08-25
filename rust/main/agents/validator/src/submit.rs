@@ -386,7 +386,7 @@ impl ValidatorSubmitter {
     /// Signs and submits any previously unsubmitted checkpoints.
     async fn sign_and_submit_checkpoints(&self, mut checkpoints: Vec<CheckpointWithMessageId>) {
         // The checkpoints are ordered by index, so the last one is the highest index.
-        let last_checkpoint_index = match checkpoints.iter().last() {
+        let last_checkpoint_index = match checkpoints.last() {
             Some(c) => c.index,
             None => return,
         };
