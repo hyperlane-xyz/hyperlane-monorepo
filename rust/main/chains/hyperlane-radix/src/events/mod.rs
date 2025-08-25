@@ -145,9 +145,9 @@ pub struct GasPayment {
 
 impl From<GasPayment> for InterchainGasPayment {
     fn from(value: GasPayment) -> Self {
-        // Convert gas_amount from Radix decimal (with 18 decimal places) to a plain integer
-        // by dividing by Decimal::SCALE, since we only need the whole number portion
-        let gas_amount = decimal_to_u256(value.gas_amount).div(Decimal::SCALE);
+        // Convert Decimal gas_amount (in attos) to whole gas units by dividing by 10^18.
+        // decimal_to_u256(Decimal::ONE) == 10^18, so types stay U256 / U256.
+        let gas_amount = decimal_to_u256(value.gas_amount) / decimal_to_u256(Decimal::ONE);
         Self {
             message_id: value.message_id.into(),
             destination: value.destination_domain,
