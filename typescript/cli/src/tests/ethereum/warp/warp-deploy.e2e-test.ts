@@ -917,7 +917,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(collateralConfig.tokenFee?.owner).to.equal(ownerAddress);
     });
 
-    it.only('should deploy a token fee with top-level token when fee token is unspecified', async () => {
+    it('should deploy a token fee with top-level token when fee token is unspecified', async () => {
       const tokenFee: TokenFeeConfigInput = {
         type: TokenFeeType.LinearFee,
         owner: ownerAddress,

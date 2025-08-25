@@ -69,10 +69,29 @@ export const ProgressiveFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
 });
 export type ProgressiveFeeConfig = z.infer<typeof ProgressiveFeeConfigSchema>;
 
+export const ProgressiveFeeInputConfigSchema =
+  ProgressiveFeeConfigSchema.partial({
+    owner: true,
+    token: true,
+  });
+export type ProgressiveFeeInputConfig = z.infer<
+  typeof ProgressiveFeeInputConfigSchema
+>;
+
 export const RegressiveFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.RegressiveFee),
 });
 export type RegressiveFeeConfig = z.infer<typeof RegressiveFeeConfigSchema>;
+
+export const RegressiveFeeInputConfigSchema = RegressiveFeeConfigSchema.partial(
+  {
+    owner: true,
+    token: true,
+  },
+);
+export type RegressiveFeeInputConfig = z.infer<
+  typeof RegressiveFeeInputConfigSchema
+>;
 
 export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
   type: z.literal(TokenFeeType.RoutingFee),
@@ -87,6 +106,12 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
 });
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 
+export const RoutingFeeInputConfigSchema = RoutingFeeConfigSchema.partial({
+  owner: true,
+  token: true,
+});
+export type RoutingFeeInputConfig = z.infer<typeof RoutingFeeInputConfigSchema>;
+
 // ====== UNION SCHEMAS ======
 
 export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
@@ -99,8 +124,8 @@ export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
 
 export const TokenFeeConfigInputSchema = z.discriminatedUnion('type', [
   LinearFeeInputConfigSchema,
-  ProgressiveFeeConfigSchema,
-  RegressiveFeeConfigSchema,
-  RoutingFeeConfigSchema,
+  ProgressiveFeeInputConfigSchema,
+  RegressiveFeeInputConfigSchema,
+  RoutingFeeInputConfigSchema,
 ]);
 export type TokenFeeConfigInput = z.infer<typeof TokenFeeConfigInputSchema>;
