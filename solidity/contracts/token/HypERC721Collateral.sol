@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title Hyperlane ERC721 Token Collateral that wraps an existing ERC721 with remote transfer functionality.
@@ -17,6 +18,10 @@ contract HypERC721Collateral is TokenRouter {
      * @param erc721 Address of the token to keep as collateral
      */
     constructor(address erc721, address _mailbox) TokenRouter(_mailbox) {
+        require(
+            Address.isContract(erc721),
+            "HypERC721Collateral: invalid token"
+        );
         wrappedToken = IERC721(erc721);
     }
 
