@@ -28,8 +28,8 @@ pub async fn startup_tests(
             .run()
     )?;
 
-    let chain_name1 = "dangotestnet1";
-    let chain_name2 = "dangotestnet2";
+    let chain_name1 = "dangolocal1";
+    let chain_name2 = "dangolocal2";
 
     let validators_1 = run_validators(&chain_1, &ch1, chain_name1)?;
     let validators_2 = run_validators(&chain_2, &ch2, chain_name2)?;

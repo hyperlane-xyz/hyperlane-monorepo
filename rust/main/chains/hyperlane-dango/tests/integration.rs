@@ -1,7 +1,7 @@
 use {
     crate::utils::{
-        startup_tests, try_for, Agent, AgentBuilder, CheckpointSyncerLocation, DangoBuilder,
-        SetupChain, ValidatorKey,
+        build_agents, startup_tests, try_for, Agent, AgentBuilder, CheckpointSyncerLocation,
+        DangoBuilder, SetupChain, ValidatorKey,
     },
     dango_types::{constants::dango, gateway::TokenOrigin},
     grug::{
@@ -17,6 +17,7 @@ pub mod utils;
 #[tokio::test]
 async fn dango_integration() -> anyhow::Result<()> {
     setup_tracing_subscriber(Level::INFO);
+    build_agents();
     let mut ch1 = DangoBuilder::new("dango", 88888887)
         .with_block_creation(BlockCreation::OnBroadcast)
         .run()
@@ -114,6 +115,7 @@ async fn dango_integration() -> anyhow::Result<()> {
 #[tokio::test]
 async fn dango_multiple_chains() -> anyhow::Result<()> {
     setup_tracing_subscriber(Level::INFO);
+    build_agents();
     let (mut ch1, mut ch2) = startup_tests(
         SetupChain {
             validators: 3,

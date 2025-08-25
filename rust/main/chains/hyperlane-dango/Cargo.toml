@@ -24,14 +24,15 @@ serde = { workspace = true }
 tendermint = { workspace = true }
 tendermint-rpc = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
-tracing = { workspace = true }
 
 [dev-dependencies]
+cargo_metadata = { workspace = true }
 dango-mock-httpd = { workspace = true }
+dango-genesis = { workspace = true }
 dango-testing = { workspace = true }
 hyperlane-base = { path = "../../hyperlane-base" }
 k256 = { workspace = true }
-dango-genesis = { workspace = true }
 tempfile = { workspace = true }

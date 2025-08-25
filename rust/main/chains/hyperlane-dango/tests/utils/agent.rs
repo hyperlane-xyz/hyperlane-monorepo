@@ -1,5 +1,6 @@
 use {
     crate::utils::dango_helper::{ChainHelper, IntoSignerConf},
+    cargo_metadata::MetadataCommand,
     dango_types::config::AppAddresses,
     hyperlane_base::settings::SignerConf,
     hyperlane_core::H256,
@@ -11,6 +12,7 @@ use {
         vec,
     },
     tempfile::TempDir,
+    tracing::info,
 };
 
 pub enum CheckpointSyncerLocation {
@@ -387,14 +389,22 @@ fn tempdir() -> String {
 }
 
 fn workspace() -> PathBuf {
-    let target_subpath = "hyperlane-monorepo/rust/main";
-
-    let current_dir = std::env::current_dir()
+    MetadataCommand::new()
+        .exec()
         .unwrap()
-        .to_string_lossy()
-        .into_owned();
+        .workspace_root
+        .into_std_path_buf()
+}
 
-    let index = current_dir.find(target_subpath).unwrap();
-    let base_path = &current_dir[..index + target_subpath.len()];
-    PathBuf::from(base_path)
+pub fn build_agents() {
+    info!("Building agents...");
+    Command::new("cargo")
+        .args(&["build", "--bin", "validator", "--bin", "relayer"])
+        .current_dir(workspace())
+        .spawn()
+        .unwrap()
+        .wait()
+        .unwrap();
+
+    info!("Agents built successfully!");
 }
