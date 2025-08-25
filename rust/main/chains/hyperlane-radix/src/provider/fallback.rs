@@ -1,5 +1,7 @@
 use async_trait::async_trait;
-use core_api_client::models::{TransactionCallPreviewRequest, TransactionCallPreviewResponse};
+use core_api_client::models::{
+    NetworkStatusResponse, TransactionCallPreviewRequest, TransactionCallPreviewResponse,
+};
 use derive_new::new;
 use gateway_api_client::models::{
     CommittedTransactionInfo, GatewayStatusResponse, StateEntityDetailsRequest,
@@ -104,6 +106,15 @@ impl RadixGatewayProvider for RadixFallbackProvider {
 
 #[async_trait]
 impl RadixCoreProvider for RadixFallbackProvider {
+    async fn core_status(&self) -> ChainResult<NetworkStatusResponse> {
+        self.core
+            .call(|client| {
+                let future = async move { client.core_status().await };
+                Box::pin(future)
+            })
+            .await
+    }
+
     async fn call_preview(
         &self,
         request: TransactionCallPreviewRequest,
