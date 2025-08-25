@@ -214,18 +214,11 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
           error,
         );
       }
-      const hasTokenFeeInterface =
-        compareVersions(
-          tokenConfig.contractVersion!,
-          TOKEN_FEE_CONTRACT_VERSION,
-        ) >= 0;
 
-      const tokenFee = hasTokenFeeInterface
-        ? await this.fetchTokenFee(
-            warpRouteAddress,
-            await movableToken.domains(),
-          )
-        : undefined;
+      const tokenFee = await this.fetchTokenFee(
+        warpRouteAddress,
+        await movableToken.domains(),
+      );
 
       return {
         ...routerConfig,
@@ -255,8 +248,13 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       this.provider,
     );
     const tokenFee = await fungibleTokenRouter.feeRecipient();
+    const hasTokenFeeInterface =
+      compareVersions(
+        await fungibleTokenRouter.PACKAGE_VERSION(),
+        TOKEN_FEE_CONTRACT_VERSION,
+      ) >= 0;
 
-    return eqAddress(tokenFee, constants.AddressZero)
+    return eqAddress(tokenFee, constants.AddressZero) || !hasTokenFeeInterface
       ? undefined
       : this.evmTokenFeeReader.deriveTokenFeeConfig(tokenFee, destinations);
   }
