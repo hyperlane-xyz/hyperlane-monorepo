@@ -145,6 +145,8 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     const token = ERC20__factory.connect(tokenAddress, this.provider);
     const totalSupplyBn = await token.totalSupply();
     const maxFee = BigInt(constants.MaxUint256.div(totalSupplyBn).toString());
+
+    // 5_000 because halfAmount is maxFee / 2. The total is 10_000, which is 100% in bps
     const halfAmount = (maxFee * 5_000n) / bps;
     return {
       maxFee,
@@ -153,7 +155,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   }
 
   static convertToBps(maxFee: bigint, halfAmount: bigint): bigint {
-    const PRECISION = 10_000n;
+    const PRECISION = 10_000n; // 100% in bps
     const bps = (maxFee * PRECISION) / (halfAmount * 2n);
 
     return bps;
