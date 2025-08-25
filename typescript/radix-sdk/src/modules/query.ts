@@ -10,7 +10,7 @@ import {
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
 import { BigNumber } from 'bignumber.js';
-import { randomBytes } from 'crypto';
+import { utils } from 'ethers';
 
 import { HexString, assert, ensure0x } from '@hyperlane-xyz/utils';
 
@@ -701,7 +701,7 @@ export class RadixQuery {
     token: string;
     destination_domain: number;
   }): Promise<{ resource: string; amount: bigint }> {
-    const pk = new PrivateKey.Ed25519(new Uint8Array(randomBytes(32)));
+    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
 
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
