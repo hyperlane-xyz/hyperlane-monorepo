@@ -39,7 +39,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bsctestnet: '5',
     carrchaintestnet: '100',
     celestiatestnet: '0',
-    celosepolia: '0.05',
+    celosepolia: '0.5',
     chronicleyellowstone: '0.001',
     citreatestnet: '0.001',
     connextsepolia: '1',
