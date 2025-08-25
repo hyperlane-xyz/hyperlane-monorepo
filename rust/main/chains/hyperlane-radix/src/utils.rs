@@ -2,7 +2,7 @@ use bech32::{Bech32m, Hrp};
 use scrypto::{
     math::{Decimal, I192},
     network::NetworkDefinition,
-    types::{ComponentAddress, GlobalAddress, NodeId},
+    types::{ComponentAddress, NodeId},
 };
 
 use hyperlane_core::{ChainResult, H256, U256};
