@@ -21,7 +21,7 @@ import {
   TokenFeeType,
 } from './types.js';
 
-describe.only('EvmTokenFeeReader', () => {
+describe('EvmTokenFeeReader', () => {
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;
   let reader: EvmTokenFeeReader;
@@ -110,7 +110,7 @@ describe.only('EvmTokenFeeReader', () => {
   });
 
   describe('RoutingFee', async () => {
-    it.only('should be able to derive a routing fee config and its sub fees', async () => {
+    it('should be able to derive a routing fee config and its sub fees', async () => {
       const routingFeeConfig: TokenFeeConfig = {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
