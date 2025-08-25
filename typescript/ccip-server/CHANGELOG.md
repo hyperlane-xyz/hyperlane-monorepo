@@ -1,5 +1,14 @@
 # @hyperlane-xyz/ccip-server
 
+## 17.0.1
+
+### Patch Changes
+
+- Updated dependencies [ba832828f]
+  - @hyperlane-xyz/sdk@17.0.1
+  - @hyperlane-xyz/utils@17.0.1
+  - @hyperlane-xyz/core@9.0.7
+
 ## 17.0.0
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @hyperlane-xyz/widgets
 
+## 17.0.1
+
+### Patch Changes
+
+- Updated dependencies [ba832828f]
+  - @hyperlane-xyz/sdk@17.0.1
+  - @hyperlane-xyz/cosmos-sdk@17.0.1
+  - @hyperlane-xyz/utils@17.0.1
+
 ## 17.0.0
 
 ### Major Changes
