@@ -495,6 +495,13 @@ pub fn build_kaspa_connection_conf(
         None => H256::default(),
     };
 
+    let kaspa_tx_fee_multiplier = chain
+        .chain(err)
+        .get_opt_key("kaspaFeeMultiplier")
+        .parse_f64()
+        .end()
+        .unwrap_or(1.5);
+
     // Parse KaspaTimeConfig if provided
     let kaspa_time_config = if validator_hosts.len() > 0 {
         Some(dymension_kaspa::KaspaTimeConfig {
@@ -537,6 +544,7 @@ pub fn build_kaspa_connection_conf(
             hub_token_id,
             kas_domain,
             kas_token_placeholder,
+            kaspa_tx_fee_multiplier,
         ),
     ))
 }
