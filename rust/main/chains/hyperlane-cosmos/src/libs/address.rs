@@ -46,8 +46,7 @@ impl CosmosAddress {
     /// - digest: H256 digest (hex representation of address)
     /// - prefix: Bech32 prefix
     /// - byte_count: Number of bytes to truncate the digest to. Cosmos addresses can sometimes
-    ///     be less than 32 bytes, so this helps to serialize it in bech32 with the appropriate
-    ///     length.
+    ///   be less than 32 bytes, so this helps to serialize it in bech32 with the appropriate length.
     pub fn from_h256(digest: H256, prefix: &str, byte_count: usize) -> ChainResult<Self> {
         // This is the hex-encoded version of the address
         let untruncated_bytes = digest.as_bytes();
