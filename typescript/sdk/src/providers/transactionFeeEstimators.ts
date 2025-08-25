@@ -276,16 +276,13 @@ export async function estimateTransactionFeeRadix({
   transaction,
   provider,
   sender: _sender,
-  senderPubKey,
 }: {
   transaction: RadixTransaction;
   provider: RadixProvider;
   sender: Address;
-  senderPubKey: HexString;
 }): Promise<TransactionFeeEstimate> {
   return provider.provider.query.estimateTransactionFee({
     transactionManifest: transaction.transaction.manifest,
-    senderPubKey,
   });
 }
 
@@ -371,12 +368,10 @@ export function estimateTransactionFee({
     transaction.type === ProviderType.Radix &&
     provider.type === ProviderType.Radix
   ) {
-    assert(senderPubKey, 'senderPubKey required for Radix gas estimation');
     return estimateTransactionFeeRadix({
       transaction,
       provider,
       sender,
-      senderPubKey,
     });
   } else {
     throw new Error(

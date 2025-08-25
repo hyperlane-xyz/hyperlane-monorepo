@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState } from 'react';
 
 export type RadixAccount = {
   address: string;
-  publicKey: string;
 };
 
 interface AccountContextType {

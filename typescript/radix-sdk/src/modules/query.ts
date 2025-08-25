@@ -1,3 +1,4 @@
+import { CostingParameters, FeeSummary } from '@radixdlt/babylon-core-api-sdk';
 import {
   GatewayApiClient,
   TransactionStatusResponse,
@@ -12,7 +13,7 @@ import {
 import { BigNumber } from 'bignumber.js';
 import { utils } from 'ethers';
 
-import { HexString, assert, ensure0x } from '@hyperlane-xyz/utils';
+import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
 export class RadixQuery {
   protected networkId: number;
@@ -37,11 +38,10 @@ export class RadixQuery {
 
   public async estimateTransactionFee({
     transactionManifest,
-    senderPubKey,
   }: {
     transactionManifest: TransactionManifest;
-    senderPubKey: HexString;
   }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
+    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
 
@@ -61,11 +61,14 @@ export class RadixQuery {
           signer_public_keys: [
             {
               key_type: 'EddsaEd25519',
-              key_hex: senderPubKey,
+              key_hex: pk.publicKeyHex(),
             },
           ],
           flags: {
             use_free_credit: true,
+            // we have to enable this flag because the signer of the tx is a random pk
+            // this allows us to simulate txs for different addresses - even if we don't have accesse to their public key
+            assume_all_signature_proofs: true,
           },
           start_epoch_inclusive: constructionMetadata.ledger_state.epoch,
           end_epoch_exclusive: constructionMetadata.ledger_state.epoch + 2,
@@ -77,19 +80,24 @@ export class RadixQuery {
       `${(response.receipt as any).error_message}`,
     );
 
-    const gasUnits = BigInt(
-      (response.receipt as any).fee_summary.execution_cost_units_consumed,
-    );
+    const fee_summary: FeeSummary = (response.receipt as any).fee_summary;
+    const costing_parameters: CostingParameters = (response.receipt as any)
+      .costing_parameters;
+
+    const gasUnits =
+      BigInt(fee_summary.execution_cost_units_consumed) +
+      BigInt(fee_summary.finalization_cost_units_consumed);
     const fee = BigInt(
-      new BigNumber(
-        (response.receipt as any).fee_summary.xrd_total_execution_cost,
-      )
+      new BigNumber(fee_summary.xrd_total_execution_cost)
+        .plus(BigNumber(fee_summary.xrd_total_finalization_cost))
+        .plus(BigNumber(fee_summary.xrd_total_storage_cost))
         .times(new BigNumber(10).exponentiatedBy(18))
         .toFixed(0),
     );
-    const gasPrice = parseFloat(
-      (response.receipt as any).costing_parameters.execution_cost_unit_price,
-    );
+    const gasPrice =
+      (parseFloat(costing_parameters.execution_cost_unit_price) +
+        parseFloat(costing_parameters.finalization_cost_unit_price)) *
+      0.5; // average out the cost parameters to get a more accurate estimate
 
     return {
       gasUnits,
@@ -213,7 +221,7 @@ export class RadixQuery {
           await this.gateway.transaction.innerClient.transactionStatus({
             transactionStatusRequest: { intent_hash: intentHashTransactionId },
           });
-      } catch (err) {
+      } catch {
         await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
         continue;
       }
@@ -745,13 +753,11 @@ CALL_METHOD
     assert(entries.length > 0, `quote_remote_transfer returned no resources`);
     assert(
       entries.length < 2,
-      `quote_remote_transfer returned muliple resources`,
+      `quote_remote_transfer returned multiple resources`,
     );
 
     return {
       resource: entries[0].key.value,
-      // QuoteRemoteTransfer returns as a Decimal with a scale of 18
-      // converts the Decimal to attos
       amount: BigInt(
         new BigNumber(entries[0].value.value)
           .times(new BigNumber(10).pow(18))

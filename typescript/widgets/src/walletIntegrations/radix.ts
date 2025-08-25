@@ -40,7 +40,7 @@ export function useRadixAccount(
     addresses: accounts.map((account) => ({
       address: account.address,
     })),
-    publicKey: new Promise((resolve) => resolve(accounts[0]?.publicKey ?? '')),
+    publicKey: undefined, // we don't need the public key for radix
     isReady: !!accounts.length,
   };
 }
@@ -74,15 +74,15 @@ export function useRadixConnectFn(): () => void {
 
   const connect = async () => {
     popUp.setShowPopUp(true);
+
     rdt.walletApi.setRequestData(
-      DataRequestBuilder.accounts().exactly(1).withProof().reset(),
+      DataRequestBuilder.accounts().exactly(1).reset(),
     );
     const result = await rdt.walletApi.sendRequest();
     if (result.isOk()) {
       setAccounts(
-        result.value.proofs.map((p) => ({
+        result.value.accounts.map((p) => ({
           address: p.address,
-          publicKey: p.proof.publicKey,
         })),
       );
     }
