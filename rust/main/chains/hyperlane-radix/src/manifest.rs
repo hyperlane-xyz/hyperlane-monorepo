@@ -41,7 +41,7 @@ pub fn find_fee_payer_from_manifest(
         let address_h256 = global_address_to_h256(&address);
         return Some(address_h256);
     }
-    return None;
+    None
 }
 
 #[cfg(test)]
