@@ -138,11 +138,28 @@ where
 
     async fn handle_new_deposits(&self, deposits: Vec<Deposit>) {
         let mut deposits_new = Vec::new();
+        let escrow_address = self.provider.escrow_address().to_string();
+        
         for d in deposits.into_iter() {
             if !self.deposit_cache.has_seen(&d).await {
-                info!(deposit = ?d, "Dymension, new deposit seen");
+                // always mark as seen
                 self.deposit_cache.mark_as_seen(d.clone()).await;
-                deposits_new.push(d);
+                // Check if this is actually a withdrawal by looking at transaction inputs
+                match self.is_genuine_deposit(&d, &escrow_address).await {
+                    // valid deposit. queue for processing
+                    Ok(true) => {
+                        info!(deposit = ?d, "Dymension, new deposit seen");
+                        deposits_new.push(d);
+                    }
+                    // not a deposit, skip
+                    Ok(false) => {
+                        info!(deposit_id = %d.id, "Dymension, skipping deposit with invalid or missing Hyperlane payload");
+                    }
+                    // error checking deposit, skip but log
+                    Err(e) => {
+                        error!(deposit_id = %d.id, error = ?e, "Dymension, failed to check if deposit is genuine, skipping");
+                    }
+                }
             }
         }
 
@@ -150,6 +167,41 @@ where
             let operation =
                 DepositOperation::new(d.clone(), self.provider.escrow_address().to_string());
             self.process_deposit_operation(operation).await;
+        }
+    }
+
+    /// Check if a deposit is genuine by validating the payload contains a valid Hyperlane message
+    /// Returns true if it's a genuine deposit with valid Hyperlane payload, false otherwise
+    async fn is_genuine_deposit(&self, deposit: &Deposit, _escrow_address: &str) -> Result<bool> {
+        use dym_kas_core::message::ParsedHL;
+
+        // Check if deposit has a payload
+        let payload = match &deposit.payload {
+            Some(payload) => payload,
+            None => {
+                info!(deposit_id = %deposit.id, "Deposit has no payload, skipping");
+                return Ok(false);
+            }
+        };
+
+        // Try to parse the payload as a Hyperlane message
+        match ParsedHL::parse_string(payload) {
+            Ok(parsed_hl) => {
+                info!(
+                    deposit_id = %deposit.id,
+                    message_id = ?parsed_hl.hl_message.id(),
+                    "Valid Hyperlane message found in deposit payload"
+                );
+                Ok(true) // Valid Hyperlane message, genuine deposit
+            }
+            Err(e) => {
+                info!(
+                    deposit_id = %deposit.id,
+                    error = ?e,
+                    "Invalid Hyperlane payload, skipping deposit"
+                );
+                Ok(false) // Invalid payload, not a genuine Hyperlane deposit
+            }
         }
     }
 
