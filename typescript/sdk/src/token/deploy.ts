@@ -651,20 +651,6 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
           return;
         }
 
-        if (!tokenFeeInput.owner) {
-          this.logger.debug(
-            `Token fee owner not specified, using router owner ${config.owner}`,
-          );
-          tokenFeeInput.owner = config.owner;
-        }
-
-        if (isCollateralTokenConfig(config) && !tokenFeeInput.token) {
-          this.logger.debug(
-            `Token fee token not specified for ${config.type}, using router token ${config.token}`,
-          );
-          tokenFeeInput.token = config.token;
-        }
-
         this.logger.debug(`Deploying token fee on ${chain}...`);
         const processedTokenFee = await EvmTokenFeeModule.processConfig({
           config: tokenFeeInput,
