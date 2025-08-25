@@ -120,7 +120,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvmmainnet: true,
+    infinityvmmainnet: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -140,6 +140,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -256,7 +257,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvmmainnet: true,
+    infinityvmmainnet: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -276,6 +277,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -392,7 +394,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvmmainnet: true,
+    infinityvmmainnet: false,
     ink: true,
     injective: true,
     kaia: true,
@@ -412,6 +414,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -746,6 +749,12 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       name: 'superswap_ica_v2',
       matchingList: superswapIcaV2MatchingList,
     },
+    {
+      name: 'm0',
+      matchingList: consistentSenderRecipientMatchingList(
+        '0x36f586A30502AE3afb555b8aA4dCc05d233c2ecE',
+      ),
+    },
   ];
 };
 
@@ -806,7 +815,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd21f3b3-20250806-144826',
+      tag: 'c265daa-20250820-160958',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -826,7 +835,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'bbf3258-20250804-133531',
+      tag: 'c265daa-20250820-160958',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -837,7 +846,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b5ff267-20250806-155604',
+      tag: 'c265daa-20250820-160958',
     },
     resources: scraperResources,
   },
@@ -852,7 +861,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd21f3b3-20250806-144826',
+      tag: 'c265daa-20250820-160958',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -875,7 +884,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '5291797-20250701-134531',
+      tag: 'c265daa-20250820-160958',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),

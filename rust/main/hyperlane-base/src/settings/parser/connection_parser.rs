@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use eyre::eyre;
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
@@ -87,17 +89,6 @@ pub fn build_ethereum_connection_conf(
                 .parse_u256()
                 .end(),
 
-            gas_limit_multiplier_denominator: value_parser
-                .chain(err)
-                .get_opt_key("gasLimitMultiplierDenominator")
-                .parse_u256()
-                .end(),
-            gas_limit_multiplier_numerator: value_parser
-                .chain(err)
-                .get_opt_key("gasLimitMultiplierNumerator")
-                .parse_u256()
-                .end(),
-
             gas_price_multiplier_denominator: value_parser
                 .chain(err)
                 .get_opt_key("gasPriceMultiplierDenominator")
@@ -108,10 +99,20 @@ pub fn build_ethereum_connection_conf(
                 .get_opt_key("gasPriceMultiplierNumerator")
                 .parse_u256()
                 .end(),
+            gas_price_cap_multiplier: value_parser
+                .chain(err)
+                .get_opt_key("gasPriceCapMultiplier")
+                .parse_u256()
+                .end(),
 
             gas_price_cap: value_parser
                 .chain(err)
                 .get_opt_key("gasPriceCap")
+                .parse_u256()
+                .end(),
+            gas_limit_cap: value_parser
+                .chain(err)
+                .get_opt_key("gasLimitCap")
                 .parse_u256()
                 .end(),
         })
@@ -519,6 +520,62 @@ fn parse_transaction_submitter_config(
     }
 }
 
+pub fn build_radix_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    _operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+    let gateway_urls = parse_base_and_override_urls(
+        chain,
+        "gatewayUrls",
+        "customGatewayUrls",
+        "http",
+        &mut local_err,
+    );
+
+    let network_name = chain
+        .chain(&mut local_err)
+        .get_key("networkName")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                &chain.cwp + "network_name",
+                eyre!("Missing network name for chain"),
+            );
+            None
+        });
+
+    let gateway_header: Vec<HashMap<String, String>> = chain
+        .chain(&mut local_err)
+        .get_opt_key("gatewayHeader")
+        .parse_value::<Vec<HashMap<String, String>>>("failed to parse gateway headers")
+        .unwrap_or_default();
+
+    let core_header: Vec<HashMap<String, String>> = chain
+        .chain(&mut local_err)
+        .get_opt_key("coreHeader")
+        .parse_value::<Vec<HashMap<String, String>>>("failed to parse core headers")
+        .unwrap_or_default();
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        Some(ChainConnectionConf::Radix(
+            hyperlane_radix::ConnectionConf::new(
+                rpcs.to_vec(),
+                gateway_urls,
+                network_name?.to_string(),
+                core_header,
+                gateway_header,
+            ),
+        ))
+    }
+}
+
 pub fn build_connection_conf(
     domain_protocol: HyperlaneDomainProtocol,
     rpcs: &[Url],
@@ -551,6 +608,10 @@ pub fn build_connection_conf(
         }
         HyperlaneDomainProtocol::CosmosNative => {
             build_cosmos_native_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        // TODO: adjust the connection config
+        HyperlaneDomainProtocol::Radix => {
+            build_radix_connection_conf(rpcs, chain, err, operation_batch)
         }
     }
 }

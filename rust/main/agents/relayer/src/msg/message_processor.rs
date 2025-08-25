@@ -24,6 +24,7 @@ use hyperlane_core::{
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid,
+    TransactionStatus,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
@@ -160,7 +161,10 @@ impl MessageProcessor {
 
         let entrypoint = self.payload_dispatcher_entrypoint.take().map(Arc::new);
 
-        let prepare_task = self.create_classic_prepare_task();
+        let prepare_task = match &entrypoint {
+            None => self.create_classic_prepare_task(),
+            Some(entrypoint) => self.create_lander_prepare_task(entrypoint.clone()),
+        };
 
         let submit_task = match &entrypoint {
             None => self.create_classic_submit_task(),
@@ -462,6 +466,7 @@ async fn has_operation_been_submitted(
 
     match status {
         Ok(PayloadStatus::Dropped(_)) => false,
+        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => false,
         Ok(_) => true,
         Err(_) => false,
     }

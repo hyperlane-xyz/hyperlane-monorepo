@@ -1,5 +1,17 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 17.0.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@17.0.0
+
+## 16.2.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@16.2.0
+
 ## 16.1.1
 
 ### Patch Changes

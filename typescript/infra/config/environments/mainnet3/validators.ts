@@ -1597,5 +1597,15 @@ export const validatorChainConfig = (
         'celestia',
       ),
     },
+    mitosis: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('mitosis'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x3b3eb808d90a4e19bb601790a6b6297812d6a61f'],
+        },
+        'mitosis',
+      ),
+    },
   };
 };

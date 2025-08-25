@@ -384,7 +384,18 @@ export function addressToBytesStarknet(address: Address): Uint8Array {
 }
 
 export function addressToBytesRadix(address: Address): Uint8Array {
-  return new Uint8Array(bech32m.fromWords(bech32m.decode(address).words));
+  let byteArray = new Uint8Array(
+    bech32m.fromWords(bech32m.decode(address).words),
+  );
+
+  // Ensure the byte array is 32 bytes long, padding from the left if necessary
+  if (byteArray.length < 32) {
+    const paddedArray = new Uint8Array(32);
+    paddedArray.set(byteArray, 32 - byteArray.length);
+    byteArray = paddedArray;
+  }
+
+  return byteArray;
 }
 
 export function addressToBytes(
@@ -485,7 +496,6 @@ export function bytesToAddressRadix(
   prefix: string,
 ): Address {
   if (!prefix) throw new Error('Prefix required for Radix address');
-  // padd the bytes to be 30 bytes long, left pad with zeros
   // If the bytes array is larger than or equal to 30 bytes, take the last 30 bytes
   // Otherwise, pad with zeros from the left up to 30 bytes
   if (bytes.length >= 30) {
