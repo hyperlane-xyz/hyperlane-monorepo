@@ -68,6 +68,12 @@ export function getCheckDeployArgs() {
   return withRegistryUris(withWarpRouteId(withModule(getCheckBaseArgs())));
 }
 
+const ICA_ENABLED_MODULES = [
+  Modules.INTERCHAIN_ACCOUNTS,
+  Modules.HAAS,
+  Modules.WARP,
+];
+
 export async function getGovernor(
   module: Modules,
   context: Contexts,
@@ -121,10 +127,12 @@ export async function getGovernor(
     (chain, _): _ is Record<string, string> =>
       !!chainAddresses[chain]?.interchainAccountRouter,
   );
-  const ica = InterchainAccount.fromAddressesMap(
-    icaChainAddresses,
-    multiProvider,
-  );
+
+  const ica =
+    ICA_ENABLED_MODULES.includes(module) &&
+    Object.keys(icaChainAddresses).length > 0
+      ? InterchainAccount.fromAddressesMap(icaChainAddresses, multiProvider)
+      : undefined;
 
   if (module === Modules.CORE) {
     chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
@@ -135,7 +143,7 @@ export async function getGovernor(
       ismFactory,
       chainAddresses,
     );
-    governor = new HyperlaneCoreGovernor(checker, ica);
+    governor = new HyperlaneCoreGovernor(checker);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromAddressesMap(chainAddresses, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, envConfig.igp);
@@ -160,6 +168,10 @@ export async function getGovernor(
       return acc;
     }, {});
 
+    if (!ica) {
+      throw new Error('ICA app not initialized');
+    }
+
     const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
     governor = new ProxiedRouterGovernor(icaChecker);
   } else if (module === Modules.HAAS) {
@@ -182,6 +194,10 @@ export async function getGovernor(
       return acc;
     }, {});
 
+    if (!ica) {
+      throw new Error('ICA app not initialized');
+    }
+
     const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
     chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
     const coreChecker = new HyperlaneCoreChecker(
@@ -191,6 +207,9 @@ export async function getGovernor(
       ismFactory,
       chainAddresses,
     );
+    if (!ica) {
+      throw new Error('ICA app not initialized');
+    }
     governor = new HyperlaneHaasGovernor(ica, icaChecker, coreChecker);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const iqs = InterchainQuery.fromAddressesMap(chainAddresses, multiProvider);
