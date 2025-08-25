@@ -2,7 +2,7 @@ use bech32::{Bech32m, Hrp};
 use scrypto::{
     math::{Decimal, I192},
     network::NetworkDefinition,
-    types::{ComponentAddress, NodeId},
+    types::{ComponentAddress, GlobalAddress, NodeId},
 };
 
 use hyperlane_core::{ChainResult, H256, U256};
@@ -50,6 +50,15 @@ pub fn decode_bech32(bech32_address: &str) -> ChainResult<Vec<u8>> {
 /// converts an internal radix address to a H256
 /// first two bytes are set to 0, as the radix address is 30 bytes long
 pub fn address_to_h256(component_address: ComponentAddress) -> H256 {
+    let mut bytes = [0u8; 32];
+    let node_bytes = component_address.as_bytes();
+    bytes[2..].copy_from_slice(node_bytes);
+    H256::from(bytes)
+}
+
+/// converts an internal radix address to a H256
+/// first two bytes are set to 0, as the radix address is 30 bytes long
+pub fn global_address_to_h256(component_address: &GlobalAddress) -> H256 {
     let mut bytes = [0u8; 32];
     let node_bytes = component_address.as_bytes();
     bytes[2..].copy_from_slice(node_bytes);
