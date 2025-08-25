@@ -16,6 +16,7 @@ import {
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
+  RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
   TypedProvider,
@@ -110,6 +111,14 @@ export class BaseStarknetAdapter extends BaseAppAdapter {
 
   public getProvider(): StarknetJsProvider['provider'] {
     return this.multiProvider.getStarknetProvider(this.chainName);
+  }
+}
+
+export class BaseRadixAdapter extends BaseAppAdapter {
+  public readonly protocol: ProtocolType = ProtocolType.Radix;
+
+  public getProvider(): RadixProvider['provider'] {
+    return this.multiProvider.getRadixProvider(this.chainName);
   }
 }
 
