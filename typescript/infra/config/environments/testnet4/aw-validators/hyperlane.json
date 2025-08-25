@@ -46,6 +46,9 @@
   "celestiatestnet": {
     "validators": ["0x3e0227b7f129576c53ff5d98d17c9b8433445094"]
   },
+  "celosepolia": {
+    "validators": ["0x4a5cfcfd7f793f4ceba170c3decbe43bd8253ef6"]
+  },
   "chronicleyellowstone": {
     "validators": ["0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4"]
   },
@@ -79,6 +82,9 @@
   },
   "hyperliquidevmtestnet": {
     "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
+  },
+  "incentivtestnet": {
+    "validators": ["0x3133eeb96fd96f9f99291088613edf7401149e6f"]
   },
   "inksepolia": {
     "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
@@ -147,11 +153,5 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
-  },
-  "celosepolia": {
-    "validators": ["0x4a5cfcfd7f793f4ceba170c3decbe43bd8253ef6"]
-  },
-  "incentivtestnet": {
-    "validators": ["0x3133eeb96fd96f9f99291088613edf7401149e6f"]
   }
 }
