@@ -26,8 +26,8 @@ async fn dango_integration() -> anyhow::Result<()> {
         .run()
         .await?;
 
-    let chain_name1 = "dangotestnet1";
-    let chain_name2 = "dangotestnet2";
+    let chain_name1 = "dangolocal1";
+    let chain_name2 = "dangolocal2";
 
     let validator_key = ValidatorKey::new_random();
 

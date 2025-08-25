@@ -323,8 +323,6 @@ pub enum KnownHyperlaneDomain {
     SubtensorTestnet = 945,
     SuperpositionTestnet = 98985,
     UnichainTestnet = 1301,
-    DangoTestnet1 = 88888887,
-    DangoTestnet2 = 88888888,
 
     // -- Local chains --
     //
@@ -341,6 +339,8 @@ pub enum KnownHyperlaneDomain {
     StarknetTest23448594 = 23448594,
     CosmosTestNative1 = 75898670,
     CosmosTestNative2 = 75898671,
+    DangoLocal1 = 88888887,
+    DangoLocal2 = 88888888,
 }
 
 #[derive(Clone, Serialize)]
@@ -559,7 +559,7 @@ impl KnownHyperlaneDomain {
             | Paradex
             | ParadexSepolia
             | PragmaDevnet => HyperlaneDomainProtocol::Starknet,
-            DangoTestnet1 | DangoTestnet2 => HyperlaneDomainProtocol::Dango,
+            DangoLocal1 | DangoLocal2 => HyperlaneDomainProtocol::Dango,
             _ => HyperlaneDomainProtocol::Ethereum
         }
     }
