@@ -238,6 +238,12 @@ impl RadixProvider {
             let Some(receipt) = tx.receipt else {
                 return Err(HyperlaneRadixError::ParsingError("receipt".to_owned()).into());
             };
+
+            // filter out failed transactions
+            if receipt.status != Some(models::TransactionStatus::CommittedSuccess) {
+                continue;
+            }
+
             let Some(hash) = tx.intent_hash else {
                 return Err(HyperlaneRadixError::ParsingError(
                     "failed to parse intent hash".to_owned(),
@@ -248,7 +254,7 @@ impl RadixProvider {
             let hash = H256::from_slice(&hash);
             let Some(raw_events) = receipt.events else {
                 return Err(
-                    HyperlaneRadixError::ParsingError("events no present".to_owned()).into(),
+                    HyperlaneRadixError::ParsingError("events not present".to_owned()).into(),
                 );
             };
 
@@ -455,7 +461,7 @@ impl RadixProvider {
             None => self.simulate_raw_tx(simulation.to_vec()).await?.fee_summary,
         };
         let simulated_xrd = Self::total_fee(simulation)?
-            * Decimal::from_str("1.25").map_err(HyperlaneRadixError::from)?;
+            * Decimal::from_str("1.5").map_err(HyperlaneRadixError::from)?;
 
         let tx = tx_builder
             .manifest_builder(|builder| {
