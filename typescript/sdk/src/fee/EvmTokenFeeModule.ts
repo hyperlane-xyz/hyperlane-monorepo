@@ -19,10 +19,7 @@ import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
-import {
-  DerivedTokenFeeConfig,
-  EvmTokenFeeReader,
-} from './EvmTokenFeeReader.js';
+import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
   TokenFeeConfig,
@@ -145,7 +142,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     return this.args.addresses.deployedFee;
   }
 
-  async read(): Promise<DerivedTokenFeeConfig> {
+  async read(): Promise<TokenFeeConfig> {
     return this.reader.deriveTokenFeeConfig(this.args.addresses.deployedFee);
   }
 
