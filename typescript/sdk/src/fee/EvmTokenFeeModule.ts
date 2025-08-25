@@ -60,7 +60,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }: {
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
-    config: TokenFeeConfigInput;
+    config: TokenFeeConfig;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmTokenFeeModule> {
     const chainName = multiProvider.getChainName(chain);
@@ -76,7 +76,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       contractVerifier,
     );
 
-    const finalizedConfig = await module.processConfig({
+    const finalizedConfig = await EvmTokenFeeModule.processConfig({
       config,
       multiProvider,
       chainName,
@@ -95,7 +95,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
   // Processes the Input config to the Final config
   // For LinearFee, it converts the bps to maxFee and halfAmount
-  private async processConfig(params: {
+  public static async processConfig(params: {
     config: TokenFeeConfigInput;
     multiProvider: MultiProvider;
     chainName: string;

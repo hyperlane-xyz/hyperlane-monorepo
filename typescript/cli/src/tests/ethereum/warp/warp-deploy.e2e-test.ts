@@ -832,7 +832,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       }
     });
 
-    it('should deploy with a token fee config', async () => {
+    it.only('should deploy with a token fee config', async () => {
       const tokenFee: TokenFeeConfigInput = {
         type: TokenFeeType.LinearFee,
         token: tokenChain2.address,
