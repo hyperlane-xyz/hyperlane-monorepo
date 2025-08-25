@@ -137,8 +137,7 @@ pub fn get_matching_lines<'a>(
         search_strings.iter().for_each(|search_string_vec| {
             if search_string_vec
                 .iter()
-                .map(|search_string| line.contains(search_string))
-                .all(|x| x)
+                .all(|search_string| line.contains(search_string))
             {
                 let count = matches.entry(search_string_vec.clone()).or_insert(0);
                 *count += 1;

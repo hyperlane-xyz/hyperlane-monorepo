@@ -41,7 +41,6 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
     /// OnChainFeeQuoting requires the user to pay a specified fraction of the
     /// estimated gas. Like the Minimum policy, OnChainFeeQuoting requires a
     /// payment to exist on the IGP specified in the config.
-
     async fn message_meets_gas_payment_requirement(
         &self,
         _message: &HyperlaneMessage,

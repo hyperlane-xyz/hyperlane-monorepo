@@ -14,10 +14,7 @@ pub fn decode_revert_reason(return_data: &Bytes) -> Option<String> {
 
         // Manually decode the ABI-encoded string
         // Equivalent to ethers.js: ethers.utils.defaultAbiCoder.decode(['string'], data)
-        match <String as AbiDecode>::decode(data) {
-            Ok(reason) => Some(reason),
-            Err(_) => None,
-        }
+        <String as AbiDecode>::decode(data).ok()
     } else {
         None
     }

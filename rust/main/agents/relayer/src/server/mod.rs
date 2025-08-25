@@ -85,7 +85,7 @@ impl Server {
 
         let expose_environment_variable_endpoint =
             env::var("HYPERLANE_RELAYER_ENVIRONMENT_VARIABLE_ENDPOINT_ENABLED")
-                .map_or(false, |v| v == "true");
+                .is_ok_and(|v| v == "true");
         if expose_environment_variable_endpoint {
             router = router.merge(EnvironmentVariableApi::new().router());
         }

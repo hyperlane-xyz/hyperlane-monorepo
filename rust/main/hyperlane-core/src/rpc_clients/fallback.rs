@@ -396,7 +396,7 @@ pub mod test {
     }
 
     #[tokio::test]
-    pub async fn test_deprioritization_by_failed_count() {
+    async fn test_deprioritization_by_failed_count() {
         let provider1 = ProviderMock::new(None);
         let provider2 = ProviderMock::new(None);
         let provider3 = ProviderMock::new(None);

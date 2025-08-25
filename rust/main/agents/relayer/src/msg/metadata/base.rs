@@ -300,7 +300,7 @@ impl IsmCachePolicyClassifier {
                 }
                 IsmCacheSelector::AppContext {
                     context: selector_app_context,
-                } => app_context.map_or(false, |app_context| app_context == selector_app_context),
+                } => app_context == Some(selector_app_context),
             };
 
             if matches_module
