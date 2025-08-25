@@ -56,6 +56,14 @@ pub fn address_to_h256(component_address: ComponentAddress) -> H256 {
     H256::from(bytes)
 }
 
+/// converts an internal radix address to a H256
+/// first two bytes are set to 0, as the radix address is 30 bytes long
+pub fn radix_address_bytes_to_h256(value: &[u8]) -> H256 {
+    let mut bytes = [0u8; 32];
+    bytes[2..].copy_from_slice(value);
+    H256::from(bytes)
+}
+
 /// converts a H256 address to a radix component address
 pub fn address_from_h256(address: H256) -> ComponentAddress {
     let bytes: &[u8; 32] = address.as_fixed_bytes();

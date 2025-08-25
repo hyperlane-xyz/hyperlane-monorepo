@@ -47,3 +47,6 @@ tokio-metrics.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
+
+[dev-dependencies]
+tracing-test.workspace = true
