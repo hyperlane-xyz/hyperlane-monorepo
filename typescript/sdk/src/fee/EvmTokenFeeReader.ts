@@ -20,7 +20,7 @@ import {
   onChainTypeToTokenFeeTypeMap,
 } from './types.js';
 
-type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
+export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 
 const MAX_BPS = 10_000n; // 100% in bps
 export class EvmTokenFeeReader extends HyperlaneReader {

@@ -23,6 +23,7 @@ import {
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
 } from './EvmTokenFeeReader.js';
+import { EvmTokenFeeFactories } from './contracts.js';
 import {
   TokenFeeConfig,
   TokenFeeConfigInput,
