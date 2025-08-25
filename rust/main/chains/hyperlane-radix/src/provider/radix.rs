@@ -28,7 +28,6 @@ use radix_transactions::{
     builder::{
         ManifestBuilder, TransactionBuilder, TransactionManifestV2Builder, TransactionV2Builder,
     },
-    manifest::BlobProvider,
     model::{IntentHeaderV2, TransactionHeaderV2, TransactionPayload},
     signing::PrivateKey,
 };
@@ -644,13 +643,9 @@ impl HyperlaneProvider for RadixProvider {
             );
         };
 
-        let blob_provider = BlobProvider::new();
         // We assume the account that locked up XRD to pay for fees is the sender of the transaction
-        let fee_payer =
-            find_fee_payer_from_manifest(&tx_manifest, &self.conf.network, blob_provider)
-                .ok_or_else(|| {
-                    HyperlaneRadixError::ParsingError("fee_payer not found".to_owned())
-                })?;
+        let fee_payer = find_fee_payer_from_manifest(&tx_manifest, &self.conf.network)
+            .ok_or_else(|| HyperlaneRadixError::ParsingError("fee_payer not found".to_owned()))?;
 
         let Some(fee_summary) = receipt.fee_summary else {
             return Err(
