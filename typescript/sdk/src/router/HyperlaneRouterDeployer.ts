@@ -148,10 +148,27 @@ export abstract class HyperlaneRouterDeployer<
       configMap,
       foreignDeployments,
     );
+    await this.deployAndConfigureTokenFees(deployedContractsMap, configMap);
     await this.configureClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
     this.logger.debug(`Finished deploying router contracts for all chains.`);
 
     return deployedContractsMap;
+  }
+
+  async deployAndConfigureTokenFees(
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+    configMap: ChainMap<Config>,
+  ): Promise<void> {
+    // Intentionally a no-op in the base deployer.
+    // Token-fee configuration is router-specific (e.g., fungible token routers)
+    // and should be implemented by subclasses that know their router interface.
+    for (const chain of Object.keys(deployedContractsMap)) {
+      const config = configMap[chain];
+      if (!config.tokenFee) continue;
+      this.logger.debug(
+        `Token fee config detected on ${chain}, no-op in base deployer. Must be handled by subclass if applicable`,
+      );
+    }
   }
 }

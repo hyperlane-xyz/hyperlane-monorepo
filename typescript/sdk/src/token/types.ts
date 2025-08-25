@@ -304,8 +304,32 @@ export type HypTokenRouterConfigMailboxOptional = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalSchema
 >;
 
+function preprocessWarpRouteDeployConfig(
+  value: unknown,
+): Record<string, HypTokenRouterConfigMailboxOptional> {
+  const mutatedConfig = value as Record<
+    string,
+    HypTokenRouterConfigMailboxOptional
+  >;
+  objMap(mutatedConfig, (_, config) => {
+    // Default token fee owner and token to the router owner and token, if not specified
+    if (isCollateralTokenConfig(config) && config.tokenFee) {
+      config.tokenFee = {
+        ...config.tokenFee,
+        owner: config.tokenFee.owner ?? config.owner,
+        token: config.tokenFee.token ?? config.token,
+      };
+    }
+    return config;
+  });
+  return mutatedConfig;
+}
+
 export const WarpRouteDeployConfigSchema = z
-  .record(HypTokenRouterConfigMailboxOptionalSchema)
+  .preprocess(
+    preprocessWarpRouteDeployConfig,
+    z.record(HypTokenRouterConfigMailboxOptionalSchema),
+  )
   .refine((configMap) => {
     const entries = Object.entries(configMap);
     return (
@@ -421,6 +445,7 @@ export const WarpRouteDeployConfigSchema = z
 
     return warpRouteDeployConfig;
   });
+
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
 
 const _RequiredMailboxSchema = z.record(
