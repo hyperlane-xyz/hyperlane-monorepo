@@ -238,11 +238,11 @@ export const tokenTypeToStandard = (
     case ProtocolType.Radix: {
       if (
         RADIX_SUPPORTED_TOKEN_TYPES.includes(
-          tokenType as CosmosNativeSupportedTokenTypes,
+          tokenType as RadixSupportedTokenTypes,
         )
       ) {
         return RADIX_TOKEN_TYPE_TO_STANDARD[
-          tokenType as CosmosNativeSupportedTokenTypes
+          tokenType as RadixSupportedTokenTypes
         ];
       }
 

@@ -9,7 +9,7 @@ import {
   TransactionManifest,
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
-import BigNumber from 'bignumber.js';
+import { BigNumber } from 'bignumber.js';
 import { randomBytes } from 'crypto';
 
 import { HexString, assert, ensure0x } from '@hyperlane-xyz/utils';
@@ -750,7 +750,14 @@ CALL_METHOD
 
     return {
       resource: entries[0].key.value,
-      amount: BigInt(Math.floor(+entries[0].value.value * 1e18)),
+      // QuoteRemoteTransfer returns as a Decimal with a scale of 18
+      // converts the Decimal to attos
+      amount: BigInt(
+        new BigNumber(entries[0].value.value)
+          .times(new BigNumber(10).pow(18))
+          .integerValue(BigNumber.ROUND_FLOOR)
+          .toFixed(0),
+      ),
     };
   }
 }
