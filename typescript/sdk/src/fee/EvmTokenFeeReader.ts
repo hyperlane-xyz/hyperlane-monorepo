@@ -6,7 +6,7 @@ import {
   LinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -20,7 +20,7 @@ import {
   onChainTypeToTokenFeeTypeMap,
 } from './types.js';
 
-type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
+export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 
 const MAX_BPS = 10_000n; // 100% in bps
 export class EvmTokenFeeReader extends HyperlaneReader {
@@ -60,9 +60,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         );
         break;
       default:
-        throw new Error(
-          `Unsupported token fee type: ${await tokenFee.feeType()}`,
-        );
+        throw new Error(`Unsupported token fee type: ${onchainFeeType}`);
     }
 
     return derivedConfig;
@@ -124,6 +122,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     await Promise.all(
       destinations.map(async (destination) => {
         const subFeeAddress = await routingFee.feeContracts(destination);
+        if (eqAddress(subFeeAddress, constants.AddressZero)) {
+          return;
+        }
         const chainName = this.multiProvider.getChainName(destination);
         feeContracts[chainName] =
           await this.deriveTokenFeeConfig(subFeeAddress);
