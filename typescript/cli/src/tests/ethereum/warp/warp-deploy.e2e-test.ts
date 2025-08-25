@@ -878,5 +878,83 @@ describe('hyperlane warp deploy e2e tests', async function () {
         }),
       );
     });
+
+    it('should deploy a token fee with top-level owner when fee owner is unspecified', async () => {
+      const tokenFee: TokenFeeConfigInput = {
+        type: TokenFeeType.LinearFee,
+        token: tokenChain2.address,
+        bps: 1n,
+      };
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          owner: ownerAddress,
+          tokenFee,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+        },
+      };
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await tokenChain2.symbol(),
+        );
+
+      const collateralConfig = (
+        await readWarpConfig(
+          CHAIN_NAME_2,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
+        )
+      )[CHAIN_NAME_2];
+      expect(collateralConfig.tokenFee?.owner).to.equal(ownerAddress);
+    });
+
+    it.only('should deploy a token fee with top-level token when fee token is unspecified', async () => {
+      const tokenFee: TokenFeeConfigInput = {
+        type: TokenFeeType.LinearFee,
+        owner: ownerAddress,
+        bps: 1n,
+      };
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          owner: ownerAddress,
+          tokenFee,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await tokenChain2.symbol(),
+        );
+
+      const collateralConfig = (
+        await readWarpConfig(
+          CHAIN_NAME_2,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
+        )
+      )[CHAIN_NAME_2];
+
+      expect(collateralConfig.tokenFee?.token).to.equal(tokenChain2.address);
+    });
   });
 });
