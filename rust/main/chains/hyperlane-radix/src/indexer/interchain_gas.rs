@@ -76,12 +76,7 @@ impl Indexer<InterchainGasPayment> for RadixInterchainGasIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self
-            .provider
-            .get_status(None)
-            .await?
-            .state_version
-            .try_into()?)
+        Ok(self.provider.get_state_version(None).await?.try_into()?)
     }
 
     /// Fetch list of logs emitted in a transaction with the given hash.
@@ -108,16 +103,14 @@ impl Indexer<InterchainGasPayment> for RadixInterchainGasIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<InterchainGasPayment> for RadixInterchainGasIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let status = self.provider.get_status(Some(&ReorgPeriod::None)).await?;
+        let state_version = self
+            .provider
+            .get_state_version(Some(&ReorgPeriod::None))
+            .await?;
         let sequence: u32 = self
             .provider
-            .call_method(
-                &self.address,
-                "sequence",
-                Some(status.state_version as u64),
-                Vec::new(),
-            )
+            .call_method(&self.address, "sequence", Some(state_version), Vec::new())
             .await?;
-        Ok((Some(sequence), status.state_version.try_into()?))
+        Ok((Some(sequence), state_version.try_into()?))
     }
 }
