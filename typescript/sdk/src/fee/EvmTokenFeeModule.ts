@@ -4,6 +4,7 @@ import {
   Address,
   Annotated,
   ProtocolType,
+  assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -104,6 +105,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }): Promise<TokenFeeConfig> {
     const intermediaryConfig: Partial<TokenFeeConfig> = { ...params.config };
     if (params.config.type === TokenFeeType.LinearFee) {
+      assert(
+        params.config.token,
+        'Token address is required to process config',
+      );
       const reader = new EvmTokenFeeReader(
         params.multiProvider,
         params.chainName,
