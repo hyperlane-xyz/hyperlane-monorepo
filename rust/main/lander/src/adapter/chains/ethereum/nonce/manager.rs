@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use ethers::signers::Signer;
 use ethers_core::types::Address;
-use tracing::info;
+use tracing::{info, warn};
 
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::settings::{ChainConf, SignerConf};
 use hyperlane_core::U256;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, Signers};
 
+use crate::adapter::chains::ethereum::nonce::error::NonceResult;
 use crate::dispatcher::TransactionDb;
 use crate::transaction::{Transaction, TransactionUuid};
 use crate::{LanderError, TransactionStatus};
@@ -57,7 +58,7 @@ impl NonceManager {
         &self,
         tx: &Transaction,
     ) -> eyre::Result<Option<U256>, LanderError> {
-        use NonceAction::Noop;
+        use NonceAction::{Assign, AssignFromDb, Noop};
 
         let tx_uuid = tx.uuid.clone();
         let precursor = tx.precursor();
@@ -85,6 +86,14 @@ impl NonceManager {
 
         if matches!(action, Noop) {
             return Ok(None);
+        }
+        // Assign nonce from db
+        if let (AssignFromDb, Some(nonce)) = (action, nonce) {
+            self.state
+                .set_tracked_tx_uuid(&nonce, &tx_uuid)
+                .await
+                .map_err(|e| eyre::eyre!("Failed to set tracked tx uuid: {}", e))?;
+            return Ok(Some(nonce));
         }
 
         let next_nonce = self

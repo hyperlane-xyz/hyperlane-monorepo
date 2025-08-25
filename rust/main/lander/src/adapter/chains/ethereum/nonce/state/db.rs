@@ -32,13 +32,16 @@ impl NonceManagerState {
         Ok(())
     }
 
-    pub(super) async fn set_tracked_tx_uuid(
+    pub async fn set_tracked_tx_uuid(
         &self,
         nonce: &U256,
         tx_uuid: &TransactionUuid,
     ) -> NonceResult<()> {
         self.nonce_db
             .store_transaction_uuid_by_nonce_and_signer_address(nonce, &self.address, tx_uuid)
+            .await?;
+        self.nonce_db
+            .store_nonce_by_transaction_uuid(tx_uuid, nonce)
             .await?;
 
         Ok(())
@@ -86,6 +89,17 @@ impl NonceManagerState {
             .await?
             .unwrap_or_default();
 
+        Ok(nonce)
+    }
+
+    pub(crate) async fn get_tx_nonce(
+        &self,
+        tx_uuid: &TransactionUuid,
+    ) -> NonceResult<Option<U256>> {
+        let nonce = self
+            .nonce_db
+            .retrieve_nonce_by_transaction_uuid(tx_uuid)
+            .await?;
         Ok(nonce)
     }
 }
