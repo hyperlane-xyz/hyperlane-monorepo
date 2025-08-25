@@ -3832,5 +3832,153 @@
       "constructorArguments": "",
       "isProxy": true
     }
+  ],
+  "celosepolia": [
+    {
+      "name": "StaticMerkleRootMultisigIsmFactory",
+      "address": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMessageIdMultisigIsmFactory",
+      "address": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationIsmFactory",
+      "address": "0x44b764045BfDC68517e10e783E69B376cef196B2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationHookFactory",
+      "address": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsmFactory",
+      "address": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsmFactory",
+      "address": "0x54148470292C24345fb828B003461a9444414517",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsmFactory",
+      "address": "0x589C201a07c26b4725A4A829d772f24423da480B",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMerkleRootMultisigIsmFactory",
+      "address": "0x68311418D79fE8d96599384ED767d225635d88a8",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMerkleRootMultisigIsm",
+      "address": "0xE8AA69CaB49cd40d765aaC213Dd565424fAfd114",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMerkleRootMultisigIsmFactory",
+      "address": "0x863E8c26621c52ACa1849C53500606e73BA272F0",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMerkleRootMultisigIsmFactory",
+      "address": "0x6b1bb4ce664Bb4164AEB4d3D2E7DE7450DD8084C",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMessageIdMultisigIsmFactory",
+      "address": "0xAD34A66Bf6dB18E858F6B686557075568c6E031C",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationIsmFactory",
+      "address": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationHookFactory",
+      "address": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsmFactory",
+      "address": "0xddf4C3e791caCaFd26D7fb275549739B38ae6e75",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsmFactory",
+      "address": "0x19Be55D859368e02d7b9C00803Eb677BDC1359Bd",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsmFactory",
+      "address": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "incentivtestnet": [
+    {
+      "name": "StaticMerkleRootMultisigIsmFactory",
+      "address": "0x44b764045BfDC68517e10e783E69B376cef196B2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMessageIdMultisigIsmFactory",
+      "address": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationIsmFactory",
+      "address": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationHookFactory",
+      "address": "0x54148470292C24345fb828B003461a9444414517",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "DomainRoutingIsmFactory",
+      "address": "0x589C201a07c26b4725A4A829d772f24423da480B",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsmFactory",
+      "address": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsmFactory",
+      "address": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
+      "constructorArguments": "",
+      "isProxy": false
+    }
   ]
 }
