@@ -57,7 +57,7 @@ export const LinearFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
 });
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
 
-// Linear Fee Input - only requires bps
+// Linear Fee Input - only requires bps & type
 export const LinearFeeInputConfigSchema = BaseFeeConfigSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
   bps: ZBigNumberish,

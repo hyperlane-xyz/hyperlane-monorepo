@@ -10,7 +10,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
-import { TokenFeeConfigInput, TokenFeeType } from './types.js';
+import { TokenFeeConfig, TokenFeeType } from './types.js';
 
 const MAX_FEE = 1157920892373161954235709850086879078532699846656405640394n;
 const HALF_AMOUNT = 578960446186580977117854925043439539266349923328202820197n;
@@ -19,7 +19,7 @@ describe('EvmTokenFeeModule', () => {
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;
   let token: ERC20Test;
-  let config: TokenFeeConfigInput;
+  let config: TokenFeeConfig;
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -31,6 +31,8 @@ describe('EvmTokenFeeModule', () => {
       type: TokenFeeType.LinearFee,
       owner: signer.address,
       token: token.address,
+      maxFee: MAX_FEE,
+      halfAmount: HALF_AMOUNT,
       bps: BPS,
     };
   });
