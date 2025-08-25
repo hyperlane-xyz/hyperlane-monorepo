@@ -325,126 +325,126 @@ function preprocessWarpRouteDeployConfig(
   return mutatedConfig;
 }
 
-export const WarpRouteDeployConfigSchema = z.preprocess(
-  preprocessWarpRouteDeployConfig,
-  z
-    .record(HypTokenRouterConfigMailboxOptionalSchema)
-    .refine((configMap) => {
-      const entries = Object.entries(configMap);
-      return (
-        entries.some(
-          ([_, config]) =>
-            isCollateralTokenConfig(config) ||
-            isCollateralRebaseTokenConfig(config) ||
-            isCctpTokenConfig(config) ||
-            isXERC20TokenConfig(config) ||
-            isNativeTokenConfig(config),
-        ) || entries.every(([_, config]) => isTokenMetadata(config))
-      );
-    }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
-    // Verify synthetic rebase tokens config
-    .transform((warpRouteDeployConfig, ctx) => {
-      const collateralRebaseEntry = Object.entries(warpRouteDeployConfig).find(
-        ([_, config]) => isCollateralRebaseTokenConfig(config),
-      );
+export const WarpRouteDeployConfigSchema = z
+  .preprocess(
+    preprocessWarpRouteDeployConfig,
+    z.record(HypTokenRouterConfigMailboxOptionalSchema),
+  )
+  .refine((configMap) => {
+    const entries = Object.entries(configMap);
+    return (
+      entries.some(
+        ([_, config]) =>
+          isCollateralTokenConfig(config) ||
+          isCollateralRebaseTokenConfig(config) ||
+          isCctpTokenConfig(config) ||
+          isXERC20TokenConfig(config) ||
+          isNativeTokenConfig(config),
+      ) || entries.every(([_, config]) => isTokenMetadata(config))
+    );
+  }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
+  // Verify synthetic rebase tokens config
+  .transform((warpRouteDeployConfig, ctx) => {
+    const collateralRebaseEntry = Object.entries(warpRouteDeployConfig).find(
+      ([_, config]) => isCollateralRebaseTokenConfig(config),
+    );
 
-      const syntheticRebaseEntry = Object.entries(warpRouteDeployConfig).find(
-        ([_, config]) => isSyntheticRebaseTokenConfig(config),
-      );
+    const syntheticRebaseEntry = Object.entries(warpRouteDeployConfig).find(
+      ([_, config]) => isSyntheticRebaseTokenConfig(config),
+    );
 
-      // Require both collateral rebase and synthetic rebase to be present in the config
-      if (!collateralRebaseEntry && !syntheticRebaseEntry) {
-        //  Pass through for other token types
-        return warpRouteDeployConfig;
-      }
+    // Require both collateral rebase and synthetic rebase to be present in the config
+    if (!collateralRebaseEntry && !syntheticRebaseEntry) {
+      //  Pass through for other token types
+      return warpRouteDeployConfig;
+    }
 
-      if (
-        collateralRebaseEntry &&
-        isCollateralRebasePairedCorrectly(warpRouteDeployConfig)
-      ) {
-        const collateralChainName = collateralRebaseEntry[0];
-        return objMap(warpRouteDeployConfig, (_, config) => {
-          if (config.type === TokenType.syntheticRebase)
-            config.collateralChainName = collateralChainName;
-          return config;
-        }) as Record<string, HypTokenRouterConfig>;
-      }
+    if (
+      collateralRebaseEntry &&
+      isCollateralRebasePairedCorrectly(warpRouteDeployConfig)
+    ) {
+      const collateralChainName = collateralRebaseEntry[0];
+      return objMap(warpRouteDeployConfig, (_, config) => {
+        if (config.type === TokenType.syntheticRebase)
+          config.collateralChainName = collateralChainName;
+        return config;
+      }) as Record<string, HypTokenRouterConfig>;
+    }
 
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: WarpRouteDeployConfigSchemaErrors.ONLY_SYNTHETIC_REBASE,
+    });
+
+    return z.NEVER; // Causes schema validation to throw with above issue
+  })
+  // Verify that CCIP hooks are paired with CCIP ISMs
+  .transform((warpRouteDeployConfig, ctx) => {
+    const { ccipHookMap, ccipIsmMap } = getCCIPConfigMaps(
+      warpRouteDeployConfig,
+    );
+
+    // Check hooks have corresponding ISMs
+    const hookConfigHasMissingIsms = Object.entries(ccipHookMap).some(
+      ([originChain, destinationChains]) =>
+        Array.from(destinationChains).some((chain) => {
+          if (!ccipIsmMap[originChain]?.has(chain)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: [chain, 'interchainSecurityModule', '...'],
+              message: `Required CCIP ISM not found in config for CCIP Hook with origin chain ${originChain} and destination chain ${chain}`,
+            });
+            return true;
+          }
+          return false;
+        }),
+    );
+
+    // Check ISMs have corresponding hooks
+    const ismConfigHasMissingHooks = Object.entries(ccipIsmMap).some(
+      ([originChain, destinationChains]) =>
+        Array.from(destinationChains).some((chain) => {
+          if (!ccipHookMap[originChain]?.has(chain)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: [originChain, 'hook', '...'],
+              message: `Required CCIP Hook not found in config for CCIP ISM with origin chain ${originChain} and destination chain ${chain}`,
+            });
+            return true;
+          }
+          return false;
+        }),
+    );
+
+    return hookConfigHasMissingIsms || ismConfigHasMissingHooks
+      ? z.NEVER
+      : warpRouteDeployConfig;
+  })
+  // Verify that xERC20 are only with xERC20s
+  .transform((warpRouteDeployConfig, ctx) => {
+    const isXERC20Route = Object.values(warpRouteDeployConfig).some(
+      isXERC20TokenConfig,
+    );
+
+    if (!isXERC20Route) {
+      return warpRouteDeployConfig;
+    }
+
+    const isAllXERC20s = Object.values(warpRouteDeployConfig).every(
+      isXERC20TokenConfig,
+    );
+
+    if (!isAllXERC20s) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: WarpRouteDeployConfigSchemaErrors.ONLY_SYNTHETIC_REBASE,
+        message: `All chains must be xERC20 warp route tokens`,
       });
 
-      return z.NEVER; // Causes schema validation to throw with above issue
-    })
-    // Verify that CCIP hooks are paired with CCIP ISMs
-    .transform((warpRouteDeployConfig, ctx) => {
-      const { ccipHookMap, ccipIsmMap } = getCCIPConfigMaps(
-        warpRouteDeployConfig,
-      );
+      return z.NEVER;
+    }
 
-      // Check hooks have corresponding ISMs
-      const hookConfigHasMissingIsms = Object.entries(ccipHookMap).some(
-        ([originChain, destinationChains]) =>
-          Array.from(destinationChains).some((chain) => {
-            if (!ccipIsmMap[originChain]?.has(chain)) {
-              ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: [chain, 'interchainSecurityModule', '...'],
-                message: `Required CCIP ISM not found in config for CCIP Hook with origin chain ${originChain} and destination chain ${chain}`,
-              });
-              return true;
-            }
-            return false;
-          }),
-      );
-
-      // Check ISMs have corresponding hooks
-      const ismConfigHasMissingHooks = Object.entries(ccipIsmMap).some(
-        ([originChain, destinationChains]) =>
-          Array.from(destinationChains).some((chain) => {
-            if (!ccipHookMap[originChain]?.has(chain)) {
-              ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: [originChain, 'hook', '...'],
-                message: `Required CCIP Hook not found in config for CCIP ISM with origin chain ${originChain} and destination chain ${chain}`,
-              });
-              return true;
-            }
-            return false;
-          }),
-      );
-
-      return hookConfigHasMissingIsms || ismConfigHasMissingHooks
-        ? z.NEVER
-        : warpRouteDeployConfig;
-    })
-    // Verify that xERC20 are only with xERC20s
-    .transform((warpRouteDeployConfig, ctx) => {
-      const isXERC20Route = Object.values(warpRouteDeployConfig).some(
-        isXERC20TokenConfig,
-      );
-
-      if (!isXERC20Route) {
-        return warpRouteDeployConfig;
-      }
-
-      const isAllXERC20s = Object.values(warpRouteDeployConfig).every(
-        isXERC20TokenConfig,
-      );
-
-      if (!isAllXERC20s) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `All chains must be xERC20 warp route tokens`,
-        });
-
-        return z.NEVER;
-      }
-
-      return warpRouteDeployConfig;
-    }),
-);
+    return warpRouteDeployConfig;
+  });
 
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
 
