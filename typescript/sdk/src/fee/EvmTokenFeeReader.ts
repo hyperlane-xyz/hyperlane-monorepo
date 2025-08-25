@@ -20,6 +20,8 @@ import {
 } from './types.js';
 
 type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
+
+const MAX_BPS = 10_000n; // 100% in bps
 export class EvmTokenFeeReader extends HyperlaneReader {
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -146,8 +148,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     const totalSupplyBn = await token.totalSupply();
     const maxFee = BigInt(constants.MaxUint256.div(totalSupplyBn).toString());
 
-    // 5_000 because halfAmount is maxFee / 2. The total is 10_000, which is 100% in bps
-    const halfAmount = (maxFee * 5_000n) / bps;
+    const halfAmount = ((maxFee / 2n) * MAX_BPS) / bps;
     return {
       maxFee,
       halfAmount,
@@ -155,8 +156,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   }
 
   static convertToBps(maxFee: bigint, halfAmount: bigint): bigint {
-    const PRECISION = 10_000n; // 100% in bps
-    const bps = (maxFee * PRECISION) / (halfAmount * 2n);
+    const bps = (maxFee * MAX_BPS) / (halfAmount * 2n);
 
     return bps;
   }
