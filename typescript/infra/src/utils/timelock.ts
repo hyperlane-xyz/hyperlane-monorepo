@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { ethers } from 'ethers';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
@@ -6,11 +7,21 @@ import {
   ChainMap,
   ChainName,
   EXECUTOR_ROLE,
+  EvmTimelockReader,
   MultiProvider,
   PROPOSER_ROLE,
   TimelockConfig,
+  getTimelockExecutableTransactionFromBatch,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  assert,
+  eqAddress,
+  isObjEmpty,
+  retryAsync,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 
@@ -126,6 +137,17 @@ export async function timelockConfigMatches({
   return { matches: issues.length === 0, issues };
 }
 
+const rpcBlockRangesByChain: ChainMap<number> = {
+  // The rpc limits to a max of 1024 blocks
+  moonbeam: 1024,
+  // The rpc limits to a max of 5000 blocks
+  merlin: 5000,
+  // The rpc limits to a max of 1000 blocks
+  xlayer: 1000,
+  // The rpc limits to a max of 1000 blocks
+  dogechain: 5000,
+};
+
 export function getTimelockConfigs({
   chains,
   owners,
@@ -148,4 +170,203 @@ export function getTimelockConfigs({
   });
 
   return timelockConfigs;
+}
+
+const TX_FETCH_RETRIES = 5;
+const TX_FETCH_RETRY_DELAY = 5000;
+
+export enum TimelockOperationStatus {
+  PENDING = '🟡',
+  READY_TO_EXECUTE = '🟢',
+}
+
+type TimelockTransactionStatus = {
+  chain: ChainName;
+  id: string;
+  executeTransactionData: HexString;
+  predecessorId: HexString;
+  salt: HexString;
+  timelockAddress: Address;
+  status: TimelockOperationStatus;
+  canSignerExecute: boolean;
+};
+
+async function getPendingTimelockTxsOnChain(
+  chain: ChainName,
+  timelockAddress: Address,
+  multiProvider: MultiProvider,
+): Promise<TimelockTransactionStatus[] | undefined> {
+  const reader = EvmTimelockReader.fromConfig({
+    chain,
+    multiProvider,
+    timelockAddress,
+    paginationBlockRange: rpcBlockRangesByChain[chain] ?? 10_000,
+  });
+
+  let scheduledTxs: Awaited<
+    ReturnType<EvmTimelockReader['getPendingScheduledOperations']>
+  >;
+  try {
+    scheduledTxs = await retryAsync(
+      () => reader.getPendingScheduledOperations(),
+      TX_FETCH_RETRIES,
+      TX_FETCH_RETRY_DELAY,
+    );
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(
+        `Failed to fetch pending transactions for Timelock "${timelockAddress}" on ${chain} after ${TX_FETCH_RETRIES} attempts: ${error}`,
+      ),
+    );
+    return;
+  }
+
+  if (!scheduledTxs || isObjEmpty(scheduledTxs)) {
+    rootLogger.info(
+      chalk.gray.italic(
+        `No pending transactions found for Timelock ${timelockAddress} on ${chain}`,
+      ),
+    );
+    return;
+  }
+
+  const scheduledTxIds = Object.keys(scheduledTxs);
+  const [readyTransactionIds, canSignerExecute] = await Promise.all([
+    reader.getReadyOperationIds(scheduledTxIds),
+    reader.canExecuteOperations(await multiProvider.getSignerAddress(chain)),
+  ]);
+
+  return Object.values(scheduledTxs).map((tx): TimelockTransactionStatus => {
+    return {
+      chain,
+      canSignerExecute,
+      executeTransactionData: getTimelockExecutableTransactionFromBatch(tx),
+      id: tx.id,
+      predecessorId: tx.predecessor,
+      salt: tx.salt,
+      status: !readyTransactionIds.has(tx.id)
+        ? TimelockOperationStatus.PENDING
+        : TimelockOperationStatus.READY_TO_EXECUTE,
+      timelockAddress,
+    };
+  });
+}
+
+export async function getPendingTimelockTxs(
+  chains: ChainName[],
+  multiProvider: MultiProvider,
+  timelocks: ChainMap<Address>,
+): Promise<TimelockTransactionStatus[]> {
+  const timelockTransactions: ChainMap<TimelockTransactionStatus[]> = {};
+
+  await Promise.all(
+    chains.map(async (chain) => {
+      const timelockAddress = timelocks[chain];
+
+      if (!timelockAddress) {
+        rootLogger.info(
+          chalk.gray.italic(
+            `Skipping chain ${chain} as it does not have a Timelock deployment`,
+          ),
+        );
+        return;
+      }
+
+      const maybeTxs = await getPendingTimelockTxsOnChain(
+        chain,
+        timelockAddress,
+        multiProvider,
+      );
+
+      if (!maybeTxs) {
+        return;
+      }
+
+      timelockTransactions[chain] = maybeTxs;
+    }),
+  );
+
+  return Object.values(timelockTransactions).flatMap((txs) => txs);
+}
+
+export async function deleteTimelockTx(
+  chain: ChainName,
+  timelockAddress: Address,
+  operationId: HexString,
+  multiProvider: MultiProvider,
+): Promise<void> {
+  const timelockInstance = TimelockController__factory.connect(
+    timelockAddress,
+    multiProvider.getSigner(chain),
+  );
+
+  const isPendingOperation =
+    await timelockInstance.isOperationPending(operationId);
+  if (!isPendingOperation) {
+    rootLogger.error(
+      `Timelock operation with id ${operationId} on chain ${chain} does not exist or is not pending`,
+    );
+    return;
+  }
+
+  const signerAddress = await multiProvider.getSignerAddress(chain);
+  const canCancel = await timelockInstance.hasRole(
+    CANCELLER_ROLE,
+    signerAddress,
+  );
+  if (!canCancel) {
+    rootLogger.error(
+      `Current signer "${signerAddress}" does not have permission to cancel transaction on timelock "${timelockAddress}" on chain "${chain}"`,
+    );
+    return;
+  }
+
+  const cancelTx = await timelockInstance.cancel(operationId);
+  await cancelTx.wait();
+
+  rootLogger.info(
+    `Successfully cancelled timelock operation "${operationId}" on chain ${chain} at tx "${cancelTx.hash}"`,
+  );
+}
+
+export async function cancelAllTimelockTxs(
+  chains: ChainName[],
+  timelocks: ChainMap<Address>,
+  multiProvider: MultiProvider,
+): Promise<void> {
+  await Promise.all(
+    chains.map(async (chain) => {
+      const timelockAddress = timelocks[chain];
+
+      if (!timelockAddress) {
+        rootLogger.info(
+          chalk.gray.italic(
+            `Skipping chain ${chain} as it does not have a Timelock deployment`,
+          ),
+        );
+        return;
+      }
+
+      try {
+        const maybePendingTxs = await getPendingTimelockTxsOnChain(
+          chain,
+          timelockAddress,
+          multiProvider,
+        );
+
+        if (!maybePendingTxs) {
+          return;
+        }
+
+        for (const { id } of maybePendingTxs) {
+          await deleteTimelockTx(chain, timelockAddress, id, multiProvider);
+        }
+      } catch (err) {
+        rootLogger.error(
+          `Error deleting pending transactions for Timelock "${timelockAddress}" on "${chain}":`,
+          err,
+        );
+      }
+    }),
+  );
 }

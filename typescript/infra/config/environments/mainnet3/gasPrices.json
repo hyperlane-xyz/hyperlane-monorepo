@@ -43,16 +43,8 @@
     "amount": "0.07",
     "decimals": 9
   },
-  "bouncebit": {
-    "amount": "11.25",
-    "decimals": 9
-  },
   "botanix": {
     "amount": "0.000000021",
-    "decimals": 9
-  },
-  "flame": {
-    "amount": "42.393213952",
     "decimals": 9
   },
   "avalanche": {
@@ -95,6 +87,10 @@
     "amount": "0.001000252",
     "decimals": 9
   },
+  "celestia": {
+    "amount": "0.02",
+    "decimals": 1
+  },
   "celo": {
     "amount": "25.001",
     "decimals": 9
@@ -105,14 +101,6 @@
   },
   "chilizmainnet": {
     "amount": "2501.0",
-    "decimals": 9
-  },
-  "conflux": {
-    "amount": "20.0",
-    "decimals": 9
-  },
-  "conwai": {
-    "amount": "0.01",
     "decimals": 9
   },
   "coredao": {
@@ -127,20 +115,12 @@
     "amount": "0.001000252",
     "decimals": 9
   },
-  "deepbrainchain": {
-    "amount": "10.0",
-    "decimals": 9
-  },
   "degenchain": {
     "amount": "100.0",
     "decimals": 9
   },
   "dogechain": {
     "amount": "250.0",
-    "decimals": 9
-  },
-  "duckchain": {
-    "amount": "10.0",
     "decimals": 9
   },
   "eclipsemainnet": {
@@ -157,10 +137,6 @@
   },
   "everclear": {
     "amount": "0.1",
-    "decimals": 9
-  },
-  "evmos": {
-    "amount": "27.5",
     "decimals": 9
   },
   "fantom": {
@@ -311,6 +287,10 @@
     "amount": "0.01",
     "decimals": 9
   },
+  "mitosis": {
+    "amount": "1.000000007",
+    "decimals": 9
+  },
   "mode": {
     "amount": "0.001000457",
     "decimals": 9
@@ -325,10 +305,6 @@
   },
   "morph": {
     "amount": "0.03",
-    "decimals": 9
-  },
-  "nero": {
-    "amount": "5.534752437",
     "decimals": 9
   },
   "neutron": {
@@ -411,20 +387,8 @@
     "amount": "0.00020005",
     "decimals": 9
   },
-  "rivalz": {
-    "amount": "0.01",
-    "decimals": 9
-  },
   "ronin": {
     "amount": "21.492605086",
-    "decimals": 9
-  },
-  "rootstockmainnet": {
-    "amount": "0.0260656",
-    "decimals": 9
-  },
-  "sanko": {
-    "amount": "0.5",
     "decimals": 9
   },
   "scroll": {
@@ -515,20 +479,12 @@
     "amount": "1.0",
     "decimals": 9
   },
-  "telos": {
-    "amount": "531.562896801",
-    "decimals": 9
-  },
   "torus": {
     "amount": "31.25",
     "decimals": 9
   },
   "unichain": {
     "amount": "0.00100063",
-    "decimals": 9
-  },
-  "unitzero": {
-    "amount": "11.000000007",
     "decimals": 9
   },
   "vana": {
@@ -551,10 +507,6 @@
     "amount": "2.49",
     "decimals": 9
   },
-  "xpla": {
-    "amount": "280.0",
-    "decimals": 9
-  },
   "xrplevm": {
     "amount": "275.0",
     "decimals": 9
@@ -569,10 +521,6 @@
   },
   "zircuit": {
     "amount": "0.001000249",
-    "decimals": 9
-  },
-  "zklink": {
-    "amount": "0.125",
     "decimals": 9
   },
   "zksync": {

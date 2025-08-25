@@ -1,5 +1,17 @@
 # @hyperlane-xyz/cli
 
+## 17.0.0
+
+### Minor Changes
+
+- dfa883e24: Fixes chain resolver for `hyperlane submit` by adding the STRATEGY enum into the chain resolver switch.
+
+## 16.2.0
+
+### Patch Changes
+
+- db55c3e00: fix: parse private keys as string instead of number
+
 ## 16.1.1
 
 ## 16.1.0

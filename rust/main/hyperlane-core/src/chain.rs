@@ -147,30 +147,23 @@ pub enum KnownHyperlaneDomain {
     Bob = 60808,
     Boba = 288,
     Botanix = 3637,
-    BounceBit = 6001,
     BSquared = 223,
     B3 = 8333,
     Celo = 42220,
     Cheesechain = 383353,
     ChilizMainnet = 1000088888,
-    Conflux = 1030,
-    Conwai = 668668,
     CoreDao = 1116,
     Corn = 21000000,
     Coti = 2632500,
     Cyber = 7560,
     DegenChain = 666666666,
-    DeepbrainChain = 19880818,
     DogeChain = 2000,
-    DuckChain = 5545,
     EclipseMainnet = 1408864445,
     EdgenChain = 4207,
     Everclear = 25327,
-    EvmOs = 9001,
     Endurance = 648,
     Ethereum = 1,
     Fantom = 250,
-    Flame = 253368190,
     Flare = 14,
     FlowMainnet = 1000000747,
     Fluence = 9999999,
@@ -214,7 +207,6 @@ pub enum KnownHyperlaneDomain {
     Molten = 360,
     Moonbeam = 1284,
     Morph = 2818,
-    Nero = 1689,
     Neutron = 1853125230,
     Nibiru = 6900,
     Noble = 1313817164,
@@ -232,12 +224,9 @@ pub enum KnownHyperlaneDomain {
     Prom = 227,
     ProofOfPlay = 70700,
     Rarichain = 1000012617,
-    Rivalz = 753,
     Ronin = 2020,
-    RootstockMainnet = 1000000030,
     Reactive = 1597,
     Redstone = 690,
-    Sanko = 1996,
     Sei = 1329,
     Scroll = 534352,
     Shibarium = 109,
@@ -260,10 +249,8 @@ pub enum KnownHyperlaneDomain {
     Tac = 239,
     Taiko = 167000,
     Tangle = 5845,
-    Telos = 40,
     Torus = 21000,
     Treasure = 61166,
-    UnitZero = 88811,
     Unichain = 130,
     Vana = 1480,
     Viction = 88,
@@ -273,10 +260,8 @@ pub enum KnownHyperlaneDomain {
     Xai = 660279,
     Xlayer = 196,
     XrplEvm = 1440000,
-    Xpla = 37,
     Zetachain = 7000,
     Zeronetwork = 543210,
-    Zklink = 810180,
     Zksync = 324,
     Zircuit = 48900,
     ZoraMainnet = 7777777,
@@ -425,6 +410,8 @@ pub enum HyperlaneDomainProtocol {
     Starknet,
     /// A Cosmos based chain with uses a module instead of a contract.
     CosmosNative,
+    /// A Raidx based chain
+    Radix,
 }
 
 impl HyperlaneDomainProtocol {
@@ -579,12 +566,10 @@ impl KnownHyperlaneDomain {
         match self {
             AlephZeroEvmMainnet | AlephZeroEvmTestnet | ApeChain | AppChain | Arbitrum
             | ArbitrumNova | ArbitrumSepolia | CarrchainTestnet | Cheesechain
-            | ChronicleYellowstone | ConnextSepolia | Conwai | Corn | DuckChain | Everclear
-            | Fluence | DegenChain | Galactica | Game7 | Gravity | InEvm | MiracleChain
-            | Molten | Plume | PlumeTestnet | Plumetestnet2 | ProofOfPlay | Rarichain | Rivalz
-            | Sanko | SuperpositionMainnet | SuperpositionTestnet | Xai => {
-                HyperlaneDomainTechnicalStack::ArbitrumNitro
-            }
+            | ChronicleYellowstone | ConnextSepolia | Corn | Everclear | Fluence | DegenChain
+            | Galactica | Game7 | Gravity | InEvm | MiracleChain | Molten | Plume
+            | PlumeTestnet | Plumetestnet2 | ProofOfPlay | Rarichain | SuperpositionMainnet
+            | SuperpositionTestnet | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
             Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Form | Fraxtal | Guru
             | Ink | InkSepolia | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint
             | Mode | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone
@@ -593,13 +578,13 @@ impl KnownHyperlaneDomain {
             DogeChain | Lumia | LumiaPrism | Katana | Merlin | PolygonZkEvm | Prom | Xlayer => {
                 HyperlaneDomainTechnicalStack::PolygonCDK
             }
-            Astar | DeepbrainChain | Moonbeam | Peaq | Tangle | Torus => {
+            Astar | Moonbeam | Peaq | Tangle | Torus => {
                 HyperlaneDomainTechnicalStack::PolkadotSubstrate
             }
             StarknetMainnet | StarknetTest23448593 | StarknetTest23448594 | PragmaDevnet => {
                 HyperlaneDomainTechnicalStack::Starknet
             }
-            Abstract | AbstractTestnet | Sophon | Treasure | Zeronetwork | Zklink | Zksync => {
+            Abstract | AbstractTestnet | Sophon | Treasure | Zeronetwork | Zksync => {
                 HyperlaneDomainTechnicalStack::ZkSync
             }
             _ => HyperlaneDomainTechnicalStack::Other,
@@ -790,7 +775,7 @@ impl HyperlaneDomain {
         let protocol = self.domain_protocol();
         match protocol {
             Ethereum | Cosmos | CosmosNative | Starknet => IndexMode::Block,
-            Fuel | Sealevel => IndexMode::Sequence,
+            Fuel | Sealevel | Radix => IndexMode::Sequence,
         }
     }
 }
