@@ -20,7 +20,7 @@ import {
   onChainTypeToTokenFeeTypeMap,
 } from './types.js';
 
-type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
+export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 
 const MAX_BPS = 10_000n; // 100% in bps
 export class EvmTokenFeeReader extends HyperlaneReader {
@@ -124,6 +124,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     await Promise.all(
       destinations.map(async (destination) => {
         const subFeeAddress = await routingFee.feeContracts(destination);
+        if (subFeeAddress === constants.AddressZero) return;
         const chainName = this.multiProvider.getChainName(destination);
         feeContracts[chainName] =
           await this.deriveTokenFeeConfig(subFeeAddress);

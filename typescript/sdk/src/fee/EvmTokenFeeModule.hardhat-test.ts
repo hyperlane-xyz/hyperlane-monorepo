@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { assert, expect } from 'chai';
+import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
@@ -10,7 +11,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
-import { TokenFeeConfig, TokenFeeType } from './types.js';
+import { RoutingFeeConfig, TokenFeeConfig, TokenFeeType } from './types.js';
 
 describe('EvmTokenFeeModule', () => {
   let multiProvider: MultiProvider;
@@ -57,5 +58,28 @@ describe('EvmTokenFeeModule', () => {
       `Must be ${TokenFeeType.LinearFee}`,
     );
     expect(onchainConfig.bps).to.equal(BPS);
+  });
+
+  it('should deploy and read the routing fee config', async () => {
+    const routingFeeConfig: RoutingFeeConfig = {
+      feeContracts: {
+        [TestChainName.test2]: config,
+      },
+      owner: signer.address,
+      token: token.address,
+      maxFee: constants.MaxUint256.toBigInt(),
+      halfAmount: constants.MaxUint256.toBigInt(),
+      type: TokenFeeType.RoutingFee,
+    };
+    const module = await EvmTokenFeeModule.create({
+      multiProvider,
+      chain: TestChainName.test2,
+      config: routingFeeConfig,
+    });
+    const routingDestination = multiProvider.getDomainId(TestChainName.test2);
+    const onchainConfig = await module.read([routingDestination]);
+    expect(normalizeConfig(onchainConfig)).to.deep.equal(
+      normalizeConfig(routingFeeConfig),
+    );
   });
 });
