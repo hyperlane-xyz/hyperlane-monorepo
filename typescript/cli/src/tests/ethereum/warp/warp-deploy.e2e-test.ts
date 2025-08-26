@@ -26,6 +26,7 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigSchema,
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
@@ -880,13 +881,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
 
     it('should deploy a token fee with top-level owner when fee owner is unspecified', async () => {
-      const tokenFee: TokenFeeConfigInput = {
+      const tokenFee = {
         type: TokenFeeType.LinearFee,
         token: tokenChain2.address,
         bps: 1n,
       };
 
-      const warpConfig: WarpRouteDeployConfig = {
+      const warpConfig = WarpRouteDeployConfigSchema.parse({
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
           token: tokenChain2.address,
@@ -897,7 +898,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           type: TokenType.synthetic,
           owner: ownerAddress,
         },
-      };
+      });
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
@@ -918,13 +919,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
 
     it('should deploy a token fee with top-level token when fee token is unspecified', async () => {
-      const tokenFee: TokenFeeConfigInput = {
+      const tokenFee = {
         type: TokenFeeType.LinearFee,
         owner: ownerAddress,
         bps: 1n,
       };
 
-      const warpConfig: WarpRouteDeployConfig = {
+      const warpConfig = WarpRouteDeployConfigSchema.parse({
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
           token: tokenChain2.address,
@@ -935,7 +936,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           type: TokenType.synthetic,
           owner: ownerAddress,
         },
-      };
+      });
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
