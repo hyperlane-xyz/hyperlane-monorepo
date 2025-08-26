@@ -428,16 +428,23 @@ async fn confirm_already_submitted_operations(
     batch: Vec<QueueOperation>,
 ) -> Vec<QueueOperation> {
     use ConfirmReason::AlreadySubmitted;
-    use PendingOperationStatus::Confirm;
+    use PendingOperationStatus::{Confirm, Retry};
 
     let mut ops_to_prepare = vec![];
     for op in batch.into_iter() {
-        if has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
-            let status = Some(Confirm(AlreadySubmitted));
-            confirm_queue.push(op, status).await;
-        } else {
-            ops_to_prepare.push(op);
+        match op.status() {
+            Retry(ReprepareReason::Manual) => {
+                ops_to_prepare.push(op);
+                continue;
+            }
+            _ => {}
         }
+        if !has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
+            ops_to_prepare.push(op);
+            continue;
+        }
+        let status = Some(Confirm(AlreadySubmitted));
+        confirm_queue.push(op, status).await;
     }
     ops_to_prepare
 }
