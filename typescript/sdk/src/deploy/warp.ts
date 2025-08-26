@@ -403,6 +403,8 @@ export async function enrollCrossChainRouters(
       .getRemoteChains(chain)
       .filter((c) => allChains.includes(c));
 
+    console.log('enrollCrossChainRouters', chain, allRemoteChains);
+
     const protocolTransactions = {} as GroupedTransactions;
 
     switch (protocol) {
@@ -535,6 +537,57 @@ export async function enrollCrossChainRouters(
       }
       default: {
         throw new Error(`Protocol type ${protocol} not supported`);
+      }
+    }
+
+    console.log('protocolTransactions', JSON.stringify(protocolTransactions));
+
+    for (const protocol of Object.keys(protocolTransactions)) {
+      switch (protocol) {
+        case ProtocolType.Ethereum: {
+          for (const chain of Object.keys(protocolTransactions[protocol])) {
+            const transactions = protocolTransactions[protocol][chain];
+            console.log('evm', chain, transactions);
+            const signer = multiProtocolSigner.getEVMSigner(chain);
+
+            for (const transaction of transactions) {
+              await signer.sendTransaction(transaction);
+            }
+          }
+
+          break;
+        }
+        case ProtocolType.CosmosNative: {
+          for (const chain of Object.keys(protocolTransactions[protocol])) {
+            const transactions = protocolTransactions[protocol][chain];
+            console.log('cosmos', chain, transactions);
+            const signer = multiProtocolSigner.getCosmosNativeSigner(chain);
+
+            await signer.signAndBroadcast(
+              signer.account.address,
+              transactions,
+              2,
+            );
+          }
+
+          break;
+        }
+        case ProtocolType.Radix: {
+          for (const chain of Object.keys(protocolTransactions[protocol])) {
+            const transactions = protocolTransactions[protocol][chain];
+            console.log('radix', chain, transactions);
+            const signer = multiProtocolSigner.getRadixSigner(chain);
+
+            for (const transaction of transactions) {
+              await signer.tx.signAndBroadcast(transaction.manifest);
+            }
+          }
+
+          break;
+        }
+        default: {
+          throw new Error('Chain protocol is not supported yet!');
+        }
       }
     }
   }
