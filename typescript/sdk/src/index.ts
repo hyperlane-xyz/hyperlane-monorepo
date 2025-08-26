@@ -851,3 +851,9 @@ export {
   SvmSignerConfig,
   TransactionBuildOptions,
 } from './signers/svm/solana-web3js.js';
+
+export {
+  TokenFeeType,
+  TokenFeeConfigSchema,
+  TokenFeeConfigInput,
+} from './fee/types.js';

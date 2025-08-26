@@ -15,6 +15,7 @@ import {
   ISafe__factory,
   Mailbox,
   Mailbox__factory,
+  PackageVersioned__factory,
   ProxyAdmin__factory,
   XERC20LockboxTest__factory,
   XERC20Test__factory,
@@ -26,7 +27,9 @@ import {
   HyperlaneContractsMap,
   RouterConfig,
   TestChainName,
+  TokenFeeType,
   WarpRouteDeployConfigMailboxRequired,
+  normalizeConfig,
   proxyAdmin,
   proxyImplementation,
   test3,
@@ -38,11 +41,19 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { VerifyContractTypes } from '../deploy/verify/types.js';
+import {
+  BPS,
+  HALF_AMOUNT,
+  MAX_FEE,
+} from '../fee/EvmTokenFeeReader.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
-import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import {
+  EvmERC20WarpRouteReader,
+  TOKEN_FEE_CONTRACT_VERSION,
+} from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
@@ -672,5 +683,92 @@ describe('ERC20WarpRouterReader', async () => {
     // Restore stub
     connectStub.restore();
     isLocalRpcStub.restore();
+  });
+
+  it('should derive token fee config correctly', async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: mailbox.address,
+          token: token.address,
+          bps: BPS,
+        },
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+
+    expect(normalizeConfig(derivedConfig.tokenFee)).to.deep.equal(
+      normalizeConfig({
+        ...config[chain].tokenFee,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+      }),
+    );
+  });
+
+  it('should return undefined fee token config if it is not set onchain', async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+    expect(derivedConfig.tokenFee).to.be.undefined;
+  });
+
+  it(`should return undefined fee token config if the package version is below ${TOKEN_FEE_CONTRACT_VERSION}`, async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: mailbox.address,
+          token: token.address,
+          bps: BPS,
+        },
+      },
+    };
+
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    const mockPackageVersioned = {
+      PACKAGE_VERSION: sinon.stub().resolves('8.0.1'),
+    };
+    const fetchPackageVersionStub = sinon
+      .stub(PackageVersioned__factory, 'connect')
+      .returns(mockPackageVersioned as any);
+
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+
+    // Even though we deployed a token fee, it should be undefined because the package version is below the required version.
+    // This should never happen, but serves as a clear test
+    expect(derivedConfig.tokenFee).to.be.undefined;
+
+    fetchPackageVersionStub.restore();
   });
 });

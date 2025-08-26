@@ -11,6 +11,7 @@ import {
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   TokenBridgeCctpBase__factory,
+  TokenRouter,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -28,6 +29,7 @@ import {
   HyperlaneContractsMap,
 } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
@@ -577,7 +579,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     );
   }
 
-  router(contracts: HyperlaneContracts<HypERC20Factories>): GasRouter {
+  router(contracts: HyperlaneContracts<HypERC20Factories>): TokenRouter {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
         return contracts[key];
@@ -625,6 +627,40 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
       initializeArgs,
       shouldRecover,
       implementationAddress,
+    );
+  }
+
+  async deployAndConfigureTokenFees(
+    deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
+    configMap: ChainMap<HypTokenRouterConfig>,
+  ): Promise<void> {
+    await Promise.all(
+      Object.keys(deployedContractsMap).map(async (chain) => {
+        const config = configMap[chain];
+        const tokenFeeInput = config?.tokenFee;
+        if (!tokenFeeInput) return;
+
+        if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+          this.logger.debug(`Skipping token fee on non-EVM chain ${chain}`);
+          return;
+        }
+
+        this.logger.debug(`Deploying token fee on ${chain}...`);
+        const processedTokenFee = await EvmTokenFeeModule.processConfig({
+          config: tokenFeeInput,
+          multiProvider: this.multiProvider,
+          chainName: chain,
+        });
+        const module = await EvmTokenFeeModule.create({
+          multiProvider: this.multiProvider,
+          chain,
+          config: processedTokenFee,
+        });
+
+        const router = this.router(deployedContractsMap[chain]);
+        const tx = await router.setFeeRecipient(module.getDeployedFeeAddress());
+        await this.multiProvider.handleTx(chain, tx);
+      }),
     );
   }
 }
