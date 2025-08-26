@@ -169,6 +169,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x57ddf0cd46f31ead8084069ce481507f4305c716',
         alias: 'Luganodes',
       },
+      {
+        address: '0xde6c50c3e49852dd9fe0388166ebc1ba39ad8505',
+        alias: 'Enigma',
+      },
     ],
   },
 
@@ -309,6 +313,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xe957310e17730f29862e896709cce62d24e4b773',
         alias: 'Luganodes',
       },
+      {
+        address: '0x34a14934d7c18a21440b59dfe9bf132ce601457d',
+        alias: 'Enigma',
+      },
     ],
   },
 
@@ -379,6 +387,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x68e869315e51f6bd0ba4aac844cf216fd3dec762',
         alias: 'Luganodes',
       },
+      {
+        address: '0x0677b2daf18b71a2c4220fb17dc81cd3aa7d355b',
+        alias: 'Enigma',
+      },
     ],
   },
 
@@ -410,6 +422,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x53d2738453c222e49c556d937bcef3f80f1c2eec',
         alias: 'Substance Labs',
+      },
+      {
+        address: '0xb574b2b5822a8cb9ca071e7d43865694f23b0bde',
+        alias: 'Enigma',
       },
     ],
   },
@@ -453,6 +469,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0xc67789546a7a983bf06453425231ab71c119153f',
         alias: 'Luganodes',
+      },
+      {
+        address: '0x2d74f6edfd08261c927ddb6cb37af57ab89f0eff',
+        alias: 'Enigma',
       },
     ],
   },
@@ -785,6 +805,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x29d783efb698f9a2d3045ef4314af1f5674f52c5',
         alias: 'Substance Labs',
+      },
+      {
+        address: '0x36a669703ad0e11a0382b098574903d2084be22c',
+        alias: 'Enigma',
       },
     ],
   },
@@ -1245,6 +1269,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x0c760f4bcb508db9144b0579e26f5ff8d94daf4d',
         alias: 'Luganodes',
       },
+      {
+        address: '0x6fbceb2680c8181acf3d1b5f0189e3beaa985338',
+        alias: 'Enigma',
+      },
     ],
   },
 
@@ -1353,6 +1381,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xcd3b3a2007aab3b00418fbac12bea19d04243497',
         alias: 'Luganodes',
       },
+      {
+        address: '0x332b3710e56b843027d4c6da7bca219ece7099b0',
+        alias: 'Enigma',
+      },
     ],
   },
 
@@ -1428,6 +1460,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0xad1df94ae078631bfea1623520125e93a6085555',
         alias: 'Luganodes',
+      },
+      {
+        address: '0x4272e7b93e127da5bc7cee617febf47bcad20def',
+        alias: 'Enigma',
       },
     ],
   },
@@ -1973,6 +2009,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x808a3945d5f9c2f9ccf7a76bde4c4b54c9c7dba4',
         alias: 'Luganodes',
       },
+      {
+        address: '0xe8a821e77bd1ee4658c29e8c3f43c0200b0f06a1',
+        alias: 'Enigma',
+      },
     ],
   },
 
@@ -2175,6 +2215,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x7f0e75c5151d0938eaa9ab8a30f9ddbd74c4ebef',
         alias: 'Luganodes',
+      },
+      {
+        address: '0x4e3d1c926843dcc8ff47061bbd7143a2755899f3',
+        alias: 'Enigma',
       },
     ],
   },
@@ -2555,6 +2599,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xc1545f9fe903736b2e438b733740bd3516486da5',
         alias: 'Luganodes',
       },
+      {
+        address: '0x698810f8ae471f7e34860b465aeeb03df407be47',
+        alias: 'Enigma',
+      },
     ],
   },
 
@@ -2642,6 +2690,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0x64c712eb42be01986b02ca261b14e4785fd23c20',
+        alias: 'Enigma',
+      },
     ],
   },
 
