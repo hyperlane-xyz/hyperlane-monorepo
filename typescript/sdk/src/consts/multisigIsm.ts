@@ -266,6 +266,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0x74de235ace64fa8a3d5e3d5e414360888e655c62',
+        alias: 'Substance Labs',
+      },
     ],
   },
 
@@ -289,6 +293,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0xb8cf45d7bab79c965843206d5f4d83bb866d6e86',
+        alias: 'Substance Labs',
+      },
     ],
   },
 
@@ -351,6 +359,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0xaa00a849fc770d742724cbd2862f91d51db7fb62',
+        alias: 'Substance Labs',
+      },
     ],
   },
 
@@ -379,6 +391,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0x53d2738453c222e49c556d937bcef3f80f1c2eec',
+        alias: 'Substance Labs',
+      },
     ],
   },
 
@@ -414,6 +430,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_ZEE_PRIME_VALIDATOR,
       DEFAULT_TESSELLATED_VALIDATOR,
+      {
+        address: '0x24c1506142b2c859aee36474e59ace09784f71e8',
+        alias: 'Substance Labs',
+      },
     ],
   },
 
@@ -740,6 +760,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Imperator',
       },
       DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0x29d783efb698f9a2d3045ef4314af1f5674f52c5',
+        alias: 'Substance Labs',
+      },
     ],
   },
 
