@@ -607,6 +607,28 @@ export const validatorChainConfig = (
       ),
     },
 
+    celosepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('celosepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4a5cfcfd7f793f4ceba170c3decbe43bd8253ef6'],
+        },
+        'celosepolia',
+      ),
+    },
+
+    incentivtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('incentivtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x3133eeb96fd96f9f99291088613edf7401149e6f'],
+        },
+        'incentivtestnet',
+      ),
+    },
+
     radixtestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('radixtestnet'),
