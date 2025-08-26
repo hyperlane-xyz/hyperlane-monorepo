@@ -733,6 +733,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xb683b742b378632a5f73a2a5a45801b3489bba44',
         alias: 'AVS: Luganodes',
       },
+      {
+        address: '0x3786083ca59dc806d894104e65a13a70c2b39276',
+        alias: 'Imperator',
+      },
     ],
   },
 
