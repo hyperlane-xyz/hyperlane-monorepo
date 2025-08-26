@@ -147,6 +147,10 @@
     "amount": "56.551052651",
     "decimals": 9
   },
+  "radixstokenet": {
+    "amount": "1.0",
+    "decimals": 18
+  },
   "scrollsepolia": {
     "amount": "0.015680115",
     "decimals": 9

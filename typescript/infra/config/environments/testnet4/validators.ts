@@ -606,5 +606,16 @@ export const validatorChainConfig = (
         'celestiatestnet',
       ),
     },
+
+    radixstokenet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('radixstokenet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xff606e6e7e3d18d92f31a3ae2e5580f44102cb97'],
+        },
+        'radixstokenet',
+      ),
+    },
   };
 };
