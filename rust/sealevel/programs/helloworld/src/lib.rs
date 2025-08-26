@@ -3,6 +3,7 @@
 #![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
+#![allow(unexpected_cfgs)]
 
 pub mod accounts;
 pub mod instruction;
