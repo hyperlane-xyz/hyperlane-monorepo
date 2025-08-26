@@ -127,8 +127,6 @@ abstract class TokenDeployer<
     }); // factories not used in deploy
   }
 
-  // Note: token fee configuration is implemented in HypERC20Deployer
-
   async constructorArgs(
     _: ChainName,
     config: HypTokenRouterConfig,
