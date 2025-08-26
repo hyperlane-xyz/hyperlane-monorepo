@@ -21,6 +21,7 @@ import { Decimal } from 'decimal.js';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
+import { EntityDetails, INSTRUCTIONS } from '../types.js';
 import { bytes } from '../utils.js';
 
 import { RadixQuery } from './query.js';
@@ -51,9 +52,11 @@ export class RadixPopulate {
     args: Value[],
   ) {
     return new ManifestBuilder()
-      .callMethod(from_address, 'lock_fee', [decimal(this.gasAmount)])
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
+        decimal(this.gasAmount),
+      ])
       .callFunction(package_address, blueprint_name, function_name, args)
-      .callMethod(from_address, 'try_deposit_batch_or_refund', [
+      .callMethod(from_address, INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND, [
         expression('EntireWorktop'),
         enumeration(0),
       ])
@@ -71,17 +74,19 @@ export class RadixPopulate {
         contract_address,
       );
 
-    const ownerResource = (details.details as any).role_assignments.owner.rule
-      .access_rule.proof_rule.requirement.resource;
+    const ownerResource = (details.details as EntityDetails).role_assignments
+      .owner.rule.access_rule.proof_rule.requirement.resource;
 
     return new ManifestBuilder()
-      .callMethod(from_address, 'lock_fee', [decimal(this.gasAmount)])
-      .callMethod(from_address, 'create_proof_of_amount', [
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
+        decimal(this.gasAmount),
+      ])
+      .callMethod(from_address, INSTRUCTIONS.CREATE_PROOF_OF_AMOUNT, [
         address(ownerResource),
         decimal(1),
       ])
       .callMethod(contract_address, method_name, args)
-      .callMethod(from_address, 'try_deposit_batch_or_refund', [
+      .callMethod(from_address, INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND, [
         expression('EntireWorktop'),
         enumeration(0),
       ])
@@ -100,8 +105,10 @@ export class RadixPopulate {
     amount: string;
   }) {
     return new ManifestBuilder()
-      .callMethod(from_address, 'lock_fee', [decimal(this.gasAmount)])
-      .callMethod(from_address, 'withdraw', [
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
+        decimal(this.gasAmount),
+      ])
+      .callMethod(from_address, INSTRUCTIONS.WITHDRAW, [
         address(resource_address),
         decimal(amount),
       ])
@@ -109,7 +116,7 @@ export class RadixPopulate {
         resource_address,
         new Decimal(amount),
         (builder, bucketId) =>
-          builder.callMethod(to_address, 'try_deposit_or_abort', [
+          builder.callMethod(to_address, INSTRUCTIONS.TRY_DEPOSIT_OR_ABORT, [
             bucket(bucketId),
             enumeration(0),
           ]),
@@ -128,7 +135,7 @@ export class RadixPopulate {
       from_address,
       this.packageAddress,
       'Mailbox',
-      'instantiate',
+      INSTRUCTIONS.INSTANTIATE,
       [u32(domain_id)],
     );
   }
@@ -144,7 +151,7 @@ export class RadixPopulate {
       from_address,
       this.packageAddress,
       'MerkleTreeHook',
-      'instantiate',
+      INSTRUCTIONS.INSTANTIATE,
       [address(mailbox)],
     );
   }
@@ -162,7 +169,7 @@ export class RadixPopulate {
       from_address,
       this.packageAddress,
       'MerkleRootMultisigIsm',
-      'instantiate',
+      INSTRUCTIONS.INSTANTIATE,
       [
         array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
         u64(threshold),
@@ -183,7 +190,7 @@ export class RadixPopulate {
       from_address,
       this.packageAddress,
       'MessageIdMultisigIsm',
-      'instantiate',
+      INSTRUCTIONS.INSTANTIATE,
       [
         array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
         u64(threshold),
@@ -202,7 +209,7 @@ export class RadixPopulate {
       from_address,
       this.packageAddress,
       'RoutingIsm',
-      'instantiate',
+      INSTRUCTIONS.INSTANTIATE,
       [
         array(
           ValueKind.Tuple,
@@ -217,7 +224,7 @@ export class RadixPopulate {
       from_address,
       this.packageAddress,
       'NoopIsm',
-      'instantiate',
+      INSTRUCTIONS.INSTANTIATE,
       [],
     );
   }
@@ -233,7 +240,7 @@ export class RadixPopulate {
       from_address,
       this.packageAddress,
       'InterchainGasPaymaster',
-      'instantiate',
+      INSTRUCTIONS.INSTANTIATE,
       [address(denom)],
     );
   }
@@ -250,8 +257,8 @@ export class RadixPopulate {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(igp);
 
-    const resource = (details.details as any).role_assignments.owner.rule
-      .access_rule.proof_rule.requirement.resource;
+    const resource = (details.details as EntityDetails).role_assignments.owner
+      .rule.access_rule.proof_rule.requirement.resource;
 
     return this.transfer({
       from_address,
@@ -311,8 +318,8 @@ export class RadixPopulate {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(mailbox);
 
-    const resource = (details.details as any).role_assignments.owner.rule
-      .access_rule.proof_rule.requirement.resource;
+    const resource = (details.details as EntityDetails).role_assignments.owner
+      .rule.access_rule.proof_rule.requirement.resource;
 
     return this.transfer({
       from_address,
@@ -333,7 +340,7 @@ export class RadixPopulate {
       from_address,
       this.packageAddress,
       'ValidatorAnnounce',
-      'instantiate',
+      INSTRUCTIONS.INSTANTIATE,
       [address(mailbox)],
     );
   }
@@ -402,7 +409,7 @@ export class RadixPopulate {
       from_address,
       this.packageAddress,
       'HypToken',
-      'instantiate',
+      INSTRUCTIONS.INSTANTIATE,
       [enumeration(0, address(origin_denom)), address(mailbox)],
     );
   }
@@ -426,7 +433,7 @@ export class RadixPopulate {
       from_address,
       this.packageAddress,
       'HypToken',
-      'instantiate',
+      INSTRUCTIONS.INSTANTIATE,
       [
         enumeration(
           1,
@@ -452,8 +459,8 @@ export class RadixPopulate {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(token);
 
-    const resource = (details.details as any).role_assignments.owner.rule
-      .access_rule.proof_rule.requirement.resource;
+    const resource = (details.details as EntityDetails).role_assignments.owner
+      .rule.access_rule.proof_rule.requirement.resource;
 
     return this.transfer({
       from_address,
@@ -501,7 +508,7 @@ export class RadixPopulate {
     );
   }
 
-  public async unrollRemoteRouter({
+  public async unenrollRemoteRouter({
     from_address,
     token,
     receiver_domain,
@@ -547,11 +554,11 @@ export class RadixPopulate {
     assert(origin_denom, `no origin_denom found on token ${token}`);
 
     return new ManifestBuilder()
-      .callMethod(from_address, 'withdraw', [
+      .callMethod(from_address, INSTRUCTIONS.WITHDRAW, [
         address(origin_denom),
         decimal(tokenAmount),
       ])
-      .callMethod(from_address, 'withdraw', [
+      .callMethod(from_address, INSTRUCTIONS.WITHDRAW, [
         address(max_fee.denom),
         decimal(max_fee.amount),
       ])
@@ -569,10 +576,11 @@ export class RadixPopulate {
                 enumeration(0),
                 enumeration(0),
               ])
-              .callMethod(from_address, 'try_deposit_batch_or_refund', [
-                expression('EntireWorktop'),
-                enumeration(0),
-              ]),
+              .callMethod(
+                from_address,
+                INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND,
+                [expression('EntireWorktop'), enumeration(0)],
+              ),
         ),
       )
       .build();

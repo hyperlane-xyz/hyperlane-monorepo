@@ -1,13 +1,5 @@
-import { CostingParameters, FeeSummary } from '@radixdlt/babylon-core-api-sdk';
 import {
-  GatewayApiClient,
-  TransactionStatusResponse,
-} from '@radixdlt/babylon-gateway-api-sdk';
-import {
-  LTSRadixEngineToolkit,
   PrivateKey,
-  RadixEngineToolkit,
-  TransactionManifest,
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
 import { BigNumber } from 'bignumber.js';
@@ -15,242 +7,17 @@ import { utils } from 'ethers';
 
 import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
-export class RadixQuery {
-  protected networkId: number;
-  protected gateway: GatewayApiClient;
+import {
+  EntityDetails,
+  EntityField,
+  Isms,
+  MultisigIsms,
+  Receipt,
+} from '../types.js';
 
-  constructor(networkId: number, gateway: GatewayApiClient) {
-    this.networkId = networkId;
-    this.gateway = gateway;
-  }
+import { RadixBase } from './base.js';
 
-  public async getXrdAddress() {
-    const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
-      this.networkId,
-    );
-    return knownAddresses.resources.xrdResource;
-  }
-
-  public async isGatewayHealthy(): Promise<boolean> {
-    const status = await this.gateway.status.getCurrent();
-    return status.ledger_state.state_version > 0;
-  }
-
-  public async estimateTransactionFee({
-    transactionManifest,
-  }: {
-    transactionManifest: TransactionManifest;
-  }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
-    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
-    const constructionMetadata =
-      await this.gateway.transaction.innerClient.transactionConstruction();
-
-    const manifest = (
-      await RadixEngineToolkit.Instructions.convert(
-        transactionManifest.instructions,
-        this.networkId,
-        'String',
-      )
-    ).value as string;
-
-    const response =
-      await this.gateway.transaction.innerClient.transactionPreview({
-        transactionPreviewRequest: {
-          manifest,
-          nonce: generateRandomNonce(),
-          signer_public_keys: [
-            {
-              key_type: 'EddsaEd25519',
-              key_hex: pk.publicKeyHex(),
-            },
-          ],
-          flags: {
-            use_free_credit: true,
-            // we have to enable this flag because the signer of the tx is a random pk
-            // this allows us to simulate txs for different addresses - even if we don't have accesse to their public key
-            assume_all_signature_proofs: true,
-          },
-          start_epoch_inclusive: constructionMetadata.ledger_state.epoch,
-          end_epoch_exclusive: constructionMetadata.ledger_state.epoch + 2,
-        },
-      });
-
-    assert(
-      !(response.receipt as any).error_message,
-      `${(response.receipt as any).error_message}`,
-    );
-
-    const fee_summary: FeeSummary = (response.receipt as any).fee_summary;
-    const costing_parameters: CostingParameters = (response.receipt as any)
-      .costing_parameters;
-
-    const gasUnits =
-      BigInt(fee_summary.execution_cost_units_consumed) +
-      BigInt(fee_summary.finalization_cost_units_consumed);
-    const fee = BigInt(
-      new BigNumber(fee_summary.xrd_total_execution_cost)
-        .plus(BigNumber(fee_summary.xrd_total_finalization_cost))
-        .plus(BigNumber(fee_summary.xrd_total_storage_cost))
-        .times(new BigNumber(10).exponentiatedBy(18))
-        .toFixed(0),
-    );
-    const gasPrice =
-      (parseFloat(costing_parameters.execution_cost_unit_price) +
-        parseFloat(costing_parameters.finalization_cost_unit_price)) *
-      0.5; // average out the cost parameters to get a more accurate estimate
-
-    return {
-      gasUnits,
-      fee,
-      gasPrice,
-    };
-  }
-
-  public async getMetadata({ resource }: { resource: string }): Promise<{
-    name: string;
-    symbol: string;
-    description: string;
-    divisibility: number;
-  }> {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(resource);
-
-    const result = {
-      name:
-        (
-          details.metadata.items.find((i) => i.key === 'name')?.value
-            .typed as any
-        ).value ?? '',
-      symbol:
-        (
-          details.metadata.items.find((i) => i.key === 'symbol')?.value
-            .typed as any
-        ).value ?? '',
-      description:
-        (
-          details.metadata.items.find((i) => i.key === 'description')?.value
-            .typed as any
-        ).value ?? '',
-      divisibility: (details.details as any).divisibility as number,
-    };
-
-    return result;
-  }
-
-  public async getXrdMetadata(): Promise<{
-    name: string;
-    symbol: string;
-    description: string;
-    divisibility: number;
-  }> {
-    const xrdAddress = await this.getXrdAddress();
-    return this.getMetadata({ resource: xrdAddress });
-  }
-
-  public async getBalance({
-    address,
-    resource,
-  }: {
-    address: string;
-    resource: string;
-  }): Promise<bigint> {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(address);
-
-    const fungibleResource = details.fungible_resources.items.find(
-      (r) => r.resource_address === resource,
-    );
-
-    if (!fungibleResource) {
-      return BigInt(0);
-    }
-
-    if (fungibleResource.vaults.items.length !== 1) {
-      return BigInt(0);
-    }
-
-    const { divisibility } = await this.getMetadata({ resource });
-
-    return BigInt(
-      new BigNumber(fungibleResource.vaults.items[0].amount)
-        .times(new BigNumber(10).exponentiatedBy(divisibility))
-        .toFixed(0),
-    );
-  }
-
-  public async getXrdBalance({
-    address,
-  }: {
-    address: string;
-  }): Promise<bigint> {
-    const xrdAddress = await this.getXrdAddress();
-    return this.getBalance({ address, resource: xrdAddress });
-  }
-
-  public async getTotalSupply({
-    resource,
-  }: {
-    resource: string;
-  }): Promise<bigint> {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(resource);
-
-    const { divisibility } = await this.getMetadata({ resource });
-
-    return BigInt(
-      new BigNumber((details.details as any).total_supply)
-        .times(new BigNumber(10).exponentiatedBy(divisibility))
-        .toFixed(0),
-    );
-  }
-
-  public async getXrdTotalSupply(): Promise<bigint> {
-    const xrdAddress = await this.getXrdAddress();
-    return this.getTotalSupply({ resource: xrdAddress });
-  }
-
-  public async pollForCommit(intentHashTransactionId: string): Promise<void> {
-    const pollAttempts = 200;
-    const pollDelayMs = 5000;
-
-    for (let i = 0; i < pollAttempts; i++) {
-      let statusOutput: TransactionStatusResponse;
-
-      try {
-        statusOutput =
-          await this.gateway.transaction.innerClient.transactionStatus({
-            transactionStatusRequest: { intent_hash: intentHashTransactionId },
-          });
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
-        continue;
-      }
-
-      switch (statusOutput.intent_status) {
-        case 'CommittedSuccess':
-          return;
-        case 'CommittedFailure':
-          // You will typically wish to build a new transaction and try again.
-          throw new Error(
-            `Transaction ${intentHashTransactionId} was not committed successfully - instead it resulted in: ${statusOutput.intent_status} with description: ${statusOutput.error_message}`,
-          );
-        case 'CommitPendingOutcomeUnknown':
-          // We keep polling
-          if (i < pollAttempts) {
-            await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
-          } else {
-            throw new Error(
-              `Transaction ${intentHashTransactionId} was not committed successfully within ${pollAttempts} poll attempts over ${
-                pollAttempts * pollDelayMs
-              }ms - instead it resulted in STATUS: ${
-                statusOutput.intent_status
-              } DESCRIPTION: ${statusOutput.intent_status_description}`,
-            );
-          }
-      }
-    }
-  }
-
+export class RadixQuery extends RadixBase {
   public async getMailbox({ mailbox }: { mailbox: string }): Promise<{
     address: string;
     owner: string;
@@ -262,10 +29,10 @@ export class RadixQuery {
   }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(mailbox);
-    const fields = (details.details as any).state.fields;
+    const fields = (details.details as EntityDetails).state.fields;
 
-    const ownerResource = (details.details as any).role_assignments.owner.rule
-      .access_rule.proof_rule.requirement.resource;
+    const ownerResource = (details.details as EntityDetails).role_assignments
+      .owner.rule.access_rule.proof_rule.requirement.resource;
 
     const { items } =
       await this.gateway.extensions.getResourceHolders(ownerResource);
@@ -283,52 +50,51 @@ export class RadixQuery {
       address: mailbox,
       owner: resourceHolders[0],
       local_domain: parseInt(
-        fields.find((f: any) => f.field_name === 'local_domain').value,
+        fields.find((f) => f.field_name === 'local_domain')?.value ?? '0',
       ),
-      nonce: parseInt(fields.find((f: any) => f.field_name === 'nonce').value),
-      default_ism: fields.find((f: any) => f.field_name === 'default_ism')
-        .fields[0].value,
-      default_hook: fields.find((f: any) => f.field_name === 'default_hook')
-        .fields[0].value,
-      required_hook: fields.find((f: any) => f.field_name === 'required_hook')
-        .fields[0].value,
+      nonce: parseInt(
+        fields.find((f) => f.field_name === 'nonce')?.value ?? '0',
+      ),
+      default_ism:
+        fields.find((f) => f.field_name === 'default_ism')?.fields?.at(0)
+          ?.value ?? '',
+      default_hook:
+        fields.find((f) => f.field_name === 'default_hook')?.fields?.at(0)
+          ?.value ?? '',
+      required_hook:
+        fields.find((f) => f.field_name === 'required_hook')?.fields?.at(0)
+          ?.value ?? '',
     };
 
     return result;
   }
 
-  public async getIsmType({
-    ism,
-  }: {
-    ism: string;
-  }): Promise<
-    'MerkleRootMultisigIsm' | 'MessageIdMultisigIsm' | 'RoutingIsm' | 'NoopIsm'
-  > {
+  public async getIsmType({ ism }: { ism: string }): Promise<Isms> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(ism);
 
-    return (details.details as any).blueprint_name;
+    return (details.details as EntityDetails).blueprint_name as Isms;
   }
 
   public async getMultisigIsm({ ism }: { ism: string }): Promise<{
     address: string;
-    type: 'MerkleRootMultisigIsm' | 'MessageIdMultisigIsm' | 'NoopIsm';
+    type: MultisigIsms;
     threshold: number;
     validators: string[];
   }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(ism);
 
-    const fields = (details.details as any).state.fields;
+    const fields = (details.details as EntityDetails).state.fields;
 
     const result = {
       address: ism,
-      type: (details.details as any).blueprint_name,
+      type: (details.details as EntityDetails).blueprint_name as MultisigIsms,
       validators: (
-        fields.find((f: any) => f.field_name === 'validators')?.elements ?? []
-      ).map((v: any) => ensure0x(v.hex)),
+        fields.find((f) => f.field_name === 'validators')?.elements ?? []
+      ).map((v) => ensure0x(v.hex)),
       threshold: parseInt(
-        fields.find((f: any) => f.field_name === 'threshold')?.value ?? '0',
+        fields.find((f) => f.field_name === 'threshold')?.value ?? '0',
       ),
     };
 
@@ -346,8 +112,8 @@ export class RadixQuery {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(ism);
 
-    const ownerResource = (details.details as any).role_assignments.owner.rule
-      .access_rule.proof_rule.requirement.resource;
+    const ownerResource = (details.details as EntityDetails).role_assignments
+      .owner.rule.access_rule.proof_rule.requirement.resource;
 
     const { items: holders } =
       await this.gateway.extensions.getResourceHolders(ownerResource);
@@ -361,16 +127,16 @@ export class RadixQuery {
       `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
     );
 
-    const type = (details.details as any).blueprint_name;
+    const type = (details.details as EntityDetails).blueprint_name;
     assert(
       type === 'RoutingIsm',
       `ism is not a RoutingIsm, instead got ${type}`,
     );
 
-    const fields = (details.details as any).state.fields;
+    const fields = (details.details as EntityDetails).state.fields;
 
     const routesKeyValueStore =
-      fields.find((f: any) => f.field_name === 'routes')?.value ?? '';
+      fields.find((f) => f.field_name === 'routes')?.value ?? '';
     assert(routesKeyValueStore, `found no routes on RoutingIsm ${ism}`);
 
     const { items } = await this.gateway.state.innerClient.keyValueStoreKeys({
@@ -394,8 +160,10 @@ export class RadixQuery {
           },
         });
 
-      const domain = parseInt((key.programmatic_json as any)?.value ?? '0');
-      const ism = (entries[0].value.programmatic_json as any).value;
+      const domain = parseInt(
+        (key.programmatic_json as EntityField)?.value ?? '0',
+      );
+      const ism = (entries[0].value.programmatic_json as EntityField).value;
 
       routes.push({
         domain,
@@ -427,12 +195,13 @@ export class RadixQuery {
       await this.gateway.state.getEntityDetailsVaultAggregated(hook);
 
     assert(
-      (details.details as any).blueprint_name === 'InterchainGasPaymaster',
-      `Expected contract at address ${hook} to be "InterchainGasPaymaster" but got ${(details.details as any).blueprint_name}`,
+      (details.details as EntityDetails).blueprint_name ===
+        'InterchainGasPaymaster',
+      `Expected contract at address ${hook} to be "InterchainGasPaymaster" but got ${(details.details as EntityDetails).blueprint_name}`,
     );
 
-    const ownerResource = (details.details as any).role_assignments.owner.rule
-      .access_rule.proof_rule.requirement.resource;
+    const ownerResource = (details.details as EntityDetails).role_assignments
+      .owner.rule.access_rule.proof_rule.requirement.resource;
 
     const { items: holders } =
       await this.gateway.extensions.getResourceHolders(ownerResource);
@@ -446,11 +215,11 @@ export class RadixQuery {
       `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
     );
 
-    const fields = (details.details as any).state.fields;
+    const fields = (details.details as EntityDetails).state.fields;
 
     const destinationGasConfigsKeyValueStore =
-      fields.find((f: any) => f.field_name === 'destination_gas_configs')
-        ?.value ?? '';
+      fields.find((f) => f.field_name === 'destination_gas_configs')?.value ??
+      '';
 
     assert(
       destinationGasConfigsKeyValueStore,
@@ -478,28 +247,29 @@ export class RadixQuery {
           },
         });
 
-      const remoteDomain = (key.programmatic_json as any)?.value ?? '0';
+      const remoteDomain = (key.programmatic_json as EntityField)?.value ?? '0';
 
-      const gasConfigFields = (entries[0].value.programmatic_json as any)
-        .fields;
+      const gasConfigFields = (
+        entries[0].value.programmatic_json as EntityField
+      ).fields;
 
       const gasOracleFields =
-        gasConfigFields.find((r: any) => r.field_name === 'gas_oracle')
-          ?.fields ?? [];
+        gasConfigFields?.find((r) => r.field_name === 'gas_oracle')?.fields ??
+        [];
 
       Object.assign(destination_gas_configs, {
         [remoteDomain]: {
           gas_oracle: {
             token_exchange_rate:
               gasOracleFields.find(
-                (r: any) => r.field_name === 'token_exchange_rate',
+                (r) => r.field_name === 'token_exchange_rate',
               )?.value ?? '0',
             gas_price:
-              gasOracleFields.find((r: any) => r.field_name === 'gas_price')
+              gasOracleFields.find((r) => r.field_name === 'gas_price')
                 ?.value ?? '0',
           },
           gas_overhead:
-            gasConfigFields.find((r: any) => r.field_name === 'gas_overhead')
+            gasConfigFields?.find((r) => r.field_name === 'gas_overhead')
               ?.value ?? '0',
         },
       });
@@ -519,8 +289,8 @@ export class RadixQuery {
       await this.gateway.state.getEntityDetailsVaultAggregated(hook);
 
     assert(
-      (details.details as any).blueprint_name === 'MerkleTreeHook',
-      `Expected contract at address ${hook} to be "MerkleTreeHook" but got ${(details.details as any).blueprint_name}`,
+      (details.details as EntityDetails).blueprint_name === 'MerkleTreeHook',
+      `Expected contract at address ${hook} to be "MerkleTreeHook" but got ${(details.details as EntityDetails).blueprint_name}`,
     );
 
     return {
@@ -544,12 +314,12 @@ export class RadixQuery {
       await this.gateway.state.getEntityDetailsVaultAggregated(token);
 
     assert(
-      (details.details as any).blueprint_name === 'HypToken',
-      `Expected contract at address ${token} to be "HypToken" but got ${(details.details as any).blueprint_name}`,
+      (details.details as EntityDetails).blueprint_name === 'HypToken',
+      `Expected contract at address ${token} to be "HypToken" but got ${(details.details as EntityDetails).blueprint_name}`,
     );
 
-    const ownerResource = (details.details as any).role_assignments.owner.rule
-      .access_rule.proof_rule.requirement.resource;
+    const ownerResource = (details.details as EntityDetails).role_assignments
+      .owner.rule.access_rule.proof_rule.requirement.resource;
 
     const { items } =
       await this.gateway.extensions.getResourceHolders(ownerResource);
@@ -563,20 +333,19 @@ export class RadixQuery {
       `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
     );
 
-    const fields = (details.details as any).state.fields;
+    const fields = (details.details as EntityDetails).state.fields;
 
     const token_type =
-      fields.find((f: any) => f.field_name === 'token_type')?.variant_name ??
-      '';
+      fields.find((f) => f.field_name === 'token_type')?.variant_name ?? '';
     assert(
       token_type === 'Collateral' || token_type === 'Synthetic',
       `unknown token type: ${token_type}`,
     );
 
-    const ismFields = fields.find((f: any) => f.field_name === 'ism').fields;
+    const ismFields = fields.find((f) => f.field_name === 'ism')?.fields ?? [];
 
     const tokenTypeFields =
-      fields.find((f: any) => f.field_name === 'token_type')?.fields ?? [];
+      fields.find((f) => f.field_name === 'token_type')?.fields ?? [];
 
     let origin_denom;
     let metadata = {
@@ -588,16 +357,15 @@ export class RadixQuery {
 
     if (token_type === 'Collateral') {
       origin_denom =
-        tokenTypeFields.find((t: any) => t.type_name === 'ResourceAddress')
-          ?.value ?? '';
+        tokenTypeFields.find((t) => t.type_name === 'ResourceAddress')?.value ??
+        '';
 
       metadata = await this.getMetadata({ resource: origin_denom });
     } else if (token_type === 'Synthetic') {
       origin_denom =
         (
-          fields.find((f: any) => f.field_name === 'resource_manager')
-            ?.fields ?? []
-        ).find((r: any) => r.type_name === 'ResourceAddress')?.value ?? '';
+          fields.find((f) => f.field_name === 'resource_manager')?.fields ?? []
+        ).find((r) => r.type_name === 'ResourceAddress')?.value ?? '';
 
       metadata = await this.getMetadata({ resource: origin_denom });
     }
@@ -605,8 +373,8 @@ export class RadixQuery {
     const result = {
       address: token,
       owner: resourceHolders[0],
-      token_type,
-      mailbox: fields.find((f: any) => f.field_name === 'mailbox')?.value ?? '',
+      token_type: token_type as 'Collateral' | 'Synthetic',
+      mailbox: fields.find((f) => f.field_name === 'mailbox')?.value ?? '',
       ism: ismFields[0]?.value ?? '',
       origin_denom,
       ...metadata,
@@ -627,14 +395,14 @@ export class RadixQuery {
       await this.gateway.state.getEntityDetailsVaultAggregated(token);
 
     assert(
-      (details.details as any).blueprint_name === 'HypToken',
-      `Expected contract at address ${token} to be "HypToken" but got ${(details.details as any).blueprint_name}`,
+      (details.details as EntityDetails).blueprint_name === 'HypToken',
+      `Expected contract at address ${token} to be "HypToken" but got ${(details.details as EntityDetails).blueprint_name}`,
     );
 
-    const fields = (details.details as any).state.fields;
+    const fields = (details.details as EntityDetails).state.fields;
 
     const enrolledRoutersKeyValueStore =
-      fields.find((f: any) => f.field_name === 'enrolled_routers')?.value ?? '';
+      fields.find((f) => f.field_name === 'enrolled_routers')?.value ?? '';
     assert(
       enrolledRoutersKeyValueStore,
       `found no enrolled routers on token ${token}`,
@@ -661,16 +429,15 @@ export class RadixQuery {
           },
         });
 
-      const routerFields = (entries[0].value.programmatic_json as any).fields;
+      const routerFields =
+        (entries[0].value.programmatic_json as EntityField)?.fields ?? [];
 
       remote_routers.push({
-        receiver_domain: routerFields.find(
-          (r: any) => r.field_name === 'domain',
-        ).value,
-        receiver_contract: routerFields.find(
-          (r: any) => r.field_name === 'recipient',
-        ).hex,
-        gas: routerFields.find((r: any) => r.field_name === 'gas').value,
+        receiver_domain:
+          routerFields.find((r) => r.field_name === 'domain')?.value ?? '',
+        receiver_contract:
+          routerFields.find((r) => r.field_name === 'recipient')?.hex ?? '',
+        gas: routerFields.find((r) => r.field_name === 'gas')?.value ?? '',
       });
     }
 
@@ -742,14 +509,14 @@ CALL_METHOD
       });
 
     assert(
-      !(response.receipt as any).error_message,
-      `${(response.receipt as any).error_message}`,
+      !(response.receipt as Receipt).error_message,
+      `${(response.receipt as Receipt).error_message}`,
     );
 
-    const output = (response.receipt as any).output as any[];
+    const output = (response.receipt as Receipt).output;
     assert(output.length, `found no output for quote_remote_transfer method`);
 
-    const entries = output[0].programmatic_json.entries as any[];
+    const entries = output[0].programmatic_json.entries;
     assert(entries.length > 0, `quote_remote_transfer returned no resources`);
     assert(
       entries.length < 2,

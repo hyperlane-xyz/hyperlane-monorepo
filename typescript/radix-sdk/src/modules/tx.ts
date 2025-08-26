@@ -14,7 +14,7 @@ import {
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { Account } from '../types.js';
+import { Account, MultisigIsmReq } from '../types.js';
 
 import { RadixPopulate } from './populate.js';
 import { RadixQuery } from './query.js';
@@ -50,6 +50,14 @@ export class RadixTx {
     resource_address: string;
     amount: string;
   }) {
+    const metadata = await this.query.getMetadata({
+      resource: resource_address,
+    });
+    assert(
+      metadata,
+      `resource with address ${resource_address} does not exist`,
+    );
+
     const transactionManifest = this.populate.transfer({
       from_address: this.account.address,
       to_address,
@@ -87,10 +95,7 @@ export class RadixTx {
   public async createMerkleRootMultisigIsm({
     validators,
     threshold,
-  }: {
-    validators: string[];
-    threshold: number;
-  }) {
+  }: MultisigIsmReq) {
     const transactionManifest = this.populate.createMerkleRootMultisigIsm({
       from_address: this.account.address,
       validators,
@@ -106,10 +111,7 @@ export class RadixTx {
   public async createMessageIdMultisigIsm({
     validators,
     threshold,
-  }: {
-    validators: string[];
-    threshold: number;
-  }) {
+  }: MultisigIsmReq) {
     const transactionManifest = this.populate.createMessageIdMultisigIsm({
       from_address: this.account.address,
       validators,
@@ -371,14 +373,14 @@ export class RadixTx {
     await this.signAndBroadcast(transactionManifest);
   }
 
-  public async unrollRemoteRouter({
+  public async unenrollRemoteRouter({
     token,
     receiver_domain,
   }: {
     token: string;
     receiver_domain: number;
   }) {
-    const transactionManifest = await this.populate.unrollRemoteRouter({
+    const transactionManifest = await this.populate.unenrollRemoteRouter({
       from_address: this.account.address,
       token,
       receiver_domain,
@@ -424,6 +426,8 @@ export class RadixTx {
   public async signAndBroadcast(
     manifest: TransactionManifest,
   ): Promise<TransactionHash> {
+    // transaction builder from official example:
+    // https://github.com/radixdlt/typescript-radix-engine-toolkit?tab=readme-ov-file#constructing-transactions
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
 
@@ -437,14 +441,12 @@ export class RadixTx {
       tipPercentage: 0,
     };
 
-    const transaction: NotarizedTransaction =
-      await TransactionBuilder.new().then((builder) =>
-        builder
-          .header(transactionHeader)
-          .manifest(manifest)
-          .sign(this.signIntent)
-          .notarize(this.notarizeIntent),
-      );
+    const builder = await TransactionBuilder.new();
+    const transaction: NotarizedTransaction = await builder
+      .header(transactionHeader)
+      .manifest(manifest)
+      .sign(this.signIntent)
+      .notarize(this.notarizeIntent);
 
     const compiledNotarizedTransaction =
       await RadixEngineToolkit.NotarizedTransaction.compile(transaction);

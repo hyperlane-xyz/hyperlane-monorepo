@@ -73,7 +73,7 @@ export class RadixSigningSDK extends RadixSDK {
 
   public tx: RadixTx;
 
-  constructor(account: Account, options?: RadixSDKOptions) {
+  private constructor(account: Account, options?: RadixSDKOptions) {
     super(options);
 
     this.account = account;
