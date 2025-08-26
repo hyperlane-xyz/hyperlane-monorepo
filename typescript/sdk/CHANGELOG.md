@@ -1,5 +1,27 @@
 # @hyperlane-xyz/sdk
 
+## 17.0.0
+
+### Major Changes
+
+- 8c15edc67: Added Radix Protocol Type
+
+### Minor Changes
+
+- 400c02460: Add fallback logic to the `EvmEventLogsReader` to use the rpc when the block explorer api request fails
+- 6583df016: Add the getPendingScheduledOperations and getPendingOperationIds methods on the EvmTimelockReader class and export getTimelockExecutableTransactionFromBatch from sdk
+
+### Patch Changes
+
+- 76a5db49a: Fixed a bug when deriving token metadata from chain was erasing existing fields from deployment config
+- 7f542b288: Fix `CosmosModuleTokenAdapter` recipient conversion for populateTransferRemoteTx
+- Updated dependencies [8c15edc67]
+- Updated dependencies [e0bda316a]
+  - @hyperlane-xyz/utils@17.0.0
+  - @hyperlane-xyz/core@9.0.6
+  - @hyperlane-xyz/starknet-core@17.0.0
+  - @hyperlane-xyz/cosmos-sdk@17.0.0
+
 ## 16.2.0
 
 ### Minor Changes
