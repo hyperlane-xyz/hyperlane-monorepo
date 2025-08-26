@@ -120,7 +120,7 @@ export function resolveRouterMapConfig<T>(
 }
 
 export const RemoteRouterRouter = z.object({
-  address: z.string().startsWith('0x'),
+  address: z.string(),
 });
 export const RemoteRoutersSchema = z.record(
   RemoteRouterDomainOrChainNameSchema,

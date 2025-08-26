@@ -79,6 +79,8 @@ export class RadixDeployer {
         }
       }
 
+      // TODO: RADIX
+      // update owner at the end or else remote router txs will fail
       if (this.signersMap[chain].getAddress() !== config.owner) {
         await this.signersMap[chain].tx.setTokenOwner({
           token: result[chain],

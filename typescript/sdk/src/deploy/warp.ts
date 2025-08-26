@@ -403,8 +403,6 @@ export async function enrollCrossChainRouters(
       .getRemoteChains(chain)
       .filter((c) => allChains.includes(c));
 
-    console.log('enrollCrossChainRouters', chain, allRemoteChains);
-
     const protocolTransactions = {} as GroupedTransactions;
 
     switch (protocol) {
@@ -540,14 +538,11 @@ export async function enrollCrossChainRouters(
       }
     }
 
-    console.log('protocolTransactions', JSON.stringify(protocolTransactions));
-
     for (const protocol of Object.keys(protocolTransactions)) {
       switch (protocol) {
         case ProtocolType.Ethereum: {
           for (const chain of Object.keys(protocolTransactions[protocol])) {
             const transactions = protocolTransactions[protocol][chain];
-            console.log('evm', chain, transactions);
             const signer = multiProtocolSigner.getEVMSigner(chain);
 
             for (const transaction of transactions) {
@@ -560,7 +555,6 @@ export async function enrollCrossChainRouters(
         case ProtocolType.CosmosNative: {
           for (const chain of Object.keys(protocolTransactions[protocol])) {
             const transactions = protocolTransactions[protocol][chain];
-            console.log('cosmos', chain, transactions);
             const signer = multiProtocolSigner.getCosmosNativeSigner(chain);
 
             await signer.signAndBroadcast(
@@ -575,7 +569,6 @@ export async function enrollCrossChainRouters(
         case ProtocolType.Radix: {
           for (const chain of Object.keys(protocolTransactions[protocol])) {
             const transactions = protocolTransactions[protocol][chain];
-            console.log('radix', chain, transactions);
             const signer = multiProtocolSigner.getRadixSigner(chain);
 
             for (const transaction of transactions) {
