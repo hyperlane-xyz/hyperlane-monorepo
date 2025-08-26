@@ -94,12 +94,12 @@ pub fn escalate_gas_price_if_needed(
 
             debug!(
                 tx_type = "Eip1559",
-                old_max_fee_per_gas = ?old_max_fee,
-                estimated_max_fee = ?estimated_max_fee,
-                escalated_max_fee_per_gas = ?escalated_max_fee_per_gas,
-                old_max_priority_fee_per_gas = ?old_max_priority_fee,
-                estimated_max_priority_fee = ?estimated_max_priority_fee,
-                escalated_max_priority_fee_per_gas = ?escalated_max_priority_fee_per_gas,
+                ?old_max_fee,
+                ?old_max_priority_fee,
+                ?estimated_max_fee,
+                ?estimated_max_priority_fee,
+                escalated_max_fee = ?escalated_max_priority_fee_per_gas,
+                escalated_max_priority_fee = ?escalated_max_priority_fee_per_gas,
                 "Escalation attempt outcome"
             );
 

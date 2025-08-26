@@ -152,6 +152,10 @@ impl EthereumAdapter {
             &self.transaction_overrides,
         );
 
+        if estimated_gas_price == escalated_gas_price {
+            warn!("Escalated gas price is the same as old gas price");
+        }
+
         let new_gas_price = match escalated_gas_price {
             GasPrice::None => estimated_gas_price,
             _ => escalated_gas_price,
@@ -164,42 +168,45 @@ impl EthereumAdapter {
     fn update_tx(&self, tx: &mut Transaction, nonce: Option<U256>, gas_price: GasPrice) {
         let precursor = tx.precursor_mut();
 
-        if let GasPrice::Eip1559 {
-            max_fee,
-            max_priority_fee,
-        } = gas_price
-        {
-            // Re-create the whole EIP-1559 transaction request in this case
+        match gas_price {
+            GasPrice::None => {}
+            GasPrice::NonEip1559 { gas_price } => {
+                precursor.tx.set_gas_price(gas_price);
+            }
+            GasPrice::Eip1559 {
+                max_fee,
+                max_priority_fee,
+            } => {
+                // Re-create the whole EIP-1559 transaction request in this case
+                let tx = precursor.tx.clone();
+                let mut request = Eip1559TransactionRequest::new();
+                if let Some(from) = tx.from() {
+                    request = request.from(*from);
+                }
+                if let Some(to) = tx.to() {
+                    request = request.to(to.clone());
+                }
+                if let Some(data) = tx.data() {
+                    request = request.data(data.clone());
+                }
+                if let Some(value) = tx.value() {
+                    request = request.value(*value);
+                }
+                if let Some(nonce) = tx.nonce() {
+                    request = request.nonce(*nonce);
+                }
+                if let Some(gas_limit) = tx.gas() {
+                    request = request.gas(*gas_limit);
+                }
+                if let Some(chain_id) = tx.chain_id() {
+                    request = request.chain_id(chain_id);
+                }
+                request = request.max_fee_per_gas(max_fee);
+                request = request.max_priority_fee_per_gas(max_priority_fee);
 
-            let tx = precursor.tx.clone();
-
-            let mut request = Eip1559TransactionRequest::new();
-            if let Some(from) = tx.from() {
-                request = request.from(*from);
+                let eip_1559_tx = TypedTransaction::Eip1559(request);
+                precursor.tx = eip_1559_tx.clone();
             }
-            if let Some(to) = tx.to() {
-                request = request.to(to.clone());
-            }
-            if let Some(data) = tx.data() {
-                request = request.data(data.clone());
-            }
-            if let Some(value) = tx.value() {
-                request = request.value(*value);
-            }
-            if let Some(nonce) = tx.nonce() {
-                request = request.nonce(*nonce);
-            }
-            if let Some(gas_limit) = tx.gas() {
-                request = request.gas(*gas_limit);
-            }
-            if let Some(chain_id) = tx.chain_id() {
-                request = request.chain_id(chain_id);
-            }
-            request = request.max_fee_per_gas(max_fee);
-            request = request.max_priority_fee_per_gas(max_priority_fee);
-
-            let eip_1559_tx = TypedTransaction::Eip1559(request);
-            precursor.tx = eip_1559_tx.clone();
         }
 
         match gas_price {
