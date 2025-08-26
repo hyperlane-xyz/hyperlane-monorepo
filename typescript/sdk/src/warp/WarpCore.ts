@@ -594,7 +594,17 @@ export class WarpCore {
       maxAmount = maxAmount.minus(interchainQuote.amount);
     }
     if (originToken.isFungibleWith(tokenFeeQuote?.token)) {
-      maxAmount = maxAmount.minus(tokenFeeQuote?.amount || 0n);
+      const { tokenFeeQuote: newFeeQuote } =
+        await this.getInterchainTransferFee({
+          originTokenAmount: maxAmount,
+          destination,
+          recipient,
+          sender,
+        });
+      // Because tokenFeeQuote is calculated based on the amount, we need to recalculate
+      // the tokenFeeQuote after subtracting the localQuote and IGP to get max transfer amount
+      // to be as close as possible
+      maxAmount = maxAmount.minus(newFeeQuote?.amount || 0n);
     }
 
     if (maxAmount.amount > 0) return maxAmount;
