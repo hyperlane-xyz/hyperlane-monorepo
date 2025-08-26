@@ -79,6 +79,13 @@ export class RadixDeployer {
         }
       }
 
+      if (this.signersMap[chain].getAddress() !== config.owner) {
+        await this.signersMap[chain].tx.setTokenOwner({
+          token: result[chain],
+          new_owner: config.owner,
+        });
+      }
+
       this.logger.info(`Successfully deployed contracts on ${chain}`);
     }
 
