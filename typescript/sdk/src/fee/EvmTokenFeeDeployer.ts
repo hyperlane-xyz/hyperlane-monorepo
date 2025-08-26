@@ -24,7 +24,7 @@ type RoutingFeeDeploymentResult = {
 };
 
 export class EvmTokenFeeDeployer extends HyperlaneDeployer<
-  TokenFeeConfigInput,
+  TokenFeeConfig,
   EvmTokenFeeFactories
 > {
   protected readonly tokenFeeReader: EvmTokenFeeReader;
@@ -43,11 +43,11 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     const deployedContract: any = {}; // This is a partial HyperlaneContracts<EvmTokenFeeFactories>
     const parsedConfig = TokenFeeConfigSchema.parse(config);
 
-    switch (config.type) {
+    switch (parsedConfig.type) {
       case TokenFeeType.LinearFee:
       case TokenFeeType.ProgressiveFee:
       case TokenFeeType.RegressiveFee:
-        deployedContract[config.type] = await this.deployFee(
+        deployedContract[parsedConfig.type] = await this.deployFee(
           chain,
           parsedConfig,
         );
@@ -74,7 +74,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
 
   private async deployFee(
     chain: ChainName,
-    config: TokenFeeConfig,
+    config: Exclude<TokenFeeConfig, { type: TokenFeeType.RoutingFee }>,
   ): Promise<
     ReturnType<EvmTokenFeeFactories[TokenFeeConfig['type']]['deploy']>
   > {
