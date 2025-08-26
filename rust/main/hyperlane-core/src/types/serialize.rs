@@ -102,10 +102,11 @@ impl fmt::Display for FromHexError {
 /// Decode given (both 0x-prefixed or not) hex string into a vector of bytes.
 ///
 /// Returns an error if non-hex characters are present.
+#[allow(clippy::manual_div_ceil)] // can't use `.div_ceil` because it still unstables in `sbf`
 pub fn from_hex(v: &str) -> Result<Vec<u8>, FromHexError> {
     let (v, stripped) = v.strip_prefix("0x").map_or((v, false), |v| (v, true));
 
-    let mut bytes = vec![0u8; v.len().div_ceil(2)];
+    let mut bytes = vec![0u8; (v.len() + 1) / 2];
     from_hex_raw(v, &mut bytes, stripped)?;
     Ok(bytes)
 }

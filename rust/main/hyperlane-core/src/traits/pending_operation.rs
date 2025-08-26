@@ -369,6 +369,7 @@ impl PartialEq for QueueOperation {
 
 impl Eq for QueueOperation {}
 
+#[allow(clippy::unnecessary_map_or)] // can't use `.is_ok_and` because it still unstables in `sbf`
 impl Ord for QueueOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         use Ordering::*;
@@ -384,7 +385,7 @@ impl Ord for QueueOperation {
             (Some(_), None) => Greater,
             (None, None) => {
                 let mixing =
-                    env::var("HYPERLANE_RELAYER_MIXING_ENABLED").is_ok_and(|v| v == "true");
+                env::var("HYPERLANE_RELAYER_MIXING_ENABLED").map_or(false, |v| v == "true");
                 if !mixing {
                     if self.origin_domain_id() == other.origin_domain_id() {
                         // Should execute in order of nonce for the same origin
