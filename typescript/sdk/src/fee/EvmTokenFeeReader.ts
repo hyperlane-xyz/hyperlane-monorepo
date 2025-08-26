@@ -60,9 +60,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         );
         break;
       default:
-        throw new Error(
-          `Unsupported token fee type: ${await tokenFee.feeType()}`,
-        );
+        throw new Error(`Unsupported token fee type: ${onchainFeeType}`);
     }
 
     return derivedConfig;
