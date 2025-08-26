@@ -76,7 +76,7 @@ import {
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
-const TOKEN_FEE_CONTRACT_VERSION = '10.0.0-beta.0';
+export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0-beta.0';
 
 export class EvmERC20WarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
@@ -247,16 +247,30 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       routerAddress,
       this.provider,
     );
-    const hasTokenFeeInterface =
-      compareVersions(
-        await this.fetchPackageVersion(routerAddress),
-        TOKEN_FEE_CONTRACT_VERSION,
-      ) >= 0;
-    const tokenFee = await fungibleTokenRouter.feeRecipient();
 
-    return eqAddress(tokenFee, constants.AddressZero) || !hasTokenFeeInterface
-      ? undefined
-      : this.evmTokenFeeReader.deriveTokenFeeConfig(tokenFee, destinations);
+    const [packageVersion, tokenFee] = await Promise.all([
+      this.fetchPackageVersion(routerAddress).catch(() => '0.0.0'),
+      fungibleTokenRouter.feeRecipient().catch(() => constants.AddressZero),
+    ]);
+
+    const hasTokenFeeInterface =
+      compareVersions(packageVersion, TOKEN_FEE_CONTRACT_VERSION) >= 0;
+
+    if (!hasTokenFeeInterface) {
+      this.logger.info(
+        `Token at address "${routerAddress}" on chain "${this.chain}" does not have a token fee interface`,
+      );
+      return undefined;
+    }
+
+    if (isZeroishAddress(tokenFee)) {
+      this.logger.info(
+        `Token at address "${routerAddress}" on chain "${this.chain}" has a no token fee`,
+      );
+      return undefined;
+    }
+
+    return this.evmTokenFeeReader.deriveTokenFeeConfig(tokenFee, destinations);
   }
 
   async getContractVerificationStatus(chain: ChainName, address: Address) {
