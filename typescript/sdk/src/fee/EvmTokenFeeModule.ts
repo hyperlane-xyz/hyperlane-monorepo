@@ -92,7 +92,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       contractVerifier,
       config: finalizedConfig,
     });
-    module.args.addresses.deployedFee = contracts[chain][config.type].address;
+    module.args.addresses.deployedFee =
+      contracts[chainName][config.type].address;
 
     return module;
   }
