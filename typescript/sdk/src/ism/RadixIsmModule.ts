@@ -220,9 +220,18 @@ export class RadixIsmModule extends HyperlaneModule<
       });
     }
 
-    return this.signer.tx.createRoutingIsm({
+    const ism = await this.signer.tx.createRoutingIsm({
       routes,
     });
+
+    if (this.signer.getAddress() !== config.owner) {
+      await this.signer.tx.setRoutingIsmOwner({
+        ism,
+        new_owner: config.owner,
+      });
+    }
+
+    return ism;
   }
 
   protected async deployNoopIsm(): Promise<Address> {

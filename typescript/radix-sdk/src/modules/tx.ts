@@ -138,6 +138,22 @@ export class RadixTx {
     return this.getNewComponent(intentHashTransactionId);
   }
 
+  public async setRoutingIsmOwner({
+    ism,
+    new_owner,
+  }: {
+    ism: string;
+    new_owner: string;
+  }) {
+    const transactionManifest = await this.populate.setRoutingIsmOwner({
+      from_address: this.account.address,
+      ism,
+      new_owner,
+    });
+
+    await this.signAndBroadcast(transactionManifest);
+  }
+
   public async createNoopIsm() {
     const transactionManifest = this.populate.createNoopIsm({
       from_address: this.account.address,

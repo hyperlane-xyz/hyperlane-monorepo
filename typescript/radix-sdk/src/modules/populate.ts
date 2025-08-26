@@ -212,6 +212,29 @@ export class RadixPopulate {
     );
   }
 
+  public async setRoutingIsmOwner({
+    from_address,
+    ism,
+    new_owner,
+  }: {
+    from_address: string;
+    ism: string;
+    new_owner: string;
+  }) {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(ism);
+
+    const resource = (details.details as any).role_assignments.owner.rule
+      .access_rule.proof_rule.requirement.resource;
+
+    return this.transfer({
+      from_address,
+      to_address: new_owner,
+      resource_address: resource,
+      amount: '1',
+    });
+  }
+
   public createNoopIsm({ from_address }: { from_address: string }) {
     return this.createCallFunctionManifest(
       from_address,
