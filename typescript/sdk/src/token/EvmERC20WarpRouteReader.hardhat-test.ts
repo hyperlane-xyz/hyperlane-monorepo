@@ -754,7 +754,7 @@ describe('ERC20WarpRouterReader', async () => {
     const warpRoute = await deployer.deploy(config);
 
     const mockPackageVersioned = {
-      PACKAGE_VERSION: sinon.stub().resolves('0.0.0'),
+      PACKAGE_VERSION: sinon.stub().resolves('8.0.1'),
     };
     const fetchPackageVersionStub = sinon
       .stub(PackageVersioned__factory, 'connect')
