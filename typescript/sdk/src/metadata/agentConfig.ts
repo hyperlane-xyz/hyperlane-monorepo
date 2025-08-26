@@ -102,7 +102,7 @@ const AgentSignerRadixKeySchema = z
     suffix: z.string().describe('The network suffix for the signer'),
     key: ZHash,
   })
-  .describe('Cosmos key');
+  .describe('Radix key');
 const AgentSignerNodeSchema = z
   .object({
     type: z.literal(AgentSignerKeyType.Node),
