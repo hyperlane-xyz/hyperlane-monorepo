@@ -1,12 +1,12 @@
 use ethers_core::types::Address;
 use std::sync::Arc;
 
+use crate::adapter::chains::ethereum::tests::make_tx;
 use crate::adapter::chains::ethereum::EthereumAdapterMetrics;
 use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::{DropReason, Transaction, TransactionStatus, TransactionUuid};
 use hyperlane_core::U256;
 
-use super::super::super::super::tests::make_tx;
 use super::super::NonceManagerState;
 
 fn create_tx(uuid: TransactionUuid, status: TransactionStatus) -> Transaction {

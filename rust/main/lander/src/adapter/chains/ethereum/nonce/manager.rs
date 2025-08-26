@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ethers::signers::Signer;
 use ethers_core::types::Address;
-use tracing::{info, warn};
+use tracing::info;
 
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::settings::{ChainConf, SignerConf};
