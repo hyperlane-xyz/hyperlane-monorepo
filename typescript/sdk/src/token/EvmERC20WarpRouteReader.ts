@@ -1,7 +1,8 @@
 import { compareVersions } from 'compare-versions';
-import { Contract } from 'ethers';
+import { Contract, constants } from 'ethers';
 
 import {
+  FungibleTokenRouter__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
@@ -44,6 +45,8 @@ import {
   ExplorerLicenseType,
   VerifyContractTypes,
 } from '../deploy/verify/types.js';
+import { EvmTokenFeeReader } from '../fee/EvmTokenFeeReader.js';
+import { TokenFeeConfig } from '../fee/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -73,6 +76,7 @@ import {
 import { getExtraLockBoxConfigs } from './xerc20.js';
 
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
+export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0-beta.0';
 
 export class EvmERC20WarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
@@ -87,6 +91,8 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
   >;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
+  evmTokenFeeReader: EvmTokenFeeReader;
+
   contractVerifier: ContractVerifier;
 
   constructor(
@@ -98,6 +104,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     super(multiProvider, chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
     this.evmIsmReader = new EvmIsmReader(multiProvider, chain, concurrency);
+    this.evmTokenFeeReader = new EvmTokenFeeReader(multiProvider, chain);
 
     this.deriveTokenConfigMap = {
       [TokenType.XERC20]: this.deriveHypXERC20TokenConfig.bind(this),
@@ -207,6 +214,12 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
           error,
         );
       }
+
+      const tokenFee = await this.fetchTokenFee(
+        warpRouteAddress,
+        await movableToken.domains(),
+      );
+
       return {
         ...routerConfig,
         ...tokenConfig,
@@ -214,6 +227,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         allowedRebalancingBridges,
         proxyAdmin,
         destinationGas,
+        tokenFee,
       } as DerivedTokenRouterConfig;
     }
 
@@ -224,6 +238,41 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       destinationGas,
     };
   }
+
+  public async fetchTokenFee(
+    routerAddress: Address,
+    destinations?: number[],
+  ): Promise<TokenFeeConfig | undefined> {
+    const fungibleTokenRouter = FungibleTokenRouter__factory.connect(
+      routerAddress,
+      this.provider,
+    );
+
+    const [packageVersion, tokenFee] = await Promise.all([
+      this.fetchPackageVersion(routerAddress).catch(() => '0.0.0'),
+      fungibleTokenRouter.feeRecipient().catch(() => constants.AddressZero),
+    ]);
+
+    const hasTokenFeeInterface =
+      compareVersions(packageVersion, TOKEN_FEE_CONTRACT_VERSION) >= 0;
+
+    if (!hasTokenFeeInterface) {
+      this.logger.info(
+        `Token at address "${routerAddress}" on chain "${this.chain}" does not have a token fee interface`,
+      );
+      return undefined;
+    }
+
+    if (isZeroishAddress(tokenFee)) {
+      this.logger.info(
+        `Token at address "${routerAddress}" on chain "${this.chain}" has a no token fee`,
+      );
+      return undefined;
+    }
+
+    return this.evmTokenFeeReader.deriveTokenFeeConfig(tokenFee, destinations);
+  }
+
   async getContractVerificationStatus(chain: ChainName, address: Address) {
     const contractVerificationStatus: Record<
       string,
