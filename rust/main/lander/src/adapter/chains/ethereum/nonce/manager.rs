@@ -58,7 +58,7 @@ impl NonceManager {
         &self,
         tx: &Transaction,
     ) -> eyre::Result<Option<U256>, LanderError> {
-        use NonceAction::{Assign, AssignFromDb, Noop};
+        use NonceAction::{Assign, Noop};
 
         let tx_uuid = tx.uuid.clone();
         let precursor = tx.precursor();
@@ -87,15 +87,6 @@ impl NonceManager {
         if matches!(action, Noop) {
             return Ok(None);
         }
-        // Assign nonce from db
-        if let (AssignFromDb, Some(nonce)) = (action, nonce) {
-            self.state
-                .set_tracked_tx_uuid(&nonce, &tx_uuid)
-                .await
-                .map_err(|e| eyre::eyre!("Failed to set tracked tx uuid: {}", e))?;
-            return Ok(Some(nonce));
-        }
-
         let next_nonce = self
             .state
             .assign_next_nonce(&tx_uuid, &nonce)
