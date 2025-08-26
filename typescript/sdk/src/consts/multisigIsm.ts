@@ -165,6 +165,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_ZEE_PRIME_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0x57ddf0cd46f31ead8084069ce481507f4305c716',
+        alias: 'Luganodes',
+      },
     ],
   },
 
@@ -270,6 +274,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x74de235ace64fa8a3d5e3d5e414360888e655c62',
         alias: 'Substance Labs',
       },
+      {
+        address: '0x4488dbc191c39ae026b4a1fdb2aefe21960226d5',
+        alias: 'Luganodes',
+      },
     ],
   },
 
@@ -296,6 +304,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0xb8cf45d7bab79c965843206d5f4d83bb866d6e86',
         alias: 'Substance Labs',
+      },
+      {
+        address: '0xe957310e17730f29862e896709cce62d24e4b773',
+        alias: 'Luganodes',
       },
     ],
   },
@@ -362,6 +374,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0xaa00a849fc770d742724cbd2862f91d51db7fb62',
         alias: 'Substance Labs',
+      },
+      {
+        address: '0x68e869315e51f6bd0ba4aac844cf216fd3dec762',
+        alias: 'Luganodes',
       },
     ],
   },
@@ -433,6 +449,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x24c1506142b2c859aee36474e59ace09784f71e8',
         alias: 'Substance Labs',
+      },
+      {
+        address: '0xc67789546a7a983bf06453425231ab71c119153f',
+        alias: 'Luganodes',
       },
     ],
   },
@@ -1034,6 +1054,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0x04d949c615c9976f89595ddcb9008c92f8ba7278',
+        alias: 'Luganodes',
+      },
     ],
   },
 
@@ -1217,6 +1241,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0x0c760f4bcb508db9144b0579e26f5ff8d94daf4d',
+        alias: 'Luganodes',
+      },
     ],
   },
 
@@ -1321,6 +1349,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0xcd3b3a2007aab3b00418fbac12bea19d04243497',
+        alias: 'Luganodes',
+      },
     ],
   },
 
@@ -1393,6 +1425,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0xad1df94ae078631bfea1623520125e93a6085555',
+        alias: 'Luganodes',
+      },
     ],
   },
 
@@ -1944,6 +1980,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0x808a3945d5f9c2f9ccf7a76bde4c4b54c9c7dba4',
+        alias: 'Luganodes',
+      },
     ],
   },
 
@@ -2143,6 +2183,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0x7f0e75c5151d0938eaa9ab8a30f9ddbd74c4ebef',
+        alias: 'Luganodes',
+      },
     ],
   },
 
@@ -2518,6 +2562,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0xc1545f9fe903736b2e438b733740bd3516486da5',
+        alias: 'Luganodes',
+      },
     ],
   },
 
