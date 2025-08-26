@@ -279,7 +279,7 @@ impl SealevelAdapter {
         // the "confirmed" commitment is equivalent to being "included" in a block on evm
         if let Ok(tx) = tx_resp {
             if let Some(meta) = tx.transaction.meta {
-                // It is possible for a failed transaction to be finalized.
+                // It is possible for a failed transaction to be confirmed.
                 // In this case, we need to re-submit.
                 if meta.err.is_some() {
                     warn!(?signature, ?tx_hash, "Transaction included, but failed");
