@@ -247,12 +247,12 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       routerAddress,
       this.provider,
     );
-    const tokenFee = await fungibleTokenRouter.feeRecipient();
     const hasTokenFeeInterface =
       compareVersions(
-        await fungibleTokenRouter.PACKAGE_VERSION(),
+        await this.fetchPackageVersion(routerAddress),
         TOKEN_FEE_CONTRACT_VERSION,
       ) >= 0;
+    const tokenFee = await fungibleTokenRouter.feeRecipient();
 
     return eqAddress(tokenFee, constants.AddressZero) || !hasTokenFeeInterface
       ? undefined
