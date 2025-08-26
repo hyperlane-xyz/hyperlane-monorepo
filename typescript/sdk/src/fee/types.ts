@@ -106,9 +106,13 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
 });
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 
-export const RoutingFeeInputConfigSchema = RoutingFeeConfigSchema.partial({
-  owner: true,
-  token: true,
+export const RoutingFeeInputConfigSchema = RoutingFeeConfigSchema.extend({
+  feeContracts: z
+    .record(
+      ZChainName,
+      z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
+    )
+    .optional(), // Destination -> Fee
 });
 export type RoutingFeeInputConfig = z.infer<typeof RoutingFeeInputConfigSchema>;
 
