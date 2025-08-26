@@ -11,6 +11,7 @@ import { Address, AddressBytes32, isNumeric } from '@hyperlane-xyz/utils';
 import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';
 import { CheckerViolation } from '../deploy/types.js';
+import { TokenFeeConfigInputSchema } from '../fee/types.js';
 import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
 import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
@@ -133,6 +134,7 @@ export const RouterConfigSchema = MailboxClientConfigSchema.merge(
   z.object({
     remoteRouters: RemoteRoutersSchema.optional(),
     proxyAdmin: DeployedOwnableSchema.optional(),
+    tokenFee: TokenFeeConfigInputSchema.optional(),
   }),
 );
 
