@@ -253,8 +253,14 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
       // get the suffix based on the chain id
       let suffix = 'rdx';
       switch (metadata.chainId) {
+        case 240: // localnet
+          suffix = 'loc';
+          break;
         case '240': // localnet
           suffix = 'loc';
+          break;
+        case 2: // stokenet
+          suffix = 'tdx_2_';
           break;
         case '2': // stokenet
           suffix = 'tdx_2_';

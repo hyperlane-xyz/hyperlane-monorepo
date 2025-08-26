@@ -65,7 +65,7 @@ export const keyFunderConfig: KeyFunderConfig<
     paradexsepolia: '0',
     plumetestnet2: '0.1',
     polygonamoy: '0.2',
-    radixstokenet: '0',
+    radixtestnet: '0',
     scrollsepolia: '1',
     sepolia: '5',
     starknetsepolia: '0',

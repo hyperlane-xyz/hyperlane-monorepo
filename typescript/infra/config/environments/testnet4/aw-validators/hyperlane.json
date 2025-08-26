@@ -113,8 +113,8 @@
   "polygonamoy": {
     "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
   },
-  "radixstokenet": {
-    "validators": ["0xff606e6e7e3d18d92f31a3ae2e5580f44102cb97"]
+  "radixtestnet": {
+    "validators": ["0xeddaf7958627cfd35400c95db19a656a4a8a92c6"]
   },
   "scrollsepolia": {
     "validators": [

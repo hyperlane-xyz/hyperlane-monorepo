@@ -1869,11 +1869,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  radixstokenet: {
+  radixtestnet: {
     threshold: 1,
     validators: [
       {
-        address: '0xff606e6e7e3d18d92f31a3ae2e5580f44102cb97',
+        address: '0xeddaf7958627cfd35400c95db19a656a4a8a92c6',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],

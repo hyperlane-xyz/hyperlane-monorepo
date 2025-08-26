@@ -607,14 +607,14 @@ export const validatorChainConfig = (
       ),
     },
 
-    radixstokenet: {
+    radixtestnet: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('radixstokenet'),
+      reorgPeriod: getReorgPeriod('radixtestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0xff606e6e7e3d18d92f31a3ae2e5580f44102cb97'],
+          [Contexts.Hyperlane]: ['0xeddaf7958627cfd35400c95db19a656a4a8a92c6'],
         },
-        'radixstokenet',
+        'radixtestnet',
       ),
     },
   };
