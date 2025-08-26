@@ -191,9 +191,9 @@ export class WarpCore {
     }
 
     let feeTokenAmount: TokenAmount | undefined;
-    if (feeAmount && feeAddressOrDenom) {
-      // zero address is native route
-      if (isZeroishAddress(feeAddressOrDenom)) {
+    if (feeAmount) {
+      // empty address or zero address is native route
+      if (!feeAddressOrDenom || isZeroishAddress(feeAddressOrDenom)) {
         const nativeToken = Token.FromChainMetadataNativeToken(
           this.multiProvider.getChainMetadata(originName),
         );
