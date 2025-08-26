@@ -164,6 +164,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_ZEE_PRIME_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -264,6 +265,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x3fb8263859843bffb02950c492d492cae169f4cf',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -737,6 +739,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x3786083ca59dc806d894104e65a13a70c2b39276',
         alias: 'Imperator',
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1505,6 +1508,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x2225e2f4e9221049456da93b71d2de41f3b6b2a8',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -2012,6 +2016,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xcb6bcbd0de155072a7ff486d9d7286b0f71dcc2d',
         alias: 'Eclipse',
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -2481,6 +2486,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -2531,6 +2537,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Luganodes',
       },
       { address: '0x1da9176C2CE5cC7115340496fa7D1800a98911CE', alias: 'Renzo' },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
