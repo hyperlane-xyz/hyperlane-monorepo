@@ -88,9 +88,9 @@ mod tests {
 
     use super::*;
 
-    const TEST_MANIFEST: &str = include_str!("./manifest.txt");
-    const TEST_MANIFEST_WITH_WITHDRAW: &str = include_str!("./manifest_with_withdraw.txt");
-    const TEST_MANIFEST_WITH_BLOB: &str = include_str!("./manifest_with_blob.txt");
+    const TEST_MANIFEST: &str = include_str!("./manifest.rtm");
+    const TEST_MANIFEST_WITH_WITHDRAW: &str = include_str!("./manifest_with_withdraw.rtm");
+    const TEST_MANIFEST_WITH_BLOB: &str = include_str!("./manifest_with_blob.rtm");
 
     #[tracing_test::traced_test]
     #[test]
