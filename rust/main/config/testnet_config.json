@@ -3392,6 +3392,7 @@
         "reorgPeriod": 0
       },
       "chainId": 2,
+      "networkName": "stokenet",
       "deployer": {
         "name": "Abacus Works",
         "url": "https://www.hyperlane.xyz"
