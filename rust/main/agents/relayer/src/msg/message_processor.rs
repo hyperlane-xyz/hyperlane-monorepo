@@ -432,12 +432,9 @@ async fn confirm_already_submitted_operations(
 
     let mut ops_to_prepare = vec![];
     for op in batch.into_iter() {
-        match op.status() {
-            Retry(ReprepareReason::Manual) => {
-                ops_to_prepare.push(op);
-                continue;
-            }
-            _ => {}
+        if let Retry(ReprepareReason::Manual) = op.status() {
+            ops_to_prepare.push(op);
+            continue;
         }
         if !has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
             ops_to_prepare.push(op);
