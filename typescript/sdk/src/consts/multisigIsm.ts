@@ -534,6 +534,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Luganodes',
       },
       DEFAULT_TESSELLATED_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -703,6 +704,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x4d4629f5bfeabe66edc7a78da26ef5273c266f97',
         alias: 'Eclipse',
       },
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -896,6 +898,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91',
         alias: 'Luganodes',
       },
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -1145,6 +1148,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Luganodes',
       },
       DEFAULT_TESSELLATED_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -1212,6 +1216,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -1239,6 +1244,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xead4141b6ea149901ce4f4b556953f66d04b1d0c',
         alias: 'Lisk',
       },
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -1314,6 +1320,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -1372,6 +1379,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Luganodes',
       },
       DEFAULT_TESSELLATED_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -1384,6 +1392,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -1490,6 +1499,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x485a4f0009d9afbbf44521016f9b8cdd718e36ea',
         alias: 'Luganodes',
       },
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -1685,6 +1695,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xf9dfaa5c20ae1d84da4b2696b8dc80c919e48b12',
         alias: 'Luganodes',
       },
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -1921,6 +1932,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -2041,6 +2053,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Eclipse',
       },
       DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -2095,6 +2108,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Luganodes',
       },
       DEFAULT_TESSELLATED_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -2117,6 +2131,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -2260,6 +2275,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_BLOCKPI_VALIDATOR,
       DEFAULT_ZKV_VALIDATOR,
       DEFAULT_TESSELLATED_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -2315,6 +2331,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Luganodes',
       },
       DEFAULT_TESSELLATED_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -2350,6 +2367,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Enigma',
       },
       DEFAULT_TESSELLATED_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -2428,6 +2446,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Luganodes',
       },
       DEFAULT_TESSELLATED_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -2487,6 +2506,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Imperator',
       },
       DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
