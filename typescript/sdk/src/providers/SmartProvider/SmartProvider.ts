@@ -3,7 +3,6 @@ import { Logger, pino } from 'pino';
 
 import {
   raceWithContext,
-  retryAsync,
   rootLogger,
   runWithTimeout,
   sleep,
@@ -54,6 +53,45 @@ const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
 const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
+
+interface ErrorWithStopRetry extends Error {
+  stopRetry?: boolean;
+}
+
+/**
+ * Retries an async function if it raises an exception, using exponential backoff.
+ * Stops retrying if the error has stopRetry flag set to true.
+ * @param runner callback to run
+ * @param attempts max number of attempts
+ * @param baseRetryMs base delay between attempts
+ * @returns runner return value
+ */
+async function retryAsyncWithStopFlag<T>(
+  runner: () => T,
+  attempts = 5,
+  baseRetryMs = 50,
+) {
+  let saveError: ErrorWithStopRetry | undefined;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const result = await runner();
+      return result;
+    } catch (error) {
+      saveError = error as ErrorWithStopRetry;
+
+      // Stop retrying if the error has the stopRetry flag set
+      if (saveError.stopRetry) {
+        throw saveError;
+      }
+
+      // Don't sleep on the last attempt
+      if (i < attempts - 1) {
+        await sleep(baseRetryMs * 2 ** i);
+      }
+    }
+  }
+  throw saveError || new Error('Unknown error in retryAsyncWithStopFlag');
+}
 
 export class HyperlaneSmartProvider
   extends providers.BaseProvider
@@ -203,7 +241,7 @@ export class HyperlaneSmartProvider
     this.requestCount += 1;
     const reqId = this.requestCount;
 
-    return retryAsync(
+    return retryAsyncWithStopFlag(
       () => this.performWithFallback(method, params, supportedProviders, reqId),
       this.options?.maxRetries || DEFAULT_MAX_RETRIES,
       this.options?.baseRetryDelayMs || DEFAULT_BASE_RETRY_DELAY_MS,
@@ -313,6 +351,16 @@ export class HyperlaneSmartProvider
             isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultErrors.push(result.error);
+
+          // If this is a CALL_EXCEPTION, stop trying additional providers as it's a permanent failure
+          if ((result.error as any)?.code === EthersError.CALL_EXCEPTION) {
+            this.logger.debug(
+              { ...providerMetadata },
+              'CALL_EXCEPTION detected - stopping provider fallback as this is a permanent failure',
+            );
+            break;
+          }
+
           pIndex += 1;
         } else {
           throw new Error(
@@ -409,6 +457,14 @@ export class HyperlaneSmartProvider
         return result;
       } else if (result.status === ProviderStatus.Error) {
         combinedErrors.push(result.error);
+
+        // If this is a CALL_EXCEPTION, stop waiting for additional providers as it's a permanent failure
+        if ((result.error as any)?.code === EthersError.CALL_EXCEPTION) {
+          this.logger.debug(
+            'CALL_EXCEPTION detected in waitForProviderSuccess - stopping wait as this is a permanent failure',
+          );
+          break;
+        }
       } else {
         return {
           status: ProviderStatus.Error,
@@ -445,6 +501,11 @@ export class HyperlaneSmartProvider
       RPC_BLOCKCHAIN_ERRORS.includes(e.code),
     );
 
+    // Check if any error is a CALL_EXCEPTION - these are permanent failures that shouldn't be retried
+    const callExceptionError = errors.find(
+      (e) => e.code === EthersError.CALL_EXCEPTION,
+    );
+
     if (rpcServerError) {
       throw Error(
         rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
@@ -456,9 +517,20 @@ export class HyperlaneSmartProvider
         cause: timedOutError,
       });
     } else if (rpcBlockchainError) {
-      throw Error(rpcBlockchainError.reason ?? rpcBlockchainError.code, {
-        cause: rpcBlockchainError,
-      });
+      const error = Error(
+        rpcBlockchainError.reason ?? rpcBlockchainError.code,
+        {
+          cause: rpcBlockchainError,
+        },
+      ) as ErrorWithStopRetry;
+
+      // Mark CALL_EXCEPTION errors as non-retryable
+      if (callExceptionError) {
+        error.stopRetry = true;
+        this.logger.debug('Marking CALL_EXCEPTION error as non-retryable');
+      }
+
+      throw error;
     } else {
       this.logger.error(
         'Unhandled error case in combined provider error handler',
