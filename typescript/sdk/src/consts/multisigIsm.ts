@@ -267,7 +267,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   avalanche: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x3fb8263859843bffb02950c492d492cae169f4cf',
@@ -298,7 +298,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   base: {
-    threshold: 4,
+    threshold: 3,
     validators: [
       {
         address: '0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9',
@@ -411,7 +411,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   bob: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x20f283be1eb0e81e22f51705dcb79883cfdd34aa',
@@ -784,7 +784,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   ethereum: {
-    threshold: 6,
+    threshold: 5,
     validators: [
       {
         address: '0x03c842db86a6a3e524d4a6615390c1ea8e2b9541',
@@ -1000,7 +1000,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   gnosis: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0xd4df66a859585678f2ea8357161d896be19cc1ca',
@@ -1608,7 +1608,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   moonbeam: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0x2225e2f4e9221049456da93b71d2de41f3b6b2a8',
@@ -1995,7 +1995,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   redstone: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0x1400b9737007f7978d8b4bbafb4a69c83f0641a7',
@@ -2028,7 +2028,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   scroll: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0xad557170a9f2f21c35e03de07cb30dcbcc3dff63',
@@ -2057,7 +2057,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   sei: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5',
@@ -2560,7 +2560,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   vana: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0xfdf3b0dfd4b822d10cacb15c8ae945ea269e7534',
@@ -2665,7 +2665,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   zetachain: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef',
@@ -2709,7 +2709,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   zoramainnet: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0x35130945b625bb69b28aee902a3b9a76fa67125f',
