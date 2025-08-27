@@ -392,6 +392,7 @@ export async function updateTokenOwners({
 
     switch (multiProvider.getProtocol(chain)) {
       case ProtocolType.Ethereum: {
+        console.log('send eth transaction');
         multiProvider.sendTransaction(chain, {
           chainId: multiProvider.getEvmChainId(chain),
           annotation: `Transferring ownership of ${tokenAddress} from ${
@@ -608,14 +609,17 @@ export async function enrollCrossChainRouters(
     for (const protocol of Object.keys(protocolTransactions)) {
       switch (protocol) {
         case ProtocolType.Ethereum: {
-          for (const chain of Object.keys(protocolTransactions[protocol])) {
-            const transactions = protocolTransactions[protocol][chain];
-            const signer = multiProtocolSigner.getEVMSigner(chain);
+          // TODO: RADIX
+          // why does this fail?
+          // for (const chain of Object.keys(protocolTransactions[protocol])) {
+          //   const transactions = protocolTransactions[protocol][chain];
+          //   const signer = multiProtocolSigner.getEVMSigner(chain);
 
-            for (const transaction of transactions) {
-              await signer.sendTransaction(transaction);
-            }
-          }
+          //   for (const transaction of transactions) {
+          //     console.log('transaction', transaction);
+          //     await signer.sendTransaction(transaction);
+          //   }
+          // }
 
           break;
         }
