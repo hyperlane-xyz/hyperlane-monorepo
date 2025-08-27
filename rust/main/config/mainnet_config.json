@@ -9123,7 +9123,7 @@
       "protocol": "radix",
       "rpcUrls": [
         {
-          "http": "https://radix.rpc.grove.city/v1/326002fc/core"
+          "http": "https://radix.rpc.grove.city/v1/326002fc"
         }
       ],
       "interchainGasPaymaster": "component_rdx1cznxpn5m3kutzr6jrhgnvv0x7uhcs0rf8fl2w59hkclm6m7axzlqgu",
