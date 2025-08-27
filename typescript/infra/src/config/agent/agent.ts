@@ -256,13 +256,7 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
         case 240: // localnet
           suffix = 'loc';
           break;
-        case '240': // localnet
-          suffix = 'loc';
-          break;
         case 2: // stokenet
-          suffix = 'tdx_2_';
-          break;
-        case '2': // stokenet
           suffix = 'tdx_2_';
           break;
         default: // mainnet
