@@ -1889,6 +1889,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  radixtestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xeddaf7958627cfd35400c95db19a656a4a8a92c6',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   rarichain: {
     threshold: 2,
     validators: [

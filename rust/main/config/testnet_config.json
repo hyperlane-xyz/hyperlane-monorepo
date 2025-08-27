@@ -884,7 +884,7 @@
       "interchainAccountIsm": "0x83a3068B719F764d413625dA77468ED74789ae02",
       "interchainAccountRouter": "0x8e131c8aE5BF1Ed38D05a00892b6001a7d37739d",
       "interchainGasPaymaster": "0x6f2756380FD49228ae25Aa7F2817993cB74Ecc56",
-      "interchainSecurityModule": "0x98EB3f0e4365572876F34b83843777297278049d",
+      "interchainSecurityModule": "0x898995c9D9424f539DFF7E1087Ca493a1f29f3f7",
       "isTestnet": true,
       "mailbox": "0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766",
       "merkleTreeHook": "0x4917a9746A7B6E0A57159cCb7F5a6744247f2d0d",
@@ -3497,6 +3497,54 @@
       "index": {
         "from": 227612
       }
+    },
+    "radixtestnet": {
+      "bech32Prefix": "account_tdx_2_",
+      "blockExplorers": [
+        {
+          "apiUrl": "https://stokenet-dashboard.radixdlt.com",
+          "family": "other",
+          "name": "Radix Dashboard",
+          "url": "https://stokenet-dashboard.radixdlt.com"
+        }
+      ],
+      "blocks": {
+        "confirmations": 0,
+        "estimateBlockTime": 5,
+        "reorgPeriod": 0
+      },
+      "chainId": 2,
+      "networkName": "stokenet",
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Radix Stokenet",
+      "domainId": 1280787160,
+      "gatewayUrls": [
+        {
+          "http": "https://stokenet.radixdlt.com"
+        }
+      ],
+      "isTestnet": true,
+      "name": "radixtestnet",
+      "nativeToken": {
+        "decimals": 18,
+        "denom": "resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc",
+        "name": "Radix",
+        "symbol": "XRD"
+      },
+      "protocol": "radix",
+      "rpcUrls": [
+        {
+          "http": "https://stokenet.radixdlt.com"
+        }
+      ],
+      "interchainGasPaymaster": "component_tdx_2_1cpxu7z3y32wdyp48kc7vpwy62t6m4wu03c7capemnclcwn9y6cxvkc",
+      "interchainSecurityModule": "component_tdx_2_1czd03w0hf3gq75pyv2hqvlhek269njz2wt6x8w3pqej6mykp9fsrqc",
+      "mailbox": "component_tdx_2_1czr6pvkk72u9ecs8y830d42c3qcshqsjypltdhxa3xyujlzeq5clm8",
+      "merkleTreeHook": "component_tdx_2_1cp6xk70fyx7e57g2p87tqcsd0lt8ldvajdl63ff4td8fpmhkk8hhfj",
+      "validatorAnnounce": "component_tdx_2_1cq3wn6y87j7nw8hnqk545246mrg4q4amsmnm03hk4gxky2tsx0jy93"
     }
   }
 }

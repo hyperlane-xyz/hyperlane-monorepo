@@ -119,6 +119,9 @@
   "polygonamoy": {
     "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
   },
+  "radixtestnet": {
+    "validators": ["0xeddaf7958627cfd35400c95db19a656a4a8a92c6"]
+  },
   "scrollsepolia": {
     "validators": [
       "0xbe18dbd758afb367180260b524e6d4bcd1cb6d05",
