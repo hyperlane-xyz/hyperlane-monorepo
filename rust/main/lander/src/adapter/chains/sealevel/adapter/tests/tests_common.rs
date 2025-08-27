@@ -13,8 +13,9 @@ use solana_sdk::{
     transaction::Transaction as SealevelTransaction,
 };
 use solana_transaction_status::{
-    EncodedConfirmedTransactionWithStatusMeta, EncodedTransaction,
-    EncodedTransactionWithStatusMeta, UiConfirmedBlock,
+    option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
+    EncodedTransaction, EncodedTransactionWithStatusMeta, UiConfirmedBlock,
+    UiTransactionStatusMeta,
 };
 
 use hyperlane_base::settings::{ChainConf, RawChainConf};
@@ -262,7 +263,21 @@ pub fn encoded_svm_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
         slot: 43,
         transaction: EncodedTransactionWithStatusMeta {
             transaction: EncodedTransaction::LegacyBinary("binary".to_string()),
-            meta: None,
+            meta: Some(UiTransactionStatusMeta {
+                err: None,
+                status: Ok(()),
+                fee: 0,
+                pre_balances: Vec::new(),
+                post_balances: Vec::new(),
+                inner_instructions: OptionSerializer::None,
+                log_messages: OptionSerializer::None,
+                pre_token_balances: OptionSerializer::None,
+                post_token_balances: OptionSerializer::None,
+                rewards: OptionSerializer::None,
+                loaded_addresses: OptionSerializer::None,
+                return_data: OptionSerializer::None,
+                compute_units_consumed: OptionSerializer::None,
+            }),
             version: None,
         },
         block_time: None,
