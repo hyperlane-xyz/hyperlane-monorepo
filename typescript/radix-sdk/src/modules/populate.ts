@@ -30,30 +30,43 @@ export class RadixPopulate {
   protected gateway: GatewayApiClient;
   protected query: RadixQuery;
   protected packageAddress: string;
-  protected gasAmount: number;
+  protected gasMultiplier: number;
 
   constructor(
     gateway: GatewayApiClient,
     query: RadixQuery,
     packageAddress: string,
-    gasAmount: number,
+    gasMultiplier: number,
   ) {
     this.gateway = gateway;
     this.query = query;
     this.packageAddress = packageAddress;
-    this.gasAmount = gasAmount;
+    this.gasMultiplier = gasMultiplier;
   }
 
-  private createCallFunctionManifest(
+  private async createCallFunctionManifest(
     from_address: string,
     package_address: string | number,
     blueprint_name: string,
     function_name: string,
     args: Value[],
   ) {
+    const simulationManifest = new ManifestBuilder()
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [decimal(0)])
+      .callFunction(package_address, blueprint_name, function_name, args)
+      .callMethod(from_address, INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND, [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    const { fee } = await this.query.estimateTransactionFee({
+      transactionManifest: simulationManifest,
+    });
+
     return new ManifestBuilder()
       .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
-        decimal(this.gasAmount),
+        decimal(fee * BigInt(this.gasMultiplier)),
       ])
       .callFunction(package_address, blueprint_name, function_name, args)
       .callMethod(from_address, INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND, [
@@ -77,9 +90,26 @@ export class RadixPopulate {
     const ownerResource = (details.details as EntityDetails).role_assignments
       .owner.rule.access_rule.proof_rule.requirement.resource;
 
+    const simulationManifest = new ManifestBuilder()
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [decimal(0)])
+      .callMethod(from_address, INSTRUCTIONS.CREATE_PROOF_OF_AMOUNT, [
+        address(ownerResource),
+        decimal(1),
+      ])
+      .callMethod(contract_address, method_name, args)
+      .callMethod(from_address, INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND, [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    const { fee } = await this.query.estimateTransactionFee({
+      transactionManifest: simulationManifest,
+    });
+
     return new ManifestBuilder()
       .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
-        decimal(this.gasAmount),
+        decimal(fee * BigInt(this.gasMultiplier)),
       ])
       .callMethod(from_address, INSTRUCTIONS.CREATE_PROOF_OF_AMOUNT, [
         address(ownerResource),
@@ -93,7 +123,7 @@ export class RadixPopulate {
       .build();
   }
 
-  public transfer({
+  public async transfer({
     from_address,
     to_address,
     resource_address,
@@ -104,9 +134,30 @@ export class RadixPopulate {
     resource_address: string;
     amount: string;
   }) {
+    const simulationManifest = new ManifestBuilder()
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [decimal(0)])
+      .callMethod(from_address, INSTRUCTIONS.WITHDRAW, [
+        address(resource_address),
+        decimal(amount),
+      ])
+      .takeFromWorktop(
+        resource_address,
+        new Decimal(amount),
+        (builder, bucketId) =>
+          builder.callMethod(to_address, INSTRUCTIONS.TRY_DEPOSIT_OR_ABORT, [
+            bucket(bucketId),
+            enumeration(0),
+          ]),
+      )
+      .build();
+
+    const { fee } = await this.query.estimateTransactionFee({
+      transactionManifest: simulationManifest,
+    });
+
     return new ManifestBuilder()
       .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
-        decimal(this.gasAmount),
+        decimal(fee * BigInt(this.gasMultiplier)),
       ])
       .callMethod(from_address, INSTRUCTIONS.WITHDRAW, [
         address(resource_address),

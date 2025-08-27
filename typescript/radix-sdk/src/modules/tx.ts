@@ -58,7 +58,7 @@ export class RadixTx {
       `resource with address ${resource_address} does not exist`,
     );
 
-    const transactionManifest = this.populate.transfer({
+    const transactionManifest = await this.populate.transfer({
       from_address: this.account.address,
       to_address,
       resource_address,
@@ -69,7 +69,7 @@ export class RadixTx {
   }
 
   public async createMailbox({ domain_id }: { domain_id: number }) {
-    const transactionManifest = this.populate.createMailbox({
+    const transactionManifest = await this.populate.createMailbox({
       from_address: this.account.address,
       domain_id,
     });
@@ -81,7 +81,7 @@ export class RadixTx {
   }
 
   public async createMerkleTreeHook({ mailbox }: { mailbox: string }) {
-    const transactionManifest = this.populate.createMerkleTreeHook({
+    const transactionManifest = await this.populate.createMerkleTreeHook({
       from_address: this.account.address,
       mailbox,
     });
@@ -96,11 +96,13 @@ export class RadixTx {
     validators,
     threshold,
   }: MultisigIsmReq) {
-    const transactionManifest = this.populate.createMerkleRootMultisigIsm({
-      from_address: this.account.address,
-      validators,
-      threshold,
-    });
+    const transactionManifest = await this.populate.createMerkleRootMultisigIsm(
+      {
+        from_address: this.account.address,
+        validators,
+        threshold,
+      },
+    );
 
     const intentHashTransactionId =
       await this.signAndBroadcast(transactionManifest);
@@ -112,7 +114,7 @@ export class RadixTx {
     validators,
     threshold,
   }: MultisigIsmReq) {
-    const transactionManifest = this.populate.createMessageIdMultisigIsm({
+    const transactionManifest = await this.populate.createMessageIdMultisigIsm({
       from_address: this.account.address,
       validators,
       threshold,
@@ -129,7 +131,7 @@ export class RadixTx {
   }: {
     routes: { ism: string; domain: number }[];
   }) {
-    const transactionManifest = this.populate.createRoutingIsm({
+    const transactionManifest = await this.populate.createRoutingIsm({
       from_address: this.account.address,
       routes,
     });
@@ -141,7 +143,7 @@ export class RadixTx {
   }
 
   public async createNoopIsm() {
-    const transactionManifest = this.populate.createNoopIsm({
+    const transactionManifest = await this.populate.createNoopIsm({
       from_address: this.account.address,
     });
 
@@ -152,7 +154,7 @@ export class RadixTx {
   }
 
   public async createIgp({ denom }: { denom: string }) {
-    const transactionManifest = this.populate.createIgp({
+    const transactionManifest = await this.populate.createIgp({
       from_address: this.account.address,
       denom,
     });
@@ -219,7 +221,7 @@ export class RadixTx {
   }
 
   public async createValidatorAnnounce({ mailbox }: { mailbox: string }) {
-    const transactionManifest = this.populate.createValidatorAnnounce({
+    const transactionManifest = await this.populate.createValidatorAnnounce({
       from_address: this.account.address,
       mailbox,
     });
@@ -285,7 +287,7 @@ export class RadixTx {
     mailbox: string;
     origin_denom: string;
   }) {
-    const transactionManifest = this.populate.createCollateralToken({
+    const transactionManifest = await this.populate.createCollateralToken({
       from_address: this.account.address,
       mailbox,
       origin_denom,
@@ -310,7 +312,7 @@ export class RadixTx {
     description: string;
     divisibility: number;
   }) {
-    const transactionManifest = this.populate.createSyntheticToken({
+    const transactionManifest = await this.populate.createSyntheticToken({
       from_address: this.account.address,
       mailbox,
       name,
