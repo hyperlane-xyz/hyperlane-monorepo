@@ -155,6 +155,10 @@
     "amount": "56.551052651",
     "decimals": 9
   },
+  "radixtestnet": {
+    "amount": "50.0",
+    "decimals": 6
+  },
   "scrollsepolia": {
     "amount": "0.015680115",
     "decimals": 9

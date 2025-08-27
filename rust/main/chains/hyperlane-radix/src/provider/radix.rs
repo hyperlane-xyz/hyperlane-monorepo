@@ -480,7 +480,7 @@ impl RadixProvider {
         const TIMEOUT_DELAY: u64 = 60;
         const POLLING_INTERVAL: u64 = 2;
         const N: usize = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
-
+        let hash = encode_tx(&self.conf.network, tx_hash.into())?;
         let mut attempt = 0;
 
         let status = loop {
@@ -502,6 +502,7 @@ impl RadixProvider {
                         current_attempt = attempt,
                         total_wait_seconds = attempt as u64 * POLLING_INTERVAL,
                         status = ?tx_status.status,
+                        hash = hash,
                         "Transaction still pending, continuing to poll"
                     );
                     // Transaction is still pending, continue polling
