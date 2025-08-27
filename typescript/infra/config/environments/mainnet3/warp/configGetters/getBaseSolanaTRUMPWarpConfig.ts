@@ -30,6 +30,7 @@ export const getTRUMPWarpConfig = async (
       foreignDeployment: '21tAY4poz2VXvghqdSQpn9j7gYravQmGpuQi8pHPx9DS',
       decimals: 6,
       gas: 64000,
+      scale: 1_000_000_000_000,
     },
     base: {
       ...routerConfig.base,
