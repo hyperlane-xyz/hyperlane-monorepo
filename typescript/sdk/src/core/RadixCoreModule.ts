@@ -189,6 +189,8 @@ export class RadixCoreModule extends HyperlaneModule<
           break;
         }
         case IsmType.ROUTING: {
+          // TODO: RADIX
+          // this is no factory, set other address
           addresses.domainRoutingIsmFactory = defaultIsm;
           break;
         }

@@ -107,7 +107,7 @@ export class RadixNativeTokenAdapter
 
     return {
       networkId: this.provider.getNetworkId(),
-      manifest: this.provider.populate.transfer({
+      manifest: await this.provider.populate.transfer({
         from_address: transferParams.fromAccountOwner!,
         to_address: transferParams.recipient,
         resource_address: resource,

@@ -2,7 +2,6 @@ import { GasPrice } from '@cosmjs/stargate';
 import { BigNumber } from 'bignumber.js';
 import { ethers } from 'ethers';
 
-import { DEFAULT_FEE } from '@hyperlane-xyz/radix-sdk';
 import {
   ChainMetadataManager,
   ChainName,
@@ -102,7 +101,7 @@ export async function nativeBalancesAreSufficient(
         // hardcode min balance to 100 XRD for now, but add more accurate
         // min balance once we know how much gas it costs to run a core/warp
         // deploy on radix
-        minBalance = new BigNumber(DEFAULT_FEE);
+        minBalance = new BigNumber(100);
         minBalanceSmallestUnit = new BigNumber(minBalance).times(
           new BigNumber(10).exponentiatedBy(nativeToken.decimals),
         );
