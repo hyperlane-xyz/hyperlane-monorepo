@@ -28,7 +28,7 @@ export const getTRUMPWarpConfig = async (
       token: '6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN',
       owner: DEPLOYER,
       foreignDeployment: '21tAY4poz2VXvghqdSQpn9j7gYravQmGpuQi8pHPx9DS',
-      decimals: 18,
+      decimals: 6,
       gas: 64000,
     },
     base: {
