@@ -852,11 +852,6 @@ export class EvmHypNativeAdapter
     return false;
   }
 
-  override async getBalance(address: Address): Promise<bigint> {
-    const balance = await this.contract.balanceOf(address);
-    return BigInt(balance.toString());
-  }
-
   override async quoteTransferRemoteGas({
     destination,
     recipient,
