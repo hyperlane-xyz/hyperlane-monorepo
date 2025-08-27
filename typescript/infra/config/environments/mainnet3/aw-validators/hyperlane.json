@@ -448,5 +448,8 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+  },
+  "radix": {
+    "validators": ["0xa715a7cd97f68caeedb7be64f9e1da10f8ffafb4"]
   }
 }
