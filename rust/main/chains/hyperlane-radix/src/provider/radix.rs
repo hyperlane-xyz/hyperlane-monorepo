@@ -649,9 +649,10 @@ impl HyperlaneProvider for RadixProvider {
             );
         };
 
-        // We assume the account that locked up XRD to pay for fees is the sender of the transaction
-        let fee_payer = find_fee_payer_from_manifest(&tx_manifest, &self.conf.network)
-            .ok_or_else(|| HyperlaneRadixError::ParsingError("fee_payer not found".to_owned()))?;
+        // We assume the account that locked up XRD to pay for fees is the sender of the transaction.
+        // If we can't find fee payer, then default to H256::zero()
+        let fee_payer =
+            find_fee_payer_from_manifest(&tx_manifest, &self.conf.network).unwrap_or_default();
 
         let Some(fee_summary) = receipt.fee_summary else {
             return Err(
