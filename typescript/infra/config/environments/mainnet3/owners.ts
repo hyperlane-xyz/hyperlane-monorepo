@@ -103,4 +103,7 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   celestia: {
     owner: 'TODO: configure celestia owner',
   },
+  radix: {
+    owner: 'TODO: configure celestia owner',
+  },
 };

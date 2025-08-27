@@ -9135,7 +9135,8 @@
         "key": "0x1bf2d9eb6d9b2bd8ba49d3064375eaf72fb585aecc8873a20188740abd069646",
         "type": "radixKey",
         "suffix": "rdx"
-      }
+      },
+      "technicalStack": "other"
     }
   }
 }
