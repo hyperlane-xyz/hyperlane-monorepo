@@ -5,22 +5,39 @@ import {
 } from '@radixdlt/babylon-gateway-api-sdk';
 import {
   LTSRadixEngineToolkit,
+  ManifestBuilder,
   PrivateKey,
   RadixEngineToolkit,
+  TransactionHash,
   TransactionManifest,
+  Value,
+  address,
+  bucket,
+  decimal,
+  enumeration,
+  expression,
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
+import { Decimal } from 'decimal.js';
 import { utils } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { EntityDetails, INSTRUCTIONS } from './types.js';
+
 export class RadixBase {
   protected networkId: number;
   protected gateway: GatewayApiClient;
+  protected gasMultiplier: number;
 
-  constructor(networkId: number, gateway: GatewayApiClient) {
+  constructor(
+    networkId: number,
+    gateway: GatewayApiClient,
+    gasMultiplier: number,
+  ) {
     this.networkId = networkId;
     this.gateway = gateway;
+    this.gasMultiplier = gasMultiplier;
   }
 
   public async getXrdAddress() {
@@ -245,5 +262,157 @@ export class RadixBase {
           }
       }
     }
+  }
+
+  public async getNewComponent(transaction: TransactionHash): Promise<string> {
+    const transactionReceipt =
+      await this.gateway.transaction.getCommittedDetails(transaction.id);
+
+    const receipt = transactionReceipt.transaction.receipt;
+    assert(receipt, `found no receipt on transaction: ${transaction.id}`);
+
+    const newGlobalGenericComponent = (
+      receipt.state_updates as any
+    ).new_global_entities.find(
+      (entity: { entity_type: string }) =>
+        entity.entity_type === 'GlobalGenericComponent',
+    );
+    assert(
+      newGlobalGenericComponent,
+      `found no newly created component on transaction: ${transaction.id}`,
+    );
+
+    return newGlobalGenericComponent.entity_address;
+  }
+
+  public async createCallFunctionManifest(
+    from_address: string,
+    package_address: string | number,
+    blueprint_name: string,
+    function_name: string,
+    args: Value[],
+  ) {
+    const simulationManifest = new ManifestBuilder()
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [decimal(0)])
+      .callFunction(package_address, blueprint_name, function_name, args)
+      .callMethod(from_address, INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND, [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    const { fee } = await this.estimateTransactionFee({
+      transactionManifest: simulationManifest,
+    });
+
+    return new ManifestBuilder()
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
+        decimal(fee * BigInt(this.gasMultiplier)),
+      ])
+      .callFunction(package_address, blueprint_name, function_name, args)
+      .callMethod(from_address, INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND, [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+  }
+
+  public async createCallMethodManifestWithOwner(
+    from_address: string,
+    contract_address: string,
+    method_name: string,
+    args: Value[],
+  ) {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(
+        contract_address,
+      );
+
+    const ownerResource = (details.details as EntityDetails).role_assignments
+      .owner.rule.access_rule.proof_rule.requirement.resource;
+
+    const simulationManifest = new ManifestBuilder()
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [decimal(0)])
+      .callMethod(from_address, INSTRUCTIONS.CREATE_PROOF_OF_AMOUNT, [
+        address(ownerResource),
+        decimal(1),
+      ])
+      .callMethod(contract_address, method_name, args)
+      .callMethod(from_address, INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND, [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+
+    const { fee } = await this.estimateTransactionFee({
+      transactionManifest: simulationManifest,
+    });
+
+    return new ManifestBuilder()
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
+        decimal(fee * BigInt(this.gasMultiplier)),
+      ])
+      .callMethod(from_address, INSTRUCTIONS.CREATE_PROOF_OF_AMOUNT, [
+        address(ownerResource),
+        decimal(1),
+      ])
+      .callMethod(contract_address, method_name, args)
+      .callMethod(from_address, INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND, [
+        expression('EntireWorktop'),
+        enumeration(0),
+      ])
+      .build();
+  }
+
+  public async transfer({
+    from_address,
+    to_address,
+    resource_address,
+    amount,
+  }: {
+    from_address: string;
+    to_address: string;
+    resource_address: string;
+    amount: string;
+  }) {
+    const simulationManifest = new ManifestBuilder()
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [decimal(0)])
+      .callMethod(from_address, INSTRUCTIONS.WITHDRAW, [
+        address(resource_address),
+        decimal(amount),
+      ])
+      .takeFromWorktop(
+        resource_address,
+        new Decimal(amount),
+        (builder, bucketId) =>
+          builder.callMethod(to_address, INSTRUCTIONS.TRY_DEPOSIT_OR_ABORT, [
+            bucket(bucketId),
+            enumeration(0),
+          ]),
+      )
+      .build();
+
+    const { fee } = await this.estimateTransactionFee({
+      transactionManifest: simulationManifest,
+    });
+
+    return new ManifestBuilder()
+      .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
+        decimal(fee * BigInt(this.gasMultiplier)),
+      ])
+      .callMethod(from_address, INSTRUCTIONS.WITHDRAW, [
+        address(resource_address),
+        decimal(amount),
+      ])
+      .takeFromWorktop(
+        resource_address,
+        new Decimal(amount),
+        (builder, bucketId) =>
+          builder.callMethod(to_address, INSTRUCTIONS.TRY_DEPOSIT_OR_ABORT, [
+            bucket(bucketId),
+            enumeration(0),
+          ]),
+      )
+      .build();
   }
 }
