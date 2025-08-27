@@ -191,9 +191,9 @@ export class WarpCore {
     }
 
     let feeTokenAmount: TokenAmount | undefined;
-    if (feeAmount && feeAddressOrDenom) {
-      // zero address is native route
-      if (isZeroishAddress(feeAddressOrDenom)) {
+    if (feeAmount) {
+      // empty address or zero address is native route
+      if (!feeAddressOrDenom || isZeroishAddress(feeAddressOrDenom)) {
         const nativeToken = Token.FromChainMetadataNativeToken(
           this.multiProvider.getChainMetadata(originName),
         );
@@ -583,7 +583,7 @@ export class WarpCore {
         senderPubKey,
       });
     }
-    const { localQuote, interchainQuote } = feeEstimate;
+    const { localQuote, interchainQuote, tokenFeeQuote } = feeEstimate;
 
     let maxAmount = balance;
     if (originToken.isFungibleWith(localQuote.token)) {
@@ -592,6 +592,19 @@ export class WarpCore {
 
     if (originToken.isFungibleWith(interchainQuote.token)) {
       maxAmount = maxAmount.minus(interchainQuote.amount);
+    }
+    if (originToken.isFungibleWith(tokenFeeQuote?.token)) {
+      const { tokenFeeQuote: newFeeQuote } =
+        await this.getInterchainTransferFee({
+          originTokenAmount: maxAmount,
+          destination,
+          recipient,
+          sender,
+        });
+      // Because tokenFeeQuote is calculated based on the amount, we need to recalculate
+      // the tokenFeeQuote after subtracting the localQuote and IGP to get max transfer amount
+      // to be as close as possible
+      maxAmount = maxAmount.minus(newFeeQuote?.amount || 0n);
     }
 
     if (maxAmount.amount > 0) return maxAmount;
@@ -887,7 +900,7 @@ export class WarpCore {
     if (amount > senderBalance) return { amount: 'Insufficient balance' };
 
     // Check 2: Ensure the balance can cover interchain fee
-    // Slightly redundant with Check 4 but gives more specific error messages
+    // Slightly redundant with Check 5 but gives more specific error messages
 
     const { igpQuote: interchainQuote, tokenFeeQuote } =
       await this.getInterchainTransferFee({
@@ -908,7 +921,18 @@ export class WarpCore {
       };
     }
 
-    // Check 3: Simulates the transfer by getting the local gas fee
+    // Check 3: Ensure the balance can cover the token fee which would be the same asset as the originTokenValue
+    // Slightly redundant with Check 5 but gives more specific error messages
+    if (
+      tokenFeeQuote?.amount &&
+      amount + tokenFeeQuote.amount > senderBalance
+    ) {
+      return {
+        amount: `Insufficient balance to cover token fee`,
+      };
+    }
+
+    // Check 4: Simulates the transfer by getting the local gas fee
     const localQuote = await this.getLocalTransferFeeAmount({
       originToken,
       destination,
@@ -920,7 +944,7 @@ export class WarpCore {
 
     const feeEstimate = { interchainQuote, localQuote };
 
-    // Check 4: Ensure balances can cover the COMBINED amount and fees
+    // Check 5: Ensure balances can cover the COMBINED amount and fees
     const maxTransfer = await this.getMaxTransferAmount({
       balance: senderBalanceAmount,
       destination,
