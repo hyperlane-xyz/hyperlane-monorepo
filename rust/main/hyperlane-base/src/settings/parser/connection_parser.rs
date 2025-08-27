@@ -557,7 +557,7 @@ fn parse_header(
         ValueParser {
             val: value @ Value::Array(_),
             ..
-        } => ValueParser::new(header.cwp.clone(), &value)
+        } => ValueParser::new(header.cwp.clone(), value)
             .chain(&mut local_err)
             .parse_value::<Vec<HashMap<String, String>>>("failed to parse header")
             .unwrap_or_default(),
