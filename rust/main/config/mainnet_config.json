@@ -9104,6 +9104,7 @@
         "name": "Abacus Works",
         "url": "https://www.hyperlane.xyz"
       },
+      "networkName": "mainnet",
       "displayName": "Radix",
       "domainId": 1633970780,
       "gasCurrencyCoinGeckoId": "radix",
