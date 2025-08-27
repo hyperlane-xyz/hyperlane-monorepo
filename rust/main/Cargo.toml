@@ -10,6 +10,7 @@ members = [
   "chains/hyperlane-cosmos-native",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
+  "chains/hyperlane-radix",
   "chains/hyperlane-sealevel",
   "chains/hyperlane-starknet",
   "chains/hyperlane-dango",
@@ -198,6 +199,18 @@ dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", 
 dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", branch = "dango/gateway-native" }
 dango-testing = { git = "https://github.com/left-curve/left-curve.git", branch = "dango/gateway-native" }
 dango-genesis = { git = "https://github.com/left-curve/left-curve.git", branch = "dango/gateway-native" }
+radix-common = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+radix-transactions = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+radix-engine-interface = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+scrypto = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
+  "serde",
+] }
+core-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
+gateway-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
+scrypto-derive = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
+  "serde",
+] }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"

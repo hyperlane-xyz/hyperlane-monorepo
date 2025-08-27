@@ -96,7 +96,9 @@ impl LatestCheckpointReorgReporter {
         settings: &ValidatorSettings,
         origin: &HyperlaneDomain,
     ) -> Vec<(Url, ValidatorSettings)> {
-        use ChainConnectionConf::{Cosmos, CosmosNative, Ethereum, Fuel, Sealevel, Starknet, Dango};
+        use ChainConnectionConf::{
+            Cosmos, CosmosNative, Ethereum, Fuel, Radix, Sealevel, Starknet, Dango,
+        };
 
         let chain_conf = settings
             .chains
@@ -143,6 +145,13 @@ impl LatestCheckpointReorgReporter {
             Dango(conn) => {
                 // TODO: currently we support 1 connection, need to be refractored
                 vec![(conn.httpd_url.clone(), Dango(conn))]
+            }
+            Radix(conn) => {
+                Self::map_urls_to_connections(conn.gateway.clone(), conn, |conn, url| {
+                    let mut updated_conn = conn.clone();
+                    updated_conn.gateway = vec![url];
+                    Radix(updated_conn)
+                })
             }
         };
 

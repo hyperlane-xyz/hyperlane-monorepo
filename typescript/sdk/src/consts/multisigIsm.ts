@@ -539,6 +539,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  celosepolia: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x4a5cfcfd7f793f4ceba170c3decbe43bd8253ef6',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   cheesechain: {
     threshold: 2,
     validators: [
@@ -1063,6 +1073,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  incentivtestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x3133eeb96fd96f9f99291088613edf7401149e6f',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   inevm: {
     threshold: 2,
     validators: [
@@ -1460,11 +1480,21 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mitosis: {
-    threshold: 1,
+    threshold: 3,
     validators: [
       {
         address: '0x3b3eb808d90a4e19bb601790a6b6297812d6a61f',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0x401f25ff73769ed85bdb449a4347a4fd2678acfe',
+        alias: 'Enigma',
+      },
+      {
+        address: '0x340058f071e8376c2ecff219e1e6620deea8a3c7',
+        alias: 'Substance Labs',
       },
     ],
   },
@@ -1856,6 +1886,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  radixtestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xeddaf7958627cfd35400c95db19a656a4a8a92c6',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 

@@ -29,6 +29,7 @@ use hyperlane_ethereum::{
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
+use hyperlane_radix::{self as h_radix, RadixProvider};
 use hyperlane_sealevel::{
     self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
 };
@@ -179,6 +180,8 @@ pub enum ChainConnectionConf {
     Starknet(h_starknet::ConnectionConf),
     /// Cosmos native configuration
     CosmosNative(h_cosmos_native::ConnectionConf),
+    /// Radix configuration
+    Radix(h_radix::ConnectionConf),
     /// Dango configuration
     Dango(h_dango::ConnectionConf),
 }
@@ -193,6 +196,7 @@ impl ChainConnectionConf {
             Self::Cosmos(_) => HyperlaneDomainProtocol::Cosmos,
             Self::Starknet(_) => HyperlaneDomainProtocol::Starknet,
             Self::CosmosNative(_) => HyperlaneDomainProtocol::CosmosNative,
+            Self::Radix(_) => HyperlaneDomainProtocol::Radix,
             Self::Dango(_) => HyperlaneDomainProtocol::Dango,
         }
     }
@@ -273,6 +277,10 @@ impl ChainConf {
                 h_cosmos::application::CosmosApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Radix(_) => Ok(Box::new(
+                h_radix::application::RadixApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
             ChainConnectionConf::Dango(_) => Ok(Box::new(
                 h_dango::application::DangoApplicationOperationVerifier::new(),
             )),
@@ -317,6 +325,10 @@ impl ChainConf {
             }
             ChainConnectionConf::CosmosNative(conf) => {
                 let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Dango(conf) => Ok(conf.build_provider(locator.domain, None)?),
@@ -381,6 +393,12 @@ impl ChainConf {
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
+            ChainConnectionConf::Radix(conf) => {
+                let signer = self.radix_signer().await?;
+                let provider = build_radix_provider(self, conf, metrics, &locator, signer)?;
+                let mailbox = h_radix::RadixMailbox::new(provider, &locator, conf)?;
+                Ok(Box::new(mailbox) as Box<dyn Mailbox>)
+            }
             ChainConnectionConf::Dango(conf) => {
                 let signer: Option<hyperlane_dango::DangoSigner> = self.dango_signer().await.context(ctx)?;
                 Ok(
@@ -433,6 +451,12 @@ impl ChainConf {
                 let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
                 let hook =
                     h_cosmos_native::CosmosNativeMerkleTreeHook::new(provider, locator.clone())?;
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let hook = h_radix::indexer::RadixMerkleTreeIndexer::new(provider, &locator, conf)?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
@@ -524,6 +548,13 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let indexer =
+                    h_radix::indexer::RadixDispatchIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
             ChainConnectionConf::Dango(conf) => {
                 let signer = self.dango_signer().await.context(ctx)?;
                 let indexer = Box::new(h_dango::contracts::DangoMailbox::new(conf, &locator, signer)?);
@@ -600,6 +631,13 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let indexer =
+                    h_radix::indexer::RadixDeliveryIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
+            }
             // TODO: DANGO - requested only by the scraper
             ChainConnectionConf::Dango(_) => todo!(),
         }
@@ -654,6 +692,13 @@ impl ChainConf {
                 let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
                 let indexer = Box::new(h_cosmos_native::CosmosNativeInterchainGas::new(
                     provider, conf, locator,
+                )?);
+                Ok(indexer as Box<dyn InterchainGasPaymaster>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_radix::indexer::RadixInterchainGasIndexer::new(
+                    provider, &locator, conf,
                 )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
@@ -726,6 +771,13 @@ impl ChainConf {
                     provider,
                     conf,
                     locator,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_radix::indexer::RadixInterchainGasIndexer::new(
+                    provider, &locator, conf,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
@@ -813,6 +865,13 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_radix::indexer::RadixMerkleTreeIndexer::new(
+                    provider, &locator, conf,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
             ChainConnectionConf::Dango(conf) => {
                 let indexer = Box::new(h_dango::contracts::DangoMerkleTree::new(conf, &locator, None)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
@@ -870,6 +929,13 @@ impl ChainConf {
                 )?);
 
                 Ok(va as Box<dyn ValidatorAnnounce>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let signer = self.radix_signer().await?;
+                let provider = build_radix_provider(self, conf, metrics, &locator, signer)?;
+                let validator_announce =
+                    h_radix::RadixValidatorAnnounce::new(provider, &locator, conf)?;
+                Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
             }
             ChainConnectionConf::Dango(conf) => {
                 let signer = self.dango_signer().await.context(ctx)?;
@@ -933,6 +999,11 @@ impl ChainConf {
                 let ism = Box::new(h_cosmos_native::CosmosNativeIsm::new(provider, locator)?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
+            }
             ChainConnectionConf::Dango(conf) => {
                 let ism = Box::new(h_dango::contracts::DangoIsm::new(conf, &locator, None)?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
@@ -985,6 +1056,11 @@ impl ChainConf {
                     Box::new(h_cosmos_native::CosmosNativeIsm::new(provider, locator)?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn MultisigIsm>)
+            }
             ChainConnectionConf::Dango(conf) => {
                 let ism = Box::new(h_dango::contracts::DangoIsm::new(conf, &locator, None)?);
                 Ok(ism as Box<dyn MultisigIsm>)
@@ -1030,6 +1106,11 @@ impl ChainConf {
                 let ism: Box<hyperlane_cosmos_native::CosmosNativeIsm> =
                     Box::new(h_cosmos_native::CosmosNativeIsm::new(provider, locator)?);
                 Ok(ism as Box<dyn RoutingIsm>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Dango(_) => {
                 Err(eyre!("Dango does not support routing ISM yet")).context(ctx)
@@ -1077,6 +1158,9 @@ impl ChainConf {
             ChainConnectionConf::CosmosNative(_) => {
                 Err(eyre!("Cosmos Native does not support aggregation ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Radix(_) => {
+                todo!("Radix aggregation ISM not yet implemented")
+            }
             ChainConnectionConf::Dango(_) => {
                 Err(eyre!("Dango does not support aggregation ISM yet")).context(ctx)
             }
@@ -1114,6 +1198,9 @@ impl ChainConf {
             ChainConnectionConf::CosmosNative(_) => {
                 Err(eyre!("Cosmos Native does not support CCIP read ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Radix(_) => {
+                Err(eyre!("Radix does not support CCIP read ISM yet")).context(ctx)
+            }
             ChainConnectionConf::Dango(_) => {
                 Err(eyre!("Dango does not support CCIP read ISM yet")).context(ctx)
             }
@@ -1148,6 +1235,9 @@ impl ChainConf {
                 ChainConnectionConf::CosmosNative(_) => {
                     Box::new(conf.build::<h_cosmos_native::Signer>().await?)
                 }
+                ChainConnectionConf::Radix(_) => {
+                    Box::new(conf.build::<h_radix::RadixSigner>().await?)
+                }
                 ChainConnectionConf::Dango(_) => {
                     Box::new(conf.build::<h_dango::DangoSigner>().await?)
                 }
@@ -1181,6 +1271,10 @@ impl ChainConf {
     }
 
     async fn cosmos_native_signer(&self) -> Result<Option<h_cosmos_native::Signer>> {
+        self.signer().await
+    }
+
+    async fn radix_signer(&self) -> Result<Option<hyperlane_radix::RadixSigner>> {
         self.signer().await
     }
 
@@ -1372,4 +1466,14 @@ fn build_cosmos_native_provider(
         metrics,
         middleware_metrics.chain.clone(),
     )
+}
+
+fn build_radix_provider(
+    chain_conf: &ChainConf,
+    connection_conf: &h_radix::ConnectionConf,
+    _metrics: &CoreMetrics,
+    locator: &ContractLocator,
+    signer: Option<h_radix::RadixSigner>,
+) -> ChainResult<RadixProvider> {
+    RadixProvider::new(signer, connection_conf, locator, &chain_conf.reorg_period)
 }

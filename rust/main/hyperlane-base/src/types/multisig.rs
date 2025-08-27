@@ -267,7 +267,7 @@ impl MultisigCheckpointSyncer {
 }
 
 #[cfg(test)]
-pub mod test {
+mod test {
     use std::str::FromStr;
 
     use aws_config::Region;
