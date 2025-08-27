@@ -17,6 +17,7 @@ use hyperlane_starknet as h_starknet;
 
 use hyperlane_dango as h_dango;
 
+use crate::settings::parser::recase_json_value;
 use crate::settings::{envs::*, ChainConnectionConf};
 
 use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};

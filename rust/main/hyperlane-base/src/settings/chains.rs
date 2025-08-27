@@ -36,7 +36,6 @@ use hyperlane_sealevel::{
 use hyperlane_starknet::{self as h_starknet};
 
 use hyperlane_dango as h_dango;
-use warp::filters::log::Info;
 
 use crate::{
     metrics::AgentMetricsConf,
@@ -400,11 +399,11 @@ impl ChainConf {
                 Ok(Box::new(mailbox) as Box<dyn Mailbox>)
             }
             ChainConnectionConf::Dango(conf) => {
-                let signer: Option<hyperlane_dango::DangoSigner> = self.dango_signer().await.context(ctx)?;
-                Ok(
-                    Box::new(h_dango::contracts::DangoMailbox::new(conf, &locator, signer)?)
-                        as Box<dyn Mailbox>,
-                )
+                let signer: Option<hyperlane_dango::DangoSigner> =
+                    self.dango_signer().await.context(ctx)?;
+                Ok(Box::new(h_dango::contracts::DangoMailbox::new(
+                    conf, &locator, signer,
+                )?) as Box<dyn Mailbox>)
             }
         }
         .context(ctx)
@@ -462,10 +461,9 @@ impl ChainConf {
             }
             ChainConnectionConf::Dango(conf) => {
                 let signer = self.dango_signer().await.context(ctx)?;
-                Ok(
-                    Box::new(h_dango::contracts::DangoMerkleTree::new(conf, &locator, signer)?)
-                        as Box<dyn MerkleTreeHook>,
-                )
+                Ok(Box::new(h_dango::contracts::DangoMerkleTree::new(
+                    conf, &locator, signer,
+                )?) as Box<dyn MerkleTreeHook>)
             }
         }
         .context(ctx)
@@ -557,7 +555,9 @@ impl ChainConf {
             }
             ChainConnectionConf::Dango(conf) => {
                 let signer = self.dango_signer().await.context(ctx)?;
-                let indexer = Box::new(h_dango::contracts::DangoMailbox::new(conf, &locator, signer)?);
+                let indexer = Box::new(h_dango::contracts::DangoMailbox::new(
+                    conf, &locator, signer,
+                )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
         }
@@ -873,7 +873,9 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::Dango(conf) => {
-                let indexer = Box::new(h_dango::contracts::DangoMerkleTree::new(conf, &locator, None)?);
+                let indexer = Box::new(h_dango::contracts::DangoMerkleTree::new(
+                    conf, &locator, None,
+                )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
         }
