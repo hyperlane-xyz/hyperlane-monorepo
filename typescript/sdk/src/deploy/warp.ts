@@ -1,4 +1,4 @@
-import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
@@ -367,6 +367,73 @@ async function createWarpHook({
     }
     default:
       throw new Error(`Protocol type ${protocolType} not supported`);
+  }
+}
+
+export async function updateTokenOwners({
+  deployedContracts,
+  warpDeployConfig,
+  multiProvider,
+  multiProtocolSigner,
+}: {
+  deployedContracts: ChainMap<string>;
+  multiProvider: MultiProvider;
+  multiProtocolSigner: IMultiProtocolSignerManager;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}) {
+  for (const chain of Object.keys(warpDeployConfig)) {
+    const signerAddress = await multiProtocolSigner.getSignerAddress(chain);
+    const newOwner = warpDeployConfig[chain].owner;
+    const tokenAddress = deployedContracts[chain];
+
+    if (signerAddress === newOwner) {
+      continue;
+    }
+
+    switch (multiProvider.getProtocol(chain)) {
+      case ProtocolType.Ethereum: {
+        multiProvider.sendTransaction(chain, {
+          chainId: multiProvider.getEvmChainId(chain),
+          annotation: `Transferring ownership of ${tokenAddress} from ${
+            signerAddress
+          } to ${newOwner}`,
+          to: tokenAddress,
+          data: Ownable__factory.createInterface().encodeFunctionData(
+            'transferOwnership',
+            [newOwner],
+          ),
+        });
+        break;
+      }
+      case ProtocolType.CosmosNative: {
+        const signer = multiProtocolSigner.getCosmosNativeSigner(chain);
+
+        const { token } = await signer.query.warp.Token({
+          id: tokenAddress,
+        });
+
+        await signer.setToken({
+          token_id: tokenAddress,
+          ism_id: token?.ism_id ?? '',
+          new_owner: newOwner,
+          renounce_ownership: !newOwner, // if owner is empty we renounce the ownership
+        });
+        break;
+      }
+      case ProtocolType.Radix: {
+        const signer = multiProtocolSigner.getRadixSigner(chain);
+        await signer.tx.setTokenOwner({
+          token: tokenAddress,
+          new_owner: newOwner,
+        });
+        break;
+      }
+      default: {
+        throw new Error(
+          `Protocol type ${multiProvider.getProtocol(chain)} not supported`,
+        );
+      }
+    }
   }
 }
 

@@ -44,6 +44,7 @@ import {
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
+  updateTokenOwners,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -162,6 +163,13 @@ export async function runWarpRouteDeploy({
     { multiProvider, multiProtocolSigner, registryAddresses, warpDeployConfig },
     deployedContracts,
   );
+
+  await updateTokenOwners({
+    deployedContracts,
+    multiProvider,
+    multiProtocolSigner,
+    warpDeployConfig,
+  });
 
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
     deploymentParams,

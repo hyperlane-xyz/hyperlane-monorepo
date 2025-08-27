@@ -129,7 +129,11 @@ export {
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
-export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
+export {
+  executeWarpDeploy,
+  enrollCrossChainRouters,
+  updateTokenOwners,
+} from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
   SealevelOverheadIgpAdapter,
