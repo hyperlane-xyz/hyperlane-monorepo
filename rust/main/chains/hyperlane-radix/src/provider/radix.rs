@@ -691,7 +691,7 @@ impl HyperlaneProvider for RadixProvider {
             // TODO: hard to tell what the tx interacted with, this can be with more than just one person, maybe use the the first component address?
             recipient: None,
             receipt: Some(TxnReceiptInfo {
-                gas_used: decimal_to_u256(fee_paid),
+                gas_used: U256::from(gas_limit),
                 cumulative_gas_used: gas_price,
                 effective_gas_price: Some(gas_price),
             }),
