@@ -156,8 +156,8 @@
     "decimals": 9
   },
   "radixtestnet": {
-    "amount": "1.0",
-    "decimals": 18
+    "amount": "50.0",
+    "decimals": 6
   },
   "scrollsepolia": {
     "amount": "0.015680115",
