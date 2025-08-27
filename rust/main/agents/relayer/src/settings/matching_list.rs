@@ -199,7 +199,7 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
     }
 }
 
-impl<'de> Visitor<'de> for FilterVisitor<RegexWrapper> {
+impl Visitor<'_> for FilterVisitor<RegexWrapper> {
     type Value = RegexWrapper;
 
     fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {

@@ -102,6 +102,7 @@ impl fmt::Display for FromHexError {
 /// Decode given (both 0x-prefixed or not) hex string into a vector of bytes.
 ///
 /// Returns an error if non-hex characters are present.
+#[allow(clippy::manual_div_ceil)] // can't use `.div_ceil` because it still unstables in `sbf`
 pub fn from_hex(v: &str) -> Result<Vec<u8>, FromHexError> {
     let (v, stripped) = v.strip_prefix("0x").map_or((v, false), |v| (v, true));
 
@@ -196,7 +197,7 @@ pub enum ExpectedLen<'a> {
     Between(usize, &'a mut [u8]),
 }
 
-impl<'a> fmt::Display for ExpectedLen<'a> {
+impl fmt::Display for ExpectedLen<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ExpectedLen::Exact(ref v) => write!(fmt, "{} bytes", v.len()),
@@ -271,7 +272,7 @@ where
         len: ExpectedLen<'a>,
     }
 
-    impl<'a, 'b> de::Visitor<'b> for Visitor<'a> {
+    impl<'b> de::Visitor<'b> for Visitor<'_> {
         type Value = usize;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

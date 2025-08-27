@@ -82,8 +82,7 @@ impl GrpcProvider {
                     .map(CosmosGrpcClient::new)
                     .map_err(Into::<HyperlaneCosmosError>::into)
             })
-            .collect::<Result<Vec<CosmosGrpcClient>, _>>()
-            .map_err(HyperlaneCosmosError::from)?;
+            .collect::<Result<Vec<CosmosGrpcClient>, _>>()?;
 
         let fallback = FallbackProvider::new(clients);
         Ok(Self { fallback })

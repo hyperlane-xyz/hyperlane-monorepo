@@ -369,6 +369,7 @@ impl PartialEq for QueueOperation {
 
 impl Eq for QueueOperation {}
 
+#[allow(clippy::unnecessary_map_or)] // can't use `.is_ok_and` because it still unstables in `sbf`
 impl Ord for QueueOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         use Ordering::*;
