@@ -8,5 +8,5 @@ export type Account = {
 
 export interface RadixSDKOptions {
   networkId?: number;
-  gasAmount?: number;
+  gasMultiplier?: number;
 }

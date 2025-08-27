@@ -26,7 +26,7 @@ const NETWORKS = {
 
 export { NetworkId };
 
-export const DEFAULT_FEE = 100;
+export const DEFAULT_GAS_MULTIPLIER = 1.2;
 
 export class RadixSDK {
   protected networkId: number;
@@ -59,7 +59,7 @@ export class RadixSDK {
       this.gateway,
       this.query,
       this.packageAddress,
-      options?.gasAmount ?? DEFAULT_FEE,
+      options?.gasMultiplier ?? DEFAULT_GAS_MULTIPLIER,
     );
   }
 
