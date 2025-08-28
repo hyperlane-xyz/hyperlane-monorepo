@@ -312,8 +312,8 @@ function preprocessWarpRouteDeployConfig(
     HypTokenRouterConfigMailboxOptional
   >;
   objMap(mutatedConfig, (_, config) => {
-    // Default token fee owner and token to the router owner and token, if not specified
     if (isCollateralTokenConfig(config) && config.tokenFee) {
+      // Default token fee owner and token to the router owner and token, if not specified
       config.tokenFee = {
         ...config.tokenFee,
         owner: config.tokenFee.owner ?? config.owner,

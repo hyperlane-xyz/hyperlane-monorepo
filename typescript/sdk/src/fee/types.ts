@@ -21,6 +21,12 @@ export enum TokenFeeType {
   RoutingFee = 'RoutingFee',
 }
 
+export const ImmutableTokenFeeType = [
+  TokenFeeType.LinearFee,
+  TokenFeeType.RegressiveFee,
+  TokenFeeType.ProgressiveFee,
+] as const;
+
 // Mapping between the on-chain token fee type (uint) and the token fee type (string)
 export const onChainTypeToTokenFeeTypeMap: Record<
   OnchainTokenFeeType,
