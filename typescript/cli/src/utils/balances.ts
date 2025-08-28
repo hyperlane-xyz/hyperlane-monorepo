@@ -87,15 +87,13 @@ export async function nativeBalancesAreSufficient(
       }
       case ProtocolType.Radix: {
         const provider = multiProtocolProvider.getRadixProvider(chain);
-        const { gasPrice, nativeToken } =
-          metadataManager.getChainMetadata(chain);
+        const { nativeToken } = metadataManager.getChainMetadata(chain);
 
         assert(nativeToken, `nativeToken is not defined on chain ${chain}`);
         assert(
           nativeToken.denom,
           `nativeToken denom is not defined on chain ${chain}`,
         );
-        assert(gasPrice, `gasPrice is not defined on chain ${chain}`);
 
         // TODO: RADIX
         // hardcode min balance to 100 XRD for now, but add more accurate

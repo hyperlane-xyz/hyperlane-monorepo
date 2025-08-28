@@ -12,7 +12,7 @@ import {
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { Account } from '../types.js';
 
@@ -507,8 +507,11 @@ export class RadixTx {
   }
 
   private async getNewComponent(transaction: TransactionHash): Promise<string> {
-    const transactionReceipt =
-      await this.gateway.transaction.getCommittedDetails(transaction.id);
+    const transactionReceipt = await retryAsync(
+      () => this.gateway.transaction.getCommittedDetails(transaction.id),
+      5,
+      5000,
+    );
 
     const receipt = transactionReceipt.transaction.receipt;
     assert(receipt, `found no receipt on transaction: ${transaction.id}`);

@@ -13,7 +13,7 @@ import {
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { RTransaction } from '../../../sdk/dist/providers/ProviderType.js';
 
@@ -189,8 +189,13 @@ export function useRadixTransactionFns(
           `Radix tx failed: ${transactionResult}`,
         );
 
-        const receipt = await gatewayApi.transaction.getCommittedDetails(
-          transactionResult.value.transactionIntentHash,
+        const receipt = await retryAsync(
+          () =>
+            gatewayApi.transaction.getCommittedDetails(
+              transactionResult.value.transactionIntentHash,
+            ),
+          5,
+          5000,
         );
 
         return {
