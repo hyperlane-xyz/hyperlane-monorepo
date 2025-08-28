@@ -10,8 +10,6 @@ import { RadixTx } from './modules/tx.js';
 import { Account, RadixSDKOptions } from './types.js';
 import { generateNewEd25519VirtualAccount } from './utils.js';
 
-// TODO: RADIX
-// add mainnet package address after deploying it over https://console.radixdlt.com/deploy-package
 const NETWORKS = {
   [NetworkId.Stokenet]: {
     applicationName: 'hyperlane',
@@ -20,7 +18,8 @@ const NETWORKS = {
   },
   [NetworkId.Mainnet]: {
     applicationName: 'hyperlane',
-    packageAddress: '',
+    packageAddress:
+      'package_rdx1pk3ldj3ktxuw6sv5txspjt2a8s42c7xxcn6wnf5yuytdrcqhpflfkc',
   },
 };
 
