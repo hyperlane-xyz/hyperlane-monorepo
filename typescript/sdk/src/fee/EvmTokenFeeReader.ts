@@ -15,12 +15,17 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   FeeParameters,
   OnchainTokenFeeType,
+  RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeType,
   onChainTypeToTokenFeeTypeMap,
 } from './types.js';
 
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
+
+export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
+  feeContracts: Record<ChainName, DerivedTokenFeeConfig>;
+};
 
 const MAX_BPS = 10_000n; // 100% in bps
 export class EvmTokenFeeReader extends HyperlaneReader {
@@ -31,10 +36,11 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     super(multiProvider, chain);
   }
 
-  async deriveTokenFeeConfig(
-    address: Address,
-    destinations?: number[],
-  ): Promise<DerivedTokenFeeConfig> {
+  async deriveTokenFeeConfig(params: {
+    address: Address;
+    routingDestinations?: number[];
+  }): Promise<DerivedTokenFeeConfig> {
+    const { address, routingDestinations } = params;
     const tokenFee = BaseFee__factory.connect(address, this.provider);
 
     let derivedConfig: DerivedTokenFeeConfig;
@@ -51,12 +57,12 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         break;
       case OnchainTokenFeeType.RoutingFee:
         assert(
-          destinations,
-          `Destinations required for ${onChainTypeToTokenFeeTypeMap[onchainFeeType]}`,
+          routingDestinations,
+          `routingDestinations required for ${onChainTypeToTokenFeeTypeMap[onchainFeeType]}`,
         );
         derivedConfig = await this.deriveRoutingFeeConfig(
           address,
-          destinations,
+          routingDestinations,
         );
         break;
       default:
@@ -105,7 +111,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
 
   private async deriveRoutingFeeConfig(
     address: Address,
-    destinations: number[],
+    routingDestinations: number[],
   ): Promise<DerivedTokenFeeConfig> {
     const routingFee = RoutingFee__factory.connect(address, this.provider);
     const [token, owner, maxFee, halfAmount] = await Promise.all([
@@ -120,12 +126,16 @@ export class EvmTokenFeeReader extends HyperlaneReader {
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
     await Promise.all(
-      destinations.map(async (destination) => {
+      routingDestinations.map(async (destination) => {
         const subFeeAddress = await routingFee.feeContracts(destination);
         if (subFeeAddress === constants.AddressZero) return;
         const chainName = this.multiProvider.getChainName(destination);
-        feeContracts[chainName] =
-          await this.deriveTokenFeeConfig(subFeeAddress);
+        feeContracts[chainName] = await this.deriveTokenFeeConfig({
+          address: subFeeAddress,
+
+          // sub routing fees may have different routingDestinations
+          // However, we don't expect sub routing fees
+        });
       }),
     );
     return {
