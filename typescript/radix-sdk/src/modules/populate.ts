@@ -65,7 +65,12 @@ export class RadixPopulate {
 
     return new ManifestBuilder()
       .callMethod(from_address, 'lock_fee', [
-        decimal(fee * BigInt(this.gasMultiplier)),
+        decimal(
+          new BigNumber(fee.toString())
+            .times(this.gasMultiplier)
+            .dividedBy(new BigNumber(10).exponentiatedBy(18))
+            .toFixed(),
+        ),
       ])
       .callFunction(package_address, blueprint_name, function_name, args)
       .callMethod(from_address, 'try_deposit_batch_or_refund', [
@@ -108,7 +113,12 @@ export class RadixPopulate {
 
     return new ManifestBuilder()
       .callMethod(from_address, 'lock_fee', [
-        decimal(fee * BigInt(this.gasMultiplier)),
+        decimal(
+          new BigNumber(fee.toString())
+            .times(this.gasMultiplier)
+            .dividedBy(new BigNumber(10).exponentiatedBy(18))
+            .toFixed(),
+        ),
       ])
       .callMethod(from_address, 'create_proof_of_amount', [
         address(ownerResource),
@@ -156,7 +166,12 @@ export class RadixPopulate {
 
     return new ManifestBuilder()
       .callMethod(from_address, 'lock_fee', [
-        decimal(fee * BigInt(this.gasMultiplier)),
+        decimal(
+          new BigNumber(fee.toString())
+            .times(this.gasMultiplier)
+            .dividedBy(new BigNumber(10).exponentiatedBy(18))
+            .toFixed(),
+        ),
       ])
       .callMethod(from_address, 'withdraw', [
         address(resource_address),
