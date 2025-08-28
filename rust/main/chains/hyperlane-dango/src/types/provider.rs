@@ -324,4 +324,12 @@ impl DangoProvider {
             ExecutionBlock::Defined(height) => Ok(Some(height)),
         }
     }
+
+    /// Get the latest block number
+    pub async fn latest_block(&self) -> DangoResult<u32> {
+        self.query_block(None)
+            .await
+            .map(|b| b.info.height as u32)
+            .into_dango_error()
+    }
 }
