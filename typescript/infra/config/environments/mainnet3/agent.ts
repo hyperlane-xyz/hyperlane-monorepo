@@ -791,6 +791,19 @@ const blacklist: MatchingList = [
   ...blacklistedMessageIds.map((messageId) => ({
     messageId,
   })),
+  // routes on legacy pulsechain mailbox
+  {
+    destinationDomain: getDomainId('pulsechain'),
+    recipientAddress: [
+      '0x688B161745c4eCEc2Ce07DC385cF2B57D9980244',
+      '0x50d03965Ed30de5d246BdDa18E7B10A8904B8CF1',
+      '0xD110Cbf543c3b237aB3EC171D7117932A4807F9B',
+      '0x87353B9AA546F8cf7290DeD2d339C0Ec694d7144',
+      '0x5DD749B87FA2e456482adb231FB9c2b0302A3027',
+      '0xe227B51F5D7079fAa07b7621657e3aa5906d2185',
+      '0x867c1fd9341DEC12e4B779C35D7b7C475316b334',
+    ],
+  },
 ];
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [

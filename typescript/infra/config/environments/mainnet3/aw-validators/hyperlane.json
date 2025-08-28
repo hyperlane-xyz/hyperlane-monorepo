@@ -334,6 +334,9 @@
   "proofofplay": {
     "validators": ["0xcda40baa71970a06e5f55e306474de5ca4e21c3b"]
   },
+  "pulsechain": {
+    "validators": ["0xa73fc7ebb2149d9c6992ae002cb1849696be895b"]
+  },
   "radix": {
     "validators": ["0xa715a7cd97f68caeedb7be64f9e1da10f8ffafb4"]
   },
@@ -448,8 +451,5 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
-  },
-  "pulsechain": {
-    "validators": ["0xa73fc7ebb2149d9c6992ae002cb1849696be895b"]
   }
 }
