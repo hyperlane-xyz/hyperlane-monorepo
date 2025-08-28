@@ -33,6 +33,7 @@ use radix_transactions::{
 };
 use reqwest::ClientBuilder;
 use scrypto::{
+    address::AddressBech32Decoder,
     constants::XRD,
     crypto::IsHash,
     data::{
@@ -40,6 +41,7 @@ use scrypto::{
         scrypto::{scrypto_decode, ScryptoSbor},
     },
     math::Decimal,
+    network::NetworkDefinition,
     types::Epoch,
 };
 
@@ -51,8 +53,9 @@ use hyperlane_core::{
 
 use crate::{
     decimal_to_u256, decode_bech32, encode_tx, manifest::find_fee_payer_from_manifest,
-    provider::RadixGatewayProvider, signer::RadixSigner, ConnectionConf, HyperlaneRadixError,
-    RadixBaseCoreProvider, RadixBaseGatewayProvider, RadixCoreProvider, RadixFallbackProvider,
+    provider::RadixGatewayProvider, radix_address_bytes_to_h256, signer::RadixSigner,
+    ConnectionConf, HyperlaneRadixError, RadixBaseCoreProvider, RadixBaseGatewayProvider,
+    RadixCoreProvider, RadixFallbackProvider,
 };
 
 /// Radix provider
@@ -337,6 +340,7 @@ impl RadixProvider {
             .transaction_committed(TransactionCommittedDetailsRequest {
                 intent_hash: hash,
                 opt_ins: Some(TransactionDetailsOptIns {
+                    affected_global_entities: Some(true),
                     manifest_instructions: Some(true),
                     receipt_events: Some(true),
                     receipt_fee_summary: Some(true),
@@ -584,6 +588,27 @@ impl RadixProvider {
         let response = self.transaction_status(hash).await?;
         Ok(response)
     }
+
+    fn find_first_component_address(
+        network: &NetworkDefinition,
+        addresses: &[String],
+    ) -> Option<H256> {
+        let address_bech32_decoder = AddressBech32Decoder::new(network);
+        addresses
+            .iter()
+            .filter(|addr| addr.starts_with("component_"))
+            .nth(0)
+            .and_then(
+                |addr| match address_bech32_decoder.validate_and_decode(addr) {
+                    Ok(s) => Some(s),
+                    Err(err) => {
+                        tracing::warn!(?err, "Failed to decode component address");
+                        None
+                    }
+                },
+            )
+            .map(|addr| radix_address_bytes_to_h256(&addr.1))
+    }
 }
 
 impl HyperlaneChain for RadixProvider {
@@ -649,6 +674,15 @@ impl HyperlaneProvider for RadixProvider {
             );
         };
 
+        let Some(affected_global_entities) = tx.affected_global_entities else {
+            return Err(
+                HyperlaneRadixError::ParsingError("affected_global_entities".to_owned()).into(),
+            );
+        };
+
+        let first_component_address =
+            Self::find_first_component_address(&self.conf.network, &affected_global_entities);
+
         // We assume the account that locked up XRD to pay for fees is the sender of the transaction.
         // If we can't find fee payer, then default to H256::zero()
         let fee_payer =
@@ -690,7 +724,7 @@ impl HyperlaneProvider for RadixProvider {
             nonce: 0,
             sender: fee_payer,
             // TODO: hard to tell what the tx interacted with, this can be with more than just one person, maybe use the the first component address?
-            recipient: None,
+            recipient: first_component_address,
             receipt: Some(TxnReceiptInfo {
                 gas_used: U256::from(gas_limit),
                 cumulative_gas_used: gas_price,
