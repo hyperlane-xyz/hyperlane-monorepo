@@ -1,10 +1,14 @@
 import { constants } from 'ethers';
+import _ from 'lodash';
 
+import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
   Address,
-  Annotated,
   ProtocolType,
   assert,
+  deepEquals,
+  objMap,
+  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -15,16 +19,19 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
+import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import {
+  DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
 } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
+  ImmutableTokenFeeType,
   TokenFeeConfig,
   TokenFeeConfigInput,
   TokenFeeConfigSchema,
@@ -34,6 +41,12 @@ import {
 type TokenFeeModuleAddresses = {
   deployedFee: Address;
 };
+
+export type OptionalModuleParams = Partial<{
+  address: Address;
+  routingDestinations: number[]; // Required for RoutingFee
+}>;
+
 export class EvmTokenFeeModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   TokenFeeConfigInput,
@@ -42,18 +55,22 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   protected readonly logger = rootLogger.child({ module: 'EvmTokenFeeModule' });
   protected readonly deployer: EvmTokenFeeDeployer;
   protected readonly reader: EvmTokenFeeReader;
+  protected readonly chainName: string;
+  protected readonly chainId: number;
   constructor(
     protected readonly multiProvider: MultiProvider,
     params: HyperlaneModuleParams<TokenFeeConfigInput, TokenFeeModuleAddresses>,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     super(params);
-    const chainName = multiProvider.getChainName(params.chain);
-    this.deployer = new EvmTokenFeeDeployer(multiProvider, chainName, {
+    this.chainName = multiProvider.getChainName(params.chain);
+    this.chainId = multiProvider.getDomainId(this.chainName);
+
+    this.deployer = new EvmTokenFeeDeployer(multiProvider, this.chainName, {
       logger: this.logger,
       contractVerifier: contractVerifier,
     });
-    this.reader = new EvmTokenFeeReader(multiProvider, chainName);
+    this.reader = new EvmTokenFeeReader(multiProvider, this.chainName);
   }
 
   static async create({
@@ -80,7 +97,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       contractVerifier,
     );
 
-    const finalizedConfig = await EvmTokenFeeModule.processConfig({
+    const finalizedConfig = await EvmTokenFeeModule.expandConfig({
       config,
       multiProvider,
       chainName,
@@ -100,7 +117,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
   // Processes the Input config to the Final config
   // For LinearFee, it converts the bps to maxFee and halfAmount
-  public static async processConfig(params: {
+  public static async expandConfig(params: {
     config: TokenFeeConfigInput;
     multiProvider: MultiProvider;
     chainName: string;
@@ -142,22 +159,103 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }
 
   // Public accessor for the deployed fee contract address
+  // TODO: Remove this an use serialize() instead
   getDeployedFeeAddress(): Address {
     return this.args.addresses.deployedFee;
   }
 
-  async read(routingDestinations?: number[]): Promise<DerivedTokenFeeConfig> {
-    return this.reader.deriveTokenFeeConfig(
-      this.args.addresses.deployedFee,
+  async read(params?: OptionalModuleParams): Promise<DerivedTokenFeeConfig> {
+    const address = params?.address ?? this.args.addresses.deployedFee;
+    const routingDestinations = params?.routingDestinations ?? [];
+
+    return this.reader.deriveTokenFeeConfig({
+      address: address,
       routingDestinations,
-    );
+    });
   }
 
   async update(
-    _config: TokenFeeConfigInput,
-  ): Promise<
-    Annotated<ProtocolTypedTransaction<ProtocolType.Ethereum>['transaction']>[]
-  > {
-    throw new Error('Not implemented');
+    targetConfig: TokenFeeConfigInput,
+    params?: OptionalModuleParams,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const normalizedTargetConfig: TokenFeeConfig = normalizeConfig(
+      await EvmTokenFeeModule.expandConfig({
+        config: targetConfig,
+        multiProvider: this.multiProvider,
+        chainName: this.chainName,
+      }),
+    );
+
+    const actualConfig = await this.read(params);
+    const normalizedActualConfig: TokenFeeConfig =
+      normalizeConfig(actualConfig);
+
+    //If configs are the same, return empty array
+    if (deepEquals(normalizedActualConfig, normalizedTargetConfig)) {
+      this.logger.debug(
+        `Same config for ${normalizedTargetConfig.type}, no update needed`,
+      );
+      return [];
+    }
+
+    // if the type is a immutable type, then redeploy
+    if (
+      ImmutableTokenFeeType.includes(
+        normalizedTargetConfig.type as (typeof ImmutableTokenFeeType)[number],
+      )
+    ) {
+      this.logger.info(
+        `Immutable fee type ${normalizedTargetConfig.type}, redeploying`,
+      );
+      const contracts = await this.deploy({
+        config: normalizedTargetConfig,
+        multiProvider: this.multiProvider,
+        chainName: this.chainName,
+        contractVerifier: this.contractVerifier,
+      });
+      this.args.addresses.deployedFee =
+        contracts[this.chainName][normalizedTargetConfig.type].address;
+    }
+
+    // if the type is a mutable type, then update
+    let updateTransactions: AnnotatedEV5Transaction[] = [];
+    switch (targetConfig.type) {
+      case TokenFeeType.RoutingFee:
+        updateTransactions = await this.updateRoutingFee(
+          _.merge(actualConfig, targetConfig) as DerivedRoutingFeeConfig, // Creates a config with address and new changes
+        );
+    }
+
+    return updateTransactions;
+  }
+
+  private async updateRoutingFee(targetConfig: DerivedRoutingFeeConfig) {
+    // For each routing fee, call this.update
+    const updateTxs: AnnotatedEV5Transaction[] = [];
+
+    if (!targetConfig.feeContracts) return [];
+    const currentRoutingAddress = this.args.addresses.deployedFee;
+    await promiseObjAll(
+      objMap(targetConfig.feeContracts, async (chainName, config) => {
+        const address = config.address;
+        await this.update(config, address);
+
+        // fetches the latest deployedFee
+        updateTxs.push({
+          annotation: 'Updating routing fee...',
+          chainId: this.chainId,
+          to: currentRoutingAddress,
+          data: RoutingFee__factory.createInterface().encodeFunctionData(
+            'setFeeContract(uint32,address)',
+            [
+              this.multiProvider.getDomainId(chainName),
+              this.args.addresses.deployedFee,
+            ],
+          ),
+        });
+      }),
+    );
+
+    return updateTxs;
   }
 }

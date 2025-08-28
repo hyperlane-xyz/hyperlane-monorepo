@@ -650,7 +650,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         }
 
         this.logger.debug(`Deploying token fee on ${chain}...`);
-        const processedTokenFee = await EvmTokenFeeModule.processConfig({
+        const processedTokenFee = await EvmTokenFeeModule.expandConfig({
           config: tokenFeeInput,
           multiProvider: this.multiProvider,
           chainName: chain,
