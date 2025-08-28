@@ -9,7 +9,7 @@ use {
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// httpd endpoint (not graphql)
-    pub httpd_url: Url,
+    pub httpd_urls: Vec<Url>,
     /// Gas price
     pub gas_price: Coin,
     /// Gas scale

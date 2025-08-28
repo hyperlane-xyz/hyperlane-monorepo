@@ -11,8 +11,10 @@ use {
         Message, QueryClientExt, SearchTxClient, SearchTxOutcome, Signer,
     },
     hyperlane_base::settings::SignerConf,
+    reqwest::IntoUrl,
     std::{collections::BTreeSet, time::Duration},
     tokio::time::sleep,
+    url::Url,
 };
 
 const PREDEFINED_GAS: GasOption = GasOption::Predefined {
@@ -25,7 +27,7 @@ pub struct ChainHelper {
     pub accounts: TestAccounts,
     pub chain_id: String,
     pub hyperlane_domain: u32,
-    pub httpd_url: String,
+    pub httpd_urls: Vec<String>,
 }
 
 impl ChainHelper {
@@ -34,7 +36,7 @@ impl ChainHelper {
         accounts: TestAccounts,
         chain_id: String,
         hyperlane_domain: u32,
-        httpd_url: String,
+        httpd_urls: Vec<String>,
     ) -> anyhow::Result<Self> {
         let cfg = client.query_app_config(None).await?;
 
@@ -44,7 +46,7 @@ impl ChainHelper {
             accounts,
             chain_id,
             hyperlane_domain,
-            httpd_url,
+            httpd_urls
         })
     }
 

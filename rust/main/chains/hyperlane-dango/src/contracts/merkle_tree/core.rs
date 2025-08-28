@@ -1,7 +1,7 @@
 use {
     crate::{
         hyperlane_contract, ConnectionConf, DangoConvertor, DangoProvider, DangoResult,
-        DangoSigner, ExecutionBlock, IntoDangoError, TryDangoConvertor,
+        DangoSigner, ExecutionBlock, TryDangoConvertor,
     },
     anyhow::anyhow,
     async_trait::async_trait,
@@ -80,21 +80,16 @@ impl MerkleTreeHook for DangoMerkleTree {
             .provider
             .query_multi(
                 [
-                    Query::wasm_smart(addr, &mailbox::QueryMsg::Nonce {}).into_dango_error()?,
-                    Query::wasm_smart(addr, &mailbox::QueryMsg::Tree {}).into_dango_error()?,
+                    Query::wasm_smart(addr, &mailbox::QueryMsg::Nonce {})?,
+                    Query::wasm_smart(addr, &mailbox::QueryMsg::Tree {})?,
                 ],
                 Some(height),
             )
-            .await
-            .into_dango_error()?;
+            .await?;
 
         let [nonce, tree] = parse_response(res)?;
-        let nonce: u32 = nonce
-            .as_wasm_smart()
-            .deserialize_json()
-            .into_dango_error()?;
-        let tree: DangoIncrementalMerkleTree =
-            tree.as_wasm_smart().deserialize_json().into_dango_error()?;
+        let nonce: u32 = nonce.as_wasm_smart().deserialize_json()?;
+        let tree: DangoIncrementalMerkleTree = tree.as_wasm_smart().deserialize_json()?;
 
         Ok(CheckpointAtBlock {
             checkpoint: Checkpoint {
@@ -110,7 +105,7 @@ impl MerkleTreeHook for DangoMerkleTree {
 
 fn parse_response<E: Display, const N: usize>(
     res: [Result<QueryResponse, E>; N],
-) -> DangoResult<[QueryResponse; N]> {
+) -> ChainResult<[QueryResponse; N]> {
     res.into_iter()
         .enumerate()
         .fold(Ok(vec![]), |acc, (i, res)| match (acc, res) {
@@ -125,8 +120,7 @@ fn parse_response<E: Display, const N: usize>(
                 Err(acc)
             }
         })
-        .map_err(|err| anyhow!("{:#?}", err))
-        .into_dango_error()
+        .map_err(|err| anyhow!("{:#?}", err).into())
         // safe unwrap because we know that the length of the array is the same as the number of results
         .map(|a| a.try_into().unwrap())
 }
@@ -148,7 +142,7 @@ impl DangoMerkleTree {
     pub async fn dango_tree(
         &self,
         execution_block: ExecutionBlock,
-    ) -> DangoResult<(Option<u64>, DangoIncrementalMerkleTree)> {
+    ) -> ChainResult<(Option<u64>, DangoIncrementalMerkleTree)> {
         let block_height = self
             .provider
             .get_block_height_by_execution_block(execution_block)
@@ -161,8 +155,7 @@ impl DangoMerkleTree {
                 QueryTreeRequest {},
                 block_height,
             )
-            .await
-            .into_dango_error()?;
+            .await?;
 
         tracing::info!("block height: {:?} - count: {:?}", block_height, tree.count);
 

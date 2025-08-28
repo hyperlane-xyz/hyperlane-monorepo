@@ -1,7 +1,7 @@
 use {
     crate::{
         hyperlane_contract, ConnectionConf, DangoConvertor, DangoProvider, DangoResult,
-        DangoSigner, IntoDangoError, TryDangoConvertor,
+        DangoSigner, TryDangoConvertor,
     },
     async_trait::async_trait,
     dango_hyperlane_types::{mailbox, recipients::RecipientQuery},
@@ -45,8 +45,7 @@ impl Mailbox for DangoMailbox {
                     .get_block_height_by_reorg_period(&reorg_period)
                     .await?,
             )
-            .await
-            .into_dango_error()?)
+            .await?)
     }
 
     /// Fetch the status of a message
@@ -60,8 +59,7 @@ impl Mailbox for DangoMailbox {
                 },
                 None,
             )
-            .await
-            .into_dango_error()?)
+            .await?)
     }
 
     /// Fetch the current default interchain security module value
@@ -73,8 +71,7 @@ impl Mailbox for DangoMailbox {
                 mailbox::QueryConfigRequest {},
                 None,
             )
-            .await
-            .into_dango_error()?
+            .await?
             .default_ism
             .convert())
     }
@@ -90,8 +87,7 @@ impl Mailbox for DangoMailbox {
                 ),
                 None,
             )
-            .await
-            .into_dango_error()?
+            .await?
             .as_interchain_security_module()
         {
             Ok(ism.convert())
@@ -117,8 +113,7 @@ impl Mailbox for DangoMailbox {
                         raw_metadata: HexBinary::from_inner(metadata.to_vec()),
                     },
                     Coins::default(),
-                )
-                .into_dango_error()?,
+                )?,
                 tx_gas_limit.map(|limit| limit.try_into().unwrap()),
             )
             .await?)
@@ -132,17 +127,14 @@ impl Mailbox for DangoMailbox {
     ) -> ChainResult<TxCostEstimate> {
         Ok(self
             .provider
-            .estimate_costs(
-                Message::execute(
-                    self.address.try_convert()?,
-                    &mailbox::ExecuteMsg::Process {
-                        raw_message: HexBinary::from_inner(RawHyperlaneMessage::from(message)),
-                        raw_metadata: HexBinary::from_inner(metadata.to_vec()),
-                    },
-                    Coins::default(),
-                )
-                .into_dango_error()?,
-            )
+            .estimate_costs(Message::execute(
+                self.address.try_convert()?,
+                &mailbox::ExecuteMsg::Process {
+                    raw_message: HexBinary::from_inner(RawHyperlaneMessage::from(message)),
+                    raw_metadata: HexBinary::from_inner(metadata.to_vec()),
+                },
+                Coins::default(),
+            )?)
             .await?)
     }
 

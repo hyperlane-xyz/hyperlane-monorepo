@@ -5,7 +5,7 @@ use {
         Addr, Addressable, BlockClient, CheckedContractEvent, CronOutcome, EventFilter, EventId,
         Hash256, HashExt, JsonDeExt, SearchEvent, SearchTxOutcome, Tx,
     },
-    hyperlane_core::LogMeta,
+    hyperlane_core::{ChainResult, LogMeta},
     serde::de::DeserializeOwned,
 };
 
@@ -101,7 +101,7 @@ pub trait SearchTxOutcomeExt {
     async fn with_block_hash(
         self,
         client: &DangoProvider,
-    ) -> DangoResult<SearchTxOutcomeWithBlockHash>;
+    ) -> ChainResult<SearchTxOutcomeWithBlockHash>;
 }
 
 #[async_trait]
@@ -109,7 +109,7 @@ impl SearchTxOutcomeExt for SearchTxOutcome {
     async fn with_block_hash(
         self,
         client: &DangoProvider,
-    ) -> DangoResult<SearchTxOutcomeWithBlockHash> {
+    ) -> ChainResult<SearchTxOutcomeWithBlockHash> {
         let block_hash = client.query_block(Some(self.height)).await?.info.hash;
         Ok(SearchTxOutcomeWithBlockHash {
             block_hash,

@@ -3,7 +3,7 @@ use {
     hyperlane_core::Delivery,
     {
         super::DangoMailbox,
-        crate::{DangoConvertor, IntoDangoError, SearchLog, TryDangoConvertor},
+        crate::{DangoConvertor, SearchLog, TryDangoConvertor},
         async_trait::async_trait,
         dango_hyperlane_types::mailbox,
         grug::{BlockClient, Inner, QueryClientExt, SearchTxClient},
@@ -47,8 +47,7 @@ impl Indexer<HyperlaneMessage> for DangoMailbox {
         Ok(self
             .provider
             .search_tx(tx_hash.try_convert()?)
-            .await
-            .into_dango_error()?
+            .await?
             .with_block_hash(&self.provider)
             .await?
             .search_contract_log(self.address().try_convert()?, search_fn_dispatch)?)
@@ -58,13 +57,7 @@ impl Indexer<HyperlaneMessage> for DangoMailbox {
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for DangoMailbox {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let last_height = self
-            .provider
-            .query_block(None)
-            .await
-            .into_dango_error()?
-            .info
-            .height;
+        let last_height = self.provider.query_block(None).await?.info.height;
         let nonce = self
             .provider
             .query_wasm_smart(
@@ -72,8 +65,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for DangoMailbox {
                 mailbox::QueryNonceRequest {},
                 Some(last_height),
             )
-            .await
-            .into_dango_error()?;
+            .await?;
         Ok((Some(nonce), last_height as u32))
     }
 }
@@ -120,8 +112,7 @@ impl Indexer<Delivery> for DangoMailbox {
         Ok(self
             .provider
             .search_tx(tx_hash.try_convert()?)
-            .await
-            .into_dango_error()?
+            .await?
             .with_block_hash(&self.provider)
             .await?
             .search_contract_log(self.address().try_convert()?, search_fn_delivery)?)
@@ -131,13 +122,7 @@ impl Indexer<Delivery> for DangoMailbox {
 #[async_trait]
 impl SequenceAwareIndexer<Delivery> for DangoMailbox {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let last_height = self
-            .provider
-            .query_block(None)
-            .await
-            .into_dango_error()?
-            .info
-            .height;
+        let last_height = self.provider.query_block(None).await?.info.height;
 
         // No sequence for message deliveries.
         Ok((None, last_height as u32))

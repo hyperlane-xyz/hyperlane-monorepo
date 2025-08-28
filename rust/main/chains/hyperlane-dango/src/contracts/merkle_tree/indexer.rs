@@ -1,9 +1,6 @@
 use {
     super::DangoMerkleTree,
-    crate::{
-        DangoConvertor, ExecutionBlock, IntoDangoError, SearchLog, SearchTxOutcomeExt,
-        TryDangoConvertor,
-    },
+    crate::{DangoConvertor, ExecutionBlock, SearchLog, SearchTxOutcomeExt, TryDangoConvertor},
     async_trait::async_trait,
     dango_hyperlane_types::mailbox::PostDispatch,
     grug::{BlockClient, SearchTxClient},
@@ -31,13 +28,7 @@ impl Indexer<MerkleTreeInsertion> for DangoMerkleTree {
 
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self
-            .provider
-            .query_block(None)
-            .await
-            .into_dango_error()?
-            .info
-            .height as u32)
+        Ok(self.provider.query_block(None).await?.info.height as u32)
     }
 
     /// Fetch list of logs emitted in a transaction with the given hash.
@@ -48,8 +39,7 @@ impl Indexer<MerkleTreeInsertion> for DangoMerkleTree {
         Ok(self
             .provider
             .search_tx(tx_hash.try_convert()?)
-            .await
-            .into_dango_error()?
+            .await?
             .with_block_hash(&self.provider)
             .await?
             .search_contract_log(self.address().try_convert()?, search_fn)?)
@@ -64,13 +54,7 @@ fn search_fn(event: PostDispatch) -> Indexed<MerkleTreeInsertion> {
 impl SequenceAwareIndexer<MerkleTreeInsertion> for DangoMerkleTree {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let last_height = self
-            .provider
-            .query_block(None)
-            .await
-            .into_dango_error()?
-            .info
-            .height;
+        let last_height = self.provider.query_block(None).await?.info.height;
         let (_, dango_tree) = self
             .dango_tree(ExecutionBlock::Defined(last_height))
             .await?;

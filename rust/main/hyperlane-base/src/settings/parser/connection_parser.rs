@@ -322,23 +322,9 @@ fn build_dango_connection_conf(
 
     let httpd_url = chain
         .chain(&mut local_err)
-        .get_key("httpd_url")
-        .parse_string()
-        .end()
-        .or_else(|| {
-            local_err.push(&chain.cwp + "httpd_url", eyre!("Missing httpd_url"));
-            None
-        })
-        .map(|str| match Url::parse(str) {
-            Ok(url) => Some(url),
-            Err(err) => {
-                local_err.push(&chain.cwp + "httpd_url", eyre!("Invalid url: {err}"));
-                None
-            }
-        })
-        .flatten();
-
-    println!("httpd_url: {}", httpd_url.clone().unwrap().to_string());
+        .get_key("httpd_urls")
+        .parse_value::<Vec<Url>>("failed to parse httpd_urls")
+        .end();
 
     let gas_price = chain
         .chain(&mut local_err)
@@ -400,7 +386,7 @@ fn build_dango_connection_conf(
         None
     } else {
         Some(ChainConnectionConf::Dango(h_dango::ConnectionConf {
-            httpd_url: httpd_url.unwrap(),
+            httpd_urls: httpd_url.unwrap(),
             gas_price: gas_price.unwrap(),
             gas_scale: gas_scale.unwrap(),
             flat_gas_increase: flat_gas_increase.unwrap(),

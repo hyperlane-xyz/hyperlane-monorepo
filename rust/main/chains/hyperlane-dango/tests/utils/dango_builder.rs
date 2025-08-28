@@ -84,6 +84,6 @@ impl DangoBuilder {
 
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        ChainHelper::new(client, accounts, chain_id, domain, httpd_url).await
+        ChainHelper::new(client, accounts, chain_id, domain, vec![httpd_url]).await
     }
 }

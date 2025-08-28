@@ -1,6 +1,5 @@
 use {
     super::DangoIGP,
-    crate::IntoDangoError,
     async_trait::async_trait,
     grug::BlockClient,
     hyperlane_core::{ChainResult, Indexed, Indexer, InterchainGasPayment, LogMeta, H512},
@@ -17,13 +16,7 @@ impl Indexer<InterchainGasPayment> for DangoIGP {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self
-            .provider
-            .query_block(None)
-            .await
-            .into_dango_error()?
-            .info
-            .height as u32)
+        Ok(self.provider.query_block(None).await?.info.height as u32)
     }
 
     /// Fetch list of logs emitted in a transaction with the given hash.

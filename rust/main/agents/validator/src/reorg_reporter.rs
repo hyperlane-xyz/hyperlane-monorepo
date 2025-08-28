@@ -143,8 +143,11 @@ impl LatestCheckpointReorgReporter {
                 })
             }
             Dango(conn) => {
-                // TODO: currently we support 1 connection, need to be refractored
-                vec![(conn.httpd_url.clone(), Dango(conn))]
+                Self::map_urls_to_connections(conn.httpd_urls.clone(), conn, |conn, url| {
+                    let mut updated_conn = conn.clone();
+                    updated_conn.httpd_urls = vec![url];
+                    Dango(updated_conn)
+                })
             }
             Radix(conn) => {
                 Self::map_urls_to_connections(conn.gateway.clone(), conn, |conn, url| {

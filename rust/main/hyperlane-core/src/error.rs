@@ -163,6 +163,15 @@ pub enum ChainCommunicationError {
     /// Convert Integer Error
     #[error("{0}")]
     TryFromIntError(#[from] TryFromIntError),
+    /// Dango error
+    #[error(transparent)]
+    DangoError(#[from] grug::StdError),
+    /// Anyhow error
+    #[error(transparent)]
+    AnyhowError(#[from] anyhow::Error),
+    /// Grug error
+    #[error(transparent)]
+    GrugGasEstimateError(#[from]grug::GasEstimateError)
 }
 
 impl ChainCommunicationError {

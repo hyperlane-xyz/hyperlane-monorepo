@@ -35,4 +35,6 @@ dango-genesis = { workspace = true }
 dango-testing = { workspace = true }
 hyperlane-base = { path = "../../hyperlane-base" }
 k256 = { workspace = true }
+reqwest = { workspace = true }
 tempfile = { workspace = true }
+

@@ -344,9 +344,18 @@ impl Args for BTreeMap<&str, &ChainHelper> {
         self.into_iter()
             .flat_map(|(chain, chain_helper)| {
                 vec![
+                    format!("--chains.{chain}.aaa"),
+                    r#"["asd, hello"]"#.to_string(),
                     // Httpd url
-                    format!("--chains.{chain}.httpd_url"),
-                    chain_helper.httpd_url.clone(),
+                    format!("--chains.{chain}.httpd_urls"),
+                    format!(
+                        "{:?}",
+                        chain_helper
+                            .httpd_urls
+                            .iter()
+                            .map(|url| url.to_string())
+                            .collect::<Vec<_>>()
+                    ),
                     // Chain id
                     format!("--chains.{chain}.chainId"),
                     chain_helper.chain_id.clone(),

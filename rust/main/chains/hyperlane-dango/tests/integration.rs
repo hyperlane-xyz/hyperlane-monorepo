@@ -5,8 +5,7 @@ use {
     },
     dango_types::{constants::dango, gateway::TokenOrigin},
     grug::{
-        btree_set, setup_tracing_subscriber, BlockCreation, Coin, Denom, Part, QueryClientExt,
-        ResultExt,
+        btree_set, setup_tracing_subscriber, BlockCreation, Coin, Denom, JsonSerExt, Part, QueryClientExt, ResultExt, __private::serde_json::{self, Value}
     },
     std::time::Duration,
     tracing::{info, Level},
@@ -209,4 +208,20 @@ async fn dango_multiple_chains() -> anyhow::Result<()> {
     .await?;
 
     Ok(())
+}
+
+#[test]
+fn lol() {
+    let url = "http://127.0.0.1:8080";
+    let a = vec![url];
+
+    let b = format!("{:?}", a);
+
+    let c = serde_json::from_str::<Value>(&b).unwrap();
+
+    let d = serde_json::from_value::<Vec<url::Url>>(c).unwrap();
+
+    let e = serde_json::from_str::<Vec<url::Url>>(&b).unwrap();
+
+    // println!("{:?}", c);
 }

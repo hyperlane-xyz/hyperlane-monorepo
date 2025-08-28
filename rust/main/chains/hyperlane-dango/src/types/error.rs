@@ -57,16 +57,3 @@ impl From<DangoError> for ChainCommunicationError {
         ChainCommunicationError::from_other(value)
     }
 }
-
-pub trait IntoDangoError<T> {
-    fn into_dango_error(self) -> Result<T, DangoError>;
-}
-
-impl<T, E> IntoDangoError<T> for Result<T, E>
-where
-    DangoError: From<E>,
-{
-    fn into_dango_error(self) -> Result<T, DangoError> {
-        self.map_err(DangoError::from)
-    }
-}

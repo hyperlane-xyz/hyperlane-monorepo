@@ -1,7 +1,7 @@
 use {
     crate::{
         hyperlane_contract, ConnectionConf, DangoConvertor, DangoProvider, DangoResult,
-        DangoSigner, IntoDangoError, TryDangoConvertor,
+        DangoSigner, TryDangoConvertor,
     },
     async_trait::async_trait,
     dango_hyperlane_types::va::{
@@ -34,7 +34,7 @@ impl DangoValidatorAnnounce {
     }
 
     /// Calculate the fee for announcing a storage location.
-    async fn announce_fee(&self, storage_location: &str) -> DangoResult<Coin> {
+    async fn announce_fee(&self, storage_location: &str) -> ChainResult<Coin> {
         let fee_per_byte = self
             .provider
             .query_wasm_smart(
@@ -42,8 +42,7 @@ impl DangoValidatorAnnounce {
                 QueryAnnounceFeePerByteRequest {},
                 None,
             )
-            .await
-            .into_dango_error()?;
+            .await?;
 
         let fee_amount = Uint128::new(fee_per_byte.amount.inner() * storage_location.len() as u128);
 
@@ -54,7 +53,7 @@ impl DangoValidatorAnnounce {
         &self,
         announcement: SignedType<Announcement>,
         signer: H256,
-    ) -> DangoResult<U256> {
+    ) -> ChainResult<U256> {
         let coins = self
             .announce_fee(&announcement.value.storage_location)
             .await?;
@@ -89,8 +88,7 @@ impl ValidatorAnnounce for DangoValidatorAnnounce {
                 QueryAnnouncedStorageLocationsRequest { validators },
                 None,
             )
-            .await
-            .into_dango_error()?;
+            .await?;
 
         Ok(response
             .into_values()
@@ -110,11 +108,7 @@ impl ValidatorAnnounce for DangoValidatorAnnounce {
         let msg = ExecuteMsg::Announce {
             validator: announcement.value.validator.convert(),
             storage_location: announcement.value.storage_location,
-            signature: announcement
-                .signature
-                .to_vec()
-                .try_into()
-                .into_dango_error()?,
+            signature: announcement.signature.to_vec().try_into()?,
         };
 
         let msg = Message::execute(self.address.try_convert()?, &msg, announce_fee).unwrap();
