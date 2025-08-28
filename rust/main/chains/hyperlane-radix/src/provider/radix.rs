@@ -680,6 +680,9 @@ impl HyperlaneProvider for RadixProvider {
             );
         };
 
+        // Radix doesn't have the concept of a single "primary" recipient of a transaction
+        // so its hard to who/what the "primary" entity each transaction is for.
+        // Instead, we just use the first component address in a transaction
         let first_component_address =
             Self::find_first_component_address(&self.conf.network, &affected_global_entities);
 
@@ -723,7 +726,6 @@ impl HyperlaneProvider for RadixProvider {
             // TODO: double check if we need a nonce, there are no nonces in radix, we might want to use the discriminator instead
             nonce: 0,
             sender: fee_payer,
-            // TODO: hard to tell what the tx interacted with, this can be with more than just one person, maybe use the the first component address?
             recipient: first_component_address,
             receipt: Some(TxnReceiptInfo {
                 gas_used: U256::from(gas_limit),
