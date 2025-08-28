@@ -34,22 +34,6 @@ pub async fn startup_tests(
     let validators_1 = run_validators(&chain_1, &ch1, chain_name1)?;
     let validators_2 = run_validators(&chain_2, &ch2, chain_name2)?;
 
-    AgentBuilder::new(Agent::Relayer)
-        .with_chain_helper(chain_name1, &ch1)
-        .with_chain_helper(chain_name2, &ch2)
-        .with_relay_chains(btree_set!(chain_name1, chain_name2))
-        .with_chain_signer(
-            chain_name1,
-            ch1.get_account(&format!("user{}", chain_1.validators + 2)),
-        )
-        .with_chain_signer(
-            chain_name2,
-            ch2.get_account(&format!("user{}", chain_2.validators + 2)),
-        )
-        .with_allow_local_checkpoint_syncer(true)
-        .with_metrics_port(get_free_port())
-        .launch();
-
     register_onchain(
         chain_1.route,
         &mut ch1,
@@ -67,6 +51,22 @@ pub async fn startup_tests(
         chain_1.threshold,
     )
     .await?;
+
+    AgentBuilder::new(Agent::Relayer)
+        .with_chain_helper(chain_name1, &ch1)
+        .with_chain_helper(chain_name2, &ch2)
+        .with_relay_chains(btree_set!(chain_name1, chain_name2))
+        .with_chain_signer(
+            chain_name1,
+            ch1.get_account(&format!("user{}", chain_1.validators + 2)),
+        )
+        .with_chain_signer(
+            chain_name2,
+            ch2.get_account(&format!("user{}", chain_2.validators + 2)),
+        )
+        .with_allow_local_checkpoint_syncer(true)
+        .with_metrics_port(get_free_port())
+        .launch();
 
     Ok((ch1, ch2))
 }
