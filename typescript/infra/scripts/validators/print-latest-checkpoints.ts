@@ -26,10 +26,14 @@ async function main() {
     environment,
     chains,
     all = false,
+    validator,
   } = await withChainsRequired(getArgs())
     .describe('all', 'all validators, including non-default ISM')
     .boolean('all')
-    .alias('a', 'all').argv;
+    .alias('a', 'all')
+    .describe('validator', 'specific validator address to check')
+    .string('validator')
+    .alias('v', 'validator').argv;
 
   if (chains.length === 0) {
     rootLogger.error('Must provide at least one chain');
@@ -103,13 +107,24 @@ async function main() {
 
       // For each validator on this chain
       for (let i = 0; i < announcedValidators.length; i++) {
-        const validator = announcedValidators[i];
+        const validatorAddress = announcedValidators[i];
         const location = storageLocations[i][storageLocations[i].length - 1];
 
-        // Skip validators not in default ISM unless --all flag is set
+        // If a specific validator address is provided, only process that one
+        if (validator && !eqAddress(validatorAddress, validator)) {
+          continue;
+        }
+
+        // Skip validators not in default ISM unless --all flag is set or specific validator is provided
         // If it's not a core chain, then we'll want to check all announced validators
-        const isDefaultIsmValidator = findDefaultValidatorAlias(validator);
-        if (defaultIsmValidators.length > 0 && !isDefaultIsmValidator && !all) {
+        const isDefaultIsmValidator =
+          findDefaultValidatorAlias(validatorAddress);
+        if (
+          defaultIsmValidators.length > 0 &&
+          !isDefaultIsmValidator &&
+          !all &&
+          !validator
+        ) {
           continue;
         }
 
@@ -125,8 +140,8 @@ async function main() {
           if (!validators[chain]) {
             validators[chain] = {};
           }
-          const alias = findDefaultValidatorAlias(validator);
-          validators[chain][validator] = {
+          const alias = findDefaultValidatorAlias(validatorAddress);
+          validators[chain][validatorAddress] = {
             alias,
             default: alias ? '✅' : '',
             latest: latestCheckpoint,
@@ -139,9 +154,9 @@ async function main() {
           // get metadata.
           const logLevel = isDefaultIsmValidator ? 'error' : 'debug';
           rootLogger[logLevel](
-            `Error getting metadata for ${validator} on chain ${chain}: ${error}`,
+            `Error getting metadata for ${validatorAddress} on chain ${chain}: ${error}`,
           );
-          validators[chain][validator] = {
+          validators[chain][validatorAddress] = {
             alias: '',
             default: '',
             latest: -1,
