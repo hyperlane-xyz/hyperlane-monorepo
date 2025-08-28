@@ -13,6 +13,14 @@ hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 hyperlane-cosmos-native = { path = "../../chains/hyperlane-cosmos-native" }
 hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
+hyperlane-radix = { path = "../../chains/hyperlane-radix" }
+radix-common = { workspace = true }
+radix-engine-interface = { workspace = true }
+radix-transactions = { workspace = true }
+core-api-client = { workspace = true }
+gateway-api-client = { workspace = true }
+scrypto = { workspace = true }
+url = { workspace = true }
 toml_edit.workspace = true
 k256.workspace = true
 jobserver.workspace = true
@@ -50,3 +58,4 @@ cosmos = []
 starknet = []
 cosmosnative = []
 sealevel = []
+radix = []

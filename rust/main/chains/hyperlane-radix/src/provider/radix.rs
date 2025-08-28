@@ -20,7 +20,7 @@ use gateway_api_client::{
         self, CommittedTransactionInfo, CompiledPreviewTransaction, LedgerState,
         LedgerStateSelector, ProgrammaticScryptoSborValue, StateEntityDetailsRequest,
         StreamTransactionsRequest, TransactionCommittedDetailsRequest, TransactionDetailsOptIns,
-        TransactionPreviewV2Request, TransactionStatusResponse,
+        TransactionPreviewV2Request, TransactionStatusResponse, TransactionSubmitResponse,
     },
 };
 use radix_common::traits::ScryptoEvent;
@@ -432,6 +432,11 @@ impl RadixProvider {
             .map_err(HyperlaneRadixError::from)?;
 
         Ok(execution + finaliztaion + royalty + storage_cost)
+    }
+
+    /// TEST
+    pub async fn submit_tx(&self, tx: Vec<u8>) -> ChainResult<TransactionSubmitResponse> {
+        self.provider.submit_transaction(tx).await
     }
 
     /// Sends a tx to the gateway
