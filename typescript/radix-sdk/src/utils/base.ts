@@ -18,10 +18,11 @@ import {
   expression,
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
+import { BigNumber } from 'bignumber.js';
 import { Decimal } from 'decimal.js';
 import { utils } from 'ethers';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { EntityDetails, INSTRUCTIONS } from './types.js';
 
@@ -265,8 +266,11 @@ export class RadixBase {
   }
 
   public async getNewComponent(transaction: TransactionHash): Promise<string> {
-    const transactionReceipt =
-      await this.gateway.transaction.getCommittedDetails(transaction.id);
+    const transactionReceipt = await retryAsync(
+      () => this.gateway.transaction.getCommittedDetails(transaction.id),
+      5,
+      5000,
+    );
 
     const receipt = transactionReceipt.transaction.receipt;
     assert(receipt, `found no receipt on transaction: ${transaction.id}`);
@@ -307,7 +311,12 @@ export class RadixBase {
 
     return new ManifestBuilder()
       .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
-        decimal(fee * BigInt(this.gasMultiplier)),
+        decimal(
+          new BigNumber(fee.toString())
+            .times(this.gasMultiplier)
+            .dividedBy(new BigNumber(10).exponentiatedBy(18))
+            .toFixed(),
+        ),
       ])
       .callFunction(package_address, blueprint_name, function_name, args)
       .callMethod(from_address, INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND, [
@@ -350,7 +359,12 @@ export class RadixBase {
 
     return new ManifestBuilder()
       .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
-        decimal(fee * BigInt(this.gasMultiplier)),
+        decimal(
+          new BigNumber(fee.toString())
+            .times(this.gasMultiplier)
+            .dividedBy(new BigNumber(10).exponentiatedBy(18))
+            .toFixed(),
+        ),
       ])
       .callMethod(from_address, INSTRUCTIONS.CREATE_PROOF_OF_AMOUNT, [
         address(ownerResource),
@@ -398,7 +412,12 @@ export class RadixBase {
 
     return new ManifestBuilder()
       .callMethod(from_address, INSTRUCTIONS.LOCK_FEE, [
-        decimal(fee * BigInt(this.gasMultiplier)),
+        decimal(
+          new BigNumber(fee.toString())
+            .times(this.gasMultiplier)
+            .dividedBy(new BigNumber(10).exponentiatedBy(18))
+            .toFixed(),
+        ),
       ])
       .callMethod(from_address, INSTRUCTIONS.WITHDRAW, [
         address(resource_address),
