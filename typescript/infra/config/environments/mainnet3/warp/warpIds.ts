@@ -103,6 +103,8 @@ export enum WarpRouteIds {
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
 
+  SonicSVMMoney = 'MONEY/sonicsvm',
+
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
 
