@@ -240,7 +240,7 @@
     "decimals": 9
   },
   "lukso": {
-    "amount": "0.180084749",
+    "amount": "0.05",
     "decimals": 9
   },
   "lumia": {
@@ -288,7 +288,7 @@
     "decimals": 9
   },
   "mitosis": {
-    "amount": "1.000000007",
+    "amount": "103.679999999",
     "decimals": 9
   },
   "mode": {
@@ -373,6 +373,10 @@
   },
   "proofofplay": {
     "amount": "0.01",
+    "decimals": 9
+  },
+  "pulsechain": {
+    "amount": "708140.706065838",
     "decimals": 9
   },
   "radix": {

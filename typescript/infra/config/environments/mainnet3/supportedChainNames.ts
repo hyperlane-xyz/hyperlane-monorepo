@@ -95,6 +95,7 @@ export const mainnet3SupportedChainNames = [
   'polynomialfi',
   'prom',
   'proofofplay',
+  'pulsechain',
   'radix',
   'rarichain',
   'reactive',
