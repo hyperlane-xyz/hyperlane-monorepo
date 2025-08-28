@@ -9,8 +9,8 @@ use {
     futures_util::future::try_join_all,
     grug::{
         Addr, BlockClient, BroadcastClientExt, ClientWrapper, Defined, GasOption, Hash256, Inner,
-        JsonDeExt, Message, NonEmpty, QueryClient, QueryClientExt, SearchTxClient, SearchTxOutcome,
-        Signer,
+        JsonDeExt, JsonSerExt, Message, MsgExecute, NonEmpty, QueryClient, QueryClientExt,
+        SearchTxClient, SearchTxOutcome, Signer,
     },
     grug_indexer_client::HttpClient,
     hyperlane_core::{
@@ -71,22 +71,31 @@ impl HyperlaneProvider for DangoProvider {
             .await
             .into_dango_error()?;
 
-        let data: Metadata = tx.tx.data.deserialize_json().into_dango_error()?;
+        let data: Metadata = tx.tx.data.clone().deserialize_json().into_dango_error()?;
+
+        let recipient = tx.tx.msgs.iter().fold(None, |mut acc, msg| {
+            // If the tx contains multiple messages, we can't return a list of contracts,
+            // so just return the last one.
+            // We parse only Execute messages, because we are interested in the contract interacted with.
+            if let Message::Execute(MsgExecute { contract, .. }) = msg {
+                acc = Some(DangoConvertor::<H256>::convert(*contract));
+            }
+
+            acc
+        });
 
         Ok(TxnInfo {
             hash: *hash,
             gas_limit: tx.outcome.gas_limit.into(),
             max_priority_fee_per_gas: None,
             max_fee_per_gas: None,
-            // TODO: is this needed?
-            // This function seems to used only by scraper
-            gas_price: None,
+            // This seems to be the gas used, not the gas price
+            gas_price: Some(tx.outcome.gas_used.into()),
             nonce: data.nonce.into(),
             sender: tx.tx.sender.convert(),
-            // TODO: is this needed (should be the contract)?
-            recipient: None,
+            recipient,
             receipt: None,
-            raw_input_data: None,
+            raw_input_data: Some(tx.tx.to_json_vec().into_dango_error()?),
         })
     }
 

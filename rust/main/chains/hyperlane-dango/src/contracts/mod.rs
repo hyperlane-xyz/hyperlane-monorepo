@@ -1,9 +1,8 @@
 mod igp;
 mod ism;
+mod macros;
 mod mailbox;
 mod merkle_tree;
 mod va;
-mod macros;
 
 pub use {igp::*, ism::*, mailbox::*, merkle_tree::*, va::*};
-

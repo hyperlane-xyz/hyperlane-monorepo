@@ -146,7 +146,7 @@ impl Mailbox for DangoMailbox {
             .await?)
     }
 
-    // TODO
+    // not required.
     async fn process_calldata(
         &self,
         _message: &HyperlaneMessage,
@@ -155,7 +155,7 @@ impl Mailbox for DangoMailbox {
         todo!()
     }
 
-    // TODO
+    // not required.
     fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
     }

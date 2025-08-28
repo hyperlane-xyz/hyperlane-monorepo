@@ -7,7 +7,7 @@ use {
     dango_hyperlane_types::va::{
         ExecuteMsg, QueryAnnounceFeePerByteRequest, QueryAnnouncedStorageLocationsRequest,
     },
-    grug::{Coin, Inner, Message, QueryClientExt, Uint128},
+    grug::{Coin, Inner, Message, Number, QueryClientExt, Uint128},
     hyperlane_core::{
         Announcement, ChainResult, ContractLocator, SignedType, TxOutcome, ValidatorAnnounce, H256,
         U256,
@@ -34,7 +34,7 @@ impl DangoValidatorAnnounce {
     }
 
     /// Calculate the fee for announcing a storage location.
-    async fn announce_fee(&self, storage_location: &str) -> ChainResult<Coin> {
+    async fn announce_fee(&self, storage_location: &str) -> DangoResult<Coin> {
         let fee_per_byte = self
             .provider
             .query_wasm_smart(
@@ -47,8 +47,24 @@ impl DangoValidatorAnnounce {
 
         let fee_amount = Uint128::new(fee_per_byte.amount.inner() * storage_location.len() as u128);
 
-        // Unwrap since the denom is valid.
-        Ok(Coin::new(fee_per_byte.denom, fee_amount).unwrap())
+        Ok(Coin::new(fee_per_byte.denom, fee_amount)?)
+    }
+
+    async fn get_announce_tokens_needed(
+        &self,
+        announcement: SignedType<Announcement>,
+        signer: H256,
+    ) -> DangoResult<U256> {
+        let coins = self
+            .announce_fee(&announcement.value.storage_location)
+            .await?;
+
+        let balance = self
+            .provider
+            .query_balance(signer.try_convert()?, coins.denom, None)
+            .await?;
+
+        Ok(coins.amount.saturating_sub(balance).into_inner().into())
     }
 }
 
@@ -110,10 +126,11 @@ impl ValidatorAnnounce for DangoValidatorAnnounce {
     /// transaction. Return `None` if the needed tokens cannot be determined.
     async fn announce_tokens_needed(
         &self,
-        _announcement: SignedType<Announcement>,
-        _chain_signer: H256,
+        announcement: SignedType<Announcement>,
+        signer: H256,
     ) -> Option<U256> {
-        // TODO: Right now Dango has gas price = 0 so it doesn't need any tokens.
-        Some(U256::zero())
+        self.get_announce_tokens_needed(announcement, signer)
+            .await
+            .ok()
     }
 }

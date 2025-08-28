@@ -706,7 +706,7 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
-            // TODO: DANGO - could not be implemented because dango does not support IGP
+            // Not be implemented because dango does not support IGP.
             ChainConnectionConf::Dango(_) => unimplemented!(),
         }
         .context(ctx)

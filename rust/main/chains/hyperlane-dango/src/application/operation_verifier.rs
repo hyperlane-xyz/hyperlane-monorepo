@@ -21,7 +21,7 @@ impl ApplicationOperationVerifier for DangoApplicationOperationVerifier {
         _app_context: &Option<String>,
         _message: &HyperlaneMessage,
     ) -> Option<ApplicationOperationVerifierReport> {
-        // TODO: DANGO
+        // Not mandatory to implement.
         None
     }
 }

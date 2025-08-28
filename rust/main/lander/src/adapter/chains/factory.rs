@@ -51,7 +51,7 @@ impl AdapterFactory {
             ChainConnectionConf::Starknet(_) => todo!(),
             ChainConnectionConf::CosmosNative(_) => todo!(),
             ChainConnectionConf::Radix(_) => todo!(),
-            ChainConnectionConf::Dango(_) => todo!()
+            ChainConnectionConf::Dango(_) => todo!(),
         };
 
         Ok(adapter)

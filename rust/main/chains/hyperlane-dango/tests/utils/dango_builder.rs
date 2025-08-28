@@ -5,7 +5,9 @@ use {
     grug::{BlockCreation, ClientWrapper},
     grug_indexer_client::HttpClient,
     std::{
-        sync::{Arc, Mutex}, thread, time::Duration
+        sync::{Arc, Mutex},
+        thread,
+        time::Duration,
     },
 };
 

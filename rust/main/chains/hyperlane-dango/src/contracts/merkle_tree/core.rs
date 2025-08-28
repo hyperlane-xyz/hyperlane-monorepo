@@ -3,16 +3,19 @@ use {
         hyperlane_contract, ConnectionConf, DangoConvertor, DangoProvider, DangoResult,
         DangoSigner, ExecutionBlock, IntoDangoError, TryDangoConvertor,
     },
+    anyhow::anyhow,
     async_trait::async_trait,
     dango_hyperlane_types::{
-        mailbox::QueryTreeRequest, IncrementalMerkleTree as DangoIncrementalMerkleTree,
+        mailbox::{self, QueryTreeRequest},
+        IncrementalMerkleTree as DangoIncrementalMerkleTree,
     },
-    grug::QueryClientExt,
+    grug::{JsonDeExt, Query, QueryClientExt, QueryResponse},
     hyperlane_core::{
         accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult,
         Checkpoint, CheckpointAtBlock, ContractLocator, HyperlaneContract,
         IncrementalMerkleAtBlock, MerkleTreeHook, ReorgPeriod, H256,
     },
+    std::fmt::Display,
 };
 
 #[derive(Debug)]
@@ -71,10 +74,61 @@ impl MerkleTreeHook for DangoMerkleTree {
         })
     }
 
-    // TODO
-    async fn latest_checkpoint_at_block(&self, _height: u64) -> ChainResult<CheckpointAtBlock> {
-        todo!()
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+        let addr = self.address.try_convert()?;
+        let res = self
+            .provider
+            .query_multi(
+                [
+                    Query::wasm_smart(addr, &mailbox::QueryMsg::Nonce {}).into_dango_error()?,
+                    Query::wasm_smart(addr, &mailbox::QueryMsg::Tree {}).into_dango_error()?,
+                ],
+                Some(height),
+            )
+            .await
+            .into_dango_error()?;
+
+        let [nonce, tree] = parse_response(res)?;
+        let nonce: u32 = nonce
+            .as_wasm_smart()
+            .deserialize_json()
+            .into_dango_error()?;
+        let tree: DangoIncrementalMerkleTree =
+            tree.as_wasm_smart().deserialize_json().into_dango_error()?;
+
+        Ok(CheckpointAtBlock {
+            checkpoint: Checkpoint {
+                merkle_tree_hook_address: self.address(),
+                mailbox_domain: self.provider.domain.id(),
+                root: tree.root().convert(),
+                index: nonce,
+            },
+            block_height: Some(height),
+        })
     }
+}
+
+fn parse_response<E: Display, const N: usize>(
+    res: [Result<QueryResponse, E>; N],
+) -> DangoResult<[QueryResponse; N]> {
+    res.into_iter()
+        .enumerate()
+        .fold(Ok(vec![]), |acc, (i, res)| match (acc, res) {
+            (Ok(mut acc), Ok(res)) => {
+                acc.push(res);
+                Ok(acc)
+            }
+            (Ok(_), Err(err)) => Err(vec![format!("index: {i} - {err}")]),
+            (Err(acc), Ok(_)) => Err(acc),
+            (Err(mut acc), Err(err)) => {
+                acc.push(format!("index: {i} - {err}"));
+                Err(acc)
+            }
+        })
+        .map_err(|err| anyhow!("{:#?}", err))
+        .into_dango_error()
+        // safe unwrap because we know that the length of the array is the same as the number of results
+        .map(|a| a.try_into().unwrap())
 }
 
 impl DangoMerkleTree {

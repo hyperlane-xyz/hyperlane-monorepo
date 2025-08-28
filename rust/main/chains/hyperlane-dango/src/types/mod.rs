@@ -1,9 +1,9 @@
+mod block;
 mod config;
 mod convertor;
 mod error;
+mod log;
 mod provider;
 mod singer;
-mod log;
-mod block;
 
-pub use {config::*, convertor::*, error::*, provider::*, singer::*, log::*, block::*};
+pub use {block::*, config::*, convertor::*, error::*, log::*, provider::*, singer::*};

@@ -2,7 +2,8 @@ use {
     crate::{DangoConvertor, DangoProvider, DangoResult},
     async_trait::async_trait,
     grug::{
-        Addr, Addressable, BlockClient, CheckedContractEvent, CronOutcome, EventFilter, EventId, Hash256, HashExt, JsonDeExt, SearchEvent, SearchTxOutcome, Tx
+        Addr, Addressable, BlockClient, CheckedContractEvent, CronOutcome, EventFilter, EventId,
+        Hash256, HashExt, JsonDeExt, SearchEvent, SearchTxOutcome, Tx,
     },
     hyperlane_core::LogMeta,
     serde::de::DeserializeOwned,

@@ -97,7 +97,7 @@ impl LatestCheckpointReorgReporter {
         origin: &HyperlaneDomain,
     ) -> Vec<(Url, ValidatorSettings)> {
         use ChainConnectionConf::{
-            Cosmos, CosmosNative, Ethereum, Fuel, Radix, Sealevel, Starknet, Dango,
+            Cosmos, CosmosNative, Dango, Ethereum, Fuel, Radix, Sealevel, Starknet,
         };
 
         let chain_conf = settings
