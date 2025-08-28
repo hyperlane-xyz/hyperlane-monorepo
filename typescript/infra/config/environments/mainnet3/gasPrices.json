@@ -375,6 +375,10 @@
     "amount": "0.01",
     "decimals": 9
   },
+  "pulsechain": {
+    "amount": "708140.706065838",
+    "decimals": 9
+  },
   "radix": {
     "amount": "50.0",
     "decimals": 9
