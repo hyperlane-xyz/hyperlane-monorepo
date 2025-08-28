@@ -1607,5 +1607,15 @@ export const validatorChainConfig = (
         'mitosis',
       ),
     },
+    radix: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('radix'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa715a7cd97f68caeedb7be64f9e1da10f8ffafb4'],
+        },
+        'radix',
+      ),
+    },
   };
 };
