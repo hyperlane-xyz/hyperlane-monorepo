@@ -375,6 +375,10 @@
     "amount": "0.01",
     "decimals": 9
   },
+  "radix": {
+    "amount": "50.0",
+    "decimals": 9
+  },
   "rarichain": {
     "amount": "0.15",
     "decimals": 9
