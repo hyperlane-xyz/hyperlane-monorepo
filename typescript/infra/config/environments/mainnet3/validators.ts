@@ -1617,5 +1617,15 @@ export const validatorChainConfig = (
         'radix',
       ),
     },
+    pulsechain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('pulsechain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa73fc7ebb2149d9c6992ae002cb1849696be895b'],
+        },
+        'pulsechain',
+      ),
+    },
   };
 };
