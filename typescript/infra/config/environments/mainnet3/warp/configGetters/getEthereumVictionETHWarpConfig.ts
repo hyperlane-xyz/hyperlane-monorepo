@@ -28,6 +28,7 @@ export const getEthereumVictionETHWarpConfig = async (
     ...routerConfig.ethereum,
     ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.native,
+    decimals: 18,
     gas: 65_000,
     interchainSecurityModule: ethers.constants.AddressZero,
     hook: '0xb87ac8ea4533ae017604e44470f7c1e550ac6f10',
