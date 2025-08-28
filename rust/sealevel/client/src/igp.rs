@@ -239,6 +239,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                     Some(&unique_gas_payment_keypair),
                 ],
                 &ctx.payer_pubkey,
+                None,
             );
 
             println!(
