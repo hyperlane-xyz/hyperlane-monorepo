@@ -122,14 +122,26 @@ export async function runWarpRouteDeploy({
 
   assert(multiProtocolSigner, `multiProtocolSigner not defined`);
 
+  // Some of the below functions throw if passed non-EVM or Cosmos Native chains
+  warpDeployConfig = objFilter(
+    warpDeployConfig,
+    (chain, _config): _config is any =>
+      chainMetadata[chain].protocol === ProtocolType.Ethereum ||
+      chainMetadata[chain].protocol === ProtocolType.CosmosNative,
+  );
+
   // Validate ISM compatibility for all chains
   validateWarpIsmCompatibility(warpDeployConfig, context);
 
-  const chains = Object.keys(warpDeployConfig);
+  const deploymentChains = Object.keys(warpDeployConfig);
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
-    apiKeys = await requestAndSaveApiKeys(chains, chainMetadata, registry);
+    apiKeys = await requestAndSaveApiKeys(
+      deploymentChains,
+      chainMetadata,
+      registry,
+    );
 
   const deploymentParams = {
     context,
@@ -137,13 +149,6 @@ export async function runWarpRouteDeploy({
   };
 
   await runDeployPlanStep(deploymentParams);
-
-  // Some of the below functions throw if passed non-EVM or Cosmos Native chains
-  const deploymentChains = chains.filter(
-    (chain) =>
-      chainMetadata[chain].protocol === ProtocolType.Ethereum ||
-      chainMetadata[chain].protocol === ProtocolType.CosmosNative,
-  );
 
   await runPreflightChecksForChains({
     context,
