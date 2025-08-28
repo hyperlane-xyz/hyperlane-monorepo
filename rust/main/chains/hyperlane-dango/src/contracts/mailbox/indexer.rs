@@ -1,16 +1,18 @@
-use crate::SearchTxOutcomeExt;
-use hyperlane_core::Delivery;
 use {
-    super::DangoMailbox,
-    crate::{DangoConvertor, IntoDangoError, SearchLog, TryDangoConvertor},
-    async_trait::async_trait,
-    dango_hyperlane_types::mailbox,
-    grug::{BlockClient, Inner, QueryClientExt, SearchTxClient},
-    hyperlane_core::{
-        ChainResult, HyperlaneContract, HyperlaneMessage, Indexed, Indexer, LogMeta,
-        SequenceAwareIndexer, H256, H512,
+    crate::SearchTxOutcomeExt,
+    hyperlane_core::Delivery,
+    {
+        super::DangoMailbox,
+        crate::{DangoConvertor, IntoDangoError, SearchLog, TryDangoConvertor},
+        async_trait::async_trait,
+        dango_hyperlane_types::mailbox,
+        grug::{BlockClient, Inner, QueryClientExt, SearchTxClient},
+        hyperlane_core::{
+            ChainResult, HyperlaneContract, HyperlaneMessage, Indexed, Indexer, LogMeta,
+            SequenceAwareIndexer, H256, H512,
+        },
+        std::ops::RangeInclusive,
     },
-    std::ops::RangeInclusive,
 };
 
 // --------------------------------- dispatch ----------------------------------

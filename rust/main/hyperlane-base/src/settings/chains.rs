@@ -638,13 +638,12 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
-            // TODO: DANGO - requested only by the scraper
             ChainConnectionConf::Dango(confg) => {
                 let indexer = Box::new(h_dango::contracts::DangoMailbox::new(
                     confg, &locator, None,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
-            },
+            }
         }
         .context(ctx)
     }
