@@ -1,4 +1,5 @@
 import { compareVersions } from 'compare-versions';
+import { constants } from 'ethers';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
@@ -332,10 +333,11 @@ function populateTokenFeeOwners(params: {
   const { tokenConfig, feeConfig } = params;
   if (!feeConfig) return tokenConfig;
 
-  if (isCollateralTokenConfig(tokenConfig)) {
+  if (isCollateralTokenConfig(tokenConfig))
     // Default fee.token to the router token, if not specified
     feeConfig.token = feeConfig.token ?? tokenConfig.token;
-  }
+  else if (isNativeTokenConfig(tokenConfig))
+    feeConfig.token = constants.AddressZero;
 
   feeConfig.owner = feeConfig.owner ?? tokenConfig.owner;
 
