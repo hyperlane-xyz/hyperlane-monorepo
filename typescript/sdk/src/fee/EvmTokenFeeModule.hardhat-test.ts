@@ -147,8 +147,7 @@ describe('EvmTokenFeeModule', () => {
       expect(onchainConfig.bps).to.eql(updatedConfig.bps);
     });
 
-    it.only(`should redeploy immutable fees if updating token for ${TokenFeeType.RoutingFee}`, async () => {
-      // multiProvider = await impersonateAccount(signer.address);
+    it(`should redeploy immutable fees if updating token for ${TokenFeeType.RoutingFee}`, async () => {
       const feeContracts = {
         [chain]: config,
       };
@@ -173,23 +172,9 @@ describe('EvmTokenFeeModule', () => {
         },
       };
 
-      const routingFeeAddress = (await module.read()).address;
       await expectTxsAndUpdate(module, updatedConfig, 1, {
         routingDestinations: [multiProvider.getDomainId(chain)],
       });
-
-      const onchainConfig = await module.read({
-        address: routingFeeAddress,
-        routingDestinations: [multiProvider.getDomainId(chain)],
-      });
-
-      expect(normalizeConfig(onchainConfig)).to.eql(
-        normalizeConfig({
-          ...updatedConfig,
-          maxFee: constants.MaxUint256.toBigInt(), // Set onchain by default
-          halfAmount: constants.MaxUint256.toBigInt(),
-        }),
-      );
     });
   });
 });

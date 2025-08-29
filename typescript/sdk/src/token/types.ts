@@ -313,12 +313,10 @@ function preprocessWarpRouteDeployConfig(
     HypTokenRouterConfigMailboxOptional
   >;
   objMap(mutatedConfig, (_, config) => {
-    if (isCollateralTokenConfig(config)) {
-      populateTokenFeeOwners({
-        tokenConfig: config,
-        feeConfig: config.tokenFee,
-      });
-    }
+    populateTokenFeeOwners({
+      tokenConfig: config,
+      feeConfig: config.tokenFee,
+    });
   });
   return mutatedConfig;
 }
