@@ -36,7 +36,12 @@ async function main() {
   const allChainsToCheck =
     chains && chains.length > 0 ? chains : config.supportedChainNames;
 
-  const chainsWithUnannouncedValidators: ChainMap<string[]> = {};
+  const chainsWithUnannouncedValidators: ChainMap<
+    {
+      address: string;
+      alias: string;
+    }[]
+  > = {};
 
   const chainsToSkip = ['lumia', 'osmosis'];
 
@@ -47,13 +52,15 @@ async function main() {
         try {
           const defaultValidatorConfigs =
             defaultMultisigConfigs[chain]?.validators || [];
-          const validators = defaultValidatorConfigs.map((v) => v.address);
-          const validatorCount = validators.length;
+          const validatorCount = defaultValidatorConfigs.length;
           const threshold = defaultMultisigConfigs[chain]?.threshold || 0;
           const minimumThreshold = getMinimumThreshold(validatorCount);
 
           let unannouncedValidatorCount = 0;
-          let unannouncedValidators: string[] = [];
+          let unannouncedValidators: {
+            address: string;
+            alias: string;
+          }[] = [];
 
           // Only check onchain announcements for ethereum protocol chains
           if (isEthereumProtocolChain(chain)) {
@@ -62,9 +69,9 @@ async function main() {
             const announcedValidators =
               await validatorAnnounce.getAnnouncedValidators();
 
-            unannouncedValidators = validators.filter(
-              (validator) =>
-                !announcedValidators.some((x) => eqAddress(x, validator)),
+            unannouncedValidators = defaultValidatorConfigs.filter(
+              ({ address }) =>
+                !announcedValidators.some((x) => eqAddress(x, address)),
             );
 
             if (unannouncedValidators.length > 0) {
@@ -78,7 +85,10 @@ async function main() {
             chain,
             threshold,
             [thresholdOK]:
-              threshold < minimumThreshold || threshold > validatorCount
+              threshold < minimumThreshold ||
+              threshold > validatorCount ||
+              (threshold === validatorCount &&
+                validatorCount !== minimumThreshold)
                 ? CheckResult.WARNING
                 : CheckResult.OK,
             total: validatorCount,
@@ -123,7 +133,7 @@ async function main() {
       const minimumThreshold = getMinimumThreshold(validatorCount);
       console.log(
         ` - ${chain}:`,
-        `threshold should be ${minimumThreshold} ≤ t ≤ ${validatorCount}`,
+        `threshold should be ${minimumThreshold} ≤ t < ${validatorCount}`,
       );
     });
   } else {
@@ -147,7 +157,11 @@ async function main() {
   if (unnanouncedChains.length > 0) {
     console.log('\n⚠️ Chains with unannounced validators:');
     unnanouncedChains.forEach((chain) => {
-      console.log(` - ${chain}: ${chainsWithUnannouncedValidators[chain]}`);
+      console.log(
+        ` - ${chain}: ${chainsWithUnannouncedValidators[chain]
+          .map(({ address, alias }) => `${address} (${alias})`)
+          .join(', ')}`,
+      );
     });
   } else {
     console.log('\n✅ All validators announced!');
