@@ -134,7 +134,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
       assert(
         maxFee && halfAmount,
-        'Properties maxFee and halfAmount must be supplied for Native Fee. bps is ignored.',
+        'Config properties "maxFee" and "halfAmount" must be supplied when "token" is not supplied',
       );
 
       intermediaryConfig = {
