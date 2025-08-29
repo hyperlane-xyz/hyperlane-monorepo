@@ -57,7 +57,7 @@ export class RadixBase {
     transactionManifest,
   }: {
     transactionManifest: TransactionManifest;
-  }): Promise<{ gasUnits: bigint; gasPrice: bigint; fee: bigint }> {
+  }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
     const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
@@ -104,16 +104,17 @@ export class RadixBase {
     const gasUnits =
       BigInt(fee_summary.execution_cost_units_consumed) +
       BigInt(fee_summary.finalization_cost_units_consumed);
-    const fee =
-      (BigInt(fee_summary.xrd_total_execution_cost) +
-        BigInt(fee_summary.xrd_total_finalization_cost) +
-        BigInt(fee_summary.xrd_total_storage_cost)) *
-      10n ** 18n;
-    const gasPrice = BigInt(
+    const fee = BigInt(
+      new BigNumber(fee_summary.xrd_total_execution_cost)
+        .plus(BigNumber(fee_summary.xrd_total_finalization_cost))
+        .plus(BigNumber(fee_summary.xrd_total_storage_cost))
+        .times(new BigNumber(10).exponentiatedBy(18))
+        .toFixed(0),
+    );
+    const gasPrice =
       (parseFloat(costing_parameters.execution_cost_unit_price) +
         parseFloat(costing_parameters.finalization_cost_unit_price)) *
-        0.5,
-    ); // average out the cost parameters to get a more accurate estimate
+      0.5; // average out the cost parameters to get a more accurate estimate
 
     return {
       gasUnits,
@@ -187,9 +188,10 @@ export class RadixBase {
 
     const { divisibility } = await this.getMetadata({ resource });
 
-    return (
-      BigInt(fungibleResource.vaults.items[0].amount) *
-      10n ** BigInt(divisibility)
+    return BigInt(
+      new BigNumber(fungibleResource.vaults.items[0].amount)
+        .times(new BigNumber(10).exponentiatedBy(divisibility))
+        .toFixed(0),
     );
   }
 
@@ -212,9 +214,10 @@ export class RadixBase {
 
     const { divisibility } = await this.getMetadata({ resource });
 
-    return (
-      BigInt((details.details as any).total_supply) *
-      10n ** BigInt(divisibility)
+    return BigInt(
+      new BigNumber((details.details as any).total_supply)
+        .times(new BigNumber(10).exponentiatedBy(divisibility))
+        .toFixed(0),
     );
   }
 
