@@ -2,6 +2,7 @@ use {
     crate::utils::dango_helper::{ChainHelper, IntoSignerConf},
     cargo_metadata::MetadataCommand,
     dango_types::config::AppAddresses,
+    grug::JsonSerExt,
     hyperlane_base::settings::SignerConf,
     hyperlane_core::H256,
     hyperlane_dango::DangoConvertor,
@@ -344,18 +345,9 @@ impl Args for BTreeMap<&str, &ChainHelper> {
         self.into_iter()
             .flat_map(|(chain, chain_helper)| {
                 vec![
-                    format!("--chains.{chain}.aaa"),
-                    r#"["asd, hello"]"#.to_string(),
                     // Httpd url
                     format!("--chains.{chain}.httpd_urls"),
-                    format!(
-                        "{:?}",
-                        chain_helper
-                            .httpd_urls
-                            .iter()
-                            .map(|url| url.to_string())
-                            .collect::<Vec<_>>()
-                    ),
+                    chain_helper.httpd_urls.to_json_string().unwrap(),
                     // Chain id
                     format!("--chains.{chain}.chainId"),
                     chain_helper.chain_id.clone(),

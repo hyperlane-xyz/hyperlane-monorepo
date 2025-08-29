@@ -11,10 +11,8 @@ use {
         Message, QueryClientExt, SearchTxClient, SearchTxOutcome, Signer,
     },
     hyperlane_base::settings::SignerConf,
-    reqwest::IntoUrl,
     std::{collections::BTreeSet, time::Duration},
     tokio::time::sleep,
-    url::Url,
 };
 
 const PREDEFINED_GAS: GasOption = GasOption::Predefined {
@@ -46,7 +44,7 @@ impl ChainHelper {
             accounts,
             chain_id,
             hyperlane_domain,
-            httpd_urls
+            httpd_urls,
         })
     }
 

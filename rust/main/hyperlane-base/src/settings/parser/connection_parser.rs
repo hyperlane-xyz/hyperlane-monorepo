@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use convert_case::Case;
 use eyre::{eyre, Context};
@@ -323,8 +324,24 @@ fn build_dango_connection_conf(
     let httpd_url = chain
         .chain(&mut local_err)
         .get_key("httpd_urls")
-        .parse_value::<Vec<Url>>("failed to parse httpd_urls")
-        .end();
+        .end()
+        .map(|vp| match vp.val {
+            Value::String(val) => {
+                serde_json::from_str::<Vec<Url>>(val).take_err(&mut local_err, || vp.cwp)
+            }
+            Value::Array(values) => values
+                .iter()
+                .map(|v| {
+                    v.as_str()
+                        .ok_or(eyre!("Expected `Value::String`, found {}", v))
+                        .take_err(&mut local_err, || vp.cwp.clone())
+                        .map(|str| Url::from_str(str).take_err(&mut local_err, || vp.cwp.clone()))
+                        .flatten()
+                })
+                .collect(),
+            _ => todo!(),
+        })
+        .flatten();
 
     let gas_price = chain
         .chain(&mut local_err)
@@ -386,13 +403,13 @@ fn build_dango_connection_conf(
         None
     } else {
         Some(ChainConnectionConf::Dango(h_dango::ConnectionConf {
-            httpd_urls: httpd_url.unwrap(),
-            gas_price: gas_price.unwrap(),
-            gas_scale: gas_scale.unwrap(),
-            flat_gas_increase: flat_gas_increase.unwrap(),
-            search_sleep_duration: search_sleep_duration.unwrap(),
-            search_retry_attempts: search_retry_attempts.unwrap(),
-            chain_id: chain_id.unwrap().to_string(),
+            httpd_urls: httpd_url?,
+            gas_price: gas_price?,
+            gas_scale: gas_scale?,
+            flat_gas_increase: flat_gas_increase?,
+            search_sleep_duration: search_sleep_duration?,
+            search_retry_attempts: search_retry_attempts?,
+            chain_id: chain_id?.to_string(),
             rpcs: rpcs.to_owned(),
             operation_batch,
         }))
