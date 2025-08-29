@@ -7,7 +7,7 @@ import {
   ProtocolType,
   assert,
   deepEquals,
-  eqAddress,
+  isZeroishAddress,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -127,7 +127,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
       let { maxFee, halfAmount } = config;
 
-      if (!eqAddress(config.token, constants.AddressZero)) {
+      if (!isZeroishAddress(config.token)) {
         const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
           await reader.convertFromBps(config.bps, config.token);
         maxFee = convertedMaxFee;
