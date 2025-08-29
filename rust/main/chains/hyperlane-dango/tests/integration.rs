@@ -9,7 +9,7 @@ use {
         ResultExt,
     },
     std::time::Duration,
-    tracing::{info, Level},
+    tracing::Level,
 };
 
 pub mod utils;
@@ -90,24 +90,26 @@ async fn dango_one_way() -> anyhow::Result<()> {
     .outcome
     .should_succeed();
 
-    loop {
-        let balance = ch2
-            .client
-            .query_balance(
-                ch2.accounts.user3.address.into_inner(),
-                Denom::new_unchecked(["bridge", "foo"]),
-                None,
-            )
-            .await?;
-
-        info!("balance: {:?}", balance);
-
-        if balance.0 == 100 {
-            break;
-        }
-
-        tokio::time::sleep(Duration::from_secs(1)).await;
-    }
+    try_for(
+        Duration::from_secs(20),
+        Duration::from_millis(100),
+        || async {
+            let balance = ch2
+                .client
+                .query_balance(
+                    ch2.accounts.user3.address.into_inner(),
+                    Denom::new_unchecked(["bridge", "foo"]),
+                    None,
+                )
+                .await?;
+            if balance.0 == 100 {
+                Ok(())
+            } else {
+                Err(anyhow::anyhow!("Balance is not 100"))
+            }
+        },
+    )
+    .await?;
 
     Ok(())
 }
