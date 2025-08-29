@@ -5,7 +5,7 @@ export enum INSTRUCTIONS {
   LOCK_FEE = 'lock_fee',
   INSTANTIATE = 'instantiate',
   WITHDRAW = 'withdraw',
-  TRY_DEPOSIT_BATCH_OR_REFUND = 'try_deposit_batch_or_refund',
+  TRY_DEPOSIT_BATCH_OR_ABORT = 'try_deposit_batch_or_abort',
   TRY_DEPOSIT_OR_ABORT = 'try_deposit_or_abort',
   CREATE_PROOF_OF_AMOUNT = 'create_proof_of_amount',
 }
