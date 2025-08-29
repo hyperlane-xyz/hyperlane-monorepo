@@ -105,7 +105,10 @@ describe('WarpCore', () => {
     const stubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
         quoteTransferRemoteGas: () =>
-          Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
+          Promise.resolve({
+            igpQuote: MOCK_INTERCHAIN_QUOTE,
+            tokenFeeQuote: MOCK_INTERCHAIN_QUOTE,
+          }),
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
         isRevokeApprovalRequired: () => Promise.resolve(false),
@@ -116,7 +119,10 @@ describe('WarpCore', () => {
       token: Token,
       destination: ChainName,
       standard: TokenStandard,
-      interchainQuote: InterchainGasQuote = { igpQuote: MOCK_INTERCHAIN_QUOTE },
+      interchainQuote: InterchainGasQuote = {
+        igpQuote: MOCK_INTERCHAIN_QUOTE,
+        tokenFeeQuote: MOCK_INTERCHAIN_QUOTE,
+      },
     ) => {
       const tokenAmount = new TokenAmount(0, token);
       const result = await warpCore.estimateTransferRemoteFees({
@@ -141,6 +147,10 @@ describe('WarpCore', () => {
         result.interchainQuote.amount,
         `token interchain amount check for ${token.chainName} to ${destination}`,
       ).to.equal(interchainQuote.igpQuote.amount);
+      expect(
+        result.tokenFeeQuote?.amount,
+        `token fee amount check for ${token.chainName} to ${destination}`,
+      ).to.equal(interchainQuote.tokenFeeQuote?.amount);
     };
 
     await testQuote(evmHypNative, test1.name, TokenStandard.EvmNative);

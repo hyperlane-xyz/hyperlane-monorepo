@@ -1,8 +1,8 @@
 import { compareVersions } from 'compare-versions';
 
 export function isValidContractVersion(
-  targetVersion: string,
   currentVersion: string,
+  targetVersion: string,
 ): boolean {
-  return compareVersions(targetVersion, currentVersion) >= 0;
+  return compareVersions(currentVersion, targetVersion) >= 0;
 }

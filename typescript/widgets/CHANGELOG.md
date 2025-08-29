@@ -68,7 +68,7 @@
 - Updated dependencies [d16a853c0]
   - @hyperlane-xyz/utils@15.0.0-beta.0
   - @hyperlane-xyz/sdk@15.0.0-beta.0
-  - # @hyperlane-xyz/cosmos-sdk@15.0.0-beta.0
+  - @hyperlane-xyz/cosmos-sdk@15.0.0-beta.0
 - Updated dependencies [a33c8abd4]
 - Updated dependencies [a33c8abd4]
 - Updated dependencies [e0ea8910c]
@@ -76,7 +76,6 @@
   - @hyperlane-xyz/utils@15.0.0
   - @hyperlane-xyz/sdk@15.0.0
   - @hyperlane-xyz/cosmos-sdk@15.0.0
-    > > > > > > > main
 
 ## 14.4.0
 
