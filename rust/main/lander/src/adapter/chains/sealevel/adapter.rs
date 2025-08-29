@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, ops::Sub, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -427,7 +427,7 @@ impl AdaptsChain for SealevelAdapter {
         let time_before_resubmission = self.time_before_resubmission();
         if let Some(ref last_submission_time) = tx.last_submission_attempt {
             let seconds_since_last_submission =
-                (Utc::now() - last_submission_time).num_milliseconds() as u64;
+                Utc::now().sub(last_submission_time).num_milliseconds() as u64;
             return seconds_since_last_submission >= time_before_resubmission.as_millis() as u64;
         }
         true

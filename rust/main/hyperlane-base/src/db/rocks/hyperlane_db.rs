@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use async_trait::async_trait;
 use eyre::{bail, Result};
 use tracing::{debug, instrument, trace};
@@ -255,7 +257,7 @@ impl HyperlaneRocksDB {
                 Some(payment) => payment,
                 None => InterchainGasPayment::from_gas_payment_key(gas_payment_key),
             };
-        let total = existing_payment + event;
+        let total = existing_payment.add(event);
 
         debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
         self.store_interchain_gas_payment_data_by_gas_payment_key(&gas_payment_key, &total.into())?;
@@ -269,7 +271,7 @@ impl HyperlaneRocksDB {
         event: InterchainGasExpenditure,
     ) -> DbResult<()> {
         let existing_expenditure = self.retrieve_gas_expenditure_by_message_id(event.message_id)?;
-        let total = existing_expenditure + event;
+        let total = existing_expenditure.add(event);
 
         debug!(?event, new_total_gas_expenditure=?total, "Storing gas expenditure");
         self.store_interchain_gas_expenditure_data_by_message_id(
@@ -311,11 +313,11 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     /// Store a list of dispatched messages and their associated metadata.
     #[instrument(skip_all)]
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
-        let mut stored = 0;
+        let mut stored: u32 = 0;
         for (message, meta) in messages {
             let stored_message = self.store_message(message.inner(), meta.block_number)?;
             if stored_message {
-                stored += 1;
+                stored = stored.saturating_add(1);
             }
         }
         if stored > 0 {
@@ -331,10 +333,10 @@ async fn store_and_count_new<T: Copy>(
     log_type: &str,
     process: impl Fn(&HyperlaneRocksDB, T, &LogMeta) -> DbResult<bool>,
 ) -> Result<u32> {
-    let mut new_logs = 0;
+    let mut new_logs: u32 = 0;
     for (log, meta) in logs {
         if process(store, *log, meta)? {
-            new_logs += 1;
+            new_logs = new_logs.saturating_add(1);
         }
     }
     if new_logs > 0 {
@@ -366,10 +368,10 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     /// Store every tree insertion event
     #[instrument(skip_all)]
     async fn store_logs(&self, leaves: &[(Indexed<MerkleTreeInsertion>, LogMeta)]) -> Result<u32> {
-        let mut insertions = 0;
+        let mut insertions: u32 = 0;
         for (insertion, meta) in leaves {
             if self.process_tree_insertion(insertion.inner(), meta.block_number)? {
-                insertions += 1;
+                insertions = insertions.saturating_add(1);
             }
         }
         Ok(insertions)

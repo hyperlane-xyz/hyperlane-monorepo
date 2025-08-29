@@ -46,7 +46,8 @@ pub(crate) async fn get_block_height_for_reorg_period(
     };
 
     let tip = provider.latest_block_height().await?;
-    let block_height = tip - period;
+    // Cosmos heights start at 1; avoid querying block 0.
+    let block_height = tip.saturating_sub(period).max(1);
     Ok(block_height)
 }
 

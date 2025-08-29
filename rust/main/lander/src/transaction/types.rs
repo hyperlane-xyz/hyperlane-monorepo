@@ -63,7 +63,8 @@ impl TransactionStatus {
 
         // count the occurrences of each successfully queried hash status
         for status in statuses.iter().flatten() {
-            *status_counts.entry(status.clone()).or_insert(0) += 1;
+            let entry = status_counts.entry(status.clone()).or_insert(0);
+            *entry = entry.saturating_add(1);
         }
 
         let finalized_count = status_counts
