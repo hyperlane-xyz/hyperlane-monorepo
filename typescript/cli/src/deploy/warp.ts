@@ -613,7 +613,12 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<GroupedTransactions> {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, multiProtocolSigner, registry } = params.context;
+  const {
+    multiProvider,
+    multiProtocolProvider,
+    multiProtocolSigner,
+    registry,
+  } = params.context;
   assert(multiProtocolSigner, `multiProtocolSigner not defined`);
 
   const registryAddresses =
@@ -636,6 +641,7 @@ async function updateExistingWarpRoute(
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
+    multiProtocolProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
   });
