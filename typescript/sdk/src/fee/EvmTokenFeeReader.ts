@@ -133,8 +133,8 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         feeContracts[chainName] = await this.deriveTokenFeeConfig({
           address: subFeeAddress,
 
-          // sub routing fees may have different routingDestinations
-          // However, we don't expect sub routing fees
+          // Currently, it's not possible to configure nested routing fees domains,
+          // but we should not expect that to exist
         });
       }),
     );
