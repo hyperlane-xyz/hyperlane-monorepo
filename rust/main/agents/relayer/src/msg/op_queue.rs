@@ -1,7 +1,7 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
-use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation};
+use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation, ReprepareReason};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, instrument};
@@ -146,6 +146,7 @@ impl OpQueue {
                         matched = true;
                     });
                 if matched {
+                    op.set_status(PendingOperationStatus::Retry(ReprepareReason::Manual));
                     op.reset_attempts();
                 }
                 Reverse(op)

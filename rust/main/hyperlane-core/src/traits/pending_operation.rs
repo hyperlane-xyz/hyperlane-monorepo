@@ -234,6 +234,9 @@ impl Decode for PendingOperationStatus {
 /// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
 /// Adding new variants is fine.
 pub enum ReprepareReason {
+    #[strum(to_string = "Manual retry")]
+    /// Failed to create payload success criteria
+    Manual,
     #[strum(to_string = "Error checking message delivery status")]
     /// Error checking message delivery status
     ErrorCheckingDeliveryStatus,
@@ -369,6 +372,7 @@ impl PartialEq for QueueOperation {
 
 impl Eq for QueueOperation {}
 
+#[allow(clippy::unnecessary_map_or)] // can't use `.is_ok_and` because it still unstables in `sbf`
 impl Ord for QueueOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         use Ordering::*;

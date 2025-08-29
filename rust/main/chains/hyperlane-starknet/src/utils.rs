@@ -253,7 +253,7 @@ pub fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {
     // Create a new byte vector with the necessary padding
     let mut padded_bytes = Vec::with_capacity(total_len);
     padded_bytes.extend_from_slice(bytes);
-    padded_bytes.extend(std::iter::repeat(0).take(padding));
+    padded_bytes.extend(std::iter::repeat_n(0, padding));
 
     let mut result = Vec::with_capacity(total_len / 16);
     for chunk in padded_bytes.chunks_exact(16) {

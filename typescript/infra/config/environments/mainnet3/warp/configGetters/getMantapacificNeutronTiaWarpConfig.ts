@@ -19,6 +19,7 @@ export const getMantapacificNeutronTiaWarpConfig = async (
     foreignDeployment: neutronRouter,
     owner: abacusWorksEnvOwnerConfig.neutron.owner,
     type: TokenType.native,
+    decimals: 6,
     gas: 0,
   };
 

@@ -24,9 +24,10 @@ const METHOD_SEND_RAW_TRANSACTION: &str = "eth_sendRawTransaction";
 /// Wrapper of `FallbackProvider` for use in `hyperlane-ethereum`
 /// The wrapper uses two distinct strategies to place requests to chains:
 /// 1. multicast - the request will be sent to all the providers simultaneously and the first
-///                successful response will be used.
+///    successful response will be used.
+///
 /// 2. fallback  - the request will be sent to each provider one by one according to their
-///                priority and the priority will be updated depending on success/failure.
+///    priority and the priority will be updated depending on success/failure.
 ///
 /// Multicast strategy is used to submit transactions into the chain, namely with RPC method
 /// `eth_sendRawTransaction` while fallback strategy is used for all the other RPC methods.
@@ -235,7 +236,7 @@ where
         &'a self,
         method: &'a str,
         params: &'a Value,
-    ) -> FuturesUnordered<impl Future<Output = Result<Value, HttpClientError>> + Sized + '_> {
+    ) -> FuturesUnordered<impl Future<Output = Result<Value, HttpClientError>> + Sized + 'a> {
         let unordered = FuturesUnordered::new();
         self.inner
             .providers

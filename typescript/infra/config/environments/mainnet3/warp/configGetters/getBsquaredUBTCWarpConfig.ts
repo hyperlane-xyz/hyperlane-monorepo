@@ -27,6 +27,9 @@ export const getBsquaredUBTCWarpConfig = async (
     mailbox: routerConfig.boba.mailbox,
     owner: safeOwners.boba,
     type: TokenType.synthetic,
+    decimals: 18,
+    name: 'uBTC',
+    symbol: 'uBTC',
   };
 
   const bsquared: HypTokenRouterConfig = {
@@ -34,6 +37,7 @@ export const getBsquaredUBTCWarpConfig = async (
     owner: safeOwners.bsquared,
     type: TokenType.collateral,
     token: tokens.bsquared.uBTC,
+    decimals: 18,
   };
 
   const nibiru: HypTokenRouterConfig = {
@@ -49,12 +53,18 @@ export const getBsquaredUBTCWarpConfig = async (
     mailbox: routerConfig.soneium.mailbox,
     owner: safeOwners.soneium,
     type: TokenType.synthetic,
+    decimals: 18,
+    name: 'uBTC',
+    symbol: 'uBTC',
   };
 
   const swell: HypTokenRouterConfig = {
     mailbox: routerConfig.swell.mailbox,
     owner: safeOwners.swell,
     type: TokenType.synthetic,
+    decimals: 18,
+    name: 'uBTC',
+    symbol: 'uBTC',
   };
 
   return {

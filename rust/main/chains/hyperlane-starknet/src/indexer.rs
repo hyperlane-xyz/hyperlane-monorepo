@@ -212,8 +212,8 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer
     }
 }
 
-/// TODO: This is a placeholder for the Interchain Gas Paymaster indexer.
-/// Interchain Gas Paymaster
+// TODO: This is a placeholder for the Interchain Gas Paymaster indexer.
+// Interchain Gas Paymaster
 
 /// A reference to a InterchainGasPaymasterIndexer contract on some Starknet chain
 #[derive(Debug, Clone)]
