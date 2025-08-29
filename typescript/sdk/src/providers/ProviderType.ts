@@ -5,6 +5,8 @@ import type {
 } from '@cosmjs/cosmwasm-stargate';
 import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
+import { TransactionCommittedDetailsResponse } from '@radixdlt/babylon-gateway-api-sdk';
+import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
 import type {
   Connection,
   Transaction as SolTransaction,
@@ -34,6 +36,7 @@ import {
 } from 'zksync-ethers';
 
 import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ChainMap } from '../types.js';
@@ -97,10 +100,10 @@ type ProtocolTypesMapping = {
     receipt: StarknetJsTransactionReceipt;
   };
   [ProtocolType.Radix]: {
-    transaction: any;
-    provider: any;
-    contract: any;
-    receipt: any;
+    transaction: RadixTransaction;
+    provider: RadixProvider;
+    contract: null;
+    receipt: RadixTransactionReceipt;
   };
 };
 
@@ -175,6 +178,11 @@ export interface StarknetJsProvider
   provider: StarknetProvider;
 }
 
+export interface RadixProvider extends TypedProviderBase<RadixSDK> {
+  type: ProviderType.Radix;
+  provider: RadixSDK;
+}
+
 export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
   type: ProviderType.ZkSync;
   provider: ZKSyncBaseProvider;
@@ -189,7 +197,8 @@ export type TypedProvider =
   | CosmJsWasmProvider
   | CosmJsNativeProvider
   | StarknetJsProvider
-  | ZKSyncProvider;
+  | ZKSyncProvider
+  | RadixProvider;
 
 /**
  * Contracts with discriminated union of provider type
@@ -264,13 +273,21 @@ export interface EthersV5Transaction
   transaction: EV5Transaction;
 }
 
+export interface RTransaction {
+  networkId: number;
+  manifest: TransactionManifest;
+}
+
 export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
 export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
 
+export type AnnotatedRadixTransaction = Annotated<RTransaction>;
+
 export type GroupedTransactions = {
   [ProtocolType.Ethereum]: ChainMap<AnnotatedEV5Transaction[]>;
   [ProtocolType.CosmosNative]: ChainMap<AnnotatedCosmJsNativeTransaction[]>;
+  [ProtocolType.Radix]: ChainMap<AnnotatedRadixTransaction[]>;
 };
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
@@ -307,6 +324,11 @@ export interface StarknetJsTransaction
   transaction: StarknetInvocation;
 }
 
+export interface RadixTransaction extends TypedTransactionBase<RTransaction> {
+  type: ProviderType.Radix;
+  transaction: RTransaction;
+}
+
 export interface ZKSyncTransaction
   extends TypedTransactionBase<zkSyncTypes.TransactionRequest> {
   type: ProviderType.ZkSync;
@@ -322,7 +344,8 @@ export type TypedTransaction =
   | CosmJsWasmTransaction
   | CosmJsNativeTransaction
   | StarknetJsTransaction
-  | ZKSyncTransaction;
+  | ZKSyncTransaction
+  | RadixTransaction;
 
 /**
  * Transaction receipt/response with discriminated union of provider type
@@ -381,6 +404,12 @@ export interface ZKSyncTransactionReceipt
   receipt: zkSyncTypes.TransactionReceipt;
 }
 
+export interface RadixTransactionReceipt
+  extends TypedTransactionReceiptBase<TransactionCommittedDetailsResponse> {
+  type: ProviderType.Radix;
+  receipt: TransactionCommittedDetailsResponse & { transactionHash: string };
+}
+
 export type TypedTransactionReceipt =
   | EthersV5TransactionReceipt
   | ViemTransactionReceipt
@@ -389,4 +418,5 @@ export type TypedTransactionReceipt =
   | CosmJsWasmTransactionReceipt
   | CosmJsNativeTransactionReceipt
   | StarknetJsTransactionReceipt
-  | ZKSyncTransactionReceipt;
+  | ZKSyncTransactionReceipt
+  | RadixTransactionReceipt;
