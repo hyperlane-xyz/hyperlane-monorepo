@@ -163,7 +163,9 @@ export class RadixHookModule extends HyperlaneModule<
       `found no native token denom for chain ${this.chain}`,
     );
 
-    const igp = await this.signer.tx.createIgp({ denom: nativeToken.denom });
+    const igp = await this.signer.tx.core.createIgp({
+      denom: nativeToken.denom,
+    });
 
     for (const [remote, c] of Object.entries(config.oracleConfig)) {
       const remoteDomain = this.metadataManager.tryGetDomainId(remote);
@@ -172,7 +174,7 @@ export class RadixHookModule extends HyperlaneModule<
         continue;
       }
 
-      await this.signer.tx.setDestinationGasConfig({
+      await this.signer.tx.core.setDestinationGasConfig({
         igp,
         destination_gas_config: {
           remote_domain: remoteDomain.toString(),
@@ -186,7 +188,7 @@ export class RadixHookModule extends HyperlaneModule<
     }
 
     if (!eqAddress(this.signer.getAddress(), config.owner)) {
-      await this.signer.tx.setIgpOwner({
+      await this.signer.tx.core.setIgpOwner({
         igp,
         new_owner: config.owner,
       });
@@ -198,7 +200,7 @@ export class RadixHookModule extends HyperlaneModule<
   protected async deployMerkleTreeHook(): Promise<Address> {
     this.logger.debug('Deploying Merkle Tree Hook...');
 
-    return this.signer.tx.createMerkleTreeHook({
+    return this.signer.tx.core.createMerkleTreeHook({
       mailbox: this.args.addresses.mailbox,
     });
   }

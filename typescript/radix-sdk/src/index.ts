@@ -4,11 +4,16 @@ import { utils } from 'ethers';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { RadixPopulate } from './modules/populate.js';
-import { RadixQuery } from './modules/query.js';
-import { RadixTx } from './modules/tx.js';
-import { Account, RadixSDKOptions } from './types.js';
-import { generateNewEd25519VirtualAccount } from './utils.js';
+import { RadixCorePopulate } from './core/populate.js';
+import { RadixCoreQuery } from './core/query.js';
+import { RadixCoreTx } from './core/tx.js';
+import { RadixBase } from './utils/base.js';
+import { RadixSigner } from './utils/signer.js';
+import { Account, RadixSDKOptions } from './utils/types.js';
+import { generateNewEd25519VirtualAccount } from './utils/utils.js';
+import { RadixWarpPopulate } from './warp/populate.js';
+import { RadixWarpQuery } from './warp/query.js';
+import { RadixWarpTx } from './warp/tx.js';
 
 const NETWORKS = {
   [NetworkId.Stokenet]: {
@@ -34,8 +39,15 @@ export class RadixSDK {
   public applicationName: string;
   public packageAddress: string;
 
-  public query: RadixQuery;
-  public populate: RadixPopulate;
+  public base: RadixBase;
+  public query: {
+    core: RadixCoreQuery;
+    warp: RadixWarpQuery;
+  };
+  public populate: {
+    core: RadixCorePopulate;
+    warp: RadixWarpPopulate;
+  };
 
   constructor(options?: RadixSDKOptions) {
     this.networkId = options?.networkId ?? NetworkId.Mainnet;
@@ -53,13 +65,26 @@ export class RadixSDK {
       networkId: this.networkId,
     });
 
-    this.query = new RadixQuery(this.networkId, this.gateway);
-    this.populate = new RadixPopulate(
+    this.base = new RadixBase(
+      this.networkId,
       this.gateway,
-      this.query,
-      this.packageAddress,
       options?.gasMultiplier ?? DEFAULT_GAS_MULTIPLIER,
     );
+
+    this.query = {
+      core: new RadixCoreQuery(this.networkId, this.gateway, this.base),
+      warp: new RadixWarpQuery(this.networkId, this.gateway, this.base),
+    };
+
+    this.populate = {
+      core: new RadixCorePopulate(this.gateway, this.base, this.packageAddress),
+      warp: new RadixWarpPopulate(
+        this.gateway,
+        this.base,
+        this.query.warp,
+        this.packageAddress,
+      ),
+    };
   }
 
   public getNetworkId() {
@@ -70,19 +95,36 @@ export class RadixSDK {
 export class RadixSigningSDK extends RadixSDK {
   private account: Account;
 
-  public tx: RadixTx;
+  public tx: {
+    core: RadixCoreTx;
+    warp: RadixWarpTx;
+  };
+  public signer: RadixSigner;
 
-  constructor(account: Account, options?: RadixSDKOptions) {
+  private constructor(account: Account, options?: RadixSDKOptions) {
     super(options);
 
     this.account = account;
-    this.tx = new RadixTx(
-      account,
-      this.query,
-      this.populate,
+    this.signer = new RadixSigner(
       this.networkId,
       this.gateway,
+      this.base,
+      this.account,
     );
+    this.tx = {
+      core: new RadixCoreTx(
+        account,
+        this.base,
+        this.signer,
+        this.populate.core,
+      ),
+      warp: new RadixWarpTx(
+        account,
+        this.base,
+        this.signer,
+        this.populate.warp,
+      ),
+    };
   }
 
   public getAddress() {

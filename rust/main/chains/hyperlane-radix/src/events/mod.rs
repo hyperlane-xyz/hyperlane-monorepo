@@ -143,11 +143,14 @@ pub struct GasPayment {
 
 impl From<GasPayment> for InterchainGasPayment {
     fn from(value: GasPayment) -> Self {
+        // Convert Decimal gas_amount (in attos) to whole gas units by dividing by 10^18.
+        // decimal_to_u256(Decimal::ONE) == 10^18, so types stay U256 / U256.
+        let gas_amount = decimal_to_u256(value.gas_amount) / decimal_to_u256(Decimal::ONE);
         Self {
             message_id: value.message_id.into(),
             destination: value.destination_domain,
             payment: decimal_to_u256(value.payment),
-            gas_amount: decimal_to_u256(value.gas_amount),
+            gas_amount,
         }
     }
 }

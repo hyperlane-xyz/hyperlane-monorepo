@@ -281,7 +281,7 @@ export async function estimateTransactionFeeRadix({
   provider: RadixProvider;
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
-  return provider.provider.query.estimateTransactionFee({
+  return provider.provider.base.estimateTransactionFee({
     transactionManifest: transaction.transaction.manifest,
   });
 }

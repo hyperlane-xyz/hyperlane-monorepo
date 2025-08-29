@@ -22,7 +22,7 @@ export class RadixIsmReader {
 
   async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
     try {
-      const ismType = await this.sdk.query.getIsmType({ ism: address });
+      const ismType = await this.sdk.query.core.getIsmType({ ism: address });
 
       assert(ismType, `ISM with id ${address} not found`);
 
@@ -47,7 +47,7 @@ export class RadixIsmReader {
   private async deriveMerkleRootMultisigConfig(
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
-    const ism = await this.sdk.query.getMultisigIsm({ ism: address });
+    const ism = await this.sdk.query.core.getMultisigIsm({ ism: address });
 
     return {
       type: IsmType.MERKLE_ROOT_MULTISIG,
@@ -60,7 +60,7 @@ export class RadixIsmReader {
   private async deriveMessageIdMultisigConfig(
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
-    const ism = await this.sdk.query.getMultisigIsm({ ism: address });
+    const ism = await this.sdk.query.core.getMultisigIsm({ ism: address });
 
     return {
       type: IsmType.MESSAGE_ID_MULTISIG,
@@ -73,7 +73,7 @@ export class RadixIsmReader {
   private async deriveRoutingIsmConfig(
     address: Address,
   ): Promise<WithAddress<DomainRoutingIsmConfig>> {
-    const ism = await this.sdk.query.getRoutingIsm({ ism: address });
+    const ism = await this.sdk.query.core.getRoutingIsm({ ism: address });
 
     const domains: DomainRoutingIsmConfig['domains'] = {};
 

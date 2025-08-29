@@ -61,7 +61,9 @@ export class RadixWarpRouteReader {
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
-    const token = await this.signer.query.getToken({ token: warpRouteAddress });
+    const token = await this.signer.query.warp.getToken({
+      token: warpRouteAddress,
+    });
     assert(token, `Failed to find token for address ${warpRouteAddress}`);
 
     switch (token.token_type) {
@@ -85,7 +87,9 @@ export class RadixWarpRouteReader {
   async fetchMailboxClientConfig(
     routerAddress: Address,
   ): Promise<MailboxClientConfig> {
-    const token = await this.signer.query.getToken({ token: routerAddress });
+    const token = await this.signer.query.warp.getToken({
+      token: routerAddress,
+    });
     assert(token, `Failed to find token for address ${routerAddress}`);
 
     const config: MailboxClientConfig = {
@@ -112,7 +116,9 @@ export class RadixWarpRouteReader {
     type: TokenType,
     warpRouteAddress: Address,
   ): Promise<HypTokenConfig> {
-    const token = await this.signer.query.getToken({ token: warpRouteAddress });
+    const token = await this.signer.query.warp.getToken({
+      token: warpRouteAddress,
+    });
     assert(token, `Failed to find token for address ${warpRouteAddress}`);
 
     return {
@@ -125,7 +131,7 @@ export class RadixWarpRouteReader {
   }
 
   async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
-    const { remote_routers } = await this.signer.query.getRemoteRouters({
+    const { remote_routers } = await this.signer.query.warp.getRemoteRouters({
       token: warpRouteAddress,
     });
 
@@ -142,7 +148,7 @@ export class RadixWarpRouteReader {
   async fetchDestinationGas(
     warpRouteAddress: Address,
   ): Promise<DestinationGas> {
-    const { remote_routers } = await this.signer.query.getRemoteRouters({
+    const { remote_routers } = await this.signer.query.warp.getRemoteRouters({
       token: warpRouteAddress,
     });
 

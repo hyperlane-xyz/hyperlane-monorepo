@@ -5,10 +5,7 @@ use core_api_client::models::{FeeSummary, TransactionStatus};
 use radix_common::manifest_args;
 use radix_common::prelude::ManifestArgs;
 use regex::Regex;
-use scrypto::{
-    address::AddressBech32Decoder, data::manifest::manifest_encode, network::NetworkDefinition,
-    types::ComponentAddress,
-};
+use scrypto::{address::AddressBech32Decoder, network::NetworkDefinition, types::ComponentAddress};
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
@@ -136,9 +133,8 @@ impl Mailbox for RadixMailbox {
     /// Fetch the status of a message
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         let id: Bytes32 = id.into();
-        let id = manifest_encode(&id).map_err(HyperlaneRadixError::from)?;
         self.provider
-            .call_method(&self.encoded_address, "delivered", None, vec![id])
+            .call_method_with_arg(&self.encoded_address, "delivered", None, &id)
             .await
     }
 

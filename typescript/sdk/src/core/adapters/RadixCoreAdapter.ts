@@ -72,7 +72,7 @@ export class RadixCoreAdapter
   ): Promise<boolean> {
     const provider = this.multiProvider.getRadixProvider(destination);
 
-    await provider.query.pollForCommit(messageId);
+    await provider.base.pollForCommit(messageId);
     return true;
   }
 }

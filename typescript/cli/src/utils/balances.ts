@@ -106,7 +106,7 @@ export async function nativeBalancesAreSufficient(
 
         balanceSmallestUnit = new BigNumber(
           (
-            await provider.query.getBalance({
+            await provider.base.getBalance({
               address,
               resource: nativeToken.denom,
             })

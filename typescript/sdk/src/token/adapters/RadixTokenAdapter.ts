@@ -47,7 +47,7 @@ export class RadixNativeTokenAdapter
 
   async getBalance(address: string): Promise<bigint> {
     const resource = await this.getResourceAddress();
-    return this.provider.query.getBalance({
+    return this.provider.base.getBalance({
       address,
       resource,
     });
@@ -58,7 +58,7 @@ export class RadixNativeTokenAdapter
       name,
       symbol,
       divisibility: decimals,
-    } = await this.provider.query.getToken({
+    } = await this.provider.query.warp.getToken({
       token: this.tokenId,
     });
 
@@ -107,7 +107,7 @@ export class RadixNativeTokenAdapter
 
     return {
       networkId: this.provider.getNetworkId(),
-      manifest: await this.provider.populate.transfer({
+      manifest: await this.provider.base.transfer({
         from_address: transferParams.fromAccountOwner!,
         to_address: transferParams.recipient,
         resource_address: resource,
@@ -118,7 +118,7 @@ export class RadixNativeTokenAdapter
 
   async getTotalSupply(): Promise<bigint | undefined> {
     const resource = await this.getResourceAddress();
-    return this.provider.query.getTotalSupply({
+    return this.provider.base.getTotalSupply({
       resource,
     });
   }
@@ -137,14 +137,14 @@ export class RadixHypCollateralAdapter
   }
 
   protected async getResourceAddress(): Promise<string> {
-    const { origin_denom } = await this.provider.query.getToken({
+    const { origin_denom } = await this.provider.query.warp.getToken({
       token: this.tokenId,
     });
     return origin_denom;
   }
 
   async getDomains(): Promise<Domain[]> {
-    const { remote_routers } = await this.provider.query.getRemoteRouters({
+    const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
       token: this.tokenId,
     });
 
@@ -152,7 +152,7 @@ export class RadixHypCollateralAdapter
   }
 
   async getRouterAddress(domain: Domain): Promise<Buffer> {
-    const { remote_routers } = await this.provider.query.getRemoteRouters({
+    const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
       token: this.tokenId,
     });
 
@@ -168,7 +168,7 @@ export class RadixHypCollateralAdapter
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
-    const { remote_routers } = await this.provider.query.getRemoteRouters({
+    const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
       token: this.tokenId,
     });
 
@@ -179,14 +179,14 @@ export class RadixHypCollateralAdapter
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
-    return this.provider.query.getBridgedSupply({ token: this.tokenId });
+    return this.provider.query.warp.getBridgedSupply({ token: this.tokenId });
   }
 
   async quoteTransferRemoteGas(
     destination: Domain,
   ): Promise<InterchainGasQuote> {
     const { resource: addressOrDenom, amount } =
-      await this.provider.query.quoteRemoteTransfer({
+      await this.provider.query.warp.quoteRemoteTransfer({
         token: this.tokenId,
         destination_domain: destination,
       });
@@ -208,7 +208,7 @@ export class RadixHypCollateralAdapter
       );
     }
 
-    const { remote_routers } = await this.provider.query.getRemoteRouters({
+    const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
       token: this.tokenId,
     });
 
@@ -230,7 +230,7 @@ export class RadixHypCollateralAdapter
 
     return {
       networkId: this.provider.getNetworkId(),
-      manifest: await this.provider.populate.remoteTransfer({
+      manifest: await this.provider.populate.warp.remoteTransfer({
         from_address: params.fromAccountOwner!,
         recipient: strip0x(addressToBytes32(params.recipient)),
         amount: params.weiAmountOrId.toString(),

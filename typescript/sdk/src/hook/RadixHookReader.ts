@@ -38,7 +38,7 @@ export class RadixHookReader {
   private async deriveIgpConfig(
     address: Address,
   ): Promise<WithAddress<IgpHookConfig>> {
-    const igp = await this.sdk.query.getIgpHook({ hook: address });
+    const igp = await this.sdk.query.core.getIgpHook({ hook: address });
 
     assert(igp, `IGP not found for address ${address}`);
 
@@ -73,7 +73,7 @@ export class RadixHookReader {
   private async deriveMerkleTreeConfig(
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
-    const merkleTreeHook = await this.sdk.query.getMerkleTreeHook({
+    const merkleTreeHook = await this.sdk.query.core.getMerkleTreeHook({
       hook: address,
     });
 
@@ -87,7 +87,7 @@ export class RadixHookReader {
 
   private async isIgpHook(address: Address): Promise<boolean> {
     try {
-      const igp = await this.sdk.query.getIgpHook({ hook: address });
+      const igp = await this.sdk.query.core.getIgpHook({ hook: address });
       return !!igp;
     } catch {
       return false;
@@ -96,7 +96,7 @@ export class RadixHookReader {
 
   private async isMerkleTreeHook(address: Address): Promise<boolean> {
     try {
-      const merkleTreeHook = await this.sdk.query.getMerkleTreeHook({
+      const merkleTreeHook = await this.sdk.query.core.getMerkleTreeHook({
         hook: address,
       });
       return !!merkleTreeHook;

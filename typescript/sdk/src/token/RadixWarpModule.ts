@@ -158,7 +158,7 @@ export class RadixWarpModule extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         networkId: this.signer.getNetworkId(),
-        manifest: await this.signer.populate.enrollRemoteRouter({
+        manifest: await this.signer.populate.warp.enrollRemoteRouter({
           from_address: this.signer.getAddress(),
           token: this.args.addresses.deployedTokenRoute,
           receiver_domain: parseInt(domainId),
@@ -203,7 +203,7 @@ export class RadixWarpModule extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         networkId: this.signer.getNetworkId(),
-        manifest: await this.signer.populate.unrollRemoteRouter({
+        manifest: await this.signer.populate.warp.unenrollRemoteRouter({
           from_address: this.signer.getAddress(),
           token: this.args.addresses.deployedTokenRoute,
           receiver_domain: parseInt(domainId),
@@ -255,7 +255,7 @@ export class RadixWarpModule extends HyperlaneModule<
         updateTransactions.push({
           annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
           networkId: this.signer.getNetworkId(),
-          manifest: await this.signer.populate.enrollRemoteRouter({
+          manifest: await this.signer.populate.warp.enrollRemoteRouter({
             from_address: this.signer.getAddress(),
             token: this.args.addresses.deployedTokenRoute,
             receiver_domain: parseInt(domain),
@@ -308,7 +308,7 @@ export class RadixWarpModule extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
         networkId: this.signer.getNetworkId(),
-        manifest: await this.signer.populate.setTokenIsm({
+        manifest: await this.signer.populate.warp.setTokenIsm({
           from_address: this.signer.getAddress(),
           token: this.args.addresses.deployedTokenRoute,
           ism: expectedDeployedIsm,
@@ -338,7 +338,7 @@ export class RadixWarpModule extends HyperlaneModule<
       {
         annotation: `Transferring ownership of ${this.args.addresses.deployedTokenRoute} from ${actualConfig.owner} to ${expectedConfig.owner}`,
         networkId: this.signer.getNetworkId(),
-        manifest: await this.signer.populate.setTokenOwner({
+        manifest: await this.signer.populate.warp.setTokenOwner({
           from_address: this.signer.getAddress(),
           token: this.args.addresses.deployedTokenRoute,
           new_owner: expectedConfig.owner,

@@ -336,7 +336,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
           const provider = this.multiProtocolProvider.getRadixProvider(
             params.chain,
           );
-          const balance = await provider.query.getXrdBalance({
+          const balance = await provider.base.getXrdBalance({
             address: params.address,
           });
           return BigNumber.from(balance);

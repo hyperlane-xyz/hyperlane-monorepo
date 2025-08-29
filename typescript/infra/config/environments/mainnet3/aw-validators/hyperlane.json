@@ -190,9 +190,6 @@
       "0xd98c9522cd9d3e3e00bee05ff76c34b91b266ec3"
     ]
   },
-  "infinityvmmainnet": {
-    "validators": ["0x777c19c87aaa625486dff5aab0a479100f4249ad"]
-  },
   "injective": {
     "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
   },
@@ -336,6 +333,12 @@
   },
   "proofofplay": {
     "validators": ["0xcda40baa71970a06e5f55e306474de5ca4e21c3b"]
+  },
+  "pulsechain": {
+    "validators": ["0xa73fc7ebb2149d9c6992ae002cb1849696be895b"]
+  },
+  "radix": {
+    "validators": ["0xa715a7cd97f68caeedb7be64f9e1da10f8ffafb4"]
   },
   "rarichain": {
     "validators": ["0xeac012df7530720dd7d6f9b727e4fe39807d1516"]

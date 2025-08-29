@@ -171,4 +171,7 @@ export const blacklistedMessageIds = [
   // Superseed dest:
   // 7/1/2025
   '0x84c7565f1f0b0fc7b5571c86e9f23187d4078779f607b13f73c6016efcf90bc4',
+  // Paradex USDC:
+  // 8/27/2025
+  '0x151135eda5f04110084c6673d23f041d9141a50bdb02de028e32fe7f4e14e7c2',
 ];

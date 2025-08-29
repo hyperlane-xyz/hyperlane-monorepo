@@ -23,7 +23,7 @@ export class RadixCoreReader {
   }
 
   async deriveCoreConfig(mailboxAddress: Address): Promise<DerivedCoreConfig> {
-    const mailbox = await this.sdk.query.getMailbox({
+    const mailbox = await this.sdk.query.core.getMailbox({
       mailbox: mailboxAddress,
     });
 

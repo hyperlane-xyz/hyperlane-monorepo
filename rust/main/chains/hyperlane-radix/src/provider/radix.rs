@@ -17,10 +17,10 @@ use core_api_client::{
 use gateway_api_client::{
     apis::configuration::Configuration as GatewayConfig,
     models::{
-        self, CommittedTransactionInfo, CompiledPreviewTransaction, LedgerState,
-        LedgerStateSelector, ProgrammaticScryptoSborValue, StateEntityDetailsRequest,
-        StreamTransactionsRequest, TransactionCommittedDetailsRequest, TransactionDetailsOptIns,
-        TransactionPreviewV2Request, TransactionStatusResponse,
+        self, CommittedTransactionInfo, CompiledPreviewTransaction, LedgerStateSelector,
+        ProgrammaticScryptoSborValue, StateEntityDetailsRequest, StreamTransactionsRequest,
+        TransactionCommittedDetailsRequest, TransactionDetailsOptIns, TransactionPreviewV2Request,
+        TransactionStatusResponse,
     },
 };
 use radix_common::traits::ScryptoEvent;
@@ -46,13 +46,13 @@ use scrypto::{
 use hyperlane_core::{
     rpc_clients::FallbackProvider, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
     ContractLocator, Encode, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, LogMeta,
-    ReorgPeriod, TxOutcome, TxnInfo, H256, H512, U256,
+    ReorgPeriod, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
 use crate::{
-    decimal_to_u256, decode_bech32, encode_tx, provider::RadixGatewayProvider, signer::RadixSigner,
-    ConnectionConf, HyperlaneRadixError, RadixBaseCoreProvider, RadixBaseGatewayProvider,
-    RadixCoreProvider, RadixFallbackProvider,
+    decimal_to_u256, decode_bech32, encode_tx, manifest::find_fee_payer_from_manifest,
+    provider::RadixGatewayProvider, signer::RadixSigner, ConnectionConf, HyperlaneRadixError,
+    RadixBaseCoreProvider, RadixBaseGatewayProvider, RadixCoreProvider, RadixFallbackProvider,
 };
 
 /// Radix provider
@@ -210,9 +210,9 @@ impl RadixProvider {
     }
 
     /// Returns the latest ledger state of the chain
-    pub async fn get_status(&self, reorg: Option<&ReorgPeriod>) -> ChainResult<LedgerState> {
-        let status = self.gateway_status().await?;
-        let mut state = status.ledger_state;
+    pub async fn get_state_version(&self, reorg: Option<&ReorgPeriod>) -> ChainResult<u64> {
+        let status = self.core_status().await?;
+        let state = status.current_state_identifier.state_version;
         let reorg = reorg.unwrap_or(&self.reorg);
         let offset = match reorg {
             ReorgPeriod::None => 0,
@@ -224,8 +224,7 @@ impl RadixProvider {
                 .into())
             }
         };
-        state.state_version = state.state_version.saturating_sub(offset as i64);
-        Ok(state)
+        Ok(state.saturating_sub(offset as u64))
     }
 
     fn filter_parsed_logs<T: ScryptoEvent>(
@@ -239,6 +238,12 @@ impl RadixProvider {
             let Some(receipt) = tx.receipt else {
                 return Err(HyperlaneRadixError::ParsingError("receipt".to_owned()).into());
             };
+
+            // filter out failed transactions
+            if receipt.status != Some(models::TransactionStatus::CommittedSuccess) {
+                continue;
+            }
+
             let Some(hash) = tx.intent_hash else {
                 return Err(HyperlaneRadixError::ParsingError(
                     "failed to parse intent hash".to_owned(),
@@ -249,7 +254,7 @@ impl RadixProvider {
             let hash = H256::from_slice(&hash);
             let Some(raw_events) = receipt.events else {
                 return Err(
-                    HyperlaneRadixError::ParsingError("events no present".to_owned()).into(),
+                    HyperlaneRadixError::ParsingError("events not present".to_owned()).into(),
                 );
             };
 
@@ -332,6 +337,7 @@ impl RadixProvider {
             .transaction_committed(TransactionCommittedDetailsRequest {
                 intent_hash: hash,
                 opt_ins: Some(TransactionDetailsOptIns {
+                    manifest_instructions: Some(true),
                     receipt_events: Some(true),
                     receipt_fee_summary: Some(true),
                     ..Default::default()
@@ -402,7 +408,7 @@ impl RadixProvider {
         let signer = self.get_signer()?;
         let private_key = signer.get_signer()?;
 
-        let epoch = self.get_status(None).await?.epoch as u64;
+        let epoch = self.provider.gateway_status().await?.ledger_state.epoch as u64;
         let tx = TransactionBuilder::new_v2()
             .transaction_header(TransactionHeaderV2 {
                 notary_public_key: private_key.public_key(),
@@ -456,7 +462,7 @@ impl RadixProvider {
             None => self.simulate_raw_tx(simulation.to_vec()).await?.fee_summary,
         };
         let simulated_xrd = Self::total_fee(simulation)?
-            * Decimal::from_str("1.25").map_err(HyperlaneRadixError::from)?;
+            * Decimal::from_str("1.5").map_err(HyperlaneRadixError::from)?;
 
         let tx = tx_builder
             .manifest_builder(|builder| {
@@ -475,7 +481,7 @@ impl RadixProvider {
         const TIMEOUT_DELAY: u64 = 60;
         const POLLING_INTERVAL: u64 = 2;
         const N: usize = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
-
+        let hash = encode_tx(&self.conf.network, tx_hash.into())?;
         let mut attempt = 0;
 
         let status = loop {
@@ -497,6 +503,7 @@ impl RadixProvider {
                         current_attempt = attempt,
                         total_wait_seconds = attempt as u64 * POLLING_INTERVAL,
                         status = ?tx_status.status,
+                        hash = hash,
                         "Transaction still pending, continuing to poll"
                     );
                     // Transaction is still pending, continue polling
@@ -636,6 +643,17 @@ impl HyperlaneProvider for RadixProvider {
             return Err(HyperlaneRadixError::ParsingError("receipt".to_owned()).into());
         };
 
+        let Some(tx_manifest) = tx.manifest_instructions else {
+            return Err(
+                HyperlaneRadixError::ParsingError("manifest_instructions".to_owned()).into(),
+            );
+        };
+
+        // We assume the account that locked up XRD to pay for fees is the sender of the transaction.
+        // If we can't find fee payer, then default to H256::zero()
+        let fee_payer =
+            find_fee_payer_from_manifest(&tx_manifest, &self.conf.network).unwrap_or_default();
+
         let Some(fee_summary) = receipt.fee_summary else {
             return Err(
                 HyperlaneRadixError::ParsingError("expected fee summary".to_owned()).into(),
@@ -668,10 +686,16 @@ impl HyperlaneProvider for RadixProvider {
             max_priority_fee_per_gas: None,
             max_fee_per_gas: None,
             gas_price: Some(gas_price),
-            nonce: 0, // TODO: double check if we need a nonce, there are no nonces in radix, we might want to use the discriminator instead
-            sender: H256::zero(), // TODO: this is not easy to figure out, we can use the notary public key, but it is not always the sender
-            recipient: None, // TODO: hard to tell what the tx interacted with, this can be with more than just one person, maybe use the the first component address?
-            receipt: None,
+            // TODO: double check if we need a nonce, there are no nonces in radix, we might want to use the discriminator instead
+            nonce: 0,
+            sender: fee_payer,
+            // TODO: hard to tell what the tx interacted with, this can be with more than just one person, maybe use the the first component address?
+            recipient: None,
+            receipt: Some(TxnReceiptInfo {
+                gas_used: U256::from(gas_limit),
+                cumulative_gas_used: gas_price,
+                effective_gas_price: Some(gas_price),
+            }),
             raw_input_data: None,
         })
     }

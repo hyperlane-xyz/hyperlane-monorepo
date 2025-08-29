@@ -423,7 +423,7 @@ export async function updateTokenOwners({
       }
       case ProtocolType.Radix: {
         const signer = multiProtocolSigner.getRadixSigner(chain);
-        await signer.tx.setTokenOwner({
+        await signer.tx.warp.setTokenOwner({
           token: tokenAddress,
           new_owner: newOwner,
         });
@@ -643,7 +643,7 @@ export async function enrollCrossChainRouters(
             const signer = multiProtocolSigner.getRadixSigner(chain);
 
             for (const transaction of transactions) {
-              await signer.tx.signAndBroadcast(transaction.manifest);
+              await signer.signer.signAndBroadcast(transaction.manifest);
             }
           }
 

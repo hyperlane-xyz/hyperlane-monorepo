@@ -107,7 +107,7 @@ export class RadixCoreModule extends HyperlaneModule<
     const domainId = multiProvider.getDomainId(chain);
 
     // 1. Deploy Mailbox with initial configuration
-    const mailbox = await signer.tx.createMailbox({ domain_id: domainId });
+    const mailbox = await signer.tx.core.createMailbox({ domain_id: domainId });
 
     // 2. Deploy default ISM
     const ismModule = await RadixIsmModule.create({
@@ -151,15 +151,18 @@ export class RadixCoreModule extends HyperlaneModule<
     const { deployedHook: requiredHook } = requiredHookModule.serialize();
 
     // 5. Update the configuration with the newly created hooks
-    await signer.tx.setDefaultIsm({ mailbox, ism: defaultIsm });
-    await signer.tx.setDefaultHook({ mailbox, hook: defaultHook });
-    await signer.tx.setRequiredHook({ mailbox, hook: requiredHook });
+    await signer.tx.core.setDefaultIsm({ mailbox, ism: defaultIsm });
+    await signer.tx.core.setDefaultHook({ mailbox, hook: defaultHook });
+    await signer.tx.core.setRequiredHook({ mailbox, hook: requiredHook });
 
     if (!eqAddress(signer.getAddress(), config.owner)) {
-      await signer.tx.setMailboxOwner({ mailbox, new_owner: config.owner });
+      await signer.tx.core.setMailboxOwner({
+        mailbox,
+        new_owner: config.owner,
+      });
     }
 
-    const validatorAnnounce = await signer.tx.createValidatorAnnounce({
+    const validatorAnnounce = await signer.tx.core.createValidatorAnnounce({
       mailbox,
     });
 
@@ -263,7 +266,7 @@ export class RadixCoreModule extends HyperlaneModule<
       {
         annotation: `Transferring ownership of Mailbox from ${actualConfig.owner} to ${expectedConfig.owner}`,
         networkId: this.signer.getNetworkId(),
-        manifest: await this.signer.populate.setMailboxOwner({
+        manifest: await this.signer.populate.core.setMailboxOwner({
           from_address: this.signer.getAddress(),
           mailbox,
           new_owner: expectedConfig.owner,
@@ -303,7 +306,7 @@ export class RadixCoreModule extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm}`,
         networkId: this.signer.getNetworkId(),
-        manifest: await this.signer.populate.setDefaultIsm({
+        manifest: await this.signer.populate.core.setDefaultIsm({
           from_address: this.signer.getAddress(),
           mailbox,
           ism: deployedIsm,
@@ -381,7 +384,7 @@ export class RadixCoreModule extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook}`,
         networkId: this.signer.getNetworkId(),
-        manifest: await this.signer.populate.setDefaultHook({
+        manifest: await this.signer.populate.core.setDefaultHook({
           from_address: this.signer.getAddress(),
           mailbox,
           hook: deployedHook,
@@ -424,7 +427,7 @@ export class RadixCoreModule extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook}`,
         networkId: this.signer.getNetworkId(),
-        manifest: await this.signer.populate.setRequiredHook({
+        manifest: await this.signer.populate.core.setRequiredHook({
           from_address: this.signer.getAddress(),
           mailbox,
           hook: deployedHook,

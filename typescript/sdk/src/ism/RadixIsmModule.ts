@@ -179,7 +179,7 @@ export class RadixIsmModule extends HyperlaneModule<
       config.threshold <= config.validators.length,
       `threshold (${config.threshold}) for merkle root multisig ISM is greater than number of validators (${config.validators.length})`,
     );
-    return this.signer.tx.createMerkleRootMultisigIsm({
+    return this.signer.tx.core.createMerkleRootMultisigIsm({
       validators: config.validators,
       threshold: config.threshold,
     });
@@ -192,7 +192,7 @@ export class RadixIsmModule extends HyperlaneModule<
       config.threshold <= config.validators.length,
       `threshold (${config.threshold}) for message id multisig ISM is greater than number of validators (${config.validators.length})`,
     );
-    return this.signer.tx.createMessageIdMultisigIsm({
+    return this.signer.tx.core.createMessageIdMultisigIsm({
       validators: config.validators,
       threshold: config.threshold,
     });
@@ -220,12 +220,12 @@ export class RadixIsmModule extends HyperlaneModule<
       });
     }
 
-    const ism = await this.signer.tx.createRoutingIsm({
+    const ism = await this.signer.tx.core.createRoutingIsm({
       routes,
     });
 
     if (this.signer.getAddress() !== config.owner) {
-      await this.signer.tx.setRoutingIsmOwner({
+      await this.signer.tx.core.setRoutingIsmOwner({
         ism,
         new_owner: config.owner,
       });
@@ -235,6 +235,6 @@ export class RadixIsmModule extends HyperlaneModule<
   }
 
   protected async deployNoopIsm(): Promise<Address> {
-    return this.signer.tx.createNoopIsm();
+    return this.signer.tx.core.createNoopIsm();
   }
 }
