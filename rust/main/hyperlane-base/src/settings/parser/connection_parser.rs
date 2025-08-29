@@ -570,7 +570,7 @@ fn parse_header(
             .unwrap_or_default(),
         _ => {
             err.push(
-                &chain.cwp + name,
+                (&chain.cwp).add(name),
                 eyre!("Expected JSON array or stringified JSON"),
             );
             return vec![];
