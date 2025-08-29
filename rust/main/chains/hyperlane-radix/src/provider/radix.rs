@@ -590,6 +590,7 @@ impl RadixProvider {
     }
 
     fn find_first_component_address(
+        hash: &H512,
         network: &NetworkDefinition,
         addresses: &[String],
     ) -> Option<H256> {
@@ -597,17 +598,17 @@ impl RadixProvider {
         addresses
             .iter()
             .filter(|addr| addr.starts_with("component_"))
-            .nth(0)
-            .and_then(
+            .filter_map(
                 |addr| match address_bech32_decoder.validate_and_decode(addr) {
                     Ok(s) => Some(s),
                     Err(err) => {
-                        tracing::warn!(?err, "Failed to decode component address");
+                        tracing::warn!(?err, ?hash, "Failed to decode component address");
                         None
                     }
                 },
             )
             .map(|addr| radix_address_bytes_to_h256(&addr.1))
+            .next()
     }
 }
 
@@ -674,17 +675,13 @@ impl HyperlaneProvider for RadixProvider {
             );
         };
 
-        let Some(affected_global_entities) = tx.affected_global_entities else {
-            return Err(
-                HyperlaneRadixError::ParsingError("affected_global_entities".to_owned()).into(),
-            );
-        };
+        let affected_global_entities = tx.affected_global_entities.unwrap_or_default();
 
         // Radix doesn't have the concept of a single "primary" recipient of a transaction
         // so its hard to who/what the "primary" entity each transaction is for.
         // Instead, we just use the first component address in a transaction
         let first_component_address =
-            Self::find_first_component_address(&self.conf.network, &affected_global_entities);
+            Self::find_first_component_address(hash, &self.conf.network, &affected_global_entities);
 
         // We assume the account that locked up XRD to pay for fees is the sender of the transaction.
         // If we can't find fee payer, then default to H256::zero()
