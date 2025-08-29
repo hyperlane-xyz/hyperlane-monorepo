@@ -24,3 +24,6 @@ typescript/cosmos-types @troykessler @yjamin
 
 ## CCIP Server
 typescript/ccip-server @Mo-Hussain @nambrot
+
+## Radix
+typescript/radix-sdk @troykessler @yjamin
