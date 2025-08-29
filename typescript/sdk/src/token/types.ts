@@ -272,9 +272,12 @@ export const HypTokenConfigSchema = z.discriminatedUnion('type', [
 ]);
 export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 
-export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
-  GasRouterConfigSchema,
-).and(HypTokenRouterVirtualConfigSchema.partial());
+export const HypTokenRouterConfigSchema = z.preprocess(
+  preprocessWarpRouteDeployConfig,
+  HypTokenConfigSchema.and(GasRouterConfigSchema).and(
+    HypTokenRouterVirtualConfigSchema.partial(),
+  ),
+);
 
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
@@ -294,39 +297,40 @@ export function derivedIsmAddress(config: DerivedTokenRouterConfig) {
     : config.interchainSecurityModule.address;
 }
 
-export const HypTokenRouterConfigMailboxOptionalSchema =
+export const HypTokenRouterConfigMailboxOptionalBaseSchema =
   HypTokenConfigSchema.and(
     GasRouterConfigSchema.extend({
       mailbox: z.string().optional(),
     }),
   ).and(HypTokenRouterVirtualConfigSchema.partial());
 
+export type HypTokenRouterConfigMailboxOptionalBase = z.infer<
+  typeof HypTokenRouterConfigMailboxOptionalBaseSchema
+>;
+
+export const HypTokenRouterConfigMailboxOptionalSchema = z.preprocess(
+  preprocessWarpRouteDeployConfig,
+  HypTokenRouterConfigMailboxOptionalBaseSchema,
+);
+
 export type HypTokenRouterConfigMailboxOptional = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalSchema
 >;
 
-function preprocessWarpRouteDeployConfig(
-  value: unknown,
-): Record<string, HypTokenRouterConfigMailboxOptional> {
-  const mutatedConfig = value as Record<
-    string,
-    HypTokenRouterConfigMailboxOptional
-  >;
-  objMap(mutatedConfig, (_, config) => {
-    populateTokenFeeOwners({
-      tokenConfig: config,
-      feeConfig: config.tokenFee,
-    });
+function preprocessWarpRouteDeployConfig(value: unknown) {
+  const mutatedConfig = value as HypTokenRouterConfigMailboxOptionalBase;
+  return populateTokenFeeOwners({
+    tokenConfig: mutatedConfig,
+    feeConfig: mutatedConfig.tokenFee,
   });
-  return mutatedConfig;
 }
 
 function populateTokenFeeOwners(params: {
-  tokenConfig: HypTokenRouterConfigMailboxOptional;
+  tokenConfig: HypTokenRouterConfigMailboxOptionalBase;
   feeConfig?: TokenFeeConfigInput;
 }) {
   const { tokenConfig, feeConfig } = params;
-  if (!feeConfig) return;
+  if (!feeConfig) return tokenConfig;
 
   if (isCollateralTokenConfig(tokenConfig)) {
     // Default fee.token to the router token, if not specified
@@ -344,10 +348,7 @@ function populateTokenFeeOwners(params: {
 }
 
 export const WarpRouteDeployConfigSchema = z
-  .preprocess(
-    preprocessWarpRouteDeployConfig,
-    z.record(HypTokenRouterConfigMailboxOptionalSchema),
-  )
+  .record(HypTokenRouterConfigMailboxOptionalSchema)
   .refine((configMap) => {
     const entries = Object.entries(configMap);
     return (
