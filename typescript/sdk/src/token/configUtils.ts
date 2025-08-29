@@ -18,8 +18,11 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
+import { CosmosNativeHookReader } from '../hook/CosmosNativeHookReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { CosmosNativeIsmReader } from '../ism/CosmosNativeIsmReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
@@ -110,12 +113,14 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
+  multiProtocolProvider: MultiProtocolProvider;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
+    multiProtocolProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
@@ -198,8 +203,8 @@ export async function expandWarpDeployConfig(params: {
       // For contractVerificationStatus, all values should be 'verified'
       // For ownerStatus, all values should be 'active or 'gnosisSafe'
       if (
-        expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus &&
-        multiProvider.getProtocol(chain) === ProtocolType.Ethereum
+        isEVMChain &&
+        expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus
       ) {
         // For most cases, we set to Verified
         chainConfig.contractVerificationStatus = objMap(
@@ -217,10 +222,7 @@ export async function expandWarpDeployConfig(params: {
         );
       }
 
-      if (
-        expandedOnChainWarpConfig?.[chain]?.ownerStatus &&
-        multiProvider.getProtocol(chain) === ProtocolType.Ethereum
-      ) {
+      if (isEVMChain && expandedOnChainWarpConfig?.[chain]?.ownerStatus) {
         // For 'active' or 'gnosis-safe', we set their actual state as the control because they are both acceptable.
         // For other cases, we expect 'active'
         chainConfig.ownerStatus = objMap(
@@ -243,28 +245,49 @@ export async function expandWarpDeployConfig(params: {
       // Expand the hook config only if we have an explicit config in the deploy config
       // and the current chain is an EVM one.
       // if we have an address we leave it like that to avoid deriving
-      if (
-        isEVMChain &&
-        chainConfig.hook &&
-        typeof chainConfig.hook !== 'string'
-      ) {
-        const reader = new EvmHookReader(multiProvider, chain);
+      if (chainConfig.hook && typeof chainConfig.hook !== 'string') {
+        switch (multiProvider.getProtocol(chain)) {
+          case ProtocolType.Ethereum: {
+            const reader = new EvmHookReader(multiProvider, chain);
+            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+            break;
+          }
+          case ProtocolType.CosmosNative: {
+            const provider =
+              await multiProtocolProvider.getCosmJsNativeProvider(chain);
 
-        chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+            const reader = new CosmosNativeHookReader(multiProvider, provider);
+            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+            break;
+          }
+        }
       }
 
       // Expand the ism config only if we have an explicit config in the deploy config
       // if we have an address we leave it like that to avoid deriving
       if (
-        isEVMChain &&
         chainConfig.interchainSecurityModule &&
         typeof chainConfig.interchainSecurityModule !== 'string'
       ) {
-        const reader = new EvmIsmReader(multiProvider, chain);
+        switch (multiProvider.getProtocol(chain)) {
+          case ProtocolType.Ethereum: {
+            const reader = new EvmIsmReader(multiProvider, chain);
+            chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
+              chainConfig.interchainSecurityModule,
+            );
+            break;
+          }
+          case ProtocolType.CosmosNative: {
+            const provider =
+              await multiProtocolProvider.getCosmJsNativeProvider(chain);
 
-        chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
-          chainConfig.interchainSecurityModule,
-        );
+            const reader = new CosmosNativeIsmReader(multiProvider, provider);
+            chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
+              chainConfig.interchainSecurityModule,
+            );
+            break;
+          }
+        }
       }
 
       return chainConfig;

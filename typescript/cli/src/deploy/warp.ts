@@ -15,8 +15,10 @@ import {
   ChainMap,
   ChainName,
   ContractVerifier,
+  CosmosNativeWarpModule,
   EvmERC20WarpModule,
   ExplorerLicenseType,
+  GroupedTransactions,
   HypERC20Deployer,
   IsmType,
   MultiProvider,
@@ -390,22 +392,16 @@ export async function runWarpRouteApply(
       context.registry,
     );
 
-  const { multiProvider } = context;
+  const { multiProtocolSigner } = context;
+  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
+
   // temporarily configure deployer as owner so that warp update after extension
   // can leverage JSON RPC submitter on new chains
   const intermediateOwnerConfig = await promiseObjAll(
-    objMap(params.warpDeployConfig, async (chain, config) => {
-      const protocolType = multiProvider.getProtocol(chain);
-
-      if (protocolType !== ProtocolType.Ethereum) {
-        return config;
-      }
-
-      return {
-        ...config,
-        owner: await multiProvider.getSignerAddress(chain),
-      };
-    }),
+    objMap(params.warpDeployConfig, async (chain, config) => ({
+      ...config,
+      owner: await multiProtocolSigner.getSignerAddress(chain),
+    })),
   );
 
   // Extend the warp route and get the updated configs
@@ -416,16 +412,24 @@ export async function runWarpRouteApply(
   );
 
   // Then create and submit update transactions
-  const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
+  const groupedTransactions = await updateExistingWarpRoute(
     params,
     apiKeys,
     warpDeployConfig,
     updatedWarpCoreConfig,
   );
 
-  if (transactions.length == 0)
+  if (
+    Object.keys(groupedTransactions[ProtocolType.Ethereum]).length === 0 &&
+    Object.keys(groupedTransactions[ProtocolType.CosmosNative]).length === 0
+  )
     return logGreen(`Warp config is the same as target. No updates needed.`);
-  await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
+
+  // TODO: COSMOS
+  await submitWarpApplyTransactions(
+    params,
+    groupBy(groupedTransactions, 'chainId'),
+  );
 }
 
 /**
@@ -524,38 +528,47 @@ export async function extendWarpRoute(
   const { existingConfigs, initialExtendedConfigs, warpCoreConfigByChain } =
     getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
 
-  // Remove all the non-EVM chains from the extended configuration to avoid
+  const compatibleProtocols = [
+    ProtocolType.Ethereum,
+    ProtocolType.CosmosNative,
+  ];
+
+  // Remove all the non compatible chains from the extended configuration to avoid
   // having the extension crash
   const filteredExtendedConfigs = objFilter(
     initialExtendedConfigs,
     (chainName, _): _ is (typeof initialExtendedConfigs)[string] =>
-      context.multiProtocolProvider.getProtocol(chainName) ===
-      ProtocolType.Ethereum,
+      compatibleProtocols.includes(
+        context.multiProtocolProvider.getProtocol(chainName),
+      ),
   );
 
   const filteredExistingConfigs = objFilter(
     existingConfigs,
     (chainName, _): _ is (typeof existingConfigs)[string] =>
-      context.multiProtocolProvider.getProtocol(chainName) ===
-      ProtocolType.Ethereum,
+      compatibleProtocols.includes(
+        context.multiProtocolProvider.getProtocol(chainName),
+      ),
   );
 
   const filteredWarpCoreConfigByChain = objFilter(
     warpCoreConfigByChain,
     (chainName, _): _ is (typeof warpCoreConfigByChain)[string] =>
-      context.multiProtocolProvider.getProtocol(chainName) ===
-      ProtocolType.Ethereum,
+      compatibleProtocols.includes(
+        context.multiProtocolProvider.getProtocol(chainName),
+      ),
   );
 
-  // Get the non EVM chains that should not be unenrolled/removed after the extension
+  // Get the non compatible chains that should not be unenrolled/removed after the extension
   // otherwise the update will generate unenroll transactions
-  const nonEvmWarpCoreConfigs: WarpCoreConfig['tokens'] = Object.entries(
+  const nonCompatibleWarpCoreConfigs: WarpCoreConfig['tokens'] = Object.entries(
     warpCoreConfigByChain,
   )
     .filter(
       ([chainName]) =>
-        context.multiProtocolProvider.getProtocol(chainName) !==
-          ProtocolType.Ethereum && !!warpDeployConfig[chainName],
+        !compatibleProtocols.includes(
+          context.multiProtocolProvider.getProtocol(chainName),
+        ) && !!warpDeployConfig[chainName],
     )
     .map(([_, config]) => config);
 
@@ -576,9 +589,9 @@ export async function extendWarpRoute(
       filteredWarpCoreConfigByChain,
     );
 
-  // Re-add the non EVM chains to the warp core config so that expanding the config
+  // Re-add the non compatible chains to the warp core config so that expanding the config
   // to get the proper remote routers and gas config works as expected
-  updatedWarpCoreConfig.tokens.push(...nonEvmWarpCoreConfigs);
+  updatedWarpCoreConfig.tokens.push(...nonCompatibleWarpCoreConfigs);
 
   // Write the updated artifacts
   await writeDeploymentArtifacts(
@@ -598,9 +611,11 @@ async function updateExistingWarpRoute(
   apiKeys: ChainMap<string>,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,
-) {
+): Promise<GroupedTransactions> {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, registry } = params.context;
+  const { multiProvider, multiProtocolSigner, registry } = params.context;
+  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
+
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
   const ccipContractCache = new CCIPContractCache(registryAddresses);
@@ -610,7 +625,10 @@ async function updateExistingWarpRoute(
     coreBuildArtifact,
     ExplorerLicenseType.MIT,
   );
-  const transactions: AnnotatedEV5Transaction[] = [];
+  const groupedTransactions: GroupedTransactions = {
+    [ProtocolType.Ethereum]: {},
+    [ProtocolType.CosmosNative]: {},
+  };
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -624,11 +642,6 @@ async function updateExistingWarpRoute(
 
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
-      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-        logBlue(`Skipping non-EVM chain ${chain}`);
-        return;
-      }
-
       await retryAsync(async () => {
         const deployedTokenRoute = deployedRoutersAddresses[chain];
         assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
@@ -637,26 +650,61 @@ async function updateExistingWarpRoute(
           mailbox: registryAddresses[chain].mailbox,
         };
 
-        const evmERC20WarpModule = new EvmERC20WarpModule(
-          multiProvider,
-          {
-            config: configWithMailbox,
-            chain,
-            addresses: {
-              deployedTokenRoute,
-              ...extractIsmAndHookFactoryAddresses(registryAddresses[chain]),
-            },
-          },
-          ccipContractCache,
-          contractVerifier,
-        );
-        transactions.push(
-          ...(await evmERC20WarpModule.update(configWithMailbox)),
-        );
+        switch (multiProvider.getProtocol(chain)) {
+          case ProtocolType.Ethereum: {
+            const evmERC20WarpModule = new EvmERC20WarpModule(
+              multiProvider,
+              {
+                config: configWithMailbox,
+                chain,
+                addresses: {
+                  deployedTokenRoute,
+                  ...extractIsmAndHookFactoryAddresses(
+                    registryAddresses[chain],
+                  ),
+                },
+              },
+              ccipContractCache,
+              contractVerifier,
+            );
+            const transactions =
+              await evmERC20WarpModule.update(configWithMailbox);
+            groupedTransactions[ProtocolType.Ethereum] = {
+              ...groupedTransactions[ProtocolType.Ethereum],
+              [chain]: transactions,
+            };
+            break;
+          }
+          case ProtocolType.CosmosNative: {
+            const signer = multiProtocolSigner.getCosmosNativeSigner(chain);
+            const cosmosNativeWarpModule = new CosmosNativeWarpModule(
+              multiProvider,
+              {
+                config: configWithMailbox,
+                chain,
+                addresses: {
+                  deployedTokenRoute,
+                },
+              },
+              signer,
+            );
+            const transactions =
+              await cosmosNativeWarpModule.update(configWithMailbox);
+            groupedTransactions[ProtocolType.CosmosNative] = {
+              ...groupedTransactions[ProtocolType.CosmosNative],
+              [chain]: transactions,
+            };
+            break;
+          }
+          default: {
+            logBlue(`Skipping non-compatible chain ${chain}`);
+            return;
+          }
+        }
       });
     }),
   );
-  return transactions;
+  return groupedTransactions;
 }
 
 /**
