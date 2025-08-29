@@ -177,12 +177,12 @@ impl DangoProvider {
 
         let outcome = self.search_tx_loop(hash).await?;
 
-        return Ok(hyperlane_core::TxOutcome {
+        Ok(hyperlane_core::TxOutcome {
             transaction_id: outcome.hash.convert(),
             executed: outcome.outcome.result.is_ok(),
             gas_used: outcome.outcome.gas_used.into(),
             gas_price: self.connection_conf.gas_price.amount.inner().into(),
-        });
+        })
     }
 
     // Utility
@@ -353,7 +353,6 @@ impl QueryClient for DangoProvider {
         self.client
             .call(|client| {
                 let query = query.clone();
-                let height = height.clone();
                 let future = async move { Ok(client.query_app(query, height).await?) };
                 Box::pin(future)
             })
@@ -369,8 +368,6 @@ impl QueryClient for DangoProvider {
         self.client
             .call(|client| {
                 let key = key.clone();
-                let height = height.clone();
-                let prove = prove.clone();
                 let future = async move { Ok(client.query_store(key, height, prove).await?) };
                 Box::pin(future)
             })
@@ -395,7 +392,6 @@ impl BlockClient for DangoProvider {
     async fn query_block(&self, height: Option<u64>) -> Result<Block, Self::Error> {
         self.client
             .call(|client| {
-                let height = height.clone();
                 let future = async move { Ok(client.query_block(height).await?) };
                 Box::pin(future)
             })
@@ -405,7 +401,6 @@ impl BlockClient for DangoProvider {
     async fn query_block_outcome(&self, height: Option<u64>) -> Result<BlockOutcome, Self::Error> {
         self.client
             .call(|client| {
-                let height = height.clone();
                 let future = async move { Ok(client.query_block_outcome(height).await?) };
                 Box::pin(future)
             })
@@ -420,7 +415,6 @@ impl SearchTxClient for DangoProvider {
     async fn search_tx(&self, hash: Hash256) -> Result<SearchTxOutcome, Self::Error> {
         self.client
             .call(|client| {
-                let hash = hash.clone();
                 let future = async move { Ok(client.search_tx(hash).await?) };
                 Box::pin(future)
             })

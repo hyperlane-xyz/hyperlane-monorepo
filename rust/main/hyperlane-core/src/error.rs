@@ -171,7 +171,7 @@ pub enum ChainCommunicationError {
     AnyhowError(#[from] anyhow::Error),
     /// Grug error
     #[error(transparent)]
-    GrugGasEstimateError(#[from]grug::GasEstimateError)
+    GrugGasEstimateError(#[from] grug::GasEstimateError),
 }
 
 impl ChainCommunicationError {

@@ -325,7 +325,7 @@ fn build_dango_connection_conf(
         .chain(&mut local_err)
         .get_key("httpd_urls")
         .end()
-        .map(|vp| match vp.val {
+        .and_then(|vp| match vp.val {
             Value::String(val) => {
                 serde_json::from_str::<Vec<Url>>(val).take_err(&mut local_err, || vp.cwp)
             }
@@ -335,13 +335,13 @@ fn build_dango_connection_conf(
                     v.as_str()
                         .ok_or(eyre!("Expected `Value::String`, found {}", v))
                         .take_err(&mut local_err, || vp.cwp.clone())
-                        .map(|str| Url::from_str(str).take_err(&mut local_err, || vp.cwp.clone()))
-                        .flatten()
+                        .and_then(|str| {
+                            Url::from_str(str).take_err(&mut local_err, || vp.cwp.clone())
+                        })
                 })
                 .collect(),
             _ => todo!(),
-        })
-        .flatten();
+        });
 
     let gas_price = chain
         .chain(&mut local_err)

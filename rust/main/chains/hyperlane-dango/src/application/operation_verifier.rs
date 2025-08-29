@@ -6,13 +6,8 @@ use {
     },
 };
 
+#[derive(Default)]
 pub struct DangoApplicationOperationVerifier {}
-
-impl DangoApplicationOperationVerifier {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 #[async_trait]
 impl ApplicationOperationVerifier for DangoApplicationOperationVerifier {

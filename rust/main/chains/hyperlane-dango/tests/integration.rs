@@ -5,8 +5,8 @@ use {
     },
     dango_types::{constants::dango, gateway::TokenOrigin},
     grug::{
-        btree_set, setup_tracing_subscriber, BlockCreation, Coin, Denom, Part,
-        QueryClientExt, ResultExt,
+        btree_set, setup_tracing_subscriber, BlockCreation, Coin, Denom, Part, QueryClientExt,
+        ResultExt,
     },
     std::time::Duration,
     tracing::{info, Level},

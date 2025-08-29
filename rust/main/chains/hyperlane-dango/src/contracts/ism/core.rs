@@ -1,6 +1,7 @@
 use {
     crate::{
-        hyperlane_contract, ConnectionConf, DangoProvider, DangoResult, DangoSigner, TryDangoConvertor,
+        hyperlane_contract, ConnectionConf, DangoProvider, DangoResult, DangoSigner,
+        TryDangoConvertor,
     },
     async_trait::async_trait,
     dango_hyperlane_types::isms,

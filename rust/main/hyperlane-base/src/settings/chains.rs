@@ -281,7 +281,7 @@ impl ChainConf {
             )
                 as Box<dyn ApplicationOperationVerifier>),
             ChainConnectionConf::Dango(_) => Ok(Box::new(
-                h_dango::application::DangoApplicationOperationVerifier::new(),
+                h_dango::application::DangoApplicationOperationVerifier::default(),
             )),
         };
 
@@ -786,7 +786,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Dango(conf) => {
-                let igp = h_dango::contracts::DangoIGP::new(conf, &locator.domain)?;
+                let igp = h_dango::contracts::DangoIGP::new(conf, locator.domain)?;
                 Ok(Box::new(igp) as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
         }

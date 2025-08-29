@@ -32,6 +32,6 @@ impl ConnectionConf {
         domain: &HyperlaneDomain,
         signer: Option<DangoSigner>,
     ) -> DangoResult<Box<dyn HyperlaneProvider>> {
-        Ok(Box::new(DangoProvider::from_config(&self, domain, signer)?))
+        Ok(Box::new(DangoProvider::from_config(self, domain, signer)?))
     }
 }

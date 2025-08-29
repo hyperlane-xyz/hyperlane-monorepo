@@ -103,6 +103,7 @@ impl MerkleTreeHook for DangoMerkleTree {
     }
 }
 
+#[allow(clippy::manual_try_fold)]
 fn parse_response<E: Display, const N: usize>(
     res: [Result<QueryResponse, E>; N],
 ) -> ChainResult<[QueryResponse; N]> {

@@ -16,7 +16,7 @@ impl DangoSigner {
     pub fn new(username: &str, key: [u8; 32], address: Addr) -> DangoResult<Self> {
         let sign = SingleSigner::from_private_key(username, address, key)?;
         Ok(Self {
-            address: address,
+            address,
             key: Arc::new(RwLock::new(sign.with_nonce(0))),
         })
     }

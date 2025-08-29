@@ -32,6 +32,7 @@ impl BlockLogs {
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub struct SearchLogResult<E> {
     pub(crate) block_number: u64,
     pub(crate) block_hash: Hash256,

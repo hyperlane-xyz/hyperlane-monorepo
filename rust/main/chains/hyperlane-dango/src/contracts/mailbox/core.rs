@@ -42,7 +42,7 @@ impl Mailbox for DangoMailbox {
                 self.address.try_convert()?,
                 mailbox::QueryNonceRequest {},
                 self.provider
-                    .get_block_height_by_reorg_period(&reorg_period)
+                    .get_block_height_by_reorg_period(reorg_period)
                     .await?,
             )
             .await?)
