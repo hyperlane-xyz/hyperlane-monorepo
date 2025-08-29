@@ -182,12 +182,6 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     return deployer.deploy({ [params.chainName]: params.config });
   }
 
-  // Public accessor for the deployed fee contract address
-  // TODO: Remove this an use serialize() instead
-  getDeployedFeeAddress(): Address {
-    return this.args.addresses.deployedFee;
-  }
-
   async read(params?: OptionalModuleParams): Promise<DerivedTokenFeeConfig> {
     const address = params?.address ?? this.args.addresses.deployedFee;
     const routingDestinations = params?.routingDestinations ?? [];
