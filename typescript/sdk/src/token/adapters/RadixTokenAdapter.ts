@@ -164,7 +164,7 @@ export class RadixHypCollateralAdapter
       throw new Error(`Router with domain "${domain}" not found`);
     }
 
-    return Buffer.from(router.receiver_contract);
+    return Buffer.from(strip0x(router.receiver_contract), 'hex');
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
@@ -174,7 +174,7 @@ export class RadixHypCollateralAdapter
 
     return remote_routers.map((router) => ({
       domain: parseInt(router.receiver_domain),
-      address: Buffer.from(router.receiver_contract),
+      address: Buffer.from(strip0x(router.receiver_contract), 'hex'),
     }));
   }
 

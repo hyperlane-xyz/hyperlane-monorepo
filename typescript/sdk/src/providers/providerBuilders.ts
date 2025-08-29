@@ -151,8 +151,10 @@ export function defaultRadixProviderBuilder(
   _rpcUrls: RpcUrl[],
   network: string | number,
 ): RadixProvider {
+  assert(isNumeric(network), 'Radix requires a numeric network id');
+  const networkId = parseInt(network.toString(), 10);
   const provider = new RadixSDK({
-    networkId: +network,
+    networkId,
   });
   return { provider, type: ProviderType.Radix };
 }
@@ -186,7 +188,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.CosmJsNative]: defaultCosmJsNativeProviderBuilder,
   [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
-  [ProtocolType.Radix]: defaultRadixProviderBuilder,
+  [ProviderType.Radix]: defaultRadixProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<

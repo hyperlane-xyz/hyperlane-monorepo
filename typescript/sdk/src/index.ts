@@ -142,6 +142,7 @@ export { IgpFactories, igpFactories } from './gas/contracts.js';
 export { HyperlaneIgp } from './gas/HyperlaneIgp.js';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker.js';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer.js';
+export type { RTransaction } from './providers/ProviderType.js';
 export {
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,

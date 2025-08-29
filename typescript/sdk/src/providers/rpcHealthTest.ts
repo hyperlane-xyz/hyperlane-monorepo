@@ -109,9 +109,17 @@ export async function isRadixProviderHealthy(
   provider: RadixProvider['provider'],
   metadata: ChainMetadata,
 ): Promise<boolean> {
-  const healthy = await provider.base.isGatewayHealthy();
-  if (healthy) {
-    rootLogger.debug(`Gateway is healthy for ${metadata.name}`);
+  try {
+    const healthy = await provider.base.isGatewayHealthy();
+    if (healthy) {
+      rootLogger.debug(`Gateway is healthy for ${metadata.name}`);
+    }
+    return healthy;
+  } catch (err) {
+    rootLogger.warn(
+      `Radix gateway health check threw for ${metadata.name}`,
+      err as Error,
+    );
+    return false;
   }
-  return healthy;
 }

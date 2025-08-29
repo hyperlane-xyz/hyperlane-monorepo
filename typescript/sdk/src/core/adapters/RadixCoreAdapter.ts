@@ -6,7 +6,7 @@ import {
   messageId,
 } from '@hyperlane-xyz/utils';
 
-import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
+import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
   ProviderType,
@@ -20,10 +20,7 @@ const MESSAGE_DISPATCH_EVENT_TYPE = 'DispatchEvent';
 const MESSAGE_FIELD_KEY = 'message';
 const MESSAGE_DESTINATION_FIELD_KEY = 'destination';
 
-export class RadixCoreAdapter
-  extends BaseCosmosAdapter
-  implements ICoreAdapter
-{
+export class RadixCoreAdapter extends BaseRadixAdapter implements ICoreAdapter {
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,

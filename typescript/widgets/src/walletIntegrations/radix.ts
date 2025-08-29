@@ -10,12 +10,11 @@ import {
   IToken,
   MultiProtocolProvider,
   ProviderType,
+  RTransaction,
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, retryAsync } from '@hyperlane-xyz/utils';
-
-import { RTransaction } from '../../../sdk/dist/providers/ProviderType.js';
 
 import { useAccount } from './radix/AccountContext.js';
 import { usePopup } from './radix/WalletPopupProvider.js';
