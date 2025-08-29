@@ -56,7 +56,9 @@ describe('EvmTokenFeeReader', () => {
       const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
       const tokenFee =
         deployedContracts[TestChainName.test2][TokenFeeType.LinearFee];
-      const onchainConfig = await reader.deriveTokenFeeConfig(tokenFee.address);
+      const onchainConfig = await reader.deriveTokenFeeConfig({
+        address: tokenFee.address,
+      });
       expect(normalizeConfig(onchainConfig)).to.deep.equal(
         normalizeConfig({
           ...config,
@@ -155,10 +157,12 @@ describe('EvmTokenFeeReader', () => {
         multiProvider.getDomainId(TestChainName.test2),
         multiProvider.getDomainId(TestChainName.test3),
       ];
-      const routingFee = await reader.deriveTokenFeeConfig(
-        deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee].address,
-        destinations,
-      );
+      const routingFee = await reader.deriveTokenFeeConfig({
+        address:
+          deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee]
+            .address,
+        routingDestinations: destinations,
+      });
       expect(normalizeConfig(routingFee)).to.deep.equal(
         normalizeConfig(routingFeeConfig),
       );

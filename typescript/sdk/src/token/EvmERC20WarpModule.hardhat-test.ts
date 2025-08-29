@@ -30,6 +30,7 @@ import {
   IsmType,
   RouterConfig,
   TestChainName,
+  TokenFeeType,
   proxyAdmin,
   proxyImplementation,
   serializeContracts,
@@ -48,6 +49,7 @@ import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { BPS } from '../fee/EvmTokenFeeReader.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -1229,6 +1231,37 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
       // Assert
       expect(updatedConfig.contractVersion).to.eq(CONTRACTS_PACKAGE_VERSION);
+    });
+
+    it('should deploy a new fee if one does not exist', async () => {
+      const config: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+      };
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const actualConfig = await evmERC20WarpModule.read();
+
+      const expectedConfig = HypTokenRouterConfigSchema.parse({
+        ...actualConfig,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          bps: BPS,
+        },
+      });
+      await sendTxs(await evmERC20WarpModule.update(expectedConfig));
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      expect(updatedConfig.tokenFee?.type).to.equal(
+        expectedConfig.tokenFee?.type,
+      );
     });
   });
 });
