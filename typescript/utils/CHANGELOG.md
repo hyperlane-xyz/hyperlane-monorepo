@@ -1,5 +1,7 @@
 # @hyperlane-xyz/utils
 
+## 17.0.1
+
 ## 17.0.0
 
 ### Major Changes

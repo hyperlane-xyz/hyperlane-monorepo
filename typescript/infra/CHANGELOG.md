@@ -1,5 +1,16 @@
 # @hyperlane-xyz/infra
 
+## 17.0.1
+
+### Patch Changes
+
+- 0bcb90abc: set token decimals in more warp config getters to satisfy warp checker rules
+- cb908b8aa: set token decimals in warp config getters to satisfy stricter warp checker rules
+- Updated dependencies [ba832828f]
+  - @hyperlane-xyz/sdk@17.0.1
+  - @hyperlane-xyz/helloworld@17.0.1
+  - @hyperlane-xyz/utils@17.0.1
+
 ## 17.0.0
 
 ### Patch Changes
