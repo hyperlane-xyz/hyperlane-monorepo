@@ -61,8 +61,8 @@ where
             .expect("bug: didn't insert SpanTiming");
         let tags = [span.name(), span.metadata().target()];
         self.count.with_label_values(&tags).inc();
-        self.duration
-            .with_label_values(&tags)
-            .inc_by((now - timing.start).as_secs_f64());
+
+        let diff = now.saturating_duration_since(timing.start).as_secs_f64();
+        self.duration.with_label_values(&tags).inc_by(diff);
     }
 }

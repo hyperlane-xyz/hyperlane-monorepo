@@ -46,7 +46,7 @@ pub(crate) async fn get_block_height_for_reorg_period(
     };
 
     let tip = provider.latest_block_height().await?;
-    let block_height = tip - period;
+    let block_height = tip.saturating_sub(period);
     Ok(block_height)
 }
 

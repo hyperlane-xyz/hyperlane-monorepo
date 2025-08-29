@@ -56,7 +56,9 @@ impl AggregationIsmMetadataBuilder {
         fn encode_byte_index(i: usize) -> [u8; 4] {
             (i as u32).to_be_bytes()
         }
-        let range_tuples_size = METADATA_RANGE_SIZE * 2 * ism_count;
+        let range_tuples_size = METADATA_RANGE_SIZE
+            .saturating_mul(2)
+            .saturating_mul(ism_count);
         //  Format of metadata:
         //  [????:????] Metadata start/end uint32 ranges, packed as uint64
         //  [????:????] ISM metadata, packed encoding
@@ -70,10 +72,11 @@ impl AggregationIsmMetadataBuilder {
 
             // The new tuple starts at the end of the previous ones.
             // Also see: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/445da4fb0d8140a08c4b314e3051b7a934b0f968/solidity/contracts/libs/isms/AggregationIsmMetadata.sol#L49
-            let encoded_range_start = METADATA_RANGE_SIZE * 2 * (*index);
+            let encoded_range_start = METADATA_RANGE_SIZE.saturating_mul(2).saturating_mul(*index);
             // Overwrite the 0-initialized buffer
             buffer.splice(
-                encoded_range_start..(encoded_range_start + METADATA_RANGE_SIZE * 2),
+                encoded_range_start
+                    ..encoded_range_start.saturating_add(METADATA_RANGE_SIZE.saturating_mul(2)),
                 [encode_byte_index(range_start), encode_byte_index(range_end)].concat(),
             );
         }

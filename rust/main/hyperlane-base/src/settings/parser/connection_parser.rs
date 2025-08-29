@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Add;
 
 use convert_case::Case;
 use eyre::{eyre, Context};
@@ -47,12 +48,12 @@ pub fn build_ethereum_connection_conf(
             urls: rpcs.to_owned().clone(),
         }),
         ty => Err(eyre!("unknown rpc consensus type `{ty}`"))
-            .take_err(err, || &chain.cwp + "rpc_consensus_type"),
+            .take_err(err, || (&chain.cwp).add("rpc_consensus_type")),
     };
 
     let transaction_overrides = chain
         .get_opt_key("transactionOverrides")
-        .take_err(err, || &chain.cwp + "transaction_overrides")
+        .take_err(err, || (&chain.cwp).add("transaction_overrides"))
         .flatten()
         .map(|value_parser| TransactionOverrides {
             gas_price: value_parser
@@ -144,7 +145,10 @@ pub fn build_cosmos_connection_conf(
         .parse_string()
         .end()
         .or_else(|| {
-            local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain id for chain"));
+            local_err.push(
+                (&chain.cwp).add("chain_id"),
+                eyre!("Missing chain id for chain"),
+            );
             None
         });
 
@@ -155,7 +159,7 @@ pub fn build_cosmos_connection_conf(
         .end()
         .or_else(|| {
             local_err.push(
-                &chain.cwp + "bech32Prefix",
+                (&chain.cwp).add("bech32Prefix"),
                 eyre!("Missing bech32 prefix for chain"),
             );
             None
@@ -224,7 +228,10 @@ pub fn build_cosmos_native_connection_conf(
         .parse_string()
         .end()
         .or_else(|| {
-            local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain id for chain"));
+            local_err.push(
+                (&chain.cwp).add("chain_id"),
+                eyre!("Missing chain id for chain"),
+            );
             None
         });
 
@@ -235,7 +242,7 @@ pub fn build_cosmos_native_connection_conf(
         .end()
         .or_else(|| {
             local_err.push(
-                &chain.cwp + "bech32Prefix",
+                (&chain.cwp).add("bech32Prefix"),
                 eyre!("Missing bech32 prefix for chain"),
             );
             None
@@ -316,7 +323,7 @@ fn build_starknet_connection_conf(
 
     let Some(native_token_address) = native_token_address else {
         err.push(
-            &chain.cwp + "nativeToken.denom",
+            (&chain.cwp).add("nativeToken.denom"),
             eyre!("nativeToken denom required"),
         );
         return None;
@@ -396,7 +403,7 @@ fn parse_sealevel_priority_fee_oracle_config(
             .end()
             .or_else(|| {
                 err.push(
-                    &value_parser.cwp + "type",
+                    (&value_parser.cwp).add("type"),
                     eyre!("Missing priority fee oracle type"),
                 );
                 None
@@ -429,7 +436,7 @@ fn parse_sealevel_priority_fee_oracle_config(
             }
             _ => {
                 err.push(
-                    &value_parser.cwp + "type",
+                    (&value_parser.cwp).add("type"),
                     eyre!("Unknown priority fee oracle type"),
                 );
                 None
@@ -464,7 +471,7 @@ fn parse_helius_priority_fee_level(
             "unsafemax" => Some(HeliusPriorityFeeLevel::UnsafeMax),
             _ => {
                 err.push(
-                    &value_parser.cwp + "fee_level",
+                    (&value_parser.cwp).add("fee_level"),
                     eyre!("Unknown priority fee level"),
                 );
                 None
@@ -511,7 +518,7 @@ fn parse_transaction_submitter_config(
             }
             _ => {
                 err.push(
-                    &chain.cwp + "transaction_submitter.type",
+                    (&chain.cwp).add("transaction_submitter.type"),
                     eyre!("Unknown transaction submitter type"),
                 );
                 None
@@ -599,7 +606,7 @@ pub fn build_radix_connection_conf(
         .end()
         .or_else(|| {
             local_err.push(
-                &chain.cwp + "network_name",
+                (&chain.cwp).add("network_name"),
                 eyre!("Missing network name for chain"),
             );
             None
