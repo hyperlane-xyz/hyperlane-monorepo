@@ -5,7 +5,6 @@ import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
-  assert,
   deepEquals,
   objMap,
   promiseObjAll,
@@ -122,23 +121,48 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     multiProvider: MultiProvider;
     chainName: string;
   }): Promise<TokenFeeConfig> {
-    const intermediaryConfig: Partial<TokenFeeConfig> = { ...params.config };
-    if (params.config.type === TokenFeeType.LinearFee) {
-      assert(
-        params.config.token,
-        'Token address is required to process config',
-      );
+    const { config, multiProvider, chainName } = params;
+    let intermediaryConfig: TokenFeeConfig;
+    if (config.type === TokenFeeType.LinearFee) {
       const reader = new EvmTokenFeeReader(
         params.multiProvider,
         params.chainName,
       );
       const { maxFee, halfAmount } = await reader.convertFromBps(
-        params.config.bps,
-        params.config.token,
+        config.bps,
+        config.token,
       );
-      intermediaryConfig.maxFee = maxFee;
-      intermediaryConfig.halfAmount = halfAmount;
+      intermediaryConfig = {
+        type: TokenFeeType.LinearFee,
+        token: config.token,
+        owner: config.owner,
+        bps: config.bps,
+        maxFee,
+        halfAmount,
+      };
+    } else if (config.type === TokenFeeType.RoutingFee) {
+      const feeContracts = config.feeContracts
+        ? await promiseObjAll(
+            objMap(config.feeContracts, async (_, innerConfig) => {
+              return EvmTokenFeeModule.expandConfig({
+                config: innerConfig,
+                multiProvider,
+                chainName,
+              });
+            }),
+          )
+        : undefined;
+
+      intermediaryConfig = {
+        type: TokenFeeType.RoutingFee,
+        token: config.token,
+        owner: config.owner,
+        feeContracts,
+      };
+    } else {
+      intermediaryConfig = config;
     }
+
     return TokenFeeConfigSchema.parse(intermediaryConfig);
   }
 
@@ -178,6 +202,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     targetConfig: TokenFeeConfigInput,
     params?: OptionalModuleParams,
   ): Promise<AnnotatedEV5Transaction[]> {
+    let updateTransactions: AnnotatedEV5Transaction[] = [];
+
     const normalizedTargetConfig: TokenFeeConfig = normalizeConfig(
       await EvmTokenFeeModule.expandConfig({
         config: targetConfig,
@@ -218,7 +244,6 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     }
 
     // if the type is a mutable type, then update
-    let updateTransactions: AnnotatedEV5Transaction[] = [];
     switch (targetConfig.type) {
       case TokenFeeType.RoutingFee:
         updateTransactions = await this.updateRoutingFee(
