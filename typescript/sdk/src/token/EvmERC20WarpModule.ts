@@ -153,7 +153,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
      * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
      * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
      */
-
     transactions.push(
       ...(await this.upgradeWarpRouteImplementationTx(
         actualConfig,
@@ -728,25 +727,35 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       this.logger.info('No existing token fee found, creating new one');
 
       // First expand the input config to a full config
-      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+      const expandedExpectedConfig = await EvmTokenFeeModule.expandConfig({
         config: expectedConfig.tokenFee,
         multiProvider: this.multiProvider,
         chainName: this.chainName,
       });
 
       // Create a new EvmTokenFeeModule to deploy the token fee
-      await EvmTokenFeeModule.create({
+      const tokenFeeModule = await EvmTokenFeeModule.create({
         multiProvider: this.multiProvider,
         chain: this.chainName,
-        config: expandedConfig,
+        config: expandedExpectedConfig,
         contractVerifier: this.contractVerifier,
       });
+      const { deployedFee } = tokenFeeModule.serialize();
 
-      // Return empty transactions as deployment is handled during creation
-      return [];
+      return [
+        {
+          annotation: 'Setting new routing fee...',
+          chainId: this.chainId,
+          to: this.args.addresses.deployedTokenRoute,
+          data: FungibleTokenRouter__factory.createInterface().encodeFunctionData(
+            'setFeeRecipient(address)',
+            [deployedFee],
+          ),
+        },
+      ];
     }
 
-    // If there's an existing token fee, use EvmTokenFeeModule to update it
+    // If there's an existing token fee, update it
     this.logger.info('Updating existing token fee configuration');
 
     const tokenFeeModule = new EvmTokenFeeModule(
@@ -756,26 +765,25 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         config: currentTokenFee,
         addresses: {
           deployedFee: currentTokenFee.address,
-          // Add any other required addresses from the parent module
-          ...this.args.addresses,
         },
       },
       this.contractVerifier,
     );
 
-    await tokenFeeModule.update(expectedConfig.tokenFee);
+    const updateTransactions = await tokenFeeModule.update(
+      expectedConfig.tokenFee,
+    );
     const { deployedFee } = tokenFeeModule.serialize();
-    return [
-      {
-        annotation: 'Updating routing fee...',
-        chainId: this.chainId,
-        to: this.args.addresses.deployedTokenRoute,
-        data: FungibleTokenRouter__factory.createInterface().encodeFunctionData(
-          'setFeeRecipient(address)',
-          [deployedFee],
-        ),
-      },
-    ];
+    updateTransactions.push({
+      annotation: 'Updating routing fee...',
+      chainId: this.chainId,
+      to: this.args.addresses.deployedTokenRoute,
+      data: FungibleTokenRouter__factory.createInterface().encodeFunctionData(
+        'setFeeRecipient(address)',
+        [deployedFee],
+      ),
+    });
+    return updateTransactions;
   }
 
   /**
