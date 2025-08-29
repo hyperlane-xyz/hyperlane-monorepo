@@ -44,6 +44,7 @@ import {
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
+  updateTokenOwners,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -142,7 +143,8 @@ export async function runWarpRouteDeploy({
   const deploymentChains = chains.filter(
     (chain) =>
       chainMetadata[chain].protocol === ProtocolType.Ethereum ||
-      chainMetadata[chain].protocol === ProtocolType.CosmosNative,
+      chainMetadata[chain].protocol === ProtocolType.CosmosNative ||
+      chainMetadata[chain].protocol === ProtocolType.Radix,
   );
 
   await runPreflightChecksForChains({
@@ -161,6 +163,13 @@ export async function runWarpRouteDeploy({
     { multiProvider, multiProtocolSigner, registryAddresses, warpDeployConfig },
     deployedContracts,
   );
+
+  await updateTokenOwners({
+    deployedContracts,
+    multiProvider,
+    multiProtocolSigner,
+    warpDeployConfig,
+  });
 
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
     deploymentParams,

@@ -7,7 +7,7 @@ import {
   ChainName,
   MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { autoConfirm } from '../config/prompts.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
@@ -29,7 +29,7 @@ export async function nativeBalancesAreSufficient(
     const symbol = metadataManager.getChainMetadata(chain).nativeToken?.symbol;
     assert(symbol, `no symbol found for native token on chain ${chain}`);
 
-    let address: Address = '';
+    let address = await multiProtocolSigner.getSignerAddress(chain);
     let minBalanceSmallestUnit = new BigNumber(0);
     let minBalance = new BigNumber(0);
 
@@ -38,8 +38,6 @@ export async function nativeBalancesAreSufficient(
 
     switch (protocolType) {
       case ProtocolType.Ethereum: {
-        address = await multiProtocolSigner.getEVMSigner(chain).getAddress();
-
         const provider = multiProtocolProvider.getEthersV5Provider(chain);
         const gasPrice = await provider.getGasPrice();
 
@@ -59,9 +57,6 @@ export async function nativeBalancesAreSufficient(
         break;
       }
       case ProtocolType.CosmosNative: {
-        address =
-          multiProtocolSigner.getCosmosNativeSigner(chain).account.address;
-
         const provider = await multiProtocolProvider.getCosmJsProvider(chain);
         const { gasPrice, nativeToken } =
           metadataManager.getChainMetadata(chain);
@@ -84,6 +79,38 @@ export async function nativeBalancesAreSufficient(
 
         balanceSmallestUnit = new BigNumber(
           (await provider.getBalance(address, nativeToken.denom)).amount,
+        );
+        balance = new BigNumber(balanceSmallestUnit).dividedBy(
+          new BigNumber(10).exponentiatedBy(nativeToken.decimals),
+        );
+        break;
+      }
+      case ProtocolType.Radix: {
+        const provider = multiProtocolProvider.getRadixProvider(chain);
+        const { nativeToken } = metadataManager.getChainMetadata(chain);
+
+        assert(nativeToken, `nativeToken is not defined on chain ${chain}`);
+        assert(
+          nativeToken.denom,
+          `nativeToken denom is not defined on chain ${chain}`,
+        );
+
+        // TODO: RADIX
+        // hardcode min balance to 100 XRD for now, but add more accurate
+        // min balance once we know how much gas it costs to run a core/warp
+        // deploy on radix
+        minBalance = new BigNumber(100);
+        minBalanceSmallestUnit = new BigNumber(minBalance).times(
+          new BigNumber(10).exponentiatedBy(nativeToken.decimals),
+        );
+
+        balanceSmallestUnit = new BigNumber(
+          (
+            await provider.base.getBalance({
+              address,
+              resource: nativeToken.denom,
+            })
+          ).toString(),
         );
         balance = new BigNumber(balanceSmallestUnit).dividedBy(
           new BigNumber(10).exponentiatedBy(nativeToken.decimals),

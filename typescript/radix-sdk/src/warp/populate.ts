@@ -223,7 +223,7 @@ export class RadixWarpPopulate {
               ])
               .callMethod(
                 from_address,
-                INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_REFUND,
+                INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_ABORT,
                 [expression('EntireWorktop'), enumeration(0)],
               ),
         ),

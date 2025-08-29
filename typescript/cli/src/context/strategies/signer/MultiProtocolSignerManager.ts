@@ -3,6 +3,7 @@ import { Logger } from 'pino';
 import { z } from 'zod';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   ChainName,
   IMultiProtocolSignerManager,
@@ -77,7 +78,8 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     return this.chains.filter(
       (chain) =>
         this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
-        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
+        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative ||
+        this.multiProvider.getProtocol(chain) === ProtocolType.Radix,
     );
   }
 
@@ -147,7 +149,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
 
     let config = await this.extractPrivateKey(chain);
 
-    // For Cosmos, we get additional params
+    // get additional params for chains
     if (protocol === ProtocolType.CosmosNative) {
       const provider =
         await this.multiProtocolProvider.getCosmJsNativeProvider(chain);
@@ -157,6 +159,12 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
       config = {
         ...config,
         extraParams: { provider, prefix: bech32Prefix, gasPrice },
+      };
+    } else if (protocol === ProtocolType.Radix) {
+      const { chainId } = this.multiProvider.getChainMetadata(chain);
+      config = {
+        ...config,
+        extraParams: { networkId: +chainId },
       };
     }
 
@@ -243,6 +251,15 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     return this.getSpecificSigner<SigningHyperlaneModuleClient>(chain);
   }
 
+  getRadixSigner(chain: ChainName): RadixSigningSDK {
+    const protocolType = this.multiProvider.getProtocol(chain);
+    assert(
+      protocolType === ProtocolType.Radix,
+      `Chain ${chain} is not a Radix chain`,
+    );
+    return this.getSpecificSigner<RadixSigningSDK>(chain);
+  }
+
   async getSignerAddress(chain: ChainName): Promise<Address> {
     const metadata = this.multiProvider.getChainMetadata(chain);
 
@@ -254,6 +271,10 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
       case ProtocolType.CosmosNative: {
         const signer = this.getCosmosNativeSigner(chain);
         return signer.account.address;
+      }
+      case ProtocolType.Radix: {
+        const signer = this.getRadixSigner(chain);
+        return signer.getAddress();
       }
       default: {
         throw new Error(
@@ -284,14 +305,14 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
           return balance;
         } catch (err) {
           throw new Error(
-            `failed to get balance of address ${params.address} on EVM chain ${params.chain}: ${err}`,
+            `failed to get balance of address ${params.address} on ${metadata.protocol} chain ${params.chain}: ${err}`,
           );
         }
       }
       case ProtocolType.CosmosNative: {
         assert(
           params.denom,
-          `need denom to get balance of Cosmos Native chain ${params.chain}`,
+          `need denom to get balance of ${metadata.protocol} chain ${params.chain}`,
         );
 
         try {
@@ -306,7 +327,22 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
           return BigNumber.from(balance.amount);
         } catch (err) {
           throw new Error(
-            `failed to get balance of address ${params.address} on Cosmos Native chain ${params.chain}: ${err}`,
+            `failed to get balance of address ${params.address} on ${metadata.protocol} chain ${params.chain}: ${err}`,
+          );
+        }
+      }
+      case ProtocolType.Radix: {
+        try {
+          const provider = this.multiProtocolProvider.getRadixProvider(
+            params.chain,
+          );
+          const balance = await provider.base.getXrdBalance({
+            address: params.address,
+          });
+          return BigNumber.from(balance);
+        } catch (err) {
+          throw new Error(
+            `failed to get balance of address ${params.address} on ${metadata.protocol} chain ${params.chain}: ${err}`,
           );
         }
       }

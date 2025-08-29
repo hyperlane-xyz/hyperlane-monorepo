@@ -1,8 +1,9 @@
-import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
   ProtocolType,
+  addressToBytes32,
   isObjEmpty,
   objFilter,
   objKeys,
@@ -20,14 +21,17 @@ import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
+import { RadixIsmModule } from '../ism/RadixIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GroupedTransactions } from '../providers/ProviderType.js';
 import { CosmosNativeWarpModule } from '../token/CosmosNativeWarpModule.js';
 import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
+import { RadixWarpModule } from '../token/RadixWarpModule.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
 import { CosmosNativeDeployer } from '../token/cosmosnativeDeploy.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
+import { RadixDeployer } from '../token/radixDeploy.js';
 import {
   HypTokenRouterConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -117,6 +121,20 @@ export async function executeWarpDeploy(
         );
 
         const deployer = new CosmosNativeDeployer(multiProvider, signersMap);
+        deployedContracts = {
+          ...deployedContracts,
+          ...(await deployer.deploy(protocolSpecificConfig)),
+        };
+
+        break;
+      }
+      case ProtocolType.Radix: {
+        const signersMap = objMap(
+          protocolSpecificConfig,
+          (chain, _) => multiProtocolSigner.getRadixSigner(chain)!,
+        );
+
+        const deployer = new RadixDeployer(multiProvider, signersMap);
         deployedContracts = {
           ...deployedContracts,
           ...(await deployer.deploy(protocolSpecificConfig)),
@@ -253,6 +271,21 @@ async function createWarpIsm({
       const { deployedIsm } = cosmosIsmModule.serialize();
       return deployedIsm;
     }
+    case ProtocolType.Radix: {
+      const signer = multiProtocolSigner!.getRadixSigner(chain);
+
+      const radixIsmModule = await RadixIsmModule.create({
+        chain,
+        multiProvider: multiProvider,
+        addresses: {
+          mailbox: chainAddresses.mailbox,
+        },
+        config: interchainSecurityModule,
+        signer,
+      });
+      const { deployedIsm } = radixIsmModule.serialize();
+      return deployedIsm;
+    }
     default:
       throw new Error(`Protocol type ${protocolType} not supported`);
   }
@@ -328,8 +361,80 @@ async function createWarpHook({
       );
       return hook;
     }
+    case ProtocolType.Radix: {
+      rootLogger.info(`No warp hooks for Radix chains, skipping deployment.`);
+      return hook;
+    }
     default:
       throw new Error(`Protocol type ${protocolType} not supported`);
+  }
+}
+
+export async function updateTokenOwners({
+  deployedContracts,
+  warpDeployConfig,
+  multiProvider,
+  multiProtocolSigner,
+}: {
+  deployedContracts: ChainMap<string>;
+  multiProvider: MultiProvider;
+  multiProtocolSigner: IMultiProtocolSignerManager;
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+}) {
+  for (const chain of Object.keys(warpDeployConfig)) {
+    const signerAddress = await multiProtocolSigner.getSignerAddress(chain);
+    const newOwner = warpDeployConfig[chain].owner;
+    const tokenAddress = deployedContracts[chain];
+
+    if (signerAddress === newOwner) {
+      continue;
+    }
+
+    switch (multiProvider.getProtocol(chain)) {
+      case ProtocolType.Ethereum: {
+        console.log('send eth transaction');
+        multiProvider.sendTransaction(chain, {
+          chainId: multiProvider.getEvmChainId(chain),
+          annotation: `Transferring ownership of ${tokenAddress} from ${
+            signerAddress
+          } to ${newOwner}`,
+          to: tokenAddress,
+          data: Ownable__factory.createInterface().encodeFunctionData(
+            'transferOwnership',
+            [newOwner],
+          ),
+        });
+        break;
+      }
+      case ProtocolType.CosmosNative: {
+        const signer = multiProtocolSigner.getCosmosNativeSigner(chain);
+
+        const { token } = await signer.query.warp.Token({
+          id: tokenAddress,
+        });
+
+        await signer.setToken({
+          token_id: tokenAddress,
+          ism_id: token?.ism_id ?? '',
+          new_owner: newOwner,
+          renounce_ownership: !newOwner, // if owner is empty we renounce the ownership
+        });
+        break;
+      }
+      case ProtocolType.Radix: {
+        const signer = multiProtocolSigner.getRadixSigner(chain);
+        await signer.tx.warp.setTokenOwner({
+          token: tokenAddress,
+          new_owner: newOwner,
+        });
+        break;
+      }
+      default: {
+        throw new Error(
+          `Protocol type ${multiProvider.getProtocol(chain)} not supported`,
+        );
+      }
+    }
   }
 }
 
@@ -402,7 +507,7 @@ export async function enrollCrossChainRouters(
             const routers: Record<string, { address: string }> = {};
             for (const c of allRemoteChains) {
               routers[multiProvider.getDomainId(c).toString()] = {
-                address: deployedContracts[c],
+                address: addressToBytes32(deployedContracts[c]),
               };
             }
             return routers;
@@ -440,7 +545,7 @@ export async function enrollCrossChainRouters(
             const routers: Record<string, { address: string }> = {};
             for (const c of allRemoteChains) {
               routers[multiProvider.getDomainId(c).toString()] = {
-                address: deployedContracts[c],
+                address: addressToBytes32(deployedContracts[c]),
               };
             }
             return routers;
@@ -458,8 +563,95 @@ export async function enrollCrossChainRouters(
 
         break;
       }
+      case ProtocolType.Radix: {
+        const signer = multiProtocolSigner.getRadixSigner(chain);
+
+        const radixWarpModule = new RadixWarpModule(
+          multiProvider,
+          {
+            chain,
+            config: configMapToDeploy[chain],
+            addresses: {
+              deployedTokenRoute: deployedContracts[chain],
+            },
+          },
+          signer,
+        );
+        const actualConfig = await radixWarpModule.read();
+        const expectedConfig = {
+          ...actualConfig,
+          remoteRouters: (() => {
+            const routers: Record<string, { address: string }> = {};
+            for (const c of allRemoteChains) {
+              routers[multiProvider.getDomainId(c).toString()] = {
+                address: addressToBytes32(deployedContracts[c]),
+              };
+            }
+            return routers;
+          })(),
+        };
+
+        const transactions = await radixWarpModule.update(expectedConfig);
+
+        if (transactions.length) {
+          protocolTransactions[ProtocolType.Radix] = {
+            [chain]: transactions,
+          };
+        }
+
+        break;
+      }
       default: {
         throw new Error(`Protocol type ${protocol} not supported`);
+      }
+    }
+
+    for (const protocol of Object.keys(protocolTransactions)) {
+      switch (protocol) {
+        case ProtocolType.Ethereum: {
+          // TODO: RADIX
+          // why does this fail?
+          // for (const chain of Object.keys(protocolTransactions[protocol])) {
+          //   const transactions = protocolTransactions[protocol][chain];
+          //   const signer = multiProtocolSigner.getEVMSigner(chain);
+
+          //   for (const transaction of transactions) {
+          //     console.log('transaction', transaction);
+          //     await signer.sendTransaction(transaction);
+          //   }
+          // }
+
+          break;
+        }
+        case ProtocolType.CosmosNative: {
+          for (const chain of Object.keys(protocolTransactions[protocol])) {
+            const transactions = protocolTransactions[protocol][chain];
+            const signer = multiProtocolSigner.getCosmosNativeSigner(chain);
+
+            await signer.signAndBroadcast(
+              signer.account.address,
+              transactions,
+              2,
+            );
+          }
+
+          break;
+        }
+        case ProtocolType.Radix: {
+          for (const chain of Object.keys(protocolTransactions[protocol])) {
+            const transactions = protocolTransactions[protocol][chain];
+            const signer = multiProtocolSigner.getRadixSigner(chain);
+
+            for (const transaction of transactions) {
+              await signer.signer.signAndBroadcast(transaction.manifest);
+            }
+          }
+
+          break;
+        }
+        default: {
+          throw new Error('Chain protocol is not supported yet!');
+        }
       }
     }
   }

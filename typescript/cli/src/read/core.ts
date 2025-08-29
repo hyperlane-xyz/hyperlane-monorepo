@@ -3,6 +3,7 @@ import {
   CoreConfig,
   CosmosNativeCoreReader,
   EvmCoreReader,
+  RadixCoreReader,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -56,6 +57,24 @@ export async function executeCoreRead({
       );
       try {
         return cosmosCoreReader.deriveCoreConfig(mailbox);
+      } catch (e: any) {
+        errorRed(
+          `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
+          e,
+        );
+        process.exit(1);
+      }
+      break;
+    }
+    case ProtocolType.Radix: {
+      const radixProvider =
+        context.multiProtocolProvider!.getRadixProvider(chain);
+      const radixCoreReader = new RadixCoreReader(
+        context.multiProvider,
+        radixProvider,
+      );
+      try {
+        return radixCoreReader.deriveCoreConfig(mailbox);
       } catch (e: any) {
         errorRed(
           `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,

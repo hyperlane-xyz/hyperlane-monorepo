@@ -104,6 +104,29 @@ export class RadixCorePopulate {
     );
   }
 
+  public async setRoutingIsmOwner({
+    from_address,
+    ism,
+    new_owner,
+  }: {
+    from_address: string;
+    ism: string;
+    new_owner: string;
+  }) {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(ism);
+
+    const resource = (details.details as EntityDetails).role_assignments.owner
+      .rule.access_rule.proof_rule.requirement.resource;
+
+    return this.base.transfer({
+      from_address,
+      to_address: new_owner,
+      resource_address: resource,
+      amount: '1',
+    });
+  }
+
   public createRoutingIsm({
     from_address,
     routes,
