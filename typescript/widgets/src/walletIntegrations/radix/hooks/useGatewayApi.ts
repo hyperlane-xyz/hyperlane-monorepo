@@ -1,5 +1,5 @@
 import { useContext } from 'react';
 
-import { gatewayApiContext } from '../contexts.js';
+import { GatewayApiContext } from '../contexts.js';
 
-export const useGatewayApi = () => useContext(gatewayApiContext);
+export const useGatewayApi = () => useContext(GatewayApiContext);

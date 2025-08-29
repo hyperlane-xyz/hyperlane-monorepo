@@ -1,11 +1,36 @@
-import React, { createContext, useContext, useState } from 'react';
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import { RadixDappToolkit } from '@radixdlt/radix-dapp-toolkit';
+import PropTypes from 'prop-types';
+import React, { useContext, useState } from 'react';
 
 import { SpinnerIcon } from '../../icons/Spinner.js';
 
-const PopupContext = createContext<{
-  showPopUp: boolean;
-  setShowPopUp: React.Dispatch<React.SetStateAction<boolean>>;
-} | null>(null);
+import { GatewayApiContext, PopupContext, RdtContext } from './contexts.js';
+
+export const RdtProvider = ({
+  value,
+  children,
+}: {
+  value: RadixDappToolkit | null;
+  children: React.ReactNode;
+}) => <RdtContext.Provider value={value}>{children}</RdtContext.Provider>;
+
+export const GatewayApiProvider = ({
+  value,
+  children,
+}: {
+  value: GatewayApiClient | null;
+  children: React.ReactNode;
+}) => (
+  <GatewayApiContext.Provider value={value}>
+    {children}
+  </GatewayApiContext.Provider>
+);
+
+GatewayApiProvider.propTypes = {
+  value: PropTypes.any,
+  children: PropTypes.node.isRequired,
+};
 
 export const PopupProvider = ({ children }) => {
   const [showPopUp, setShowPopUp] = useState(false);

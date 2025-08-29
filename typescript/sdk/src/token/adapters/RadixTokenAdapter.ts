@@ -11,7 +11,7 @@ import {
 
 import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { RTransaction } from '../../providers/ProviderType.js';
+import { RadixSDKTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
@@ -25,7 +25,7 @@ import {
 
 export class RadixNativeTokenAdapter
   extends BaseRadixAdapter
-  implements ITokenAdapter<RTransaction>
+  implements ITokenAdapter<RadixSDKTransaction>
 {
   protected provider: RadixSDK;
   protected tokenId: string;
@@ -90,7 +90,9 @@ export class RadixNativeTokenAdapter
     return false;
   }
 
-  populateApproveTx(_transferParams: TransferParams): Promise<RTransaction> {
+  populateApproveTx(
+    _transferParams: TransferParams,
+  ): Promise<RadixSDKTransaction> {
     throw new Error('Approve not required for native tokens');
   }
 
@@ -100,7 +102,7 @@ export class RadixNativeTokenAdapter
 
   async populateTransferTx(
     transferParams: TransferParams,
-  ): Promise<RTransaction> {
+  ): Promise<RadixSDKTransaction> {
     const resource = await this.getResourceAddress();
 
     assert(transferParams.fromAccountOwner, `no sender in transfer params`);
@@ -126,7 +128,7 @@ export class RadixNativeTokenAdapter
 
 export class RadixHypCollateralAdapter
   extends RadixNativeTokenAdapter
-  implements IHypTokenAdapter<RTransaction>
+  implements IHypTokenAdapter<RadixSDKTransaction>
 {
   constructor(
     public readonly chainName: ChainName,
@@ -199,7 +201,7 @@ export class RadixHypCollateralAdapter
 
   async populateTransferRemoteTx(
     params: TransferRemoteParams,
-  ): Promise<RTransaction> {
+  ): Promise<RadixSDKTransaction> {
     assert(params.fromAccountOwner, `no sender in remote transfer params`);
 
     if (!params.interchainGas) {

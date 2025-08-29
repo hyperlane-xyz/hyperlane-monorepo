@@ -273,7 +273,7 @@ export interface EthersV5Transaction
   transaction: EV5Transaction;
 }
 
-export interface RTransaction {
+export interface RadixSDKTransaction {
   networkId: number;
   manifest: TransactionManifest;
 }
@@ -282,7 +282,7 @@ export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
 export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
 
-export type AnnotatedRadixTransaction = Annotated<RTransaction>;
+export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
 export type GroupedTransactions = {
   [ProtocolType.Ethereum]: ChainMap<AnnotatedEV5Transaction[]>;
@@ -324,9 +324,10 @@ export interface StarknetJsTransaction
   transaction: StarknetInvocation;
 }
 
-export interface RadixTransaction extends TypedTransactionBase<RTransaction> {
+export interface RadixTransaction
+  extends TypedTransactionBase<RadixSDKTransaction> {
   type: ProviderType.Radix;
-  transaction: RTransaction;
+  transaction: RadixSDKTransaction;
 }
 
 export interface ZKSyncTransaction

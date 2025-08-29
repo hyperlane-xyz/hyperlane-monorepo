@@ -38,6 +38,10 @@ export class RadixCoreAdapter extends BaseRadixAdapter implements ICoreAdapter {
     );
 
     const events = sourceTx.receipt.transaction.receipt?.events ?? [];
+    if (events.length === 0) {
+      return [];
+    }
+
     const dispatchEvents = events.filter(
       (e) => e.name === MESSAGE_DISPATCH_EVENT_TYPE,
     );

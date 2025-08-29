@@ -10,14 +10,14 @@ import {
   IToken,
   MultiProtocolProvider,
   ProviderType,
-  RTransaction,
+  RadixSDKTransaction,
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { useAccount } from './radix/AccountContext.js';
-import { usePopup } from './radix/WalletPopupProvider.js';
+import { usePopup } from './radix/RadixProviders.js';
 import { useGatewayApi } from './radix/hooks/useGatewayApi.js';
 import { useRdt } from './radix/hooks/useRdt.js';
 import {
@@ -163,7 +163,7 @@ export function useRadixTransactionFns(
       assert(rdt, `radix dapp toolkit is not defined`);
       assert(gatewayApi, `gateway api is not defined`);
 
-      const transaction = tx.transaction as never as RTransaction;
+      const transaction = tx.transaction as never as RadixSDKTransaction;
 
       const transactionManifest = (
         await RadixEngineToolkit.Instructions.convert(

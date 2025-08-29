@@ -274,11 +274,9 @@ export async function estimateTransactionFeeStarknet({
 export async function estimateTransactionFeeRadix({
   transaction,
   provider,
-  sender: _sender,
 }: {
   transaction: RadixTransaction;
   provider: RadixProvider;
-  sender: Address;
 }): Promise<TransactionFeeEstimate> {
   return provider.provider.base.estimateTransactionFee({
     transactionManifest: transaction.transaction.manifest,
@@ -370,7 +368,6 @@ export function estimateTransactionFee({
     return estimateTransactionFeeRadix({
       transaction,
       provider,
-      sender,
     });
   } else {
     throw new Error(

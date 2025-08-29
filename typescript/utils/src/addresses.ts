@@ -415,9 +415,6 @@ export function addressToBytes(
     new Uint8Array(),
     protocol,
   );
-  if (!bytes.length) {
-    return Buffer.from(strip0x(ethersUtils.hexZeroPad(address, 32)), 'hex');
-  }
   assert(
     bytes.length && !bytes.every((b) => b == 0),
     'address bytes must not be empty',
@@ -440,8 +437,7 @@ export function addressToBytes32(
 ): string {
   // If the address is already bytes32, just return, avoiding a regression
   // where an already bytes32 address cannot be categorized as a protocol address.
-  if (HEX_BYTES32_REGEX.test(ensure0x(address)))
-    return addressToBytes32Evm(address);
+  if (HEX_BYTES32_REGEX.test(ensure0x(address))) return ensure0x(address);
 
   const bytes = addressToBytes(address, protocol);
   return bytesToBytes32(bytes);
