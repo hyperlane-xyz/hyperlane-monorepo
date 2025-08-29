@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use convert_case::Case;
 use eyre::{eyre, Context};
@@ -15,9 +16,10 @@ use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, Native
 
 use hyperlane_starknet as h_starknet;
 
-use crate::settings::envs::*;
+use hyperlane_dango as h_dango;
+
 use crate::settings::parser::recase_json_value;
-use crate::settings::ChainConnectionConf;
+use crate::settings::{envs::*, ChainConnectionConf};
 
 use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
 
@@ -299,6 +301,119 @@ pub fn build_cosmos_native_connection_conf(
             native_token,
         ),
     ))
+}
+
+fn build_dango_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+
+    let chain_id = chain
+        .chain(&mut local_err)
+        .get_key("chain_id")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain_id"));
+            None
+        });
+
+    let httpd_url = chain
+        .chain(&mut local_err)
+        .get_key("httpd_urls")
+        .end()
+        .and_then(|vp| match vp.val {
+            Value::String(val) => {
+                serde_json::from_str::<Vec<Url>>(val).take_err(&mut local_err, || vp.cwp)
+            }
+            Value::Array(values) => values
+                .iter()
+                .map(|v| {
+                    v.as_str()
+                        .ok_or(eyre!("Expected `Value::String`, found {}", v))
+                        .take_err(&mut local_err, || vp.cwp.clone())
+                        .and_then(|str| {
+                            Url::from_str(str).take_err(&mut local_err, || vp.cwp.clone())
+                        })
+                })
+                .collect(),
+            _ => todo!(),
+        });
+
+    let gas_price = chain
+        .chain(&mut local_err)
+        .get_key("gas_price")
+        .parse_value::<grug::Coin>("fails to deserialize grug::Coin")
+        .end();
+
+    let gas_scale = chain
+        .chain(&mut local_err)
+        .get_key("gas_scale")
+        .parse_f64()
+        .end()
+        .or_else(|| {
+            local_err.push(&chain.cwp + "gas_scale", eyre!("Missing gas_scale"));
+            None
+        });
+
+    let flat_gas_increase = chain
+        .chain(&mut local_err)
+        .get_key("flat_gas_increase")
+        .parse_u64()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                &chain.cwp + "flat_gas_increase",
+                eyre!("Missing flat_gas_increase"),
+            );
+            None
+        });
+
+    let search_sleep_duration = chain
+        .chain(&mut local_err)
+        .get_key("search_sleep_duration")
+        .parse_u64()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                &chain.cwp + "search_sleep_duration",
+                eyre!("Missing search_sleep_duration"),
+            );
+            None
+        });
+
+    let search_retry_attempts = chain
+        .chain(&mut local_err)
+        .get_key("search_retry_attempts")
+        .parse_u64()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                &chain.cwp + "search_retry_attempts",
+                eyre!("Missing search_retry_attempts"),
+            );
+            None
+        });
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        Some(ChainConnectionConf::Dango(h_dango::ConnectionConf {
+            httpd_urls: httpd_url?,
+            gas_price: gas_price?,
+            gas_scale: gas_scale?,
+            flat_gas_increase: flat_gas_increase?,
+            search_sleep_duration: search_sleep_duration?,
+            search_retry_attempts: search_retry_attempts?,
+            chain_id: chain_id?.to_string(),
+            rpcs: rpcs.to_owned(),
+            operation_batch,
+        }))
+    }
 }
 
 fn build_starknet_connection_conf(
@@ -660,6 +775,9 @@ pub fn build_connection_conf(
         // TODO: adjust the connection config
         HyperlaneDomainProtocol::Radix => {
             build_radix_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        HyperlaneDomainProtocol::Dango => {
+            build_dango_connection_conf(rpcs, chain, err, operation_batch)
         }
     }
 }
