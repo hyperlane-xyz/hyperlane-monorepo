@@ -11,6 +11,7 @@ mod events;
 pub mod indexer;
 mod ism;
 mod mailbox;
+mod manifest;
 mod parse;
 mod provider;
 mod signer;
