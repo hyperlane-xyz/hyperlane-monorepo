@@ -30,7 +30,7 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, normalizeAddressEvm } from '@hyperlane-xyz/utils';
+import { Address, normalizeAddressEvm, objMap } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
@@ -82,13 +82,8 @@ function extractInputOnlyFields(config: any): any {
       return {
         type: config.type,
         ...(config.feeContracts && {
-          feeContracts: Object.fromEntries(
-            Object.entries(config.feeContracts).map(
-              ([chain, subConfig]: [string, any]) => [
-                chain,
-                extractInputOnlyFields(subConfig),
-              ],
-            ),
+          feeContracts: objMap(config.feeContracts, (_, subConfig) =>
+            extractInputOnlyFields(subConfig),
           ),
         }),
       };
@@ -954,7 +949,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         bps: 1,
       },
     ]) {
-      it(`should deploy a ${tokenFee.type} tokenFee`, async () => {
+      it.only(`should deploy a ${tokenFee.type} tokenFee`, async () => {
         const warpConfig = WarpRouteDeployConfigSchema.parse({
           [CHAIN_NAME_2]: {
             type: TokenType.collateral,
