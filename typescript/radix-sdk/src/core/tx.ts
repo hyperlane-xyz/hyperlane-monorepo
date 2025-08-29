@@ -1,5 +1,3 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
@@ -18,15 +16,13 @@ export class RadixCoreTx {
   constructor(
     account: Account,
     base: RadixBase,
+    signer: RadixSigner,
     populate: RadixCorePopulate,
-    networkId: number,
-    gateway: GatewayApiClient,
   ) {
     this.account = account;
     this.base = base;
+    this.signer = signer;
     this.populate = populate;
-
-    this.signer = new RadixSigner(networkId, gateway, this.base, this.account);
   }
 
   public async transfer({
@@ -128,6 +124,22 @@ export class RadixCoreTx {
       await this.signer.signAndBroadcast(transactionManifest);
 
     return this.base.getNewComponent(intentHashTransactionId);
+  }
+
+  public async setRoutingIsmOwner({
+    ism,
+    new_owner,
+  }: {
+    ism: string;
+    new_owner: string;
+  }) {
+    const transactionManifest = await this.populate.setRoutingIsmOwner({
+      from_address: this.account.address,
+      ism,
+      new_owner,
+    });
+
+    await this.signer.signAndBroadcast(transactionManifest);
   }
 
   public async createNoopIsm() {

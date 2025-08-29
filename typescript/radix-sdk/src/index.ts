@@ -8,6 +8,7 @@ import { RadixCorePopulate } from './core/populate.js';
 import { RadixCoreQuery } from './core/query.js';
 import { RadixCoreTx } from './core/tx.js';
 import { RadixBase } from './utils/base.js';
+import { RadixSigner } from './utils/signer.js';
 import { Account, RadixSDKOptions } from './utils/types.js';
 import { generateNewEd25519VirtualAccount } from './utils/utils.js';
 import { RadixWarpPopulate } from './warp/populate.js';
@@ -18,7 +19,7 @@ const NETWORKS = {
   [NetworkId.Stokenet]: {
     applicationName: 'hyperlane',
     packageAddress:
-      'package_tdx_2_1p4r9rl60wz4xc589wp9nusvcllj82e0l7ef825cxmt4rf684wq0j8r',
+      'package_tdx_2_1pkn2zdcw8q8rax6mxetdkgp7493mf379afhq7a7peh4wnftz3zej4h',
   },
   [NetworkId.Mainnet]: {
     applicationName: 'hyperlane',
@@ -98,25 +99,30 @@ export class RadixSigningSDK extends RadixSDK {
     core: RadixCoreTx;
     warp: RadixWarpTx;
   };
+  public signer: RadixSigner;
 
   private constructor(account: Account, options?: RadixSDKOptions) {
     super(options);
 
     this.account = account;
+    this.signer = new RadixSigner(
+      this.networkId,
+      this.gateway,
+      this.base,
+      this.account,
+    );
     this.tx = {
       core: new RadixCoreTx(
         account,
         this.base,
+        this.signer,
         this.populate.core,
-        this.networkId,
-        this.gateway,
       ),
       warp: new RadixWarpTx(
         account,
         this.base,
+        this.signer,
         this.populate.warp,
-        this.networkId,
-        this.gateway,
       ),
     };
   }

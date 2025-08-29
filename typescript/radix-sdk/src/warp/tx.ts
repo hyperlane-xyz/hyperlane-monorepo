@@ -1,5 +1,3 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-
 import { RadixBase } from '../utils/base.js';
 import { RadixSigner } from '../utils/signer.js';
 import { Account } from '../utils/types.js';
@@ -16,15 +14,13 @@ export class RadixWarpTx {
   constructor(
     account: Account,
     base: RadixBase,
+    signer: RadixSigner,
     populate: RadixWarpPopulate,
-    networkId: number,
-    gateway: GatewayApiClient,
   ) {
     this.account = account;
     this.base = base;
+    this.signer = signer;
     this.populate = populate;
-
-    this.signer = new RadixSigner(networkId, gateway, this.base, this.account);
   }
 
   public async createCollateralToken({
