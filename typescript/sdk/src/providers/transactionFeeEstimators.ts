@@ -20,6 +20,8 @@ import {
   EthersV5Provider,
   EthersV5Transaction,
   ProviderType,
+  RadixProvider,
+  RadixTransaction,
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
   StarknetJsProvider,
@@ -255,6 +257,32 @@ export async function estimateTransactionFeeCosmJsNative({
   };
 }
 
+// Starknet does not support gas estimation without starknet account
+// TODO: Figure out a way to inject starknet account
+export async function estimateTransactionFeeStarknet({
+  transaction: _transaction,
+  provider: _provider,
+  sender: _sender,
+}: {
+  transaction: StarknetJsTransaction;
+  provider: StarknetJsProvider;
+  sender: Address;
+}): Promise<TransactionFeeEstimate> {
+  return { gasUnits: 0, gasPrice: 0, fee: 0 };
+}
+
+export async function estimateTransactionFeeRadix({
+  transaction,
+  provider,
+}: {
+  transaction: RadixTransaction;
+  provider: RadixProvider;
+}): Promise<TransactionFeeEstimate> {
+  return provider.provider.base.estimateTransactionFee({
+    transactionManifest: transaction.transaction.manifest,
+  });
+}
+
 export function estimateTransactionFee({
   transaction,
   provider,
@@ -333,23 +361,17 @@ export function estimateTransactionFee({
     provider.type === ProviderType.Starknet
   ) {
     return estimateTransactionFeeStarknet({ transaction, provider, sender });
+  } else if (
+    transaction.type === ProviderType.Radix &&
+    provider.type === ProviderType.Radix
+  ) {
+    return estimateTransactionFeeRadix({
+      transaction,
+      provider,
+    });
   } else {
     throw new Error(
       `Unsupported transaction type ${transaction.type} or provider type ${provider.type} for gas estimation`,
     );
   }
-}
-
-// Starknet does not support gas estimation without starknet account
-// TODO: Figure out a way to inject starknet account
-export async function estimateTransactionFeeStarknet({
-  transaction: _transaction,
-  provider: _provider,
-  sender: _sender,
-}: {
-  transaction: StarknetJsTransaction;
-  provider: StarknetJsProvider;
-  sender: Address;
-}): Promise<TransactionFeeEstimate> {
-  return { gasUnits: 0, gasPrice: 0, fee: 0 };
 }
