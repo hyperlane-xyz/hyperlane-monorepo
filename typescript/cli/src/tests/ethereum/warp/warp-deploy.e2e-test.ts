@@ -957,5 +957,53 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(collateralConfig.tokenFee?.token).to.equal(tokenChain2.address);
     });
+
+    it('should deploy a routing fee with basic (unexpanded) configs', async () => {
+      const tokenFee = {
+        type: TokenFeeType.RoutingFee,
+        feeContracts: {
+          [CHAIN_NAME_3]: {
+            type: TokenFeeType.LinearFee,
+            bps: 50,
+          },
+        },
+      };
+
+      const warpConfig = WarpRouteDeployConfigSchema.parse({
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          owner: ownerAddress,
+          tokenFee,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+        },
+      });
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await tokenChain2.symbol(),
+        );
+
+      const collateralConfig: any = (
+        await readWarpConfig(
+          CHAIN_NAME_2,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
+        )
+      )[CHAIN_NAME_2];
+
+      expect(
+        normalizeConfig(
+          collateralConfig.tokenFee.feeContracts[CHAIN_NAME_3].bps,
+        ),
+      ).to.deep.equal(normalizeConfig(tokenFee.feeContracts[CHAIN_NAME_3].bps));
+    });
   });
 });
