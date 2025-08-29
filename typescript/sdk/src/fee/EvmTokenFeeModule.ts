@@ -157,6 +157,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         type: TokenFeeType.RoutingFee,
         token: config.token,
         owner: config.owner,
+        maxFee: constants.MaxUint256.toBigInt(),
+        halfAmount: constants.MaxUint256.toBigInt(),
         feeContracts,
       };
     } else {
@@ -254,7 +256,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     await promiseObjAll(
       objMap(targetConfig.feeContracts, async (chainName, config) => {
         const address = config.address;
-        await this.update(config, address);
+        await this.update(config, { address });
 
         // fetches the latest deployedFee
         updateTxs.push({

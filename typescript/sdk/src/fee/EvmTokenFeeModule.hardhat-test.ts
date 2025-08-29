@@ -19,6 +19,7 @@ import {
   RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeConfigInput,
+  TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
 
@@ -108,14 +109,35 @@ describe('EvmTokenFeeModule', () => {
   });
 
   describe('Update', async () => {
-    it('should not update if the configs are the same', async () => {
+    it('should not update if the linear configs are the same', async () => {
       const module = await EvmTokenFeeModule.create({
         multiProvider,
         chain: chain,
         config,
       });
-      const updatedConfig = { ...config, bps: BPS };
-      const txs = await module.update(updatedConfig);
+
+      const txs = await module.update(config);
+      expect(txs).to.have.lengthOf(0);
+    });
+
+    it('should not update if the routing configs are the same', async () => {
+      const routingConfig = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [chain]: config,
+        },
+      });
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: chain,
+        config: routingConfig,
+      });
+      const chainId = multiProvider.getDomainId(chain);
+      const txs = await module.update(routingConfig, {
+        routingDestinations: [chainId],
+      });
       expect(txs).to.have.lengthOf(0);
     });
 
