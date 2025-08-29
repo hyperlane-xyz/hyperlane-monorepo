@@ -15,7 +15,7 @@ use {
 pub mod utils;
 
 #[tokio::test]
-async fn dango_integration() -> anyhow::Result<()> {
+async fn dango_one_way() -> anyhow::Result<()> {
     setup_tracing_subscriber(Level::INFO);
     build_agents();
     let mut ch1 = DangoBuilder::new("dango", 88888887)
