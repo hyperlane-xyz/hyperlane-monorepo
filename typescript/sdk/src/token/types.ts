@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
 
+import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
 import {
   IsmConfig,
@@ -312,17 +313,36 @@ function preprocessWarpRouteDeployConfig(
     HypTokenRouterConfigMailboxOptional
   >;
   objMap(mutatedConfig, (_, config) => {
-    if (isCollateralTokenConfig(config) && config.tokenFee) {
-      // Default token fee owner and token to the router owner and token, if not specified
-      config.tokenFee = {
-        ...config.tokenFee,
-        owner: config.tokenFee.owner ?? config.owner,
-        token: config.tokenFee.token ?? config.token,
-      };
+    if (isCollateralTokenConfig(config)) {
+      populateTokenFeeOwners({
+        tokenConfig: config,
+        feeConfig: config.tokenFee,
+      });
     }
-    return config;
   });
   return mutatedConfig;
+}
+
+function populateTokenFeeOwners(params: {
+  tokenConfig: HypTokenRouterConfigMailboxOptional;
+  feeConfig?: TokenFeeConfigInput;
+}) {
+  const { tokenConfig, feeConfig } = params;
+  if (!feeConfig) return;
+
+  if (isCollateralTokenConfig(tokenConfig)) {
+    // Default fee.token to the router token, if not specified
+    feeConfig.token = feeConfig.token ?? tokenConfig.token;
+  }
+
+  feeConfig.owner = feeConfig.owner ?? tokenConfig.owner;
+
+  if (feeConfig.type === TokenFeeType.RoutingFee && feeConfig.feeContracts) {
+    objMap(feeConfig.feeContracts, (_, innerConfig) => {
+      populateTokenFeeOwners({ tokenConfig, feeConfig: innerConfig });
+    });
+  }
+  return tokenConfig;
 }
 
 export const WarpRouteDeployConfigSchema = z
