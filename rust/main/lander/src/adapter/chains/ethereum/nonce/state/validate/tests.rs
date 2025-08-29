@@ -4,11 +4,11 @@ use ethers_core::types::Address;
 
 use hyperlane_core::{HyperlaneDomain, U256};
 
+use crate::adapter::chains::ethereum::tests::make_tx;
 use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::{DropReason, TransactionStatus, TransactionUuid};
 use crate::TransactionDropReason;
 
-use super::super::super::super::nonce::tests::make_tx;
 use super::super::super::super::EthereumAdapterMetrics;
 use super::NonceAction;
 use super::NonceManagerState;

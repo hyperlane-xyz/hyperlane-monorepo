@@ -9,6 +9,7 @@ use hyperlane_base::settings::{ChainConf, SignerConf};
 use hyperlane_core::U256;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, Signers};
 
+use crate::adapter::chains::ethereum::nonce::error::NonceResult;
 use crate::dispatcher::TransactionDb;
 use crate::transaction::{Transaction, TransactionUuid};
 use crate::{LanderError, TransactionStatus};
@@ -57,7 +58,7 @@ impl NonceManager {
         &self,
         tx: &Transaction,
     ) -> eyre::Result<Option<U256>, LanderError> {
-        use NonceAction::Noop;
+        use NonceAction::{Assign, Noop};
 
         let tx_uuid = tx.uuid.clone();
         let precursor = tx.precursor();
@@ -86,7 +87,6 @@ impl NonceManager {
         if matches!(action, Noop) {
             return Ok(None);
         }
-
         let next_nonce = self
             .state
             .assign_next_nonce(&tx_uuid, &nonce)
