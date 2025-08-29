@@ -12,7 +12,7 @@ COPY .yarn/releases ./.yarn/releases
 COPY .yarn/patches ./.yarn/patches
 
 # syntax=docker/dockerfile:1.6
-COPY --parents typescript/*/package.json solidity/package.json starknet/package.json ./
+COPY typescript/*/package.json solidity/package.json starknet/package.json ./
 COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 
 RUN yarn install && yarn cache clean
