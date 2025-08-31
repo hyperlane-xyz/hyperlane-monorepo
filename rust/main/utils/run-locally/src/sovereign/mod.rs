@@ -153,50 +153,6 @@ async fn run_locally() {
     } else {
         log!("E2E tests passed");
     }
-
-    // perform transfers back and forth
-    // validate transfers
-
-    /* COMMENTED OUT FOR SIMPLE NODE TEST - UNCOMMENT LATER FOR FULL E2E TESTS
-
-    let common_agent_env = create_common_agent();
-
-    //
-    // Ready to run...
-    //
-
-    // Build rust agents
-    log!("Building rust...");
-    let build_main = Program::new("cargo")
-        .cmd("build")
-        .working_dir(&workspace_path)
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run();
-
-    // TODO: Add more message dispatch after relayer comes up
-
-    // TODO: Implement sovereign-specific termination invariants
-    let test_passed = wait_for_condition(
-        &config,
-        loop_start,
-        || {
-            // TODO: Add sovereign termination invariants
-            Ok(true)
-        },
-        || !SHUTDOWN.load(Ordering::Relaxed),
-        || long_running_processes_exited_check(&mut state),
-    );
-
-    if !test_passed {
-        panic!("Failure occurred during Sovereign E2E");
-    }
-    log!("Sovereign E2E tests passed");
-    */
 }
 
 fn wait_until_nodes_healthy(params: &[SovereignParameters]) {
@@ -238,6 +194,7 @@ fn wait_until_nodes_healthy(params: &[SovereignParameters]) {
     }
 }
 
+#[cfg(feature = "cosmosnative")]
 #[cfg(test)]
 mod test {
     #[tokio::test]

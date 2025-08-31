@@ -67,7 +67,7 @@ mod cosmosnative;
 #[cfg(feature = "starknet")]
 mod starknet;
 
-// #[cfg(feature = "sovereign")]
+#[cfg(feature = "sovereign")]
 mod sovereign;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
