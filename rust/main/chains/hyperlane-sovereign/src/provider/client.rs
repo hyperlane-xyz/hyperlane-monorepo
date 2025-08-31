@@ -16,7 +16,7 @@ use crate::{ConnectionConf, Signer};
 
 /// Request error details
 #[derive(Clone, Deserialize)]
-pub(crate) struct ErrorInfo {
+pub struct ErrorInfo {
     message: String,
     status: u64,
     details: Value,
@@ -39,7 +39,7 @@ impl fmt::Debug for ErrorInfo {
 /// Can be converted to [`ChainCommunicationError`] but allows for differentiating
 /// between those cases and checking the status code of the response.
 #[derive(Debug)]
-pub(crate) enum RestClientError {
+pub enum RestClientError {
     Response(StatusCode, ErrorInfo),
     Other(String),
 }
@@ -106,7 +106,8 @@ impl SovereignClient {
         })
     }
 
-    pub(crate) async fn http_get<T>(&self, query: &str) -> Result<T, RestClientError>
+    /// Perform a GET request for the provided url.
+    pub async fn http_get<T>(&self, query: &str) -> Result<T, RestClientError>
     where
         T: Debug + for<'a> Deserialize<'a>,
     {
@@ -118,7 +119,8 @@ impl SovereignClient {
         http_get(&self.client, url).await
     }
 
-    pub(crate) async fn http_post<T>(&self, query: &str, json: &Value) -> Result<T, RestClientError>
+    /// Perform a POST request to the provided url using the provided JSON payload.
+    pub async fn http_post<T>(&self, query: &str, json: &Value) -> Result<T, RestClientError>
     where
         T: Debug + for<'a> Deserialize<'a>,
     {

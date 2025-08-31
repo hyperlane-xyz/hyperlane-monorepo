@@ -68,7 +68,7 @@ impl SovereignClient {
                 "generation": self.get_generation(),
             },
             "details": {
-                "max_priority_fee_bips": 100,
+                "max_priority_fee_bips": 0,
                 "max_fee": 100_000_000,
                 "gas_limit": Value::Null,
                 "chain_id": self.chain_id
