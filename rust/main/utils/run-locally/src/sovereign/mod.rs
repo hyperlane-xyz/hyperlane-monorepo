@@ -32,11 +32,10 @@ use crate::{
 };
 
 mod agents;
+mod invariants;
 mod node;
 mod ops;
 mod types;
-
-pub const SOVEREIGN_MESSAGES_EXPECTED: u32 = 10;
 
 /// Test private keys for Sovereign chains
 // https://github.com/Sovereign-Labs/rollup-starter/blob/main/test-data/keys/token_deployer_private_key.json
@@ -71,6 +70,8 @@ async fn run_locally() {
     log!("Waiting for Sovereign nodes to be ready...");
 
     wait_until_nodes_healthy(&params);
+
+    sleep(Duration::from_secs(10));
 
     let chain_registry = ChainRegistry {
         chains: params
@@ -122,28 +123,36 @@ async fn run_locally() {
 
     let amount = dispatch_transfers(&chain_registry, &routers, 5, RELAYER_ADDRESS).await;
     log!("dispatched {} messages", amount);
-    sleep(Duration::from_secs(80));
-
-    let delivered_messages_count = fetch_metric(
-        &RELAYER_METRICS_PORT.to_string(),
-        "hyperlane_operations_processed_count",
-        &hashmap! {"phase" => "confirmed"},
-    )
-    .unwrap()
-    .iter()
-    .sum::<u32>();
-
-    log!("delivered messages count {}", delivered_messages_count);
-    let ending_balance: f64 = agent_balance_sum(RELAYER_METRICS_PORT.into()).unwrap();
-    log!(
-        "relayer starting balance: {}, ending balance: {}",
-        starting_relayer_balance,
-        ending_balance
-    );
-
-    todo!();
 
     let loop_start = Instant::now();
+    let mut failure_occurred = false;
+    loop {
+        // look for the end condition.
+        if termination_invariants_met(
+            hpl_rly_metrics_port,
+            hpl_scr_metrics_port,
+            dispatched_messages,
+            starting_relayer_balance,
+        )
+        .unwrap_or(false)
+        {
+            // end condition reached successfully
+            break;
+        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
+            // we ran out of time
+            log!("timeout reached before message submission was confirmed");
+            failure_occurred = true;
+            break;
+        }
+
+        sleep(Duration::from_secs(5));
+    }
+
+    if failure_occurred {
+        panic!("E2E tests failed");
+    } else {
+        log!("E2E tests passed");
+    }
 
     // perform transfers back and forth
     // validate transfers
@@ -227,46 +236,6 @@ fn wait_until_nodes_healthy(params: &[SovereignParameters]) {
 
         sleep(check_interval);
     }
-}
-
-fn termination_invariants_met(
-    relayer_metrics_port: u32,
-    _scraper_metrics_port: u32,
-    messages_expected: u32,
-    starting_relayer_balance: f64,
-) -> eyre::Result<bool> {
-    let delivered_messages_count = fetch_metric(
-        &relayer_metrics_port.to_string(),
-        "hyperlane_operations_processed_count",
-        &hashmap! {"phase" => "confirmed"},
-    )?
-    .iter()
-    .sum::<u32>();
-    if delivered_messages_count != messages_expected {
-        log!(
-            "Relayer confirmed {} submitted messages, expected {}",
-            delivered_messages_count,
-            messages_expected
-        );
-        return Ok(false);
-    }
-
-    // we can check the events endpoint for message deliver/dispatched events instead of scraper
-
-    let ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
-
-    // Make sure the balance was correctly updated in the metrics.
-    if starting_relayer_balance <= ending_relayer_balance {
-        log!(
-            "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
-            starting_relayer_balance,
-            ending_relayer_balance
-        );
-        return Ok(false);
-    }
-
-    log!("Termination invariants have been met");
-    Ok(true)
 }
 
 #[cfg(test)]

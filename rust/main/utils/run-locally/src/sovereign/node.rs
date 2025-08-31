@@ -155,6 +155,7 @@ pub fn start_sovereign_node_docker(
         .flag("rm")
         .flag("privileged")
         .arg("name", &params.name)
+        .arg("env", "RUST_LOG=info")
         .arg("volume", format!("{}:/mnt/da", da_dir.display()))
         .arg("volume", format!("{}:/mnt/state", state_dir.display()))
         .arg(
@@ -164,8 +165,6 @@ pub fn start_sovereign_node_docker(
         .arg("publish", format!("{}:12346", params.port))
         .cmd(params.docker_image())
         .spawn(node_name_static, None);
-
-    sleep(Duration::from_secs(10));
 
     log!(
         "Sovereign node '{}' started in Docker container",

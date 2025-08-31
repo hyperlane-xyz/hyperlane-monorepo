@@ -23,7 +23,7 @@ pub async fn set_relayer_igp_configs(conf: &ChainRegistry, relayer_address: &str
                 "set_relayer_config": {
                     "domain_oracle_data": domain_oracle_data,
                     "domain_default_gas": domain_default_gas,
-                    "default_gas": 10000,
+                    "default_gas": 2000,
                     "beneficiary": relayer_address
                 }
             }
@@ -37,9 +37,15 @@ pub async fn set_relayer_igp_configs(conf: &ChainRegistry, relayer_address: &str
 
 async fn create_warp_route(
     chain: &ChainConfig,
+    remote: Option<(&ChainConfig, &str)>,
     relayer_address: &str,
     validator_address: &str,
 ) -> String {
+    let remote_routers = if let Some(r) = remote {
+        vec![json!([r.0.domain_id, r.1])]
+    } else {
+        vec![]
+    };
     let client = get_or_create_client(chain).await;
     let limit = u128::MAX.to_string();
     let call = json!({
@@ -55,53 +61,7 @@ async fn create_warp_route(
                     }
                 },
                 "token_source": "Native",
-                "remote_routers": [],
-                "inbound_transferrable_tokens_limit": limit,
-                "inbound_limit_replenishment_per_slot": limit,
-                "outbound_transferrable_tokens_limit": limit,
-                "outbound_limit_replenishment_per_slot": limit
-            }
-        }
-    });
-    let (response, _) = client
-        .build_and_submit(call)
-        .await
-        .expect("warp registration should succeed");
-    let event = &response.events.unwrap()[0];
-    event
-        .value
-        .get("route_registered")
-        .expect("route_registered field not found")
-        .get("route_id")
-        .expect("route_id field not found")
-        .as_str()
-        .expect("should conver to string")
-        .to_owned()
-}
-
-async fn create_warp_route_synth(
-    chain: &ChainConfig,
-    relayer_address: &str,
-    validator_address: &str,
-) -> String {
-    // https://github.com/Sovereign-Labs/rollup-starter/blob/f8f18e933cbed3c2e0017610cc902951c0aabc8c/constants.toml#L52C28-L52C93
-    let gas_token_id = "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7";
-    let client = get_or_create_client(chain).await;
-    let limit = u128::MAX.to_string();
-    let call = json!({
-        "warp": {
-            "register": {
-                "admin": {
-                    "InsecureOwner": relayer_address,
-                },
-                "ism": {
-                    "MessageIdMultisig": {
-                        "threshold": 1,
-                        "validators": [validator_address]
-                    }
-                },
-                "token_source": "Native",
-                "remote_routers": [],
+                "remote_routers": remote_routers,
                 "inbound_transferrable_tokens_limit": limit,
                 "inbound_limit_replenishment_per_slot": limit,
                 "outbound_transferrable_tokens_limit": limit,
@@ -158,10 +118,15 @@ pub async fn connect_chains(
     let chain1 = chains.next().unwrap();
     let chain2 = chains.next().unwrap();
 
-    let route1 = create_warp_route(chain1, relayer_address, validator_address).await;
-    let route2 = create_warp_route(chain2, relayer_address, validator_address).await;
+    let route1 = create_warp_route(chain1, None, relayer_address, validator_address).await;
+    let route2 = create_warp_route(
+        chain2,
+        Some((chain1, &route1)),
+        relayer_address,
+        validator_address,
+    )
+    .await;
     enroll_remote_router((chain1, &route1), (&chain2, &route2)).await;
-    enroll_remote_router((chain2, &route2), (&chain1, &route1)).await;
 
     vec![
         ChainRouter {
