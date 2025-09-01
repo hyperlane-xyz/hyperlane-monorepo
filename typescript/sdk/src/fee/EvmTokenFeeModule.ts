@@ -269,7 +269,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
             addresses: {
               deployedFee: constants.AddressZero,
             },
-            chain: chainName,
+            chain: this.chainName,
             config,
           },
           this.contractVerifier,
