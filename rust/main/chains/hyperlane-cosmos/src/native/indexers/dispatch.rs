@@ -1,10 +1,10 @@
 use std::io::Cursor;
 use std::ops::RangeInclusive;
 
+use cometbft::abci::EventAttribute;
 use hex::ToHex;
 use hyperlane_cosmos_rs::hyperlane::core::v1::EventDispatch;
 use hyperlane_cosmos_rs::prost::Name;
-use tendermint::abci::EventAttribute;
 use tonic::async_trait;
 use tracing::instrument;
 
@@ -88,7 +88,6 @@ impl CosmosEventIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
@@ -111,8 +110,6 @@ impl Indexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
 
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
-    #[instrument(err, skip(self), ret)]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = CosmosEventIndexer::get_finalized_block_number(self).await?;
         let mailbox = self

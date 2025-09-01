@@ -82,7 +82,9 @@ export async function deployWithArtifacts<Config extends object>({
   // Run post-deploy steps
   const handleExit = async () => {
     console.info(chalk.gray.italic('Running post-deploy steps'));
-    await runWithTimeout(5000, () => postDeploy(deployer, cache))
+    await runWithTimeout(5000, () =>
+      postDeploy(deployer, cache, targetNetworks),
+    )
       .then(() => console.info('Post-deploy completed'))
       .catch((error) => {
         console.error(
@@ -157,7 +159,7 @@ export async function deployWithArtifacts<Config extends object>({
   }
 }
 
-async function baseDeploy<
+export async function baseDeploy<
   Config extends object,
   Factories extends HyperlaneFactories,
 >(
@@ -232,6 +234,7 @@ async function baseDeploy<
 async function postDeploy<Config extends object>(
   deployer: HyperlaneDeployer<Config, any>,
   cache: DeployCache,
+  targetNetworks: ChainName[],
 ) {
   if (cache.write) {
     const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
@@ -239,7 +242,7 @@ async function postDeploy<Config extends object>(
     const addresses = objMerge(deployedAddresses, cachedAddresses);
 
     // cache addresses of deployed contracts
-    writeAddresses(cache.environment, cache.module, addresses);
+    writeAddresses(cache.environment, cache.module, addresses, targetNetworks);
 
     let savedVerification = {};
     try {

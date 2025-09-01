@@ -1,7 +1,7 @@
 use std::ops::RangeInclusive;
 
+use cometbft::abci::EventAttribute;
 use hyperlane_cosmos_rs::{hyperlane::core::post_dispatch::v1::EventGasPayment, prost::Name};
-use tendermint::abci::EventAttribute;
 use tonic::async_trait;
 use tracing::instrument;
 

@@ -11,7 +11,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{instrument, warn, warn_span};
+use tracing::{instrument, warn};
 
 use ethers_prometheus::json_rpc_client::JsonRpcBlockGetter;
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
@@ -24,9 +24,10 @@ const METHOD_SEND_RAW_TRANSACTION: &str = "eth_sendRawTransaction";
 /// Wrapper of `FallbackProvider` for use in `hyperlane-ethereum`
 /// The wrapper uses two distinct strategies to place requests to chains:
 /// 1. multicast - the request will be sent to all the providers simultaneously and the first
-///                successful response will be used.
+///    successful response will be used.
+///
 /// 2. fallback  - the request will be sent to each provider one by one according to their
-///                priority and the priority will be updated depending on success/failure.
+///    priority and the priority will be updated depending on success/failure.
 ///
 /// Multicast strategy is used to submit transactions into the chain, namely with RPC method
 /// `eth_sendRawTransaction` while fallback strategy is used for all the other RPC methods.
@@ -161,7 +162,10 @@ where
                 // if we are here, it means one of the providers returned a successful result
                 if !retryable_errors.is_empty() || !non_retryable_errors.is_empty() {
                     // we log a warning if we got errors from failed providers
-                    warn!(errors_count=?(retryable_errors.len() + non_retryable_errors.len()),  ?retryable_errors, ?non_retryable_errors, providers=?self.inner.providers, "multicast_request");
+                    let errors_count = retryable_errors
+                        .len()
+                        .saturating_add(non_retryable_errors.len());
+                    warn!(errors_count, ?retryable_errors, ?non_retryable_errors, providers=?self.inner.providers, "multicast_request");
                 }
 
                 return Ok(value);
@@ -200,8 +204,14 @@ where
                 let fut = Self::provider_request(provider, method, &params);
                 let resp = fut.await;
                 self.handle_stalled_provider(priority, provider).await;
-                let _span =
-                    warn_span!("fallback_request", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+                if resp.is_err() {
+                    self.handle_failed_provider(priority).await;
+                }
+                tracing::debug!(
+                    fallback_count = idx,
+                    provider_index = priority.index,
+                    "fallback_request"
+                );
 
                 match categorize_client_response(method, resp) {
                     IsOk(v) => return Ok(serde_json::from_value(v)?),
@@ -229,7 +239,7 @@ where
         &'a self,
         method: &'a str,
         params: &'a Value,
-    ) -> FuturesUnordered<impl Future<Output = Result<Value, HttpClientError>> + Sized + '_> {
+    ) -> FuturesUnordered<impl Future<Output = Result<Value, HttpClientError>> + Sized + 'a> {
         let unordered = FuturesUnordered::new();
         self.inner
             .providers

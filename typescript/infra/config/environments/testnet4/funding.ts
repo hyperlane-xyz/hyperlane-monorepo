@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '0817ec4-20250521-141641',
+    tag: '7dca2ae-20250825-162920',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -24,7 +24,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['hyperliquidevmtestnet', 'rometestnet'],
+  chainsToSkip: ['hyperliquidevmtestnet', 'infinityvmmonza'],
   // desired balance config
   desiredBalancePerChain: {
     abstracttestnet: '0.1',
@@ -37,7 +37,9 @@ export const keyFunderConfig: KeyFunderConfig<
     basesepolia: '0.1',
     bepolia: '0.05',
     bsctestnet: '5',
-    carrchaintestnet: '0.1',
+    carrchaintestnet: '100',
+    celestiatestnet: '0',
+    celosepolia: '0.5',
     chronicleyellowstone: '0.001',
     citreatestnet: '0.001',
     connextsepolia: '1',
@@ -50,6 +52,7 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '5',
     holesky: '5',
     hyperliquidevmtestnet: '0.1',
+    incentivtestnet: '1',
     infinityvmmonza: '0',
     inksepolia: '0.1',
     kyvetestnet: '0',
@@ -64,7 +67,7 @@ export const keyFunderConfig: KeyFunderConfig<
     paradexsepolia: '0',
     plumetestnet2: '0.1',
     polygonamoy: '0.2',
-    rometestnet: '0.1',
+    radixtestnet: '0',
     scrollsepolia: '1',
     sepolia: '5',
     starknetsepolia: '0',

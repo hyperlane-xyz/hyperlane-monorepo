@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use derive_new::new;
 use hyperlane_core::{
@@ -11,8 +11,8 @@ use tokio::time::sleep;
 use tracing::{info, instrument, warn};
 
 use super::{
+    message_processor::{submit_single_operation, MessageProcessorMetrics},
     op_queue::OpQueue,
-    op_submitter::{submit_single_operation, SerialSubmitterMetrics},
     pending_message::CONFIRM_DELAY,
 };
 
@@ -26,12 +26,12 @@ pub(crate) struct OperationBatch {
 }
 
 impl OperationBatch {
-    #[instrument(skip_all, fields(domain=%self.domain, batch_size=self.operations.len()))]
+    #[instrument(skip_all, fields(domain=%self.domain.name(), batch_size=self.operations.len()))]
     pub async fn submit(
         self,
         prepare_queue: &mut OpQueue,
         confirm_queue: &mut OpQueue,
-        metrics: &SerialSubmitterMetrics,
+        metrics: &MessageProcessorMetrics,
     ) {
         let excluded_ops = match self.try_submit_as_batch(metrics).await {
             Ok(batch_result) => {
@@ -54,7 +54,7 @@ impl OperationBatch {
     #[instrument(skip(self, metrics), ret, level = "debug")]
     async fn try_submit_as_batch(
         &self,
-        metrics: &SerialSubmitterMetrics,
+        metrics: &MessageProcessorMetrics,
     ) -> ChainResult<BatchResult> {
         // We already assume that the relayer submits to a single mailbox per destination.
         // So it's fine to use the first item in the batch to get the mailbox.
@@ -68,8 +68,16 @@ impl OperationBatch {
         let outcome = self
             .submit_batch_with_retry(mailbox, DEFAULT_MAX_RPC_RETRIES, BATCH_RETRY_SLEEP_DURATION)
             .await?;
-        let ops_submitted = self.operations.len() - outcome.failed_indexes.len();
-        metrics.ops_submitted.inc_by(ops_submitted as u64);
+
+        let failed_indexes: HashSet<usize> = outcome.failed_indexes.iter().cloned().collect();
+        for (i, op) in self.operations.iter().enumerate() {
+            if failed_indexes.contains(&i) {
+                continue;
+            }
+            let app_context = op.app_context();
+            metrics.inc_submitted(app_context);
+        }
+
         Ok(outcome)
     }
 
@@ -129,7 +137,8 @@ impl OperationBatch {
     ) {
         let total_estimated_cost = total_estimated_cost(sent_ops.as_slice());
         for mut op in sent_ops {
-            op.set_operation_outcome(outcome.clone(), total_estimated_cost);
+            op.set_operation_outcome(outcome.clone(), total_estimated_cost)
+                .await;
             op.set_next_attempt_after(CONFIRM_DELAY);
             confirm_queue
                 .push(
@@ -146,7 +155,7 @@ impl OperationBatch {
         self,
         prepare_queue: &mut OpQueue,
         confirm_queue: &mut OpQueue,
-        metrics: &SerialSubmitterMetrics,
+        metrics: &MessageProcessorMetrics,
     ) {
         for op in self.operations.into_iter() {
             submit_single_operation(op, prepare_queue, confirm_queue, metrics).await;
@@ -162,6 +171,7 @@ mod tests {
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
         msg::{
+            db_loader::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
             gas_payment::GasPaymentEnforcer,
             metadata::{
                 BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
@@ -169,7 +179,6 @@ mod tests {
             },
             op_queue::test::MockPendingOperation,
             pending_message::{MessageContext, PendingMessage},
-            processor::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
         },
         settings::{
             matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
@@ -395,16 +404,16 @@ mod tests {
             origin_db: Arc::new(base_db.clone()),
             cache: cache.clone(),
             metadata_builder: Arc::new(metadata_builder),
-            origin_gas_payment_enforcer: Arc::new(GasPaymentEnforcer::new(
+            origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new(
                 vec![GasPaymentEnforcementConf {
                     policy: GasPaymentEnforcementPolicy::None,
                     matching_list: MatchingList::default(),
                 }],
                 base_db.clone(),
-            )),
+            ))),
             transaction_gas_limit: Default::default(),
             metrics: dummy_submission_metrics(),
-            application_operation_verifier: Some(Arc::new(DummyApplicationOperationVerifier {})),
+            application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
         });
 
         let attempts = 2;
@@ -431,8 +440,8 @@ mod tests {
         }
 
         let arb_domain = HyperlaneDomain::new_test_domain("arbitrum");
-        let serial_submitter_metrics =
-            SerialSubmitterMetrics::new(core_metrics.clone(), &arb_domain);
+        let message_processor_metrics =
+            MessageProcessorMetrics::new(core_metrics.clone(), &arb_domain);
 
         let operation_batch = OperationBatch::new(
             pending_messages
@@ -442,7 +451,7 @@ mod tests {
             arb_domain,
         );
         operation_batch
-            .try_submit_as_batch(&serial_submitter_metrics)
+            .try_submit_as_batch(&message_processor_metrics)
             .await
             .unwrap();
     }

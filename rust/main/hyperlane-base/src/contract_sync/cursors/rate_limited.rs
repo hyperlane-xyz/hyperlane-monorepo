@@ -45,7 +45,7 @@ impl SyncState {
         let (from, to) = match self.direction {
             SyncDirection::Forward => {
                 let from = self.next_block;
-                let mut to = from + self.chunk_size;
+                let mut to = from.saturating_add(self.chunk_size);
                 to = u32::min(to, tip);
                 (from, to)
             }
@@ -61,7 +61,7 @@ impl SyncState {
     fn update_range(&mut self, range: RangeInclusive<u32>) {
         match self.direction {
             SyncDirection::Forward => {
-                self.next_block = *range.end() + 1;
+                self.next_block = range.end().saturating_add(1);
             }
             SyncDirection::Backward => {
                 self.next_block = range.start().saturating_sub(1);
@@ -99,19 +99,42 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
         domain: &HyperlaneDomain,
         store: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
         chunk_size: u32,
-        initial_height: u32,
+        initial_height: i64,
+        watermark: Option<u32>,
     ) -> Result<Self> {
         let tip = indexer.get_finalized_block_number().await?;
+
+        // if initial_height is negative, then we want to use a relative
+        // height
+        let index_start_height = if initial_height < 0 {
+            (tip as i64).saturating_add(initial_height)
+        } else {
+            initial_height
+        };
+
+        let index_start_height = watermark
+            .map(|w| if w as i64 <= index_start_height {
+                tracing::warn!(
+                    ?w,
+                    ?index_start_height,
+                    "Watermark from database is lower than the configured lowest block height, using the configured block height"
+                );
+                index_start_height
+            } else { w as i64 })
+            .unwrap_or(index_start_height);
+
+        let index_start_height: u32 = index_start_height as u32;
+
         Ok(Self {
             indexer,
             store,
             tip,
             last_tip_update: Instant::now(),
-            eta_calculator: SyncerEtaCalculator::new(initial_height, tip, ETA_TIME_WINDOW),
+            eta_calculator: SyncerEtaCalculator::new(index_start_height, tip, ETA_TIME_WINDOW),
             sync_state: SyncState::new(
                 chunk_size,
-                initial_height,
-                initial_height,
+                index_start_height,
+                index_start_height,
                 // The rate limited cursor currently only syncs in the forward direction.
                 SyncDirection::Forward,
             ),
@@ -123,7 +146,12 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
     /// Wait based on how close we are to the tip and update the tip,
     /// i.e. the highest block we may scrape.
     async fn get_rate_limit(&self) -> Result<Option<Duration>> {
-        if self.sync_state.next_block + self.sync_state.chunk_size < self.tip {
+        if self
+            .sync_state
+            .next_block
+            .saturating_add(self.sync_state.chunk_size)
+            < self.tip
+        {
             // If doing the full chunk wouldn't exceed the already known tip we do not need to rate limit.
             return Ok(None);
         }
@@ -157,7 +185,10 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
 
     fn sync_eta(&mut self) -> Duration {
         let sync_end = self.sync_end();
-        let to = u32::min(sync_end, self.sync_position() + self.sync_step());
+        let to = u32::min(
+            sync_end,
+            self.sync_position().saturating_add(self.sync_step()),
+        );
         let from = self.sync_position();
         if to < sync_end {
             self.eta_calculator.calculate(from, sync_end)
@@ -258,7 +289,7 @@ pub(crate) mod test {
     use mockall::{self, Sequence};
 
     const CHUNK_SIZE: u32 = 10;
-    const INITIAL_HEIGHT: u32 = 0;
+    const INITIAL_HEIGHT: i64 = 0;
 
     #[derive(Debug, Clone)]
     struct MockIndexable;
@@ -371,6 +402,7 @@ pub(crate) mod test {
             Arc::new(db),
             chunk_size,
             initial_height,
+            None,
         )
         .await
         .unwrap()

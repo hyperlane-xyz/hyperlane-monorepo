@@ -43,9 +43,7 @@ export class EvmCoreReader implements CoreReader {
     this.provider = this.multiProvider.getProvider(chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
     this.evmIsmReader = new EvmIsmReader(multiProvider, chain, concurrency);
-    this.evmIcaRouterReader = new EvmIcaRouterReader(
-      multiProvider.getProvider(chain),
-    );
+    this.evmIcaRouterReader = new EvmIcaRouterReader(multiProvider, chain);
   }
 
   /**

@@ -9,6 +9,7 @@ members = [
   "chains/hyperlane-cosmos",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
+  "chains/hyperlane-radix",
   "chains/hyperlane-sealevel",
   "chains/hyperlane-starknet",
   "ethers-prometheus",
@@ -55,9 +56,7 @@ borsh = "0.9"
 bs58 = "0.5.0"
 bytes = "1"
 byteorder = "1.5.0"
-cainome = { git = "https://github.com/cartridge-gg/cainome", tag = "v0.2.9", features = [
-  "abigen-rs",
-] }
+cainome = { version = "0.8.0", features = ["abigen-rs"] }
 clap = "4"
 chrono = "*"
 color-eyre = "0.6"
@@ -92,6 +91,7 @@ bech32 = "0.11.0"
 elliptic-curve = "0.13.8"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
+hex-literal = "0.4.1"
 http = "1.2.0"
 http-body-util = "0.1"
 hyper = "0.14"
@@ -154,7 +154,7 @@ solana-client = "=1.14.13"
 solana-program = "=1.14.13"
 solana-sdk = "=1.14.13"
 solana-transaction-status = "=1.14.13"
-starknet = "0.10.0"
+starknet = "0.15.0"
 static_assertions = "1.1"
 strum = "0.26.2"
 strum_macros = "0.26.2"
@@ -184,6 +184,18 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 ya-gcp = { version = "0.11.3", features = ["storage"] }
+radix-common = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+radix-transactions = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+radix-engine-interface = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+scrypto = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
+  "serde",
+] }
+core-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
+gateway-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
+scrypto-derive = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
+  "serde",
+] }
 hyperlane-cosmos-rs = "0.1.4"
 
 
@@ -223,6 +235,13 @@ overflow-checks = true
 [profile.release.package.hyperlane-sealevel-validator-announce]
 overflow-checks = true
 
+[workspace.dependencies.cometbft]
+git = "https://github.com/hyperlane-xyz/cometbft-rs"
+tag = "2025-08-07"
+
+[workspace.dependencies.cometbft-rpc]
+git = "https://github.com/hyperlane-xyz/cometbft-rs"
+tag = "2025-08-07"
 
 [workspace.dependencies.ethers]
 features = []

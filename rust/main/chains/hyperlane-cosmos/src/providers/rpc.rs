@@ -1,6 +1,16 @@
 use std::future::Future;
+use std::ops::Mul;
 use std::time::Instant;
 
+use cometbft::{hash::Algorithm, Hash};
+use cometbft_rpc::{
+    client::CompatMode,
+    endpoint::{
+        block::Response as BlockResponse, block_results::Response as BlockResultsResponse,
+        broadcast::tx_commit, tx::Response as TxResponse,
+    },
+    Client, Error, HttpClient,
+};
 use cosmrs::{
     proto::{
         cosmos::{
@@ -10,18 +20,8 @@ use cosmrs::{
         },
         prost::{self, Message},
     },
-    rpc::HttpClient,
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
     Any, Coin,
-};
-use tendermint::{hash::Algorithm, Hash};
-use tendermint_rpc::{
-    client::CompatMode,
-    endpoint::{
-        block::Response as BlockResponse, block_results::Response as BlockResultsResponse,
-        broadcast::tx_commit, tx::Response as TxResponse,
-    },
-    Client, Error,
 };
 use tonic::async_trait;
 use url::Url;
@@ -94,10 +94,10 @@ impl CosmosHttpClient {
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
     ) -> ChainResult<Self> {
-        let tendermint_url = tendermint_rpc::Url::try_from(url.to_owned())
+        let tendermint_url = cometbft_rpc::Url::try_from(url.to_owned())
             .map_err(Box::new)
             .map_err(ChainCommunicationError::from_other)?;
-        let url = tendermint_rpc::HttpClientUrl::try_from(tendermint_url)
+        let url = cometbft_rpc::HttpClientUrl::try_from(tendermint_url)
             .map_err(Box::new)
             .map_err(ChainCommunicationError::from_other)?;
 
@@ -357,10 +357,14 @@ impl RpcProvider {
 
         let current_height = self.get_block_number().await? as u32;
 
-        let tx_body = tx::Body::new(msgs, String::default(), current_height + TX_TIMEOUT_BLOCKS);
+        let tx_body = tx::Body::new(
+            msgs,
+            String::default(),
+            current_height.saturating_add(TX_TIMEOUT_BLOCKS),
+        );
         let signer_info = SignerInfo::single_direct(Some(signer.public_key), account_info.sequence);
 
-        let amount: u128 = (FixedPointNumber::from(gas_limit) * self.gas_price())
+        let amount: u128 = (FixedPointNumber::from(gas_limit).mul(self.gas_price()))
             .ceil_to_integer()
             .try_into()?;
         let fee_coin = Coin::new(

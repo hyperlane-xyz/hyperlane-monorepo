@@ -1,3 +1,5 @@
+use cometbft::abci::v0_34;
+use cometbft::abci::v0_37;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -31,5 +33,11 @@ pub struct EventAttribute {
 impl From<EventAttribute> for cosmrs::tendermint::abci::EventAttribute {
     fn from(val: EventAttribute) -> Self {
         cosmrs::tendermint::abci::EventAttribute::from((val.key, val.value, val.index))
+    }
+}
+
+impl From<EventAttribute> for cometbft::abci::EventAttribute {
+    fn from(val: EventAttribute) -> Self {
+        cometbft::abci::EventAttribute::from((val.key, val.value, val.index))
     }
 }

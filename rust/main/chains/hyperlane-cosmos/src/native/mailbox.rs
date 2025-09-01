@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 use cosmrs::Any;
 use hex::ToHex;
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
@@ -45,7 +47,7 @@ impl CosmosNativeMailbox {
         let metadata = hex::encode(metadata);
         let signer = self.provider.rpc().get_signer()?.address_string.clone();
         let process = MsgProcessMessage {
-            mailbox_id: "0x".to_string() + &mailbox_id,
+            mailbox_id: format!("0x{mailbox_id}"),
             metadata,
             message,
             relayer: signer,

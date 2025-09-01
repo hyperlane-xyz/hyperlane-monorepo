@@ -37,9 +37,9 @@ import { supportedChainNames } from './supportedChainNames.js';
 export const core: ChainMap<CoreConfig> = objMap(
   ethereumChainOwners,
   (local, owner) => {
-    // Special case for rometestnet due to non-standard gas metering.
+    // Special case for rometestnet2 due to non-standard gas metering.
     const connectedChains =
-      local === 'rometestnet'
+      local === 'rometestnet2'
         ? [
             'sepolia',
             'arbitrumsepolia',

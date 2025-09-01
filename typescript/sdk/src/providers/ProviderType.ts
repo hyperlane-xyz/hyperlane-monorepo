@@ -36,6 +36,8 @@ import {
 import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
+import { ChainMap } from '../types.js';
+
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
   Viem = 'viem',
@@ -46,6 +48,7 @@ export enum ProviderType {
   GnosisTxBuilder = 'gnosis-txBuilder',
   Starknet = 'starknet',
   ZkSync = 'zksync',
+  Radix = 'radix',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -57,6 +60,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
   [ProtocolType.CosmosNative]: ProviderType.CosmJsNative,
   [ProtocolType.Starknet]: ProviderType.Starknet,
+  [ProtocolType.Radix]: ProviderType.Radix,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -91,6 +95,12 @@ type ProtocolTypesMapping = {
     provider: StarknetJsProvider;
     contract: StarknetJsContract;
     receipt: StarknetJsTransactionReceipt;
+  };
+  [ProtocolType.Radix]: {
+    transaction: any;
+    provider: any;
+    contract: any;
+    receipt: any;
   };
 };
 
@@ -257,6 +267,11 @@ export interface EthersV5Transaction
 export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
 export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
+
+export type GroupedTransactions = {
+  [ProtocolType.Ethereum]: ChainMap<AnnotatedEV5Transaction[]>;
+  [ProtocolType.CosmosNative]: ChainMap<AnnotatedCosmJsNativeTransaction[]>;
+};
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
   type: ProviderType.Viem;

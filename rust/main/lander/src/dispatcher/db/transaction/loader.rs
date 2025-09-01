@@ -41,7 +41,7 @@ impl LoadableFromDb for TransactionDbLoader {
     type Item = Transaction;
 
     async fn highest_index(&self) -> Result<u32, LanderError> {
-        Ok(self.db.retrieve_highest_index().await?)
+        Ok(self.db.retrieve_highest_transaction_index().await?)
     }
 
     async fn retrieve_by_index(&self, index: u32) -> Result<Option<Self::Item>, LanderError> {

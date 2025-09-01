@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -73,7 +75,7 @@ pub trait SealevelProviderForLander: Send + Sync {
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
     ) -> ChainResult<Transaction>;
 
@@ -82,8 +84,8 @@ pub trait SealevelProviderForLander: Send + Sync {
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        priority_fee_oracle: &dyn PriorityFeeOracle,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
+        priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     ) -> ChainResult<SealevelTxCostEstimate>;
 
     /// Waits for Sealevel transaction confirmation with processed commitment level
@@ -117,7 +119,7 @@ impl SealevelProviderForLander for SealevelProvider {
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
     ) -> ChainResult<Transaction> {
         let instructions = vec![
@@ -162,8 +164,8 @@ impl SealevelProviderForLander for SealevelProvider {
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        priority_fee_oracle: &dyn PriorityFeeOracle,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
+        priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     ) -> ChainResult<SealevelTxCostEstimate> {
         // Build a transaction that sets the max compute units and a dummy compute unit price.
         // This is used for simulation to get the actual compute unit limit. We set dummy values
@@ -210,8 +212,9 @@ impl SealevelProviderForLander for SealevelProvider {
 
         // Bump the compute units to be conservative
         let simulation_compute_units = MAX_COMPUTE_UNITS.min(
-            (simulation_compute_units * COMPUTE_UNIT_MULTIPLIER_NUMERATOR)
-                / COMPUTE_UNIT_MULTIPLIER_DENOMINATOR,
+            simulation_compute_units
+                .saturating_mul(COMPUTE_UNIT_MULTIPLIER_NUMERATOR)
+                .saturating_div(COMPUTE_UNIT_MULTIPLIER_DENOMINATOR),
         );
 
         let mut priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
@@ -234,8 +237,9 @@ impl SealevelProviderForLander for SealevelProvider {
             .unwrap_or(PRIORITY_FEE_MULTIPLIER_NUMERATOR);
 
         // Bump the priority fee to be conservative
-        let priority_fee =
-            (priority_fee * priority_fee_numerator) / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
+        let priority_fee = priority_fee
+            .saturating_mul(priority_fee_numerator)
+            .saturating_div(PRIORITY_FEE_MULTIPLIER_DENOMINATOR);
 
         Ok(SealevelTxCostEstimate {
             compute_units: simulation_compute_units,
@@ -399,8 +403,8 @@ impl SealevelProvider {
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
-        tx_submitter: &dyn TransactionSubmitter,
-        priority_fee_oracle: &dyn PriorityFeeOracle,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
+        priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     ) -> ChainResult<Transaction> {
         // Get the estimated costs for the instruction.
         let SealevelTxCostEstimate {
@@ -410,7 +414,7 @@ impl SealevelProvider {
             .get_estimated_costs_for_instruction(
                 instruction.clone(),
                 payer,
-                tx_submitter,
+                tx_submitter.clone(),
                 priority_fee_oracle,
             )
             .await?;
@@ -558,7 +562,7 @@ impl HyperlaneProvider for SealevelProvider {
             warn!(tx_hash = ?hash, ?fee, ?gas_used, "calculated fee is less than gas used. it will result in zero gas price");
         }
 
-        let gas_price = Some(fee / gas_used);
+        let gas_price = fee.checked_div(gas_used);
 
         let receipt = TxnReceiptInfo {
             gas_used,

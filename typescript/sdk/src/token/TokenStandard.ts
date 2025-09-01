@@ -50,10 +50,15 @@ export enum TokenStandard {
   CosmNativeHypCollateral = 'CosmosNativeHypCollateral',
   CosmNativeHypSynthetic = 'CosmosNativeHypSynthetic',
 
-  //Starknet
+  // Starknet
   StarknetHypNative = 'StarknetHypNative',
   StarknetHypCollateral = 'StarknetHypCollateral',
   StarknetHypSynthetic = 'StarknetHypSynthetic',
+
+  // Radix
+  RadixNative = 'RadixNative',
+  RadixHypCollateral = 'RadixHypCollateral',
+  RadixHypSynthetic = 'RadixHypSynthetic',
 }
 
 // Allows for omission of protocol field in token args
@@ -104,6 +109,11 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   StarknetHypCollateral: ProtocolType.Starknet,
   StarknetHypNative: ProtocolType.Starknet,
   StarknetHypSynthetic: ProtocolType.Starknet,
+
+  // Radix
+  RadixNative: ProtocolType.Radix,
+  RadixHypCollateral: ProtocolType.Radix,
+  RadixHypSynthetic: ProtocolType.Radix,
 };
 
 export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
@@ -146,11 +156,17 @@ export const XERC20_STANDARDS = [
   TokenStandard.EvmHypVSXERC20Lockbox,
 ];
 
+export const LOCKBOX_STANDARDS = [
+  TokenStandard.EvmHypXERC20Lockbox,
+  TokenStandard.EvmHypVSXERC20Lockbox,
+];
+
 export const MINT_LIMITED_STANDARDS = [
   TokenStandard.EvmHypXERC20,
   TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.EvmHypVSXERC20,
   TokenStandard.EvmHypVSXERC20Lockbox,
+  TokenStandard.EvmHypCollateralFiat,
 ];
 
 export const TOKEN_HYP_STANDARDS = [
@@ -176,6 +192,8 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.StarknetHypNative,
   TokenStandard.StarknetHypCollateral,
   TokenStandard.StarknetHypSynthetic,
+  TokenStandard.RadixHypCollateral,
+  TokenStandard.RadixHypSynthetic,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
@@ -194,7 +212,53 @@ export const TOKEN_COSMWASM_STANDARDS = [
   TokenStandard.CwHypSynthetic,
 ];
 
-export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
+export const tokenTypeToStandard = (
+  protocolType: ProtocolType,
+  tokenType: TokenType,
+) => {
+  switch (protocolType) {
+    case ProtocolType.Ethereum: {
+      return EVM_TOKEN_TYPE_TO_STANDARD[tokenType];
+    }
+    case ProtocolType.CosmosNative: {
+      if (
+        COSMOS_NATIVE_SUPPORTED_TOKEN_TYPES.includes(
+          tokenType as CosmosNativeSupportedTokenTypes,
+        )
+      ) {
+        return COSMOS_NATIVE_TOKEN_TYPE_TO_STANDARD[
+          tokenType as CosmosNativeSupportedTokenTypes
+        ];
+      }
+
+      throw new Error(
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+    }
+    case ProtocolType.Radix: {
+      if (
+        RADIX_SUPPORTED_TOKEN_TYPES.includes(
+          tokenType as RadixSupportedTokenTypes,
+        )
+      ) {
+        return RADIX_TOKEN_TYPE_TO_STANDARD[
+          tokenType as RadixSupportedTokenTypes
+        ];
+      }
+
+      throw new Error(
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+    }
+    default: {
+      throw new Error(
+        `no token standard available for protocol type ${protocolType}`,
+      );
+    }
+  }
+};
+
+export const EVM_TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.native]: TokenStandard.EvmHypNative,
   [TokenType.collateral]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralFiat]: TokenStandard.EvmHypCollateralFiat,
@@ -207,6 +271,26 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.syntheticRebase]: TokenStandard.EvmHypSyntheticRebase,
   [TokenType.syntheticUri]: TokenStandard.EvmHypSynthetic,
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
+  [TokenType.collateralCctp]: TokenStandard.EvmHypCollateral,
+  [TokenType.nativeOpL1]: TokenStandard.EvmHypNative,
+  [TokenType.nativeOpL2]: TokenStandard.EvmHypNative,
+};
+
+// Cosmos Native supported token types
+export const COSMOS_NATIVE_SUPPORTED_TOKEN_TYPES = [
+  TokenType.collateral,
+  TokenType.synthetic,
+] as const;
+
+type CosmosNativeSupportedTokenTypes =
+  (typeof COSMOS_NATIVE_SUPPORTED_TOKEN_TYPES)[number];
+
+export const COSMOS_NATIVE_TOKEN_TYPE_TO_STANDARD: Record<
+  CosmosNativeSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.collateral]: TokenStandard.CosmNativeHypCollateral,
+  [TokenType.synthetic]: TokenStandard.CosmNativeHypSynthetic,
 };
 
 // Starknet supported token types
@@ -228,6 +312,21 @@ export const STARKNET_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.synthetic]: TokenStandard.StarknetHypSynthetic,
 };
 
+export const RADIX_SUPPORTED_TOKEN_TYPES = [
+  TokenType.collateral,
+  TokenType.synthetic,
+] as const;
+
+type RadixSupportedTokenTypes = (typeof RADIX_SUPPORTED_TOKEN_TYPES)[number];
+
+export const RADIX_TOKEN_TYPE_TO_STANDARD: Record<
+  RadixSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.collateral]: TokenStandard.RadixHypCollateral,
+  [TokenType.synthetic]: TokenStandard.RadixHypSynthetic,
+};
+
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
   {
     [ProtocolType.Ethereum]: TokenStandard.EvmNative,
@@ -235,4 +334,5 @@ export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
     [ProtocolType.CosmosNative]: TokenStandard.CosmosNative,
     [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
     [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
+    [ProtocolType.Radix]: TokenStandard.RadixNative,
   };

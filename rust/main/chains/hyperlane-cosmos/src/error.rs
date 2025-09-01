@@ -29,8 +29,8 @@ pub enum HyperlaneCosmosError {
     /// Cosmos error report
     #[error("{0}")]
     CosmosErrorReport(#[from] Box<cosmrs::ErrorReport>),
-    #[error("{0}")]
     /// Cosmrs Tendermint Error
+    #[error("{0}")]
     CosmrsTendermintError(#[from] Box<cosmrs::tendermint::Error>),
     #[error("{0}")]
     /// CosmWasm Error
@@ -41,9 +41,12 @@ pub enum HyperlaneCosmosError {
     /// Tonic codegen error
     #[error("{0}")]
     TonicGenError(#[from] tonic::codegen::StdError),
-    /// Tendermint RPC Error
+    /// Cometbft Error
     #[error(transparent)]
-    TendermintError(#[from] tendermint_rpc::error::Error),
+    CometbftError(#[from] Box<cometbft::error::Error>),
+    /// Cometbft RPC Error
+    #[error(transparent)]
+    CometbftRpcError(#[from] Box<cometbft_rpc::Error>),
     /// Prost error
     #[error("{0}")]
     Prost(#[from] prost::DecodeError),
@@ -94,12 +97,6 @@ impl From<cosmrs::Error> for HyperlaneCosmosError {
     }
 }
 
-impl From<cosmrs::tendermint::Error> for HyperlaneCosmosError {
-    fn from(value: cosmrs::tendermint::Error) -> Self {
-        HyperlaneCosmosError::CosmrsTendermintError(Box::new(value))
-    }
-}
-
 impl From<cosmwasm_std::StdError> for HyperlaneCosmosError {
     fn from(value: cosmwasm_std::StdError) -> Self {
         HyperlaneCosmosError::CosmWasmError(Box::new(value))
@@ -115,5 +112,23 @@ impl From<HyperlaneCosmosError> for ChainCommunicationError {
 impl From<PublicKeyError> for HyperlaneCosmosError {
     fn from(value: PublicKeyError) -> Self {
         HyperlaneCosmosError::PublicKeyError(value.to_string())
+    }
+}
+
+impl From<cometbft_rpc::Error> for HyperlaneCosmosError {
+    fn from(value: cometbft_rpc::Error) -> Self {
+        HyperlaneCosmosError::CometbftRpcError(Box::new(value))
+    }
+}
+
+impl From<cometbft::Error> for HyperlaneCosmosError {
+    fn from(value: cometbft::Error) -> Self {
+        HyperlaneCosmosError::CometbftError(Box::new(value))
+    }
+}
+
+impl From<cosmrs::tendermint::Error> for HyperlaneCosmosError {
+    fn from(value: cosmrs::tendermint::Error) -> Self {
+        HyperlaneCosmosError::CosmrsTendermintError(Box::new(value))
     }
 }

@@ -17,10 +17,10 @@ import {
   HypXERC20Lockbox__factory,
   IXERC20VS__factory,
   IXERC20__factory,
+  MovableCollateralRouter__factory,
   Ownable__factory,
   ProxyAdmin__factory,
   TimelockController__factory,
-  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
@@ -35,6 +35,7 @@ import {
   WarpCoreConfig,
   coreFactories,
   interchainAccountFactories,
+  isProxyAdminFromBytecode,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -46,14 +47,18 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_awLegacy.js';
+import { regularIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_regularLegacy.js';
 import {
   getAllSafesForChain,
   getGovernanceIcas,
   getGovernanceSafes,
+  getGovernanceTimelocks,
+  getLegacyGovernanceIcas,
 } from '../../config/environments/mainnet3/governance/utils.js';
 import {
   icaOwnerChain,
-  timelocks,
+  timelocks as legacyTimelocks,
 } from '../../config/environments/mainnet3/owners.js';
 import {
   getEnvironmentConfig,
@@ -61,10 +66,14 @@ import {
 } from '../../scripts/core-utils.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { tokens } from '../config/warp.js';
-import { GovernanceType, determineGovernanceType } from '../governance.js';
+import {
+  GovernanceType,
+  Owner,
+  determineGovernanceType,
+} from '../governance.js';
 import { getSafeTx, parseSafeTx } from '../utils/safe.js';
 
-interface GovernTransaction extends Record<string, any> {
+export interface GovernTransaction extends Record<string, any> {
   chain: ChainName;
   nestedTx?: GovernTransaction;
 }
@@ -112,6 +121,11 @@ type XERC20Metadata = {
   decimals: number;
 };
 
+const ownableFunctionSelectors = [
+  'renounceOwnership()',
+  'transferOwnership(address)',
+].map((func) => ethers.utils.id(func).substring(0, 10));
+
 export class GovernTransactionReader {
   errors: any[] = [];
 
@@ -143,6 +157,8 @@ export class GovernTransactionReader {
     const warpRoutes = await registry.getWarpRoutes();
     const safes = getGovernanceSafes(governanceType);
     const icas = getGovernanceIcas(governanceType);
+    const legacyIcas = getLegacyGovernanceIcas(governanceType);
+    const timelocks = getGovernanceTimelocks(governanceType);
 
     const txReaderInstance = new GovernTransactionReader(
       environment,
@@ -152,6 +168,8 @@ export class GovernTransactionReader {
       warpRoutes,
       safes,
       icas,
+      legacyIcas,
+      timelocks,
     );
     await txReaderInstance.init();
     return txReaderInstance;
@@ -165,6 +183,8 @@ export class GovernTransactionReader {
     warpRoutes: Record<string, WarpCoreConfig>,
     readonly safes: ChainMap<string>,
     readonly icas: ChainMap<string>,
+    readonly legacyIcas: ChainMap<string>,
+    readonly timelocks: ChainMap<string>,
   ) {
     this.rawWarpRouteConfigMap = warpRoutes;
   }
@@ -250,6 +270,11 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
+    // If it's an Ownable transaction
+    if (await this.isOwnableTransaction(tx)) {
+      return this.readOwnableTransaction(chain, tx);
+    }
+
     // If it's to another Safe
     if (this.isSafeTransaction(chain, tx)) {
       return this.readSafeTransaction(chain, tx);
@@ -263,11 +288,6 @@ export class GovernTransactionReader {
     // If it's to a Mailbox
     if (this.isMailboxTransaction(chain, tx)) {
       return this.readMailboxTransaction(chain, tx);
-    }
-
-    // If it's to a Proxy Admin
-    if (this.isProxyAdminTransaction(chain, tx)) {
-      return this.readProxyAdminTransaction(chain, tx);
     }
 
     // If it's to a TimelockController
@@ -285,6 +305,11 @@ export class GovernTransactionReader {
       return this.readWarpModuleTransaction(chain, tx);
     }
 
+    // If it's a Managed Lockbox transaction
+    if (this.isManagedLockboxTransaction(chain, tx)) {
+      return this.readManagedLockboxTransaction(chain, tx);
+    }
+
     // If it's an XERC20 transaction
     const xerc20Type = await this.isXERC20Transaction(chain, tx);
     if (xerc20Type) {
@@ -296,9 +321,9 @@ export class GovernTransactionReader {
       return this.readErc20Transaction(chain, tx);
     }
 
-    // If it's an Ownable transaction
-    if (await this.isOwnableTransaction(chain, tx)) {
-      return this.readOwnableTransaction(chain, tx);
+    // If it's to a Proxy Admin
+    if (await this.isProxyAdminTransaction(chain, tx)) {
+      return this.readProxyAdminTransaction(chain, tx);
     }
 
     // If it's a native token transfer (no data, only value)
@@ -436,11 +461,14 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): boolean {
-    return (
-      tx.to !== undefined &&
-      timelocks[chain] !== undefined &&
-      eqAddress(tx.to!, timelocks[chain]!)
-    );
+    const isNewTimelock =
+      this.timelocks[chain] !== undefined &&
+      eqAddress(tx.to!, this.timelocks[chain]!);
+    const isLegacyTimelock =
+      legacyTimelocks[chain] !== undefined &&
+      eqAddress(tx.to!, legacyTimelocks[chain]!);
+
+    return tx.to !== undefined && (isNewTimelock || isLegacyTimelock);
   }
 
   private async readTimelockControllerTransaction(
@@ -459,6 +487,7 @@ export class GovernTransactionReader {
     });
 
     let insight;
+    let calls;
     if (
       decoded.functionFragment.name ===
       timelockControllerInterface.functions[
@@ -480,11 +509,59 @@ export class GovernTransactionReader {
     if (
       decoded.functionFragment.name ===
       timelockControllerInterface.functions[
+        'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
+      ].name
+    ) {
+      const [targets, values, data, _predecessor, _salt, delay] = decoded.args;
+
+      calls = [];
+      const numOfTxs = targets.length;
+      for (let i = 0; i < numOfTxs; i++) {
+        calls.push(
+          await this.read(chain, {
+            to: targets[i],
+            data: data[i],
+            value: values[i],
+          }),
+        );
+      }
+
+      const eta = new Date(Date.now() + delay.toNumber() * 1000);
+
+      insight = `Schedule for ${eta}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
         'execute(address,uint256,bytes,bytes32,bytes32)'
       ].name
     ) {
       const [target, value, data, executor] = decoded.args;
       insight = `Execute ${target} with ${value} ${data}. Executor: ${executor}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
+        'executeBatch(address[],uint256[],bytes[],bytes32,bytes32)'
+      ].name
+    ) {
+      const [targets, values, data, _predecessor, _salt] = decoded.args;
+
+      calls = [];
+      const numOfTxs = targets.length;
+      for (let i = 0; i < numOfTxs; i++) {
+        calls.push(
+          await this.read(chain, {
+            to: targets[i],
+            data: data[i],
+            value: values[i],
+          }),
+        );
+      }
+
+      insight = `Execute batch on ${targets}`;
     }
 
     if (
@@ -504,6 +581,76 @@ export class GovernTransactionReader {
       chain,
       to: `Timelock Controller (${chain} ${tx.to})`,
       ...(insight ? { insight } : { args }),
+      ...(calls ? { innerTxs: calls } : {}),
+    };
+  }
+
+  private isManagedLockboxTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    if (!tx.to) return false;
+    const lockboxes = {
+      optimism: '0x18C4CdC2d774c047Eac8375Bb09853c4D6D6dF36',
+      base: '0xE92e51D99AE33114C60D9621FB2E1ec0ACeA7E30',
+    };
+    return (
+      chain in lockboxes &&
+      eqAddress(tx.to, lockboxes[chain as keyof typeof lockboxes])
+    );
+  }
+
+  private readManagedLockboxTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): GovernTransaction {
+    if (!tx.data) {
+      throw new Error('No data in Managed Lockbox transaction');
+    }
+
+    const managedLockboxInterface = new ethers.utils.Interface([
+      'function deposit(uint256 _amount) nonpayable',
+      'function disableDeposits() nonpayable',
+      'function enableDeposits() nonpayable',
+      'function grantRole(bytes32 role, address account) nonpayable',
+      'function renounceRole(bytes32 role, address callerConfirmation) nonpayable',
+      'function revokeRole(bytes32 role, address account) nonpayable',
+      'function withdraw(uint256 _amount) nonpayable',
+      'function withdrawTo(address _to, uint256 _amount) nonpayable',
+    ]);
+    let decoded;
+    try {
+      decoded = managedLockboxInterface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
+    } catch (error) {
+      throw new Error('Failed to decode Managed Lockbox transaction');
+    }
+
+    const roleMap: Record<string, string> = {
+      '0x0000000000000000000000000000000000000000000000000000000000000000':
+        'DEFAULT_ADMIN_ROLE',
+      '0xaf290d8680820aad922855f39b306097b20e28774d6c1ad35a20325630c3a02c':
+        'MANAGER',
+    };
+
+    let insight;
+    if (
+      decoded.functionFragment.name ===
+      managedLockboxInterface.functions['grantRole(bytes32,address)'].name
+    ) {
+      const [role, account] = decoded.args;
+      const roleName = roleMap[role] ? ` ${roleMap[role]}` : '';
+      insight = `Grant role${roleName} to ${account}`;
+    } else {
+      insight = 'Unknown function in Managed Lockbox transaction';
+    }
+
+    return {
+      to: `${tx.to} (Managed Lockbox)`,
+      chain,
+      insight,
     };
   }
 
@@ -641,7 +788,8 @@ export class GovernTransactionReader {
     }
 
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const tokenRouterInterface = TokenRouter__factory.createInterface();
+    const tokenRouterInterface =
+      MovableCollateralRouter__factory.createInterface();
 
     const decoded = tokenRouterInterface.parseTransaction({
       data: tx.data,
@@ -655,6 +803,22 @@ export class GovernTransactionReader {
     ) {
       const [hookAddress] = decoded.args;
       insight = `Set hook to ${hookAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['addBridge(uint32,address)'].name
+    ) {
+      const [domain, bridgeAddress] = decoded.args;
+      insight = `Set bridge for origin domain ${domain}to ${bridgeAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['addRebalancer(address)'].name
+    ) {
+      const [rebalancer] = decoded.args;
+      insight = `Add rebalancer ${rebalancer}`;
     }
 
     if (
@@ -768,11 +932,28 @@ export class GovernTransactionReader {
       );
     } else if (
       decoded.functionFragment.name ===
+      icaInterface.functions['enrollRemoteRouters(uint32[],bytes32[])'].name
+    ) {
+      prettyArgs = await this.formatRouterEnrollments(
+        chain,
+        'interchainAccountRouter',
+        args,
+      );
+    } else if (
+      decoded.functionFragment.name ===
       icaInterface.functions[
         'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])'
       ].name
     ) {
       prettyArgs = await this.readIcaRemoteCall(chain, args);
+    } else if (decoded.signature === 'transferOwnership(address)') {
+      // Fallback to ownable transaction handling for unknown functions
+      const ownableTx = await this.readOwnableTransaction(chain, tx);
+      return {
+        ...ownableTx,
+        to: `ICA Router (${chain} ${this.chainAddresses[chain].interchainAccountRouter})`,
+        signature: decoded.signature,
+      };
     }
 
     return {
@@ -794,23 +975,41 @@ export class GovernTransactionReader {
       const remoteChainName = this.multiProvider.getChainName(domain);
       const expectedRouter = this.chainAddresses[remoteChainName][routerName];
       const routerToBeEnrolled = addresses[index];
-      const matchesExpectedRouter =
-        eqAddress(expectedRouter, bytes32ToAddress(routerToBeEnrolled)) &&
-        // Poor man's check that the 12 byte padding is all zeroes
-        addressToBytes32(bytes32ToAddress(routerToBeEnrolled)) ===
-          routerToBeEnrolled;
+      const isAddressMatch = eqAddress(
+        expectedRouter,
+        bytes32ToAddress(routerToBeEnrolled),
+      );
+      const isPaddingCorrect = eqAddress(
+        addressToBytes32(bytes32ToAddress(routerToBeEnrolled)),
+        routerToBeEnrolled,
+      );
 
       let insight = '✅ matches expected router from artifacts';
-      if (!matchesExpectedRouter) {
-        insight = `❌ fatal mismatch, expected ${expectedRouter}`;
-        this.errors.push({
-          chain: chain,
-          remoteDomain: domain,
-          remoteChain: remoteChainName,
-          router: routerToBeEnrolled,
-          expected: expectedRouter,
-          info: 'Incorrect router getting enrolled',
-        });
+      if (!isAddressMatch || !isPaddingCorrect) {
+        if (!isAddressMatch) {
+          insight = `❌ fatal mismatch, expected ${expectedRouter}`;
+          this.errors.push({
+            chain: chain,
+            remoteDomain: domain,
+            remoteChain: remoteChainName,
+            router: routerToBeEnrolled,
+            expected: expectedRouter,
+            info: 'Incorrect router address getting enrolled',
+          });
+        }
+
+        if (!isPaddingCorrect) {
+          // This is a subtle but important check: the address must be properly padded to 32 bytes
+          insight = `❌ fatal mismatch, expected ${addressToBytes32(bytes32ToAddress(routerToBeEnrolled))}`;
+          this.errors.push({
+            chain: chain,
+            remoteDomain: domain,
+            remoteChain: remoteChainName,
+            router: routerToBeEnrolled,
+            expected: addressToBytes32(bytes32ToAddress(routerToBeEnrolled)),
+            info: 'Router address is not properly padded to 32 bytes (should be 12 leading zero bytes)',
+          });
+        }
       }
 
       return {
@@ -845,6 +1044,14 @@ export class GovernTransactionReader {
       mailboxInterface.functions['setDefaultIsm(address)'].name
     ) {
       prettyArgs = await this.formatMailboxSetDefaultIsm(chain, args);
+    } else if (decoded.signature === 'transferOwnership(address)') {
+      // Fallback to ownable transaction handling for unknown functions
+      const ownableTx = await this.readOwnableTransaction(chain, tx);
+      return {
+        ...ownableTx,
+        to: `Mailbox (${chain} ${this.chainAddresses[chain].mailbox})`,
+        signature: decoded.signature,
+      };
     }
 
     return {
@@ -869,11 +1076,58 @@ export class GovernTransactionReader {
       value: tx.value,
     });
 
-    const ownableTx = await this.readOwnableTransaction(chain, tx);
+    let insight: string | undefined;
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    switch (decoded.functionFragment.name) {
+      case proxyAdminInterface.functions['upgrade(address,address)'].name: {
+        const [proxy, implementation] = decoded.args;
+        insight = `Upgrade proxy ${proxy} to implementation ${implementation}`;
+        break;
+      }
+      case proxyAdminInterface.functions[
+        'upgradeAndCall(address,address,bytes)'
+      ].name: {
+        const [proxy, implementation, data] = decoded.args;
+        insight = `Upgrade proxy ${proxy} to implementation ${implementation} with initialization data`;
+        break;
+      }
+      case proxyAdminInterface.functions['changeProxyAdmin(address,address)']
+        .name: {
+        const [proxy, newAdmin] = decoded.args;
+        insight = `Change admin of proxy ${proxy} to ${newAdmin}`;
+        break;
+      }
+      case proxyAdminInterface.functions['getProxyImplementation(address)']
+        .name: {
+        const [proxy] = decoded.args;
+        insight = `Get implementation address for proxy ${proxy}`;
+        break;
+      }
+      case proxyAdminInterface.functions['getProxyAdmin(address)'].name: {
+        const [proxy] = decoded.args;
+        insight = `Get admin address for proxy ${proxy}`;
+        break;
+      }
+      default: {
+        // Fallback to ownable transaction handling for unknown functions
+        const ownableTx = await this.readOwnableTransaction(chain, tx);
+        return {
+          ...ownableTx,
+          to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
+          signature: decoded.signature,
+        };
+      }
+    }
+
     return {
-      ...ownableTx,
+      chain,
       to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
       signature: decoded.signature,
+      ...(insight ? { insight } : { args }),
     };
   }
 
@@ -1001,11 +1255,17 @@ export class GovernTransactionReader {
       ismOverride: ism,
     });
     const expectedRemoteIcaAddress = this.icas[remoteChainName];
+    const expectedLegacyRemoteIcaAddress = this.legacyIcas[remoteChainName];
     let remoteIcaInsight = '✅ matches expected ICA';
-    if (
-      !expectedRemoteIcaAddress ||
-      !eqAddress(remoteIcaAddress, expectedRemoteIcaAddress)
-    ) {
+
+    const isValidIca =
+      expectedRemoteIcaAddress &&
+      eqAddress(remoteIcaAddress, expectedRemoteIcaAddress);
+    const isValidLegacyIca =
+      expectedRemoteIcaAddress &&
+      eqAddress(remoteIcaAddress, expectedLegacyRemoteIcaAddress);
+
+    if (!isValidIca && !isValidLegacyIca) {
       this.errors.push({
         chain: chain,
         remoteDomain: destination,
@@ -1014,7 +1274,7 @@ export class GovernTransactionReader {
         expected: expectedRemoteIcaAddress,
         info: 'Incorrect destination ICA in ICA call',
       });
-      remoteIcaInsight = `❌ fatal mismatch, expected ${remoteIcaAddress}`;
+      remoteIcaInsight = `❌ fatal mismatch, expected ${expectedRemoteIcaAddress}`;
     }
 
     const decodedCalls = await Promise.all(
@@ -1062,17 +1322,26 @@ export class GovernTransactionReader {
 
     const multisends = await Promise.all(
       multisendDatas.map(async (multisend, index) => {
-        const decoded = await this.read(
-          chain,
-          metaTransactionDataToEV5Transaction(multisend),
-        );
-        return {
-          chain,
-          index,
-          value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
-          operation: formatOperationType(multisend.operation),
-          decoded,
-        };
+        try {
+          const decoded = await this.read(
+            chain,
+            metaTransactionDataToEV5Transaction(multisend),
+          );
+          return {
+            chain,
+            index,
+            value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
+            operation: formatOperationType(multisend.operation),
+            decoded,
+          };
+        } catch (error) {
+          this.logger.error(
+            `Failed to decode multisend at index ${index}:`,
+            error,
+            multisend,
+          );
+          throw error;
+        }
       }),
     );
 
@@ -1109,7 +1378,8 @@ export class GovernTransactionReader {
       ownableInterface.functions['transferOwnership(address)'].name
     ) {
       const [newOwner] = decoded.args;
-      insight = `Transfer ownership to ${newOwner}`;
+      const newOwnerInsight = await getOwnerInsight(chain, newOwner);
+      insight = `Transfer ownership to ${newOwnerInsight}`;
     }
 
     const args = formatFunctionFragmentArgs(
@@ -1139,13 +1409,22 @@ export class GovernTransactionReader {
     );
   }
 
-  isProxyAdminTransaction(
+  async isProxyAdminTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
-  ): boolean {
-    return (
-      tx.to !== undefined &&
-      eqAddress(tx.to, this.chainAddresses[chain].proxyAdmin)
+  ): Promise<boolean> {
+    if (tx.to === undefined) {
+      return false;
+    }
+
+    // Check against known proxy admin addresses first
+    if (tx.to === this.chainAddresses[chain].proxyAdmin) {
+      return true;
+    }
+
+    return await isProxyAdminFromBytecode(
+      this.multiProvider.getProvider(chain),
+      tx.to,
     );
   }
 
@@ -1162,21 +1441,9 @@ export class GovernTransactionReader {
     );
   }
 
-  async isOwnableTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<boolean> {
-    if (!tx.to) return false;
-    try {
-      const account = Ownable__factory.connect(
-        tx.to,
-        this.multiProvider.getProvider(chain),
-      );
-      await account.owner();
-      return true;
-    } catch {
-      return false;
-    }
+  async isOwnableTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
+    if (!tx.to || !tx.data) return false;
+    return ownableFunctionSelectors.includes(tx.data.substring(0, 10));
   }
 
   private isSafeTransaction(
@@ -1383,4 +1650,30 @@ function formatOperationType(operation: OperationType | undefined): string {
     default:
       return '⚠️ Unknown ⚠️';
   }
+}
+
+async function getOwnerInsight(
+  chain: ChainName,
+  address: Address,
+): Promise<string> {
+  const { ownerType, governanceType } = await determineGovernanceType(
+    chain,
+    address,
+  );
+  if (ownerType !== Owner.UNKNOWN) {
+    return `${address} (${governanceType.toUpperCase()} ${ownerType})`;
+  }
+
+  if (awIcasLegacy[chain] && eqAddress(address, awIcasLegacy[chain])) {
+    return `${address} (${GovernanceType.AbacusWorks.toUpperCase()} ${Owner.ICA} LEGACY)`;
+  }
+
+  if (
+    regularIcasLegacy[chain] &&
+    eqAddress(address, regularIcasLegacy[chain])
+  ) {
+    return `${address} (${GovernanceType.Regular.toUpperCase()} ${Owner.ICA} LEGACY)`;
+  }
+
+  return `${address} (Unknown)`;
 }

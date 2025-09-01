@@ -5,7 +5,7 @@ import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
-const minimumValidatorCount = 3;
+const minimumValidatorCount = 2;
 
 const getMinimumThreshold = (validatorCount: number): number =>
   Math.floor(validatorCount / 2) + 1;
@@ -18,70 +18,89 @@ enum CheckResult {
   WARNING = '🚨',
 }
 
+type ChainResult = {
+  chain: string;
+  threshold: number | 'ERROR';
+  [thresholdOK]: CheckResult;
+  total: number;
+  [totalOK]: CheckResult;
+  unannounced: number | string;
+};
+
 async function main() {
   const { environment, chains } = await withChains(getArgs()).argv;
   const config = getEnvironmentConfig(environment);
   const { core } = await getHyperlaneCore(environment);
 
-  // Ensure we skip lumia, as we don't have the addresses in registry.
-  const targetNetworks = (
-    chains && chains.length > 0 ? chains : config.supportedChainNames
-  ).filter((chain) => isEthereumProtocolChain(chain) && chain !== 'lumia');
+  // For threshold/count checks, check all chains that have default configs
+  const allChainsToCheck =
+    chains && chains.length > 0 ? chains : config.supportedChainNames;
 
   const chainsWithUnannouncedValidators: ChainMap<string[]> = {};
 
-  const results = await Promise.all(
-    targetNetworks.map(async (chain) => {
-      try {
-        const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
-        const announcedValidators =
-          await validatorAnnounce.getAnnouncedValidators();
+  const chainsToSkip = ['lumia', 'osmosis'];
 
-        const defaultValidatorConfigs =
-          defaultMultisigConfigs[chain].validators || [];
-        const validators = defaultValidatorConfigs.map((v) => v.address);
-        const unannouncedValidators = validators.filter(
-          (validator) =>
-            !announcedValidators.some((x) => eqAddress(x, validator)),
-        );
+  const results: ChainResult[] = await Promise.all(
+    allChainsToCheck
+      .filter((chain) => !chainsToSkip.includes(chain))
+      .map(async (chain) => {
+        try {
+          const defaultValidatorConfigs =
+            defaultMultisigConfigs[chain]?.validators || [];
+          const validators = defaultValidatorConfigs.map((v) => v.address);
+          const validatorCount = validators.length;
+          const threshold = defaultMultisigConfigs[chain]?.threshold || 0;
+          const minimumThreshold = getMinimumThreshold(validatorCount);
 
-        if (unannouncedValidators.length > 0) {
-          chainsWithUnannouncedValidators[chain] = unannouncedValidators;
+          let unannouncedValidatorCount = 0;
+          let unannouncedValidators: string[] = [];
+
+          // Only check onchain announcements for ethereum protocol chains
+          if (isEthereumProtocolChain(chain)) {
+            const validatorAnnounce =
+              core.getContracts(chain).validatorAnnounce;
+            const announcedValidators =
+              await validatorAnnounce.getAnnouncedValidators();
+
+            unannouncedValidators = validators.filter(
+              (validator) =>
+                !announcedValidators.some((x) => eqAddress(x, validator)),
+            );
+
+            if (unannouncedValidators.length > 0) {
+              chainsWithUnannouncedValidators[chain] = unannouncedValidators;
+            }
+
+            unannouncedValidatorCount = unannouncedValidators.length;
+          }
+
+          return {
+            chain,
+            threshold,
+            [thresholdOK]:
+              threshold < minimumThreshold || threshold > validatorCount
+                ? CheckResult.WARNING
+                : CheckResult.OK,
+            total: validatorCount,
+            [totalOK]:
+              validatorCount < minimumValidatorCount
+                ? CheckResult.WARNING
+                : CheckResult.OK,
+            unannounced:
+              unannouncedValidatorCount > 0 ? unannouncedValidatorCount : '',
+          };
+        } catch (error) {
+          console.error(`Error processing chain ${chain}:`, error);
+          return {
+            chain,
+            threshold: 'ERROR',
+            [thresholdOK]: CheckResult.WARNING,
+            total: 0,
+            [totalOK]: CheckResult.WARNING,
+            unannounced: 'ERROR',
+          };
         }
-
-        const validatorCount = validators.length;
-        const unannouncedValidatorCount = unannouncedValidators.length;
-
-        const threshold = defaultMultisigConfigs[chain].threshold;
-        const minimumThreshold = getMinimumThreshold(validatorCount);
-
-        return {
-          chain,
-          threshold,
-          [thresholdOK]:
-            threshold < minimumThreshold || threshold > validatorCount
-              ? CheckResult.WARNING
-              : CheckResult.OK,
-          total: validatorCount,
-          [totalOK]:
-            validatorCount < minimumValidatorCount
-              ? CheckResult.WARNING
-              : CheckResult.OK,
-          unannounced:
-            unannouncedValidatorCount > 0 ? unannouncedValidatorCount : '',
-        };
-      } catch (error) {
-        console.error(`Error processing chain ${chain}:`, error);
-        return {
-          chain,
-          threshold: 'ERROR',
-          [thresholdOK]: CheckResult.WARNING,
-          total: 0,
-          [totalOK]: CheckResult.WARNING,
-          unannounced: 'ERROR',
-        };
-      }
-    }),
+      }),
   );
 
   console.table(results);

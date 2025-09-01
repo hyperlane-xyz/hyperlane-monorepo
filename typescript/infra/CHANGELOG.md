@@ -1,5 +1,176 @@
 # @hyperlane-xyz/infra
 
+## 17.0.0
+
+### Patch Changes
+
+- b23bcd111: Fix: Corrected logger usage by avoiding destructured debug method calls
+- Updated dependencies [400c02460]
+- Updated dependencies [8c15edc67]
+- Updated dependencies [76a5db49a]
+- Updated dependencies [6583df016]
+- Updated dependencies [e0bda316a]
+- Updated dependencies [7f542b288]
+  - @hyperlane-xyz/sdk@17.0.0
+  - @hyperlane-xyz/utils@17.0.0
+  - @hyperlane-xyz/helloworld@17.0.0
+
+## 16.2.0
+
+### Patch Changes
+
+- Updated dependencies [22ceaa109]
+- Updated dependencies [ce4974214]
+- Updated dependencies [a89018a3f]
+  - @hyperlane-xyz/sdk@16.2.0
+  - @hyperlane-xyz/helloworld@16.2.0
+  - @hyperlane-xyz/utils@16.2.0
+
+## 16.1.1
+
+### Patch Changes
+
+- Updated dependencies [ea77b6ae4]
+  - @hyperlane-xyz/sdk@16.1.1
+  - @hyperlane-xyz/helloworld@16.1.1
+  - @hyperlane-xyz/utils@16.1.1
+
+## 16.1.0
+
+### Patch Changes
+
+- Updated dependencies [2a2c29c39]
+- Updated dependencies [e69ac9f62]
+- Updated dependencies [d9b8a7551]
+  - @hyperlane-xyz/sdk@16.1.0
+  - @hyperlane-xyz/helloworld@16.1.0
+  - @hyperlane-xyz/utils@16.1.0
+
+## 16.0.0
+
+### Patch Changes
+
+- 8e7656628: fix: skip EDGEN
+- Updated dependencies [9f3222962]
+- Updated dependencies [d200acfa8]
+- Updated dependencies [966ad8440]
+- Updated dependencies [fabb4a5af]
+- Updated dependencies [a71193486]
+- Updated dependencies [1f4412909]
+- Updated dependencies [af783be54]
+  - @hyperlane-xyz/sdk@16.0.0
+  - @hyperlane-xyz/helloworld@16.0.0
+  - @hyperlane-xyz/utils@16.0.0
+
+## 15.0.0
+
+### Patch Changes
+
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [23861b70a]
+- Updated dependencies [a33c8abd4]
+- Updated dependencies [a33c8abd4]
+- Updated dependencies [e0ea8910c]
+- Updated dependencies [d16a853c0]
+  - @hyperlane-xyz/utils@15.0.0
+  - @hyperlane-xyz/sdk@15.0.0
+  - @hyperlane-xyz/helloworld@15.0.0
+
+## 14.4.0
+
+### Patch Changes
+
+- Updated dependencies [dce47e7b6]
+  - @hyperlane-xyz/sdk@14.4.0
+  - @hyperlane-xyz/helloworld@14.4.0
+  - @hyperlane-xyz/utils@14.4.0
+
+## 14.3.0
+
+### Patch Changes
+
+- Updated dependencies [ae0771d9e]
+- Updated dependencies [9cc7ef6fd]
+- Updated dependencies [ae0771d9e]
+  - @hyperlane-xyz/sdk@14.3.0
+  - @hyperlane-xyz/helloworld@14.3.0
+  - @hyperlane-xyz/utils@14.3.0
+
+## 14.2.0
+
+### Patch Changes
+
+- Updated dependencies [3122bae93]
+- Updated dependencies [a7d5941c1]
+- Updated dependencies [3e50bd7f0]
+- Updated dependencies [147dd360a]
+- Updated dependencies [8bde1544e]
+  - @hyperlane-xyz/sdk@14.2.0
+  - @hyperlane-xyz/helloworld@14.2.0
+  - @hyperlane-xyz/utils@14.2.0
+
+## 14.1.0
+
+### Patch Changes
+
+- Updated dependencies [ecaa4ef90]
+- Updated dependencies [bd91094c3]
+  - @hyperlane-xyz/sdk@14.1.0
+  - @hyperlane-xyz/helloworld@14.1.0
+  - @hyperlane-xyz/utils@14.1.0
+
+## 14.0.0
+
+### Patch Changes
+
+- Updated dependencies [929708c1f]
+- Updated dependencies [88134de1f]
+- Updated dependencies [66c13b539]
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/sdk@14.0.0
+  - @hyperlane-xyz/utils@14.0.0
+  - @hyperlane-xyz/helloworld@14.0.0
+
+## 13.4.0
+
+### Patch Changes
+
+- Updated dependencies [5f60deed3]
+- Updated dependencies [83c628e2e]
+- Updated dependencies [0ec92f775]
+- Updated dependencies [e48e5346f]
+- Updated dependencies [779df446d]
+- Updated dependencies [fe1d8ab2d]
+- Updated dependencies [19384e74b]
+- Updated dependencies [ec8d196d9]
+- Updated dependencies [bacf16a80]
+- Updated dependencies [1efce4979]
+- Updated dependencies [64092311c]
+  - @hyperlane-xyz/sdk@13.4.0
+  - @hyperlane-xyz/helloworld@13.4.0
+  - @hyperlane-xyz/utils@13.4.0
+
+## 13.3.0
+
+### Patch Changes
+
+- 119a1a8: Remove `accountOwners` from `InterchainAccountRouter`
+
+  This reverse mapping was intended to index from a given proxy account what the corresponding derivation inputs were.
+
+  However, this implied 2 cold SSTORE instructions per account creation.
+
+  Instead, the `InterchainAccountCreated` event can be used which now has an `indexed` account key to filter by.
+
+- Updated dependencies [509a0dc]
+- Updated dependencies [119a1a8]
+- Updated dependencies [f8fd7b4]
+- Updated dependencies [1e137df]
+- Updated dependencies [6fa767e]
+  - @hyperlane-xyz/sdk@13.3.0
+  - @hyperlane-xyz/helloworld@13.3.0
+  - @hyperlane-xyz/utils@13.3.0
+
 ## 13.2.1
 
 ### Patch Changes

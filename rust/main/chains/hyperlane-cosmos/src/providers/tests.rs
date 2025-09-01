@@ -1,13 +1,13 @@
 use std::str::FromStr;
 
+use cometbft_rpc::{client::CompatMode, HttpClient, Url};
 use hyperlane_core::{config::OpSubmissionConfig, FixedPointNumber, NativeToken};
 use hyperlane_metric::prometheus_metric::{
     ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
-use tendermint_rpc::{client::CompatMode, HttpClient, Url};
 
 use crate::{ConnectionConf, CosmosAmount, CosmosHttpClient, RawCosmosAmount, RpcProvider};
-use tendermint_rpc::endpoint::block::Response;
+use cometbft_rpc::endpoint::block::Response;
 
 #[test]
 fn test_deserialize_neutron_block_22488720() {
@@ -1278,22 +1278,22 @@ fn test_deserialize_osmosis_block_15317185() {
 #[tokio::test]
 #[ignore]
 async fn test_http_client() {
-    use tendermint_rpc::Client;
+    use cometbft_rpc::Client;
 
     // Neutron
     let url = "<neutron url>";
-    let height = 22488720u32;
+    let height: u32 = 22488720;
 
     // Osmosis
     // let url = "<osmosis url>";
     // let height = 15317185u32;
 
     let url = Url::from_str(url).unwrap();
-    let tendermint_url = tendermint_rpc::Url::try_from(url).unwrap();
-    let url = tendermint_rpc::HttpClientUrl::try_from(tendermint_url).unwrap();
+    let rpc_url = cometbft_rpc::Url::try_from(url).unwrap();
+    let url = cometbft_rpc::HttpClientUrl::try_from(rpc_url).unwrap();
 
     let client = HttpClient::builder(url)
-        .compat_mode(CompatMode::V0_37)
+        .compat_mode(CompatMode::latest())
         .build()
         .unwrap();
 

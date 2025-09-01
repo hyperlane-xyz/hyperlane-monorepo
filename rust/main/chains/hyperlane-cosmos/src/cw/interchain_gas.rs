@@ -3,8 +3,9 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use cometbft::abci::EventAttribute;
 use once_cell::sync::Lazy;
-use tendermint::abci::EventAttribute;
+use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,

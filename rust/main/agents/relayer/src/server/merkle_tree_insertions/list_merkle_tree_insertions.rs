@@ -1,34 +1,15 @@
-use std::collections::HashMap;
-
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    routing::get,
-    Router,
 };
-use derive_new::new;
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::{
-    db::HyperlaneRocksDB,
-    server::{
-        merkle_tree_insertions::{fetch_merkle_tree_insertions, TreeInsertion},
-        utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
-    },
+use hyperlane_base::server::{
+    merkle_tree_insertions::{fetch_merkle_tree_insertions, TreeInsertion},
+    utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
 };
 
-#[derive(Clone, Debug, new)]
-pub struct ServerState {
-    pub dbs: HashMap<u32, HyperlaneRocksDB>,
-}
-
-impl ServerState {
-    pub fn router(self) -> Router {
-        Router::new()
-            .route("/merkle_tree_insertions", get(handler))
-            .with_state(self)
-    }
-}
+use crate::server::merkle_tree_insertions::ServerState;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
@@ -93,13 +74,16 @@ pub async fn handler(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use axum::{
         body::{self, Body},
         http::{header::CONTENT_TYPE, Request, Response, StatusCode},
+        Router,
     };
     use tower::ServiceExt;
 
-    use hyperlane_base::db::{HyperlaneDb, DB};
+    use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB, DB};
     use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, MerkleTreeInsertion, H256};
 
     use crate::test_utils::request::parse_body_to_json;
@@ -157,6 +141,18 @@ mod tests {
             .expect("DB Error")
     }
 
+    fn insert_merkle_tree_insertion_block_number(
+        dbs: &HashMap<u32, HyperlaneRocksDB>,
+        domain: &HyperlaneDomain,
+        leaf_index: u32,
+        block_number: u64,
+    ) {
+        dbs.get(&domain.id())
+            .expect("DB not found")
+            .store_merkle_tree_insertion_block_number_by_leaf_index(&leaf_index, &block_number)
+            .expect("DB Error")
+    }
+
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_list_merkle_tree_insertions_db_not_found() {
@@ -211,6 +207,9 @@ mod tests {
         for insertion in insertions.iter() {
             insert_merkle_tree_insertion(&dbs, &domains[0], insertion.index(), insertion);
         }
+        for insertion in insertions.iter().take(2) {
+            insert_merkle_tree_insertion_block_number(&dbs, &domains[0], insertion.index(), 100);
+        }
 
         let leaf_index_start = 100;
         let leaf_index_end = 102;
@@ -229,14 +228,17 @@ mod tests {
 
         let expected_list = [
             TreeInsertion {
+                insertion_block_number: Some(100),
                 leaf_index: 100,
                 message_id: format!("{:?}", H256::from_low_u64_be(100)),
             },
             TreeInsertion {
+                insertion_block_number: Some(100),
                 leaf_index: 101,
                 message_id: format!("{:?}", H256::from_low_u64_be(101)),
             },
             TreeInsertion {
+                insertion_block_number: None,
                 leaf_index: 102,
                 message_id: format!("{:?}", H256::from_low_u64_be(102)),
             },

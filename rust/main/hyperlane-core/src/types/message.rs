@@ -3,8 +3,10 @@ use std::fmt::{Debug, Display, Formatter};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 
-use crate::utils::{fmt_address_for_domain, fmt_domain};
-use crate::{Decode, Encode, HyperlaneProtocolError, H256};
+use crate::{
+    utils::{fmt_address_for_domain, fmt_domain},
+    Decode, Encode, HyperlaneProtocolError, H256,
+};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
 
@@ -60,15 +62,13 @@ impl Debug for HyperlaneMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "HyperlaneMessage {{ id: {:?}, version: {}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {}, body: 0x{} }}",
+            "HyperlaneMessage {{ id: {:?}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {} }}",
             self.id(),
-            self.version,
             self.nonce,
             fmt_domain(self.origin),
             fmt_address_for_domain(self.origin, self.sender),
             fmt_domain(self.destination),
             fmt_address_for_domain(self.destination, self.recipient),
-            hex::encode(&self.body)
         )
     }
 }
@@ -88,11 +88,11 @@ impl From<RawHyperlaneMessage> for HyperlaneMessage {
 impl From<&RawHyperlaneMessage> for HyperlaneMessage {
     fn from(m: &RawHyperlaneMessage) -> Self {
         let version = m[0];
-        let nonce: [u8; 4] = m[1..5].try_into().unwrap();
-        let origin: [u8; 4] = m[5..9].try_into().unwrap();
-        let sender: [u8; 32] = m[9..41].try_into().unwrap();
-        let destination: [u8; 4] = m[41..45].try_into().unwrap();
-        let recipient: [u8; 32] = m[45..77].try_into().unwrap();
+        let nonce: [u8; 4] = m[1..5].try_into().expect("Failed to parse nonce");
+        let origin: [u8; 4] = m[5..9].try_into().expect("Failed to parse origin");
+        let sender: [u8; 32] = m[9..41].try_into().expect("Failed to parse sender");
+        let destination: [u8; 4] = m[41..45].try_into().expect("Failed to parse destination");
+        let recipient: [u8; 32] = m[45..77].try_into().expect("Failed to parse recipient");
         let body = m[77..].into();
         Self {
             version,
@@ -118,7 +118,7 @@ impl Encode for HyperlaneMessage {
         writer.write_all(&self.destination.to_be_bytes())?;
         writer.write_all(self.recipient.as_ref())?;
         writer.write_all(&self.body)?;
-        Ok(HYPERLANE_MESSAGE_PREFIX_LEN + self.body.len())
+        Ok(HYPERLANE_MESSAGE_PREFIX_LEN.saturating_add(self.body.len()))
     }
 }
 
@@ -164,5 +164,21 @@ impl HyperlaneMessage {
     /// Convert the message to a message id
     pub fn id(&self) -> H256 {
         H256::from_slice(Keccak256::new().chain(self.to_vec()).finalize().as_slice())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::HyperlaneMessage;
+
+    #[ignore]
+    #[test]
+    fn test_decode_from_raw_body() {
+        let raw = "0x03000010f90000044d00000000000000000000000046b4edaa761ef8d2934e9f7aaf32b5bf2c9c9f670000a4ec000000000000000000000000ad8676147360dbc010504ab69c7f1b187710952700000000000000000000000037a022b833fe3876ef2a9a6c61ae444295f1b7f80000000000000000000000000000000000000000000000008ac7230489e80000";
+
+        let raw_bytes = hex::decode(&raw[2..]).unwrap();
+        let msg = HyperlaneMessage::try_from(raw_bytes).unwrap();
+
+        eprintln!("{}\n{}\n{:?}", msg, msg.version, msg.body);
     }
 }

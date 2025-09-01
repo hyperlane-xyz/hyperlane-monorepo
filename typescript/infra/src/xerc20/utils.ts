@@ -9,15 +9,23 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   ChainName,
+  EvmXERC20Adapter,
   EvmXERC20VSAdapter,
   MultiProtocolProvider,
   MultiProvider,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  XERC20Type,
   isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, CallData, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  CallData,
+  assert,
+  eqAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import {
@@ -35,18 +43,26 @@ export const XERC20_BRIDGES_CONFIG_PATH = join(
   'scripts/xerc20/config.yaml',
 );
 
-export interface BridgeConfig {
+type BridgeConfigBase = {
   chain: string;
   type: TokenType.XERC20Lockbox | TokenType.XERC20;
   xERC20Address: Address;
   bridgeAddress: Address;
   decimals: number;
   owner: Address;
+};
+
+type BridgeConfigVS = BridgeConfigBase & {
   bufferCap: number;
   rateLimitPerSecond: number;
-}
+};
 
-export async function addBridgeToChain({
+type BridgeConfigWL = BridgeConfigBase & {
+  mint: number;
+  burn: number;
+};
+
+export async function addBridgeToChainXERC20VS({
   chain,
   bridgeConfig,
   multiProtocolProvider,
@@ -54,7 +70,7 @@ export async function addBridgeToChain({
   dryRun,
 }: {
   chain: string;
-  bridgeConfig: BridgeConfig;
+  bridgeConfig: BridgeConfigVS;
   multiProtocolProvider: MultiProtocolProvider;
   envMultiProvider: MultiProvider;
   dryRun: boolean;
@@ -145,6 +161,86 @@ export async function addBridgeToChain({
   }
 }
 
+export async function addBridgeToChainForXERC20Standard({
+  chain,
+  bridgeConfig,
+  multiProtocolProvider,
+  envMultiProvider,
+  dryRun,
+}: {
+  chain: string;
+  bridgeConfig: BridgeConfigWL;
+  multiProtocolProvider: MultiProtocolProvider;
+  envMultiProvider: MultiProvider;
+  dryRun: boolean;
+}) {
+  const { xERC20Address, bridgeAddress, mint, burn, decimals } = bridgeConfig;
+  const xERC20Adapter = new EvmXERC20Adapter(chain, multiProtocolProvider, {
+    token: xERC20Address,
+  });
+
+  const mintInConfig = BigInt(mint);
+  const burnInConfig = BigInt(burn);
+
+  try {
+    const { mint, burn } = await xERC20Adapter.getLimits(bridgeAddress);
+    if (mint === mintInConfig || burn === burnInConfig) {
+      rootLogger.warn(
+        chalk.yellow(
+          `[${chain}][${bridgeAddress}] Skipping set mint/burn limit. Actual and expected are the same: ${humanReadableLimit(mint, decimals)} mint limit, ${humanReadableLimit(burn, decimals)} burn limit.`,
+        ),
+      );
+      return;
+    }
+
+    const tx = await xERC20Adapter.populateSetLimitsTx(
+      bridgeAddress,
+      mintInConfig,
+      burnInConfig,
+    );
+
+    rootLogger.info(
+      chalk.gray(
+        `[${chain}][${bridgeAddress}] Preparing to add bridge to ${xERC20Address}`,
+      ),
+    );
+    rootLogger.info(
+      chalk.gray(
+        `[${chain}][${bridgeAddress}] Mint limit: ${humanReadableLimit(
+          mintInConfig,
+          decimals,
+        )}, burn limit: ${humanReadableLimit(mintInConfig, decimals)}`,
+      ),
+    );
+
+    if (!dryRun) {
+      rootLogger.info(
+        chalk.gray(
+          `[${chain}][${bridgeAddress}] Sending addBridge transaction to ${xERC20Address}...`,
+        ),
+      );
+      await sendTransactions(
+        envMultiProvider,
+        chain,
+        [tx],
+        xERC20Address,
+        bridgeAddress,
+      );
+    } else {
+      rootLogger.info(
+        chalk.gray(
+          `[${chain}][${bridgeAddress}] Dry run, no transactions sent, exiting...`,
+        ),
+      );
+    }
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(`[${chain}][${bridgeAddress}] Error adding bridge:`, error),
+    );
+    throw { chain, error };
+  }
+}
+
 export async function updateChainLimits({
   chain,
   bridgeConfig,
@@ -153,7 +249,7 @@ export async function updateChainLimits({
   dryRun,
 }: {
   chain: string;
-  bridgeConfig: BridgeConfig;
+  bridgeConfig: BridgeConfigVS;
   multiProtocolProvider: MultiProtocolProvider;
   envMultiProvider: MultiProvider;
   dryRun: boolean;
@@ -521,8 +617,8 @@ export async function deriveBridgesConfig(
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfig: WarpCoreConfig,
   multiProvider: MultiProvider,
-): Promise<Record<string, BridgeConfig>> {
-  const bridgesConfig: Record<string, BridgeConfig> = {};
+): Promise<BridgeConfigVS[]> {
+  const bridgesConfig: BridgeConfigVS[] = [];
 
   for (const [chainName, chainConfig] of Object.entries(warpDeployConfig)) {
     if (!isXERC20TokenConfig(chainConfig)) {
@@ -540,8 +636,14 @@ export async function deriveBridgesConfig(
       throw new Error(`Missing "decimals" for chain: ${chainName}`);
     }
 
+    if (!xERC20 || xERC20.warpRouteLimits.type !== XERC20Type.Velo) {
+      rootLogger.debug(
+        `Skip deriving bridges config because ${XERC20Type.Velo} type is expected`,
+      );
+      continue;
+    }
+
     if (
-      !xERC20 ||
       !xERC20.warpRouteLimits.bufferCap ||
       !xERC20.warpRouteLimits.rateLimitPerSecond
     ) {
@@ -578,6 +680,10 @@ export async function deriveBridgesConfig(
     if (xERC20.extraBridges) {
       for (const extraLockboxLimit of xERC20.extraBridges) {
         const { lockbox, limits } = extraLockboxLimit;
+        assert(
+          limits.type === XERC20Type.Velo,
+          `Only supports ${XERC20Type.Velo}`,
+        );
         const {
           bufferCap: extraBufferCap,
           rateLimitPerSecond: extraRateLimit,
@@ -589,7 +695,7 @@ export async function deriveBridgesConfig(
           );
         }
 
-        bridgesConfig[lockbox] = {
+        bridgesConfig.push({
           chain: chainName,
           type,
           xERC20Address,
@@ -598,12 +704,12 @@ export async function deriveBridgesConfig(
           decimals,
           bufferCap: Number(extraBufferCap),
           rateLimitPerSecond: Number(extraRateLimit),
-        };
+        });
       }
     }
 
-    bridgesConfig[bridgeAddress] = {
-      chain: chainName as ChainName,
+    bridgesConfig.push({
+      chain: chainName,
       type,
       xERC20Address,
       bridgeAddress,
@@ -611,7 +717,116 @@ export async function deriveBridgesConfig(
       decimals,
       bufferCap,
       rateLimitPerSecond,
-    };
+    });
+  }
+
+  return bridgesConfig;
+}
+
+export async function deriveStandardBridgesConfig(
+  chains: ChainName[] = [],
+  warpDeployConfig: WarpRouteDeployConfig,
+  warpCoreConfig: WarpCoreConfig,
+  multiProvider: MultiProvider,
+): Promise<BridgeConfigWL[]> {
+  const bridgesConfig: BridgeConfigWL[] = [];
+
+  for (const [chainName, chainConfig] of Object.entries(warpDeployConfig)) {
+    if (chains.length > 0 && !chains.includes(chainName)) {
+      rootLogger.debug(
+        `Skipping ${chainName} because its not included in chains`,
+      );
+      continue;
+    }
+
+    if (!isXERC20TokenConfig(chainConfig)) {
+      throw new Error(
+        `Chain "${chainName}" is not an xERC20 compliant deployment`,
+      );
+    }
+
+    const { token, type, owner, xERC20 } = chainConfig;
+
+    const decimals = warpCoreConfig.tokens.find(
+      (t) => t.chainName === chainName,
+    )?.decimals;
+    if (!decimals) {
+      throw new Error(`Missing "decimals" for chain: ${chainName}`);
+    }
+
+    if (!xERC20 || xERC20.warpRouteLimits.type !== XERC20Type.Standard) {
+      rootLogger.debug(
+        `Skip deriving bridges config because ${XERC20Type.Standard} type is expected`,
+      );
+      continue;
+    }
+    if (!xERC20.warpRouteLimits.mint || !xERC20.warpRouteLimits.burn) {
+      throw new Error(`Missing "limits" for chain: ${chainName}`);
+    }
+
+    let xERC20Address = token;
+    const bridgeAddress = warpCoreConfig.tokens.find(
+      (t) => t.chainName === chainName,
+    )?.addressOrDenom;
+    if (!bridgeAddress) {
+      throw new Error(
+        `Missing router address for chain ${chainName} and type ${type}`,
+      );
+    }
+
+    const mint = Number(xERC20.warpRouteLimits.mint);
+    const burn = Number(xERC20.warpRouteLimits.burn);
+
+    if (type === TokenType.XERC20Lockbox) {
+      const provider = multiProvider.getProvider(chainName);
+      const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
+        bridgeAddress,
+        provider,
+      );
+
+      xERC20Address = await hypXERC20Lockbox.xERC20();
+    }
+
+    if (xERC20.extraBridges) {
+      for (const extraLockboxLimit of xERC20.extraBridges) {
+        const { lockbox, limits } = extraLockboxLimit;
+        assert(
+          limits.type === XERC20Type.Standard,
+          `Only supports ${XERC20Type.Standard}`,
+        );
+
+        const extraBridgeMint = Number(limits.mint);
+        const extraBridgeBurn = Number(limits.burn);
+
+        if (!extraBridgeMint || !extraBridgeBurn) {
+          throw new Error(
+            `Missing "extraBridgeMint" or "extraBridgeBurn" limits for extra lockbox: ${lockbox} on chain: ${chainName}`,
+          );
+        }
+
+        bridgesConfig.push({
+          chain: chainName,
+          type,
+          xERC20Address,
+          bridgeAddress: lockbox,
+          owner,
+          decimals,
+          mint: extraBridgeMint,
+          burn: extraBridgeBurn,
+        });
+      }
+    }
+
+    bridgesConfig.push({
+      chain: chainName,
+      type,
+      xERC20Address,
+      bridgeAddress,
+      owner,
+      decimals,
+      mint,
+      burn,
+    });
   }
 
   return bridgesConfig;
@@ -641,20 +856,18 @@ function humanReadableLimit(limit: bigint, decimals: number): string {
     .toString();
 }
 
-export function getAndValidateBridgesToUpdate(
+export function getAndValidateBridgesToUpdate<T extends BridgeConfigBase>(
   chains: string[] | undefined,
-  bridgesConfig: Record<string, BridgeConfig>,
-): BridgeConfig[] {
+  bridgesConfig: T[],
+): T[] {
   // if no chains are provided, return all configs
   if (!chains || chains.length === 0) {
-    return Object.values(bridgesConfig);
+    return bridgesConfig;
   }
 
   // check that all provided chains are in the warp config
   // throw an error if any are not
-  const configChains = Object.values(bridgesConfig).map(
-    (config) => config.chain,
-  );
+  const configChains = bridgesConfig.map((config) => config.chain);
   const nonConfigChains = chains.filter(
     (chain) => !configChains.includes(chain),
   );
@@ -667,7 +880,5 @@ export function getAndValidateBridgesToUpdate(
   }
 
   // return only the configs that are in the chains array
-  return Object.values(bridgesConfig).filter((config) =>
-    chains.includes(config.chain),
-  );
+  return bridgesConfig.filter((config) => chains.includes(config.chain));
 }

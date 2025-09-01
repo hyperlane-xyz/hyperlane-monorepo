@@ -1,63 +1,101 @@
+import chalk from 'chalk';
+
 import {
-  ChainMap,
   ChainName,
   InterchainAccountChecker,
-  RouterViolation,
+  MissingRouterViolation,
   RouterViolationType,
 } from '@hyperlane-xyz/sdk';
-import { AddressBytes32, addressToBytes32 } from '@hyperlane-xyz/utils';
+import { rootLogger } from '@hyperlane-xyz/utils';
+
+import { deploymentChains as ousdtChains } from '../../config/environments/mainnet3/warp/configGetters/getoUSDTTokenWarpConfig.js';
+import { legacyIcaChains } from '../config/chain.js';
+
+const MAINNET = 'ethereum';
+
+const FULLY_CONNECTED_ICA_CHAINS = new Set([
+  'arbitrum',
+  'bsc',
+  'polygon',
+  'subtensor',
+  MAINNET,
+  ...ousdtChains,
+]);
 
 export class HyperlaneICAChecker extends InterchainAccountChecker {
-  /*
-   * Check that the Ethereum router is enrolled correctly,
-   * and that remote chains have the correct router enrolled.
-   */
-  async checkEthRouterEnrollment(chain: ChainName): Promise<void> {
-    // If the chain is Ethereum, do the regular full check
-    if (chain === 'ethereum') {
-      return super.checkEnrolledRouters(chain);
-    }
-
-    // Get the Ethereum router address and domain id
-    const ethereumRouterAddress = this.app.routerAddress('ethereum');
-    const ethereumDomainId = this.multiProvider.getDomainId('ethereum');
-    // Get the expected Ethereum router address (with padding)
-    const expectedRouter = addressToBytes32(ethereumRouterAddress);
-
-    // Get the actual Ethereum router address
+  async checkMailboxClient(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
-    const actualRouter = await router.routers(ethereumDomainId);
+    const config = this.configMap[chain];
 
-    // Check if the actual router address matches the expected router address
-    if (actualRouter !== expectedRouter) {
-      const currentRouters: ChainMap<string> = { ethereum: actualRouter };
-      const expectedRouters: ChainMap<string> = {
-        ethereum: expectedRouter,
-      };
-      const routerDiff: ChainMap<{
-        actual: AddressBytes32;
-        expected: AddressBytes32;
-      }> = {
-        ethereum: { actual: actualRouter, expected: expectedRouter },
-      };
-
-      const violation: RouterViolation = {
+    if (!router) {
+      const violation: MissingRouterViolation = {
         chain,
-        type: RouterViolationType.MisconfiguredEnrolledRouter,
+        type: RouterViolationType.MissingRouter,
         contract: router,
-        actual: currentRouters,
-        expected: expectedRouters,
-        routerDiff,
-        description: `Ethereum router is not enrolled correctly`,
+        actual: undefined,
+        expected: config,
+        description: `Router is not deployed`,
       };
       this.addViolation(violation);
+      return;
+    }
+
+    await this.checkMailbox(chain, router, config);
+  }
+
+  /*
+   * Check that the ICA router has the relevant routers enrolled,
+   * and that remote chains have the correct router enrolled.
+   */
+  async checkIcaRouterEnrollment(chain: ChainName): Promise<void> {
+    // If the chain should be fully connected, do the regular full check.
+    if (FULLY_CONNECTED_ICA_CHAINS.has(chain)) {
+      // don't try to enroll legacy ica chains
+      const actualRemoteChains = await this.app.remoteChains(chain);
+      // .remoteChains() already filters out the origin chain itself
+      const filteredRemoteChains = actualRemoteChains.filter(
+        (c) => !legacyIcaChains.includes(c),
+      );
+      return super.checkEnrolledRouters(chain, filteredRemoteChains);
+    }
+    // Otherwise only do a partial check to ensure that only fully-connected chains
+    // are enrolled. This is so any fresh deployments are always controllable from
+    // the "core" ICA controller chains.
+    else {
+      // have to manually filter out the origin chain itself
+      // and then filter out legacy ica chains
+      const remotes = Array.from(FULLY_CONNECTED_ICA_CHAINS).filter(
+        (c) => c !== chain && !legacyIcaChains.includes(c),
+      );
+      return super.checkEnrolledRouters(chain, remotes);
     }
   }
 
   async checkChain(chain: ChainName): Promise<void> {
+    if (!this.configMap[chain]) {
+      rootLogger.warn(
+        chalk.bold.yellow(
+          `Skipping check for ${chain} because there is no expected config`,
+        ),
+      );
+      return;
+    }
+
+    if (legacyIcaChains.includes(chain)) {
+      rootLogger.warn(
+        chalk.bold.yellow(
+          `Skipping check for ${chain} because it is a legacy ica chain`,
+        ),
+      );
+      return;
+    }
+
     await this.checkMailboxClient(chain);
-    await this.checkEthRouterEnrollment(chain);
-    await this.checkProxiedContracts(chain);
-    await this.checkOwnership(chain);
+    await this.checkIcaRouterEnrollment(chain);
+    await super.checkOwnership(
+      chain,
+      this.configMap[chain].owner,
+      this.configMap[chain].ownerOverrides,
+    );
   }
 }

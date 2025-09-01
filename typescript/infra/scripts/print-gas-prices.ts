@@ -106,6 +106,7 @@ async function getGasPrice(
         }
       }
     }
+    case ProtocolType.Radix:
     case ProtocolType.Sealevel:
     case ProtocolType.Starknet:
       // Return the gas price from the config if it exists, otherwise return some default
@@ -113,7 +114,7 @@ async function getGasPrice(
       return (
         currentGasPrice ?? {
           amount: `PLEASE SET A GAS PRICE FOR ${chain.toUpperCase()}`,
-          decimals: 1,
+          decimals: 9,
         }
       );
     default:

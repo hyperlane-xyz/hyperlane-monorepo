@@ -1,20 +1,21 @@
-use std::sync::Arc;
+use std::ops::Rem;
 use std::time::Duration;
 
 use cainome::cairo_serde::CairoSerde;
+use hyperlane_core::rpc_clients::call_and_retry_n_times;
 use hyperlane_core::Indexed;
 use hyperlane_core::{
-    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, HyperlaneMessage,
-    ModuleType, ReorgPeriod, TxOutcome,
+    ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
-use starknet::accounts::Execution;
+use starknet::accounts::ExecutionV3;
+use starknet::core::types::ReceiptBlock;
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
-        types::{EmittedEvent, FieldElement, MaybePendingTransactionReceipt, TransactionReceipt},
+        types::{EmittedEvent, Felt, TransactionReceipt},
         utils::{cairo_short_string_to_felt, CairoShortStringToFeltError},
     },
-    providers::{jsonrpc::HttpTransport, AnyProvider, JsonRpcClient, Provider},
+    providers::{JsonRpcClient, Provider},
     signers::LocalWallet,
 };
 use url::Url;
@@ -28,35 +29,39 @@ use crate::{
     contracts::{interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message},
     HyperlaneStarknetError,
 };
+use crate::{FallbackHttpTransport, JsonProvider, Signer};
 
 /// Polls the rpc client until the transaction receipt is available.
 pub async fn get_transaction_receipt(
-    rpc: &Arc<AnyProvider>,
-    transaction_hash: FieldElement,
+    rpc: &JsonProvider,
+    transaction_hash: Felt,
 ) -> ChainResult<TransactionReceipt> {
-    // there is a delay between the transaction being available at the client
-    // and the sealing of the block, hence sleeping for 2s
-    // transactions are first pending and then sealed
-    // we retry 8 times with a 2s delay between each retry
+    // there is a delay between the transaction being available
+    // at the client and the sealing of the block
+
+    // Polling delay is the total amount of seconds to wait before we call a timeout
+    const TIMEOUT_DELAY: u64 = 60;
+    const POLLING_INTERVAL: u64 = 2;
+    const N: usize = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
+
     call_and_retry_n_times(
         || {
             let rpc = rpc.clone();
             Box::pin(async move {
-                let receipt = rpc
+                let tx = rpc
                     .get_transaction_receipt(transaction_hash)
                     .await
                     .map_err(HyperlaneStarknetError::from)?;
 
-                match receipt {
-                    MaybePendingTransactionReceipt::PendingReceipt(pending) => {
-                        Err(HyperlaneStarknetError::PendingTransaction(Box::new(pending)).into())
-                    }
-                    MaybePendingTransactionReceipt::Receipt(receipt) => Ok(receipt),
+                if tx.block == ReceiptBlock::Pending {
+                    return Err(HyperlaneStarknetError::PendingBlock.into());
                 }
+
+                Ok(tx.receipt)
             })
         },
-        8,
-        Some(Duration::from_millis(2000)),
+        N,
+        Some(Duration::from_secs(POLLING_INTERVAL)),
     )
     .await
 }
@@ -70,28 +75,29 @@ pub async fn get_transaction_receipt(
 /// * `account_address` - The address of the account.
 /// * `is_legacy` - Whether the account is legacy (Cairo 0) or not.
 pub async fn build_single_owner_account(
-    rpc_url: &Url,
-    signer: LocalWallet,
-    account_address: &FieldElement,
-    is_legacy: bool,
-) -> ChainResult<SingleOwnerAccount<AnyProvider, LocalWallet>> {
-    let rpc_client =
-        AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(rpc_url.clone())));
-
-    let execution_encoding = if is_legacy {
-        starknet::accounts::ExecutionEncoding::Legacy
-    } else {
-        starknet::accounts::ExecutionEncoding::New
-    };
+    rpc_urls: Vec<Url>,
+    signer: Option<Signer>,
+) -> ChainResult<SingleOwnerAccount<JsonProvider, LocalWallet>> {
+    let rpc_client = JsonRpcClient::new(FallbackHttpTransport::new(rpc_urls));
 
     let chain_id = rpc_client.chain_id().await.map_err(|_| {
         ChainCommunicationError::from_other_str("Failed to get chain id from rpc client")
     })?;
 
+    // fallback to the default signer, as the starknet SDK requires the SignleOwnerAccount
+    // and therefore a signer to perform state queries
+    let signer = signer.unwrap_or_default();
+
+    let execution_encoding = if signer.is_legacy {
+        starknet::accounts::ExecutionEncoding::Legacy
+    } else {
+        starknet::accounts::ExecutionEncoding::New
+    };
+
     Ok(SingleOwnerAccount::new(
         rpc_client,
-        signer,
-        *account_address,
+        signer.local_wallet(),
+        signer.address,
         chain_id,
         execution_encoding,
     ))
@@ -128,8 +134,9 @@ pub fn try_parse_hyperlane_message_from_event(
         .try_into()
         .map_err(Into::<HyperlaneStarknetError>::into)?;
     let destination = event.data[2]
+        .to_biguint()
         .try_into()
-        .map_err(Into::<HyperlaneStarknetError>::into)?;
+        .map_err(HyperlaneStarknetError::from_other)?;
     let recipient: HyH256 = (event.data[3], event.data[4])
         .try_into()
         .map_err(Into::<HyperlaneStarknetError>::into)?;
@@ -241,13 +248,13 @@ message_converter!(routing_ism::Message);
 /// Convert a byte slice to a starknet bytes by padding the bytes to 16 bytes chunks
 pub fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {
     // Calculate the required padding
-    let padding = (16 - (bytes.len() % 16)) % 16;
-    let total_len = bytes.len() + padding;
+    let padding = 16usize.saturating_sub(bytes.len().rem(16)).rem(16);
+    let total_len = bytes.len().saturating_add(padding);
 
     // Create a new byte vector with the necessary padding
     let mut padded_bytes = Vec::with_capacity(total_len);
     padded_bytes.extend_from_slice(bytes);
-    padded_bytes.extend(std::iter::repeat(0).take(padding));
+    padded_bytes.extend(std::iter::repeat_n(0, padding));
 
     let mut result = Vec::with_capacity(total_len / 16);
     for chunk in padded_bytes.chunks_exact(16) {
@@ -262,18 +269,16 @@ pub fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {
 
 /// Convert a string to a cairo long string
 /// We need to split the string in 31 bytes chunks
-pub fn string_to_cairo_long_string(
-    s: &str,
-) -> Result<Vec<FieldElement>, CairoShortStringToFeltError> {
+pub fn string_to_cairo_long_string(s: &str) -> Result<Vec<Felt>, CairoShortStringToFeltError> {
     let chunk_size = 31;
     let mut chunks = Vec::new();
     let mut start = 0;
 
     while start < s.len() {
-        let end = std::cmp::min(start + chunk_size, s.len());
+        let end = std::cmp::min(start.saturating_add(chunk_size), s.len());
         let chunk = s[start..end].to_string();
         chunks.push(cairo_short_string_to_felt(&chunk)?);
-        start += chunk_size;
+        start = start.saturating_add(chunk_size);
     }
 
     Ok(chunks)
@@ -283,7 +288,7 @@ pub fn string_to_cairo_long_string(
 /// If the `reorg_period` is None, a block height of None is given,
 /// indicating that the tip directly can be used.
 pub(crate) async fn get_block_height_for_reorg_period(
-    provider: &AnyProvider,
+    provider: &JsonProvider,
     reorg_period: &ReorgPeriod,
 ) -> ChainResult<u64> {
     let block_height = match reorg_period {
@@ -292,7 +297,7 @@ pub(crate) async fn get_block_height_for_reorg_period(
                 .block_number()
                 .await
                 .map_err(Into::<HyperlaneStarknetError>::into)?;
-            tip - blocks.get() as u64
+            tip.saturating_sub(blocks.get() as u64)
         }
         ReorgPeriod::None => provider
             .block_number()
@@ -309,7 +314,7 @@ pub(crate) async fn get_block_height_for_reorg_period(
 }
 
 pub(crate) async fn get_block_height_u32(
-    provider: &AnyProvider,
+    provider: &JsonProvider,
     reorg_period: &ReorgPeriod,
 ) -> ChainResult<u32> {
     let height = get_block_height_for_reorg_period(provider, reorg_period).await?;
@@ -321,8 +326,8 @@ pub(crate) async fn get_block_height_u32(
 /// Sends a transaction and gets the transaction receipt.
 /// Returns the transaction outcome if the receipt is available.
 pub async fn send_and_confirm(
-    rpc_client: &Arc<AnyProvider>,
-    contract_call: Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>,
+    rpc_client: &JsonProvider,
+    contract_call: ExecutionV3<'_, SingleOwnerAccount<JsonProvider, LocalWallet>>,
 ) -> ChainResult<TxOutcome> {
     let tx = contract_call
         .send()

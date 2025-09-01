@@ -2,6 +2,8 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::arithmetic_side_effects)]
 
 use eyre::Result;
 

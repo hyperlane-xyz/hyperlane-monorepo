@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 use async_trait::async_trait;
 use cosmrs::Any;
 use hex::ToHex;
@@ -80,11 +82,12 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         let signer = self.provider.rpc().get_signer()?.address_string.to_owned();
+        let mailbox_address_hex = hex::encode(announcement.value.mailbox_address.to_vec());
         let announce = MsgAnnounceValidator {
             validator: announcement.value.validator.encode_hex(),
             storage_location: announcement.value.storage_location.clone(),
             signature: hex::encode(announcement.signature.to_vec()),
-            mailbox_id: "0x".to_owned() + &hex::encode(announcement.value.mailbox_address.to_vec()), // has to be prefixed with 0x
+            mailbox_id: format!("0x{mailbox_address_hex}"),
             creator: signer,
         };
 

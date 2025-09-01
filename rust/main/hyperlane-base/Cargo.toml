@@ -64,6 +64,7 @@ hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
 hyperlane-starknet = { path = "../chains/hyperlane-starknet" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
+hyperlane-radix = { path = "../chains/hyperlane-radix" }
 
 # dependency version is determined by etheres
 rusoto_core = "*"

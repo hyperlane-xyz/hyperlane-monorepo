@@ -4,6 +4,7 @@ import {
   sendTransaction,
   switchChain,
   waitForTransactionReceipt,
+  watchAsset,
 } from '@wagmi/core';
 import { useCallback, useMemo } from 'react';
 import { Chain as ViemChain } from 'viem';
@@ -11,6 +12,9 @@ import { useAccount, useConfig, useDisconnect } from 'wagmi';
 
 import {
   ChainName,
+  EvmHypXERC20LockboxAdapter,
+  IToken,
+  LOCKBOX_STANDARDS,
   MultiProtocolProvider,
   ProviderType,
   TypedTransactionReceipt,
@@ -25,7 +29,9 @@ import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
+  SwitchNetworkFns,
   WalletDetails,
+  WatchAssetFns,
 } from './types.js';
 import { ethers5TxToWagmiTx, getChainsForProtocol } from './utils.js';
 
@@ -86,9 +92,9 @@ export function useEthereumActiveChain(
   );
 }
 
-export function useEthereumTransactionFns(
+export function useEthereumSwitchNetwork(
   multiProvider: MultiProtocolProvider,
-): ChainTransactionFns {
+): SwitchNetworkFns {
   const config = useConfig();
 
   const onSwitchNetwork = useCallback(
@@ -101,6 +107,54 @@ export function useEthereumTransactionFns(
     },
     [config, multiProvider],
   );
+
+  return { switchNetwork: onSwitchNetwork };
+}
+
+export function useEthereumWatchAsset(
+  multiProvider: MultiProtocolProvider,
+): WatchAssetFns {
+  const { switchNetwork } = useEthereumSwitchNetwork(multiProvider);
+  const config = useConfig();
+
+  const onAddAsset = useCallback(
+    async (token: IToken, activeChainName: ChainName) => {
+      const chainName = token.chainName;
+      // If the active chain is different from tx origin chain, try to switch network first
+      if (activeChainName && activeChainName !== chainName)
+        await switchNetwork(chainName);
+
+      let tokenAddress = '';
+      if (LOCKBOX_STANDARDS.includes(token.standard)) {
+        const adapter = token.getAdapter(
+          multiProvider,
+        ) as EvmHypXERC20LockboxAdapter;
+        tokenAddress = await adapter.getWrappedTokenAddress();
+      } else {
+        tokenAddress = token.collateralAddressOrDenom || token.addressOrDenom;
+      }
+
+      return watchAsset(config, {
+        type: 'ERC20',
+        options: {
+          address: tokenAddress,
+          decimals: token.decimals,
+          symbol: token.symbol,
+        },
+      });
+    },
+    [config, switchNetwork, multiProvider],
+  );
+
+  return { addAsset: onAddAsset };
+}
+
+export function useEthereumTransactionFns(
+  multiProvider: MultiProtocolProvider,
+): ChainTransactionFns {
+  const config = useConfig();
+  const { switchNetwork } = useEthereumSwitchNetwork(multiProvider);
+
   // Note, this doesn't use wagmi's prepare + send pattern because we're potentially sending two transactions
   // The prepare hooks are recommended to use pre-click downtime to run async calls, but since the flow
   // may require two serial txs, the prepare hooks aren't useful and complicate hook architecture considerably.
@@ -121,7 +175,7 @@ export function useEthereumTransactionFns(
 
       // If the active chain is different from tx origin chain, try to switch network first
       if (activeChainName && activeChainName !== chainName)
-        await onSwitchNetwork(chainName);
+        await switchNetwork(chainName);
 
       // Since the network switching is not foolproof, we also force a network check here
       const chainId = multiProvider.getChainMetadata(chainName)
@@ -153,10 +207,29 @@ export function useEthereumTransactionFns(
 
       return { hash, confirm };
     },
-    [config, onSwitchNetwork, multiProvider],
+    [config, switchNetwork, multiProvider],
   );
 
-  return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
+  const onMultiSendTx = useCallback(
+    async ({
+      txs: _,
+      chainName: __,
+      activeChainName: ___,
+    }: {
+      txs: WarpTypedTransaction[];
+      chainName: ChainName;
+      activeChainName?: ChainName;
+    }) => {
+      throw new Error('Multi Transactions not supported on EVM');
+    },
+    [],
+  );
+
+  return {
+    sendTransaction: onSendTx,
+    sendMultiTransaction: onMultiSendTx,
+    switchNetwork,
+  };
 }
 
 // Metadata formatted for use in Wagmi config

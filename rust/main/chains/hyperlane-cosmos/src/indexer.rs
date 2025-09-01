@@ -1,14 +1,14 @@
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 
-use futures::future;
-use tendermint::abci::{Event, EventAttribute};
-use tendermint::hash::Algorithm;
-use tendermint::Hash;
-use tendermint_rpc::endpoint::tx;
-use tendermint_rpc::endpoint::{
+use cometbft::abci::{Event, EventAttribute};
+use cometbft::hash::Algorithm;
+use cometbft::Hash;
+use cometbft_rpc::endpoint::tx;
+use cometbft_rpc::endpoint::{
     block::Response as BlockResponse, block_results::Response as BlockResultsResponse,
 };
+use futures::future;
 use tonic::async_trait;
 use tracing::{debug, trace, warn};
 

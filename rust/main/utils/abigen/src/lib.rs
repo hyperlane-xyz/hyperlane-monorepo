@@ -144,8 +144,21 @@ pub fn generate_bindings(
             String::from("MailboxclientCptEvent")
         );
 
-        let abigen =
-            cainome::rs::Abigen::new(contract_name, abi_source).with_types_aliases(aliases);
+        let abigen = cainome::rs::Abigen::new(contract_name, abi_source)
+            .with_types_aliases(aliases)
+            .with_execution_version(cainome::rs::ExecutionVersion::V3)
+            .with_derives(vec![
+                "Debug".to_owned(),
+                "PartialEq".to_owned(),
+                "serde::Serialize".to_owned(),
+                "serde::Deserialize".to_owned(),
+            ])
+            .with_contract_derives(vec![
+                "Debug".to_owned(),
+                "Clone".to_owned(),
+                "serde::Serialize".to_owned(),
+                "serde::Deserialize".to_owned(),
+            ]);
 
         abigen
             .generate()
@@ -171,25 +184,15 @@ fn fmt_file(path: &Path) {
 /// Get the rustfmt binary path.
 #[cfg(feature = "fmt")]
 fn rustfmt_path() -> &'static Path {
-    use std::path::PathBuf;
+    use std::{path::PathBuf, sync::LazyLock};
 
-    // lazy static var
-    static mut PATH: Option<PathBuf> = None;
-
-    if let Some(path) = unsafe { PATH.as_ref() } {
-        return path;
-    }
-
-    if let Ok(path) = std::env::var("RUSTFMT") {
-        unsafe {
-            PATH = Some(PathBuf::from(path));
-            PATH.as_ref().unwrap()
+    static PATH: LazyLock<PathBuf> = LazyLock::new(|| {
+        if let Ok(path) = std::env::var("RUSTFMT") {
+            PathBuf::from(path)
+        } else {
+            which::which("rustfmt").unwrap_or_else(|_| "rustfmt".into())
         }
-    } else {
-        // assume it is in PATH
-        unsafe {
-            PATH = Some(which::which("rustmft").unwrap_or_else(|_| "rustfmt".into()));
-            PATH.as_ref().unwrap()
-        }
-    }
+    });
+
+    PATH.as_path()
 }

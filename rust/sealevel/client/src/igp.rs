@@ -5,7 +5,7 @@ use crate::{
     artifacts::{read_json, try_read_json, write_json, SingularProgramIdArtifact},
     cmd_utils::{create_new_directory, deploy_program},
     read_core_program_ids,
-    router::ChainMetadata,
+    registry::FileSystemRegistry,
     Context, GasOverheadSubCmd, GetSetCmd, IgpCmd, IgpSubCmd,
 };
 
@@ -436,7 +436,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 args.program_id,
                 args.chain,
                 &args.gas_oracle_config_file,
-                &args.chain_config_file,
+                &args.registry,
                 args.account_salt,
             );
         }
@@ -572,10 +572,11 @@ fn configure_igp_and_overhead_igp(
     program_id: Pubkey,
     local_chain: String,
     gas_oracle_config_file: &Path,
-    chain_config_path: &Path,
+    registry_path: &Path,
     account_salt: Option<H256>,
 ) {
-    let chain_configs = read_json::<HashMap<String, ChainMetadata>>(chain_config_path);
+    let registry = FileSystemRegistry::new(registry_path.to_path_buf());
+    let chain_metadatas = registry.get_metadata();
 
     let gas_oracle_configs = read_json::<
         HashMap<String, HashMap<String, GasOracleConfigWithOverhead>>,
@@ -618,7 +619,7 @@ fn configure_igp_and_overhead_igp(
 
     let all_config_domain_ids = gas_oracle_config
         .iter()
-        .map(|(remote, _)| chain_configs.get(remote).unwrap().domain_id())
+        .map(|(remote, _)| chain_metadatas.get(remote).unwrap().domain_id)
         .collect::<HashSet<_>>();
 
     // Remove any gas oracles not in the config
@@ -676,7 +677,7 @@ fn configure_igp_and_overhead_igp(
 
     // Make sure the gas oracles and overheads are set correctly
     for (remote, config) in gas_oracle_config.iter() {
-        let remote_domain = chain_configs.get(remote).unwrap().domain_id();
+        let remote_domain = chain_metadatas.get(remote).unwrap().domain_id;
         let gas_oracle_config = GasOracleConfig {
             domain: remote_domain,
             gas_oracle: Some(GasOracle::RemoteGasData(config.oracle_config.clone())),
