@@ -261,19 +261,30 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     await promiseObjAll(
       objMap(targetConfig.feeContracts, async (chainName, config) => {
         const address = config.address;
-        await this.update(config, { address });
+        const subFeeModule = new EvmTokenFeeModule(
+          this.multiProvider,
+          {
+            addresses: {
+              deployedFee: constants.AddressZero,
+            },
+            chain: chainName,
+            config,
+          },
+          this.contractVerifier,
+        );
+        const subFeeUpdateTransactions = await subFeeModule.update(config, {
+          address,
+        });
+        const { deployedFee: deployedSubFee } = subFeeModule.serialize();
 
-        // fetches the latest deployedFee
+        updateTransactions.push(...subFeeUpdateTransactions);
         updateTransactions.push({
           annotation: 'Updating routing fee...',
           chainId: this.chainId,
           to: currentRoutingAddress,
           data: RoutingFee__factory.createInterface().encodeFunctionData(
             'setFeeContract(uint32,address)',
-            [
-              this.multiProvider.getDomainId(chainName),
-              this.args.addresses.deployedFee,
-            ],
+            [this.multiProvider.getDomainId(chainName), deployedSubFee],
           ),
         });
       }),
