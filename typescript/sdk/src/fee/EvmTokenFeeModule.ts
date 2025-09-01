@@ -244,8 +244,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   }
 
   private async updateRoutingFee(targetConfig: DerivedRoutingFeeConfig) {
-    // For each routing fee, call this.update
-    const updateTxs: AnnotatedEV5Transaction[] = [];
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
 
     if (!targetConfig.feeContracts) return [];
     const currentRoutingAddress = this.args.addresses.deployedFee;
@@ -255,7 +254,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         await this.update(config, { address });
 
         // fetches the latest deployedFee
-        updateTxs.push({
+        updateTransactions.push({
           annotation: 'Updating routing fee...',
           chainId: this.chainId,
           to: currentRoutingAddress,
@@ -270,6 +269,6 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       }),
     );
 
-    return updateTxs;
+    return updateTransactions;
   }
 }
