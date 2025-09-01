@@ -24,7 +24,7 @@ import {
 } from './types.js';
 
 describe('EvmTokenFeeModule', () => {
-  const chain = TestChainName.test4;
+  const test4Chain = TestChainName.test4;
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;
   let token: ERC20Test;
@@ -57,7 +57,7 @@ describe('EvmTokenFeeModule', () => {
     expect(txs.length).to.equal(n);
 
     for (const tx of txs) {
-      await multiProvider.sendTransaction(chain, tx);
+      await multiProvider.sendTransaction(test4Chain, tx);
     }
   }
 
@@ -76,7 +76,7 @@ describe('EvmTokenFeeModule', () => {
   it('should create a new token fee with bps', async () => {
     const module = await EvmTokenFeeModule.create({
       multiProvider,
-      chain: chain,
+      chain: test4Chain,
       config,
     });
     const onchainConfig = (await module.read()) as LinearFeeConfig;
@@ -86,7 +86,7 @@ describe('EvmTokenFeeModule', () => {
   it('should deploy and read the routing fee config', async () => {
     const routingFeeConfig: RoutingFeeConfig = {
       feeContracts: {
-        [chain]: config,
+        [test4Chain]: config,
       },
       owner: signer.address,
       token: token.address,
@@ -96,10 +96,10 @@ describe('EvmTokenFeeModule', () => {
     };
     const module = await EvmTokenFeeModule.create({
       multiProvider,
-      chain: chain,
+      chain: test4Chain,
       config: routingFeeConfig,
     });
-    const routingDestination = multiProvider.getDomainId(chain);
+    const routingDestination = multiProvider.getDomainId(test4Chain);
     const onchainConfig = await module.read({
       routingDestinations: [routingDestination],
     });
@@ -112,7 +112,7 @@ describe('EvmTokenFeeModule', () => {
     it('should not update if the linear configs are the same', async () => {
       const module = await EvmTokenFeeModule.create({
         multiProvider,
-        chain: chain,
+        chain: test4Chain,
         config,
       });
 
@@ -126,15 +126,15 @@ describe('EvmTokenFeeModule', () => {
         owner: signer.address,
         token: token.address,
         feeContracts: {
-          [chain]: config,
+          [test4Chain]: config,
         },
       });
       const module = await EvmTokenFeeModule.create({
         multiProvider,
-        chain: chain,
+        chain: test4Chain,
         config: routingConfig,
       });
-      const chainId = multiProvider.getDomainId(chain);
+      const chainId = multiProvider.getDomainId(test4Chain);
       const txs = await module.update(routingConfig, {
         routingDestinations: [chainId],
       });
@@ -144,7 +144,7 @@ describe('EvmTokenFeeModule', () => {
     it('should not update if providing a bps that is the same as the result of calculating with maxFee and halfAmount', async () => {
       const module = await EvmTokenFeeModule.create({
         multiProvider,
-        chain: chain,
+        chain: test4Chain,
         config,
       });
       const updatedConfig: TokenFeeConfigInput = {
@@ -160,7 +160,7 @@ describe('EvmTokenFeeModule', () => {
     it(`should redeploy immutable fees if updating token for ${TokenFeeType.LinearFee}`, async () => {
       const module = await EvmTokenFeeModule.create({
         multiProvider,
-        chain: chain,
+        chain: test4Chain,
         config,
       });
       const updatedConfig = { ...config, bps: BPS + 1n };
@@ -171,7 +171,7 @@ describe('EvmTokenFeeModule', () => {
 
     it(`should redeploy immutable fees if updating token for ${TokenFeeType.RoutingFee}`, async () => {
       const feeContracts = {
-        [chain]: config,
+        [test4Chain]: config,
       };
       const routingFeeConfig: TokenFeeConfig = {
         type: TokenFeeType.RoutingFee,
@@ -181,21 +181,21 @@ describe('EvmTokenFeeModule', () => {
       };
       const module = await EvmTokenFeeModule.create({
         multiProvider,
-        chain: chain,
+        chain: test4Chain,
         config: routingFeeConfig,
       });
       const updatedConfig = {
         ...routingFeeConfig,
         feeContracts: {
-          [chain]: {
-            ...feeContracts[chain],
+          [test4Chain]: {
+            ...feeContracts[test4Chain],
             bps: BPS + 1n,
           },
         },
       };
 
       await expectTxsAndUpdate(module, updatedConfig, 1, {
-        routingDestinations: [multiProvider.getDomainId(chain)],
+        routingDestinations: [multiProvider.getDomainId(test4Chain)],
       });
     });
   });
