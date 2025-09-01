@@ -812,6 +812,8 @@ export { getTimelockExecutableTransactionFromBatch } from './timelock/evm/utils.
 
 export {
   TokenFeeType,
+  TokenFeeConfig,
   TokenFeeConfigSchema,
+  TokenFeeConfigInputSchema,
   TokenFeeConfigInput,
 } from './fee/types.js';
