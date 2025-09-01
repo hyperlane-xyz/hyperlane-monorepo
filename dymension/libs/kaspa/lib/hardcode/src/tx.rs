@@ -13,7 +13,6 @@ pub const RELAYER_SWEEPING_PRIORITY_FEE: u64 = 3_000;
 // TODO: make it configurable?
 pub const SWEEPING_THRESHOLD: usize = 3;
 
-
 /*
 In Kaspa, every node has a different and eventually converging view of the network.
 Nodes run a local algorithm where they connect gossiped blocks in a DAG. The DAG has a set of blue blocks and a set of red blocks.

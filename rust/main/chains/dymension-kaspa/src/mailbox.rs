@@ -164,7 +164,7 @@ impl Mailbox for KaspaMailbox {
         let processed_messages = match result_processed_messages {
             Ok(messages) => {
                 info!("Kaspa mailbox, processed withdrawals TXs");
-                
+
                 // Calculate and record withdrawal latency for successfully processed messages
                 let now = std::time::Instant::now();
                 let mut timestamps = self.operation_timestamps.lock().await;
@@ -177,7 +177,7 @@ impl Mailbox for KaspaMailbox {
                     }
                 }
                 drop(timestamps);
-                
+
                 messages
             }
             Err(e) => {

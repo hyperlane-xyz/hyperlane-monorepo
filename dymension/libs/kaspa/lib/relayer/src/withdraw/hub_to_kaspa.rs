@@ -294,7 +294,7 @@ pub fn get_outputs_from_msgs_with_mass_limit(
 ) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();
-    
+
     for m in messages {
         let tm = match parse_hyperlane_metadata(&m) {
             Ok(tm) => tm,
@@ -318,15 +318,14 @@ pub fn get_outputs_from_msgs_with_mass_limit(
         // Check if adding this output would exceed mass limit
         let mut test_outputs = outputs.clone();
         test_outputs.push(o.clone());
-        
+
         // Create test messages list with the current message added
         let mut test_msgs = hl_msgs.clone();
         test_msgs.push(m.clone());
-        
 
         // Calculate actual payload size from current messages
         let payload = Vec::<u8>::from(&MessageIDs::from(&test_msgs));
-        
+
         match estimate_mass(
             inputs.clone(),
             test_outputs,
@@ -347,17 +346,24 @@ pub fn get_outputs_from_msgs_with_mass_limit(
                 }
             }
             Err(e) => {
-                info!("Kaspa relayer, failed to estimate mass, continuing without limit: {}", e);
+                info!(
+                    "Kaspa relayer, failed to estimate mass, continuing without limit: {}",
+                    e
+                );
             }
         }
         // If we are here, it means the output is valid and does not exceed mass limit
-    
+
         outputs.push(o);
         hl_msgs.push(m);
     }
-    
-    info!("Kaspa relayer, selected {} outputs from {} messages",outputs.len(),hl_msgs.len());
-    
+
+    info!(
+        "Kaspa relayer, selected {} outputs from {} messages",
+        outputs.len(),
+        hl_msgs.len()
+    );
+
     (hl_msgs, outputs)
 }
 

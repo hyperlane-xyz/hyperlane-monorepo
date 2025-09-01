@@ -120,7 +120,7 @@ impl ConnectionConf {
         validation_conf: ValidationConf,
         min_deposit_sompi: U256,
         kaspa_time_config: Option<KaspaTimeConfig>,
-        
+
         // we could query these two instead
         hub_domain: u32,
         hub_token_id: H256,

@@ -24,10 +24,10 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_native::RawCosmosAmount;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
-use prometheus::Registry;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_core::prelude::DynRpcApi;
+use prometheus::Registry;
 use std::sync::Arc;
 use tonic::async_trait;
 use tracing::info;
@@ -90,9 +90,9 @@ impl KaspaProvider {
             KaspaBridgeMetrics::new(reg).expect("Failed to create KaspaBridgeMetrics")
         } else {
             // Use default registry as fallback
-            KaspaBridgeMetrics::new(&prometheus::default_registry()).expect("Failed to create default KaspaBridgeMetrics")
+            KaspaBridgeMetrics::new(&prometheus::default_registry())
+                .expect("Failed to create default KaspaBridgeMetrics")
         };
-        
 
         let provider = KaspaProvider {
             domain: domain.clone(),
@@ -197,16 +197,20 @@ impl KaspaProvider {
             Ok(Some(fxg)) => {
                 info!("Kaspa provider, constructed withdrawal TXs");
                 info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
-                
+
                 // Create withdrawal batch ID from first message ID in batch
-                let withdrawal_batch_id = fxg.messages.iter()
+                let withdrawal_batch_id = fxg
+                    .messages
+                    .iter()
                     .flatten()
                     .next()
                     .map(|msg| format!("{:?}", msg.id()))
                     .unwrap_or_else(|| "unknown".to_string());
-                
+
                 // Calculate total withdrawal amount for metrics (do this early in case of failures)
-                let total_amount = fxg.messages.iter()
+                let total_amount = fxg
+                    .messages
+                    .iter()
                     .flatten()
                     .filter_map(|msg| {
                         // Parse the TokenMessage from the HyperlaneMessage body
@@ -215,14 +219,19 @@ impl KaspaProvider {
                                 let amount_u256 = token_message.amount();
                                 // Convert U256 to u64, handling overflow
                                 if amount_u256 > U256::from(u64::MAX) {
-                                    tracing::warn!("Withdrawal amount exceeds u64::MAX, using u64::MAX");
+                                    tracing::warn!(
+                                        "Withdrawal amount exceeds u64::MAX, using u64::MAX"
+                                    );
                                     Some(u64::MAX)
                                 } else {
                                     Some(amount_u256.as_u64())
                                 }
                             }
                             Err(e) => {
-                                tracing::error!("Failed to parse token message for withdrawal amount: {:?}", e);
+                                tracing::error!(
+                                    "Failed to parse token message for withdrawal amount: {:?}",
+                                    e
+                                );
                                 None
                             }
                         }
@@ -233,7 +242,8 @@ impl KaspaProvider {
                     Ok(bundles) => bundles,
                     Err(e) => {
                         // Record withdrawal failure with deduplication
-                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id, total_amount);
+                        self.metrics
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amount);
                         return Err(e.into());
                     }
                 };
@@ -245,11 +255,13 @@ impl KaspaProvider {
                     &self.escrow(),
                     &self.easy_wallet,
                 )
-                .await {
+                .await
+                {
                     Ok(fin) => fin,
                     Err(e) => {
                         // Record withdrawal failure with deduplication
-                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id, total_amount);
+                        self.metrics
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amount);
                         return Err(e);
                     }
                 };
@@ -257,21 +269,26 @@ impl KaspaProvider {
                 match self.submit_txs(finalized.clone()).await {
                     Ok(_) => {
                         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
-                        
+
                         // Record successful withdrawal with message count
-                        let message_count = fxg.messages.iter().map(|msgs| msgs.len()).sum::<usize>() as u64;
-                        self.metrics.record_withdrawal_processed(&withdrawal_batch_id, total_amount, message_count);
-                        
+                        let message_count =
+                            fxg.messages.iter().map(|msgs| msgs.len()).sum::<usize>() as u64;
+                        self.metrics.record_withdrawal_processed(
+                            &withdrawal_batch_id,
+                            total_amount,
+                            message_count,
+                        );
+
                         // Update last withdrawal anchor point metric
                         if let Some(last_anchor) = fxg.anchors.last() {
                             let current_timestamp = kaspa_core::time::unix_now();
                             self.metrics.update_last_anchor_point(
                                 &last_anchor.transaction_id.to_string(),
                                 last_anchor.index as u64,
-                                current_timestamp
+                                current_timestamp,
                             );
                         }
-                        
+
                         self.pending_confirmation
                             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
                         info!("Kaspa provider, added to progress indication work queue");
@@ -280,7 +297,8 @@ impl KaspaProvider {
                     }
                     Err(e) => {
                         // Record withdrawal failure with deduplication
-                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id, total_amount);
+                        self.metrics
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amount);
                         Err(e)
                     }
                 }
@@ -291,13 +309,15 @@ impl KaspaProvider {
             }
             Err(e) => {
                 // Create withdrawal batch ID from message IDs
-                let withdrawal_batch_id = msgs.iter()
+                let withdrawal_batch_id = msgs
+                    .iter()
                     .next()
                     .map(|msg| format!("{:?}", msg.id()))
                     .unwrap_or_else(|| "unknown".to_string());
-                
+
                 // Record withdrawal failure with deduplication - calculate amount from original messages
-                let failed_amount = msgs.iter()
+                let failed_amount = msgs
+                    .iter()
                     .filter_map(|msg| {
                         // Parse the TokenMessage from the HyperlaneMessage body
                         match dym_kas_core::message::parse_hyperlane_metadata(msg) {
@@ -305,20 +325,26 @@ impl KaspaProvider {
                                 let amount_u256 = token_message.amount();
                                 // Convert U256 to u64, handling overflow
                                 if amount_u256 > U256::from(u64::MAX) {
-                                    tracing::warn!("Withdrawal amount exceeds u64::MAX, using u64::MAX");
+                                    tracing::warn!(
+                                        "Withdrawal amount exceeds u64::MAX, using u64::MAX"
+                                    );
                                     Some(u64::MAX)
                                 } else {
                                     Some(amount_u256.as_u64())
                                 }
                             }
                             Err(e) => {
-                                tracing::error!("Failed to parse token message for withdrawal amount: {:?}", e);
+                                tracing::error!(
+                                    "Failed to parse token message for withdrawal amount: {:?}",
+                                    e
+                                );
                                 None
                             }
                         }
                     })
                     .sum::<u64>();
-                self.metrics.record_withdrawal_failed(&withdrawal_batch_id, failed_amount);
+                self.metrics
+                    .record_withdrawal_failed(&withdrawal_batch_id, failed_amount);
                 Err(e)
             }
         }
@@ -335,32 +361,32 @@ impl KaspaProvider {
                 .await?;
             ret.push(tx_id);
         }
-        
+
         // Update balance metrics after successful transaction submission
         if let Err(e) = self.update_balance_metrics().await {
             tracing::error!("Failed to update balance metrics: {:?}", e);
         }
-        
+
         Ok(ret)
     }
-    
+
     /// Update balance metrics for relayer funds and escrow balance
     pub async fn update_balance_metrics(&self) -> Result<()> {
         // Get UTXOs for escrow address using RPC API
-        let utxos = self.rpc()
+        let utxos = self
+            .rpc()
             .get_utxos_by_addresses(vec![self.escrow_address()])
             .await
             .map_err(|e| eyre::eyre!("Failed to get UTXOs for escrow address: {}", e))?;
-        
+
         // Calculate total escrow balance from UTXOs
-        let total_escrow_balance: u64 = utxos.iter()
-            .map(|utxo| utxo.utxo_entry.amount)
-            .sum();
-        
+        let total_escrow_balance: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
+
         // Update metrics
-        self.metrics().update_funds_escrowed(total_escrow_balance as i64);
+        self.metrics()
+            .update_funds_escrowed(total_escrow_balance as i64);
         self.metrics().update_escrow_utxo_count(utxos.len() as i64);
-        
+
         // Also update relayer balance if we have a wallet account
         let account = self.wallet().account();
         // Try to get balance with a few retries
@@ -372,12 +398,12 @@ impl KaspaProvider {
             }
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
-        
+
         if let Some(balance) = balance_opt {
             // Use mature balance for relayer funds metric
             self.metrics().update_relayer_funds(balance.mature as i64);
         }
-        
+
         Ok(())
     }
 

@@ -67,7 +67,7 @@ pub async fn build_withdrawal_fxg(
     )
     .await
     .map_err(|e| eyre::eyre!("Fetch sample escrow UTXOs for mass estimation: {}", e))?;
-    
+
     // Filter out dust messages and create Kaspa outputs with mass limit
     let (valid_msgs, outputs) = get_outputs_from_msgs_with_mass_limit(
         pending_msgs,
@@ -158,7 +158,7 @@ pub async fn build_withdrawal_fxg(
         &relayer_address,
         relayer.net.network_id,
         min_deposit_sompi,
-        feerate*tx_fee_multiplier,
+        feerate * tx_fee_multiplier,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
