@@ -46,7 +46,6 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ExplorerLicenseType } from '../deploy/verify/types.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
-import { DerivedTokenFeeConfig } from '../fee/EvmTokenFeeReader.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -718,9 +717,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     // Get the current token fee configuration from the actual config
-    const currentTokenFee = actualConfig.tokenFee as
-      | DerivedTokenFeeConfig
-      | undefined;
+    const currentTokenFee = actualConfig.tokenFee;
 
     // If there's no current token fee but we expect one, we need to deploy
     if (!currentTokenFee) {

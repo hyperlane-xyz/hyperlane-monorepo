@@ -4,6 +4,7 @@ import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -79,6 +80,10 @@ describe('EvmTokenFeeModule', () => {
       config,
     });
     const onchainConfig = (await module.read()) as LinearFeeConfig;
+    assert(
+      onchainConfig.type === TokenFeeType.LinearFee,
+      `Must be ${TokenFeeType.LinearFee}`,
+    );
     expect(onchainConfig.bps).to.equal(BPS);
   });
 
