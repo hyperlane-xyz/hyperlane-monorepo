@@ -7,6 +7,7 @@
 use std::{
     collections::{HashMap, HashSet},
     default::Default,
+    ops::Add,
     time::Duration,
 };
 
@@ -313,7 +314,7 @@ fn parse_domain(chain: ValueParser, name: &str) -> ConfigResult<HyperlaneDomain>
     } else {
         Err(eyre!("missing chain name, the config may be corrupted"))
     }
-    .take_err(&mut err, || &chain.cwp + "name");
+    .take_err(&mut err, || (&chain.cwp).add("name"));
 
     let domain_id = chain
         .chain(&mut err)
@@ -452,7 +453,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
         Some("starkKey") => parse_signer!(starkKey),
         Some("radixKey") => parse_signer!(radixKey),
         Some(t) => {
-            Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")
+            Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| (&signer.cwp).add("type"))
         }
         None if key_is_some => parse_signer!(hexKey),
         None if id_is_some | region_is_some => parse_signer!(aws),
@@ -555,7 +556,7 @@ fn parse_custom_urls(
         .end()
         .map(|urls| {
             urls.split(',')
-                .filter_map(|url| url.parse().take_err(err, || &chain.cwp + key))
+                .filter_map(|url| url.parse().take_err(err, || (&chain.cwp).add(key)))
                 .collect_vec()
         })
 }
@@ -572,12 +573,14 @@ fn parse_base_and_override_urls(
     let combined = overrides.unwrap_or(base);
 
     if combined.is_empty() {
+        let config_path = (&chain.cwp).add(base_key.to_ascii_lowercase());
         err.push(
-            &chain.cwp + base_key.to_ascii_lowercase(),
+            config_path,
             eyre!("Missing base {} definitions for chain", base_key),
         );
+        let config_path = (&chain.cwp).add(override_key.to_lowercase());
         err.push(
-            &chain.cwp + override_key.to_lowercase(),
+            config_path,
             eyre!("Also missing {} overrides for chain", base_key),
         );
     }
