@@ -27,6 +27,11 @@ export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
   feeContracts: Record<ChainName, DerivedTokenFeeConfig>;
 };
 
+export type ReaderParams = {
+  address: Address;
+  routingDestinations?: number[]; // Required for RoutingFee.feeContracts() interface
+};
+
 const MAX_BPS = 10_000n; // 100% in bps
 export class EvmTokenFeeReader extends HyperlaneReader {
   constructor(
@@ -36,10 +41,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     super(multiProvider, chain);
   }
 
-  async deriveTokenFeeConfig(params: {
-    address: Address;
-    routingDestinations?: number[];
-  }): Promise<DerivedTokenFeeConfig> {
+  async deriveTokenFeeConfig(
+    params: ReaderParams,
+  ): Promise<DerivedTokenFeeConfig> {
     const { address, routingDestinations } = params;
     const tokenFee = BaseFee__factory.connect(address, this.provider);
 

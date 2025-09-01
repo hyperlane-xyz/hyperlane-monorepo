@@ -27,6 +27,7 @@ import {
   DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
+  ReaderParams,
 } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
@@ -40,11 +41,6 @@ import {
 type TokenFeeModuleAddresses = {
   deployedFee: Address;
 };
-
-export type OptionalModuleParams = Partial<{
-  address: Address;
-  routingDestinations: number[]; // Required for RoutingFee
-}>;
 
 export class EvmTokenFeeModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -184,7 +180,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     return deployer.deploy({ [params.chainName]: params.config });
   }
 
-  async read(params?: OptionalModuleParams): Promise<DerivedTokenFeeConfig> {
+  async read(params?: Partial<ReaderParams>): Promise<DerivedTokenFeeConfig> {
     const address = params?.address ?? this.args.addresses.deployedFee;
     const routingDestinations = params?.routingDestinations ?? [];
 
@@ -196,7 +192,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
   async update(
     targetConfig: TokenFeeConfigInput,
-    params?: OptionalModuleParams,
+    params?: Partial<ReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
     let updateTransactions: AnnotatedEV5Transaction[] = [];
 

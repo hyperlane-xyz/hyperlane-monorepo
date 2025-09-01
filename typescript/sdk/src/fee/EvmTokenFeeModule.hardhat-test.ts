@@ -9,11 +9,9 @@ import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { normalizeConfig } from '../utils/ism.js';
 
-import {
-  EvmTokenFeeModule,
-  OptionalModuleParams,
-} from './EvmTokenFeeModule.js';
+import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
+import { ReaderParams } from './EvmTokenFeeReader.js';
 import {
   LinearFeeConfig,
   RoutingFeeConfig,
@@ -51,7 +49,7 @@ describe('EvmTokenFeeModule', () => {
     feeModule: EvmTokenFeeModule,
     config: TokenFeeConfig,
     n: number,
-    params?: OptionalModuleParams,
+    params?: Partial<ReaderParams>,
   ) {
     const txs = await feeModule.update(config, params);
     expect(txs.length).to.equal(n);
