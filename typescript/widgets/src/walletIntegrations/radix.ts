@@ -121,7 +121,7 @@ export function useRadixSwitchNetwork(
         multiProvider.getChainMetadata(chainName).displayName || chainName;
       // Radix does not have switch capability
       throw new Error(
-        `Radix wallet must be connected to origin chain ${displayName}}`,
+        `Radix wallet must be connected to origin chain ${displayName}`,
       );
     },
     [multiProvider],
