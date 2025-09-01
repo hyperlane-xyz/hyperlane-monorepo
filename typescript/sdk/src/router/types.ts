@@ -31,7 +31,7 @@ export type DerivedMailboxClientConfig = MailboxClientConfig & {
 };
 
 export type RouterConfig = z.infer<typeof RouterConfigSchema>;
-export type DerivedRouterConfig = RouterConfig & {
+export type DerivedRouterConfig = Omit<RouterConfig, 'tokenFee'> & {
   tokenFee?: DerivedTokenFeeConfig;
 } & DerivedMailboxClientConfig;
 
