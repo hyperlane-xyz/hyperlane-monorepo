@@ -1,4 +1,6 @@
-use std::os::unix::process;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use super::consts::*;
 use crate::KaspaProvider;
@@ -19,6 +21,8 @@ pub struct KaspaMailbox {
     provider: KaspaProvider,
     domain: HyperlaneDomain,
     address: H256,
+    /// Track first seen time for operations to measure true end-to-end latency
+    operation_timestamps: Arc<Mutex<HashMap<String, std::time::Instant>>>,
 }
 
 impl KaspaMailbox {
@@ -28,6 +32,7 @@ impl KaspaMailbox {
             provider,
             address: locator.address, // TODO: will be zero?
             domain: locator.domain.clone(),
+            operation_timestamps: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -36,6 +41,7 @@ impl KaspaMailbox {
             provider,
             domain: self.domain.clone(),
             address: self.address,
+            operation_timestamps: self.operation_timestamps.clone(),
         }
     }
 }
@@ -126,6 +132,21 @@ impl Mailbox for KaspaMailbox {
             ops.len()
         );
 
+        let messages: Vec<HyperlaneMessage> = ops
+            .iter()
+            .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
+            .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
+
+        // Record first-seen timestamp for each message (only if not already tracked)
+        let current_time = std::time::Instant::now();
+        {
+            let mut timestamps = self.operation_timestamps.lock().await;
+            for msg in &messages {
+                let msg_id = format!("{:?}", msg.id());
+                timestamps.entry(msg_id).or_insert(current_time);
+            }
+        } // Release the lock
+
         if self.provider.has_pending_confirmation() {
             // All indexes are considered failed if there is a pending confirmation. they will be retried later.
             let failed_indexes: Vec<usize> = (0..ops.len()).collect();
@@ -135,11 +156,6 @@ impl Mailbox for KaspaMailbox {
             });
         }
 
-        let messages: Vec<HyperlaneMessage> = ops
-            .iter()
-            .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
-            .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
-
         let result_processed_messages = self
             .provider
             .process_withdrawal_messages(messages.clone())
@@ -148,6 +164,20 @@ impl Mailbox for KaspaMailbox {
         let processed_messages = match result_processed_messages {
             Ok(messages) => {
                 info!("Kaspa mailbox, processed withdrawals TXs");
+                
+                // Calculate and record withdrawal latency for successfully processed messages
+                let now = std::time::Instant::now();
+                let mut timestamps = self.operation_timestamps.lock().await;
+                for msg in &messages {
+                    let msg_id = format!("{:?}", msg.id());
+                    if let Some(start_time) = timestamps.remove(&msg_id) {
+                        let latency = now.duration_since(start_time);
+                        let metrics = self.provider.metrics();
+                        metrics.update_withdrawal_latency(latency.as_millis() as i64);
+                    }
+                }
+                drop(timestamps);
+                
                 messages
             }
             Err(e) => {
@@ -194,7 +224,7 @@ impl Mailbox for KaspaMailbox {
     ) -> ChainResult<TxCostEstimate> {
         let token_msg = match TokenMessage::read_from(&mut message.body.as_slice()) {
             Ok(msg) => msg,
-            Err(e) => {
+            Err(_e) => {
                 return Ok(TxCostEstimate {
                     gas_limit: 0.into(),
                     gas_price: FixedPointNumber::from(0),

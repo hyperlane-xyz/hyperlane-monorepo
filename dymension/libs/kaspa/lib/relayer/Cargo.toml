@@ -40,3 +40,4 @@ reqwest-middleware = "0.4"
 
 
 bincode = "1.3"
+prometheus = "0.13"

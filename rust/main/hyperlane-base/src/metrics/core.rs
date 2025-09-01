@@ -374,6 +374,11 @@ impl CoreMetrics {
     pub fn registry(&self) -> Registry {
         self.registry.clone()
     }
+    
+    /// Get a reference to the registry (for metrics that need to register with the same instance)
+    pub fn registry_ref(&self) -> &Registry {
+        &self.registry
+    }
 
     /// Create the provider metrics attached to this core metrics instance.
     pub fn provider_metrics(&self) -> MiddlewareMetrics {

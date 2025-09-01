@@ -1398,13 +1398,14 @@ pub async fn build_kaspa_provider<'a>(
     signer: Option<hyperlane_cosmos_native::Signer>,
 ) -> ChainResult<KaspaProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
-    let metrics = metrics.client_metrics();
+    let client_metrics = metrics.client_metrics();
     KaspaProvider::new(
         connection_conf,
         locator.domain.clone(),
         signer,
-        metrics,
+        client_metrics,
         middleware_metrics.chain.clone(),
+        Some(metrics.registry_ref()),
     )
     .await
 }

@@ -54,6 +54,7 @@ dym-kas-api = { path = "../../../../dymension/libs/kaspa/lib/api" , package="ope
 dym-kas-hardcode = { path = "../../../../dymension/libs/kaspa/lib/hardcode" , package="hardcode"}
 eyre = { workspace = true }
 bytes = { workspace = true }
+prometheus = { workspace = true }
 
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }

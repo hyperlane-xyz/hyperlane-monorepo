@@ -4,7 +4,7 @@ use super::hub_to_kaspa::{
 };
 use crate::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping_bundle};
 use corelib::consts::RELAYER_SIG_OP_COUNT;
-use corelib::escrow::{self, EscrowPublic};
+use corelib::escrow::EscrowPublic;
 use corelib::payload::MessageIDs;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};

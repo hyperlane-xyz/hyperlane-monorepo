@@ -5,7 +5,7 @@ use corelib::{
     api::client::{Deposit, HttpClient},
     message::add_kaspa_metadata_hl_messsage,
 };
-use eyre::{eyre, Result};
+use eyre::Result;
 use hyperlane_core::U256;
 pub use secp256k1::PublicKey;
 use tracing::{info, warn};
@@ -74,12 +74,11 @@ pub async fn on_new_deposit(
         let pending_confirmations =
             finality_status.required_confirmations - finality_status.confirmations;
         // we assume 10 confirmations per second, so retry after 0.1 seconds per confirmation needed
-        let mut retry_after_secs;
-        if pending_confirmations > 0 {
-            retry_after_secs = pending_confirmations as f64 * 0.1;
+        let retry_after_secs = if pending_confirmations > 0 {
+            pending_confirmations as f64 * 0.1
         } else {
-            retry_after_secs = 10.0; // Fallback to 10 seconds if no confirmations returned, since it can happen if the accepting block is not yet known to the node
-        }
+            10.0 // Fallback to 10 seconds if no confirmations returned, since it can happen if the accepting block is not yet known to the node
+        };
         warn!(
             "Deposit {} is not yet safe against reorg. Confirmations: {}/{}. Will retry in {:.1}s",
             deposit.id,

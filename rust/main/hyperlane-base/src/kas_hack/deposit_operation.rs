@@ -8,6 +8,8 @@ pub struct DepositOperation {
     pub escrow_address: String,
     pub retry_count: u32,
     pub next_attempt_after: Option<Instant>,
+    /// When this deposit operation was first created/detected
+    pub created_at: Instant,
 }
 
 impl DepositOperation {
@@ -17,6 +19,7 @@ impl DepositOperation {
             escrow_address,
             retry_count: 0,
             next_attempt_after: None,
+            created_at: Instant::now(),
         }
     }
 
