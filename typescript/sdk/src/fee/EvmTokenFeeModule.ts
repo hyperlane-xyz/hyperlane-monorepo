@@ -236,9 +236,11 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     }
 
     // if the type is a mutable type, then update
-    updateTransactions = await this.updateRoutingFee(
-      _.merge(actualConfig, targetConfig) as DerivedRoutingFeeConfig, // Creates a config with address and new changes
-    );
+    updateTransactions = [
+      ...(await this.updateRoutingFee(
+        _.merge(actualConfig, targetConfig) as DerivedRoutingFeeConfig, // Creates a config with address and new changes
+      )),
+    ];
 
     return updateTransactions;
   }
