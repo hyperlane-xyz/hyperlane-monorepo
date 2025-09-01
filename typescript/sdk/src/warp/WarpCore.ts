@@ -150,7 +150,7 @@ export class WarpCore {
     let gasAmount: bigint;
     let gasAddressOrDenom: string | undefined;
     let feeAmount: bigint | undefined;
-    let feeAddressOrDenom: string | undefined;
+    let feeTokenAddress: string | undefined;
     // Check constant quotes first
     const defaultQuote = this.interchainFeeConstants.find(
       (q) => q.origin === originName && q.destination === destinationName,
@@ -175,7 +175,7 @@ export class WarpCore {
       gasAmount = BigInt(quote.igpQuote.amount);
       gasAddressOrDenom = quote.igpQuote.addressOrDenom;
       feeAmount = quote.tokenFeeQuote?.amount;
-      feeAddressOrDenom = quote.tokenFeeQuote?.addressOrDenom;
+      feeTokenAddress = quote.tokenFeeQuote?.addressOrDenom;
     }
 
     let igpToken: Token;
@@ -193,7 +193,7 @@ export class WarpCore {
     let feeTokenAmount: TokenAmount | undefined;
     if (feeAmount) {
       // empty address or zero address is native route
-      if (!feeAddressOrDenom || isZeroishAddress(feeAddressOrDenom)) {
+      if (!feeTokenAddress || isZeroishAddress(feeTokenAddress)) {
         const nativeToken = Token.FromChainMetadataNativeToken(
           this.multiProvider.getChainMetadata(originName),
         );
