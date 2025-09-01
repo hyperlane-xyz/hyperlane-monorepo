@@ -5,6 +5,7 @@
 #![deny(unsafe_code)]
 #![allow(unknown_lints)] // TODO: `rustc` 1.80.1 clippy issue
 #![deny(clippy::unwrap_used, clippy::panic)]
+#![deny(clippy::arithmetic_side_effects)]
 
 extern crate core;
 

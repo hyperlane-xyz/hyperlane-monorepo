@@ -337,9 +337,11 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     ) -> Result<()> {
         // We require no sequence gaps and to build upon the last snapshot.
         // A non-inclusive range is used to allow updates without any logs.
-        let expected_sequences = ((current_indexing_snapshot.sequence + 1)
+        let expected_sequences = (current_indexing_snapshot
+            .sequence
+            .saturating_add(1)
             .saturating_sub(logs.len() as u32)
-            ..(current_indexing_snapshot.sequence + 1))
+            ..(current_indexing_snapshot.sequence.saturating_add(1)))
             .collect::<HashSet<_>>();
         if all_log_sequences != &expected_sequences {
             // If there are any missing sequences, rewind to just before the last indexed snapshot.

@@ -22,8 +22,10 @@ pub fn hex_or_base58_or_bech32_to_h256(string: &str) -> Result<H256> {
                 eyre::bail!("Invalid length of bech32 string")
             }
             // We pad bech32 address to be 32 bytes long
-            let mut padded = vec![0; 32 - bytes.len()];
-            padded.extend_from_slice(&bytes);
+            let padded: Vec<u8> = (0..32usize.saturating_sub(bytes.len()))
+                .map(|_| 0u8)
+                .chain(bytes.iter().cloned())
+                .collect();
             H256::from_slice(padded.as_slice())
         } else {
             let bytes = bs58::decode(string).into_vec()?;
@@ -79,7 +81,7 @@ const ATTO_EXPONENT: u32 = 18;
 /// Converts `value` expressed with `decimals` into `atto` (`10^-18`) decimals.
 pub fn to_atto(value: U256, decimals: u32) -> Option<U256> {
     assert!(decimals <= ATTO_EXPONENT);
-    let exponent = ATTO_EXPONENT - decimals;
+    let exponent = ATTO_EXPONENT.saturating_sub(decimals);
     let coefficient = U256::from(10u128.pow(exponent));
     value.checked_mul(coefficient)
 }
