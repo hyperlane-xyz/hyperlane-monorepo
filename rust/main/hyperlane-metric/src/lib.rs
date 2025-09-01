@@ -2,6 +2,7 @@
 
 #![warn(missing_docs)]
 #![deny(clippy::unwrap_used, clippy::panic)]
+#![deny(clippy::arithmetic_side_effects)]
 
 /// Prometheus metric related code
 pub mod prometheus_metric;

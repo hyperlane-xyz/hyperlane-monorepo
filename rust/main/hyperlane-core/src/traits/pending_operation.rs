@@ -3,6 +3,7 @@ use std::{
     env,
     fmt::{Debug, Display},
     io::Write,
+    ops::Mul,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -339,7 +340,8 @@ pub fn gas_used_by_operation(
     let gas_used_by_tx = FixedPointNumber::try_from(tx_outcome.gas_used)?;
     let operation_gas_estimate = FixedPointNumber::try_from(operation_estimated_cost)?;
     let tx_gas_estimate = FixedPointNumber::try_from(tx_estimated_cost)?;
-    let gas_used_by_operation = (gas_used_by_tx * operation_gas_estimate)
+    let gas_used_by_operation = gas_used_by_tx
+        .mul(operation_gas_estimate)
         .checked_div(&tx_gas_estimate)
         .ok_or(eyre::eyre!("Division by zero"))?;
     gas_used_by_operation.try_into()

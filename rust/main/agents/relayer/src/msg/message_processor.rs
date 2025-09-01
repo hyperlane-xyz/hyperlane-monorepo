@@ -10,6 +10,7 @@ use futures_util::future::try_join_all;
 use maplit::hashmap;
 use num_traits::Zero;
 use prometheus::{IntCounterVec, IntGaugeVec};
+use tokio::sync::MutexGuard;
 use tokio::sync::{broadcast::Sender, mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -887,7 +888,7 @@ async fn confirm_lander_task(
                 let status_results_len = status_results.len();
                 let successes = filter_status_results(status_results);
 
-                if status_results_len - successes.len() > 0 {
+                if status_results_len > successes.len() {
                     warn!(?op, "Error retrieving payload status",);
                     send_back_on_failed_submission(
                         op,
@@ -903,8 +904,8 @@ async fn confirm_lander_task(
 
                 if finalized {
                     {
-                        let mut lock = confirmed_operations.lock().await;
-                        *lock += 1;
+                        let mut lock: MutexGuard<i32> = confirmed_operations.lock().await;
+                        *lock = lock.saturating_add(1);
                     }
                     confirm_operation(
                         op,

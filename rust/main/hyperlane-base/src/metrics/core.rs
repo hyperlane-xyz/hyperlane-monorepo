@@ -770,7 +770,7 @@ impl CoreMetrics {
             .latest_checkpoint()
             .with_label_values(&["validator_processed", origin_chain.name()])
             .get();
-        observed_checkpoint - signed_checkpoint
+        observed_checkpoint.saturating_sub(signed_checkpoint)
     }
 }
 
