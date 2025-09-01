@@ -270,8 +270,8 @@ export class EvmHypSyntheticAdapter
     const contractVersion = await this.contract.PACKAGE_VERSION();
 
     const hasQuoteTransferRemote = isValidContractVersion(
-      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
       contractVersion,
+      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
     );
 
     // Version does not support quoteTransferRemote defaulting to quoteGasPayment
@@ -292,7 +292,7 @@ export class EvmHypSyntheticAdapter
       recipBytes32,
       amount.toString(),
     );
-    const [igpTokenAddressOrDenom, igpAmount] = igpQuote;
+    const [, igpAmount] = igpQuote;
 
     const tokenFeeQuotes: Quote[] = feeQuotes.map((quote) => ({
       addressOrDenom: quote[0],
@@ -307,7 +307,6 @@ export class EvmHypSyntheticAdapter
 
     return {
       igpQuote: {
-        addressOrDenom: igpTokenAddressOrDenom,
         amount: BigInt(igpAmount.toString()),
       },
       tokenFeeQuote,
@@ -321,7 +320,11 @@ export class EvmHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas({ destination });
+      interchainGas = await this.quoteTransferRemoteGas({
+        destination,
+        recipient,
+        amount: BigInt(weiAmountOrId),
+      });
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
     return this.contract.populateTransaction[
@@ -857,8 +860,8 @@ export class EvmHypNativeAdapter
     const contractVersion = await this.contract.PACKAGE_VERSION();
 
     const hasQuoteTransferRemote = isValidContractVersion(
-      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
       contractVersion,
+      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
     );
     const igpQuote = await this.contract.quoteGasPayment(destination);
     const igpQuoteBigInt = BigInt(igpQuote.toString());
@@ -902,8 +905,13 @@ export class EvmHypNativeAdapter
     recipient,
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    const amount = BigInt(weiAmountOrId);
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas({ destination });
+      interchainGas = await this.quoteTransferRemoteGas({
+        destination,
+        amount,
+        recipient,
+      });
 
     let txValue: bigint | undefined = undefined;
     const {
@@ -911,7 +919,7 @@ export class EvmHypNativeAdapter
     } = interchainGas;
     // If the igp token is native Eth
     if (!igpAddressOrDenom) {
-      txValue = igpAmount + BigInt(weiAmountOrId);
+      txValue = igpAmount + amount;
     } else {
       txValue = igpAmount;
     }

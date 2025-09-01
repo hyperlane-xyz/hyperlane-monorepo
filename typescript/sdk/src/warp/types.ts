@@ -62,4 +62,5 @@ export type WarpCoreConfig = z.infer<typeof WarpCoreConfigSchema>;
 export interface WarpCoreFeeEstimate {
   interchainQuote: TokenAmount;
   localQuote: TokenAmount;
+  tokenFeeQuote?: TokenAmount;
 }
