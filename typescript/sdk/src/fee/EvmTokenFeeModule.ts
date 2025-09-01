@@ -11,6 +11,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
 import {
   HyperlaneModule,
@@ -238,8 +239,15 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     // if the type is a mutable type, then update
     updateTransactions = [
       ...(await this.updateRoutingFee(
-        _.merge(actualConfig, targetConfig) as DerivedRoutingFeeConfig, // Creates a config with address and new changes
+        _.merge(
+          actualConfig,
+          normalizedTargetConfig,
+        ) as DerivedRoutingFeeConfig,
       )),
+      ...this.createOwnershipUpdateTxs(
+        normalizedActualConfig,
+        normalizedTargetConfig,
+      ),
     ];
 
     return updateTransactions;
@@ -272,5 +280,18 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     );
 
     return updateTransactions;
+  }
+
+  private createOwnershipUpdateTxs(
+    actualConfig: TokenFeeConfig,
+    expectedConfig: TokenFeeConfig,
+  ): AnnotatedEV5Transaction[] {
+    return transferOwnershipTransactions(
+      this.multiProvider.getEvmChainId(this.args.chain),
+      this.args.addresses.deployedFee,
+      actualConfig,
+      expectedConfig,
+      `${expectedConfig.type} Warp Route`,
+    );
   }
 }

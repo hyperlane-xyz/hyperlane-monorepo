@@ -7,6 +7,7 @@ import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { randomAddress } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
@@ -195,6 +196,24 @@ describe('EvmTokenFeeModule', () => {
       await expectTxsAndUpdate(module, updatedConfig, 1, {
         routingDestinations: [multiProvider.getDomainId(test4Chain)],
       });
+    });
+
+    it('should transfer ownership if they are different', async () => {
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config,
+      });
+      let txs = await module.update({ ...config, owner: config.owner });
+      expect(txs).to.have.lengthOf(0);
+
+      const newOwner = randomAddress();
+      txs = await module.update({ ...config, owner: newOwner });
+      expect(txs).to.have.lengthOf(1);
+      const onchainConfig = (await module.read()) as LinearFeeConfig;
+      expect(normalizeConfig(onchainConfig).owner).to.equal(
+        normalizeConfig(newOwner),
+      );
     });
   });
 });
