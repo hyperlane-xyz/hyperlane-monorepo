@@ -13,7 +13,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
-import { ReaderParams } from './EvmTokenFeeReader.js';
+import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
 import {
   LinearFeeConfig,
   RoutingFeeConfig,
@@ -51,7 +51,7 @@ describe('EvmTokenFeeModule', () => {
     feeModule: EvmTokenFeeModule,
     config: TokenFeeConfig,
     n: number,
-    params?: Partial<ReaderParams>,
+    params?: Partial<TokenFeeReaderParams>,
   ) {
     const txs = await feeModule.update(config, params);
     expect(txs.length).to.equal(n);

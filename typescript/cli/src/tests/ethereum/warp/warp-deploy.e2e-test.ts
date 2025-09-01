@@ -22,10 +22,12 @@ import {
   HookType,
   IsmConfig,
   IsmType,
+  TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
   normalizeConfig,
   randomAddress,
@@ -72,12 +74,15 @@ const WARP_CORE_CONFIG_PATH_2_3 = GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
   'VAULT',
 );
 
-function extractInputOnlyFields(config: any): any {
+function extractInputOnlyFields(config: TokenFeeConfigInput): any {
   if (!config) return config;
 
   switch (config.type) {
     case TokenFeeType.LinearFee:
-      return _.pick(config, ['type', 'bps']);
+      return {
+        type: config.type,
+        bps: config.bps.toString(), // Convert to string for consistent comparison
+      };
     case TokenFeeType.RoutingFee:
       return {
         type: config.type,
@@ -972,16 +977,17 @@ describe('hyperlane warp deploy e2e tests', async function () {
             await tokenChain2.symbol(),
           );
 
-        const collateralConfig: any = (
+        const collateralConfig: WarpRouteDeployConfigMailboxRequired =
           await readWarpConfig(
             CHAIN_NAME_2,
             COMBINED_WARP_CORE_CONFIG_PATH,
             WARP_DEPLOY_OUTPUT_PATH,
-          )
-        )[CHAIN_NAME_2];
+          );
 
-        expect(extractInputOnlyFields(collateralConfig.tokenFee)).to.deep.equal(
-          extractInputOnlyFields(tokenFee),
+        expect(
+          extractInputOnlyFields(collateralConfig[CHAIN_NAME_2].tokenFee!),
+        ).to.deep.equal(
+          extractInputOnlyFields(warpConfig[CHAIN_NAME_2].tokenFee!),
         );
       });
     }

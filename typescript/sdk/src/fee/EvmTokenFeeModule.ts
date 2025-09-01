@@ -28,7 +28,7 @@ import {
   DerivedRoutingFeeConfig,
   DerivedTokenFeeConfig,
   EvmTokenFeeReader,
-  ReaderParams,
+  TokenFeeReaderParams,
 } from './EvmTokenFeeReader.js';
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
@@ -181,7 +181,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     return deployer.deploy({ [params.chainName]: params.config });
   }
 
-  async read(params?: Partial<ReaderParams>): Promise<DerivedTokenFeeConfig> {
+  async read(
+    params?: Partial<TokenFeeReaderParams>,
+  ): Promise<DerivedTokenFeeConfig> {
     const address = params?.address ?? this.args.addresses.deployedFee;
     const routingDestinations = params?.routingDestinations ?? [];
 
@@ -193,7 +195,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
   async update(
     targetConfig: TokenFeeConfigInput,
-    params?: Partial<ReaderParams>,
+    params?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
     let updateTransactions: AnnotatedEV5Transaction[] = [];
 

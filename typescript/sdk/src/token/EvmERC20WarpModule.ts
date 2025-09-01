@@ -46,6 +46,7 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ExplorerLicenseType } from '../deploy/verify/types.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
+import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -141,6 +142,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    */
   async update(
     expectedConfig: HypTokenRouterConfig,
+    tokenReaderParams?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
@@ -159,7 +161,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       )),
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
-      ...(await this.createTokenFeeUpdateTxs(actualConfig, expectedConfig)),
+      ...(await this.createTokenFeeUpdateTxs(
+        actualConfig,
+        expectedConfig,
+        tokenReaderParams,
+      )),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
         actualConfig,
@@ -710,6 +716,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   async createTokenFeeUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
+    tokenReaderParams?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
     // If no token fee is expected, return empty array
     if (!expectedConfig.tokenFee) {
@@ -769,6 +776,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     const updateTransactions = await tokenFeeModule.update(
       expectedConfig.tokenFee,
+      tokenReaderParams,
     );
     const { deployedFee } = tokenFeeModule.serialize();
     updateTransactions.push({
