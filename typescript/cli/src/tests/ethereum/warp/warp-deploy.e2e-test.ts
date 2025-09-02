@@ -958,7 +958,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         bps: 1,
       },
     ]) {
-      it(`should deploy a ${tokenFee.type} tokenFee`, async () => {
+      it(`should deploy ${tokenFee.type} tokenFee`, async () => {
         const warpConfig = WarpRouteDeployConfigSchema.parse({
           [CHAIN_NAME_2]: {
             type: TokenType.collateral,
