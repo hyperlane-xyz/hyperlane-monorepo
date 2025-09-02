@@ -10,6 +10,7 @@ use tokio::sync::broadcast::Sender;
 use hyperlane_base::db::HyperlaneRocksDB;
 use tokio::sync::RwLock;
 
+use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::server::environment_variable::EnvironmentVariableApi;
@@ -21,6 +22,7 @@ pub mod igp;
 pub mod merkle_tree_insertions;
 pub mod messages;
 pub mod operations;
+pub mod proofs;
 
 #[derive(new)]
 pub struct Server {
@@ -33,6 +35,8 @@ pub struct Server {
     dbs: Option<HashMap<u32, HyperlaneRocksDB>>,
     #[new(default)]
     gas_enforcers: Option<HashMap<HyperlaneDomain, Arc<RwLock<GasPaymentEnforcer>>>>,
+    #[new(default)]
+    prover_sync: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
 }
 
 impl Server {
@@ -59,6 +63,14 @@ impl Server {
         gas_enforcers: HashMap<HyperlaneDomain, Arc<RwLock<GasPaymentEnforcer>>>,
     ) -> Self {
         self.gas_enforcers = Some(gas_enforcers);
+        self
+    }
+
+    pub fn with_prover_sync(
+        mut self,
+        prover_sync: HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>,
+    ) -> Self {
+        self.prover_sync = Some(prover_sync);
         self
     }
 
