@@ -238,8 +238,6 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       });
       this.args.addresses.deployedFee =
         contracts[this.chainName][normalizedTargetConfig.type].address;
-
-      return [];
     }
 
     // if the type is a mutable (for now, only routing fee), then update
