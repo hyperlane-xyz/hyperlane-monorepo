@@ -6,6 +6,7 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  eqAddress,
   isZeroishAddress,
   objMap,
   objMerge,
