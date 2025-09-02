@@ -232,7 +232,7 @@ describe('EvmTokenFeeModule', () => {
       );
     });
 
-    it.only('should transfer ownership for each routing sub fee', async () => {
+    it('should transfer ownership for each routing sub fee', async () => {
       const feeContracts = {
         [test4Chain]: config,
       };
