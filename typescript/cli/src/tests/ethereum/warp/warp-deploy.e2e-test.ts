@@ -107,6 +107,7 @@ function extractInputOnlyFields(config: TokenFeeConfigInput): any {
 describe('hyperlane warp deploy e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
+  let chain2Metadata: ChainMetadata;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let chain3DomainId: number;
@@ -116,7 +117,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
   let providerChain2: JsonRpcProvider;
 
   before(async function () {
-    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     ownerAddress = walletChain2.address;
@@ -992,6 +993,52 @@ describe('hyperlane warp deploy e2e tests', async function () {
           extractInputOnlyFields(collateralConfig[CHAIN_NAME_2].tokenFee!),
         ).to.deep.equal(
           extractInputOnlyFields(warpConfig[CHAIN_NAME_2].tokenFee!),
+        );
+      });
+
+      it.only(`should deploy a native ${tokenFee.type}`, async () => {
+        const warpConfig = WarpRouteDeployConfigSchema.parse({
+          [CHAIN_NAME_2]: {
+            type: TokenType.native,
+            token: tokenChain2.address,
+            owner: ownerAddress,
+            tokenFee: {
+              ...tokenFee,
+              maxFee: 10_000,
+              halfAmount: 5_000,
+              bps: 10_000,
+            },
+          },
+          [CHAIN_NAME_3]: {
+            type: TokenType.synthetic,
+            owner: ownerAddress,
+          },
+        });
+
+        writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+        await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+        const COMBINED_WARP_CORE_CONFIG_PATH =
+          GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+            WARP_DEPLOY_OUTPUT_PATH,
+            chain2Metadata.nativeToken?.symbol!,
+          );
+
+        const collateralConfig: WarpRouteDeployConfigMailboxRequired =
+          await readWarpConfig(
+            CHAIN_NAME_2,
+            COMBINED_WARP_CORE_CONFIG_PATH,
+            WARP_DEPLOY_OUTPUT_PATH,
+          );
+
+        expect(
+          extractInputOnlyFields(
+            extractInputOnlyFields(collateralConfig[CHAIN_NAME_2].tokenFee!),
+          ),
+        ).to.deep.equal(
+          extractInputOnlyFields(
+            extractInputOnlyFields(warpConfig[CHAIN_NAME_2].tokenFee!),
+          ),
         );
       });
     }
