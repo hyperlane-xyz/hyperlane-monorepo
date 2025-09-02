@@ -3,7 +3,6 @@ import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
 import fs from 'fs';
-import _ from 'lodash';
 import path from 'path';
 
 import {
@@ -32,7 +31,12 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, normalizeAddressEvm, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  normalizeAddressEvm,
+  objMap,
+  pick,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
@@ -94,7 +98,7 @@ function extractInputOnlyFields(config: TokenFeeConfigInput): any {
       };
     case TokenFeeType.ProgressiveFee:
     case TokenFeeType.RegressiveFee:
-      return _.pick(config, ['type']);
+      return pick(config, ['type']);
     default:
       return config;
   }

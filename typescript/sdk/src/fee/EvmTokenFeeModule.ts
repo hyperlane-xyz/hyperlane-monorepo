@@ -1,5 +1,4 @@
 import { constants } from 'ethers';
-import _ from 'lodash';
 
 import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
@@ -8,6 +7,8 @@ import {
   deepEquals,
   eqAddress,
   objMap,
+  objMerge,
+  objOmit,
   promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -222,8 +223,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
     // Redeploy immutable fee types, if owner is the same, but the rest of the config is different
     const nonOwnerDiffers = !deepEquals(
-      _.omit(normalizedActualConfig, ['owner']),
-      _.omit(normalizedTargetConfig, ['owner']),
+      objOmit(normalizedActualConfig, ['owner']),
+      objOmit(normalizedTargetConfig, ['owner']),
     );
     if (
       ImmutableTokenFeeType.includes(
@@ -249,7 +250,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     // if the type is a mutable (for now, only routing fee), then update
     updateTransactions = [
       ...(await this.updateRoutingFee(
-        _.merge(
+        objMerge(
           actualConfig,
           normalizedTargetConfig,
         ) as DerivedRoutingFeeConfig,
