@@ -171,7 +171,7 @@ describe('EvmTokenFeeModule', () => {
         config,
       });
       const updatedConfig = { ...config, bps: BPS + 1n };
-      await module.update(updatedConfig);
+      await expectTxsAndUpdate(module, updatedConfig, 0);
       const onchainConfig = await module.read();
       assert(
         onchainConfig.type === TokenFeeType.LinearFee,
@@ -216,12 +216,9 @@ describe('EvmTokenFeeModule', () => {
         chain: test4Chain,
         config,
       });
-      let txs = await module.update({ ...config, owner: config.owner });
-      expect(txs).to.have.lengthOf(0);
-
+      await expectTxsAndUpdate(module, { ...config, owner: config.owner }, 0);
       const newOwner = randomAddress();
-      txs = await module.update({ ...config, owner: newOwner });
-      expect(txs).to.have.lengthOf(1);
+      await expectTxsAndUpdate(module, { ...config, owner: newOwner }, 1);
       const onchainConfig = await module.read();
       assert(
         onchainConfig.type === TokenFeeType.LinearFee,

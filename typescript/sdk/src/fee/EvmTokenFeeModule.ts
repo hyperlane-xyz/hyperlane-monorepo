@@ -221,11 +221,15 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     }
 
     // Redeploy immutable fee types, if owner is the same, but the rest of the config is different
+    const nonOwnerDiffers = !deepEquals(
+      _.omit(normalizedActualConfig, ['owner']),
+      _.omit(normalizedTargetConfig, ['owner']),
+    );
     if (
-      eqAddress(normalizedActualConfig.owner, normalizedTargetConfig.owner) &&
       ImmutableTokenFeeType.includes(
         normalizedTargetConfig.type as (typeof ImmutableTokenFeeType)[number],
-      )
+      ) &&
+      nonOwnerDiffers
     ) {
       this.logger.info(
         `Immutable fee type ${normalizedTargetConfig.type}, redeploying`,
@@ -238,6 +242,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       });
       this.args.addresses.deployedFee =
         contracts[this.chainName][normalizedTargetConfig.type].address;
+
+      return [];
     }
 
     // if the type is a mutable (for now, only routing fee), then update
