@@ -15,7 +15,6 @@ import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
 import {
-  LinearFeeConfig,
   RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeConfigInput,
@@ -79,7 +78,11 @@ describe('EvmTokenFeeModule', () => {
       chain: test4Chain,
       config,
     });
-    const onchainConfig = (await module.read()) as LinearFeeConfig;
+    const onchainConfig = await module.read();
+    assert(
+      onchainConfig.type === TokenFeeType.LinearFee,
+      `Must be ${TokenFeeType.LinearFee}`,
+    );
     assert(
       onchainConfig.type === TokenFeeType.LinearFee,
       `Must be ${TokenFeeType.LinearFee}`,
@@ -169,7 +172,11 @@ describe('EvmTokenFeeModule', () => {
       });
       const updatedConfig = { ...config, bps: BPS + 1n };
       await module.update(updatedConfig);
-      const onchainConfig = (await module.read()) as LinearFeeConfig;
+      const onchainConfig = await module.read();
+      assert(
+        onchainConfig.type === TokenFeeType.LinearFee,
+        `Must be ${TokenFeeType.LinearFee}`,
+      );
       expect(onchainConfig.bps).to.eql(updatedConfig.bps);
     });
 
@@ -215,7 +222,11 @@ describe('EvmTokenFeeModule', () => {
       const newOwner = randomAddress();
       txs = await module.update({ ...config, owner: newOwner });
       expect(txs).to.have.lengthOf(1);
-      const onchainConfig = (await module.read()) as LinearFeeConfig;
+      const onchainConfig = await module.read();
+      assert(
+        onchainConfig.type === TokenFeeType.LinearFee,
+        `Must be ${TokenFeeType.LinearFee}`,
+      );
       expect(normalizeConfig(onchainConfig).owner).to.equal(
         normalizeConfig(newOwner),
       );
