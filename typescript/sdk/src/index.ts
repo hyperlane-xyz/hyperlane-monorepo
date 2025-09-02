@@ -1,4 +1,10 @@
 export {
+  DerivedRoutingFeeConfig,
+  DerivedTokenFeeConfig,
+  EvmTokenFeeReader,
+} from './fee/EvmTokenFeeReader.js';
+
+export {
   isAddressActive,
   isContractAddress,
   assertIsContractAddress,
