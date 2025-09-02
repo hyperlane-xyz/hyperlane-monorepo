@@ -147,7 +147,7 @@ impl Encode for NonceAndSignerAddress {
         let (nonce, address) = (self.0, SignerAddress(self.1));
 
         let mut written = nonce.write_to(writer)?;
-        written += address.write_to(writer)?;
+        written = written.saturating_add(address.write_to(writer)?);
         Ok(written)
     }
 }

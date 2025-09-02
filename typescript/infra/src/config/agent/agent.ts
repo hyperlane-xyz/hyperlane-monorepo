@@ -127,11 +127,17 @@ export type StarknetKeyConfig = {
   type: AgentSignerKeyType.Starknet;
   legacy: boolean;
 };
+// Radix key config
+export type RadixKeyConfig = {
+  type: AgentSignerKeyType.Radix;
+  suffix: string;
+};
 export type KeyConfig =
   | AwsKeyConfig
   | HexKeyConfig
   | CosmosKeyConfig
-  | StarknetKeyConfig;
+  | StarknetKeyConfig
+  | RadixKeyConfig;
 interface IndexingConfig {
   from: number;
   chunk: number;
@@ -243,6 +249,20 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
         );
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
+    case ProtocolType.Radix:
+      // get the suffix based on the chain id
+      let suffix: string;
+      switch (metadata.chainId) {
+        case 240: // localnet
+          suffix = 'loc';
+          break;
+        case 2: // stokenet
+          suffix = 'tdx_2_';
+          break;
+        default: // mainnet
+          suffix = 'rdx';
+      }
+      return { type: AgentSignerKeyType.Radix, suffix: suffix };
     // Use starknet key for starknet & paradexsepolia
     case ProtocolType.Starknet: {
       return { type: AgentSignerKeyType.Starknet, legacy: false };

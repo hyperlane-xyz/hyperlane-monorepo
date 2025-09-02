@@ -47,6 +47,10 @@
     "amount": "0.001",
     "decimals": 1
   },
+  "celosepolia": {
+    "amount": "25.001",
+    "decimals": 9
+  },
   "chronicleyellowstone": {
     "amount": "0.01",
     "decimals": 9
@@ -89,6 +93,10 @@
   },
   "hyperliquidevmtestnet": {
     "amount": "0.1",
+    "decimals": 9
+  },
+  "incentivtestnet": {
+    "amount": "1.000000007",
     "decimals": 9
   },
   "infinityvmmonza": {
@@ -146,6 +154,10 @@
   "polygonamoy": {
     "amount": "56.551052651",
     "decimals": 9
+  },
+  "radixtestnet": {
+    "amount": "50.0",
+    "decimals": 6
   },
   "scrollsepolia": {
     "amount": "0.015680115",

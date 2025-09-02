@@ -85,6 +85,7 @@ export const blacklistedMessageIds = [
   '0xd48b8599f52e75d43916a7d1ec9512c98c5025394bc4983bf7c6309744758b9e',
   '0x4f984fb0312da11f55b931a809563072bd8a46d44da0e42dfce40a9ccf1b97f2',
   '0x50b8a9b21a4a2c980db8232d819cab72fe04707e39fc1b78ef5e583a44c412cf',
+  '0x9ceacfacc3264f45dce5a02475ea5bda33c5cff023d91431a8cae3dc35fc31c3',
 
   // Messages to a recipient that Neutron doesn't seem to allow
   '0x70be30b4f21cfe4dbb05c0c22601c6b4c9cf4a2a73727331dbbb6404d7566e1f',
@@ -171,4 +172,7 @@ export const blacklistedMessageIds = [
   // Superseed dest:
   // 7/1/2025
   '0x84c7565f1f0b0fc7b5571c86e9f23187d4078779f607b13f73c6016efcf90bc4',
+  // Paradex USDC:
+  // 8/27/2025
+  '0x151135eda5f04110084c6673d23f041d9141a50bdb02de028e32fe7f4e14e7c2',
 ];

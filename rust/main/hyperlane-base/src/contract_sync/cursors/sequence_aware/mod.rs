@@ -42,7 +42,7 @@ impl LastIndexedSnapshot {
     fn next_target(&self) -> TargetSnapshot {
         TargetSnapshot {
             // If we haven't indexed anything yet, we start at 0, otherwise we increment.
-            sequence: self.sequence.map(|s| s + 1).unwrap_or(0),
+            sequence: self.sequence.map(|s| s.saturating_add(1)).unwrap_or(0),
             at_block: self.at_block,
         }
     }

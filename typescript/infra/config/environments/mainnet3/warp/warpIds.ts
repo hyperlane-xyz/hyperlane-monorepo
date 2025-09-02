@@ -87,6 +87,7 @@ export enum WarpRouteIds {
   ArbitrumBaseEthereumLumiaprismOptimismPolygonETH = 'ETH/arbitrum-base-ethereum-lumiaprism-optimism-polygon',
   BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
   BscHyperevmSTBTC = 'stBTC/bsc-hyperevm',
+  MitosisMITO = 'MITO/mitosis',
   // Soon Routes
   SolanaSoonAi16z = 'ai16z/solanamainnet-soon',
   SolanaSoonELIZA = 'ELIZA/solanamainnet-soon',
@@ -101,6 +102,8 @@ export enum WarpRouteIds {
   LumiaUSDC = 'USDC/lumia',
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
+
+  SonicSVMMoney = 'MONEY/sonicsvm',
 
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
