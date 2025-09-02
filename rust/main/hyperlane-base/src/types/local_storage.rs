@@ -79,8 +79,16 @@ impl CheckpointSyncer for LocalStorage {
     }
 
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
-        let Ok(data) = tokio::fs::read(self.checkpoint_file_path(index)).await else {
-            return Ok(None);
+        let checkpoint_file = self.checkpoint_file_path(index);
+        let data = match tokio::fs::read(&checkpoint_file).await {
+            Ok(data) => data,
+            Err(error) => {
+                tracing::debug!(
+                    ?error,
+                    path = ?checkpoint_file.display(),
+                    "Failed to read checkpoint");
+                return Ok(None);
+            }
         };
         let checkpoint = serde_json::from_slice(&data)?;
         Ok(Some(checkpoint))
@@ -130,8 +138,16 @@ impl CheckpointSyncer for LocalStorage {
     }
 
     async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        let Ok(data) = tokio::fs::read(self.reorg_flag_path()).await else {
-            return Ok(None);
+        let reorg_flag = self.reorg_flag_path();
+        let data = match tokio::fs::read(&reorg_flag).await {
+            Ok(data) => data,
+            Err(error) => {
+                tracing::debug!(
+                    ?error,
+                    path = ?reorg_flag.display(),
+                    "Failed to read reorg status");
+                return Ok(None);
+            }
         };
         let reorg = serde_json::from_slice(&data)?;
         Ok(Some(reorg))
