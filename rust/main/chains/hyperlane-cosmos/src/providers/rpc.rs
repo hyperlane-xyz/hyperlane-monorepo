@@ -23,6 +23,7 @@ use cosmrs::{
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
     Any, Coin,
 };
+use protobuf::Message as _;
 use tonic::async_trait;
 use url::Url;
 
@@ -320,6 +321,36 @@ impl RpcProvider {
             .ok_or(ChainCommunicationError::SignerUnavailable)
     }
 
+    /// Injective uses custom proto type for account info.
+    /// Decode the BaseAccount with the injective proto - which is different to the default one
+    async fn get_injective_account(
+        &self,
+        response: QueryAccountResponse,
+    ) -> ChainResult<BaseAccount> {
+        // Injective uses custom proto type for account info. The account must exist in auth module
+        let mut eth_account = injective_protobuf::proto::account::EthAccount::parse_from_bytes(
+            response
+                .account
+                .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
+                .value
+                .as_slice(),
+        )
+        .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+        let base_account = eth_account.take_base_account();
+        let pub_key = base_account.pub_key.into_option();
+
+        Ok(BaseAccount {
+            address: base_account.address,
+            pub_key: pub_key.map(|pub_key| Any {
+                type_url: pub_key.type_url,
+                value: pub_key.value,
+            }),
+            account_number: base_account.account_number,
+            sequence: base_account.sequence,
+        })
+    }
+
     async fn get_account(&self, address: String) -> ChainResult<BaseAccount> {
         let response: QueryAccountResponse = self
             .abci_query(
@@ -327,15 +358,24 @@ impl RpcProvider {
                 QueryAccountRequest { address },
             )
             .await?;
+
+        // Try to decode as a standard base account, and if that fails, try Injective-specific format
         let account = BaseAccount::decode(
             response
+                .clone()
                 .account
                 .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
                 .value
                 .as_slice(),
         )
-        .map_err(HyperlaneCosmosError::from)?;
-        Ok(account)
+        .map_err(HyperlaneCosmosError::from);
+
+        // If standard decoding fails, try Injective format
+        if account.is_err() {
+            return self.get_injective_account(response).await;
+        }
+
+        Ok(account?)
     }
 
     /// Get the gas price
