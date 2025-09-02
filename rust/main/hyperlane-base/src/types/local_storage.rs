@@ -85,7 +85,7 @@ impl CheckpointSyncer for LocalStorage {
             Err(error) => {
                 tracing::debug!(
                     ?error,
-                    path = ?checkpoint_file.display(),
+                    path = %checkpoint_file.display(),
                     "Failed to read checkpoint");
                 return Ok(None);
             }
@@ -144,7 +144,7 @@ impl CheckpointSyncer for LocalStorage {
             Err(error) => {
                 tracing::debug!(
                     ?error,
-                    path = ?reorg_flag.display(),
+                    path = %reorg_flag.display(),
                     "Failed to read reorg status");
                 return Ok(None);
             }
