@@ -186,7 +186,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     params?: Partial<TokenFeeReaderParams>,
   ): Promise<DerivedTokenFeeConfig> {
     const address = params?.address ?? this.args.addresses.deployedFee;
-    const routingDestinations = params?.routingDestinations ?? [];
+    const routingDestinations = params?.routingDestinations;
 
     return this.reader.deriveTokenFeeConfig({
       address: address,
