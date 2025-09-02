@@ -231,5 +231,49 @@ describe('EvmTokenFeeModule', () => {
         normalizeConfig(newOwner),
       );
     });
+
+    it.only('should transfer ownership for each routing sub fee', async () => {
+      const feeContracts = {
+        [test4Chain]: config,
+      };
+      const routingFeeConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: feeContracts,
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: routingFeeConfig,
+      });
+
+      const newOwner = normalizeConfig(randomAddress());
+      await expectTxsAndUpdate(
+        module,
+        {
+          ...routingFeeConfig,
+          owner: newOwner,
+          feeContracts: {
+            [test4Chain]: { ...feeContracts[test4Chain], owner: newOwner },
+          },
+        },
+        2,
+        {
+          routingDestinations: [multiProvider.getDomainId(test4Chain)],
+        },
+      );
+      const onchainConfig = await module.read({
+        routingDestinations: [multiProvider.getDomainId(test4Chain)],
+      });
+      assert(
+        onchainConfig.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      expect(normalizeConfig(onchainConfig).owner).to.equal(newOwner);
+      expect(
+        normalizeConfig(onchainConfig.feeContracts?.[test4Chain]).owner,
+      ).to.equal(newOwner);
+    });
   });
 });

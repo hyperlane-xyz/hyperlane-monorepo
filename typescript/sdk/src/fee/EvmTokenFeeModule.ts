@@ -6,6 +6,7 @@ import {
   Address,
   ProtocolType,
   deepEquals,
+  eqAddress,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -219,8 +220,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       return [];
     }
 
-    // if the type is a immutable type, then redeploy
+    // Redeploy immutable fee types, if owner is the same, but the rest of the config is different
     if (
+      eqAddress(normalizedActualConfig.owner, normalizedTargetConfig.owner) &&
       ImmutableTokenFeeType.includes(
         normalizedTargetConfig.type as (typeof ImmutableTokenFeeType)[number],
       )
@@ -236,9 +238,11 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       });
       this.args.addresses.deployedFee =
         contracts[this.chainName][normalizedTargetConfig.type].address;
+
+      return [];
     }
 
-    // if the type is a mutable type, then update
+    // if the type is a mutable (for now, only routing fee), then update
     updateTransactions = [
       ...(await this.updateRoutingFee(
         _.merge(
@@ -267,7 +271,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           this.multiProvider,
           {
             addresses: {
-              deployedFee: constants.AddressZero,
+              deployedFee: address,
             },
             chain: this.chainName,
             config,
@@ -280,15 +284,20 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         const { deployedFee: deployedSubFee } = subFeeModule.serialize();
 
         updateTransactions.push(...subFeeUpdateTransactions);
-        updateTransactions.push({
-          annotation: 'Updating routing fee...',
-          chainId: this.chainId,
-          to: currentRoutingAddress,
-          data: RoutingFee__factory.createInterface().encodeFunctionData(
-            'setFeeContract(uint32,address)',
-            [this.multiProvider.getDomainId(chainName), deployedSubFee],
-          ),
-        });
+
+        if (!eqAddress(deployedSubFee, address)) {
+          const annotation = `Sub fee contract redeployed. Updating contract for ${chainName} to ${deployedSubFee}`;
+          this.logger.debug(annotation);
+          updateTransactions.push({
+            annotation: annotation,
+            chainId: this.chainId,
+            to: currentRoutingAddress,
+            data: RoutingFee__factory.createInterface().encodeFunctionData(
+              'setFeeContract(uint32,address)',
+              [this.multiProvider.getDomainId(chainName), deployedSubFee],
+            ),
+          });
+        }
       }),
     );
 
