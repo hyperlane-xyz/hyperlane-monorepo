@@ -237,6 +237,7 @@ impl CwQueryClient {
 mod test {
     use std::str::FromStr;
 
+    use cometbft_rpc::client::CompatMode;
     use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
     use url::Url;
 
@@ -259,7 +260,6 @@ mod test {
         let result = provider
             .wasm_contract_info(provider.contract_address.address())
             .await;
-
         // then
         assert!(result.is_ok());
 
@@ -312,7 +312,9 @@ mod test {
                 denom: "untrn".to_owned(),
             },
             1.4f64,
-        );
+            None,
+        )
+        .unwrap();
 
         let grpc = GrpcProvider::new(&conf, PrometheusClientMetrics::default(), None).unwrap();
 

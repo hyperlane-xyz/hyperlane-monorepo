@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use cometbft_rpc::client::CompatMode;
 use derive_new::new;
 use url::Url;
 
@@ -34,6 +35,9 @@ pub struct ConnectionConf {
     native_token: NativeToken,
     /// Gas Multiplier
     gas_multiplier: f64,
+    /// RPC Compatability Mode
+    /// This is useful to support different tendermin/cometbft spec versions
+    pub compat_mode: CompatMode,
 }
 
 /// Untyped cosmos amount
@@ -143,8 +147,13 @@ impl ConnectionConf {
         op_submission_config: OpSubmissionConfig,
         native_token: NativeToken,
         gas_multiplier: f64,
-    ) -> Self {
-        Self {
+        compat_mode: Option<&str>,
+    ) -> Result<Self, String> {
+        let compat_mode = compat_mode
+            .map(|s| CompatMode::from_str(s).map_err(|e| e.to_string()))
+            .transpose()?
+            .unwrap_or_default();
+        Ok(Self {
             grpc_urls,
             rpc_urls,
             chain_id,
@@ -155,6 +164,7 @@ impl ConnectionConf {
             op_submission_config,
             native_token,
             gas_multiplier,
-        }
+            compat_mode,
+        })
     }
 }

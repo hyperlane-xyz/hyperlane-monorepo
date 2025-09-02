@@ -93,6 +93,7 @@ impl CosmosHttpClient {
         url: &Url,
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
+        compat_mode: CompatMode,
     ) -> ChainResult<Self> {
         let tendermint_url = cometbft_rpc::Url::try_from(url.to_owned())
             .map_err(Box::new)
@@ -102,8 +103,7 @@ impl CosmosHttpClient {
             .map_err(ChainCommunicationError::from_other)?;
 
         let client = HttpClient::builder(url)
-            // Consider supporting different compatibility modes.
-            .compat_mode(CompatMode::V0_37)
+            .compat_mode(compat_mode)
             .build()
             .map_err(Box::new)
             .map_err(ChainCommunicationError::from_other)?;
@@ -148,7 +148,7 @@ impl RpcProvider {
             .map(|url| {
                 let metrics_config =
                     PrometheusConfig::from_url(url, ClientConnectionType::Rpc, chain.clone());
-                CosmosHttpClient::from_url(url, metrics.clone(), metrics_config)
+                CosmosHttpClient::from_url(url, metrics.clone(), metrics_config, conf.compat_mode)
             })
             .collect::<Result<Vec<_>, _>>()?;
 

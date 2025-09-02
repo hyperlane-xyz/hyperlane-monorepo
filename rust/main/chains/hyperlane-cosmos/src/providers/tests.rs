@@ -1327,7 +1327,9 @@ async fn test_fallback_provider() {
         node: None,
         chain: None,
     };
-    let rpc_client = CosmosHttpClient::from_url(&url, metrics.clone(), metrics_config).unwrap();
+    let rpc_client =
+        CosmosHttpClient::from_url(&url, metrics.clone(), metrics_config, CompatMode::latest())
+            .unwrap();
     let providers = [rpc_client];
 
     let provider = RpcProvider::from_providers(
@@ -1346,7 +1348,9 @@ async fn test_fallback_provider() {
             OpSubmissionConfig::default(),
             NativeToken::default(),
             1.0f64,
-        ),
+            None,
+        )
+        .unwrap(),
         None,
         CosmosAmount {
             denom: "".into(),

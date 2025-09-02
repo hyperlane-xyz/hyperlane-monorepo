@@ -187,6 +187,12 @@ pub fn build_cosmos_connection_conf(
         .end()
         .unwrap_or(1.35);
 
+    let compat_mode = chain
+        .chain(err)
+        .get_opt_key("compatMode")
+        .parse_string()
+        .end();
+
     if !local_err.is_ok() {
         err.merge(local_err);
         return None;
@@ -217,7 +223,15 @@ pub fn build_cosmos_connection_conf(
         operation_batch,
         native_token,
         gas_multiplier,
+        compat_mode,
     );
+
+    if config.is_err() {
+        err.push((&chain.cwp).add("compatMode"), eyre!(config.unwrap_err()));
+        return None;
+    }
+
+    let config = config.unwrap();
     match protocol {
         HyperlaneDomainProtocol::Cosmos => Some(ChainConnectionConf::Cosmos(config)),
         HyperlaneDomainProtocol::CosmosNative => Some(ChainConnectionConf::CosmosNative(config)),
