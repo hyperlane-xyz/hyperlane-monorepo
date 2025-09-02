@@ -1,9 +1,4 @@
-import {
-  ChainMap,
-  CollateralTokenConfig,
-  HypTokenRouterConfig,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import {
   RouterConfigWithoutOwner,
@@ -27,13 +22,6 @@ const owners: RouteConfig<string> = {
   matchain: '0x485f48CdCc2F27ACE7B4BE6398ef1dD5002b65F5',
 };
 
-const usdcTokenAddresses: RouteConfig<string> = {
-  base: tokens.base.USDC,
-  bsc: tokens.bsc.USDC,
-  ethereum: tokens.ethereum.USDC,
-  matchain: '0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7', // Not in common tokens yet
-};
-
 const decimals: RouteConfig<number> = {
   base: 6,
   bsc: 18,
@@ -55,47 +43,41 @@ function tokenConfig(decimals: number) {
   };
 }
 
-const chainConfigs: RouteConfig<CollateralTokenConfig> = {
-  matchain: {
-    type: TokenType.collateralFiat,
-    token: usdcTokenAddresses.matchain,
-    ...tokenConfig(decimals.matchain),
-  },
-  base: {
-    type: TokenType.collateral,
-    token: usdcTokenAddresses.base,
-    ...tokenConfig(decimals.base),
-  },
-  ethereum: {
-    type: TokenType.collateral,
-    token: usdcTokenAddresses.ethereum,
-    ...tokenConfig(decimals.ethereum),
-  },
-  bsc: {
-    type: TokenType.collateral,
-    token: usdcTokenAddresses.bsc,
-    ...tokenConfig(decimals.bsc),
-  },
-};
-
-export const getMatchainUSDCWarpConfig = async (
+export async function getMatchainUSDCWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  return Object.fromEntries(
-    Object.entries(chainConfigs).map(
-      ([chain, config]): [RouteChains, HypTokenRouterConfig] => {
-        return [
-          chain as RouteChains,
-          {
-            ...routerConfig[chain],
-            owner: owners[chain as RouteChains],
-            ...config,
-          },
-        ];
-      },
-    ),
-  );
-};
+): Promise<ChainMap<HypTokenRouterConfig>> {
+  const config: RouteConfig<HypTokenRouterConfig> = {
+    matchain: {
+      ...routerConfig.matchain,
+      owner: owners.matchain,
+      type: TokenType.collateralFiat,
+      token: '0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7', // Not in common tokens yet
+      ...tokenConfig(decimals.matchain),
+    },
+    base: {
+      ...routerConfig.base,
+      owner: owners.base,
+      type: TokenType.collateral,
+      token: tokens.base.USDC,
+      ...tokenConfig(decimals.base),
+    },
+    bsc: {
+      ...routerConfig.bsc,
+      owner: owners.bsc,
+      type: TokenType.collateral,
+      token: tokens.bsc.USDC,
+      ...tokenConfig(decimals.bsc),
+    },
+    ethereum: {
+      ...routerConfig.ethereum,
+      owner: owners.ethereum,
+      type: TokenType.collateral,
+      token: tokens.ethereum.USDC,
+      ...tokenConfig(decimals.ethereum),
+    },
+  };
+  return config as Record<RouteChains, HypTokenRouterConfig>;
+}
 
 export const getMatchainUSDCStrategyConfig =
   getGnosisSafeBuilderStrategyConfigGenerator(
