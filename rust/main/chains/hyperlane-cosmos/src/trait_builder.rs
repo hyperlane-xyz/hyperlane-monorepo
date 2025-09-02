@@ -35,7 +35,7 @@ pub struct ConnectionConf {
     native_token: NativeToken,
     /// Gas Multiplier
     gas_multiplier: f64,
-    /// RPC Compatability Mode
+    /// RPC Compatibility Mode
     /// This is useful to support different tendermin/cometbft spec versions
     pub compat_mode: CompatMode,
 }

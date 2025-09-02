@@ -226,16 +226,18 @@ pub fn build_cosmos_connection_conf(
         compat_mode,
     );
 
-    if config.is_err() {
-        err.push((&chain.cwp).add("compatMode"), eyre!(config.unwrap_err()));
-        return None;
-    }
-
-    let config = config.unwrap();
-    match protocol {
-        HyperlaneDomainProtocol::Cosmos => Some(ChainConnectionConf::Cosmos(config)),
-        HyperlaneDomainProtocol::CosmosNative => Some(ChainConnectionConf::CosmosNative(config)),
-        _ => None,
+    match config {
+        Err(e) => {
+            err.push((&chain.cwp).add("compatMode"), eyre!(e));
+            None
+        }
+        Ok(config) => match protocol {
+            HyperlaneDomainProtocol::Cosmos => Some(ChainConnectionConf::Cosmos(config)),
+            HyperlaneDomainProtocol::CosmosNative => {
+                Some(ChainConnectionConf::CosmosNative(config))
+            }
+            _ => None,
+        },
     }
 }
 
