@@ -3257,7 +3257,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 2,
-        "reorgPeriod": 45
+        "reorgPeriod": 21600
       },
       "chainId": 48900,
       "deployer": {
@@ -9082,7 +9082,15 @@
       "index": {
         "chunk": 1000,
         "from": 127654
-      }
+      },
+      "blockExplorers": [
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/124816/etherscan/api",
+          "family": "routescan",
+          "name": "Mitosis Explorer",
+          "url": "https://mitoscan.io/"
+        }
+      ]
     },
     "radix": {
       "bech32Prefix": "account_rdx",
