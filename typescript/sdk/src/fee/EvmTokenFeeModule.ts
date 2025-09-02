@@ -223,8 +223,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
     // Redeploy immutable fee types, if owner is the same, but the rest of the config is different
     const nonOwnerDiffers = !deepEquals(
-      objOmit(normalizedActualConfig, ['owner']),
-      objOmit(normalizedTargetConfig, ['owner']),
+      objOmit(normalizedActualConfig, { owner: true }),
+      objOmit(normalizedTargetConfig, { owner: true }),
     );
     if (
       ImmutableTokenFeeType.includes(
@@ -253,6 +253,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         objMerge(
           actualConfig,
           normalizedTargetConfig,
+          10,
+          true,
         ) as DerivedRoutingFeeConfig,
       )),
       ...this.createOwnershipUpdateTxs(
