@@ -45,6 +45,11 @@ pub struct ResponseBody {
 /// This endpoint is useful when the relayer believes a message has been delivered
 /// but was later reorg-ed out.
 ///
+/// curl -X POST \
+///     'localhost:9090/reprocess_message' \
+///     -H 'Content-type: application/json' \
+/// -d '{"domain_id": 1399811149, "message_id": "0x9484bd5c635b17b28cb382249d7a6fe5ca15debfd4f824247c68d47badc5b7de"}'
+///
 /// Note: You may need to combine this with `POST /igp_rule` endpoint
 /// to make sure interchain gas payments are not enforced.
 /// ie.
