@@ -1,8 +1,5 @@
-import { ethers } from 'ethers';
-
 import {
   ChainMap,
-  ChainName,
   HypTokenRouterConfig,
   IsmType,
   OwnableConfig,
@@ -16,7 +13,6 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { DEPLOYER, timelocks } from '../../owners.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
