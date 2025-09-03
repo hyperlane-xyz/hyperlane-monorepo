@@ -51,8 +51,8 @@ pub struct ResponseBody {
 /// ```
 /// curl -X POST \
 ///     -H 'Content-type: application/json' \
-///     'localhost:9090/message_retry' \
-///     -d '[{"messageid": "0x3d0466723fc62e51cbaab47cf1bc31c93bb2ef109d52dffd1026e82bec662496"}]'
+///     'localhost:9090/igp_rules' \
+/// -d '{ "policy": "None", "matching_list": [{"messageid": "0x8ebdc20c6c728c5715412ee928599c7286151f76d9079c8bdee08a335c7d072f"}] }'
 /// ```
 ///
 /// This ensures the gas payment requirement is met, because the relayer will have recorded
