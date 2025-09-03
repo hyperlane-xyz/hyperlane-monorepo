@@ -14,6 +14,8 @@
     "@hyperlane-xyz/sdk": "17.0.0",
     "@hyperlane-xyz/utils": "17.0.0",
     "@interchain-ui/react": "^1.23.28",
+    "@radixdlt/babylon-gateway-api-sdk": "^1.10.1",
+    "@radixdlt/radix-dapp-toolkit": "^2.2.1",
     "@rainbow-me/rainbowkit": "^2.2.0",
     "@solana/wallet-adapter-react": "^0.15.32",
     "@solana/wallet-adapter-react-ui": "^0.9.31",
