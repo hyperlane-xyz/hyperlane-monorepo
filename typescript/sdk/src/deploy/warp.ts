@@ -409,7 +409,11 @@ export async function enrollCrossChainRouters(
           })(),
         };
 
-        const transactions = await evmWarpModule.update(expectedConfig);
+        const transactions = await evmWarpModule.update(expectedConfig, {
+          routingDestinations: allRemoteChains.map((c) =>
+            multiProvider.getDomainId(c),
+          ),
+        });
 
         if (transactions.length) {
           protocolTransactions[ProtocolType.Ethereum] = {

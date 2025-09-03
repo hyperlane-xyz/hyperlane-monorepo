@@ -15,12 +15,22 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   FeeParameters,
   OnchainTokenFeeType,
+  RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeType,
   onChainTypeToTokenFeeTypeMap,
 } from './types.js';
 
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
+
+export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
+  feeContracts: Record<ChainName, DerivedTokenFeeConfig>;
+};
+
+export type TokenFeeReaderParams = {
+  address: Address;
+  routingDestinations?: number[]; // Required for RoutingFee.feeContracts() interface
+};
 
 const MAX_BPS = 10_000n; // 100% in bps
 export class EvmTokenFeeReader extends HyperlaneReader {
@@ -32,9 +42,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   }
 
   async deriveTokenFeeConfig(
-    address: Address,
-    destinations?: number[],
+    params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
+    const { address, routingDestinations } = params;
     const tokenFee = BaseFee__factory.connect(address, this.provider);
 
     let derivedConfig: DerivedTokenFeeConfig;
@@ -51,13 +61,13 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         break;
       case OnchainTokenFeeType.RoutingFee:
         assert(
-          destinations,
-          `Destinations required for ${onChainTypeToTokenFeeTypeMap[onchainFeeType]}`,
+          routingDestinations,
+          `routingDestinations required for ${onChainTypeToTokenFeeTypeMap[onchainFeeType]}`,
         );
-        derivedConfig = await this.deriveRoutingFeeConfig(
+        derivedConfig = await this.deriveRoutingFeeConfig({
           address,
-          destinations,
-        );
+          routingDestinations,
+        });
         break;
       default:
         throw new Error(`Unsupported token fee type: ${onchainFeeType}`);
@@ -104,9 +114,9 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   }
 
   private async deriveRoutingFeeConfig(
-    address: Address,
-    destinations: number[],
+    params: TokenFeeReaderParams,
   ): Promise<DerivedTokenFeeConfig> {
+    const { address, routingDestinations } = params;
     const routingFee = RoutingFee__factory.connect(address, this.provider);
     const [token, owner, maxFee, halfAmount] = await Promise.all([
       routingFee.token(),
@@ -119,15 +129,22 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     const halfAmountBn = BigInt(halfAmount.toString());
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
-    await Promise.all(
-      destinations.map(async (destination) => {
-        const subFeeAddress = await routingFee.feeContracts(destination);
-        if (subFeeAddress === constants.AddressZero) return;
-        const chainName = this.multiProvider.getChainName(destination);
-        feeContracts[chainName] =
-          await this.deriveTokenFeeConfig(subFeeAddress);
-      }),
-    );
+
+    if (routingDestinations)
+      await Promise.all(
+        routingDestinations.map(async (destination) => {
+          const subFeeAddress = await routingFee.feeContracts(destination);
+          if (subFeeAddress === constants.AddressZero) return;
+          const chainName = this.multiProvider.getChainName(destination);
+          feeContracts[chainName] = await this.deriveTokenFeeConfig({
+            address: subFeeAddress,
+
+            // Currently, it's not possible to configure nested routing fees domains,
+            // but we should not expect that to exist
+            routingDestinations,
+          });
+        }),
+      );
     return {
       type: TokenFeeType.RoutingFee,
       maxFee: maxFeeBn,
