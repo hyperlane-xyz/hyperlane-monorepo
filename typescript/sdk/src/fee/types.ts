@@ -66,36 +66,35 @@ export const LinearFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
 
 // Linear Fee Input - only requires bps & type
-export const LinearFeeInputConfigSchema = z.preprocess(
-  function (value: unknown): LinearFeeInputConfig {
-    const linearConfig = value as LinearFeeInputConfig;
-
-    const { maxFee, halfAmount } = linearConfig;
-    if (maxFee && halfAmount) {
-      // Override  bps if maxFee and halfAmount is configured
-      // This essentially allows bps to be optional
-      linearConfig.bps = EvmTokenFeeReader.convertToBps(
-        BigInt(maxFee),
-        BigInt(halfAmount),
-      );
+export const LinearFeeInputConfigSchema = BaseFeeConfigSchema.extend({
+  type: z.literal(TokenFeeType.LinearFee),
+  bps: ZBigNumberish.optional(),
+  ...FeeParametersSchema.partial().shape,
+})
+  .superRefine((v, ctx) => {
+    const hasBps = v.bps !== undefined;
+    const hasFeeParams = v.maxFee !== undefined && v.halfAmount !== undefined;
+    if (!hasBps && !hasFeeParams) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['bps'],
+        message: 'Provide bps or both maxFee and halfAmount',
+      });
     }
-
-    return linearConfig;
-  },
-  BaseFeeConfigSchema.extend({
-    type: z.literal(TokenFeeType.LinearFee),
-    bps: ZBigNumberish,
-    ...FeeParametersSchema.partial().shape,
-  }),
-);
-export type LinearFeeInputConfig = {
-  token: z.infer<typeof ZHash>;
-  owner: z.infer<typeof ZHash>;
-  type: TokenFeeType.LinearFee;
-  bps: z.infer<typeof ZBigNumberish>;
-  maxFee?: z.infer<typeof ZBigNumberish>;
-  halfAmount?: z.infer<typeof ZBigNumberish>;
-};
+    if (v.halfAmount === 0n) {
+      // Prevents divide by 0
+      ctx.addIssue({
+        code: 'custom',
+        path: ['halfAmount'],
+        message: 'halfAmount must be > 0',
+      });
+    }
+  })
+  .transform((v) => ({
+    ...v,
+    bps: v.bps ?? EvmTokenFeeReader.convertToBps(v.maxFee!, v.halfAmount!),
+  }));
+export type LinearFeeInputConfig = z.infer<typeof LinearFeeInputConfigSchema>;
 
 export const ProgressiveFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.ProgressiveFee),
