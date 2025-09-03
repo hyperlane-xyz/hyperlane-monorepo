@@ -6,6 +6,8 @@ import {
   ZHash,
 } from '../metadata/customZodTypes.js';
 
+import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
+
 // Matches the enum in BaseFee.sol
 export enum OnchainTokenFeeType {
   LinearFee = 1,
@@ -64,12 +66,36 @@ export const LinearFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
 
 // Linear Fee Input - only requires bps & type
-export const LinearFeeInputConfigSchema = BaseFeeConfigSchema.extend({
-  type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBigNumberish,
-  ...FeeParametersSchema.partial().shape,
-});
-export type LinearFeeInputConfig = z.infer<typeof LinearFeeInputConfigSchema>;
+export const LinearFeeInputConfigSchema = z.preprocess(
+  function (value: unknown): LinearFeeInputConfig {
+    const linearConfig = value as LinearFeeInputConfig;
+
+    const { maxFee, halfAmount } = linearConfig;
+    if (maxFee && halfAmount) {
+      // Override  bps if maxFee and halfAmount is configured
+      // This essentially allows bps to be optional
+      linearConfig.bps = EvmTokenFeeReader.convertToBps(
+        BigInt(maxFee),
+        BigInt(halfAmount),
+      );
+    }
+
+    return linearConfig;
+  },
+  BaseFeeConfigSchema.extend({
+    type: z.literal(TokenFeeType.LinearFee),
+    bps: ZBigNumberish,
+    ...FeeParametersSchema.partial().shape,
+  }),
+);
+export type LinearFeeInputConfig = {
+  token: z.infer<typeof ZHash>;
+  owner: z.infer<typeof ZHash>;
+  type: TokenFeeType.LinearFee;
+  bps: z.infer<typeof ZBigNumberish>;
+  maxFee?: z.infer<typeof ZBigNumberish>;
+  halfAmount?: z.infer<typeof ZBigNumberish>;
+};
 
 export const ProgressiveFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.ProgressiveFee),
@@ -114,7 +140,7 @@ export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
 ]);
 export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
 
-export const TokenFeeConfigInputSchema = z.discriminatedUnion('type', [
+export const TokenFeeConfigInputSchema = z.union([
   LinearFeeInputConfigSchema,
   ProgressiveFeeConfigSchema,
   RegressiveFeeConfigSchema,
