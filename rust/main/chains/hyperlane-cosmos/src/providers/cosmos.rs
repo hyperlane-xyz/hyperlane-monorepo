@@ -95,7 +95,7 @@ impl<QueryClient: BuildableQueryClient> CosmosProvider<QueryClient> {
         match reorg {
             ReorgPeriod::None => Ok(height),
             // height has to be at least 1 -> block 0 does not exist in cosmos
-            ReorgPeriod::Blocks(blocks) => Ok(height.saturating_sub(blocks.get() as u64).min(1)),
+            ReorgPeriod::Blocks(blocks) => Ok(height.saturating_sub(blocks.get() as u64).max(1)),
             ReorgPeriod::Tag(_) => Err(ChainCommunicationError::InvalidReorgPeriod(reorg.clone())),
         }
     }
