@@ -112,6 +112,7 @@ async fn handler(
             )
         })?;
 
+    let destination = message.destination;
     // create a pending message to push into prep queue
     let pending_message = PendingMessage::new(
         message,
@@ -121,9 +122,9 @@ async fn handler(
         DEFAULT_MAX_MESSAGE_RETRIES,
     );
 
-    let prep_queue = state.op_queues.get(&domain_id).ok_or_else(|| {
+    let prep_queue = state.op_queues.get(&destination).ok_or_else(|| {
         let error_msg = "Queue not found";
-        tracing::debug!(domain_id, ?message_id, "{error_msg}");
+        tracing::debug!(destination, ?message_id, "{error_msg}");
         ServerErrorResponse::new(
             StatusCode::NOT_FOUND,
             ServerErrorBody {
