@@ -6,7 +6,7 @@ use tonic::async_trait;
 use tonic::transport::{Channel, Endpoint};
 
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
-use hyperlane_core::{ChainCommunicationError, ChainResult};
+use hyperlane_core::{ChainCommunicationError, ChainResult, ReorgPeriod};
 use hyperlane_metric::prometheus_metric::{
     ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
@@ -88,6 +88,15 @@ impl GrpcProvider {
 
         let fallback = FallbackProvider::new(clients);
         Ok(Self { fallback })
+    }
+
+    /// Get the block number according to the reorg period
+    pub async fn get_block_number(&self) -> ChainResult<u64> {
+        self.call(|provider| {
+            let future = async move { provider.get_block_number().await };
+            Box::pin(future)
+        })
+        .await
     }
 }
 

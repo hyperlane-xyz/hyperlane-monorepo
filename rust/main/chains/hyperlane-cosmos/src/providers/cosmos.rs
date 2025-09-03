@@ -37,6 +37,9 @@ pub trait BuildableQueryClient: Sized + std::fmt::Debug + Sync + Send + 'static 
     /// Extract the message recipient contract address from the tx
     /// this is implementation specific
     fn parse_tx_message_recipient(&self, tx: &Tx, hash: &H512) -> ChainResult<H256>;
+
+    /// Returns the Block height of the query client
+    async fn get_block_number(&self) -> ChainResult<u64>;
 }
 
 /// Cosmos Provider
@@ -87,11 +90,12 @@ impl<QueryClient: BuildableQueryClient> CosmosProvider<QueryClient> {
 
     /// Get the block number according to the reorg period
     pub async fn reorg_to_height(&self, reorg: &ReorgPeriod) -> ChainResult<u64> {
-        let height = self.rpc.get_block_number().await?;
+        // use the query client's block number as they tend to lag behind
+        let height = self.query().get_block_number().await?;
         match reorg {
             ReorgPeriod::None => Ok(height),
             // height has to be at least 1 -> block 0 does not exist in cosmos
-            ReorgPeriod::Blocks(blocks) => Ok(height.checked_sub(blocks.get() as u64).unwrap_or(1)),
+            ReorgPeriod::Blocks(blocks) => Ok(height.saturating_sub(blocks.get() as u64).min(1)),
             ReorgPeriod::Tag(_) => Err(ChainCommunicationError::InvalidReorgPeriod(reorg.clone())),
         }
     }

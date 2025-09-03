@@ -62,6 +62,11 @@ impl BuildableQueryClient for ModuleQueryClient {
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
         return Ok(true);
     }
+
+    /// Returns the Block height of the query client
+    async fn get_block_number(&self) -> ChainResult<u64> {
+        self.grpc.get_block_number().await
+    }
 }
 
 impl ModuleQueryClient {

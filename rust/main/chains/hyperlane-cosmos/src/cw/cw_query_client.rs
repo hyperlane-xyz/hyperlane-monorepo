@@ -70,6 +70,11 @@ impl BuildableQueryClient for CwQueryClient {
     fn parse_tx_message_recipient(&self, tx: &Tx, tx_hash: &H512) -> ChainResult<H256> {
         Self::contract(tx, tx_hash)
     }
+
+    /// Returns the Block height of the query client
+    async fn get_block_number(&self) -> ChainResult<u64> {
+        self.grpc.get_block_number().await
+    }
 }
 
 impl CwQueryClient {
