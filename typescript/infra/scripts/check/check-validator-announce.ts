@@ -7,7 +7,21 @@ import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 const minimumValidatorCount = 2;
 
+const validatorCountToThreshold: Record<number, number> = {
+  1: 1,
+  2: 2,
+  3: 2,
+  4: 3,
+  5: 3,
+  6: 4,
+  7: 5,
+  8: 6,
+  9: 6,
+  10: 7,
+};
+
 const getMinimumThreshold = (validatorCount: number): number =>
+  validatorCountToThreshold[validatorCount] ??
   Math.floor(validatorCount / 2) + 1;
 
 const thresholdOK = 'threshold OK';

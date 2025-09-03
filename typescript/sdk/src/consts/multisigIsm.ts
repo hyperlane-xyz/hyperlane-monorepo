@@ -1277,7 +1277,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   lisk: {
-    threshold: 4,
+    threshold: 5,
     validators: [
       {
         address: '0xc0b282aa5bac43fee83cf71dc3dd1797c1090ea5',
@@ -2329,7 +2329,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   stride: {
-    threshold: 6,
+    threshold: 7,
     validators: [
       DEFAULT_EVERSTAKE_VALIDATOR,
       {
@@ -2363,7 +2363,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   subtensor: {
-    threshold: 4,
+    threshold: 5,
     validators: [
       {
         address: '0xd5f8196d7060b85bea491f0b52a671e05f3d10a2',
