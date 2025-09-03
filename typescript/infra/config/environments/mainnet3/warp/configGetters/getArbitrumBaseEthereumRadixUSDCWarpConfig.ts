@@ -36,8 +36,6 @@ const owners = {
   radix: 'account_rdx1280taxhhnuek02y59yapsg4kjtux954qkyufpwmy4dlfcxdrjzr7fj',
 };
 
-export const CONTRACT_VERSION = '8.0.0';
-
 export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
@@ -56,7 +54,6 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
     },
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
-    contractVersion: CONTRACT_VERSION,
     ...rebalancingConfig.ethereum,
   };
 
@@ -70,7 +67,6 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
     },
     type: TokenType.collateral,
     token: tokens.arbitrum.USDC,
-    contractVersion: CONTRACT_VERSION,
     ...rebalancingConfig.arbitrum,
   };
 
@@ -84,7 +80,6 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
     },
     type: TokenType.collateral,
     token: tokens.base.USDC,
-    contractVersion: CONTRACT_VERSION,
     ...rebalancingConfig.base,
   };
 
