@@ -2363,7 +2363,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   subtensor: {
-    threshold: 5,
+    threshold: 3,
     validators: [
       {
         address: '0xd5f8196d7060b85bea491f0b52a671e05f3d10a2',
@@ -2371,9 +2371,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
-      DEFAULT_BLOCKPI_VALIDATOR,
-      DEFAULT_ZKV_VALIDATOR,
-      DEFAULT_TESSELLATED_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
@@ -2693,7 +2690,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   zksync: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a',
@@ -2701,10 +2698,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
-      {
-        address: '0x64c712eb42be01986b02ca261b14e4785fd23c20',
-        alias: 'Enigma',
-      },
     ],
   },
 
