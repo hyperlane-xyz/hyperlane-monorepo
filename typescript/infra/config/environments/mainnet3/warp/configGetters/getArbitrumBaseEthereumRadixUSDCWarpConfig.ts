@@ -52,6 +52,7 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
 
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
+    decimals: 6,
     interchainSecurityModule: getIsm('ethereum'),
     owner: owners.ethereum,
     proxyAdmin: {
@@ -65,6 +66,7 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
 
   const arbitrum: HypTokenRouterConfig = {
     ...routerConfig.arbitrum,
+    decimals: 6,
     interchainSecurityModule: getIsm('arbitrum'),
     owner: owners.arbitrum,
     proxyAdmin: {
@@ -78,6 +80,7 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
 
   const base: HypTokenRouterConfig = {
     ...routerConfig.base,
+    decimals: 6,
     interchainSecurityModule: getIsm('base'),
     owner: owners.base,
     proxyAdmin: {
