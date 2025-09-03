@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import {
@@ -33,12 +35,16 @@ const decimals: RouteConfig<number> = {
 const maxDecimals = Math.max(...Object.values(decimals));
 
 function tokenConfig(decimals: number) {
+  const scaleExp = maxDecimals - decimals;
+  const scale = Math.pow(10, scaleExp);
+  assert(scaleExp <= 15, `Scale exponent ${scaleExp} too large (max 15)`);
+  assert(Number.isInteger(scale), 'Scale must be an integer but got: ' + scale);
   return {
     name: 'USDC',
     symbol: 'USDC',
     decimals,
-    ...(maxDecimals !== decimals && {
-      scale: Math.pow(10, maxDecimals - decimals),
+    ...(scaleExp > 0 && {
+      scale,
     }),
   };
 }
