@@ -48,12 +48,10 @@ pub struct ResponseBody {
 /// Note: You may need to combine this with `POST /igp_rule` endpoint
 /// to make sure interchain gas payments are not enforced.
 /// ie.
-/// ```
 /// curl -X POST \
 ///     -H 'Content-type: application/json' \
 ///     'localhost:9090/igp_rules' \
-/// -d '{ "policy": "None", "matching_list": [{"messageid": "0x8ebdc20c6c728c5715412ee928599c7286151f76d9079c8bdee08a335c7d072f"}] }'
-/// ```
+///     -d '{ "policy": "None", "matching_list": [{"messageid": "0x8ebdc20c6c728c5715412ee928599c7286151f76d9079c8bdee08a335c7d072f"}] }'
 ///
 /// This ensures the gas payment requirement is met, because the relayer will have recorded
 /// the reorg-ed gas expenditures (in db) and believes the user did not pay enough gas.
