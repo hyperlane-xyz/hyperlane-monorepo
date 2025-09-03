@@ -182,7 +182,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        msg::{db_loader::test::dummy_cache_metrics},
+        msg::db_loader::test::dummy_cache_metrics,
         test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder},
     };
 
@@ -319,11 +319,7 @@ mod tests {
             HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
             HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
         ];
-        let TestServerSetup {
-            app,
-            op_queues,
-            ..
-        } = setup_test_server(domains);
+        let TestServerSetup { app, op_queues, .. } = setup_test_server(domains);
 
         let message = HyperlaneMessage {
             version: 0,
