@@ -1940,12 +1940,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   pulsechain: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xa73fc7ebb2149d9c6992ae002cb1849696be895b',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
