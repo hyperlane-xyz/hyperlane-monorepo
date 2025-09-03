@@ -33,6 +33,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  assert,
   normalizeAddressEvm,
   objMap,
   pick,
@@ -959,7 +960,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         bps: 1,
       },
     ]) {
-      it(`should deploy a ${tokenFee.type} tokenFee`, async () => {
+      it(`should deploy ${tokenFee.type} tokenFee`, async () => {
         const warpConfig = WarpRouteDeployConfigSchema.parse({
           [CHAIN_NAME_2]: {
             type: TokenType.collateral,
@@ -995,52 +996,58 @@ describe('hyperlane warp deploy e2e tests', async function () {
           extractInputOnlyFields(warpConfig[CHAIN_NAME_2].tokenFee!),
         );
       });
-
-      it(`should deploy a native ${tokenFee.type}`, async () => {
-        const warpConfig = WarpRouteDeployConfigSchema.parse({
-          [CHAIN_NAME_2]: {
-            type: TokenType.native,
-            token: tokenChain2.address,
-            owner: ownerAddress,
-            tokenFee: {
-              ...tokenFee,
-              maxFee: 10_000,
-              halfAmount: 5_000,
-              bps: 10_000,
+    }
+    it(`should deploy a native Routing Fee when providing maxFee and halfAmount only`, async () => {
+      const warpConfig = WarpRouteDeployConfigSchema.parse({
+        [CHAIN_NAME_2]: {
+          type: TokenType.native,
+          owner: ownerAddress,
+          tokenFee: {
+            type: TokenFeeType.RoutingFee,
+            feeContracts: {
+              [CHAIN_NAME_3]: {
+                type: TokenFeeType.LinearFee,
+                maxFee: 10_000,
+                halfAmount: 5_000,
+              },
             },
           },
-          [CHAIN_NAME_3]: {
-            type: TokenType.synthetic,
-            owner: ownerAddress,
-          },
-        });
-
-        writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-        await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
-
-        const COMBINED_WARP_CORE_CONFIG_PATH =
-          GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
-            WARP_DEPLOY_OUTPUT_PATH,
-            chain2Metadata.nativeToken?.symbol!,
-          );
-
-        const collateralConfig: WarpRouteDeployConfigMailboxRequired =
-          await readWarpConfig(
-            CHAIN_NAME_2,
-            COMBINED_WARP_CORE_CONFIG_PATH,
-            WARP_DEPLOY_OUTPUT_PATH,
-          );
-
-        expect(
-          extractInputOnlyFields(
-            extractInputOnlyFields(collateralConfig[CHAIN_NAME_2].tokenFee!),
-          ),
-        ).to.deep.equal(
-          extractInputOnlyFields(
-            extractInputOnlyFields(warpConfig[CHAIN_NAME_2].tokenFee!),
-          ),
-        );
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+        },
       });
-    }
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      assert(
+        chain2Metadata.nativeToken?.symbol,
+        'Must have native token symbol',
+      );
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          chain2Metadata.nativeToken?.symbol,
+        );
+
+      const collateralConfig: WarpRouteDeployConfigMailboxRequired =
+        await readWarpConfig(
+          CHAIN_NAME_2,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
+        );
+
+      expect(
+        extractInputOnlyFields(
+          extractInputOnlyFields(collateralConfig[CHAIN_NAME_2].tokenFee!),
+        ),
+      ).to.deep.equal(
+        extractInputOnlyFields(
+          extractInputOnlyFields(warpConfig[CHAIN_NAME_2].tokenFee!),
+        ),
+      );
+    });
   });
 });
