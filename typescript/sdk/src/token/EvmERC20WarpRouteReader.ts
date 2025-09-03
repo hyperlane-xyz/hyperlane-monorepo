@@ -267,7 +267,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       return undefined;
     }
 
-    return this.evmTokenFeeReader.deriveTokenFeeConfig(tokenFee, destinations);
+    return this.evmTokenFeeReader.deriveTokenFeeConfig({
+      address: tokenFee,
+      routingDestinations: destinations,
+    });
   }
 
   async getContractVerificationStatus(chain: ChainName, address: Address) {

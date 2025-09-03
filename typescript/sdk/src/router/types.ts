@@ -11,6 +11,7 @@ import { Address, AddressBytes32, isNumeric } from '@hyperlane-xyz/utils';
 import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';
 import { CheckerViolation } from '../deploy/types.js';
+import { DerivedTokenFeeConfig } from '../fee/EvmTokenFeeReader.js';
 import { TokenFeeConfigInputSchema } from '../fee/types.js';
 import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
 import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
@@ -30,7 +31,9 @@ export type DerivedMailboxClientConfig = MailboxClientConfig & {
 };
 
 export type RouterConfig = z.infer<typeof RouterConfigSchema>;
-export type DerivedRouterConfig = RouterConfig & DerivedMailboxClientConfig;
+export type DerivedRouterConfig = Omit<RouterConfig, 'tokenFee'> & {
+  tokenFee?: DerivedTokenFeeConfig;
+} & DerivedMailboxClientConfig;
 
 export type GasRouterConfig = z.infer<typeof GasRouterConfigSchema>;
 
