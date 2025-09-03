@@ -1040,13 +1040,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
         );
 
       expect(
-        extractInputOnlyFields(
-          extractInputOnlyFields(collateralConfig[CHAIN_NAME_2].tokenFee!),
-        ),
+        extractInputOnlyFields(collateralConfig[CHAIN_NAME_2].tokenFee!),
       ).to.deep.equal(
-        extractInputOnlyFields(
-          extractInputOnlyFields(warpConfig[CHAIN_NAME_2].tokenFee!),
-        ),
+        extractInputOnlyFields(warpConfig[CHAIN_NAME_2].tokenFee!),
       );
     });
   });
