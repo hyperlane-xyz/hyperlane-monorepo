@@ -1,8 +1,7 @@
-use std::{cmp::Reverse, collections::HashMap, sync::Arc};
+use std::{cmp::Reverse, collections::HashMap, str::FromStr, sync::Arc};
 
 use axum::{extract::State, http::StatusCode, routing, Json, Router};
 use derive_new::new;
-use ethers::utils::hex;
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB},
     server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
@@ -51,17 +50,16 @@ async fn handler(
         message_id,
     } = payload;
 
-    let message_id_slice = hex::decode(&message_id).map_err(|err| {
+    let message_id = H256::from_str(&message_id).map_err(|err| {
         let error_msg = "Failed to parse message_id";
         tracing::debug!(message_id, ?err, "{error_msg}");
         ServerErrorResponse::new(
-            StatusCode::NOT_FOUND,
+            StatusCode::BAD_REQUEST,
             ServerErrorBody {
                 message: error_msg.to_string(),
             },
         )
     })?;
-    let message_id = H256::from_slice(&message_id_slice);
 
     let db = state.dbs.get(&domain_id).ok_or_else(|| {
         let error_msg = "No db found for chain";
