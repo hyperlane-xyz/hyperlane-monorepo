@@ -12,7 +12,6 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getGnosisSafeSubmitterStrategyConfigGenerator } from '../../../utils.js';
 import { awSafes } from '../../governance/safe/aw.js';
 
-const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 const chainsToDeploy = ['avalanche', 'base', 'celo', 'ethereum', 'worldchain'];
 const ownerMap: ChainMap<string> = objFilter(
   awSafes,
@@ -56,7 +55,7 @@ export const getoXAUTTokenProductionWarpConfig = async (
       mailbox: routerConfig[chain].mailbox,
       owner: ownerMap[chain],
       ownerOverrides: {
-        collateralToken: chain === 'base' ? DEPLOYER : ownerMap[chain],
+        collateralToken: ownerMap[chain],
       },
       token: tokenMetadata[chain].token,
     };
