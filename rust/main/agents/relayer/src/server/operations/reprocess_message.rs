@@ -37,7 +37,7 @@ pub struct RequestBody {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ResponseBody {
-    pub message_id: String,
+    pub pending_message: String,
 }
 
 async fn handler(
@@ -131,13 +131,15 @@ async fn handler(
         )
     })?;
 
+    let message_str = format!("{:?}", pending_message);
+
     prep_queue
         .lock()
         .await
         .push(Reverse(Box::new(pending_message)));
 
     let resp = ResponseBody {
-        message_id: "".into(),
+        pending_message: message_str,
     };
     Ok(ServerSuccessResponse::new(resp))
 }
