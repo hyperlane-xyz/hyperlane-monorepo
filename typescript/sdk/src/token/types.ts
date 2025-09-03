@@ -337,6 +337,7 @@ function populateTokenFeeOwners(params: {
     // Default fee.token to the router token, if not specified
     feeConfig.token = feeConfig.token ?? tokenConfig.token;
   else if (isNativeTokenConfig(tokenConfig))
+    // This must be defined for contract deployment
     feeConfig.token = constants.AddressZero;
 
   feeConfig.owner = feeConfig.owner ?? tokenConfig.owner;
