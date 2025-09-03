@@ -111,7 +111,7 @@ describe('GitLeaks CLI Integration Tests', function () {
     const reportPath = path.join(tempDir, 'gitleaks-report.json');
 
     try {
-      const result = execSync(
+      execSync(
         `gitleaks directory "${tempDir}" --config="${configPath}" --report-format=json --report-path="${reportPath}" --no-banner`,
         { encoding: 'utf8', stdio: 'pipe' },
       );
@@ -174,7 +174,7 @@ describe('GitLeaks CLI Integration Tests', function () {
     const reportPath = path.join(tempDir, 'gitleaks-report.json');
 
     try {
-      const result = execSync(
+      execSync(
         `gitleaks directory "${tempDir}" --config="${configPath}" --report-format=json --report-path="${reportPath}" --no-banner`,
         { encoding: 'utf8', stdio: 'pipe' },
       );
