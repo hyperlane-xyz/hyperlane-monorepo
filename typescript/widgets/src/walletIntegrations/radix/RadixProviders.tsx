@@ -1,6 +1,5 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { RadixDappToolkit } from '@radixdlt/radix-dapp-toolkit';
-import PropTypes from 'prop-types';
 import React, { useContext, useState } from 'react';
 
 import { SpinnerIcon } from '../../icons/Spinner.js';
@@ -27,12 +26,7 @@ export const GatewayApiProvider = ({
   </GatewayApiContext.Provider>
 );
 
-GatewayApiProvider.propTypes = {
-  value: PropTypes.any,
-  children: PropTypes.node.isRequired,
-};
-
-export const PopupProvider = ({ children }) => {
+export const PopupProvider = ({ children }: { children: React.ReactNode }) => {
   const [showPopUp, setShowPopUp] = useState(false);
 
   return (
