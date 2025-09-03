@@ -98,7 +98,7 @@ function extractInputOnlyFields(config: TokenFeeConfigInput): any {
       };
     case TokenFeeType.ProgressiveFee:
     case TokenFeeType.RegressiveFee:
-      return pick(config, ['type']);
+      return pick(config, ['type', 'maxFee', 'halfAmount']);
     default:
       return config;
   }
