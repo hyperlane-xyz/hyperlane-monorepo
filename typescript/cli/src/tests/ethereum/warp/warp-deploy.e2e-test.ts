@@ -98,7 +98,7 @@ function extractInputOnlyFields(config: TokenFeeConfigInput): any {
       };
     case TokenFeeType.ProgressiveFee:
     case TokenFeeType.RegressiveFee:
-      return pick(config, ['type']);
+      return pick(config, ['type', 'maxFee', 'halfAmount']);
     default:
       return config;
   }
@@ -996,7 +996,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         );
       });
 
-      it.only(`should deploy a native ${tokenFee.type}`, async () => {
+      it(`should deploy a native ${tokenFee.type}`, async () => {
         const warpConfig = WarpRouteDeployConfigSchema.parse({
           [CHAIN_NAME_2]: {
             type: TokenType.native,
