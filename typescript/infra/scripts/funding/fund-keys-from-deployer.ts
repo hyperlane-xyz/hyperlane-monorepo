@@ -273,12 +273,7 @@ class ContextFunder {
     );
 
     this.igp = HyperlaneIgp.fromAddressesMap(
-      {
-        ...getEnvAddresses(this.environment),
-        lumia: {
-          interchainGasPaymaster: '0x9024A3902B542C87a5C4A2b3e15d60B2f087Dc3E',
-        },
-      },
+      getEnvAddresses(this.environment),
       multiProvider,
     );
     this.keysToFundPerChain = objMap(roleKeysPerChain, (_chain, roleKeys) => {
