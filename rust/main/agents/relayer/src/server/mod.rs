@@ -36,7 +36,7 @@ pub struct Server {
     #[new(default)]
     gas_enforcers: Option<HashMap<HyperlaneDomain, Arc<RwLock<GasPaymentEnforcer>>>>,
     #[new(default)]
-    prover_sync: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
+    prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
 }
 
 impl Server {
@@ -68,9 +68,9 @@ impl Server {
 
     pub fn with_prover_sync(
         mut self,
-        prover_sync: HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>,
+        prover_syncs: HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>,
     ) -> Self {
-        self.prover_sync = Some(prover_sync);
+        self.prover_syncs = Some(prover_syncs);
         self
     }
 
@@ -89,10 +89,13 @@ impl Server {
         if let Some(dbs) = self.dbs {
             router = router
                 .merge(messages::ServerState::new(dbs.clone()).router())
-                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router())
+                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router());
         }
         if let Some(gas_enforcers) = self.gas_enforcers {
-            router = router.merge(igp::ServerState::new(gas_enforcers.clone()).router())
+            router = router.merge(igp::ServerState::new(gas_enforcers.clone()).router());
+        }
+        if let Some(prover_syncs) = self.prover_syncs {
+            router = router.merge(proofs::ServerState::new(prover_syncs).router());
         }
 
         let expose_environment_variable_endpoint =
