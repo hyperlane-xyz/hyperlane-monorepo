@@ -1,4 +1,10 @@
 export {
+  DerivedRoutingFeeConfig,
+  DerivedTokenFeeConfig,
+  EvmTokenFeeReader,
+} from './fee/EvmTokenFeeReader.js';
+
+export {
   isAddressActive,
   isContractAddress,
   assertIsContractAddress,
@@ -812,6 +818,8 @@ export { getTimelockExecutableTransactionFromBatch } from './timelock/evm/utils.
 
 export {
   TokenFeeType,
+  TokenFeeConfig,
   TokenFeeConfigSchema,
+  TokenFeeConfigInputSchema,
   TokenFeeConfigInput,
 } from './fee/types.js';

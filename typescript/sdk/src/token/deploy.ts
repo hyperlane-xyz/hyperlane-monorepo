@@ -650,7 +650,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         }
 
         this.logger.debug(`Deploying token fee on ${chain}...`);
-        const processedTokenFee = await EvmTokenFeeModule.processConfig({
+        const processedTokenFee = await EvmTokenFeeModule.expandConfig({
           config: tokenFeeInput,
           multiProvider: this.multiProvider,
           chainName: chain,
@@ -662,7 +662,8 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         });
 
         const router = this.router(deployedContractsMap[chain]);
-        const tx = await router.setFeeRecipient(module.getDeployedFeeAddress());
+        const { deployedFee } = module.serialize();
+        const tx = await router.setFeeRecipient(deployedFee);
         await this.multiProvider.handleTx(chain, tx);
       }),
     );
