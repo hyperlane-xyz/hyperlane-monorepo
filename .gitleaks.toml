@@ -118,3 +118,6 @@ id = "svm-base58-private-key"
 description = "Solana wallet private key"
 regex = '''\b[1-9A-HJ-NP-Za-km-z]{87,88}\b'''
 tags = ["private key", "svm"]
+
+# Not testing evm, starknet or cosmos private key as
+# they might trigger false positives with transaction hashes
