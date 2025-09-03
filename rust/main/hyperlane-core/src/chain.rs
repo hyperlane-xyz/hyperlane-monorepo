@@ -193,7 +193,6 @@ pub enum KnownHyperlaneDomain {
     Linea = 59144,
     Lisk = 1135,
     Lukso = 42,
-    Lumia = 994873017,
     LumiaPrism = 1000073017,
     MantaPacific = 169,
     Mantle = 5000,
@@ -574,7 +573,7 @@ impl KnownHyperlaneDomain {
             | Mode | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone
             | SnaxChain | Soneium | Superseed | Swell | Unichain | Worldchain | Zircuit
             | ZoraMainnet => HyperlaneDomainTechnicalStack::OpStack,
-            DogeChain | Lumia | LumiaPrism | Katana | Merlin | PolygonZkEvm | Prom | Xlayer => {
+            DogeChain | LumiaPrism | Katana | Merlin | PolygonZkEvm | Prom | Xlayer => {
                 HyperlaneDomainTechnicalStack::PolygonCDK
             }
             Astar | Moonbeam | Peaq | Tangle | Torus => {
