@@ -12,6 +12,7 @@
     "decimals": 18,
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
     "name": "Holoworld AI",
+    "owner": "6d3vKAcmi7XRtG8jWAKJj8VPDaiprT56bVSkVW2eCxCp",
     "symbol": "HOLO",
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/08642706676a384708f804dd04031c85535e1322/deployments/warp_routes/HOLO/metadata.json"
   }
