@@ -104,24 +104,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  alfajores: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x2233a5ce12f814bd64c9cdd73410bb8693124d40',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0xba279f965489d90f90490e3c49e860e0b43c2ae6',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x86485dcec5f7bb8478dd251676372d054dea6653',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-
   ancient8: {
     threshold: 2,
     validators: [

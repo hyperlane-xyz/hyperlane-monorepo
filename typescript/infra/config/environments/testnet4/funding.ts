@@ -29,7 +29,6 @@ export const keyFunderConfig: KeyFunderConfig<
   desiredBalancePerChain: {
     abstracttestnet: '0.1',
     alephzeroevmtestnet: '2',
-    alfajores: '5',
     arbitrumsepolia: '0.1',
     arcadiatestnet2: '0.1',
     auroratestnet: '0.05',
@@ -84,7 +83,6 @@ export const keyFunderConfig: KeyFunderConfig<
     weavevmtestnet: '0.1',
   },
   desiredKathyBalancePerChain: {
-    alfajores: '1',
     arbitrumsepolia: '0',
     basesepolia: '0',
     bsctestnet: '1',
@@ -105,7 +103,6 @@ export const keyFunderConfig: KeyFunderConfig<
     superpositiontestnet: '0',
   },
   igpClaimThresholdPerChain: {
-    alfajores: '1',
     arbitrumsepolia: '0.05',
     basesepolia: '0.05',
     bsctestnet: '1',
