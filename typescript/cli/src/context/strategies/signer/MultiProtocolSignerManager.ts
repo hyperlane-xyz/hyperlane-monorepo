@@ -9,7 +9,6 @@ import {
   MultiProtocolProvider,
   MultiProvider,
   ProtocolMap,
-  getLocalProvider,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -264,7 +263,6 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
   }
 
   async getBalance(params: {
-    isDryRun: boolean;
     address: Address;
     chain: ChainName;
     denom?: string;
@@ -274,12 +272,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     switch (metadata.protocol) {
       case ProtocolType.Ethereum: {
         try {
-          const provider = params.isDryRun
-            ? getLocalProvider({
-                anvilIPAddr: ENV.ANVIL_IP_ADDR,
-                anvilPort: ENV.ANVIL_PORT,
-              })
-            : this.multiProvider.getProvider(params.chain);
+          const provider = this.multiProvider.getProvider(params.chain);
           const balance = await provider.getBalance(params.address);
           return balance;
         } catch (err) {

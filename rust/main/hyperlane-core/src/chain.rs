@@ -269,7 +269,6 @@ pub enum KnownHyperlaneDomain {
     //
     AbstractTestnet = 11124,
     AlephZeroEvmTestnet = 2039,
-    Alfajores = 44787,
     ArbitrumSepolia = 421614,
     ArcadiaTestnet2 = 1098411886,
     AuroraTestnet = 1313161555,
@@ -455,7 +454,6 @@ impl KnownHyperlaneDomain {
         match self {
             AbstractTestnet
             | AlephZeroEvmTestnet
-            | Alfajores
             | ArbitrumSepolia
             | ArcadiaTestnet2
             | AuroraTestnet

@@ -2,7 +2,6 @@
 export const testnet4SupportedChainNames = [
   'abstracttestnet',
   'alephzeroevmtestnet',
-  'alfajores',
   'arbitrumsepolia',
   'arcadiatestnet2',
   'auroratestnet',
