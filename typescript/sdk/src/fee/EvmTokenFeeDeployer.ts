@@ -82,8 +82,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
     if (
       config.type === TokenFeeType.LinearFee &&
       config.bps &&
-      !maxFee &&
-      !halfAmount
+      (!maxFee || !halfAmount)
     ) {
       const { maxFee: calculatedMaxFee, halfAmount: calculatedHalfAmount } =
         await this.tokenFeeReader.convertFromBps(config.bps, config.token);
