@@ -750,6 +750,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  electroneum: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x32917f0a38c60ff5b1c4968cb40bc88b14ef0d83',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   endurance: {
     threshold: 2,
     validators: [
@@ -1803,6 +1813,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  plasma: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x4ba900a8549fe503bca674114dc98a254637fc2c',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 

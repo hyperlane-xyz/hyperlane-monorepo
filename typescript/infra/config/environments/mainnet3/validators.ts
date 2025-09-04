@@ -1557,5 +1557,25 @@ export const validatorChainConfig = (
         'pulsechain',
       ),
     },
+    plasma: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('plasma'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4ba900a8549fe503bca674114dc98a254637fc2c'],
+        },
+        'plasma',
+      ),
+    },
+    electroneum: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('electroneum'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x32917f0a38c60ff5b1c4968cb40bc88b14ef0d83'],
+        },
+        'electroneum',
+      ),
+    },
   };
 };
