@@ -540,11 +540,17 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|(key, ctx)| (key.origin.clone(), ctx.origin_gas_payment_enforcer.clone()))
             .collect();
+        let prover_syncs: HashMap<_, _> = self
+            .origins
+            .iter()
+            .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
+            .collect();
         let relayer_router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
             .with_gas_enforcers(gas_enforcers)
+            .with_prover_sync(prover_syncs)
             .router();
 
         let server = self

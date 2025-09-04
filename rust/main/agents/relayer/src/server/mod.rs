@@ -10,6 +10,7 @@ use tokio::sync::broadcast::Sender;
 use hyperlane_base::db::HyperlaneRocksDB;
 use tokio::sync::RwLock;
 
+use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::server::environment_variable::EnvironmentVariableApi;
@@ -21,6 +22,7 @@ pub mod igp;
 pub mod merkle_tree_insertions;
 pub mod messages;
 pub mod operations;
+pub mod proofs;
 
 #[derive(new)]
 pub struct Server {
@@ -33,6 +35,8 @@ pub struct Server {
     dbs: Option<HashMap<u32, HyperlaneRocksDB>>,
     #[new(default)]
     gas_enforcers: Option<HashMap<HyperlaneDomain, Arc<RwLock<GasPaymentEnforcer>>>>,
+    #[new(default)]
+    prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
 }
 
 impl Server {
@@ -62,6 +66,14 @@ impl Server {
         self
     }
 
+    pub fn with_prover_sync(
+        mut self,
+        prover_syncs: HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>,
+    ) -> Self {
+        self.prover_syncs = Some(prover_syncs);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -77,10 +89,13 @@ impl Server {
         if let Some(dbs) = self.dbs {
             router = router
                 .merge(messages::ServerState::new(dbs.clone()).router())
-                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router())
+                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router());
         }
         if let Some(gas_enforcers) = self.gas_enforcers {
-            router = router.merge(igp::ServerState::new(gas_enforcers.clone()).router())
+            router = router.merge(igp::ServerState::new(gas_enforcers.clone()).router());
+        }
+        if let Some(prover_syncs) = self.prover_syncs {
+            router = router.merge(proofs::ServerState::new(prover_syncs).router());
         }
 
         let expose_environment_variable_endpoint =
