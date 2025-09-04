@@ -13,12 +13,13 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
+import { convertToBps } from './utils.js';
 
 export const MAX_FEE =
   1157920892373161954235709850086879078532699846656405640394n;
 export const HALF_AMOUNT =
   5789604461865809771178549250434395392663499233282028201970n;
-export const BPS = EvmTokenFeeReader.convertToBps(MAX_FEE, HALF_AMOUNT);
+export const BPS = convertToBps(MAX_FEE, HALF_AMOUNT);
 
 describe('EvmTokenFeeReader', () => {
   let multiProvider: MultiProvider;
@@ -79,7 +80,7 @@ describe('EvmTokenFeeReader', () => {
         token: token.address,
         maxFee,
         halfAmount,
-        bps: EvmTokenFeeReader.convertToBps(maxFee, halfAmount),
+        bps: convertToBps(maxFee, halfAmount),
       };
       const parsedConfig = TokenFeeConfigSchema.parse(config);
       const deployer = new EvmTokenFeeDeployer(
@@ -90,7 +91,7 @@ describe('EvmTokenFeeReader', () => {
         [TestChainName.test3]: parsedConfig,
       });
 
-      const convertedBps = EvmTokenFeeReader.convertToBps(maxFee, halfAmount);
+      const convertedBps = convertToBps(maxFee, halfAmount);
       expect(convertedBps).to.equal(BPS);
     });
 
@@ -108,10 +109,7 @@ describe('EvmTokenFeeReader', () => {
         await reader.convertFromBps(config.bps, config.token);
 
       // Get bps using helper function
-      const convertedBps = EvmTokenFeeReader.convertToBps(
-        convertedMaxFee,
-        convertedHalfAmount,
-      );
+      const convertedBps = convertToBps(convertedMaxFee, convertedHalfAmount);
       expect(convertedBps).to.equal(bps);
     });
   });

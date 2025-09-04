@@ -20,6 +20,7 @@ import {
   TokenFeeType,
   onChainTypeToTokenFeeTypeMap,
 } from './types.js';
+import { MAX_BPS, convertToBps } from './utils.js';
 
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 
@@ -32,7 +33,6 @@ export type TokenFeeReaderParams = {
   routingDestinations?: number[]; // Required for RoutingFee.feeContracts() interface
 };
 
-const MAX_BPS = 10_000n; // 100% in bps
 export class EvmTokenFeeReader extends HyperlaneReader {
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -88,7 +88,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     ]);
     const maxFeeBn = BigInt(maxFee.toString());
     const halfAmountBn = BigInt(halfAmount.toString());
-    const bps = EvmTokenFeeReader.convertToBps(maxFeeBn, halfAmountBn);
+    const bps = convertToBps(maxFeeBn, halfAmountBn);
 
     return {
       type: TokenFeeType.LinearFee,
@@ -170,11 +170,5 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       maxFee,
       halfAmount,
     };
-  }
-
-  static convertToBps(maxFee: bigint, halfAmount: bigint): bigint {
-    const bps = (maxFee * MAX_BPS) / (halfAmount * 2n);
-
-    return bps;
   }
 }
