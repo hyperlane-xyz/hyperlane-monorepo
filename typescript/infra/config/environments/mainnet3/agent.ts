@@ -438,7 +438,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     prom: true,
     proofofplay: true,
     pulsechain: true,
-    radix: false,
+    radix: true,
     rarichain: true,
     reactive: true,
     redstone: true,
@@ -855,7 +855,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '61b34eb-20250902-194509',
+      tag: 'c27e3e2-20250903-205748',
     },
     resources: scraperResources,
   },
