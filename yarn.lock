@@ -8674,6 +8674,7 @@ __metadata:
     "@types/sinon-chai": "npm:^3.2.12"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
+    bech32: "npm:^2.0.0"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.5.0"
     eslint: "npm:^9.15.0"
