@@ -21,7 +21,7 @@ const getIsm = (local: keyof typeof owners): RoutingIsmConfig => {
     type: IsmType.FALLBACK_ROUTING,
     owner: owners[local],
     domains: buildAggregationIsmConfigs(
-      'bsc',
+      local,
       ['radix'],
       defaultMultisigConfigs,
     ),
