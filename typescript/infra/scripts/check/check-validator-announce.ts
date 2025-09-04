@@ -57,7 +57,7 @@ async function main() {
     }[]
   > = {};
 
-  const chainsToSkip = ['lumia', 'osmosis'];
+  const chainsToSkip = ['osmosis'];
 
   const results: ChainResult[] = await Promise.all(
     allChainsToCheck

@@ -1319,18 +1319,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  lumia: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   lumiaprism: {
     threshold: 2,
     validators: [
