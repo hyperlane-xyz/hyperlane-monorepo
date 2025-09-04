@@ -6,7 +6,7 @@ import {
   ZHash,
 } from '../metadata/customZodTypes.js';
 
-import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
+import { convertToBps } from './utils.js';
 
 // Matches the enum in BaseFee.sol
 export enum OnchainTokenFeeType {
@@ -92,7 +92,7 @@ export const LinearFeeInputConfigSchema = BaseFeeConfigSchema.extend({
   })
   .transform((v) => ({
     ...v,
-    bps: v.bps ?? EvmTokenFeeReader.convertToBps(v.maxFee!, v.halfAmount!),
+    bps: v.bps ?? convertToBps(v.maxFee!, v.halfAmount!),
   }));
 export type LinearFeeInputConfig = z.infer<typeof LinearFeeInputConfigSchema>;
 
