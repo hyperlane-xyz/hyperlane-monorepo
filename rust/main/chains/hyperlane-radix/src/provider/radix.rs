@@ -833,47 +833,47 @@ impl HyperlaneProvider for RadixProvider {
                 let details = self
                     .entity_details(StateEntityDetailsRequest {
                         addresses: vec![address],
-                    opt_ins: Some(models::StateEntityDetailsOptIns {
-                        native_resource_details: Some(true),
+                        opt_ins: Some(models::StateEntityDetailsOptIns {
+                            native_resource_details: Some(true),
+                            ..Default::default()
+                        }),
                         ..Default::default()
-                    }),
-                    ..Default::default()
-                })
-                .await?;
+                    })
+                    .await?;
 
-            for d in details.items {
-                if let Some(resources) = d.fungible_resources {
-                    for i in resources.items {
-                        let (address, amount) = match i {
-                            models::FungibleResourcesCollectionItem::Global(x) => {
-                                let amount = Decimal::try_from(x.amount)
-                                    .map_err(HyperlaneRadixError::from)?;
-                                (x.resource_address, amount)
+                for d in details.items {
+                    if let Some(resources) = d.fungible_resources {
+                        for i in resources.items {
+                            let (address, amount) = match i {
+                                models::FungibleResourcesCollectionItem::Global(x) => {
+                                    let amount = Decimal::try_from(x.amount)
+                                        .map_err(HyperlaneRadixError::from)?;
+                                    (x.resource_address, amount)
+                                }
+                                models::FungibleResourcesCollectionItem::Vault(v) => {
+                                    // aggregate all the vaults amounts
+                                    let amount = v
+                                        .vaults
+                                        .items
+                                        .into_iter()
+                                        .map(|x| Decimal::try_from(x.amount))
+                                        .collect::<Result<Vec<_>, _>>()
+                                        .map_err(HyperlaneRadixError::from)?
+                                        .into_iter()
+                                        .reduce(|a, b| a + b)
+                                        .unwrap_or_default();
+                                    (v.resource_address, amount)
+                                }
+                            };
+                            let address = decode_bech32(&address)?;
+                            if address == XRD.to_vec() {
+                                return Ok(decimal_to_u256(amount));
                             }
-                            models::FungibleResourcesCollectionItem::Vault(v) => {
-                                // aggregate all the vaults amounts
-                                let amount = v
-                                    .vaults
-                                    .items
-                                    .into_iter()
-                                    .map(|x| Decimal::try_from(x.amount))
-                                    .collect::<Result<Vec<_>, _>>()
-                                    .map_err(HyperlaneRadixError::from)?
-                                    .into_iter()
-                                    .reduce(|a, b| a + b)
-                                    .unwrap_or_default();
-                                (v.resource_address, amount)
-                            }
-                        };
-                        let address = decode_bech32(&address)?;
-                        if address == XRD.to_vec() {
-                            return Ok(decimal_to_u256(amount));
                         }
                     }
                 }
-            }
 
-            Ok(U256::zero())
+                Ok(U256::zero())
             }
         })
         .await

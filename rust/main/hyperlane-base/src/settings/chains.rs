@@ -427,7 +427,11 @@ impl ChainConf {
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let hook = h_starknet::StarknetMerkleTreeHook::new(conf, &locator, metrics.client_metrics())?;
+                let hook = h_starknet::StarknetMerkleTreeHook::new(
+                    conf,
+                    &locator,
+                    metrics.client_metrics(),
+                )?;
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -653,7 +657,9 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let paymaster = Box::new(h_starknet::StarknetInterchainGasPaymaster::new(
-                    conf, &locator, metrics.client_metrics()
+                    conf,
+                    &locator,
+                    metrics.client_metrics(),
                 )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
@@ -874,8 +880,13 @@ impl ChainConf {
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
                 let va = Box::new(
-                    h_starknet::StarknetValidatorAnnounce::new(conf, &locator.clone(), signer, metrics.client_metrics())
-                        .await?,
+                    h_starknet::StarknetValidatorAnnounce::new(
+                        conf,
+                        &locator.clone(),
+                        signer,
+                        metrics.client_metrics(),
+                    )
+                    .await?,
                 );
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
@@ -943,7 +954,9 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let ism = Box::new(h_starknet::StarknetInterchainSecurityModule::new(
-                    conf, &locator, metrics.client_metrics()
+                    conf,
+                    &locator,
+                    metrics.client_metrics(),
                 )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
@@ -996,7 +1009,11 @@ impl ChainConf {
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(conf, &locator, metrics.client_metrics())?);
+                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(
+                    conf,
+                    &locator,
+                    metrics.client_metrics(),
+                )?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -1043,7 +1060,11 @@ impl ChainConf {
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(conf, &locator, metrics.client_metrics())?);
+                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(
+                    conf,
+                    &locator,
+                    metrics.client_metrics(),
+                )?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -1093,7 +1114,11 @@ impl ChainConf {
                 Ok(ism as Box<dyn AggregationIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(conf, &locator, metrics.client_metrics())?);
+                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(
+                    conf,
+                    &locator,
+                    metrics.client_metrics(),
+                )?);
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }
@@ -1404,7 +1429,11 @@ fn build_starknet_provider(
     locator: &ContractLocator,
 ) -> ChainResult<h_starknet::StarknetProvider> {
     let client_metrics = metrics.client_metrics();
-    Ok(h_starknet::StarknetProvider::new(locator.domain.clone(), connection_conf, client_metrics))
+    Ok(h_starknet::StarknetProvider::new(
+        locator.domain.clone(),
+        connection_conf,
+        client_metrics,
+    ))
 }
 
 fn build_radix_provider(
@@ -1415,5 +1444,11 @@ fn build_radix_provider(
     signer: Option<h_radix::RadixSigner>,
 ) -> ChainResult<RadixProvider> {
     let client_metrics = metrics.client_metrics();
-    RadixProvider::new(signer, connection_conf, locator, &chain_conf.reorg_period, client_metrics)
+    RadixProvider::new(
+        signer,
+        connection_conf,
+        locator,
+        &chain_conf.reorg_period,
+        client_metrics,
+    )
 }

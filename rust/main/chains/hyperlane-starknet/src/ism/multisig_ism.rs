@@ -27,7 +27,11 @@ pub struct StarknetMultisigIsm {
 impl StarknetMultisigIsm {
     /// Create a reference to a MultisigISM at a specific Starknet address on some
     /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>, metrics: PrometheusClientMetrics) -> ChainResult<Self> {
+    pub fn new(
+        conn: &ConnectionConf,
+        locator: &ContractLocator<'_>,
+        metrics: PrometheusClientMetrics,
+    ) -> ChainResult<Self> {
         let provider = build_json_provider(conn);
         let ism_address: Felt = HyH256(locator.address).into();
         let contract = MultisigIsmReader::new(ism_address, provider);

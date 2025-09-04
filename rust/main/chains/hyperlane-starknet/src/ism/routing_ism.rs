@@ -27,7 +27,11 @@ pub struct StarknetRoutingIsm {
 impl StarknetRoutingIsm {
     /// Create a reference to a RoutingISM at a specific Starknet address on some
     /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>, metrics: PrometheusClientMetrics) -> ChainResult<Self> {
+    pub fn new(
+        conn: &ConnectionConf,
+        locator: &ContractLocator<'_>,
+        metrics: PrometheusClientMetrics,
+    ) -> ChainResult<Self> {
         let provider = build_json_provider(conn);
         let ism_address: Felt = HyH256(locator.address).into();
         let contract = RoutingIsmReader::new(ism_address, provider);
