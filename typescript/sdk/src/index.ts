@@ -865,3 +865,4 @@ export {
   TokenFeeConfigInputSchema,
   TokenFeeConfigInput,
 } from './fee/types.js';
+export { convertToBps } from './fee/utils.js';

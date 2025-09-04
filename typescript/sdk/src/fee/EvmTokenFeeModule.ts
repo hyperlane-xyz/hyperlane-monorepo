@@ -4,8 +4,10 @@ import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
+  assert,
   deepEquals,
   eqAddress,
+  isZeroishAddress,
   objMap,
   objMerge,
   objOmit,
@@ -95,17 +97,11 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       contractVerifier,
     );
 
-    const finalizedConfig = await EvmTokenFeeModule.expandConfig({
-      config,
-      multiProvider,
-      chainName,
-    });
-
     const contracts = await module.deploy({
       multiProvider,
       chainName,
       contractVerifier,
-      config: finalizedConfig,
+      config,
     });
     module.args.addresses.deployedFee =
       contracts[chainName][config.type].address;
@@ -127,10 +123,21 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         params.multiProvider,
         params.chainName,
       );
-      const { maxFee, halfAmount } = await reader.convertFromBps(
-        config.bps,
-        config.token,
+
+      let { maxFee, halfAmount } = config;
+
+      if (!isZeroishAddress(config.token)) {
+        const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
+          await reader.convertFromBps(config.bps, config.token);
+        maxFee = convertedMaxFee;
+        halfAmount = convertedHalfAmount;
+      }
+
+      assert(
+        maxFee && halfAmount,
+        'Config properties "maxFee" and "halfAmount" must be supplied when "token" is not supplied',
       );
+
       intermediaryConfig = {
         type: TokenFeeType.LinearFee,
         token: config.token,

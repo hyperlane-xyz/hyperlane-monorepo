@@ -1227,8 +1227,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     it('should deploy a new fee if one does not exist', async () => {
       const config: HypTokenRouterConfig = {
         ...baseConfig,
-        type: TokenType.collateral,
-        token: token.address,
+        type: TokenType.native,
       };
 
       // Deploy using WarpModule
@@ -1244,6 +1243,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         ...actualConfig,
         tokenFee: {
           type: TokenFeeType.LinearFee,
+          maxFee: 1000000000,
+          halfAmount: 500000000,
           bps: BPS,
         },
       });
