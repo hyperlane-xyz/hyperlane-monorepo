@@ -52,7 +52,7 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::{
     ChainInfo as PrometheusChainInfo, ClientConnectionType, PrometheusClientMetrics,
-    PrometheusConfig, PrometheusConfigExt,
+    PrometheusConfig,
 };
 
 use crate::{
@@ -826,10 +826,13 @@ impl HyperlaneProvider for RadixProvider {
 
     /// Fetch the balance of the wallet address associated with the chain provider.
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        self.track_metric_call("get_balance", || async {
-            let details = self
-                .entity_details(StateEntityDetailsRequest {
-                    addresses: vec![address],
+        let address = address.clone();
+        self.track_metric_call("get_balance", move || {
+            let address = address.clone();
+            async move {
+                let details = self
+                    .entity_details(StateEntityDetailsRequest {
+                        addresses: vec![address],
                     opt_ins: Some(models::StateEntityDetailsOptIns {
                         native_resource_details: Some(true),
                         ..Default::default()
@@ -871,6 +874,7 @@ impl HyperlaneProvider for RadixProvider {
             }
 
             Ok(U256::zero())
+            }
         })
         .await
     }

@@ -11,6 +11,7 @@ use hyperlane_core::{
     U256,
 };
 use hyperlane_core::{BatchItem, BatchResult, FixedPointNumber, QueueOperation, ReorgPeriod};
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
 use starknet::core::types::Felt;
 
@@ -41,6 +42,7 @@ impl StarknetMailbox {
         conn: &ConnectionConf,
         locator: &ContractLocator<'_>,
         signer: Option<Signer>,
+        metrics: PrometheusClientMetrics,
     ) -> ChainResult<Self> {
         let account = build_single_owner_account(conn.urls.clone(), signer).await?;
 
@@ -50,7 +52,7 @@ impl StarknetMailbox {
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider: StarknetProvider::new(locator.domain.clone(), conn, metrics),
             conn: conn.clone(),
         })
     }

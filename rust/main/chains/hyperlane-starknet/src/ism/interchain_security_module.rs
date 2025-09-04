@@ -6,6 +6,7 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
 };
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use starknet::core::types::Felt;
 use tracing::instrument;
 
@@ -28,14 +29,18 @@ pub struct StarknetInterchainSecurityModule {
 impl StarknetInterchainSecurityModule {
     /// Create a reference to a ISM at a specific Starknet address on some
     /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
+    pub fn new(
+        conn: &ConnectionConf,
+        locator: &ContractLocator<'_>,
+        metrics: PrometheusClientMetrics,
+    ) -> ChainResult<Self> {
         let provider = build_json_provider(conn);
         let ism_address: Felt = HyH256(locator.address).into();
         let contract = InterchainSecurityModuleReader::new(ism_address, provider);
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider: StarknetProvider::new(locator.domain.clone(), conn, metrics),
             conn: conn.clone(),
         })
     }

@@ -8,7 +8,7 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::{
     ChainInfo as PrometheusChainInfo, ClientConnectionType, PrometheusClientMetrics,
-    PrometheusConfig, PrometheusConfigExt,
+    PrometheusConfig,
 };
 use starknet::core::types::{
     BlockId, BlockTag, Felt, FunctionCall, InvokeTransaction, MaybePendingBlockWithTxHashes,
@@ -17,7 +17,6 @@ use starknet::core::types::{
 use starknet::macros::selector;
 use starknet::providers::{JsonRpcClient, Provider};
 use tracing::instrument;
-use url::Url;
 
 use crate::provider::fallback::FallbackHttpTransport;
 use crate::types::{HyH256, HyU256};
@@ -73,7 +72,7 @@ impl StarknetProvider {
         let metrics_configs = create_metrics_config(conf, chain_name.clone());
 
         // Increment provider metrics for each configured provider
-        for config in &metrics_configs {
+        for _config in &metrics_configs {
             metrics.increment_provider_instance(&chain_name);
         }
 

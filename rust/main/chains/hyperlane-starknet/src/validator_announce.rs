@@ -7,6 +7,7 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, TxOutcome, H256, U256,
 };
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
 use starknet::core::types::Felt;
 use starknet::core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
@@ -48,6 +49,7 @@ impl StarknetValidatorAnnounce {
         conn: &ConnectionConf,
         locator: &ContractLocator<'_>,
         signer: Option<Signer>,
+        metrics: PrometheusClientMetrics,
     ) -> ChainResult<Self> {
         let account = build_single_owner_account(conn.urls.clone(), signer).await?;
 
@@ -57,7 +59,7 @@ impl StarknetValidatorAnnounce {
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider: StarknetProvider::new(locator.domain.clone(), conn, metrics),
             conn: conn.clone(),
         })
     }
