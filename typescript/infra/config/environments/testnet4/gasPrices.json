@@ -47,6 +47,10 @@
     "amount": "0.001",
     "decimals": 1
   },
+  "celosepolia": {
+    "amount": "25.001",
+    "decimals": 9
+  },
   "chronicleyellowstone": {
     "amount": "0.01",
     "decimals": 9
@@ -89,6 +93,10 @@
   },
   "hyperliquidevmtestnet": {
     "amount": "0.1",
+    "decimals": 9
+  },
+  "incentivtestnet": {
+    "amount": "1.000000007",
     "decimals": 9
   },
   "infinityvmmonza": {
@@ -147,12 +155,16 @@
     "amount": "56.551052651",
     "decimals": 9
   },
+  "radixtestnet": {
+    "amount": "50.0",
+    "decimals": 6
+  },
   "scrollsepolia": {
     "amount": "0.015680115",
     "decimals": 9
   },
   "sepolia": {
-    "amount": "0.001411999",
+    "amount": "0.003089873",
     "decimals": 9
   },
   "solanatestnet": {
@@ -160,7 +172,7 @@
     "decimals": 1
   },
   "somniatestnet": {
-    "amount": "6.0",
+    "amount": "10.0",
     "decimals": 9
   },
   "soneiumtestnet": {
@@ -180,7 +192,7 @@
     "decimals": 9
   },
   "subtensortestnet": {
-    "amount": "10.0",
+    "amount": "20.134283587",
     "decimals": 9
   },
   "superpositiontestnet": {

@@ -345,13 +345,13 @@ impl CosmosNativeProvider {
             .amount
             .iter()
             .map(|c| self.convert_fee(c))
-            .fold_ok(U256::zero(), |acc, v| acc + v)?;
+            .fold_ok(U256::zero(), |acc, v| acc.saturating_add(v))?;
 
         if fee < gas_limit {
             warn!(tx_hash = ?hash, ?fee, ?gas_limit, "calculated fee is less than gas limit. it will result in zero gas price");
         }
 
-        Ok(fee / gas_limit)
+        Ok(fee.div_mod(gas_limit).0)
     }
 }
 

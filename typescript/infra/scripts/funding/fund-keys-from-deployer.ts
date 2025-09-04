@@ -91,10 +91,6 @@ const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
 
-// Need to ensure we don't fund non-vanguard chains in the vanguard contexts
-const VANGUARD_CHAINS = ['base', 'arbitrum', 'optimism', 'ethereum', 'bsc'];
-const VANGUARD_CONTEXTS: Contexts[] = [Contexts.Vanguard0];
-
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
 // The --contexts-and-roles flag is used to specify the contexts and the key roles
@@ -263,18 +259,6 @@ class ContextFunder {
     roleKeysPerChain = objFilter(
       roleKeysPerChain,
       (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
-        // Skip funding for vanguard contexts on non-vanguard chains
-        if (
-          VANGUARD_CONTEXTS.includes(this.context) &&
-          !VANGUARD_CHAINS.includes(chain)
-        ) {
-          logger.warn(
-            { chain, context: this.context },
-            'Skipping funding for vanguard context on non-vanguard chain',
-          );
-          return false;
-        }
-
         const valid =
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
@@ -421,6 +405,7 @@ class ContextFunder {
     const fundableRoleKeys: Record<FundableRole, Address> = {
       [Role.Relayer]: '',
       [Role.Kathy]: '',
+      [Role.Rebalancer]: '',
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
     const { supportedChainNames } = getEnvironmentConfig(environment);
@@ -439,6 +424,7 @@ class ContextFunder {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],
             [Role.Kathy]: [],
+            [Role.Rebalancer]: [],
           };
         }
         roleKeysPerChain[chain][role] = [
@@ -465,6 +451,7 @@ class ContextFunder {
       igpClaimThresholdPerChain,
     );
   }
+
   // Funds all the roles in this.keysToFundPerChain.
   // Throws if any funding operations fail.
   async fund(): Promise<void> {
@@ -739,23 +726,23 @@ class ContextFunder {
         'Skipping funding for key',
       );
       return;
-    } else {
-      logger.info(
-        {
-          chain,
-          amount: ethers.utils.formatEther(fundingAmount),
-          key: keyInfo,
-          funder: {
-            address: funderAddress,
-            balance: ethers.utils.formatEther(
-              await this.multiProvider.getSigner(chain).getBalance(),
-            ),
-          },
-          context: this.context,
-        },
-        'Funding key',
-      );
     }
+
+    logger.info(
+      {
+        chain,
+        amount: ethers.utils.formatEther(fundingAmount),
+        key: keyInfo,
+        funder: {
+          address: funderAddress,
+          balance: ethers.utils.formatEther(
+            await this.multiProvider.getSigner(chain).getBalance(),
+          ),
+        },
+        context: this.context,
+      },
+      'Funding key',
+    );
 
     const tx = await this.multiProvider.sendTransaction(chain, {
       to: key.address,
@@ -955,7 +942,7 @@ function parseContextAndRoles(str: string): ContextAndRoles {
   }
 
   // For now, restrict the valid roles we think are reasonable to want to fund
-  const validRoles = new Set([Role.Relayer, Role.Kathy]);
+  const validRoles = new Set([Role.Relayer, Role.Kathy, Role.Rebalancer]);
   for (const role of roles) {
     if (!validRoles.has(role)) {
       throw Error(

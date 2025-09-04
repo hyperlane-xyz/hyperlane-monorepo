@@ -38,7 +38,8 @@ impl NonceManagerState {
 
         if next_nonce == upper_nonce {
             // If we reached the upper nonce, we need to update it.
-            self.set_upper_nonce(&(next_nonce + 1)).await?;
+            self.set_upper_nonce(&(next_nonce.saturating_add(U256::one())))
+                .await?;
         }
 
         self.set_tracked_tx_uuid(&next_nonce, tx_uuid).await?;
@@ -61,7 +62,7 @@ impl NonceManagerState {
         let mut next_nonce = finalized_nonce;
 
         while next_nonce < upper_nonce {
-            next_nonce += U256::one();
+            next_nonce = next_nonce.saturating_add(U256::one());
 
             let tracked_tx_uuid = self.get_tracked_tx_uuid(&next_nonce).await?;
 

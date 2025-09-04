@@ -7,12 +7,13 @@ use cosmrs::proto::traits::Message;
 use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo, SignerPublicKey};
 use cosmrs::{proto, AccountId, Any, Coin, Tx};
 
+use cometbft::hash::Algorithm;
+use cometbft::Hash;
+use cometbft_rpc::client::{http::HttpClient, Client, CompatMode};
 use itertools::{any, cloned, Itertools};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use tendermint::hash::Algorithm;
-use tendermint::Hash;
-use tendermint_rpc::{client::CompatMode, Client, HttpClient};
+
 use time::OffsetDateTime;
 use tracing::{error, warn};
 
@@ -34,6 +35,7 @@ use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::providers::cosmos::provider::parse::PacketData;
 use crate::providers::rpc::CosmosRpcClient;
 use crate::rpc_clients::CosmosFallbackProvider;
+use crate::utils::cometbft_pubkey_to_cosmrs_pubkey;
 use crate::{
     ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
 };
@@ -176,14 +178,15 @@ impl CosmosProvider {
                         let decompressed = decompress_public_key(&proto.key)
                             .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
 
-                        let tendermint = tendermint::PublicKey::from_raw_secp256k1(&decompressed)
+                        let cometbft_key = cometbft::PublicKey::from_raw_secp256k1(&decompressed)
                             .ok_or_else(|| {
                             HyperlaneCosmosError::PublicKeyError(
-                                "cannot create tendermint public key".to_owned(),
+                                "cannot create cometbft public key".to_owned(),
                             )
                         })?;
 
-                        (PublicKey::from(tendermint), AccountAddressType::Ethereum)
+                        let cosm_key = cometbft_pubkey_to_cosmrs_pubkey(&cometbft_key)?;
+                        (cosm_key, AccountAddressType::Ethereum)
                     } else {
                         (PublicKey::try_from(pk)?, AccountAddressType::Bitcoin)
                     };
@@ -360,13 +363,13 @@ impl CosmosProvider {
             .amount
             .iter()
             .map(|c| self.convert_fee(c))
-            .fold_ok(U256::zero(), |acc, v| acc + v)?;
+            .fold_ok(U256::zero(), |acc, v| acc.saturating_add(v))?;
 
         if fee < gas_limit {
             warn!(tx_hash = ?hash, ?fee, ?gas_limit, "calculated fee is less than gas limit. it will result in zero gas price");
         }
 
-        Ok(fee / gas_limit)
+        Ok(fee.div_mod(gas_limit).0)
     }
 
     async fn block_info_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
@@ -417,14 +420,12 @@ impl HyperlaneProvider for CosmosProvider {
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
 
-        let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
+        let sha_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("transaction hash should be of correct size");
 
         let response = self
             .rpc_client
-            .call(|provider| {
-                Box::pin(async move { provider.get_tx_by_hash(tendermint_hash).await })
-            })
+            .call(|provider| Box::pin(async move { provider.get_tx_by_hash(sha_hash).await }))
             .await?;
 
         let received_hash = H256::from_slice(response.hash.as_bytes());

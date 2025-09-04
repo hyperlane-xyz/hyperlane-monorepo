@@ -195,7 +195,7 @@ where
     pub async fn handle_failed_provider(&self, priority: &PrioritizedProviderInner) {
         self.increment_failed_count(priority.index).await;
 
-        if priority.last_failed_count + 1 >= FAILED_REQUEST_THRESHOLD {
+        if priority.last_failed_count.saturating_add(1) >= FAILED_REQUEST_THRESHOLD {
             let new_priority = priority.reset_failed_count();
             self.deprioritize_provider(new_priority).await;
             info!(
@@ -210,7 +210,7 @@ where
         let mut priorities = self.inner.priorities.write().await;
 
         if let Some(priority) = priorities.iter_mut().find(|p| p.index == index) {
-            priority.last_failed_count += 1;
+            priority.last_failed_count = priority.last_failed_count.saturating_add(1);
         }
     }
 
@@ -353,13 +353,16 @@ pub mod test {
         pub fn push<T: Debug>(&self, method: &str, params: T) {
             self.requests
                 .lock()
-                .unwrap()
+                .expect("Failed to acquire mutex")
                 .push((method.to_owned(), format!("{:?}", params)));
         }
 
         /// Get the stored requests
         pub fn requests(&self) -> Vec<(String, String)> {
-            self.requests.lock().unwrap().clone()
+            self.requests
+                .lock()
+                .expect("Failed to acquire mutex")
+                .clone()
         }
 
         /// Set the sleep duration
@@ -393,7 +396,7 @@ pub mod test {
     }
 
     #[tokio::test]
-    pub async fn test_deprioritization_by_failed_count() {
+    async fn test_deprioritization_by_failed_count() {
         let provider1 = ProviderMock::new(None);
         let provider2 = ProviderMock::new(None);
         let provider3 = ProviderMock::new(None);

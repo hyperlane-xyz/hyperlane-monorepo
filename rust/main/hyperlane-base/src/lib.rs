@@ -5,6 +5,8 @@
 // Forbid unsafe code outside of tests
 #![cfg_attr(not(test), forbid(unsafe_code))]
 #![warn(missing_docs)]
+#![deny(clippy::unwrap_used, clippy::panic)]
+#![deny(clippy::arithmetic_side_effects)]
 
 pub mod settings;
 

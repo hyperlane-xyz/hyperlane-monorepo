@@ -80,12 +80,14 @@ export enum WarpRouteIds {
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
   oUSDT = 'oUSDT/production',
   oUSDTSTAGE = 'oUSDT/staging',
+  oXAUT = 'oXAUT/production',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
   ArbitrumBaseEthereumLumiaprismOptimismPolygonETH = 'ETH/arbitrum-base-ethereum-lumiaprism-optimism-polygon',
   BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
   BscHyperevmSTBTC = 'stBTC/bsc-hyperevm',
+  MitosisMITO = 'MITO/mitosis',
   // Soon Routes
   SolanaSoonAi16z = 'ai16z/solanamainnet-soon',
   SolanaSoonELIZA = 'ELIZA/solanamainnet-soon',
@@ -97,8 +99,11 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
+  LumiaUSDC = 'USDC/lumia',
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
+
+  SonicSVMMoney = 'MONEY/sonicsvm',
 
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
@@ -106,7 +111,4 @@ export enum WarpRouteIds {
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
   stHYPER = 'stHYPER/bsc-ethereum',
-
-  // cttp token bridge
-  MainnetCctpUSDC = 'USDC/mainnet-cctp',
 }

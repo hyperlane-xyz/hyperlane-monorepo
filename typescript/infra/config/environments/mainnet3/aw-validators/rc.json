@@ -178,9 +178,6 @@
   "redstone": {
     "validators": ["0x51ed7127c0afc0513a0f141e910c5e02b2a9a4b5"]
   },
-  "sanko": {
-    "validators": ["0xe12dcb5cab4a2979ac46c045fe7da3c93cf62808"]
-  },
   "scroll": {
     "validators": [
       "0x11387d89856219cf685f22781bf4e85e00468d54",

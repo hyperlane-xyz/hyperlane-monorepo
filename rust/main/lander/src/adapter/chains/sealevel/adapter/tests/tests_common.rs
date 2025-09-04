@@ -13,8 +13,9 @@ use solana_sdk::{
     transaction::Transaction as SealevelTransaction,
 };
 use solana_transaction_status::{
-    EncodedConfirmedTransactionWithStatusMeta, EncodedTransaction,
-    EncodedTransactionWithStatusMeta, UiConfirmedBlock,
+    option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
+    EncodedTransaction, EncodedTransactionWithStatusMeta, UiConfirmedBlock,
+    UiTransactionStatusMeta,
 };
 
 use hyperlane_base::settings::{ChainConf, RawChainConf};
@@ -117,6 +118,7 @@ mock! {
     }
 }
 
+// used for localized tests for estimating, simulating, submitting txs etc
 struct MockProvider {}
 
 #[async_trait]
@@ -233,17 +235,17 @@ fn mock_client() -> MockClient {
     let mut client = MockClient::new();
     client
         .expect_get_block_with_commitment()
-        .returning(move |_, _| Ok(block()));
+        .returning(move |_, _| Ok(svm_block()));
     client
         .expect_get_transaction_with_commitment()
-        .returning(move |_, _| Ok(encoded_transaction()));
+        .returning(move |_, _| Ok(encoded_svm_transaction()));
     client
         .expect_simulate_transaction()
         .returning(move |_| Ok(result.clone()));
     client
 }
 
-fn block() -> UiConfirmedBlock {
+pub fn svm_block() -> UiConfirmedBlock {
     UiConfirmedBlock {
         previous_blockhash: "".to_string(),
         blockhash: "".to_string(),
@@ -256,12 +258,26 @@ fn block() -> UiConfirmedBlock {
     }
 }
 
-fn encoded_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
+pub fn encoded_svm_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
     EncodedConfirmedTransactionWithStatusMeta {
         slot: 43,
         transaction: EncodedTransactionWithStatusMeta {
             transaction: EncodedTransaction::LegacyBinary("binary".to_string()),
-            meta: None,
+            meta: Some(UiTransactionStatusMeta {
+                err: None,
+                status: Ok(()),
+                fee: 0,
+                pre_balances: Vec::new(),
+                post_balances: Vec::new(),
+                inner_instructions: OptionSerializer::None,
+                log_messages: OptionSerializer::None,
+                pre_token_balances: OptionSerializer::None,
+                post_token_balances: OptionSerializer::None,
+                rewards: OptionSerializer::None,
+                loaded_addresses: OptionSerializer::None,
+                return_data: OptionSerializer::None,
+                compute_units_consumed: OptionSerializer::None,
+            }),
             version: None,
         },
         block_time: None,

@@ -178,6 +178,10 @@ export function getTypicalHandleGasAmount(
     return 5_000_000;
   }
 
+  if (remoteProtocolType === ProtocolType.Radix) {
+    return 30_000_000;
+  }
+
   // A fairly arbitrary amount of gas used in a message's handle function,
   // generally fits most VMs.
   return 50_000;

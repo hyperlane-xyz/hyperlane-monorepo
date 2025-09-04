@@ -2,11 +2,36 @@
 
 ## 15.0.0-beta.0
 
+## 17.0.0
+
+### Minor Changes
+
+- dfa883e24: Fixes chain resolver for `hyperlane submit` by adding the STRATEGY enum into the chain resolver switch.
+
+## 16.2.0
+
+### Patch Changes
+
+- db55c3e00: fix: parse private keys as string instead of number
+
+## 16.1.1
+
+## 16.1.0
+
+## 16.0.0
+
+### Minor Changes
+
+- 3fac22334: Fix FileSubmitterStrategy to correctly append a transaction file
+- a2596f0d9: Add GET `warp-route/core` to HTTP Registry Server
+
+## 15.0.0
+
 ### Minor Changes
 
 - 2bc17e200: Update submit command to be able to handle transaction file of multiple chains
 - 87213a66d: Update `warp fork` to start up an HttpRegistry
-- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additonal updates to types related to these changes.
+- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additional updates to types related to these changes.
 
 ### Patch Changes
 

@@ -5,6 +5,8 @@
 // TODO: Remove once we start filling things in
 #![allow(unused_variables)]
 #![allow(unused_imports)] // TODO: `rustc` 1.80.1 clippy issue
+#![deny(clippy::unwrap_used, clippy::panic)]
+#![deny(clippy::arithmetic_side_effects)]
 
 mod aggregation_ism;
 /// Hyperlane Application specific functionality

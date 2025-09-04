@@ -2,9 +2,30 @@
 
 ## 15.0.0-beta.0
 
+## 17.0.0
+
+### Major Changes
+
+- 8c15edc67: Added Radix Protocol Type
+
+### Patch Changes
+
+- e0bda316a: Ignore dynamic import in webpack builds
+
+## 16.2.0
+
+## 16.1.1
+
+## 16.1.0
+
+## 16.0.0
+
+## 15.0.0
+
 ### Minor Changes
 
 - 451f3f6c3: Support pino-pretty in development
+- a33c8abd4: Implement `convertToScaledAmount` for amounts that need scaling
 
 ## 14.4.0
 
