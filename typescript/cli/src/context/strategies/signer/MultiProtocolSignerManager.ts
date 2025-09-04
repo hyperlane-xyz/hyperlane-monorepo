@@ -8,7 +8,6 @@ import {
   IMultiProtocolSignerManager,
   MultiProtocolProvider,
   MultiProvider,
-  ProtocolMap,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -18,6 +17,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
+import { SignerKeyProtocolMap } from '../../types.js';
 
 import {
   IMultiProtocolSigner,
@@ -28,7 +28,7 @@ import { MultiProtocolSignerFactory } from './MultiProtocolSignerFactory.js';
 
 export interface MultiProtocolSignerOptions {
   logger?: Logger;
-  key?: string | ProtocolMap<string>;
+  key?: SignerKeyProtocolMap;
 }
 
 const envScheme = z.object({
@@ -168,25 +168,16 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
   private async extractPrivateKey(chain: ChainName): Promise<SignerConfig> {
     const protocol = this.multiProvider.getProtocol(chain);
 
-    if (
-      protocol === ProtocolType.Ethereum &&
-      typeof this.options.key === 'string'
-    ) {
-      this.logger.debug(
-        `Using private key passed via CLI --key flag for chain ${chain}`,
-      );
-      return { privateKey: this.options.key };
-    }
-
-    if (typeof this.options.key === 'object') {
+    if (this.options.key) {
+      const protocolPrivateKey = this.options.key[protocol];
       assert(
-        this.options.key[protocol],
+        protocolPrivateKey,
         `Key flag --key.${protocol} for chain ${chain} not provided`,
       );
       this.logger.debug(
         `Using private key passed via CLI --key.${protocol} flag for chain ${chain}`,
       );
-      return { privateKey: this.options.key[protocol] };
+      return { privateKey: protocolPrivateKey };
     }
 
     if (process.env[`HYP_KEY_${protocol.toUpperCase()}`]) {
@@ -194,11 +185,9 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
       return { privateKey: process.env[`HYP_KEY_${protocol.toUpperCase()}`]! };
     }
 
-    if (protocol === ProtocolType.Ethereum) {
-      if (ENV.HYP_KEY) {
-        this.logger.debug(`Using private key from .env for chain ${chain}`);
-        return { privateKey: ENV.HYP_KEY };
-      }
+    if (protocol === ProtocolType.Ethereum && ENV.HYP_KEY) {
+      this.logger.debug(`Using private key from .env for chain ${chain}`);
+      return { privateKey: ENV.HYP_KEY };
     }
 
     const signerStrategy = this.getSignerStrategyOrFail(chain);

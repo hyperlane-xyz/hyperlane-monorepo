@@ -1,5 +1,5 @@
 import { confirm } from '@inquirer/prompts';
-import { Signer, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -11,7 +11,7 @@ import {
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand, isValidKey } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
@@ -20,18 +20,14 @@ import { getSigner } from '../utils/keys.js';
 
 import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
-import { CommandContext, ContextSettings } from './types.js';
+import {
+  CommandContext,
+  ContextSettings,
+  SignerKeyProtocolMap,
+} from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
   const requiresKey = isSignCommand(argv);
-
-  // if a key was provided, check if it has a valid format
-  if (argv.key) {
-    assert(
-      isValidKey(argv.key),
-      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time`,
-    );
-  }
 
   const settings: ContextSettings = {
     registryUris: [...argv.registry],
@@ -113,11 +109,28 @@ export async function getContext({
     authToken,
   });
 
+  // if a key was provided, check if it has a valid format
+  if (key) {
+    assert(
+      isValidKey(key),
+      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time`,
+    );
+  }
+
+  let keyMap: SignerKeyProtocolMap | undefined;
+  if (typeof key === 'string') {
+    keyMap = { [ProtocolType.Ethereum]: key };
+  } else {
+    keyMap = key;
+  }
+
   //Just for backward compatibility
   let signerAddress: string | undefined = undefined;
-  if (key && typeof key === 'string') {
-    let signer: Signer;
-    ({ key, signer } = await getSigner({ key, skipConfirmation }));
+  if (keyMap && keyMap[ProtocolType.Ethereum]) {
+    const { signer } = await getSigner({
+      key: keyMap[ProtocolType.Ethereum],
+      skipConfirmation,
+    });
     signerAddress = await signer.getAddress();
   }
 
@@ -130,7 +143,7 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
-    key,
+    key: keyMap,
     skipConfirmation: !!skipConfirmation,
     signerAddress,
     strategyPath,
