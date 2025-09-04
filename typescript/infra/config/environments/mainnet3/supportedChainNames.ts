@@ -62,7 +62,6 @@ export const mainnet3SupportedChainNames = [
   'linea',
   'lisk',
   'lukso',
-  'lumia',
   'lumiaprism',
   'mantapacific',
   'mantle',

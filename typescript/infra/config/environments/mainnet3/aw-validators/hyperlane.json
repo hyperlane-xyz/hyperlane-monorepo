@@ -182,9 +182,6 @@
   "lukso": {
     "validators": ["0xa5e953701dcddc5b958b5defb677a829d908df6d"]
   },
-  "lumia": {
-    "validators": ["0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f"]
-  },
   "lumiaprism": {
     "validators": ["0xb69731640ffd4338a2c9358a935b0274c6463f85"]
   },
