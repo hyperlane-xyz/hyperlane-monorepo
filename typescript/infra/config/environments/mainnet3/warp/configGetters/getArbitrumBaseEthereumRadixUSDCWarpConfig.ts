@@ -89,7 +89,7 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
     type: TokenType.synthetic,
     symbol: 'hUSDC',
     name: 'Hyperlane USD Coin',
-    gas: 30_000_0000,
+    gas: 30_000_000,
     decimals: 6,
   };
 
