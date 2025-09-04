@@ -48,7 +48,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -102,7 +101,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -156,7 +154,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,

@@ -7,10 +7,6 @@
     "amount": "40.0",
     "decimals": 9
   },
-  "alfajores": {
-    "amount": "25.001",
-    "decimals": 9
-  },
   "arbitrumsepolia": {
     "amount": "0.1",
     "decimals": 9
