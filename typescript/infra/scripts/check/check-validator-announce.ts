@@ -38,7 +38,7 @@ async function main() {
 
   const chainsWithUnannouncedValidators: ChainMap<string[]> = {};
 
-  const chainsToSkip = ['lumia', 'osmosis'];
+  const chainsToSkip = ['osmosis'];
 
   const results: ChainResult[] = await Promise.all(
     allChainsToCheck
