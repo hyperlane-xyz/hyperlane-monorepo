@@ -34,12 +34,8 @@ export async function contextMiddleware(argv: Record<string, any>) {
   }
 
   const settings: ContextSettings = {
-    registryUris: [
-      ...argv.registry,
-      ...(argv.overrides ? [argv.overrides] : []),
-    ],
+    registryUris: [...argv.registry],
     key: argv.key,
-    fromAddress: argv.fromAddress,
     requiresKey,
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
@@ -51,10 +47,14 @@ export async function contextMiddleware(argv: Record<string, any>) {
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const { key, requiresKey, multiProvider, strategyPath, chainMetadata } =
-    argv.context;
+  const {
+    key,
+    requiresKey,
+    multiProvider,
+    strategyPath,
+    multiProtocolProvider,
+  } = argv.context;
 
-  const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
   if (!requiresKey) return argv;
 
   const strategyConfig = strategyPath
@@ -134,7 +134,7 @@ export async function getContext({
     skipConfirmation: !!skipConfirmation,
     signerAddress,
     strategyPath,
-  } as CommandContext;
+  };
 }
 
 /**

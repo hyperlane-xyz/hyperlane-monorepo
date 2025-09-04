@@ -126,6 +126,8 @@ export const deploy: CommandModuleWithWriteContext<{
       config: readYamlOrJson(configFilePath),
       multiProtocolSigner,
     });
+
+    process.exit(0);
   },
 };
 

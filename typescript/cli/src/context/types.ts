@@ -17,7 +17,6 @@ import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSig
 export interface ContextSettings {
   registryUris: string[];
   key?: string | ProtocolMap<string>;
-  fromAddress?: string;
   requiresKey?: boolean;
   disableProxy?: boolean;
   skipConfirmation?: boolean;
@@ -29,9 +28,10 @@ export interface CommandContext {
   registry: IRegistry;
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
+  requiresKey?: boolean;
   multiProtocolProvider: MultiProtocolProvider;
   skipConfirmation: boolean;
-  key?: string;
+  key?: string | ProtocolMap<string>;
   // just for evm chains backward compatibility
   signerAddress?: string;
   strategyPath?: string;
