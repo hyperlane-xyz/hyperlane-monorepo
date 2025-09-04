@@ -5083,50 +5083,6 @@
         "maxPriorityFeePerGas": 100000000000
       }
     },
-    "lumia": {
-      "blockExplorers": [
-        {
-          "apiUrl": "https://explorer.lumia.org/api/eth-rpc",
-          "family": "blockscout",
-          "name": "Lumia Prism Explorer",
-          "url": "https://explorer.lumia.org"
-        }
-      ],
-      "blocks": {
-        "confirmations": 3,
-        "estimateBlockTime": 4,
-        "reorgPeriod": 5
-      },
-      "chainId": 994873017,
-      "deployer": {
-        "name": "Abacus Works",
-        "url": "https://www.hyperlane.xyz"
-      },
-      "displayName": "Lumia Prism",
-      "domainId": 994873017,
-      "gasCurrencyCoinGeckoId": "orion-protocol",
-      "name": "lumia",
-      "nativeToken": {
-        "decimals": 18,
-        "name": "Lumia",
-        "symbol": "LUMIA"
-      },
-      "protocol": "ethereum",
-      "rpcUrls": [
-        {
-          "http": "https://mainnet-rpc.lumia.org"
-        }
-      ],
-      "technicalStack": "polygoncdk",
-      "index": {
-        "from": 1923136,
-        "chunk": 1000
-      },
-      "interchainGasPaymaster": "0x9024A3902B542C87a5C4A2b3e15d60B2f087Dc3E",
-      "mailbox": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",
-      "merkleTreeHook": "0x9c44E6b8F0dB517C2c3a0478caaC5349b614F912",
-      "validatorAnnounce": "0x989B7307d266151BE763935C856493D968b2affF"
-    },
     "metal": {
       "blockExplorers": [
         {

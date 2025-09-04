@@ -129,7 +129,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     linea: true,
     lisk: true,
     lukso: true,
-    lumia: true,
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
@@ -268,7 +267,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     linea: true,
     lisk: true,
     lukso: true,
-    lumia: true,
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
@@ -407,7 +405,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     linea: true,
     lisk: true,
     lukso: true,
-    lumia: true,
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
@@ -441,7 +438,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     prom: true,
     proofofplay: true,
     pulsechain: true,
-    radix: false,
+    radix: true,
     rarichain: true,
     reactive: true,
     redstone: true,
@@ -651,13 +648,6 @@ const stagingStHyperMatchingList = chainMapMatchingList({
   ethereum: '0x0C919509663cb273E156B706f065b9F7e6331891',
 });
 
-const vanguardMatchingList = [
-  ...hyperMatchingList,
-  ...stHyperMatchingList,
-  ...stagingHyperMatchingList,
-  ...stagingStHyperMatchingList,
-];
-
 // Gets metric app contexts, including:
 // - helloworld
 // - all warp routes defined in WarpRouteIds, using addresses from the registry
@@ -865,7 +855,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '61b34eb-20250902-194509',
+      tag: 'c27e3e2-20250903-205748',
     },
     resources: scraperResources,
   },
@@ -943,79 +933,8 @@ const neutron: RootAgentConfig = {
   },
 };
 
-const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
-  ...contextBase,
-  context: mustBeValidContext(`vanguard${index}`),
-  contextChainNames: {
-    validator: [],
-    relayer: ['bsc', 'arbitrum', 'optimism', 'ethereum', 'base'],
-    scraper: [],
-  },
-  rolesWithKeys: [Role.Relayer],
-  relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    docker: {
-      repo,
-      // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
-      tag: '420c950-20250612-172436',
-    },
-    whitelist: vanguardMatchingList,
-    // Not specifying a blacklist for optimization purposes -- all the message IDs
-    // in there are not vanguard-specific.
-    gasPaymentEnforcement: [
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: vanguardMatchingList,
-      },
-    ],
-    metricAppContextsGetter,
-    ismCacheConfigs,
-    cache: {
-      enabled: true,
-      // Cache for 10 minutes
-      defaultExpirationSeconds: 10 * 60,
-    },
-    resources: {
-      requests: {
-        // Big enough to claim a c3-standard-44 each
-        cpu: '35000m',
-        memory: '100Gi',
-      },
-    },
-    dbBootstrap: true,
-    mixing: {
-      enabled: true,
-      // Arbitrary salt to ensure different agents have different sorting behavior for pending messages
-      salt: 69690 + index,
-    },
-    batch: {
-      defaultBatchSize: 32,
-      batchSizeOverrides: {
-        // Slightly lower to ideally fit within 5M
-        ethereum: 26,
-      },
-      bypassBatchSimulation: true,
-      maxSubmitQueueLength: {
-        arbitrum: 350,
-        base: 350,
-        bsc: 350,
-        optimism: 350,
-        ethereum: 75,
-      },
-    },
-    txIdIndexingEnabled: false,
-    igpIndexingEnabled: false,
-  },
-});
-
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
-  [Contexts.Vanguard0]: getVanguardRootAgentConfig(0),
-  [Contexts.Vanguard1]: getVanguardRootAgentConfig(1),
-  [Contexts.Vanguard2]: getVanguardRootAgentConfig(2),
-  [Contexts.Vanguard3]: getVanguardRootAgentConfig(3),
-  [Contexts.Vanguard4]: getVanguardRootAgentConfig(4),
-  [Contexts.Vanguard5]: getVanguardRootAgentConfig(5),
 };

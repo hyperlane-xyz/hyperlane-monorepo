@@ -62,10 +62,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   endurance: '0x470E04D8a3b7938b385093B93CeBd8Db7A1E557C',
   // sei: '0xabad187003EdeDd6C720Fc633f929EA632996567', // renzo chain
 
-  // Oct 16, 2024 batch
-  // ----------------------------------------------------------
-  // lumia: '0x418E10Ac9e0b84022d0636228d05bc74172e0e41',
-
   // Oct 30, 2024 batch
   // ----------------------------------------------------------
   apechain: '0xe68b0aB6BB8c11D855556A5d3539524f6DB3bdc6',

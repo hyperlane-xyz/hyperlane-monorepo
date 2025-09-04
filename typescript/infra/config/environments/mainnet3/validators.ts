@@ -792,16 +792,6 @@ export const validatorChainConfig = (
         'oortmainnet',
       ),
     },
-    lumia: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('lumia'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f'],
-        },
-        'lumia',
-      ),
-    },
     zeronetwork: {
       interval: 5,
       reorgPeriod: getReorgPeriod('zeronetwork'),

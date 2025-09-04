@@ -78,11 +78,6 @@ async function main() {
 
   await Promise.all(
     targetNetworks.map(async (chain) => {
-      if (chain === 'lumia') {
-        rootLogger.info('Skipping deprecated chain: lumia');
-        return;
-      }
-
       const validatorAnnounce = ValidatorAnnounce__factory.connect(
         chainAddresses[chain]['validatorAnnounce'],
         multiProvider.getProvider(chain),
