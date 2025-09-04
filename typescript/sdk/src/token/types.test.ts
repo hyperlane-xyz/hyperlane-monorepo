@@ -3,6 +3,9 @@ import { ethers } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { TokenFeeType } from '../fee/types.js';
+import { randomAddress } from '../test/testUtils.js';
+
 import { TokenType } from './config.js';
 import {
   WarpRouteDeployConfig,
@@ -173,4 +176,38 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     );
     expect(warpConfig.optimism.collateralChainName).to.equal('arbitrum');
   });
+
+  for (const tokenFee of [
+    {
+      type: TokenFeeType.LinearFee,
+      maxFee: 100n,
+      halfAmount: 50n,
+      token: randomAddress(),
+    },
+    {
+      type: TokenFeeType.RoutingFee,
+      feeContracts: {
+        arbitrum: {
+          type: TokenFeeType.LinearFee,
+          maxFee: 100n,
+          halfAmount: 50n,
+          token: randomAddress(),
+        },
+      },
+    },
+  ]) {
+    it.only(`should throw if ${tokenFee.type} token does not match the warp route token`, async () => {
+      const parseResults = WarpRouteDeployConfigSchema.safeParse({
+        arbitrum: {
+          ...config.arbitrum,
+          tokenFee,
+        },
+      });
+
+      assert(!parseResults.success, 'must be false');
+      expect(parseResults.error.issues[0].message).to.include(
+        'same token as warp route',
+      );
+    });
+  }
 });

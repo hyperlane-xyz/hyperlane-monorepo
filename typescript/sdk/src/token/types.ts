@@ -309,10 +309,39 @@ export type HypTokenRouterConfigMailboxOptionalBase = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalBaseSchema
 >;
 
-export const HypTokenRouterConfigMailboxOptionalSchema = z.preprocess(
-  preprocessWarpRouteDeployConfig,
-  HypTokenRouterConfigMailboxOptionalBaseSchema,
-);
+export const HypTokenRouterConfigMailboxOptionalSchema = z
+  .preprocess(
+    preprocessWarpRouteDeployConfig,
+    HypTokenRouterConfigMailboxOptionalBaseSchema,
+  ) // Check that each tokenFee.token is the same as config.token
+  .transform((config, ctx) => {
+    if (!isCollateralTokenConfig(config) || !config.tokenFee) return config;
+
+    if (config.tokenFee.token !== config.token) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${config.tokenFee.type} must have the same token as warp route`,
+      });
+    }
+
+    if (
+      config.tokenFee.type === TokenFeeType.RoutingFee &&
+      config.tokenFee.feeContracts
+    ) {
+      const hasSameTokens = Object.entries(config.tokenFee.feeContracts).every(
+        ([_, subFee]) => subFee.token === config.token,
+      );
+
+      if (!hasSameTokens) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${TokenFeeType.RoutingFee} has sub fees are not the same token as warp route`,
+        });
+      }
+    }
+
+    return config;
+  });
 
 export type HypTokenRouterConfigMailboxOptional = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalSchema
