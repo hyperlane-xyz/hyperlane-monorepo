@@ -67,11 +67,16 @@ impl RoutingIsm for StarknetRoutingIsm {
         let message = &message.into();
 
         let ism = self
-            .contract
-            .route(message)
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("routing_ism_route", || async {
+                self.contract
+                    .route(message)
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
 
         Ok(HyH256::from(ism.0).0)
     }

@@ -67,11 +67,16 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
     #[instrument(skip(self))]
     async fn module_type(&self) -> ChainResult<ModuleType> {
         let module = self
-            .contract
-            .module_type()
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("ism_module_type", || async {
+                self.contract
+                    .module_type()
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
         Ok(to_hpl_module_type(module))
     }
 

@@ -70,11 +70,16 @@ impl MultisigIsm for StarknetMultisigIsm {
         let message = &message.into();
 
         let (validator_addresses, threshold) = self
-            .contract
-            .validators_and_threshold(message)
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("multisig_ism_validators_and_threshold", || async {
+                self.contract
+                    .validators_and_threshold(message)
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
 
         Ok((
             validator_addresses

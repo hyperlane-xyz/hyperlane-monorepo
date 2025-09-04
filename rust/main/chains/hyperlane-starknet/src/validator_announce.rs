@@ -112,11 +112,19 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
             .collect();
 
         let storage_locations_res = self
-            .contract
-            .get_announced_storage_locations(&validators_calldata)
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call(
+                "validator_announce_get_announced_storage_locations",
+                || async {
+                    self.contract
+                        .get_announced_storage_locations(&validators_calldata)
+                        .call()
+                        .await
+                        .map_err(Into::<HyperlaneStarknetError>::into)
+                        .map_err(Into::into)
+                },
+            )
+            .await?;
 
         // In cairo, long strings are represented as an array of Field elements.
         // Storage locations is an array of long strings, so we just need to parse each
@@ -156,7 +164,16 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
             warn!("Unable to get announce contract call");
             return None;
         };
-        let Ok(estimate) = tx.estimate_fee().await else {
+        let Ok(estimate) = self
+            .provider
+            .track_metric_call("validator_announce_estimate_fee", || async {
+                tx.estimate_fee()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await
+        else {
             warn!("Unable to estimate announce contract call");
             return None;
         };

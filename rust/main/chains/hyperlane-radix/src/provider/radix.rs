@@ -208,18 +208,21 @@ impl RadixProvider {
             )
         });
 
-        let args = raw_args.into_iter().map(hex::encode).collect();
+        let args: Vec<String> = raw_args.into_iter().map(hex::encode).collect();
 
         let result = self
-            .provider
-            .call_preview(TransactionCallPreviewRequest {
-                arguments: args,
-                at_ledger_state: selector,
-                target: TargetIdentifier::Method(ComponentMethodTargetIdentifier {
-                    component_address: component.to_owned(),
-                    method_name: method.to_owned(),
-                }),
-                network: self.conf.network.logical_name.to_string(),
+            .track_metric_call("call_preview", || async {
+                self.provider
+                    .call_preview(TransactionCallPreviewRequest {
+                        arguments: args.clone(),
+                        at_ledger_state: selector.clone(),
+                        target: TargetIdentifier::Method(ComponentMethodTargetIdentifier {
+                            component_address: component.to_owned(),
+                            method_name: method.to_owned(),
+                        }),
+                        network: self.conf.network.logical_name.to_string(),
+                    })
+                    .await
             })
             .await?;
         match result.status {
@@ -260,7 +263,9 @@ impl RadixProvider {
 
     /// Returns the latest ledger state of the chain
     pub async fn get_state_version(&self, reorg: Option<&ReorgPeriod>) -> ChainResult<u64> {
-        let status = self.core_status().await?;
+        let status = self
+            .track_metric_call("core_status", || async { self.core_status().await })
+            .await?;
         let state = status.current_state_identifier.state_version;
         let reorg = reorg.unwrap_or(&self.reorg);
         let offset = match reorg {
@@ -383,16 +388,19 @@ impl RadixProvider {
         let hash: H256 = (*hash).into();
         let hash = encode_tx(&self.conf.network, hash)?;
         let response = self
-            .transaction_committed(TransactionCommittedDetailsRequest {
-                intent_hash: hash,
-                opt_ins: Some(TransactionDetailsOptIns {
-                    affected_global_entities: Some(true),
-                    manifest_instructions: Some(true),
-                    receipt_events: Some(true),
-                    receipt_fee_summary: Some(true),
+            .track_metric_call("transaction_committed", || async {
+                self.transaction_committed(TransactionCommittedDetailsRequest {
+                    intent_hash: hash.clone(),
+                    opt_ins: Some(TransactionDetailsOptIns {
+                        affected_global_entities: Some(true),
+                        manifest_instructions: Some(true),
+                        receipt_events: Some(true),
+                        receipt_fee_summary: Some(true),
+                        ..Default::default()
+                    }),
                     ..Default::default()
-                }),
-                ..Default::default()
+                })
+                .await
             })
             .await?;
         Ok(response)
@@ -427,9 +435,12 @@ impl RadixProvider {
 
         loop {
             let response = self
-                .stream_txs(StreamTransactionsRequest {
-                    cursor,
-                    ..request.clone()
+                .track_metric_call("stream_txs", || async {
+                    self.stream_txs(StreamTransactionsRequest {
+                        cursor: cursor.clone(),
+                        ..request.clone()
+                    })
+                    .await
                 })
                 .await?;
 
@@ -458,7 +469,13 @@ impl RadixProvider {
         let signer = self.get_signer()?;
         let private_key = signer.get_signer()?;
 
-        let epoch = self.provider.gateway_status().await?.ledger_state.epoch as u64;
+        let epoch = self
+            .track_metric_call("gateway_status", || async {
+                self.provider.gateway_status().await
+            })
+            .await?
+            .ledger_state
+            .epoch as u64;
         let tx = TransactionBuilder::new_v2()
             .transaction_header(TransactionHeaderV2 {
                 notary_public_key: private_key.public_key(),
@@ -509,7 +526,13 @@ impl RadixProvider {
 
         let simulation = match fee {
             Some(summary) => summary,
-            None => self.simulate_raw_tx(simulation.to_vec()).await?.fee_summary,
+            None => {
+                self.track_metric_call("simulate_raw_tx", || async {
+                    self.simulate_raw_tx(simulation.clone().to_vec()).await
+                })
+                .await?
+                .fee_summary
+            }
         };
         let simulated_xrd = Self::total_fee(simulation)?
             * Decimal::from_str("1.5").map_err(HyperlaneRadixError::from)?;
@@ -522,7 +545,10 @@ impl RadixProvider {
             .notarize(&private_key)
             .build();
 
-        self.submit_transaction(tx.raw.to_vec()).await?;
+        self.track_metric_call("submit_transaction", || async {
+            self.submit_transaction(tx.raw.clone().to_vec()).await
+        })
+        .await?;
 
         let tx_hash: H512 =
             H256::from_slice(tx.transaction_hashes.transaction_intent_hash.0.as_bytes()).into();
@@ -535,7 +561,11 @@ impl RadixProvider {
         let mut attempt = 0;
 
         let status = loop {
-            let tx_status = self.get_tx_status(tx_hash).await?;
+            let tx_status = self
+                .track_metric_call("get_tx_status", || async {
+                    self.get_tx_status(tx_hash).await
+                })
+                .await?;
 
             match tx_status.status {
                 models::TransactionStatus::CommittedSuccess
@@ -602,20 +632,23 @@ impl RadixProvider {
     /// Simulates a raw tx to the gateway to be included
     pub async fn simulate_raw_tx(&self, tx: Vec<u8>) -> ChainResult<TransactionReceipt> {
         let response = self
-            .transaction_preview(TransactionPreviewV2Request {
-                flags: Some(gateway_api_client::models::PreviewFlags {
-                    use_free_credit: Some(true),
-                    ..Default::default()
-                }),
-                preview_transaction: gateway_api_client::models::PreviewTransaction::Compiled(
-                    CompiledPreviewTransaction {
-                        preview_transaction_hex: hex::encode(tx),
-                    },
-                ),
-                opt_ins: Some(gateway_api_client::models::TransactionPreviewV2OptIns {
-                    core_api_receipt: Some(true),
-                    ..Default::default()
-                }),
+            .track_metric_call("transaction_preview", || async {
+                self.transaction_preview(TransactionPreviewV2Request {
+                    flags: Some(gateway_api_client::models::PreviewFlags {
+                        use_free_credit: Some(true),
+                        ..Default::default()
+                    }),
+                    preview_transaction: gateway_api_client::models::PreviewTransaction::Compiled(
+                        CompiledPreviewTransaction {
+                            preview_transaction_hex: hex::encode(tx.clone()),
+                        },
+                    ),
+                    opt_ins: Some(gateway_api_client::models::TransactionPreviewV2OptIns {
+                        core_api_receipt: Some(true),
+                        ..Default::default()
+                    }),
+                })
+                .await
             })
             .await?;
 
@@ -631,7 +664,11 @@ impl RadixProvider {
     pub async fn get_tx_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse> {
         let hash: H256 = hash.into();
         let hash = encode_tx(&self.conf.network, hash)?;
-        let response = self.transaction_status(hash).await?;
+        let response = self
+            .track_metric_call("transaction_status", || async {
+                self.transaction_status(hash.clone()).await
+            })
+            .await?;
         Ok(response)
     }
 
@@ -705,13 +742,16 @@ impl HyperlaneProvider for RadixProvider {
             // Radix doesn't have any blocks
             // we will fetch TXs at the given height instead and return the resulting information from them
             let tx = self
-                .stream_txs(StreamTransactionsRequest {
-                    at_ledger_state: Some(Some(LedgerStateSelector {
-                        state_version: Some(Some(height)),
+                .track_metric_call("stream_txs_by_height", || async {
+                    self.stream_txs(StreamTransactionsRequest {
+                        at_ledger_state: Some(Some(LedgerStateSelector {
+                            state_version: Some(Some(height)),
+                            ..Default::default()
+                        })),
+                        limit_per_page: Some(Some(1)),
                         ..Default::default()
-                    })),
-                    limit_per_page: Some(Some(1)),
-                    ..Default::default()
+                    })
+                    .await
                 })
                 .await?;
 
@@ -831,13 +871,16 @@ impl HyperlaneProvider for RadixProvider {
             let address = address.clone();
             async move {
                 let details = self
-                    .entity_details(StateEntityDetailsRequest {
-                        addresses: vec![address],
-                        opt_ins: Some(models::StateEntityDetailsOptIns {
-                            native_resource_details: Some(true),
+                    .track_metric_call("entity_details", || async {
+                        self.entity_details(StateEntityDetailsRequest {
+                            addresses: vec![address.clone()],
+                            opt_ins: Some(models::StateEntityDetailsOptIns {
+                                native_resource_details: Some(true),
+                                ..Default::default()
+                            }),
                             ..Default::default()
-                        }),
-                        ..Default::default()
+                        })
+                        .await
                     })
                     .await?;
 

@@ -96,7 +96,7 @@ impl StarknetProvider {
     }
 
     /// Track metrics for a provider call
-    async fn track_metric_call<F, Fut, T>(&self, method: &str, rpc_call: F) -> ChainResult<T>
+    pub async fn track_metric_call<F, Fut, T>(&self, method: &str, rpc_call: F) -> ChainResult<T>
     where
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = ChainResult<T>>,

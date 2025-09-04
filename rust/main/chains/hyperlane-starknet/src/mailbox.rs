@@ -92,12 +92,17 @@ impl Mailbox for StarknetMailbox {
             get_block_height_for_reorg_period(self.provider.rpc_client(), reorg_period).await?;
 
         let nonce = self
-            .contract
-            .nonce()
-            .block_id(starknet::core::types::BlockId::Number(block_number))
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("mailbox_nonce", || async {
+                self.contract
+                    .nonce()
+                    .block_id(starknet::core::types::BlockId::Number(block_number))
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
 
         Ok(nonce)
     }
@@ -109,32 +114,47 @@ impl Mailbox for StarknetMailbox {
         let high = BigEndian::read_u128(high_bytes);
         let low = BigEndian::read_u128(low_bytes);
         Ok(self
-            .contract
-            .delivered(&StarknetU256 { low, high })
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?)
+            .provider
+            .track_metric_call("mailbox_delivered", || async {
+                self.contract
+                    .delivered(&StarknetU256 { low, high })
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?)
     }
 
     #[instrument(skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
         let address = self
-            .contract
-            .get_default_ism()
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("mailbox_default_ism", || async {
+                self.contract
+                    .get_default_ism()
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
         Ok(HyH256::from(address.0).0)
     }
 
     #[instrument(skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let address = self
-            .contract
-            .recipient_ism(&StarknetU256::from_bytes_be(&recipient.to_fixed_bytes()))
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("mailbox_recipient_ism", || async {
+                self.contract
+                    .recipient_ism(&StarknetU256::from_bytes_be(&recipient.to_fixed_bytes()))
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
         Ok(HyH256::from(address.0).0)
     }
 
@@ -158,10 +178,16 @@ impl Mailbox for StarknetMailbox {
         let contract_call = self.process_contract_call(message, metadata).await?;
 
         // Get fee estimate from the provider
-        let fee_estimate = contract_call
-            .estimate_fee()
-            .await
-            .map_err(HyperlaneStarknetError::from)?;
+        let fee_estimate = self
+            .provider
+            .track_metric_call("mailbox_estimate_fee", || async {
+                contract_call
+                    .estimate_fee()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
 
         Ok(TxCostEstimate {
             gas_limit: fee_estimate.l2_gas_consumed.into(), // use l2 gas as an approximation, as its the most relevant

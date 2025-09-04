@@ -70,11 +70,16 @@ impl AggregationIsm for StarknetAggregationIsm {
         let message: StarknetMessage = message.into();
 
         let (isms, threshold) = self
-            .contract
-            .modules_and_threshold(&message)
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("aggregation_ism_modules_and_threshold", || async {
+                self.contract
+                    .modules_and_threshold(&message)
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
         let isms_h256 = isms
             .iter()
             .map(|address| HyH256::from(address.0).0)
