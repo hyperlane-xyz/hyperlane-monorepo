@@ -63,7 +63,7 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
     interchainSecurityModule: getIsm('arbitrum'),
     owner: owners.arbitrum,
     proxyAdmin: {
-      owner: owners.ethereum,
+      owner: owners.arbitrum,
     },
     type: TokenType.collateral,
     token: tokens.arbitrum.USDC,
@@ -76,7 +76,7 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
     interchainSecurityModule: getIsm('base'),
     owner: owners.base,
     proxyAdmin: {
-      owner: owners.ethereum,
+      owner: owners.base,
     },
     type: TokenType.collateral,
     token: tokens.base.USDC,
