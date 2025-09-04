@@ -41,8 +41,6 @@ export interface WriteCommandContext extends CommandContext {
   key: string;
   signer: ethers.Signer;
   multiProtocolSigner?: MultiProtocolSignerManager;
-  isDryRun?: boolean;
-  dryRunChain?: string;
   apiKeys?: ChainMap<string>;
 }
 
