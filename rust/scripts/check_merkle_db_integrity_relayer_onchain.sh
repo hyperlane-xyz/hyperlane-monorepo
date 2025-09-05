@@ -98,8 +98,8 @@ while [ "$mismatch_found" = false ]; do
 
         data=$(echo $event | jq -r '.data')
         decoded_event=$(cast decode-event --sig "$event_name" "$data" 2>/dev/null)
-        message_id=$(echo "$decoded_event" | sed '1q;d')
-        leaf_index=$(echo "$decoded_event" | sed '2q;d' | cut -d ' ' -f 1)
+        message_id=$(echo "$decoded_event" | awk '{print $1}')
+        leaf_index=$(echo "$decoded_event" | awk '{print $2}' | cut -d ' ' -f 1)
 
         echo "⛓️ Leaf Index: $leaf_index"
         echo "⛓️ Message ID: $message_id"
@@ -114,6 +114,7 @@ while [ "$mismatch_found" = false ]; do
             echo "⛓️ Onchain:    $message_id"
             echo "📬 Relayer:    $relayer_message_id"
             mismatch_found=true
+            mismatch_index="$leaf_index"
         else
             echo "  ✓ Match"
             echo "==============================================="
@@ -122,4 +123,9 @@ while [ "$mismatch_found" = false ]; do
     done
 done
 
-echo -e "\n✅ Comparison complete. First mismatch found at index $current_index."
+if [ "$mismatch_found" = true ]; then
+    echo -e "\n✅ Comparison complete. First mismatch found at index $mismatch_index."
+else
+    echo -e "\n✅ Comparison complete. No mismatches found in scanned range."
+fi
+

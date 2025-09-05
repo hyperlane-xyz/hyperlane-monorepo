@@ -100,8 +100,8 @@ while [ "$mismatch_found" = false ]; do
 
         data=$(echo $event | jq -r '.data')
         decoded_event=$(cast decode-event --sig "$event_name" "$data" 2>/dev/null)
-        message_id=$(echo "$decoded_event" | sed '1q;d')
-        leaf_index=$(echo "$decoded_event" | sed '2q;d' | cut -d ' ' -f 1)
+        message_id=$(echo "$decoded_event" | awk '{print $1}')
+        leaf_index=$(echo "$decoded_event" | awk '{print $2}' | cut -d ' ' -f 1)
 
         echo "⛓️ Leaf Index: $leaf_index"
         echo "⛓️ Message ID: $message_id"
@@ -109,7 +109,7 @@ while [ "$mismatch_found" = false ]; do
         validator_checkpoint=$(fetch_validator_checkpoint $domain_id $leaf_index)
         # echo $validator_checkpoint
         validator_message_id=$(extract_checkpoint_message_id "$validator_checkpoint")
-        echo "🛡️ Relayer Message ID: $validator_message_id"
+        echo "🛡️ Validator Message ID: $validator_message_id"
 
         # Compare the message IDs
         if [ "$message_id" != "$validator_message_id" ]; then
@@ -117,6 +117,7 @@ while [ "$mismatch_found" = false ]; do
             echo "⛓️   Onchain:    $message_id"
             echo "📬 Validator:    $validator_message_id"
             mismatch_found=true
+            mismatch_index="$leaf_index"
         else
             echo "  ✓ Match"
             echo "==============================================="
@@ -125,4 +126,8 @@ while [ "$mismatch_found" = false ]; do
     done
 done
 
-echo -e "\n✅ Comparison complete. First mismatch found at index $current_index."
+if [ "$mismatch_found" = true ]; then
+    echo -e "\n✅ Comparison complete. First mismatch found at index $mismatch_index."
+else
+    echo -e "\n✅ Comparison complete. No mismatches found in scanned range."
+fi
