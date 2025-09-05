@@ -98,6 +98,9 @@
   "eclipsemainnet": {
     "validators": ["0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0"]
   },
+  "electroneum": {
+    "validators": ["0x32917f0a38c60ff5b1c4968cb40bc88b14ef0d83"]
+  },
   "endurance": {
     "validators": ["0x28c5b322da06f184ebf68693c5d19df4d4af13e5"]
   },
@@ -256,6 +259,9 @@
   },
   "peaq": {
     "validators": ["0x7f7fe70b676f65097e2a1e2683d0fc96ea8fea49"]
+  },
+  "plasma": {
+    "validators": ["0x4ba900a8549fe503bca674114dc98a254637fc2c"]
   },
   "plume": {
     "validators": ["0x63c9b5ea28710d956a51f0f746ee8df81215663f"]

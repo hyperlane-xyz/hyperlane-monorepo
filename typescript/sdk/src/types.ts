@@ -50,7 +50,6 @@ export interface IMultiProtocolSignerManager {
 
   getSignerAddress(chain: ChainName): Promise<Address>;
   getBalance(params: {
-    isDryRun: boolean;
     address: Address;
     chain: ChainName;
     denom?: string;
