@@ -48,7 +48,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -102,7 +101,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -156,7 +154,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -193,7 +190,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    radixtestnet: false,
+    radixtestnet: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -449,7 +446,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '62ec77a-20250827-085602',
+      tag: 'c27e3e2-20250903-205748',
     },
     resources: scraperResources,
   },

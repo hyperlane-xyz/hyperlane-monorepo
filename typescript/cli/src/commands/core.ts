@@ -19,7 +19,6 @@ import {
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runCoreApply, runCoreDeploy } from '../deploy/core.js';
-import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { log, logCommandHeader, logGreen } from '../logger.js';
 import { executeCoreRead } from '../read/core.js';
 import {
@@ -32,8 +31,6 @@ import { formatYamlViolationsOutput } from '../utils/output.js';
 import {
   DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH,
   chainCommandOption,
-  dryRunCommandOption,
-  fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
 } from './options.js';
@@ -103,8 +100,6 @@ export const apply: CommandModuleWithWriteContext<{
 export const deploy: CommandModuleWithWriteContext<{
   chain: string;
   config: string;
-  dryRun: string;
-  fromAddress: string;
   multiProtocolSigner?: MultiProtocolSignerManager;
 }> = {
   command: 'deploy',
@@ -116,29 +111,22 @@ export const deploy: CommandModuleWithWriteContext<{
       false,
       'The path to a JSON or YAML file with a core deployment config.',
     ),
-    'dry-run': dryRunCommandOption,
-    'from-address': fromAddressCommandOption,
   },
   handler: async ({
     context,
     chain,
     config: configFilePath,
-    dryRun,
     multiProtocolSigner,
   }) => {
-    logCommandHeader(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
+    logCommandHeader(`Hyperlane Core deployment`);
 
-    try {
-      await runCoreDeploy({
-        context,
-        chain,
-        config: readYamlOrJson(configFilePath),
-        multiProtocolSigner,
-      });
-    } catch (error: any) {
-      evaluateIfDryRunFailure(error, dryRun);
-      throw error;
-    }
+    await runCoreDeploy({
+      context,
+      chain,
+      config: readYamlOrJson(configFilePath),
+      multiProtocolSigner,
+    });
+
     process.exit(0);
   },
 };

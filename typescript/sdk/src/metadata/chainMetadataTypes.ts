@@ -24,6 +24,7 @@ export enum ExplorerFamily {
   Routescan = 'routescan',
   Voyager = 'voyager',
   ZkSync = 'zksync',
+  RadixDashboard = 'radixdashboard',
   Other = 'other',
 }
 
