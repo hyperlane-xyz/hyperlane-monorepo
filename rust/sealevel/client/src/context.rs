@@ -1,3 +1,8 @@
+use serde::{Deserialize, Serialize};
+use std::fs::File;
+use std::io::Write;
+use std::path::PathBuf;
+
 use solana_client::{
     rpc_client::RpcClient,
     rpc_config::{RpcSendTransactionConfig, RpcTransactionConfig},
@@ -11,6 +16,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
+use std::error::Error;
 use std::{cell::RefCell, io::Read};
 
 pub(crate) struct PayerKeypair {
@@ -25,12 +31,26 @@ pub(crate) struct Context {
     pub commitment: CommitmentConfig,
     pub initial_instructions: RefCell<Vec<InstructionWithDescription>>,
     pub require_tx_approval: bool,
+    pub instructions_path: Option<PathBuf>,
+    pub write_instructions_enabled: bool,
 }
 
 #[derive(Debug)]
 pub(crate) struct InstructionWithDescription {
     pub instruction: Instruction,
     pub description: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct TransactionEntry {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chain_name: Option<String>,
+    descriptions: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message_base58: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    transaction_base58: Option<String>,
+    instructions: String,
 }
 
 impl<T> From<(T, Option<String>)> for InstructionWithDescription
@@ -59,6 +79,8 @@ impl Context {
         commitment: CommitmentConfig,
         initial_instructions: RefCell<Vec<InstructionWithDescription>>,
         require_tx_approval: bool,
+        instructions_path: Option<PathBuf>,
+        write_instructions_enabled: bool,
     ) -> Self {
         Self {
             client,
@@ -67,6 +89,8 @@ impl Context {
             commitment,
             initial_instructions,
             require_tx_approval,
+            instructions_path,
+            write_instructions_enabled,
         }
     }
 
@@ -186,10 +210,96 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         );
     }
 
+    pub(crate) fn write_transaction_to_yaml(
+        &self,
+        payer: &Pubkey,
+        path: PathBuf,
+        chain_name: Option<String>,
+    ) -> Result<(), Box<dyn Error>> {
+        let final_path = if path.exists() && path.is_dir() {
+            path.join("instructions.yaml")
+        } else if path
+            .extension()
+            .map_or(false, |ext| ext == "yaml" || ext == "yml")
+        {
+            path.to_path_buf()
+        } else if path.exists() && path.is_file() {
+            return Err("Provided file does not have a .yaml or .yml extension.".into());
+        } else if path.extension().is_none() {
+            path.with_extension("yaml")
+        } else {
+            return Err("Invalid path provided.".into());
+        };
+
+        println!("Writing instructions to: {}", final_path.to_str().unwrap());
+
+        let message = Message::new(&self.instructions(), Some(payer));
+        let txn = Transaction::new_unsigned(message.clone());
+
+        let message_bytes = bincode::serialize(&message)?;
+        let transaction_bytes = bincode::serialize(&txn)?;
+
+        let message_base58 = bs58::encode(&message_bytes).into_string();
+        let transaction_base58 = bs58::encode(&transaction_bytes).into_string();
+
+        let descriptions: Vec<String> = self
+            .instructions_with_descriptions
+            .iter()
+            .map(|InstructionWithDescription { description, .. }| {
+                description
+                    .as_deref()
+                    .unwrap_or("No description provided")
+                    .to_string()
+            })
+            .collect();
+
+        let solana = matches!(chain_name.as_deref(), Some("solanamainnet"));
+
+        let new_entry = TransactionEntry {
+            chain_name: chain_name.clone(),
+            descriptions,
+            message_base58: if solana {
+                None
+            } else {
+                Some(message_base58.clone())
+            },
+            transaction_base58: if solana {
+                Some(transaction_base58.clone())
+            } else {
+                None
+            },
+            instructions: if solana {
+                "https://hyperlanexyz.notion.site/Solana-Using-Squads-2016d35200d6802480acfce20350db8d".to_string()
+            } else {
+                "https://hyperlanexyz.notion.site/Alt-SVMs-Using-Squads-2016d35200d680d280d1eaa7565b3711".to_string()
+            },
+        };
+
+        // Read existing entries if file exists
+        let mut existing_entries: Vec<TransactionEntry> = if final_path.exists() {
+            let mut file = File::open(&final_path)?;
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)?;
+            serde_yaml::from_str(&contents).unwrap_or_default()
+        } else {
+            vec![]
+        };
+
+        // Append new entry (one per transaction)
+        existing_entries.push(new_entry);
+
+        // Write back to file
+        let yaml_str = serde_yaml::to_string(&existing_entries)?;
+        let mut file = File::create(&final_path)?;
+        file.write_all(yaml_str.as_bytes())?;
+
+        Ok(())
+    }
+
     pub(crate) fn send_with_payer(self) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         let payer_signer = self.ctx.payer_signer();
         let payer_pubkey = self.ctx.payer_pubkey;
-        self.send(&[payer_signer.as_deref()], &payer_pubkey)
+        self.send(&[payer_signer.as_deref()], &payer_pubkey, None)
     }
 
     /// Sends the transaction with a signer for the given pubkey.
@@ -199,15 +309,17 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
     pub(crate) fn send_with_pubkey_signer(
         self,
         pubkey: &Pubkey,
+        chain_name: Option<String>,
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         let signer = self.ctx.signer_for_pubkey(pubkey);
-        self.send(&[signer.as_deref()], pubkey)
+        self.send(&[signer.as_deref()], pubkey, chain_name)
     }
 
     pub(crate) fn send(
         self,
         maybe_signers: &[Option<&dyn Signer>],
         payer: &Pubkey,
+        chain_name: Option<String>,
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         // If the payer can't sign, it's presumed that the payer is intended
         // to be a Squads multisig, which must be submitted via a separate
@@ -217,10 +329,16 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         if maybe_signers.iter().any(|s| s.is_none()) {
             println!("Transaction to be submitted via Squads multisig:");
 
-            self.pretty_print_transaction(payer);
+            if let Some(p) = &self.ctx.instructions_path {
+                self.write_transaction_to_yaml(payer, p.clone(), chain_name)
+                    .expect("Failed to write transaction to instructions file.");
+            } else {
+                println!("To write the transaction to an instructions file, a path needs to be provided. Continuing to print the transactions.");
 
-            wait_for_user_confirmation();
+                self.pretty_print_transaction(payer);
 
+                wait_for_user_confirmation()
+            }
             return None;
         }
 
