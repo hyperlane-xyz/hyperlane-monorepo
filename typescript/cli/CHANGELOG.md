@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 18.0.0
+
+### Major Changes
+
+- 552b253b9: deprecated dry-run support in the cli in favour of `hyperlane warp fork` and `hyperlane fork` commands
+
 ## 17.0.0
 
 ### Minor Changes
