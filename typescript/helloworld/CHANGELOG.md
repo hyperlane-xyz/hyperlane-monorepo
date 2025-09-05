@@ -1,5 +1,14 @@
 # @hyperlane-xyz/helloworld
 
+## 18.0.0
+
+### Patch Changes
+
+- Updated dependencies [552b253b9]
+- Updated dependencies [ba832828f]
+  - @hyperlane-xyz/sdk@18.0.0
+  - @hyperlane-xyz/core@9.0.7
+
 ## 17.0.0
 
 ### Patch Changes
