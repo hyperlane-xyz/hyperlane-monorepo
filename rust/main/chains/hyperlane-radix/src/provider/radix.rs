@@ -1,7 +1,7 @@
 use std::{
     ops::{Deref, RangeInclusive},
     str::FromStr,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
@@ -50,6 +50,10 @@ use hyperlane_core::{
     ContractLocator, Encode, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, LogMeta,
     ReorgPeriod, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
+use hyperlane_metric::prometheus_metric::{
+    ChainInfo as PrometheusChainInfo, ClientConnectionType, PrometheusClientMetrics,
+    PrometheusConfig,
+};
 
 use crate::{
     decimal_to_u256, decode_bech32, encode_tx, manifest::find_fee_payer_from_manifest,
@@ -66,6 +70,8 @@ pub struct RadixProvider {
     conf: ConnectionConf,
     domain: HyperlaneDomain,
     reorg: ReorgPeriod,
+    metrics: PrometheusClientMetrics,
+    metrics_configs: Vec<PrometheusConfig>,
 }
 
 impl Deref for RadixProvider {
@@ -74,6 +80,35 @@ impl Deref for RadixProvider {
     fn deref(&self) -> &Self::Target {
         &self.provider
     }
+}
+
+/// Creates metrics configuration for Radix provider
+fn create_metrics_config(conf: &ConnectionConf, chain_name: String) -> Vec<PrometheusConfig> {
+    let mut configs = Vec::new();
+
+    // Create configs for gateway providers
+    for url in &conf.gateway {
+        configs.push(PrometheusConfig::from_url(
+            url,
+            ClientConnectionType::Rpc,
+            Some(PrometheusChainInfo {
+                name: Some(chain_name.clone()),
+            }),
+        ));
+    }
+
+    // Create configs for core providers
+    for url in &conf.core {
+        configs.push(PrometheusConfig::from_url(
+            url,
+            ClientConnectionType::Rpc,
+            Some(PrometheusChainInfo {
+                name: Some(chain_name.clone()),
+            }),
+        ));
+    }
+
+    configs
 }
 
 impl RadixProvider {
@@ -130,13 +165,24 @@ impl RadixProvider {
         conf: &ConnectionConf,
         locator: &ContractLocator,
         reorg: &ReorgPeriod,
+        metrics: PrometheusClientMetrics,
     ) -> ChainResult<RadixProvider> {
+        let chain_name = locator.domain.name().to_string();
+        let metrics_configs = create_metrics_config(conf, chain_name.clone());
+
+        // Increment provider metrics for each configured provider
+        for _ in &metrics_configs {
+            metrics.increment_provider_instance(&chain_name);
+        }
+
         Ok(Self {
             domain: locator.domain.clone(),
             signer,
             reorg: reorg.clone(),
             provider: Self::build_fallback_provider(conf)?,
             conf: conf.clone(),
+            metrics,
+            metrics_configs,
         })
     }
 
@@ -162,18 +208,21 @@ impl RadixProvider {
             )
         });
 
-        let args = raw_args.into_iter().map(hex::encode).collect();
+        let args: Vec<String> = raw_args.into_iter().map(hex::encode).collect();
 
         let result = self
-            .provider
-            .call_preview(TransactionCallPreviewRequest {
-                arguments: args,
-                at_ledger_state: selector,
-                target: TargetIdentifier::Method(ComponentMethodTargetIdentifier {
-                    component_address: component.to_owned(),
-                    method_name: method.to_owned(),
-                }),
-                network: self.conf.network.logical_name.to_string(),
+            .track_metric_call("call_preview", || async {
+                self.provider
+                    .call_preview(TransactionCallPreviewRequest {
+                        arguments: args.clone(),
+                        at_ledger_state: selector.clone(),
+                        target: TargetIdentifier::Method(ComponentMethodTargetIdentifier {
+                            component_address: component.to_owned(),
+                            method_name: method.to_owned(),
+                        }),
+                        network: self.conf.network.logical_name.to_string(),
+                    })
+                    .await
             })
             .await?;
         match result.status {
@@ -214,7 +263,9 @@ impl RadixProvider {
 
     /// Returns the latest ledger state of the chain
     pub async fn get_state_version(&self, reorg: Option<&ReorgPeriod>) -> ChainResult<u64> {
-        let status = self.core_status().await?;
+        let status = self
+            .track_metric_call("core_status", || async { self.core_status().await })
+            .await?;
         let state = status.current_state_identifier.state_version;
         let reorg = reorg.unwrap_or(&self.reorg);
         let offset = match reorg {
@@ -337,16 +388,19 @@ impl RadixProvider {
         let hash: H256 = (*hash).into();
         let hash = encode_tx(&self.conf.network, hash)?;
         let response = self
-            .transaction_committed(TransactionCommittedDetailsRequest {
-                intent_hash: hash,
-                opt_ins: Some(TransactionDetailsOptIns {
-                    affected_global_entities: Some(true),
-                    manifest_instructions: Some(true),
-                    receipt_events: Some(true),
-                    receipt_fee_summary: Some(true),
+            .track_metric_call("transaction_committed", || async {
+                self.transaction_committed(TransactionCommittedDetailsRequest {
+                    intent_hash: hash.clone(),
+                    opt_ins: Some(TransactionDetailsOptIns {
+                        affected_global_entities: Some(true),
+                        manifest_instructions: Some(true),
+                        receipt_events: Some(true),
+                        receipt_fee_summary: Some(true),
+                        ..Default::default()
+                    }),
                     ..Default::default()
-                }),
-                ..Default::default()
+                })
+                .await
             })
             .await?;
         Ok(response)
@@ -381,9 +435,12 @@ impl RadixProvider {
 
         loop {
             let response = self
-                .stream_txs(StreamTransactionsRequest {
-                    cursor,
-                    ..request.clone()
+                .track_metric_call("stream_txs", || async {
+                    self.stream_txs(StreamTransactionsRequest {
+                        cursor: cursor.clone(),
+                        ..request.clone()
+                    })
+                    .await
                 })
                 .await?;
 
@@ -412,7 +469,13 @@ impl RadixProvider {
         let signer = self.get_signer()?;
         let private_key = signer.get_signer()?;
 
-        let epoch = self.provider.gateway_status().await?.ledger_state.epoch as u64;
+        let epoch = self
+            .track_metric_call("gateway_status", || async {
+                self.provider.gateway_status().await
+            })
+            .await?
+            .ledger_state
+            .epoch as u64;
         let tx = TransactionBuilder::new_v2()
             .transaction_header(TransactionHeaderV2 {
                 notary_public_key: private_key.public_key(),
@@ -463,7 +526,13 @@ impl RadixProvider {
 
         let simulation = match fee {
             Some(summary) => summary,
-            None => self.simulate_raw_tx(simulation.to_vec()).await?.fee_summary,
+            None => {
+                self.track_metric_call("simulate_raw_tx", || async {
+                    self.simulate_raw_tx(simulation.clone().to_vec()).await
+                })
+                .await?
+                .fee_summary
+            }
         };
         let simulated_xrd = Self::total_fee(simulation)?
             * Decimal::from_str("1.5").map_err(HyperlaneRadixError::from)?;
@@ -476,7 +545,10 @@ impl RadixProvider {
             .notarize(&private_key)
             .build();
 
-        self.submit_transaction(tx.raw.to_vec()).await?;
+        self.track_metric_call("submit_transaction", || async {
+            self.submit_transaction(tx.raw.clone().to_vec()).await
+        })
+        .await?;
 
         let tx_hash: H512 =
             H256::from_slice(tx.transaction_hashes.transaction_intent_hash.0.as_bytes()).into();
@@ -489,7 +561,11 @@ impl RadixProvider {
         let mut attempt = 0;
 
         let status = loop {
-            let tx_status = self.get_tx_status(tx_hash).await?;
+            let tx_status = self
+                .track_metric_call("get_tx_status", || async {
+                    self.get_tx_status(tx_hash).await
+                })
+                .await?;
 
             match tx_status.status {
                 models::TransactionStatus::CommittedSuccess
@@ -556,20 +632,23 @@ impl RadixProvider {
     /// Simulates a raw tx to the gateway to be included
     pub async fn simulate_raw_tx(&self, tx: Vec<u8>) -> ChainResult<TransactionReceipt> {
         let response = self
-            .transaction_preview(TransactionPreviewV2Request {
-                flags: Some(gateway_api_client::models::PreviewFlags {
-                    use_free_credit: Some(true),
-                    ..Default::default()
-                }),
-                preview_transaction: gateway_api_client::models::PreviewTransaction::Compiled(
-                    CompiledPreviewTransaction {
-                        preview_transaction_hex: hex::encode(tx),
-                    },
-                ),
-                opt_ins: Some(gateway_api_client::models::TransactionPreviewV2OptIns {
-                    core_api_receipt: Some(true),
-                    ..Default::default()
-                }),
+            .track_metric_call("transaction_preview", || async {
+                self.transaction_preview(TransactionPreviewV2Request {
+                    flags: Some(gateway_api_client::models::PreviewFlags {
+                        use_free_credit: Some(true),
+                        ..Default::default()
+                    }),
+                    preview_transaction: gateway_api_client::models::PreviewTransaction::Compiled(
+                        CompiledPreviewTransaction {
+                            preview_transaction_hex: hex::encode(tx.clone()),
+                        },
+                    ),
+                    opt_ins: Some(gateway_api_client::models::TransactionPreviewV2OptIns {
+                        core_api_receipt: Some(true),
+                        ..Default::default()
+                    }),
+                })
+                .await
             })
             .await?;
 
@@ -585,7 +664,11 @@ impl RadixProvider {
     pub async fn get_tx_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse> {
         let hash: H256 = hash.into();
         let hash = encode_tx(&self.conf.network, hash)?;
-        let response = self.transaction_status(hash).await?;
+        let response = self
+            .track_metric_call("transaction_status", || async {
+                self.transaction_status(hash.clone()).await
+            })
+            .await?;
         Ok(response)
     }
 
@@ -610,6 +693,33 @@ impl RadixProvider {
             .map(|addr| radix_address_bytes_to_h256(&addr.1))
             .next()
     }
+
+    /// Track metrics for a provider call
+    async fn track_metric_call<F, Fut, T>(&self, method: &str, rpc_call: F) -> ChainResult<T>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = ChainResult<T>>,
+    {
+        let start = Instant::now();
+        let res = rpc_call().await;
+
+        // Track metrics for the first configured provider (representing the fallback group)
+        if let Some(config) = self.metrics_configs.first() {
+            self.metrics
+                .increment_metrics(config, method, start, res.is_ok());
+        }
+
+        res
+    }
+}
+
+impl Drop for RadixProvider {
+    fn drop(&mut self) {
+        let chain_name = self.domain.name();
+        for _ in &self.metrics_configs {
+            self.metrics.decrement_provider_instance(chain_name);
+        }
+    }
 }
 
 impl HyperlaneChain for RadixProvider {
@@ -628,162 +738,188 @@ impl HyperlaneChain for RadixProvider {
 impl HyperlaneProvider for RadixProvider {
     /// Get block info for a given block height
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        // Radix doesn't have any blocks
-        // we will fetch TXs at the given height instead and return the resulting information from them
-        let tx = self
-            .stream_txs(StreamTransactionsRequest {
-                at_ledger_state: Some(Some(LedgerStateSelector {
-                    state_version: Some(Some(height)),
-                    ..Default::default()
-                })),
-                limit_per_page: Some(Some(1)),
-                ..Default::default()
+        self.track_metric_call("get_block_by_height", || async {
+            // Radix doesn't have any blocks
+            // we will fetch TXs at the given height instead and return the resulting information from them
+            let tx = self
+                .track_metric_call("stream_txs_by_height", || async {
+                    self.stream_txs(StreamTransactionsRequest {
+                        at_ledger_state: Some(Some(LedgerStateSelector {
+                            state_version: Some(Some(height)),
+                            ..Default::default()
+                        })),
+                        limit_per_page: Some(Some(1)),
+                        ..Default::default()
+                    })
+                    .await
+                })
+                .await?;
+
+            if tx.items.is_empty() {
+                return Err(HyperlaneRadixError::Other(format!(
+                    "Expected at least one tx for state version: {}",
+                    height
+                ))
+                .into());
+            }
+
+            let datetime = DateTime::parse_from_rfc3339(&tx.ledger_state.proposer_round_timestamp)
+                .map_err(HyperlaneRadixError::from)?;
+            let timestamp = datetime.with_timezone(&Utc).timestamp() as u64;
+
+            let height_bytes = U256::from(tx.ledger_state.state_version).to_vec();
+
+            Ok(BlockInfo {
+                hash: H256::from_slice(&height_bytes),
+                timestamp,
+                number: height,
             })
-            .await?;
-
-        if tx.items.is_empty() {
-            return Err(HyperlaneRadixError::Other(format!(
-                "Expected at least one tx for state version: {}",
-                height
-            ))
-            .into());
-        }
-
-        let datetime = DateTime::parse_from_rfc3339(&tx.ledger_state.proposer_round_timestamp)
-            .map_err(HyperlaneRadixError::from)?;
-        let timestamp = datetime.with_timezone(&Utc).timestamp() as u64;
-
-        let height_bytes = U256::from(tx.ledger_state.state_version).to_vec();
-
-        Ok(BlockInfo {
-            hash: H256::from_slice(&height_bytes),
-            timestamp,
-            number: height,
         })
+        .await
     }
 
     /// Get txn info for a given txn hash
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
-        let tx = self.get_tx_by_hash(hash).await?;
-        let Some(receipt) = tx.receipt else {
-            return Err(HyperlaneRadixError::ParsingError("receipt".to_owned()).into());
-        };
+        self.track_metric_call("get_txn_by_hash", || async {
+            let tx = self.get_tx_by_hash(hash).await?;
+            let Some(receipt) = tx.receipt else {
+                return Err(HyperlaneRadixError::ParsingError("receipt".to_owned()).into());
+            };
 
-        let Some(tx_manifest) = tx.manifest_instructions else {
-            return Err(
-                HyperlaneRadixError::ParsingError("manifest_instructions".to_owned()).into(),
+            let Some(tx_manifest) = tx.manifest_instructions else {
+                return Err(
+                    HyperlaneRadixError::ParsingError("manifest_instructions".to_owned()).into(),
+                );
+            };
+
+            let affected_global_entities = tx.affected_global_entities.unwrap_or_default();
+
+            // Radix doesn't have the concept of a single "primary" recipient of a transaction
+            // so its hard to who/what the "primary" entity each transaction is for.
+            // Instead, we just use the first component address in a transaction
+            let first_component_address = Self::find_first_component_address(
+                hash,
+                &self.conf.network,
+                &affected_global_entities,
             );
-        };
 
-        let affected_global_entities = tx.affected_global_entities.unwrap_or_default();
+            // We assume the account that locked up XRD to pay for fees is the sender of the transaction.
+            // If we can't find fee payer, then default to H256::zero()
+            let fee_payer =
+                find_fee_payer_from_manifest(&tx_manifest, &self.conf.network).unwrap_or_default();
 
-        // Radix doesn't have the concept of a single "primary" recipient of a transaction
-        // so its hard to who/what the "primary" entity each transaction is for.
-        // Instead, we just use the first component address in a transaction
-        let first_component_address =
-            Self::find_first_component_address(hash, &self.conf.network, &affected_global_entities);
+            let Some(fee_summary) = receipt.fee_summary else {
+                return Err(
+                    HyperlaneRadixError::ParsingError("expected fee summary".to_owned()).into(),
+                );
+            };
 
-        // We assume the account that locked up XRD to pay for fees is the sender of the transaction.
-        // If we can't find fee payer, then default to H256::zero()
-        let fee_payer =
-            find_fee_payer_from_manifest(&tx_manifest, &self.conf.network).unwrap_or_default();
+            let fee_summary: FeeSummary =
+                serde_json::from_value(fee_summary).map_err(HyperlaneRadixError::from)?;
 
-        let Some(fee_summary) = receipt.fee_summary else {
-            return Err(
-                HyperlaneRadixError::ParsingError("expected fee summary".to_owned()).into(),
-            );
-        };
+            let Some(fee_paid) = tx.fee_paid else {
+                return Err(HyperlaneRadixError::ParsingError(
+                    "expected fee_paid in tx".to_owned(),
+                )
+                .into());
+            };
 
-        let fee_summary: FeeSummary =
-            serde_json::from_value(fee_summary).map_err(HyperlaneRadixError::from)?;
+            let fee_paid = Decimal::try_from(fee_paid).map_err(HyperlaneRadixError::from)?;
+            let gas_limit = fee_summary.execution_cost_units_consumed
+                + fee_summary.finalization_cost_units_consumed;
+            let gas_price: Decimal = if gas_limit == 0 {
+                Decimal::zero()
+            } else {
+                fee_paid / gas_limit
+            };
 
-        let Some(fee_paid) = tx.fee_paid else {
-            return Err(
-                HyperlaneRadixError::ParsingError("expected fee_paid in tx".to_owned()).into(),
-            );
-        };
+            let gas_price = decimal_to_u256(gas_price);
 
-        let fee_paid = Decimal::try_from(fee_paid).map_err(HyperlaneRadixError::from)?;
-        let gas_limit = fee_summary.execution_cost_units_consumed
-            + fee_summary.finalization_cost_units_consumed;
-        let gas_price: Decimal = if gas_limit == 0 {
-            Decimal::zero()
-        } else {
-            fee_paid / gas_limit
-        };
-
-        let gas_price = decimal_to_u256(gas_price);
-
-        Ok(TxnInfo {
-            hash: *hash,
-            gas_limit: gas_limit.into(),
-            max_priority_fee_per_gas: None,
-            max_fee_per_gas: None,
-            gas_price: Some(gas_price),
-            // TODO: double check if we need a nonce, there are no nonces in radix, we might want to use the discriminator instead
-            nonce: 0,
-            sender: fee_payer,
-            recipient: first_component_address,
-            receipt: Some(TxnReceiptInfo {
-                gas_used: U256::from(gas_limit),
-                cumulative_gas_used: gas_price,
-                effective_gas_price: Some(gas_price),
-            }),
-            raw_input_data: None,
+            Ok(TxnInfo {
+                hash: *hash,
+                gas_limit: gas_limit.into(),
+                max_priority_fee_per_gas: None,
+                max_fee_per_gas: None,
+                gas_price: Some(gas_price),
+                // TODO: double check if we need a nonce, there are no nonces in radix, we might want to use the discriminator instead
+                nonce: 0,
+                sender: fee_payer,
+                recipient: first_component_address,
+                receipt: Some(TxnReceiptInfo {
+                    gas_used: U256::from(gas_limit),
+                    cumulative_gas_used: gas_price,
+                    effective_gas_price: Some(gas_price),
+                }),
+                raw_input_data: None,
+            })
         })
+        .await
     }
 
     /// Returns whether a contract exists at the provided address
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
-        Ok(true) // TODO: check if the given address is a global component
+        self.track_metric_call("is_contract", || async {
+            Ok(true) // TODO: check if the given address is a global component
+        })
+        .await
     }
 
     /// Fetch the balance of the wallet address associated with the chain provider.
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        let details = self
-            .entity_details(StateEntityDetailsRequest {
-                addresses: vec![address],
-                opt_ins: Some(models::StateEntityDetailsOptIns {
-                    native_resource_details: Some(true),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            })
-            .await?;
+        let address = address.clone();
+        self.track_metric_call("get_balance", move || {
+            let address = address.clone();
+            async move {
+                let details = self
+                    .track_metric_call("entity_details", || async {
+                        self.entity_details(StateEntityDetailsRequest {
+                            addresses: vec![address.clone()],
+                            opt_ins: Some(models::StateEntityDetailsOptIns {
+                                native_resource_details: Some(true),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        })
+                        .await
+                    })
+                    .await?;
 
-        for d in details.items {
-            if let Some(resources) = d.fungible_resources {
-                for i in resources.items {
-                    let (address, amount) = match i {
-                        models::FungibleResourcesCollectionItem::Global(x) => {
-                            let amount =
-                                Decimal::try_from(x.amount).map_err(HyperlaneRadixError::from)?;
-                            (x.resource_address, amount)
+                for d in details.items {
+                    if let Some(resources) = d.fungible_resources {
+                        for i in resources.items {
+                            let (address, amount) = match i {
+                                models::FungibleResourcesCollectionItem::Global(x) => {
+                                    let amount = Decimal::try_from(x.amount)
+                                        .map_err(HyperlaneRadixError::from)?;
+                                    (x.resource_address, amount)
+                                }
+                                models::FungibleResourcesCollectionItem::Vault(v) => {
+                                    // aggregate all the vaults amounts
+                                    let amount = v
+                                        .vaults
+                                        .items
+                                        .into_iter()
+                                        .map(|x| Decimal::try_from(x.amount))
+                                        .collect::<Result<Vec<_>, _>>()
+                                        .map_err(HyperlaneRadixError::from)?
+                                        .into_iter()
+                                        .reduce(|a, b| a + b)
+                                        .unwrap_or_default();
+                                    (v.resource_address, amount)
+                                }
+                            };
+                            let address = decode_bech32(&address)?;
+                            if address == XRD.to_vec() {
+                                return Ok(decimal_to_u256(amount));
+                            }
                         }
-                        models::FungibleResourcesCollectionItem::Vault(v) => {
-                            // aggregate all the vaults amounts
-                            let amount = v
-                                .vaults
-                                .items
-                                .into_iter()
-                                .map(|x| Decimal::try_from(x.amount))
-                                .collect::<Result<Vec<_>, _>>()
-                                .map_err(HyperlaneRadixError::from)?
-                                .into_iter()
-                                .reduce(|a, b| a + b)
-                                .unwrap_or_default();
-                            (v.resource_address, amount)
-                        }
-                    };
-                    let address = decode_bech32(&address)?;
-                    if address == XRD.to_vec() {
-                        return Ok(decimal_to_u256(amount));
                     }
                 }
-            }
-        }
 
-        Ok(U256::zero())
+                Ok(U256::zero())
+            }
+        })
+        .await
     }
 
     /// Fetch metrics related to this chain
