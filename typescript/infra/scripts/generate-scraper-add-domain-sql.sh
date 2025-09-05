@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Example usage:
-# ./generate-scraper-add-domain-sql.sh alfajores ancient8 arbitrum avalanche base blast bob bsc bsctestnet
+# ./generate-scraper-add-domain-sql.sh ancient8 arbitrum avalanche base blast bob bsc bsctestnet
 # This will insert the specified domains into the scraper database.
 
 # Change directory to repo root
