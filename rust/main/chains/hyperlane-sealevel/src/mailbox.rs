@@ -196,6 +196,7 @@ impl SealevelMailbox {
     pub async fn get_ism_getter_account_metas(
         &self,
         recipient_program_id: Pubkey,
+        message_id: H256,
     ) -> ChainResult<Vec<AccountMeta>> {
         let instruction =
             hyperlane_sealevel_message_recipient_interface::MessageRecipientInstruction::InterchainSecurityModuleAccountMetas;
@@ -205,6 +206,7 @@ impl SealevelMailbox {
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?,
                 hyperlane_sealevel_message_recipient_interface::INTERCHAIN_SECURITY_MODULE_ACCOUNT_METAS_PDA_SEEDS,
+            message_id,
         ).await
     }
 
@@ -214,6 +216,7 @@ impl SealevelMailbox {
         ism: Pubkey,
         metadata: Vec<u8>,
         message: Vec<u8>,
+        message_id: H256,
     ) -> ChainResult<Vec<AccountMeta>> {
         let instruction =
             InterchainSecurityModuleInstruction::VerifyAccountMetas(VerifyInstruction {
@@ -226,6 +229,7 @@ impl SealevelMailbox {
                 .encode()
                 .map_err(ChainCommunicationError::from_other)?,
             hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+            message_id,
         )
         .await
     }
@@ -249,6 +253,7 @@ impl SealevelMailbox {
                     .encode()
                     .map_err(ChainCommunicationError::from_other)?,
                 hyperlane_sealevel_message_recipient_interface::HANDLE_ACCOUNT_METAS_PDA_SEEDS,
+                message.id(),
             )
             .await?;
 
@@ -269,6 +274,7 @@ impl SealevelMailbox {
         program_id: Pubkey,
         instruction_data: &[u8],
         account_metas_pda_seeds: &[&[u8]],
+        message_id: H256,
     ) -> ChainResult<Vec<AccountMeta>> {
         let (account_metas_pda_key, _) =
             Pubkey::find_program_address(account_metas_pda_seeds, &program_id);
@@ -281,7 +287,7 @@ impl SealevelMailbox {
         let account_metas = self.get_account_metas(instruction).await?;
 
         // Ensure dynamically provided account metas are safe to prevent theft from the payer.
-        sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey())
+        sanitize_dynamic_accounts(message_id, account_metas, &self.get_payer()?.pubkey())
     }
 
     async fn get_process_instruction(
@@ -318,7 +324,9 @@ impl SealevelMailbox {
             })?;
 
         // Get the account metas required for the recipient.InterchainSecurityModule instruction.
-        let ism_getter_account_metas = self.get_ism_getter_account_metas(recipient).await?;
+        let ism_getter_account_metas = self
+            .get_ism_getter_account_metas(recipient, message.id())
+            .await?;
 
         // Get the recipient ISM.
         let ism = self
@@ -350,7 +358,7 @@ impl SealevelMailbox {
 
         // Get the account metas required for the ISM.Verify instruction.
         let ism_verify_account_metas = self
-            .get_ism_verify_account_metas(ism, metadata.into(), encoded_message)
+            .get_ism_verify_account_metas(ism, metadata.into(), encoded_message, message.id())
             .await?;
         accounts.extend(ism_verify_account_metas);
 
@@ -450,7 +458,7 @@ impl Mailbox for SealevelMailbox {
 
         // Get the account metas required for the recipient.InterchainSecurityModule instruction.
         let ism_getter_account_metas = self
-            .get_ism_getter_account_metas(recipient_program_id)
+            .get_ism_getter_account_metas(recipient_program_id, H256::zero())
             .await?;
 
         // Get the ISM to use.
