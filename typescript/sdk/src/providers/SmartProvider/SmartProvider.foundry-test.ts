@@ -2,12 +2,15 @@ import { expect } from 'chai';
 import { errors as EthersError, Wallet, constants } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
+import { randomInt } from '@hyperlane-xyz/utils';
 
 import { randomAddress } from '../../test/testUtils.js';
 
 import {
   HyperlaneSmartProvider,
+  TX_ERROR_MESSAGE_PHRASES,
   getSmartProviderErrorMessage,
+  hasNonRetryableError,
 } from './SmartProvider.js';
 
 const PK = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
@@ -15,6 +18,7 @@ const NETWORK = 31337;
 const URL = 'http://127.0.0.1:8545';
 
 describe('SmartProvider', async () => {
+  const maxRetries = randomInt(50, 0);
   let signer: Wallet;
   let smartProvider: HyperlaneSmartProvider;
   let contractAddress: string;
@@ -147,9 +151,9 @@ describe('SmartProvider', async () => {
     expect(erc20.address).to.not.be.empty;
   });
 
-  it('returns the blockchain error reason: "ERC20: transfer to zero address"', async () => {
+  it(`returns the blockchain error reason: "ERC20: transfer to zero address" with ${maxRetries} retries`, async () => {
     const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
-      maxRetries: 1,
+      maxRetries,
     });
     const signer = new Wallet(PK, smartProvider);
 
@@ -165,9 +169,9 @@ describe('SmartProvider', async () => {
     }
   });
 
-  it('returns the blockchain error reason: "ERC20: transfer amount exceeds balance"', async () => {
+  it(`returns the blockchain error reason: "ERC20: transfer amount exceeds balance with ${maxRetries} retries"`, async () => {
     const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
-      maxRetries: 1,
+      maxRetries,
     });
     const signer = new Wallet(PK, smartProvider);
     const factory = new ERC20__factory(signer);
@@ -183,9 +187,9 @@ describe('SmartProvider', async () => {
     }
   });
 
-  it('returns the blockchain error reason: "insufficient funds for intrinsic transaction cost"', async () => {
+  it(`returns the blockchain error reason: "insufficient funds for intrinsic transaction cost" with ${maxRetries} retries`, async () => {
     const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
-      maxRetries: 1,
+      maxRetries,
     });
     const signer = new Wallet(PK, smartProvider);
 
@@ -202,5 +206,69 @@ describe('SmartProvider', async () => {
         'insufficient funds for intrinsic transaction cost',
       );
     }
+  });
+
+  describe('hasNonRetryableError', () => {
+    it('returns true for revert errors on call methods', () => {
+      const result = hasNonRetryableError({
+        method: 'call',
+        error: new Error(
+          `Transaction reverted: ${TX_ERROR_MESSAGE_PHRASES.Revert}`,
+        ),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns true for revert errors on estimateGas', () => {
+      const result = hasNonRetryableError({
+        method: 'estimateGas',
+        error: new Error(
+          `Transaction reverted: ${TX_ERROR_MESSAGE_PHRASES.Revert}`,
+        ),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns true for known errors', () => {
+      const result = hasNonRetryableError({
+        method: 'sendTransaction',
+        error: new Error(`Transaction ${TX_ERROR_MESSAGE_PHRASES.Known}`),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns true for nonce errors', () => {
+      const result = hasNonRetryableError({
+        method: 'sendRawTransaction',
+        error: new Error(`Transaction ${TX_ERROR_MESSAGE_PHRASES.Nonce}`),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns true for underpriced errors', () => {
+      const result = hasNonRetryableError({
+        method: 'sendTransaction',
+        error: new Error(`Transaction ${TX_ERROR_MESSAGE_PHRASES.Underpriced}`),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns true for insufficient funds errors', () => {
+      const result = hasNonRetryableError({
+        method: 'sendTransaction',
+        error: new Error(
+          `Transaction ${TX_ERROR_MESSAGE_PHRASES.InsufficientFunds}`,
+        ),
+      });
+      expect(result).to.be.true;
+    });
+
+    it('returns false for non-transaction methods', () => {
+      const result = hasNonRetryableError({
+        method: 'getBalance',
+        error: new Error(`Transaction ${TX_ERROR_MESSAGE_PHRASES.Revert}`),
+      });
+      expect(result).to.be.false;
+    });
   });
 });
