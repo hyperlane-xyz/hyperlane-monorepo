@@ -144,6 +144,12 @@ where
     /// 3.   `[signer]` The payer and access control owner.
     /// 4..N `[??..??]` Plugin-specific accounts.
     pub fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
+        // Validate that decimals are not greater than 9
+        if init.decimals > 9 {
+            msg!("Error: decimals ({}) cannot be greater than 9. Use remoteDecimals for higher precision.", init.decimals);
+            return Err(ProgramError::InvalidArgument);
+        }
+
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program

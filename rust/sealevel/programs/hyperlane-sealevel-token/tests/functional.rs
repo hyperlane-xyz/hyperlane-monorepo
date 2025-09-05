@@ -1355,3 +1355,53 @@ async fn test_set_interchain_gas_paymaster_errors_if_owner_not_signer() {
         TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
     );
 }
+#[tokio::test]
+async fn test_initialize_with_invalid_decimals() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = hyperlane_sealevel_token_id();
+
+    let (token_account_key, _token_account_bump_seed) =
+        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
+
+    let (dispatch_authority_key, _dispatch_authority_seed) =
+        Pubkey::find_program_address(mailbox_message_dispatch_authority_pda_seeds!(), &program_id);
+
+    let (mint_account_key, _mint_account_bump_seed) =
+        Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+
+    let (ata_payer_account_key, _ata_payer_account_bump_seed) =
+        Pubkey::find_program_address(hyperlane_token_ata_payer_pda_seeds!(), &program_id);
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::Init(Init {
+                mailbox: mailbox_id(),
+                interchain_security_module: None,
+                interchain_gas_paymaster: None,
+                decimals: 10, // Invalid: greater than 9
+                remote_decimals: REMOTE_DECIMALS,
+            })
+            .encode()
+            .unwrap(),
+            vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new(token_account_key, false),
+                AccountMeta::new(dispatch_authority_key, false),
+                AccountMeta::new_readonly(payer.pubkey(), true),
+                AccountMeta::new(mint_account_key, false),
+                AccountMeta::new(ata_payer_account_key, false),
+            ],
+        )],
+        Some(&payer.pubkey()),
+        &[&payer],
+        recent_blockhash,
+    );
+
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
