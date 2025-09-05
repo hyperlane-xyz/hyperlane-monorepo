@@ -49,7 +49,7 @@ fetch_validator_checkpoint() {
 # Check if start_index argument is provided
 if [ $# -lt 4 ]; then
     echo "Script that goes backwards and compares on-chain merkle tree data with validator local db" >&2
-    echo "Usage: $0 <rpc_url> <address> <chain> <block_start>" >&2
+    echo "Usage: $0 <rpc_url> <merkle_hook_address> <chain> <block_start>" >&2
     exit 1
 fi
 
