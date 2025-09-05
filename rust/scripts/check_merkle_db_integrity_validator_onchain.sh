@@ -61,7 +61,6 @@ mismatch_found=false
 
 batch_size=800
 to_block=$block_start
-echo $to_block
 from_block=$to_block
 
 event_name='InsertedIntoTree(bytes32,uint32)'
@@ -73,6 +72,7 @@ echo "==============================================="
 validator_url="https://hyperlane-mainnet3-${chain}-validator-0.s3.us-east-1.amazonaws.com"
 
 while [ "$mismatch_found" = false ]; do
+    [ "$to_block" -le 0 ] && break
     to_block=$from_block
     from_block=$(( $to_block - $batch_size ))
 
@@ -87,6 +87,7 @@ while [ "$mismatch_found" = false ]; do
 
     for i in $(seq 0 $event_count); do
         event=$(echo $events | jq -r ".[$i]")
+        [ "$event" = "null" ] && continue
         event_sig=$(echo $event | jq -r ".topics[0]")
         if [ $event_sig != $event_signature ]; then
             continue
@@ -119,7 +120,6 @@ while [ "$mismatch_found" = false ]; do
         else
             echo "  ✓ Match"
             echo "==============================================="
-            current_index=$((current_index + 1))
         fi
 
     done
