@@ -160,6 +160,12 @@ impl InclusionStage {
         let now = chrono::Utc::now();
 
         for (_, mut tx) in pool_snapshot {
+            // Update liveness metric on every tx as well.
+            // This prevents alert misfires when there are many txs to process.
+            state
+                .metrics
+                .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), domain);
+
             if !Self::tx_ready_for_processing(base_interval, now, &tx) {
                 continue;
             }
