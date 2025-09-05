@@ -5,15 +5,15 @@
     "name": "Holoworld AI",
     "symbol": "HOLO",
     "token": "0x1a5D7E4c3A7F940B240b7357a4bFED30D17f9497",
-    "foreignDeployment": "0xe38c11C02B4f14366175D1276ffBdf00c55A9d41"
+    "foreignDeployment": "0x1c0f11eEcdB19dF8EE2405E4EbCb90683686BCcD"
   },
   "solanamainnet": {
     "type": "synthetic",
-    "decimals": 18,
+    "decimals": 9,
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
     "name": "Holoworld AI",
-    "owner": "6d3vKAcmi7XRtG8jWAKJj8VPDaiprT56bVSkVW2eCxCp",
     "symbol": "HOLO",
+    "remoteDecimals": 18,
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/08642706676a384708f804dd04031c85535e1322/deployments/warp_routes/HOLO/metadata.json"
   }
 }
