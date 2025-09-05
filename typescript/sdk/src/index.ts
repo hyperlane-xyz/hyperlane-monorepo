@@ -431,6 +431,7 @@ export {
   EV5ImpersonatedAccountTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
   EvmIcaTxSubmitterProps,
+  isJsonRpcSubmitterConfig,
 } from './providers/transactions/submitter/ethersV5/types.js';
 
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';

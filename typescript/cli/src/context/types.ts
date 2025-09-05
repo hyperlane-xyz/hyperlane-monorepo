@@ -14,31 +14,35 @@ import type {
 
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 
-export interface ContextSettings {
-  registryUris: string[];
-  key?: string | ProtocolMap<string>;
+export type SignerKeyProtocolMap = Partial<ProtocolMap<string>>;
+
+interface BaseContext {
+  key?: string | SignerKeyProtocolMap;
   requiresKey?: boolean;
-  disableProxy?: boolean;
   skipConfirmation?: boolean;
   strategyPath?: string;
+}
+
+export interface ContextSettings extends BaseContext {
+  registryUris: string[];
+  disableProxy?: boolean;
   authToken?: string;
 }
 
-export interface CommandContext {
+export interface CommandContext
+  extends Omit<BaseContext, 'key' | 'skipConfirmation'> {
+  key?: SignerKeyProtocolMap;
   registry: IRegistry;
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
-  requiresKey?: boolean;
   multiProtocolProvider: MultiProtocolProvider;
   skipConfirmation: boolean;
-  key?: string | ProtocolMap<string>;
   // just for evm chains backward compatibility
   signerAddress?: string;
-  strategyPath?: string;
 }
 
-export interface WriteCommandContext extends CommandContext {
-  key: string;
+export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
+  key: SignerKeyProtocolMap;
   signer: ethers.Signer;
   multiProtocolSigner?: MultiProtocolSignerManager;
   apiKeys?: ChainMap<string>;
