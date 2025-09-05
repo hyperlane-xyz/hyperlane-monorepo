@@ -129,6 +129,7 @@ export class WarpCore {
 
   /**
    * Queries the token router for an interchain gas quote (i.e. IGP fee).
+   * and for token fee quote if it exists.
    * Sender is only required for Sealevel origins.
    */
   async getInterchainTransferFee({

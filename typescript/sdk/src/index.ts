@@ -792,6 +792,7 @@ export {
   RouteBlacklist,
   WarpCoreConfig,
   WarpCoreConfigSchema,
+  WarpCoreFeeEstimate,
   WarpTxCategory,
   WarpTypedTransaction,
 } from './warp/types.js';
