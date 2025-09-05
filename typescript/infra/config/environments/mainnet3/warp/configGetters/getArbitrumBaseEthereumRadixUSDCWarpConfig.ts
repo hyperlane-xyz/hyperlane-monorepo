@@ -49,9 +49,6 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
     decimals: 6,
     interchainSecurityModule: getIsm('ethereum'),
     owner: owners.ethereum,
-    proxyAdmin: {
-      owner: owners.ethereum,
-    },
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
     ...rebalancingConfig.ethereum,
@@ -62,9 +59,6 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
     decimals: 6,
     interchainSecurityModule: getIsm('arbitrum'),
     owner: owners.arbitrum,
-    proxyAdmin: {
-      owner: owners.arbitrum,
-    },
     type: TokenType.collateral,
     token: tokens.arbitrum.USDC,
     ...rebalancingConfig.arbitrum,
@@ -75,9 +69,6 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
     decimals: 6,
     interchainSecurityModule: getIsm('base'),
     owner: owners.base,
-    proxyAdmin: {
-      owner: owners.base,
-    },
     type: TokenType.collateral,
     token: tokens.base.USDC,
     ...rebalancingConfig.base,
