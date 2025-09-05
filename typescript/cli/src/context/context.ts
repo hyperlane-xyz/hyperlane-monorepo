@@ -11,7 +11,12 @@ import {
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { isSignCommand, isValidKey } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
@@ -43,13 +48,8 @@ export async function contextMiddleware(argv: Record<string, any>) {
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const {
-    key,
-    requiresKey,
-    multiProvider,
-    strategyPath,
-    multiProtocolProvider,
-  } = argv.context;
+  const { key, requiresKey, strategyPath, multiProtocolProvider } =
+    argv.context;
 
   if (!requiresKey) return argv;
 
@@ -70,10 +70,9 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * Extracts signer config
    */
-  const multiProtocolSigner = new MultiProtocolSignerManager(
+  const multiProtocolSigner = await MultiProtocolSignerManager.init(
     strategyConfig,
     chains,
-    multiProvider,
     multiProtocolProvider,
     { key },
   );
@@ -109,30 +108,10 @@ export async function getContext({
     authToken,
   });
 
-  // if a key was provided, check if it has a valid format
-  if (key) {
-    assert(
-      isValidKey(key),
-      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time`,
-    );
-  }
-
-  let keyMap: SignerKeyProtocolMap | undefined;
-  if (typeof key === 'string') {
-    keyMap = { [ProtocolType.Ethereum]: key };
-  } else {
-    keyMap = key;
-  }
-
-  //Just for backward compatibility
-  let signerAddress: string | undefined = undefined;
-  if (keyMap && keyMap[ProtocolType.Ethereum]) {
-    const { signer } = await getSigner({
-      key: keyMap[ProtocolType.Ethereum],
-      skipConfirmation,
-    });
-    signerAddress = await signer.getAddress();
-  }
+  const { keyMap, ethereumSignerAddress } = await getSignerKeyMap(
+    key,
+    !!skipConfirmation,
+  );
 
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
@@ -145,8 +124,63 @@ export async function getContext({
     multiProtocolProvider,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,
-    signerAddress,
+    signerAddress: ethereumSignerAddress,
     strategyPath,
+  };
+}
+
+/**
+ * Resolves private keys by protocol type by reading either the key
+ * argument passed to the CLI or falling back to reading from env
+ */
+async function getSignerKeyMap(
+  rawKeyMap: ContextSettings['key'],
+  skipConfirmation: boolean,
+): Promise<{ keyMap: SignerKeyProtocolMap; ethereumSignerAddress?: Address }> {
+  // if a key was provided, check if it has a valid format
+  if (rawKeyMap) {
+    assert(
+      isValidKey(rawKeyMap),
+      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time`,
+    );
+  }
+
+  let keyMap: SignerKeyProtocolMap;
+  if (typeof rawKeyMap === 'string') {
+    keyMap = { [ProtocolType.Ethereum]: rawKeyMap };
+  } else {
+    keyMap = rawKeyMap ?? {};
+  }
+
+  Object.values(ProtocolType).forEach((protocol) => {
+    if (keyMap[protocol]) {
+      return;
+    }
+
+    if (process.env[`HYP_KEY_${protocol.toUpperCase()}`]) {
+      keyMap[protocol] = process.env[`HYP_KEY_${protocol.toUpperCase()}`];
+      return;
+    }
+
+    if (protocol === ProtocolType.Ethereum && process.env.HYP_KEY) {
+      keyMap[protocol] = process.env.HYP_KEY;
+      return;
+    }
+  });
+
+  // Just for backward compatibility
+  let signerAddress: string | undefined = undefined;
+  if (keyMap && keyMap[ProtocolType.Ethereum]) {
+    const { signer } = await getSigner({
+      key: keyMap[ProtocolType.Ethereum],
+      skipConfirmation,
+    });
+    signerAddress = await signer.getAddress();
+  }
+
+  return {
+    keyMap,
+    ethereumSignerAddress: signerAddress,
   };
 }
 

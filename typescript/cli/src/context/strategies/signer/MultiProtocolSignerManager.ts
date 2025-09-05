@@ -1,6 +1,5 @@
 import { BigNumber, Signer } from 'ethers';
 import { Logger } from 'pino';
-import { z } from 'zod';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
@@ -8,6 +7,8 @@ import {
   IMultiProtocolSignerManager,
   MultiProtocolProvider,
   MultiProvider,
+  ProtocolMap,
+  isJsonRpcSubmitterConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -31,92 +32,128 @@ export interface MultiProtocolSignerOptions {
   key?: SignerKeyProtocolMap;
 }
 
-const envScheme = z.object({
-  HYP_KEY: z.string().optional(),
-  ANVIL_IP_ADDR: z.string().optional(),
-  ANVIL_PORT: z.number().optional(),
-  AWS_ACCESS_KEY_ID: z.string().optional(),
-  AWS_SECRET_ACCESS_KEY: z.string().optional(),
-  AWS_REGION: z.string().optional(),
-  GH_AUTH_TOKEN: z.string().optional(),
-  COINGECKO_API_KEY: z.string().optional(),
-});
+function getSignerCompatibleChains(
+  multiProtocolProvider: MultiProtocolProvider,
+  chains: ChainName[],
+): ReadonlyArray<ChainName> {
+  return chains.filter(
+    (chain) =>
+      multiProtocolProvider.getProtocol(chain) === ProtocolType.Ethereum ||
+      multiProtocolProvider.getProtocol(chain) === ProtocolType.CosmosNative,
+  );
+}
 
-const parsedEnv = envScheme.safeParse(process.env);
+function getProtocolsFromChains(
+  multiProtocolProvider: MultiProtocolProvider,
+  chains: ReadonlyArray<ChainName>,
+): ReadonlyArray<ProtocolType> {
+  const protocols = chains.map((chain) =>
+    multiProtocolProvider.getProtocol(chain),
+  );
 
-export const ENV = parsedEnv.success ? parsedEnv.data : {};
+  return Array.from(new Set(protocols));
+}
 
 /**
  * @title MultiProtocolSignerManager
  * @dev Context manager for signers across multiple protocols
  */
 export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
-  protected readonly signerStrategies: Map<ChainName, IMultiProtocolSigner>;
   protected readonly signers: Map<ChainName, TypedSigner>;
   public readonly logger: Logger;
 
-  constructor(
-    protected readonly submissionStrategy: ExtendedChainSubmissionStrategy,
-    protected readonly chains: ChainName[],
-    protected readonly multiProvider: MultiProvider,
+  protected constructor(
+    protected readonly submissionStrategy: Partial<ExtendedChainSubmissionStrategy>,
+    protected readonly chains: ReadonlyArray<ChainName>,
+    protected readonly signerStrategiesByProtocol: Partial<
+      ProtocolMap<IMultiProtocolSigner>
+    >,
     protected readonly multiProtocolProvider: MultiProtocolProvider,
     protected readonly options: MultiProtocolSignerOptions = {},
   ) {
     this.logger =
       options?.logger ||
       rootLogger.child({
-        module: 'MultiProtocolSignerManager',
+        module: MultiProtocolSignerManager.name,
       });
-    this.signerStrategies = new Map();
     this.signers = new Map();
-    this.initializeStrategies();
   }
 
-  protected get compatibleChains(): ChainName[] {
-    return this.chains.filter(
-      (chain) =>
-        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
-        this.multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
+  static init(
+    submissionStrategy: Partial<ExtendedChainSubmissionStrategy>,
+    chains: ChainName[],
+    multiProtocolProvider: MultiProtocolProvider,
+    options: MultiProtocolSignerOptions = {},
+  ): MultiProtocolSignerManager {
+    const supportedChains = getSignerCompatibleChains(
+      multiProtocolProvider,
+      chains,
     );
-  }
+    const supportedProtocols = getProtocolsFromChains(
+      multiProtocolProvider,
+      supportedChains,
+    );
 
-  /**
-   * @notice Sets up chain-specific signer strategies
-   */
-  protected initializeStrategies(): void {
-    for (const chain of this.compatibleChains) {
-      const strategy = MultiProtocolSignerFactory.getSignerStrategy(
-        chain,
-        this.submissionStrategy,
-        this.multiProvider,
+    const strategiesByProtocol: Partial<ProtocolMap<IMultiProtocolSigner>> =
+      Object.fromEntries(
+        supportedProtocols.map((protocol) => [
+          protocol,
+          MultiProtocolSignerFactory.getSignerStrategy(
+            protocol,
+            multiProtocolProvider,
+          ),
+        ]),
       );
-      this.signerStrategies.set(chain, strategy);
-    }
+
+    return new MultiProtocolSignerManager(
+      submissionStrategy,
+      supportedChains,
+      strategiesByProtocol,
+      multiProtocolProvider,
+      options,
+    );
   }
 
   /**
    * @dev Configures signers for EVM chains in MultiProvider
    */
   async getMultiProvider(): Promise<MultiProvider> {
+    const multiProvider = this.multiProtocolProvider.toMultiProvider();
+
     const evmChains = this.chains.filter(
       (chain) =>
-        this.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+        this.multiProtocolProvider.getProtocol(chain) === ProtocolType.Ethereum,
     );
 
     for (const chain of evmChains) {
-      this.multiProvider.setSigner(chain, this.signers.get(chain) as Signer);
+      multiProvider.setSigner(chain, this.signers.get(chain) as Signer);
     }
 
-    return this.multiProvider;
+    return multiProvider;
   }
 
   /**
    * @notice Creates signer for specific chain
    */
   async initSigner(chain: ChainName): Promise<TypedSigner> {
-    const config = await this.resolveConfig(chain);
-    const signerStrategy = this.getSignerStrategyOrFail(chain);
-    const signer = await signerStrategy.getSigner(config);
+    const protocolType = this.multiProtocolProvider.getProtocol(chain);
+
+    const signerStrategy = this.signerStrategiesByProtocol[protocolType];
+    assert(signerStrategy, `No signer strategy found for chain ${chain}`);
+
+    const rawConfig = this.submissionStrategy[chain]?.submitter;
+
+    let signerConfig: SignerConfig;
+    if (isJsonRpcSubmitterConfig(rawConfig)) {
+      signerConfig = rawConfig;
+    } else {
+      signerConfig = {
+        chain,
+        privateKey: (this.options.key ?? {})[protocolType],
+      };
+    }
+
+    const signer = await signerStrategy.getSigner(signerConfig);
 
     this.signers.set(chain, signer);
     return signer;
@@ -126,87 +163,11 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
    * @notice Creates signers for all chains
    */
   async initAllSigners(): Promise<typeof this.signers> {
-    for (const chain of this.compatibleChains) {
-      const signerStrategy = this.signerStrategies.get(chain);
-      if (signerStrategy) {
-        await this.initSigner(chain);
-      }
+    for (const chain of this.chains) {
+      await this.initSigner(chain);
     }
 
     return this.signers;
-  }
-
-  /**
-   * @notice Resolves single chain configuration
-   */
-  private async resolveConfig(
-    chain: ChainName,
-  ): Promise<{ chain: ChainName } & SignerConfig> {
-    const { protocol } = this.multiProvider.getChainMetadata(chain);
-
-    let config = await this.extractPrivateKey(chain);
-
-    // For Cosmos, we get additional params
-    if (protocol === ProtocolType.CosmosNative) {
-      const provider =
-        await this.multiProtocolProvider.getCosmJsNativeProvider(chain);
-      const { bech32Prefix, gasPrice } =
-        this.multiProvider.getChainMetadata(chain);
-
-      config = {
-        ...config,
-        extraParams: { provider, prefix: bech32Prefix, gasPrice },
-      };
-    }
-
-    return { chain, ...config };
-  }
-
-  /**
-   * @notice Gets private key from strategy
-   */
-  private async extractPrivateKey(chain: ChainName): Promise<SignerConfig> {
-    const protocol = this.multiProvider.getProtocol(chain);
-
-    if (this.options.key) {
-      const protocolPrivateKey = this.options.key[protocol];
-      assert(
-        protocolPrivateKey,
-        `Key flag --key.${protocol} for chain ${chain} not provided`,
-      );
-      this.logger.debug(
-        `Using private key passed via CLI --key.${protocol} flag for chain ${chain}`,
-      );
-      return { privateKey: protocolPrivateKey };
-    }
-
-    if (process.env[`HYP_KEY_${protocol.toUpperCase()}`]) {
-      this.logger.debug(`Using private key from .env for chain ${chain}`);
-      return { privateKey: process.env[`HYP_KEY_${protocol.toUpperCase()}`]! };
-    }
-
-    if (protocol === ProtocolType.Ethereum && ENV.HYP_KEY) {
-      this.logger.debug(`Using private key from .env for chain ${chain}`);
-      return { privateKey: ENV.HYP_KEY };
-    }
-
-    const signerStrategy = this.getSignerStrategyOrFail(chain);
-    const strategyConfig = await signerStrategy.getSignerConfig(chain);
-    assert(
-      strategyConfig.privateKey,
-      `No private key found for chain ${chain}`,
-    );
-    this.logger.debug(
-      `Extracting private key from strategy config/user prompt for chain ${chain}`,
-    );
-
-    return { privateKey: strategyConfig.privateKey };
-  }
-
-  private getSignerStrategyOrFail(chain: ChainName): IMultiProtocolSigner {
-    const strategy = this.signerStrategies.get(chain);
-    assert(strategy, `No signer strategy found for chain ${chain}`);
-    return strategy;
   }
 
   getSpecificSigner<T>(chain: ChainName): T {
@@ -214,7 +175,8 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
   }
 
   getEVMSigner(chain: ChainName): Signer {
-    const protocolType = this.multiProvider.getChainMetadata(chain).protocol;
+    const protocolType =
+      this.multiProtocolProvider.getChainMetadata(chain).protocol;
     assert(
       protocolType === ProtocolType.Ethereum,
       `Chain ${chain} is not an Ethereum chain`,
@@ -223,7 +185,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
   }
 
   getCosmosNativeSigner(chain: ChainName): SigningHyperlaneModuleClient {
-    const protocolType = this.multiProvider.getProtocol(chain);
+    const protocolType = this.multiProtocolProvider.getProtocol(chain);
     assert(
       protocolType === ProtocolType.CosmosNative,
       `Chain ${chain} is not a Cosmos Native chain`,
@@ -232,7 +194,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
   }
 
   async getSignerAddress(chain: ChainName): Promise<Address> {
-    const metadata = this.multiProvider.getChainMetadata(chain);
+    const metadata = this.multiProtocolProvider.getChainMetadata(chain);
 
     switch (metadata.protocol) {
       case ProtocolType.Ethereum: {
@@ -256,12 +218,14 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     chain: ChainName;
     denom?: string;
   }): Promise<BigNumber> {
-    const metadata = this.multiProvider.getChainMetadata(params.chain);
+    const metadata = this.multiProtocolProvider.getChainMetadata(params.chain);
 
     switch (metadata.protocol) {
       case ProtocolType.Ethereum: {
         try {
-          const provider = this.multiProvider.getProvider(params.chain);
+          const provider = this.multiProtocolProvider.getEthersV5Provider(
+            params.chain,
+          );
           const balance = await provider.getBalance(params.address);
           return balance;
         } catch (err) {
