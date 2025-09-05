@@ -206,7 +206,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
 
       assert(!parseResults.success, 'must be false');
       expect(parseResults.error.issues[0].message).to.include(
-        'same token as warp route',
+        'must have the same token as warp route',
       );
     });
   }

@@ -335,7 +335,7 @@ export const HypTokenRouterConfigMailboxOptionalSchema = z
       if (!hasSameTokens) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `${TokenFeeType.RoutingFee} has sub fees are not the same token as warp route`,
+          message: `${TokenFeeType.RoutingFee} sub fees must have the same token as warp route`,
         });
       }
     }
