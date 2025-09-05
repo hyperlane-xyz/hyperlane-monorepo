@@ -34,3 +34,8 @@ tsconfig.editor.json
 # yalc
 yalc.lock
 .yalc
+
+**/keys
+**/warp-route-deployer-key.json
+**/key.json
+**/deployer-key.json
