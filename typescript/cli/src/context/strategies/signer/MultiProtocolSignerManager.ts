@@ -79,12 +79,16 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     this.signers = new Map();
   }
 
-  static init(
+  /**
+   * Creates an instance of {@link MultiProtocolSignerManager} with all the signers
+   * initialized for the provided supported chains
+   */
+  static async init(
     submissionStrategy: Partial<ExtendedChainSubmissionStrategy>,
     chains: ChainName[],
     multiProtocolProvider: MultiProtocolProvider,
     options: MultiProtocolSignerOptions = {},
-  ): MultiProtocolSignerManager {
+  ): Promise<MultiProtocolSignerManager> {
     const supportedChains = getSignerCompatibleChains(
       multiProtocolProvider,
       chains,
@@ -105,13 +109,17 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
         ]),
       );
 
-    return new MultiProtocolSignerManager(
+    const instance = new MultiProtocolSignerManager(
       submissionStrategy,
       supportedChains,
       strategiesByProtocol,
       multiProtocolProvider,
       options,
     );
+
+    await instance.initAllSigners();
+
+    return instance;
   }
 
   /**
@@ -126,7 +134,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     );
 
     for (const chain of evmChains) {
-      multiProvider.setSigner(chain, this.signers.get(chain) as Signer);
+      multiProvider.setSigner(chain, this.getEVMSigner(chain));
     }
 
     return multiProvider;
@@ -136,6 +144,11 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
    * @notice Creates signer for specific chain
    */
   async initSigner(chain: ChainName): Promise<TypedSigner> {
+    const maybeSigner = this.signers.get(chain);
+    if (maybeSigner) {
+      return maybeSigner;
+    }
+
     const protocolType = this.multiProtocolProvider.getProtocol(chain);
 
     const signerStrategy = this.signerStrategiesByProtocol[protocolType];
@@ -144,12 +157,17 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     const rawConfig = this.submissionStrategy[chain]?.submitter;
 
     let signerConfig: SignerConfig;
+    const defaultPrivateKey = (this.options.key ?? {})[protocolType];
     if (isJsonRpcSubmitterConfig(rawConfig)) {
       signerConfig = rawConfig;
+
+      // Even if the config is a json rpc one,
+      // the private key might be undefined
+      signerConfig.privateKey ??= defaultPrivateKey;
     } else {
       signerConfig = {
         chain,
-        privateKey: (this.options.key ?? {})[protocolType],
+        privateKey: defaultPrivateKey,
       };
     }
 
@@ -162,7 +180,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
   /**
    * @notice Creates signers for all chains
    */
-  async initAllSigners(): Promise<typeof this.signers> {
+  protected async initAllSigners(): Promise<typeof this.signers> {
     for (const chain of this.chains) {
       await this.initSigner(chain);
     }
@@ -171,7 +189,10 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
   }
 
   getSpecificSigner<T>(chain: ChainName): T {
-    return this.signers.get(chain) as T;
+    const maybeSigner = this.signers.get(chain);
+    assert(maybeSigner, `Signer not set for chain ${chain}`);
+
+    return maybeSigner as T;
   }
 
   getEVMSigner(chain: ChainName): Signer {

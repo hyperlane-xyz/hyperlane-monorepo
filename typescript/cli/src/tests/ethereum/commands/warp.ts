@@ -581,7 +581,7 @@ export async function setupIncompleteWarpRouteExtension(
   const multiProtocolProvider = new MultiProtocolProvider(
     context.chainMetadata,
   );
-  const multiProtocolSigner = MultiProtocolSignerManager.init(
+  const multiProtocolSigner = await MultiProtocolSignerManager.init(
     strategyConfig,
     [CHAIN_NAME_2, CHAIN_NAME_3],
     multiProtocolProvider,
@@ -591,8 +591,6 @@ export async function setupIncompleteWarpRouteExtension(
       },
     },
   );
-
-  await multiProtocolSigner.initAllSigners();
 
   context.multiProvider = await multiProtocolSigner.getMultiProvider();
 

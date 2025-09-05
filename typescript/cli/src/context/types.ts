@@ -29,7 +29,8 @@ export interface ContextSettings extends BaseContext {
   authToken?: string;
 }
 
-export interface CommandContext extends BaseContext {
+export interface CommandContext
+  extends Omit<BaseContext, 'key' | 'skipConfirmation'> {
   key?: SignerKeyProtocolMap;
   registry: IRegistry;
   chainMetadata: ChainMap<ChainMetadata>;
@@ -40,7 +41,7 @@ export interface CommandContext extends BaseContext {
   signerAddress?: string;
 }
 
-export interface WriteCommandContext extends CommandContext {
+export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   key: SignerKeyProtocolMap;
   signer: ethers.Signer;
   multiProtocolSigner?: MultiProtocolSignerManager;

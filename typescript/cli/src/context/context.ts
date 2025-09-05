@@ -70,14 +70,12 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * Extracts signer config
    */
-  const multiProtocolSigner = MultiProtocolSignerManager.init(
+  const multiProtocolSigner = await MultiProtocolSignerManager.init(
     strategyConfig,
     chains,
     multiProtocolProvider,
     { key },
   );
-
-  await multiProtocolSigner.initAllSigners();
 
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
