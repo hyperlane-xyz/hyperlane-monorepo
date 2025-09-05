@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { constants, ethers } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -207,6 +207,23 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       assert(!parseResults.success, 'must be false');
       expect(parseResults.error.issues[0].message).to.include(
         'must have the same token as warp route',
+      );
+    });
+    it(`should overwrite fee token address to address(0) if ${TokenType.native}`, async () => {
+      const parseResults = WarpRouteDeployConfigSchema.safeParse({
+        arbitrum: {
+          type: TokenType.native,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          tokenFee,
+        },
+      });
+
+      assert(parseResults.success, 'must be true');
+      const warpConfig: WarpRouteDeployConfig = parseResults.data;
+      expect(warpConfig.arbitrum.tokenFee?.token).to.equal(
+        constants.AddressZero,
       );
     });
   }
