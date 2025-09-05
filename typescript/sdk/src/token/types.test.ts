@@ -196,7 +196,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       },
     },
   ]) {
-    it.only(`should throw if ${tokenFee.type} token does not match the warp route token`, async () => {
+    it(`should throw if ${tokenFee.type} token does not match the warp route token`, async () => {
       const parseResults = WarpRouteDeployConfigSchema.safeParse({
         arbitrum: {
           ...config.arbitrum,
