@@ -100,8 +100,9 @@ while [ "$mismatch_found" = false ]; do
 
         data=$(echo $event | jq -r '.data')
         decoded_event=$(cast decode-event --sig "$event_name" "$data" 2>/dev/null)
-        message_id=$(echo "$decoded_event" | awk '{print $1}')
-        leaf_index=$(echo "$decoded_event" | awk '{print $2}' | cut -d ' ' -f 1)
+        echo "$decoded_event"
+        message_id=$(echo "$decoded_event" | sed '1q;d')
+        leaf_index=$(echo "$decoded_event" | sed '2q;d' | cut -d ' ' -f 1)
 
         echo "⛓️ Leaf Index: $leaf_index"
         echo "⛓️ Message ID: $message_id"
@@ -119,7 +120,7 @@ while [ "$mismatch_found" = false ]; do
             mismatch_found=true
             mismatch_index="$leaf_index"
         else
-            echo "  ✓ Match"
+            echo "  ✅ Match"
             echo "==============================================="
         fi
 
