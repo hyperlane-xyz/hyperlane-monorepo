@@ -7,7 +7,6 @@ members = [
   "applications/hyperlane-operation-verifier",
   "applications/hyperlane-warp-route",
   "chains/hyperlane-cosmos",
-  "chains/hyperlane-cosmos-native",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
   "chains/hyperlane-radix",
@@ -197,6 +196,8 @@ scrypto-derive = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git"
 sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
   "serde",
 ] }
+hyperlane-cosmos-rs = "0.1.4"
+
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
