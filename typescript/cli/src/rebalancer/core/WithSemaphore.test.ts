@@ -1,50 +1,18 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { ethers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
 import { RebalancerStrategyOptions } from '@hyperlane-xyz/sdk';
 
-import { RebalancerConfig } from '../config/RebalancerConfig.js';
-import { IRebalancer } from '../interfaces/IRebalancer.js';
 import { RebalancingRoute } from '../interfaces/IStrategy.js';
+import { MockRebalancer, buildTestConfig } from '../test/helpers.js';
 
 import { WithSemaphore } from './WithSemaphore.js';
 
 chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
-
-class MockRebalancer implements IRebalancer {
-  rebalance(_routes: RebalancingRoute[]): Promise<void> {
-    return Promise.resolve();
-  }
-}
-
-function buildTestConfig(
-  overrides: Partial<RebalancerConfig> = {},
-): RebalancerConfig {
-  return {
-    warpRouteId: 'test-route',
-    strategyConfig: {
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      chains: {
-        chain1: {
-          bridgeLockTime: 60 * 1000,
-          bridge: ethers.constants.AddressZero,
-          weighted: {
-            weight: BigInt(1),
-            tolerance: BigInt(0),
-          },
-        },
-        ...(overrides.strategyConfig?.chains ?? {}),
-      },
-      ...overrides.strategyConfig,
-    },
-    ...overrides,
-  };
-}
 
 describe('WithSemaphore', () => {
   it('should call the underlying rebalancer', async () => {
