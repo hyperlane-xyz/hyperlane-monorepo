@@ -126,6 +126,26 @@ impl EthereumAdapter {
         Ok(adapter)
     }
 
+    /// Load transaction nonce from db, if it exists.
+    /// If transaction already has a nonce assigned,
+    /// do not load from db.
+    async fn load_nonce_from_db(
+        nonce_manager: &NonceManager,
+        tx: &mut Transaction,
+    ) -> Result<(), LanderError> {
+        let tx_uuid = tx.uuid.clone();
+        let precursor = tx.precursor_mut();
+
+        if precursor.tx.nonce().is_some() {
+            return Ok(());
+        }
+        let db_nonce = nonce_manager.state.get_tx_nonce(&tx_uuid).await?;
+        if let Some(nonce) = db_nonce {
+            precursor.tx.set_nonce(nonce);
+        }
+        Ok(())
+    }
+
     async fn calculate_nonce(&self, tx: &Transaction) -> Result<Option<U256>, LanderError> {
         self.nonce_manager.calculate_next_nonce(tx).await
     }
@@ -579,6 +599,13 @@ impl AdaptsChain for EthereumAdapter {
 
         let tx_for_nonce = tx.clone();
         let tx_for_gas_price = tx.clone();
+
+        // Try and load nonce from db. If it fails, its not a big deal.
+        // We shouldn't prevent submission due to failure to load nonce from db.
+        let db_load_res = Self::load_nonce_from_db(&self.nonce_manager, tx).await;
+        if let Err(err) = db_load_res {
+            warn!(?err, tx_uuid=?tx.uuid, "Failed to load nonce from db");
+        }
 
         let (nonce, gas_price) = try_join!(
             self.calculate_nonce(&tx_for_nonce),

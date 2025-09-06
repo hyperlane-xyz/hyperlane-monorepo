@@ -1,6 +1,7 @@
 use std::convert::Into;
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::abi::Function;
@@ -16,8 +17,9 @@ use hyperlane_core::{
 use hyperlane_ethereum::multicall::BatchCache;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, ZksyncEstimateFeeResponse};
 
+use crate::adapter::chains::ethereum::{NonceManagerState, NonceUpdater};
 use crate::adapter::EthereumTxPrecursor;
-use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::transaction::{Transaction, TransactionUuid, VmSpecificTxData};
 use crate::{FullPayload, TransactionStatus};
 
 mockall::mock! {
@@ -184,4 +186,57 @@ pub fn dummy_tx_precursor(tx_type: ExpectedTxType, signer: H160) -> EthereumTxPr
         ExpectedTxType::Eip2930 => todo!(),
     };
     EthereumTxPrecursor { tx, function }
+}
+
+pub fn mock_provider() -> MockEvmProvider {
+    let mut mock = MockEvmProvider::new();
+
+    mock.expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::one()));
+
+    mock
+}
+
+pub fn make_nonce_updater(address: Address, state: Arc<NonceManagerState>) -> NonceUpdater {
+    let reorg_period = EthereumReorgPeriod::Blocks(1);
+    let block_time = Duration::from_secs(1);
+    let provider = Arc::new(mock_provider());
+    NonceUpdater::new(address, reorg_period, block_time, provider, state)
+}
+
+#[allow(deprecated)]
+pub fn make_tx(
+    uuid: TransactionUuid,
+    status: TransactionStatus,
+    nonce: Option<U256>,
+    address: Option<Address>,
+) -> Transaction {
+    use ethers_core::abi::Function;
+    let mut precursor = EthereumTxPrecursor {
+        tx: Default::default(),
+        function: Function {
+            name: "".to_string(),
+            inputs: vec![],
+            outputs: vec![],
+            constant: None,
+            state_mutability: Default::default(),
+        },
+    };
+    if let Some(n) = nonce {
+        precursor.tx.set_nonce(n);
+    }
+    if let Some(addr) = address {
+        precursor.tx.set_from(addr);
+    }
+    Transaction {
+        uuid,
+        tx_hashes: vec![],
+        vm_specific_data: VmSpecificTxData::Evm(precursor),
+        payload_details: vec![],
+        status,
+        submission_attempts: 0,
+        creation_timestamp: Default::default(),
+        last_submission_attempt: None,
+        last_status_check: None,
+    }
 }
