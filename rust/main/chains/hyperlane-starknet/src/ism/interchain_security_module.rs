@@ -96,7 +96,7 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
         // let dummy_gas_value = U256::one();
         // Ok(Some(dummy_gas_value))
 
-        //TODO: investiage why this method fails for paradex mainnet only
+        //TODO: investigate why this method fails for paradex mainnet only
         // it seems as if metadata or message incorrect when this method is called from `cheapest_valid_metas`
 
         Ok(Some(U256::one()))
