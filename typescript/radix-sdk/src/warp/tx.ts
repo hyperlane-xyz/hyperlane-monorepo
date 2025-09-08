@@ -133,38 +133,4 @@ export class RadixWarpTx {
 
     await this.signer.signAndBroadcast(transactionManifest);
   }
-
-  public async remoteTransfer({
-    token,
-    destination_domain,
-    recipient,
-    amount,
-    custom_hook_id,
-    gas_limit,
-    custom_hook_metadata,
-    max_fee,
-  }: {
-    token: string;
-    destination_domain: number;
-    recipient: string;
-    amount: string;
-    custom_hook_id: string;
-    gas_limit: string;
-    custom_hook_metadata: string;
-    max_fee: { denom: string; amount: string };
-  }) {
-    const transactionManifest = await this.populate.remoteTransfer({
-      from_address: this.account.address,
-      token,
-      destination_domain,
-      recipient,
-      amount,
-      custom_hook_id,
-      gas_limit,
-      custom_hook_metadata,
-      max_fee,
-    });
-
-    await this.signer.signAndBroadcast(transactionManifest);
-  }
 }
