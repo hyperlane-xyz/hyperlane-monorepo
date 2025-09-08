@@ -339,6 +339,8 @@ impl PendingOperation for PendingMessage {
             },
         };
 
+        tracing::debug!(?tx_cost_estimate, "Tx cost estimate");
+
         // Get the gas_limit if the gas payment requirement has been met,
         // otherwise return a PendingOperationResult and move on.
         let gas_limit = match self.meets_gas_payment_requirement(&tx_cost_estimate).await {

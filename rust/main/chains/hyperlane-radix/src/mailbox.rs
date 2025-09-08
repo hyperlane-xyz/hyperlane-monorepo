@@ -175,6 +175,13 @@ impl Mailbox for RadixMailbox {
         let metadata = metadata.to_vec();
         let (visible_components, fee_summary) =
             self.visible_components(&message, &metadata).await?;
+
+        tracing::debug!(
+            ?visible_components,
+            ?fee_summary,
+            "Visible components found"
+        );
+
         self.provider
             .send_tx(
                 |builder| {
@@ -197,7 +204,10 @@ impl Mailbox for RadixMailbox {
     ) -> ChainResult<TxCostEstimate> {
         let message = message.to_vec();
         let metadata = metadata.to_vec();
-        let (_, summary) = self.visible_components(&message, &metadata).await?;
+        let (visible_components, summary) = self.visible_components(&message, &metadata).await?;
+
+        tracing::debug!(?visible_components, fee_summary=?summary, "Visible components found");
+
         let total_units =
             summary.execution_cost_units_consumed + summary.finalization_cost_units_consumed;
 
