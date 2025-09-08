@@ -1,5 +1,15 @@
 # @hyperlane-xyz/widgets
 
+## 18.1.0
+
+### Patch Changes
+
+- 73be9b8d2: Don't use radix-engine-toolkit for frontend application usage.
+- Updated dependencies [73be9b8d2]
+  - @hyperlane-xyz/sdk@18.1.0
+  - @hyperlane-xyz/cosmos-sdk@18.1.0
+  - @hyperlane-xyz/utils@18.1.0
+
 ## 18.0.0
 
 ### Patch Changes

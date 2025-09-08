@@ -1,5 +1,18 @@
 # @hyperlane-xyz/infra
 
+## 18.1.0
+
+### Minor Changes
+
+- d7c5f30df: Add radix USDC warp route getter
+
+### Patch Changes
+
+- Updated dependencies [73be9b8d2]
+  - @hyperlane-xyz/sdk@18.1.0
+  - @hyperlane-xyz/helloworld@18.1.0
+  - @hyperlane-xyz/utils@18.1.0
+
 ## 18.0.0
 
 ### Patch Changes
