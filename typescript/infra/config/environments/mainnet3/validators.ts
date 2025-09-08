@@ -792,16 +792,6 @@ export const validatorChainConfig = (
         'oortmainnet',
       ),
     },
-    lumia: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('lumia'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f'],
-        },
-        'lumia',
-      ),
-    },
     zeronetwork: {
       interval: 5,
       reorgPeriod: getReorgPeriod('zeronetwork'),
@@ -1565,6 +1555,26 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xa73fc7ebb2149d9c6992ae002cb1849696be895b'],
         },
         'pulsechain',
+      ),
+    },
+    plasma: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('plasma'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4ba900a8549fe503bca674114dc98a254637fc2c'],
+        },
+        'plasma',
+      ),
+    },
+    electroneum: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('electroneum'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x32917f0a38c60ff5b1c4968cb40bc88b14ef0d83'],
+        },
+        'electroneum',
       ),
     },
   };

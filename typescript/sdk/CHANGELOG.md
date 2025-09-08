@@ -1,5 +1,21 @@
 # @hyperlane-xyz/sdk
 
+## 18.0.0
+
+### Major Changes
+
+- 552b253b9: deprecated dry-run support in the cli in favour of `hyperlane warp fork` and `hyperlane fork` commands
+
+### Patch Changes
+
+- ba832828f: Made decimals consistency check scale-aware and disallowed partial decimals across chains
+- Updated dependencies [cfc0eb2a7]
+  - @hyperlane-xyz/utils@18.0.0
+  - @hyperlane-xyz/core@9.0.7
+  - @hyperlane-xyz/radix-sdk@18.0.0
+  - @hyperlane-xyz/starknet-core@18.0.0
+  - @hyperlane-xyz/cosmos-sdk@18.0.0
+
 ## 17.0.0
 
 ### Major Changes
