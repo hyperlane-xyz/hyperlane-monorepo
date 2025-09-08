@@ -6,6 +6,8 @@ import {
   ZHash,
 } from '../metadata/customZodTypes.js';
 
+import { convertToBps } from './utils.js';
+
 // Matches the enum in BaseFee.sol
 export enum OnchainTokenFeeType {
   LinearFee = 1,
@@ -20,6 +22,12 @@ export enum TokenFeeType {
   RegressiveFee = 'RegressiveFee',
   RoutingFee = 'RoutingFee',
 }
+
+export const ImmutableTokenFeeType = [
+  TokenFeeType.LinearFee,
+  TokenFeeType.RegressiveFee,
+  TokenFeeType.ProgressiveFee,
+] as const;
 
 // Mapping between the on-chain token fee type (uint) and the token fee type (string)
 export const onChainTypeToTokenFeeTypeMap: Record<
@@ -60,8 +68,32 @@ export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
 // Linear Fee Input - only requires bps & type
 export const LinearFeeInputConfigSchema = BaseFeeConfigSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBigNumberish,
-});
+  bps: ZBigNumberish.optional(),
+  ...FeeParametersSchema.partial().shape,
+})
+  .superRefine((v, ctx) => {
+    const hasBps = v.bps !== undefined;
+    const hasFeeParams = v.maxFee !== undefined && v.halfAmount !== undefined;
+    if (!hasBps && !hasFeeParams) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['bps'],
+        message: 'Provide bps or both maxFee and halfAmount',
+      });
+    }
+    if (v.halfAmount === 0n) {
+      // Prevents divide by 0
+      ctx.addIssue({
+        code: 'custom',
+        path: ['halfAmount'],
+        message: 'halfAmount must be > 0',
+      });
+    }
+  })
+  .transform((v) => ({
+    ...v,
+    bps: v.bps ?? convertToBps(v.maxFee!, v.halfAmount!),
+  }));
 export type LinearFeeInputConfig = z.infer<typeof LinearFeeInputConfigSchema>;
 
 export const ProgressiveFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
@@ -107,7 +139,7 @@ export const TokenFeeConfigSchema = z.discriminatedUnion('type', [
 ]);
 export type TokenFeeConfig = z.infer<typeof TokenFeeConfigSchema>;
 
-export const TokenFeeConfigInputSchema = z.discriminatedUnion('type', [
+export const TokenFeeConfigInputSchema = z.union([
   LinearFeeInputConfigSchema,
   ProgressiveFeeConfigSchema,
   RegressiveFeeConfigSchema,

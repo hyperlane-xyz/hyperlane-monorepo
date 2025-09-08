@@ -5,6 +5,7 @@ import { UINT_256_MAX } from 'starknet';
 import { zeroAddress } from 'viem';
 
 import {
+  FungibleTokenRouter__factory,
   GasRouter__factory,
   IERC20__factory,
   MailboxClient__factory,
@@ -44,6 +45,8 @@ import {
 } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ExplorerLicenseType } from '../deploy/verify/types.js';
+import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
+import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -139,6 +142,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    */
   async update(
     expectedConfig: HypTokenRouterConfig,
+    tokenReaderParams?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
@@ -157,6 +161,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       )),
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
+      ...(await this.createTokenFeeUpdateTxs(
+        actualConfig,
+        expectedConfig,
+        tokenReaderParams,
+      )),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
         actualConfig,
@@ -695,6 +704,91 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         proxyAdminAddress,
       },
     );
+  }
+
+  /**
+   * Create transactions to update token fee configuration.
+   *
+   * @param actualConfig - The on-chain router configuration.
+   * @param expectedConfig - The expected token router configuration.
+   * @returns Ethereum transactions that need to be executed to update the token fee.
+   */
+  async createTokenFeeUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+    tokenReaderParams?: Partial<TokenFeeReaderParams>,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    // If no token fee is expected, return empty array
+    if (!expectedConfig.tokenFee) {
+      return [];
+    }
+
+    // Get the current token fee configuration from the actual config
+    const currentTokenFee = actualConfig.tokenFee;
+
+    // If there's no current token fee but we expect one, we need to deploy
+    if (!currentTokenFee) {
+      this.logger.info('No existing token fee found, creating new one');
+
+      // First expand the input config to a full config
+      const expandedExpectedConfig = await EvmTokenFeeModule.expandConfig({
+        config: expectedConfig.tokenFee,
+        multiProvider: this.multiProvider,
+        chainName: this.chainName,
+      });
+
+      // Create a new EvmTokenFeeModule to deploy the token fee
+      const tokenFeeModule = await EvmTokenFeeModule.create({
+        multiProvider: this.multiProvider,
+        chain: this.chainName,
+        config: expandedExpectedConfig,
+        contractVerifier: this.contractVerifier,
+      });
+      const { deployedFee } = tokenFeeModule.serialize();
+
+      return [
+        {
+          annotation: 'Setting new routing fee...',
+          chainId: this.chainId,
+          to: this.args.addresses.deployedTokenRoute,
+          data: FungibleTokenRouter__factory.createInterface().encodeFunctionData(
+            'setFeeRecipient(address)',
+            [deployedFee],
+          ),
+        },
+      ];
+    }
+
+    // If there's an existing token fee, update it
+    this.logger.info('Updating existing token fee configuration');
+
+    const tokenFeeModule = new EvmTokenFeeModule(
+      this.multiProvider,
+      {
+        chain: this.chainName,
+        config: currentTokenFee,
+        addresses: {
+          deployedFee: currentTokenFee.address,
+        },
+      },
+      this.contractVerifier,
+    );
+
+    const updateTransactions = await tokenFeeModule.update(
+      expectedConfig.tokenFee,
+      tokenReaderParams,
+    );
+    const { deployedFee } = tokenFeeModule.serialize();
+    updateTransactions.push({
+      annotation: 'Updating routing fee...',
+      chainId: this.chainId,
+      to: this.args.addresses.deployedTokenRoute,
+      data: FungibleTokenRouter__factory.createInterface().encodeFunctionData(
+        'setFeeRecipient(address)',
+        [deployedFee],
+      ),
+    });
+    return updateTransactions;
   }
 
   /**

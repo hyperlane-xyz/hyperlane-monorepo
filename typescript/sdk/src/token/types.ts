@@ -1,9 +1,11 @@
 import { compareVersions } from 'compare-versions';
+import { constants } from 'ethers';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
 
+import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
 import {
   IsmConfig,
@@ -271,9 +273,12 @@ export const HypTokenConfigSchema = z.discriminatedUnion('type', [
 ]);
 export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 
-export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
-  GasRouterConfigSchema,
-).and(HypTokenRouterVirtualConfigSchema.partial());
+export const HypTokenRouterConfigSchema = z.preprocess(
+  preprocessWarpRouteDeployConfig,
+  HypTokenConfigSchema.and(GasRouterConfigSchema).and(
+    HypTokenRouterVirtualConfigSchema.partial(),
+  ),
+);
 
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
@@ -293,43 +298,89 @@ export function derivedIsmAddress(config: DerivedTokenRouterConfig) {
     : config.interchainSecurityModule.address;
 }
 
-export const HypTokenRouterConfigMailboxOptionalSchema =
+export const HypTokenRouterConfigMailboxOptionalBaseSchema =
   HypTokenConfigSchema.and(
     GasRouterConfigSchema.extend({
       mailbox: z.string().optional(),
     }),
   ).and(HypTokenRouterVirtualConfigSchema.partial());
 
+export type HypTokenRouterConfigMailboxOptionalBase = z.infer<
+  typeof HypTokenRouterConfigMailboxOptionalBaseSchema
+>;
+
+export const HypTokenRouterConfigMailboxOptionalSchema = z
+  .preprocess(
+    preprocessWarpRouteDeployConfig,
+    HypTokenRouterConfigMailboxOptionalBaseSchema,
+  ) // Check that each tokenFee.token is the same as config.token
+  .transform((config, ctx) => {
+    if (!isCollateralTokenConfig(config) || !config.tokenFee) return config;
+
+    if (config.tokenFee.token !== config.token) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${config.tokenFee.type} must have the same token as warp route`,
+      });
+    }
+
+    if (
+      config.tokenFee.type === TokenFeeType.RoutingFee &&
+      config.tokenFee.feeContracts
+    ) {
+      const hasSameTokens = Object.entries(config.tokenFee.feeContracts).every(
+        ([_, subFee]) => subFee.token === config.token,
+      );
+
+      if (!hasSameTokens) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${TokenFeeType.RoutingFee} sub fees must have the same token as warp route`,
+        });
+      }
+    }
+
+    return config;
+  });
+
 export type HypTokenRouterConfigMailboxOptional = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalSchema
 >;
 
-function preprocessWarpRouteDeployConfig(
-  value: unknown,
-): Record<string, HypTokenRouterConfigMailboxOptional> {
-  const mutatedConfig = value as Record<
-    string,
-    HypTokenRouterConfigMailboxOptional
-  >;
-  objMap(mutatedConfig, (_, config) => {
-    // Default token fee owner and token to the router owner and token, if not specified
-    if (isCollateralTokenConfig(config) && config.tokenFee) {
-      config.tokenFee = {
-        ...config.tokenFee,
-        owner: config.tokenFee.owner ?? config.owner,
-        token: config.tokenFee.token ?? config.token,
-      };
-    }
-    return config;
+function preprocessWarpRouteDeployConfig(value: unknown) {
+  const mutatedConfig = value as HypTokenRouterConfigMailboxOptionalBase;
+  return populateTokenFeeOwners({
+    tokenConfig: mutatedConfig,
+    feeConfig: mutatedConfig.tokenFee,
   });
-  return mutatedConfig;
+}
+
+function populateTokenFeeOwners(params: {
+  tokenConfig: HypTokenRouterConfigMailboxOptionalBase;
+  feeConfig?: TokenFeeConfigInput;
+}) {
+  const { tokenConfig, feeConfig } = params;
+  if (!feeConfig) return tokenConfig;
+
+  if (isCollateralTokenConfig(tokenConfig))
+    // Default fee.token to the router token, if not specified
+    feeConfig.token = feeConfig.token ?? tokenConfig.token;
+  else if (isNativeTokenConfig(tokenConfig))
+    // This must be defined for contract deployment
+    feeConfig.token = constants.AddressZero;
+
+  feeConfig.owner = feeConfig.owner ?? tokenConfig.owner;
+
+  if (feeConfig.type === TokenFeeType.RoutingFee && feeConfig.feeContracts) {
+    objMap(feeConfig.feeContracts, (_, innerConfig) => {
+      populateTokenFeeOwners({ tokenConfig, feeConfig: innerConfig });
+    });
+  }
+  return tokenConfig;
 }
 
 export const WarpRouteDeployConfigSchema = z
-  .preprocess(
-    preprocessWarpRouteDeployConfig,
-    z.record(HypTokenRouterConfigMailboxOptionalSchema),
-  )
+  .record(HypTokenRouterConfigMailboxOptionalSchema)
   .refine((configMap) => {
     const entries = Object.entries(configMap);
     return (
