@@ -98,11 +98,27 @@ export class AgentGCPKey extends CloudAgentKey {
   }
 
   get identifier() {
+    const protocolType = this.chainName
+      ? getChain(this.chainName).protocol
+      : undefined;
+
+    // Trick to get the correct secret key value
+    // as not all use the chain name in their identifier
+    let trickChainName = this.chainName;
+    if (this.role === Role.Deployer && protocolType === ProtocolType.Ethereum) {
+      trickChainName = undefined;
+    } else if (
+      this.role === Role.Deployer &&
+      protocolType === ProtocolType.Sealevel
+    ) {
+      trickChainName = ProtocolType.Sealevel;
+    }
+
     return keyIdentifier(
       this.environment,
       this.context,
       this.role,
-      this.chainName,
+      trickChainName,
       this.index,
     );
   }

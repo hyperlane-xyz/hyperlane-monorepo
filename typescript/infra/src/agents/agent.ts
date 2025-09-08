@@ -23,6 +23,8 @@ function identifier(
       if (!chainName) throw Error('Expected chainName for validator key');
       if (index === undefined) throw Error('Expected index for validator key');
       return `${prefix}${chainName}-${role}-${index}`;
+    case Role.Deployer:
+      return `${context}-${environment}-${chainName ? chainName + '-' : ''}${isKey ? 'key-' : ''}${role}`;
     default:
       return `${prefix}${role}`;
   }
