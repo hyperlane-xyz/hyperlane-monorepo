@@ -15,10 +15,6 @@ const DEFAULT_ZEE_PRIME_VALIDATOR: ValidatorConfig = {
   address: '0x5450447aee7b544c462c9352bef7cad049b0c2dc',
   alias: 'Zee Prime',
 };
-const DEFAULT_EVERSTAKE_VALIDATOR: ValidatorConfig = {
-  address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-  alias: 'Everstake',
-};
 const DEFAULT_STAKED_VALIDATOR: ValidatorConfig = {
   address: '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b',
   alias: 'Staked',
@@ -999,7 +995,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xd4df66a859585678f2ea8357161d896be19cc1ca',
         alias: AW_VALIDATOR_ALIAS,
       },
-      DEFAULT_EVERSTAKE_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
@@ -1861,14 +1856,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   polygon: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac',
         alias: AW_VALIDATOR_ALIAS,
       },
       { address: '0x008f24cbb1cc30ad0f19f2516ca75730e37efb5f', alias: 'DSRV' },
-      DEFAULT_EVERSTAKE_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
@@ -1891,7 +1885,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       { address: '0x865818fe1db986036d5fd0466dcd462562436d1a', alias: 'DSRV' },
-      DEFAULT_EVERSTAKE_VALIDATOR,
     ],
   },
 
@@ -2324,7 +2317,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   stride: {
     threshold: 7,
     validators: [
-      DEFAULT_EVERSTAKE_VALIDATOR,
+      {
+        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
+        alias: 'Everstake',
+      },
       {
         address: '0x88f0E5528131b10e3463C4c68108217Dd33462ac',
         alias: 'Cosmostation',
