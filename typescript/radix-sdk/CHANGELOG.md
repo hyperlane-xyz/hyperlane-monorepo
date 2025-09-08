@@ -1,5 +1,12 @@
 # @hyperlane-xyz/radix-sdk
 
+## 18.1.0
+
+### Patch Changes
+
+- 73be9b8d2: Don't use radix-engine-toolkit for frontend application usage.
+  - @hyperlane-xyz/utils@18.1.0
+
 ## 18.0.0
 
 ### Patch Changes
