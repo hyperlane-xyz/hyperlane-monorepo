@@ -209,9 +209,10 @@ impl SovereignClient {
                 .decode(&receipt.receipt.content)
                 .expect("failed to decode base64");
             return Err(custom_err!(
-                "Transaction simulation reverted: {:?}, reason: {:?}",
+                "Transaction simulation reverted: {:?}, reason: {:?} (raw: {:?})",
                 receipt,
-                reason,
+                String::from_utf8_lossy(&reason),
+                &reason,
             ));
         }
 
