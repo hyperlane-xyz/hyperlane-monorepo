@@ -30,6 +30,8 @@ impl NonceManagerState {
 
         let nonce = match tx.precursor().tx.nonce().map(Into::into) {
             Some(nonce) => nonce,
+            // if tx has no nonce assigned, check if it has one assigned in the
+            // db.
             None => match self.get_tx_nonce(&tx_uuid).await? {
                 Some(nonce) => {
                     if nonce == U256::MAX {
