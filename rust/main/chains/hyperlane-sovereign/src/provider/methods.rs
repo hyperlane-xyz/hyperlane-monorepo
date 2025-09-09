@@ -205,11 +205,10 @@ impl SovereignClient {
 
         let receipt = response.apply_tx_result.receipt.clone();
         if receipt.receipt.outcome != "successful" {
-            let reason = String::from_utf8_lossy(
-                &BASE64_STANDARD
-                    .decode(&receipt.receipt.content)
-                    .expect("failed to decode base64"),
-            );
+            let raw_reason = BASE64_STANDARD
+                .decode(&receipt.receipt.content)
+                .expect("failed to decode base64");
+            let reason = String::from_utf8_lossy(&raw_reason);
             return Err(custom_err!(
                 "Transaction simulation reverted: {:?}, reason: {:?})",
                 receipt,
