@@ -188,7 +188,7 @@ async function fundAccount({
     return;
   }
 
-  await signer.sendTransaction(protocolTypedTx);
+  const transactionHash = await signer.sendTransaction(protocolTypedTx);
 
   // Verify the transfer
   const newBalance = await adapter.getBalance(fromAddress);
@@ -196,6 +196,7 @@ async function fundAccount({
 
   logger.info(
     {
+      transactionHash,
       senderNewBalance: formatUnits(newBalance, decimals),
       recipientBalance: formatUnits(recipientBalance, decimals),
       symbol: token.symbol,
