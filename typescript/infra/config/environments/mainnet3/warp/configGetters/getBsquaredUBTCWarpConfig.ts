@@ -18,6 +18,7 @@ const safeOwners: ChainMap<Address> = {
   boba: '0x207FfFa7325fC5d0362aB01605D84B268b61888f',
   soneium: '0x8433e6e9183B5AAdaf4b52c624B963D95956e3C9',
   nibiru: '0x2D439F9B80F7f5010A577B25E1Ec9d84C4e69e4E',
+  ethereum: '0x47ECa4cbfB1a4849Eea25892d1B15aC3F02f24Ed',
 };
 
 export const getBsquaredUBTCWarpConfig = async (
@@ -67,12 +68,22 @@ export const getBsquaredUBTCWarpConfig = async (
     symbol: 'uBTC',
   };
 
+  const ethereum: HypTokenRouterConfig = {
+    mailbox: routerConfig.ethereum.mailbox,
+    owner: safeOwners.ethereum,
+    type: TokenType.synthetic,
+    decimals: 18,
+    name: 'uBTC',
+    symbol: 'uBTC',
+  };
+
   return {
     boba,
     bsquared,
     nibiru,
     soneium,
     swell,
+    ethereum,
   };
 };
 

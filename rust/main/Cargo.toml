@@ -7,7 +7,6 @@ members = [
   "applications/hyperlane-operation-verifier",
   "applications/hyperlane-warp-route",
   "chains/hyperlane-cosmos",
-  "chains/hyperlane-cosmos-native",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
   "chains/hyperlane-radix",
@@ -199,6 +198,8 @@ scrypto-derive = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git"
 sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
   "serde",
 ] }
+hyperlane-cosmos-rs = "0.1.4"
+
 
 ## dango
 grug = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }

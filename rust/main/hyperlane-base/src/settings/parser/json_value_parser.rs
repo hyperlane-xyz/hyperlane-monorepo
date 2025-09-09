@@ -1,4 +1,4 @@
-use std::{fmt::Debug, str::FromStr};
+use std::{fmt::Debug, ops::Add, str::FromStr};
 
 use convert_case::{Case, Casing};
 use derive_new::new;
@@ -30,12 +30,12 @@ impl<'v> ValueParser<'v> {
     pub fn get_key(&self, key: &str) -> ConfigResult<ValueParser<'v>> {
         self.get_opt_key(&key.to_case(Case::Flat))?
             .ok_or_else(|| eyre!("Expected key `{key}` to be defined"))
-            .into_config_result(|| &self.cwp + key.to_case(Case::Snake))
+            .into_config_result(|| (&self.cwp).add(key.to_case(Case::Snake)))
     }
 
     /// Get a value at the given key allowing for it to not be set.
     pub fn get_opt_key(&self, key: &str) -> ConfigResult<Option<ValueParser<'v>>> {
-        let cwp = &self.cwp + key.to_case(Case::Snake);
+        let cwp = (&self.cwp).add(key.to_case(Case::Snake));
         match self.val {
             Value::Object(obj) => Ok(obj.get(&key.to_case(Case::Flat)).map(|val| Self {
                 val,
@@ -58,7 +58,7 @@ impl<'v> ValueParser<'v> {
                     k.clone(),
                     Self {
                         val: v,
-                        cwp: &cwp + k.to_case(Case::Snake),
+                        cwp: (&cwp).add(k.to_case(Case::Snake)),
                     },
                 )
             })),
@@ -74,7 +74,7 @@ impl<'v> ValueParser<'v> {
         match self.val {
             Value::Array(arr) => Ok(arr.iter().enumerate().map(move |(i, v)| Self {
                 val: v,
-                cwp: &cwp + i.to_string(),
+                cwp: (&cwp).add(i.to_string()),
             }))
             .map(|itr| Box::new(itr) as Box<dyn Iterator<Item = ValueParser<'v>>>),
             Value::Object(obj) => obj
@@ -100,7 +100,7 @@ impl<'v> ValueParser<'v> {
                 .map(|itr| {
                     itr.map(move |(i, v)| Self {
                         val: v,
-                        cwp: &cwp + i.to_string(),
+                        cwp: (&cwp).add(i.to_string()),
                     })
                 })
                 .map(|itr| Box::new(itr) as Box<dyn Iterator<Item = ValueParser<'v>>>),

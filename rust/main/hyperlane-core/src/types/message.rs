@@ -118,7 +118,7 @@ impl Encode for HyperlaneMessage {
         writer.write_all(&self.destination.to_be_bytes())?;
         writer.write_all(self.recipient.as_ref())?;
         writer.write_all(&self.body)?;
-        Ok(HYPERLANE_MESSAGE_PREFIX_LEN + self.body.len())
+        Ok(HYPERLANE_MESSAGE_PREFIX_LEN.saturating_add(self.body.len()))
     }
 }
 

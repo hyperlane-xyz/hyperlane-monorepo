@@ -387,6 +387,9 @@ export {
   ViemTransactionReceipt,
   GroupedTransactions,
   ProtocolTypedTransaction,
+  RadixSDKTransaction,
+  RadixTransaction,
+  RadixTransactionReceipt,
 } from './providers/ProviderType.js';
 export {
   isCosmJsProviderHealthy,
