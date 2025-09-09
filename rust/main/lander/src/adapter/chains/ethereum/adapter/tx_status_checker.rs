@@ -66,3 +66,117 @@ pub async fn get_tx_hash_status(
         Err(err) => Err(LanderError::TxHashNotFound(err.to_string())),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use ethers::{
+        providers::{Middleware, MockProvider, Provider},
+        types::{Address, Bloom, TransactionReceipt, H256, U256},
+    };
+    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, H512};
+    use hyperlane_ethereum::EthereumProvider;
+
+    use super::*;
+
+    fn test_tx_receipt(transaction_hash: H256, status: Option<U64>) -> TransactionReceipt {
+        TransactionReceipt {
+            transaction_hash,
+            transaction_index: U64::from(206),
+            block_hash: Some(
+                H256::from_str("bd36ff1aeafac61b89642ac30e682234b4dfa87c9ff6987b66f709c09f60d1d0")
+                    .unwrap(),
+            ),
+            block_number: Some(U64::from(23327789)),
+            from: Address::from_str("74cae0ecc47b02ed9b9d32e000fd70b9417970c5").unwrap(),
+            to: Some(Address::from_str("c005dc82818d67af737725bd4bf75435d065d239").unwrap()),
+            contract_address: None,
+            cumulative_gas_used: U256::from(17343049),
+            effective_gas_price: Some(U256::from(291228702)),
+            gas_used: Some(U256::from(39040)),
+            logs: Vec::new(),
+            status,
+            root: None,
+            logs_bloom: Bloom::default(),
+            transaction_type: Some(U64::from(206)),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_tx_hash_status_failed_tx() {
+        let transaction_hash =
+            H256::from_str("575841942e0de82d3129cccf53e4e9c75b6d8a163f8a83d330a2e8d574820a4d")
+                .unwrap();
+
+        let mock_provider = MockProvider::new();
+
+        let tx_receipt = test_tx_receipt(transaction_hash, Some(U64::from(0)));
+        let _ = mock_provider.push(tx_receipt);
+
+        let ethers_provider = Provider::new(mock_provider);
+        let evm_provider: Arc<dyn EvmProviderForLander> = Arc::new(EthereumProvider::new(
+            Arc::new(ethers_provider),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        ));
+        let reorg_period = EthereumReorgPeriod::Blocks(15);
+
+        let tx_status = get_tx_hash_status(&evm_provider, transaction_hash.into(), &reorg_period)
+            .await
+            .unwrap();
+        assert_eq!(
+            tx_status,
+            TransactionStatus::Dropped(TransactionDropReason::DroppedByChain)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_tx_hash_status_success() {
+        let transaction_hash =
+            H256::from_str("575841942e0de82d3129cccf53e4e9c75b6d8a163f8a83d330a2e8d574820a4d")
+                .unwrap();
+
+        let mock_provider = MockProvider::new();
+
+        let _ = mock_provider.push(U64::from(23327790u64));
+        let tx_receipt = test_tx_receipt(transaction_hash, Some(U64::from(1)));
+        let _ = mock_provider.push(tx_receipt);
+
+        let ethers_provider = Provider::new(mock_provider);
+        let evm_provider: Arc<dyn EvmProviderForLander> = Arc::new(EthereumProvider::new(
+            Arc::new(ethers_provider),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        ));
+        let reorg_period = EthereumReorgPeriod::Blocks(15);
+
+        let tx_status = get_tx_hash_status(&evm_provider, transaction_hash.into(), &reorg_period)
+            .await
+            .unwrap();
+        assert_eq!(tx_status, TransactionStatus::Included);
+    }
+
+    #[tokio::test]
+    async fn test_get_tx_hash_status_success_finalized() {
+        let transaction_hash =
+            H256::from_str("575841942e0de82d3129cccf53e4e9c75b6d8a163f8a83d330a2e8d574820a4d")
+                .unwrap();
+
+        let mock_provider = MockProvider::new();
+
+        let _ = mock_provider.push(U64::from(23328000u64));
+        let tx_receipt = test_tx_receipt(transaction_hash, Some(U64::from(1)));
+        let _ = mock_provider.push(tx_receipt);
+
+        let ethers_provider = Provider::new(mock_provider);
+        let evm_provider: Arc<dyn EvmProviderForLander> = Arc::new(EthereumProvider::new(
+            Arc::new(ethers_provider),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        ));
+        let reorg_period = EthereumReorgPeriod::Blocks(15);
+
+        let tx_status = get_tx_hash_status(&evm_provider, transaction_hash.into(), &reorg_period)
+            .await
+            .unwrap();
+        assert_eq!(tx_status, TransactionStatus::Finalized);
+    }
+}
