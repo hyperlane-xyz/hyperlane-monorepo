@@ -1,5 +1,5 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
-import { SigningStargateClient } from '@cosmjs/stargate';
+import { GasPrice, SigningStargateClient } from '@cosmjs/stargate';
 
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -21,12 +21,13 @@ export class CosmosNativeMultiProtocolSignerAdapter
     privateKey: string,
     multiProtocolProvider: MultiProtocolProvider,
   ): Promise<CosmosNativeMultiProtocolSignerAdapter> {
-    const { bech32Prefix, rpcUrls } =
+    const { bech32Prefix, rpcUrls, gasPrice } =
       multiProtocolProvider.getChainMetadata(chainName);
 
     const [rpc] = rpcUrls;
     assert(bech32Prefix, 'prefix is required for cosmos chains');
     assert(rpc, 'rpc is required for configuring cosmos chains');
+    assert(gasPrice, 'gas price is required for cosmos chains');
 
     const wallet = await DirectSecp256k1Wallet.fromKey(
       Buffer.from(privateKey, 'hex'),
@@ -38,6 +39,9 @@ export class CosmosNativeMultiProtocolSignerAdapter
     const signer = await SigningStargateClient.connectWithSigner(
       rpc.http,
       wallet,
+      {
+        gasPrice: GasPrice.fromString(`${gasPrice.amount}${gasPrice.denom}`),
+      },
     );
 
     return new CosmosNativeMultiProtocolSignerAdapter(account.address, signer);
@@ -48,7 +52,7 @@ export class CosmosNativeMultiProtocolSignerAdapter
   }
 
   async sendTransaction(tx: CosmJsNativeTransaction): Promise<string> {
-    const estimatedFee = await this.signer.simulate(
+    await this.signer.simulate(
       this.accountAddress,
       [tx.transaction],
       undefined,
@@ -57,7 +61,7 @@ export class CosmosNativeMultiProtocolSignerAdapter
     const res = await this.signer.signAndBroadcast(
       this.accountAddress,
       [tx.transaction],
-      estimatedFee * 1.1,
+      'auto',
     );
 
     if (res.code !== 0) {
