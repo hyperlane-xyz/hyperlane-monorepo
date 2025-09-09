@@ -20,7 +20,7 @@ mod tests {
         );
 
         let escrow_address =
-            "kaspatest:est:pz2q7x7munf7p9zduvfed8dj7znkh7z4973mqd995cvrajk7qhkm57jdfl3l9".to_string();
+            "kaspatest:pz2q7x7munf7p9zduvfed8dj7znkh7z4973mqd995cvrajk7qhkm57jdfl3l9".to_string();
 
         // Define the anchor UTXO
         let anchor_utxo = TransactionOutpoint {
