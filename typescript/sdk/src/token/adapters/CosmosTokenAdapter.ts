@@ -68,9 +68,19 @@ export class CosmNativeTokenAdapter
   }
 
   async populateTransferTx(
-    _transferParams: TransferParams,
+    transferParams: TransferParams,
   ): Promise<MsgTransferEncodeObject> {
-    throw new Error('TODO not yet implemented');
+    return {
+      typeUrl: '/ibc.applications.transfer.v1.MsgTransfer',
+      value: {
+        sender: transferParams.fromAccountOwner,
+        receiver: transferParams.recipient,
+        token: {
+          amount: transferParams.weiAmountOrId.toString(),
+          denom: this.properties.ibcDenom,
+        },
+      },
+    };
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
