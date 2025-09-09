@@ -316,21 +316,21 @@ pub async fn create_sweeping_bundle(
         let pskt_signer = pskt.no_more_inputs().no_more_outputs().signer();
         let pskt_id = pskt_signer.calculate_id();
         
-        // Update relayer_inputs for next iteration (use relayer output as new input)
+        // Update inputs for next iteration (use outputs from current PSKT as inputs)
         if !escrow_inputs.is_empty() {
             // Get the actual transaction ID and output details from the PSKT
             let sweep_tx = PSKT::<Signer>::from(pskt_signer.clone());
             let tx_id = sweep_tx.calculate_id();
             
-            // Find the relayer output index (it's the output that doesn't match escrow.p2sh)
-            let (relayer_idx, relayer_output) = sweep_tx.outputs
-                .iter()
-                .enumerate()
-                .find(|(_, output)| output.script_public_key != escrow.p2sh)
-                .map(|(idx, output)| (idx as u32, output))
-                .ok_or_else(|| eyre!("No relayer output found in PSKT"))?;
+            // Find both escrow and relayer outputs
+            let (relayer_idx, relayer_output, escrow_idx, escrow_output) = match sweep_tx.outputs.as_slice() {
+                [o0, o1] if o0.script_public_key == escrow.p2sh => (1u32, o1, 0u32, o0),
+                [o0, o1] if o1.script_public_key == escrow.p2sh => (0u32, o0, 1u32, o1),
+                _ => return Err(eyre!("PSKT must have exactly two outputs: escrow and relayer")),
+            };
             
-            relayer_inputs = vec![(
+            // Create relayer input from previous PSKT's relayer output
+            let relayer_input = (
                 TransactionInput::new(
                     TransactionOutpoint::new(tx_id, relayer_idx),
                     vec![],
@@ -344,9 +344,32 @@ pub async fn create_sweeping_bundle(
                     false,
                 ),
                 None,
-            )];
+            );
             
-            info!("Kaspa sweeping: chaining {} sompi from output {} for next batch", relayer_output.amount, relayer_idx);
+            // Create escrow input from previous PSKT's escrow output
+            let escrow_input = (
+                TransactionInput::new(
+                    TransactionOutpoint::new(tx_id, escrow_idx),
+                    vec![],
+                    u64::MAX,
+                    escrow.n() as u8,
+                ),
+                UtxoEntry::new(
+                    escrow_output.amount,
+                    escrow_output.script_public_key.clone(),
+                    UNACCEPTED_DAA_SCORE,
+                    false,
+                ),
+                Some(escrow.redeem_script.clone()),
+            );
+            
+            // Next iteration will use both outputs as inputs
+            relayer_inputs = vec![relayer_input];
+            // Add the escrow output from previous PSKT to the beginning of remaining escrow inputs
+            escrow_inputs.insert(0, escrow_input);
+            
+            info!("Kaspa sweeping: chaining escrow output {} ({} sompi) and relayer output {} ({} sompi) for next batch", 
+                  escrow_idx, escrow_output.amount, relayer_idx, relayer_output.amount);
         }
         
         bundle.add_pskt(pskt_signer);
