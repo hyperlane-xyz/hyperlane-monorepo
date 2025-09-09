@@ -38,6 +38,7 @@ import {
   assert,
   bytes32ToAddress,
   isNullish,
+  isZeroishAddress,
   normalizeAddress,
   strip0x,
 } from '@hyperlane-xyz/utils';
@@ -917,15 +918,23 @@ export class EvmHypNativeAdapter
         recipient,
       });
 
-    let txValue: bigint | undefined = undefined;
+    let txValue: bigint | undefined = amount;
     const {
       igpQuote: { addressOrDenom: igpAddressOrDenom, amount: igpAmount },
+      tokenFeeQuote,
     } = interchainGas;
+
     // If the igp token is native Eth
-    if (!igpAddressOrDenom) {
-      txValue = igpAmount + amount;
-    } else {
-      txValue = igpAmount;
+    if (!igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)) {
+      txValue += igpAmount;
+    }
+
+    if (
+      tokenFeeQuote &&
+      (!tokenFeeQuote.addressOrDenom ||
+        isZeroishAddress(tokenFeeQuote.addressOrDenom))
+    ) {
+      txValue += tokenFeeQuote.amount;
     }
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
