@@ -25,7 +25,6 @@
 
 - 2bc17e200: Update submit command to be able to handle transaction file of multiple chains
 - 87213a66d: Update `warp fork` to start up an HttpRegistry
-- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additonal updates to types related to these changes.
 - e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additional updates to types related to these changes.
 
 ### Patch Changes

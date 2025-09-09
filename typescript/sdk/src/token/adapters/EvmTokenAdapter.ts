@@ -300,10 +300,14 @@ export class EvmHypSyntheticAdapter
     }));
 
     // Because the amount is added on  the fees, we need to subtract it from the actual fees
-    const tokenFeeQuote: Quote | undefined = {
-      addressOrDenom: tokenFeeQuotes[0].addressOrDenom, // the contract enforces the token address to be the same as the route
-      amount: tokenFeeQuotes.reduce((sum, q) => sum + q.amount, 0n) - amount,
-    };
+    const tokenFeeQuote: Quote | undefined =
+      tokenFeeQuotes.length > 0
+        ? {
+            addressOrDenom: tokenFeeQuotes[0].addressOrDenom, // the contract enforces the token address to be the same as the route
+            amount:
+              tokenFeeQuotes.reduce((sum, q) => sum + q.amount, 0n) - amount,
+          }
+        : undefined;
 
     return {
       igpQuote: {
