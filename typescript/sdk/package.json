@@ -7,6 +7,7 @@
     "@aws-sdk/client-s3": "^3.577.0",
     "@chain-registry/types": "^0.50.122",
     "@cosmjs/cosmwasm-stargate": "^0.32.4",
+    "@cosmjs/proto-signing": "^0.32.4",
     "@cosmjs/stargate": "^0.32.4",
     "@hyperlane-xyz/core": "9.0.7",
     "@hyperlane-xyz/cosmos-sdk": "18.0.0",
