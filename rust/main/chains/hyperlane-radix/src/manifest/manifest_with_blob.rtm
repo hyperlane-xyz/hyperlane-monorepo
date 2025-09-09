@@ -1,0 +1,12 @@
+CALL_METHOD
+    Address("account_tdx_2_129gthzx2r70rdylg5qxpkx7lpmaqaqtex6xca2a9cfnqzpgn5av5z8")
+    "lock_fee"
+    Decimal("169.618337617485")
+;
+PUBLISH_PACKAGE_ADVANCED
+    Enum<0u8>()
+    None
+    Blob("404926490ca92c49cf024b66f0a17c4c05d222fa3800b404bca32af0b9308016")
+    Map<String, Tuple>()
+    Enum<0u8>()
+;

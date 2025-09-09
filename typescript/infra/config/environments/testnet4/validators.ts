@@ -10,26 +10,6 @@ export const validatorChainConfig = (
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
   return {
-    alfajores: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('alfajores'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0x2233a5ce12f814bd64c9cdd73410bb8693124d40',
-            '0xba279f965489d90f90490e3c49e860e0b43c2ae6',
-            '0x86485dcec5f7bb8478dd251676372d054dea6653',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0xace978aaa61d9ee44fe3ab147fd227e0e66b8909',
-            '0x6c8bfdfb8c40aba10cc9fb2cf0e3e856e0e5dbb3',
-            '0x54c65eb7677e6086cdde3d5ccef89feb2103a11d',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'alfajores',
-      ),
-    },
     arbitrumsepolia: {
       interval: 5,
       reorgPeriod: getReorgPeriod('arbitrumsepolia'),
@@ -68,7 +48,7 @@ export const validatorChainConfig = (
     },
     fuji: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('alfajores'),
+      reorgPeriod: getReorgPeriod('fuji'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -604,6 +584,39 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x3e0227b7f129576c53ff5d98d17c9b8433445094'],
         },
         'celestiatestnet',
+      ),
+    },
+
+    celosepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('celosepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4a5cfcfd7f793f4ceba170c3decbe43bd8253ef6'],
+        },
+        'celosepolia',
+      ),
+    },
+
+    incentivtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('incentivtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x3133eeb96fd96f9f99291088613edf7401149e6f'],
+        },
+        'incentivtestnet',
+      ),
+    },
+
+    radixtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('radixtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xeddaf7958627cfd35400c95db19a656a4a8a92c6'],
+        },
+        'radixtestnet',
       ),
     },
   };

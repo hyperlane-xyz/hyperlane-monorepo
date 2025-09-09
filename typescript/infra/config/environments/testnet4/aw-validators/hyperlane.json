@@ -8,13 +8,6 @@
   "alephzeroevmtestnet": {
     "validators": ["0x556cd94bcb6e5773e8df75e7eb3f91909d266a26"]
   },
-  "alfajores": {
-    "validators": [
-      "0x2233a5ce12f814bd64c9cdd73410bb8693124d40",
-      "0xba279f965489d90f90490e3c49e860e0b43c2ae6",
-      "0x86485dcec5f7bb8478dd251676372d054dea6653"
-    ]
-  },
   "arbitrumsepolia": {
     "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
   },
@@ -45,6 +38,9 @@
   },
   "celestiatestnet": {
     "validators": ["0x3e0227b7f129576c53ff5d98d17c9b8433445094"]
+  },
+  "celosepolia": {
+    "validators": ["0x4a5cfcfd7f793f4ceba170c3decbe43bd8253ef6"]
   },
   "chronicleyellowstone": {
     "validators": ["0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4"]
@@ -80,8 +76,8 @@
   "hyperliquidevmtestnet": {
     "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
   },
-  "infinityvmmonza": {
-    "validators": ["0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb"]
+  "incentivtestnet": {
+    "validators": ["0x3133eeb96fd96f9f99291088613edf7401149e6f"]
   },
   "inksepolia": {
     "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
@@ -115,6 +111,9 @@
   },
   "polygonamoy": {
     "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
+  },
+  "radixtestnet": {
+    "validators": ["0xeddaf7958627cfd35400c95db19a656a4a8a92c6"]
   },
   "scrollsepolia": {
     "validators": [
