@@ -242,7 +242,6 @@ pub fn build_cosmos_connection_conf(
         },
     }
 }
-
 fn build_dango_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
