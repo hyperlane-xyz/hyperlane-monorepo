@@ -4,7 +4,7 @@ use corelib::escrow::EscrowPublic;
 use corelib::util::input_sighash_type;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::{eyre, Result};
-use hardcode::tx::RELAYER_SWEEPING_PRIORITY_FEE;
+use hardcode::tx::{DUST_AMOUNT, RELAYER_SWEEPING_PRIORITY_FEE};
 use kaspa_consensus_client::{
     TransactionOutpoint as ClientTransactionOutpoint, UtxoEntry as ClientUtxoEntry,
 };
@@ -230,12 +230,11 @@ pub async fn create_sweeping_bundle(
         
         let estimated_fee = (mass as f64 * feerate).ceil() as u64 + RELAYER_SWEEPING_PRIORITY_FEE;
         
-        // Check if relayer has enough balance to cover fees and minimum output
-        const MIN_OUTPUT_VALUE: u64 = 1000;
-        if total_relayer_balance < estimated_fee + MIN_OUTPUT_VALUE {
+        // Check if relayer has enough balance to cover fees and minimum dust output
+        if total_relayer_balance < estimated_fee + DUST_AMOUNT {
             return Err(eyre!(
-                "Insufficient relayer balance: have {} sompi, need {} (fee) + {} (min output) = {} sompi",
-                total_relayer_balance, estimated_fee, MIN_OUTPUT_VALUE, estimated_fee + MIN_OUTPUT_VALUE
+                "Insufficient relayer balance: have {} sompi, need {} (fee) + {} (dust) = {} sompi",
+                total_relayer_balance, estimated_fee, DUST_AMOUNT, estimated_fee + DUST_AMOUNT
             ));
         }
         
