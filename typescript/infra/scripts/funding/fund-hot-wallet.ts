@@ -3,6 +3,7 @@ import { format } from 'util';
 
 import {
   ChainName,
+  ProtocolTypedTransaction,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   Token,
   TransferParams,
@@ -115,7 +116,7 @@ async function fundAccount({
   const privateKeyAgent = getDeployerKey(agentConfig, chainName);
 
   await privateKeyAgent.fetch();
-  const signer = await getSignerForChain(
+  const signer = await getSignerForChain<typeof protocol>(
     chainName,
     {
       privateKey: privateKeyAgent.privateKey,
@@ -177,19 +178,17 @@ async function fundAccount({
   // Execute the transfer
   const transferTx = await adapter.populateTransferTx(transferParams);
 
-  const protocolTypedTx: TypedTransaction = {
-    transaction: transferTx as any,
-    type: TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard] as any,
-  };
+  const protocolTypedTx = {
+    transaction: transferTx,
+    type: TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard],
+  } as ProtocolTypedTransaction<typeof protocol>;
 
-  console.log(JSON.stringify(protocolTypedTx, null, 2));
-
-  if (dryRun || true) {
+  if (dryRun) {
     logger.info('DRY RUN: Would execute transfer with above parameters');
     return;
   }
 
-  await signer.sendTransaction(protocolTypedTx as any);
+  await signer.sendTransaction(protocolTypedTx);
 
   // Verify the transfer
   const newBalance = await adapter.getBalance(fromAddress);

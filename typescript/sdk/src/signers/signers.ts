@@ -9,11 +9,13 @@ import { StarknetMultiProtocolSignerAdapter } from './starknet/starknetjs.js';
 import { SvmMultiprotocolSignerAdapter } from './svm/solanaweb3.js';
 import { IMultiProtocolSigner } from './types.js';
 
-export async function getSignerForChain(
+export async function getSignerForChain<
+  TProtocol extends ProtocolType = ProtocolType,
+>(
   chainName: ChainName,
   accountConfig: { privateKey: string; address?: Address },
   multiProtocolProvider: MultiProtocolProvider,
-): Promise<IMultiProtocolSigner<ProtocolType>> {
+): Promise<IMultiProtocolSigner<TProtocol>> {
   const protocolType = multiProtocolProvider.getProtocol(chainName);
 
   const { privateKey } = accountConfig;
