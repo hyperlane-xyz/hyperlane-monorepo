@@ -4,7 +4,7 @@ use ethers::types::U64;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander};
 use tracing::warn;
 
-use crate::{LanderError, TransactionStatus};
+use crate::{LanderError, TransactionDropReason, TransactionStatus};
 
 async fn block_number_result_to_tx_status(
     provider: &Arc<dyn EvmProviderForLander>,
@@ -43,10 +43,19 @@ pub async fn get_tx_hash_status(
             "Transaction not found".to_string(),
         )),
         Ok(Some(receipt)) => {
-            Ok(
-                block_number_result_to_tx_status(provider, receipt.block_number, reorg_period)
-                    .await,
-            )
+            match receipt.status {
+                // Assuming all chains nowadays support this EIP: https://eips.ethereum.org/EIPS/eip-658
+                // 1 = Success, 0 = Failure
+                Some(U64([1])) => Ok(block_number_result_to_tx_status(
+                    provider,
+                    receipt.block_number,
+                    reorg_period,
+                )
+                .await),
+                _ => Ok(TransactionStatus::Dropped(
+                    TransactionDropReason::DroppedByChain,
+                )),
+            }
         }
         Err(err) => Err(LanderError::TxHashNotFound(err.to_string())),
     }
