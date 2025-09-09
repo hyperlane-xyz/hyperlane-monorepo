@@ -315,30 +315,42 @@ pub async fn create_sweeping_bundle(
         
         let pskt_signer = pskt.no_more_inputs().no_more_outputs().signer();
         let pskt_id = pskt_signer.calculate_id();
-        bundle.add_pskt(pskt_signer);
-        
-        info!("Kaspa sweeping: created PSKT {}", pskt_id);
         
         // Update relayer_inputs for next iteration (use relayer output as new input)
         if !escrow_inputs.is_empty() {
+            // Get the actual transaction ID and output details from the PSKT
+            let sweep_tx = PSKT::<Signer>::from(pskt_signer.clone());
+            let tx_id = sweep_tx.calculate_id();
+            
+            // Find the relayer output index (it's the output that doesn't match escrow.p2sh)
+            let (relayer_idx, relayer_output) = sweep_tx.outputs
+                .iter()
+                .enumerate()
+                .find(|(_, output)| output.script_public_key != escrow.p2sh)
+                .map(|(idx, output)| (idx as u32, output))
+                .ok_or_else(|| eyre!("No relayer output found in PSKT"))?;
+            
             relayer_inputs = vec![(
                 TransactionInput::new(
-                    TransactionOutpoint::new(pskt_id, 1), // Index 1 is relayer output
+                    TransactionOutpoint::new(tx_id, relayer_idx),
                     vec![],
                     u64::MAX,
                     RELAYER_SIG_OP_COUNT,
                 ),
                 UtxoEntry::new(
-                    relayer_output_amount,
-                    pay_to_address_script(&relayer_address),
+                    relayer_output.amount,
+                    relayer_output.script_public_key.clone(),
                     UNACCEPTED_DAA_SCORE,
                     false,
                 ),
                 None,
             )];
             
-            info!("Kaspa sweeping: chaining {} sompi for next batch", relayer_output_amount);
+            info!("Kaspa sweeping: chaining {} sompi from output {} for next batch", relayer_output.amount, relayer_idx);
         }
+        
+        bundle.add_pskt(pskt_signer);
+        info!("Kaspa sweeping: created PSKT {}", pskt_id);
     }
     
     info!("Kaspa sweeping: completed with {} PSKTs", bundle.0.len());
