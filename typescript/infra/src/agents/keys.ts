@@ -109,7 +109,7 @@ export class ReadOnlyCloudAgentKey extends BaseCloudAgentKey {
    * flavors, e.g.:
    * alias/hyperlane-testnet2-key-kathy (<-- hyperlane context, not specific to any chain)
    * alias/hyperlane-testnet2-key-optimismkovan-relayer (<-- hyperlane context, chain specific)
-   * alias/hyperlane-testnet2-key-alfajores-validator-0 (<-- hyperlane context, chain specific and has an index)
+   * alias/hyperlane-testnet2-key-sepolia-validator-0 (<-- hyperlane context, chain specific and has an index)
    * hyperlane-dev-key-kathy (<-- same idea as above, but without the `alias/` prefix if it's not AWS-based)
    * alias/flowcarbon-testnet2-key-optimismkovan-relayer (<-- flowcarbon context & chain specific, intended to show that there are non-hyperlane contexts)
    * @param address The address of the key.

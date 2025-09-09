@@ -48,7 +48,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -102,7 +101,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -156,7 +154,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstracttestnet: true,
     alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -193,7 +190,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     paradexsepolia: true,
     plumetestnet2: true,
     polygonamoy: true,
-    radixtestnet: false,
+    radixtestnet: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -449,7 +446,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '62ec77a-20250827-085602',
+      tag: 'c27e3e2-20250903-205748',
     },
     resources: scraperResources,
   },
@@ -541,74 +538,8 @@ const neutron: RootAgentConfig = {
   },
 };
 
-const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
-  ...contextBase,
-  context: mustBeValidContext(`vanguard${index}`),
-  contextChainNames: {
-    validator: [],
-    relayer: kesselRunnerNetworks,
-    scraper: [],
-  },
-  rolesWithKeys: [Role.Relayer],
-  relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    docker: {
-      repo,
-      // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
-      tag: '9d20c65-20250418-220918',
-    },
-    whitelist: kesselMatchingList,
-    gasPaymentEnforcement: [
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: kesselMatchingList,
-      },
-    ],
-    metricAppContextsGetter,
-    ismCacheConfigs,
-    cache: {
-      enabled: true,
-    },
-    resources: {
-      requests: {
-        cpu: '30000m',
-        memory: '100Gi',
-      },
-    },
-    dbBootstrap: true,
-    mixing: {
-      enabled: true,
-      // Arbitrary salt to ensure different agents have different sorting behavior for pending messages
-      salt: 69690 + index,
-    },
-    batch: {
-      defaultBatchSize: 32,
-      batchSizeOverrides: {
-        // Slightly lower to ideally fit within 5M
-        sepolia: 26,
-      },
-      bypassBatchSimulation: true,
-      maxSubmitQueueLength: {
-        arbitrumsepolia: 350,
-        basesepolia: 350,
-        bsctestnet: 350,
-        optimismsepolia: 350,
-        sepolia: 75,
-      },
-    },
-    txIdIndexingEnabled: false,
-    igpIndexingEnabled: false,
-  },
-});
-
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
-  [Contexts.Vanguard0]: getVanguardRootAgentConfig(0),
-  [Contexts.Vanguard1]: getVanguardRootAgentConfig(1),
-  [Contexts.Vanguard2]: getVanguardRootAgentConfig(2),
-  [Contexts.Vanguard3]: getVanguardRootAgentConfig(3),
-  [Contexts.Vanguard4]: getVanguardRootAgentConfig(4),
-  [Contexts.Vanguard5]: getVanguardRootAgentConfig(5),
 };
