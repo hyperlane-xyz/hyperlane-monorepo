@@ -1,38 +1,18 @@
-import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
-import { SigningStargateClient } from '@cosmjs/stargate';
-import { Keypair, sendAndConfirmTransaction } from '@solana/web3.js';
-import { Wallet, ethers } from 'ethers';
-import { base58, formatUnits, parseUnits } from 'ethers/lib/utils.js';
-import { Account as StarknetAccount } from 'starknet';
+import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 import { format } from 'util';
 
 import {
   ChainName,
-  MultiProtocolProvider,
-  MultiProvider,
-  ProtocolTypedTransaction,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   Token,
   TransferParams,
   TypedTransaction,
+  getSignerForChain,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
-  assert,
-  rootLogger,
-  strip0x,
-} from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import {
-  CosmJsNativeTransaction,
-  EthersV5Transaction,
-  SolanaWeb3Transaction,
-  StarknetJsTransaction,
-} from '../../../sdk/dist/providers/ProviderType.js';
 import { Contexts } from '../../config/contexts.js';
 import { getDeployerKey } from '../../src/agents/key-utils.js';
-import { CloudAgentKey } from '../../src/agents/keys.js';
 import { EnvironmentConfig } from '../../src/config/environment.js';
 import { assertChain } from '../../src/utils/utils.js';
 import { getAgentConfig, getArgs } from '../agent-utils.js';
@@ -133,9 +113,14 @@ async function fundAccount({
 
   const agentConfig = getAgentConfig(Contexts.Hyperlane, config.environment);
   const privateKeyAgent = getDeployerKey(agentConfig, chainName);
+
+  await privateKeyAgent.fetch();
   const signer = await getSignerForChain(
     chainName,
-    privateKeyAgent,
+    {
+      privateKey: privateKeyAgent.privateKey,
+      address: privateKeyAgent.address,
+    },
     multiProtocolProvider,
   );
 
@@ -197,7 +182,7 @@ async function fundAccount({
     type: TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard] as any,
   };
 
-  console.log(protocolTypedTx);
+  console.log(JSON.stringify(protocolTypedTx, null, 2));
 
   if (dryRun || true) {
     logger.info('DRY RUN: Would execute transfer with above parameters');
@@ -218,233 +203,6 @@ async function fundAccount({
     },
     'Transfer completed successfully',
   );
-}
-
-interface IMultiProtocolSigner<TProtocol extends ProtocolType> {
-  address(): Promise<Address>;
-  sendTransaction(tx: ProtocolTypedTransaction<TProtocol>): Promise<string>;
-}
-
-class SvmMultiprotocolSignerAdapter
-  implements IMultiProtocolSigner<ProtocolType.Sealevel>
-{
-  private readonly signer: Keypair;
-
-  constructor(
-    private readonly chainName: ChainName,
-    private readonly privateKey: string,
-    private readonly multiProtocolProvider: MultiProtocolProvider,
-  ) {
-    this.signer = Keypair.fromSecretKey(
-      Uint8Array.from(
-        JSON.parse(String(Buffer.from(strip0x(this.privateKey), 'base64'))),
-      ),
-    );
-  }
-
-  async address(): Promise<Address> {
-    return this.signer.publicKey.toBase58();
-  }
-
-  async sendTransaction(tx: SolanaWeb3Transaction): Promise<string> {
-    const svmProvider = this.multiProtocolProvider.getSolanaWeb3Provider(
-      this.chainName,
-    );
-
-    const txSignature = await sendAndConfirmTransaction(
-      svmProvider,
-      tx.transaction,
-      [this.signer],
-    );
-
-    return txSignature;
-  }
-}
-
-class EvmMultiProtocolSignerAdapter
-  implements IMultiProtocolSigner<ProtocolType.Ethereum>
-{
-  private readonly multiProvider: MultiProvider;
-
-  constructor(
-    private readonly chainName: ChainName,
-    privateKey: string,
-    multiProtocolProvider: MultiProtocolProvider,
-  ) {
-    const multiProvider = multiProtocolProvider.toMultiProvider();
-
-    multiProvider.setSigner(this.chainName, new Wallet(privateKey));
-    this.multiProvider = multiProvider;
-  }
-
-  async address(): Promise<Address> {
-    return this.multiProvider.getSignerAddress(this.chainName);
-  }
-
-  async sendTransaction(tx: EthersV5Transaction): Promise<string> {
-    const res = await this.multiProvider.sendTransaction(
-      this.chainName,
-      tx.transaction,
-    );
-
-    return res.transactionHash;
-  }
-}
-
-class StarknetMultiProtocolSignerAdapter
-  implements IMultiProtocolSigner<ProtocolType.Starknet>
-{
-  private readonly signer: StarknetAccount;
-
-  constructor(
-    private readonly chainName: ChainName,
-    privateKey: string,
-    address: string,
-    multiProtocolProvider: MultiProtocolProvider,
-  ) {
-    const provider = multiProtocolProvider.getStarknetProvider(this.chainName);
-
-    this.signer = new StarknetAccount(
-      provider,
-      // Assumes that both the private key and the related address are base58 encoded
-      // in secrets manager
-      ethers.utils.hexlify(base58.decode(address)),
-      base58.decode(privateKey),
-    );
-  }
-
-  async address(): Promise<string> {
-    return this.signer.address;
-  }
-
-  async sendTransaction(tx: StarknetJsTransaction): Promise<string> {
-    const { entrypoint, calldata, contractAddress } = tx.transaction;
-    assert(entrypoint, 'entrypoint is required for starknet transactions');
-
-    const transaction = await this.signer.execute([
-      {
-        contractAddress,
-        entrypoint,
-        calldata,
-      },
-    ]);
-
-    const transactionReceipt = await this.signer.waitForTransaction(
-      transaction.transaction_hash,
-    );
-
-    if (transactionReceipt.isReverted()) {
-      throw new Error('Transaction failed');
-    }
-
-    return transaction.transaction_hash;
-  }
-}
-
-class CosmosNativeMultiProtocolSignerAdapter
-  implements IMultiProtocolSigner<ProtocolType.CosmosNative>
-{
-  constructor(
-    private readonly chainName: ChainName,
-    private readonly accountAddress: Address,
-    private readonly signer: SigningStargateClient,
-  ) {}
-
-  static async init(
-    chainName: ChainName,
-    privateKey: string,
-    multiProtocolProvider: MultiProtocolProvider,
-  ): Promise<CosmosNativeMultiProtocolSignerAdapter> {
-    const { bech32Prefix, rpcUrls } =
-      multiProtocolProvider.getChainMetadata(chainName);
-
-    const [rpc] = rpcUrls;
-    assert(bech32Prefix, 'prefix is required for cosmos chains');
-    assert(rpc, 'rpc is required for configuring cosmos chains');
-
-    const wallet = await DirectSecp256k1Wallet.fromKey(
-      Buffer.from(privateKey, 'hex'),
-      bech32Prefix,
-    );
-
-    const [account] = await wallet.getAccounts();
-    assert(account, 'account not found for cosmos chain');
-    const signer = await SigningStargateClient.connectWithSigner(
-      rpc.http,
-      wallet,
-    );
-
-    return new CosmosNativeMultiProtocolSignerAdapter(
-      chainName,
-      account.address,
-      signer,
-    );
-  }
-
-  async address(): Promise<string> {
-    return this.accountAddress;
-  }
-
-  async sendTransaction(tx: CosmJsNativeTransaction): Promise<string> {
-    const estimatedFee = await this.signer.simulate(
-      this.accountAddress,
-      [tx.transaction],
-      undefined,
-    );
-
-    const res = await this.signer.signAndBroadcast(
-      this.accountAddress,
-      [tx.transaction],
-      estimatedFee * 1.1,
-    );
-
-    if (res.code !== 0) {
-      throw new Error('Transaction failed');
-    }
-
-    return res.transactionHash;
-  }
-}
-
-async function getSignerForChain(
-  chainName: ChainName,
-  privateKeyAgent: CloudAgentKey,
-  multiProtocolProvider: MultiProtocolProvider,
-): Promise<IMultiProtocolSigner<ProtocolType>> {
-  const protocolType = multiProtocolProvider.getProtocol(chainName);
-
-  await privateKeyAgent.fetch();
-  const privateKey = privateKeyAgent.privateKey;
-
-  switch (protocolType) {
-    case ProtocolType.Ethereum:
-      return new EvmMultiProtocolSignerAdapter(
-        chainName,
-        privateKey,
-        multiProtocolProvider,
-      );
-    case ProtocolType.Sealevel:
-      return new SvmMultiprotocolSignerAdapter(
-        chainName,
-        privateKey,
-        multiProtocolProvider,
-      );
-    case ProtocolType.CosmosNative:
-      return CosmosNativeMultiProtocolSignerAdapter.init(
-        chainName,
-        privateKey,
-        multiProtocolProvider,
-      );
-    case ProtocolType.Starknet:
-      return new StarknetMultiProtocolSignerAdapter(
-        chainName,
-        privateKey,
-        privateKeyAgent.address,
-        multiProtocolProvider,
-      );
-    default:
-      throw new Error('');
-  }
 }
 
 main().catch((err) => {

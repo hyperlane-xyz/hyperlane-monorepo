@@ -8,8 +8,6 @@
     "@aws-sdk/client-kms": "^3.577.0",
     "@aws-sdk/client-s3": "^3.577.0",
     "@cosmjs/amino": "^0.32.4",
-    "@cosmjs/proto-signing": "^0.32.4",
-    "@cosmjs/stargate": "^0.32.4",
     "@eth-optimism/sdk": "^3.3.3",
     "@ethersproject/experimental": "^5.7.0",
     "@ethersproject/hardware-wallets": "^5.7.0",
@@ -35,7 +33,6 @@
     "postgres": "^3.4.5",
     "prom-client": "^14.0.1",
     "prompts": "^2.4.2",
-    "starknet": "^7.4.0",
     "tmp": "^0.2.3",
     "yaml": "2.4.5",
     "yargs": "^17.7.2"
