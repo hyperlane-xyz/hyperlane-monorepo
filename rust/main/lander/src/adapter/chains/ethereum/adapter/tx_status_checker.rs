@@ -43,25 +43,15 @@ pub async fn get_tx_hash_status(
             "Transaction not found".to_string(),
         )),
         Ok(Some(receipt)) => {
-            match receipt.status {
+            Ok(match receipt.status {
                 // Assuming all chains nowadays support this EIP: https://eips.ethereum.org/EIPS/eip-658
                 // 1 = Success, 0 = Failure
-                Some(U64([1])) => Ok(block_number_result_to_tx_status(
-                    provider,
-                    receipt.block_number,
-                    reorg_period,
-                )
-                .await),
-                Some(_) => Ok(TransactionStatus::Dropped(
-                    TransactionDropReason::DroppedByChain,
-                )),
-                None => Ok(block_number_result_to_tx_status(
-                    provider,
-                    receipt.block_number,
-                    reorg_period,
-                )
-                .await),
-            }
+                Some(U64([1])) | None => {
+                    block_number_result_to_tx_status(provider, receipt.block_number, reorg_period)
+                        .await
+                }
+                _ => TransactionStatus::Dropped(TransactionDropReason::DroppedByChain),
+            })
         }
         Err(err) => Err(LanderError::TxHashNotFound(err.to_string())),
     }
