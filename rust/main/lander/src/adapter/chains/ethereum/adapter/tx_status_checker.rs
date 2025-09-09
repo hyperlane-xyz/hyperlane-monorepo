@@ -43,10 +43,10 @@ pub async fn get_tx_hash_status(
             "Transaction not found".to_string(),
         )),
         Ok(Some(receipt)) => {
-            Ok(match receipt.status {
+            Ok(match receipt.status.as_ref().map(|s| s.as_u64()) {
                 // Assuming all chains nowadays support this EIP: https://eips.ethereum.org/EIPS/eip-658
                 // 1 = Success, 0 = Failure
-                Some(U64([1])) | None => {
+                Some(1) | None => {
                     block_number_result_to_tx_status(provider, receipt.block_number, reorg_period)
                         .await
                 }
