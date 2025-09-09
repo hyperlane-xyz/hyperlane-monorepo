@@ -918,7 +918,7 @@ export class EvmHypNativeAdapter
         recipient,
       });
 
-    let txValue: bigint | undefined = amount;
+    let txValue = amount;
     const {
       igpQuote: { addressOrDenom: igpAddressOrDenom, amount: igpAmount },
       tokenFeeQuote,
