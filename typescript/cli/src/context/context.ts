@@ -11,14 +11,9 @@ import {
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
-  assert,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { isSignCommand, isValidKey } from '../commands/signCommands.js';
+import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
@@ -29,6 +24,7 @@ import {
   CommandContext,
   ContextSettings,
   SignerKeyProtocolMap,
+  SignerKeyProtocolMapSchema,
 } from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
@@ -135,20 +131,9 @@ async function getSignerKeyMap(
   rawKeyMap: ContextSettings['key'],
   skipConfirmation: boolean,
 ): Promise<{ keyMap: SignerKeyProtocolMap; ethereumSignerAddress?: Address }> {
-  // if a key was provided, check if it has a valid format
-  if (rawKeyMap) {
-    assert(
-      isValidKey(rawKeyMap),
-      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time or avoid defining multiple --key flags.`,
-    );
-  }
-
-  let keyMap: SignerKeyProtocolMap;
-  if (typeof rawKeyMap === 'string') {
-    keyMap = { [ProtocolType.Ethereum]: rawKeyMap };
-  } else {
-    keyMap = rawKeyMap ?? {};
-  }
+  const keyMap: SignerKeyProtocolMap = SignerKeyProtocolMapSchema.parse(
+    rawKeyMap ?? {},
+  );
 
   Object.values(ProtocolType).forEach((protocol) => {
     if (keyMap[protocol]) {

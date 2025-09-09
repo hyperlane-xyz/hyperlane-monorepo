@@ -1,5 +1,6 @@
 import type { ethers } from 'ethers';
 import type { CommandModule } from 'yargs';
+import { z } from 'zod';
 
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
@@ -7,14 +8,25 @@ import type {
   ChainMetadata,
   MultiProtocolProvider,
   MultiProvider,
-  ProtocolMap,
   WarpCoreConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 
-export type SignerKeyProtocolMap = Partial<ProtocolMap<string>>;
+export const SignerKeyProtocolMapSchema = z
+  .record(z.nativeEnum(ProtocolType), z.string().nonempty(), {
+    errorMap: (_issue, _ctx) => ({
+      message: `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time or avoid defining multiple --key or --key.{protocol} flags for the same protocol.`,
+    }),
+  })
+  .or(z.string().nonempty())
+  .transform((value) =>
+    typeof value === 'string' ? { [ProtocolType.Ethereum]: value } : value,
+  );
+
+export type SignerKeyProtocolMap = z.infer<typeof SignerKeyProtocolMapSchema>;
 
 interface BaseContext {
   key?: string | SignerKeyProtocolMap;

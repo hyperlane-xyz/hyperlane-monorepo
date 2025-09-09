@@ -1,8 +1,5 @@
 // Commands that send tx and require a key to sign.
 // It's useful to have this listed here so the context
-import { ProtocolType } from '@hyperlane-xyz/utils';
-
-import { SignerKeyProtocolMap } from '../context/types.js';
 
 // middleware can request keys up front when required.
 export const SIGN_COMMANDS = [
@@ -20,24 +17,6 @@ export function isSignCommand(argv: any): boolean {
     SIGN_COMMANDS.includes(argv._[0]) ||
     (argv._.length > 1 && SIGN_COMMANDS.includes(argv._[1]))
   );
-}
-
-export function isValidKey(key: string | SignerKeyProtocolMap): boolean {
-  if (typeof key === 'string') {
-    return true;
-  } else if (Array.isArray(key)) {
-    // if type if array it means the user inputted both --key.{protocol}
-    // and the legacy flag --key at the same time
-    return false;
-  } else if (typeof key === 'object') {
-    // if key is of type protocol map check if every provided protocol
-    // is valid
-    return Object.keys(key).every((protocol) =>
-      Object.values<string>(ProtocolType).includes(protocol),
-    );
-  } else {
-    return false;
-  }
 }
 
 export enum CommandType {
