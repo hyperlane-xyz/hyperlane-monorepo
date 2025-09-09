@@ -1,6 +1,7 @@
 import { Keypair, sendAndConfirmTransaction } from '@solana/web3.js';
-import { Wallet } from 'ethers';
-import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
+import { Wallet, ethers } from 'ethers';
+import { base58, formatUnits, parseUnits } from 'ethers/lib/utils.js';
+import { Account as StarknetAccount } from 'starknet';
 import { format } from 'util';
 
 import {
@@ -24,6 +25,7 @@ import {
 import {
   EthersV5Transaction,
   SolanaWeb3Transaction,
+  StarknetJsTransaction,
 } from '../../../sdk/dist/providers/ProviderType.js';
 import { Contexts } from '../../config/contexts.js';
 import { getDeployerKey } from '../../src/agents/key-utils.js';
@@ -61,13 +63,6 @@ async function main() {
     .default('dry-run', false).argv;
 
   const config = getEnvironmentConfig(argv.environment);
-
-  // Get MultiProtocolProvider instead of MultiProvider for cross-protocol support
-  const registry = await config.getRegistry();
-  const multiProtocolProvider = new MultiProtocolProvider(
-    await registry.getMetadata(),
-  );
-
   const { recipient, amount, chain, dryRun } = argv;
 
   logger.info(
@@ -83,7 +78,6 @@ async function main() {
   try {
     await fundAccount({
       config,
-      multiProtocolProvider,
       chainName: chain!,
       recipientAddress: recipient,
       amount,
@@ -107,7 +101,6 @@ async function main() {
 
 interface FundingParams {
   config: EnvironmentConfig;
-  multiProtocolProvider: MultiProtocolProvider;
   chainName: ChainName;
   recipientAddress: Address;
   amount: string;
@@ -295,6 +288,56 @@ class EvmMultiProtocolSignerAdapter
   }
 }
 
+class StarknetEvmMultiProtocolSignerAdapter
+  implements IMultiProtocolSigner<ProtocolType.Starknet>
+{
+  private readonly signer: StarknetAccount;
+
+  constructor(
+    private readonly chainName: ChainName,
+    privateKey: string,
+    address: string,
+    multiProtocolProvider: MultiProtocolProvider,
+  ) {
+    const provider = multiProtocolProvider.getStarknetProvider(this.chainName);
+
+    this.signer = new StarknetAccount(
+      provider,
+      // Assumes that both the private key and the related address are base58 encoded
+      // in secrets manager
+      ethers.utils.hexlify(base58.decode(address)),
+      base58.decode(privateKey),
+    );
+  }
+
+  async address(): Promise<string> {
+    return this.signer.address;
+  }
+
+  async sendTransaction(tx: StarknetJsTransaction): Promise<string> {
+    const { entrypoint, calldata, contractAddress } = tx.transaction;
+    assert(entrypoint, 'entrypoint is required for starknet transactions');
+
+    const transaction = await this.signer.execute([
+      {
+        contractAddress,
+        entrypoint,
+        calldata,
+      },
+    ]);
+
+    const transactionReceipt = await this.signer.waitForTransaction(
+      transaction.transaction_hash,
+    );
+
+    if (transactionReceipt.isReverted()) {
+      throw new Error('Transaction failed');
+    }
+
+    return transaction.transaction_hash;
+  }
+}
+
 async function getSignerForChain(
   chainName: ChainName,
   privateKeyAgent: CloudAgentKey,
@@ -316,6 +359,13 @@ async function getSignerForChain(
       return new SvmMultiprotocolSignerAdapter(
         chainName,
         privateKey,
+        multiProtocolProvider,
+      );
+    case ProtocolType.Starknet:
+      return new StarknetEvmMultiProtocolSignerAdapter(
+        chainName,
+        privateKey,
+        privateKeyAgent.address,
         multiProtocolProvider,
       );
     default:

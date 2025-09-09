@@ -8435,6 +8435,7 @@ __metadata:
     prettier: "npm:^3.5.3"
     prom-client: "npm:^14.0.1"
     prompts: "npm:^2.4.2"
+    starknet: "npm:^7.4.0"
     tmp: "npm:^0.2.3"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
