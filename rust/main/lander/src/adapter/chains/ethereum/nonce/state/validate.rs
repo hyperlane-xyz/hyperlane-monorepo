@@ -31,7 +31,13 @@ impl NonceManagerState {
         let nonce = match tx.precursor().tx.nonce().map(Into::into) {
             Some(nonce) => nonce,
             None => match self.get_tx_nonce(&tx_uuid).await? {
-                Some(nonce) => nonce,
+                Some(nonce) => {
+                    if nonce == U256::MAX {
+                        return Ok(NonceAction::AssignNext { old_nonce: None });
+                    } else {
+                        nonce
+                    }
+                }
                 None => {
                     return Ok(NonceAction::AssignNext { old_nonce: None });
                 }

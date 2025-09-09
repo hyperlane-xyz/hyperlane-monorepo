@@ -99,6 +99,14 @@ impl NonceManagerState {
             .await?;
         Ok(nonce)
     }
+
+    pub(super) async fn clear_tracked_tx_nonce(&self, uuid: &TransactionUuid) -> NonceResult<()> {
+        self.nonce_db
+            .store_nonce_by_transaction_uuid(&self.address, uuid, &U256::MAX)
+            .await?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
