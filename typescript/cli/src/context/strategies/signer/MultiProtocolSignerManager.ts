@@ -196,8 +196,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
   }
 
   getEVMSigner(chain: ChainName): Signer {
-    const protocolType =
-      this.multiProtocolProvider.getChainMetadata(chain).protocol;
+    const protocolType = this.multiProtocolProvider.getProtocol(chain);
     assert(
       protocolType === ProtocolType.Ethereum,
       `Chain ${chain} is not an Ethereum chain`,

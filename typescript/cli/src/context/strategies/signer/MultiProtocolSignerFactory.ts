@@ -76,7 +76,6 @@ class CosmosNativeSignerStrategy extends BaseMultiProtocolSigner {
     }
 
     const cometClient = provider.getCometClientOrFail();
-    assert(cometClient, 'Failed to get comet client');
 
     // parse gas price so it has the correct format
     const gasPrice = GasPrice.fromString(

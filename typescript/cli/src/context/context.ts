@@ -139,7 +139,7 @@ async function getSignerKeyMap(
   if (rawKeyMap) {
     assert(
       isValidKey(rawKeyMap),
-      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time`,
+      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time or avoid defining multiple --key flags.`,
     );
   }
 
@@ -168,7 +168,7 @@ async function getSignerKeyMap(
 
   // Just for backward compatibility
   let signerAddress: string | undefined = undefined;
-  if (keyMap && keyMap[ProtocolType.Ethereum]) {
+  if (keyMap[ProtocolType.Ethereum]) {
     const { signer } = await getSigner({
       key: keyMap[ProtocolType.Ethereum],
       skipConfirmation,
