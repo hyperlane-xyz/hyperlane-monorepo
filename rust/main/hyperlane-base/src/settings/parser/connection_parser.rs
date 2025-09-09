@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::ops::Add;
+use std::str::FromStr;
 
 use convert_case::Case;
 use eyre::{eyre, Context};

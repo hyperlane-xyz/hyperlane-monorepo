@@ -17,20 +17,26 @@ where
     Fut: Future<Output = anyhow::Result<R>>,
 {
     let now = Instant::now();
-    loop {
+    let error = loop {
         if let Ok(result) = f().await {
             return Ok(result);
         }
 
+        let error = match f().await {
+            Ok(result) => return Ok(result),
+            Err(e) => e,
+        };
+
         tokio::time::sleep(interval).await;
 
         if now.elapsed() > duration {
-            break;
+            break error;
         }
-    }
+    };
 
     Err(anyhow::anyhow!(
-        "Failed to execute function after {} seconds",
-        duration.as_secs()
+        "Failed to execute function after {} seconds with error: {}",
+        duration.as_secs(),
+        error
     ))
 }

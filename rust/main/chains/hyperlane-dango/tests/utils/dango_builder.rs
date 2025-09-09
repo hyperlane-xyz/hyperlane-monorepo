@@ -1,8 +1,8 @@
 use {
-    crate::utils::{dango_helper::ChainHelper, get_free_port},
+    crate::utils::{dango_helper::ChainHelper, get_free_port, try_for},
     dango_genesis::HyperlaneOption,
     dango_mock_httpd::{GenesisOption, Preset, TestOption},
-    grug::{BlockCreation, ClientWrapper},
+    grug::{BlockCreation, ClientWrapper, QueryClientExt},
     grug_indexer_client::HttpClient,
     std::{
         sync::{Arc, Mutex},
@@ -82,7 +82,12 @@ impl DangoBuilder {
 
         let accounts = test_accounts.lock().unwrap().take().unwrap();
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        try_for(
+            Duration::from_secs(10),
+            Duration::from_millis(500),
+            || async { client.query_status(None).await },
+        )
+        .await?;
 
         ChainHelper::new(client, accounts, chain_id, domain, vec![httpd_url]).await
     }

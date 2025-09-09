@@ -4,7 +4,7 @@ use {
     dango_testing::{TestAccount, TestAccounts},
     dango_types::{
         config::AppConfig,
-        gateway::{self, Remote, Origin},
+        gateway::{self, Origin, Remote},
     },
     grug::{
         btree_set, Addr, BroadcastClientExt, ClientWrapper, Coin, Coins, GasOption, HexByteArray,
