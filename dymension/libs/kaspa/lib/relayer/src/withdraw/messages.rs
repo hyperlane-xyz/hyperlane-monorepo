@@ -241,12 +241,12 @@ mod tests {
             ],
         ];
 
-        for (i, bytes) in bytes_a.iter().enumerate() {
+        for (_i, bytes) in bytes_a.iter().enumerate() {
             // Create a Cursor around the byte array for the reader
             let mut reader = Cursor::new(bytes);
 
             // Decode the byte array into a TokenMessage
-            let token_message =
+            let _token_message =
                 TokenMessage::read_from(&mut reader).expect("Failed to decode TokenMessage");
         }
     }

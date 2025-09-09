@@ -732,7 +732,7 @@ mod tests {
 
         for input_count in MIN_INPUTS..=MAX_INPUTS {
             let inputs: Vec<PopulatedInput> = (0..input_count)
-                .map(|i| {
+                .map(|_i| {
                     (
                         TransactionInput {
                             previous_outpoint: TransactionOutpoint {
@@ -749,6 +749,7 @@ mod tests {
                             block_daa_score: 0,
                             is_coinbase: false,
                         },
+                        None, // No redeem script for this test input
                     )
                 })
                 .collect();
@@ -762,9 +763,9 @@ mod tests {
                     })
                     .collect();
 
-                let inputs_num = inputs.len();
-                let outputs_num = outputs.len();
-                let payload_len = payload.len();
+                let _inputs_num = inputs.len();
+                let _outputs_num = outputs.len();
+                let _payload_len = payload.len();
 
                 // Call the function under test
                 let v = estimate_mass(

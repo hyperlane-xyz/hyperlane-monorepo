@@ -159,7 +159,7 @@ mod tests {
     async fn test_get_tx_by_id() -> Result<()> {
         let client = t_client();
 
-        let tx_id = "435ef8d3bf548591d44b4ff846de10288f3a8fda010d305540cac9779e6c3d49";
+        let tx_id = "49601485182fa057b000d18993db7756fc5a58823c47b64495d5532add38d2ea";
         let tx = client
             .get_tx_by_id(tx_id)
             .await
