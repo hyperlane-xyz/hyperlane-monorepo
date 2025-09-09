@@ -1,3 +1,5 @@
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import { SigningStargateClient } from '@cosmjs/stargate';
 import { Keypair, sendAndConfirmTransaction } from '@solana/web3.js';
 import { Wallet, ethers } from 'ethers';
 import { base58, formatUnits, parseUnits } from 'ethers/lib/utils.js';
@@ -23,6 +25,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
+  CosmJsNativeTransaction,
   EthersV5Transaction,
   SolanaWeb3Transaction,
   StarknetJsTransaction,
@@ -288,7 +291,7 @@ class EvmMultiProtocolSignerAdapter
   }
 }
 
-class StarknetEvmMultiProtocolSignerAdapter
+class StarknetMultiProtocolSignerAdapter
   implements IMultiProtocolSigner<ProtocolType.Starknet>
 {
   private readonly signer: StarknetAccount;
@@ -338,6 +341,71 @@ class StarknetEvmMultiProtocolSignerAdapter
   }
 }
 
+class CosmosNativeMultiProtocolSignerAdapter
+  implements IMultiProtocolSigner<ProtocolType.CosmosNative>
+{
+  constructor(
+    private readonly chainName: ChainName,
+    private readonly accountAddress: Address,
+    private readonly signer: SigningStargateClient,
+  ) {}
+
+  static async init(
+    chainName: ChainName,
+    privateKey: string,
+    multiProtocolProvider: MultiProtocolProvider,
+  ): Promise<CosmosNativeMultiProtocolSignerAdapter> {
+    const { bech32Prefix, rpcUrls } =
+      multiProtocolProvider.getChainMetadata(chainName);
+
+    const [rpc] = rpcUrls;
+    assert(bech32Prefix, 'prefix is required for cosmos chains');
+    assert(rpc, 'rpc is required for configuring cosmos chains');
+
+    const wallet = await DirectSecp256k1Wallet.fromKey(
+      Buffer.from(privateKey, 'hex'),
+      bech32Prefix,
+    );
+
+    const [account] = await wallet.getAccounts();
+    assert(account, 'account not found for cosmos chain');
+    const signer = await SigningStargateClient.connectWithSigner(
+      rpc.http,
+      wallet,
+    );
+
+    return new CosmosNativeMultiProtocolSignerAdapter(
+      chainName,
+      account.address,
+      signer,
+    );
+  }
+
+  async address(): Promise<string> {
+    return this.accountAddress;
+  }
+
+  async sendTransaction(tx: CosmJsNativeTransaction): Promise<string> {
+    const estimatedFee = await this.signer.simulate(
+      this.accountAddress,
+      [tx.transaction],
+      undefined,
+    );
+
+    const res = await this.signer.signAndBroadcast(
+      this.accountAddress,
+      [tx.transaction],
+      estimatedFee * 1.1,
+    );
+
+    if (res.code !== 0) {
+      throw new Error('Transaction failed');
+    }
+
+    return res.transactionHash;
+  }
+}
+
 async function getSignerForChain(
   chainName: ChainName,
   privateKeyAgent: CloudAgentKey,
@@ -361,8 +429,14 @@ async function getSignerForChain(
         privateKey,
         multiProtocolProvider,
       );
+    case ProtocolType.CosmosNative:
+      return CosmosNativeMultiProtocolSignerAdapter.init(
+        chainName,
+        privateKey,
+        multiProtocolProvider,
+      );
     case ProtocolType.Starknet:
-      return new StarknetEvmMultiProtocolSignerAdapter(
+      return new StarknetMultiProtocolSignerAdapter(
         chainName,
         privateKey,
         privateKeyAgent.address,
