@@ -275,7 +275,7 @@ export interface EthersV5Transaction
 
 export interface RadixSDKTransaction {
   networkId: number;
-  manifest: TransactionManifest;
+  manifest: TransactionManifest | string;
 }
 
 export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
