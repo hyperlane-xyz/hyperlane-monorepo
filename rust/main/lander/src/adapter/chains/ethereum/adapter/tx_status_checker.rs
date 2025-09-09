@@ -52,9 +52,15 @@ pub async fn get_tx_hash_status(
                     reorg_period,
                 )
                 .await),
-                _ => Ok(TransactionStatus::Dropped(
+                Some(_) => Ok(TransactionStatus::Dropped(
                     TransactionDropReason::DroppedByChain,
                 )),
+                None => Ok(block_number_result_to_tx_status(
+                    provider,
+                    receipt.block_number,
+                    reorg_period,
+                )
+                .await),
             }
         }
         Err(err) => Err(LanderError::TxHashNotFound(err.to_string())),
