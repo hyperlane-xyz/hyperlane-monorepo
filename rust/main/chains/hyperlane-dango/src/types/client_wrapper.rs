@@ -7,9 +7,15 @@ use {
 
 /// We need to define a wrapper around grug::ClientWrapper because we need to implement
 /// BlockNumberGetter in order to use FallbackProvider for DangoProvider.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ClientWrapper {
     inner: grug::ClientWrapper<anyhow::Error>,
+}
+
+impl std::fmt::Debug for ClientWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ClientWrapper")
+    }
 }
 
 impl ClientWrapper {

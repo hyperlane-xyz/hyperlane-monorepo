@@ -3,7 +3,7 @@ use {
         dango_helper::ChainHelper, get_free_port, Agent, AgentBuilder, CheckpointSyncerLocation,
         DangoBuilder, ValidatorKey,
     },
-    dango_types::gateway::TokenOrigin,
+    dango_types::gateway::Origin,
     futures_util::try_join,
     grug::{btree_set, HexByteArray, ResultExt},
     std::collections::BTreeSet,
@@ -12,7 +12,7 @@ use {
 pub struct SetupChain {
     pub validators: u32,
     pub threshold: u32,
-    pub route: TokenOrigin,
+    pub route: Origin,
 }
 
 pub async fn startup_tests(
@@ -96,7 +96,7 @@ fn run_validators(
 }
 
 async fn register_onchain(
-    route: TokenOrigin,
+    route: Origin,
     local: &mut ChainHelper,
     remote: &ChainHelper,
     remote_validators_addresses: BTreeSet<HexByteArray<20>>,

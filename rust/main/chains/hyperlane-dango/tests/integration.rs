@@ -3,7 +3,7 @@ use {
         build_agents, startup_tests, try_for, Agent, AgentBuilder, CheckpointSyncerLocation,
         DangoBuilder, SetupChain, ValidatorKey,
     },
-    dango_types::{constants::dango, gateway::TokenOrigin},
+    dango_types::{constants::dango, gateway::Origin},
     grug::{
         btree_set, setup_tracing_subscriber, BlockCreation, Coin, Denom, Part, QueryClientExt,
         ResultExt,
@@ -57,7 +57,7 @@ async fn dango_one_way() -> anyhow::Result<()> {
     }
 
     ch1.set_route(
-        TokenOrigin::Native(dango::DENOM.clone()),
+        Origin::Local(dango::DENOM.clone()),
         ch2.cfg.addresses.warp,
         ch2.hyperlane_domain,
     )
@@ -71,7 +71,7 @@ async fn dango_one_way() -> anyhow::Result<()> {
         .should_succeed();
 
     ch2.set_route(
-        TokenOrigin::Remote(Part::new_unchecked("foo")),
+        Origin::Remote(Part::new_unchecked("foo")),
         ch1.cfg.addresses.warp,
         ch1.hyperlane_domain,
     )
@@ -122,12 +122,12 @@ async fn dango_multiple_chains() -> anyhow::Result<()> {
         SetupChain {
             validators: 3,
             threshold: 2,
-            route: TokenOrigin::Native(dango::DENOM.clone()),
+            route: Origin::Local(dango::DENOM.clone()),
         },
         SetupChain {
             validators: 1,
             threshold: 1,
-            route: TokenOrigin::Remote(Part::new_unchecked("foo")),
+            route: Origin::Remote(Part::new_unchecked("foo")),
         },
     )
     .await?;

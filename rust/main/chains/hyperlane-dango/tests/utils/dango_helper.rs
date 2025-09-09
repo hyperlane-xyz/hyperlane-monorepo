@@ -4,7 +4,7 @@ use {
     dango_testing::{TestAccount, TestAccounts},
     dango_types::{
         config::AppConfig,
-        gateway::{self, Remote, TokenOrigin},
+        gateway::{self, Remote, Origin},
     },
     grug::{
         btree_set, Addr, BroadcastClientExt, ClientWrapper, Coin, Coins, GasOption, HexByteArray,
@@ -81,7 +81,7 @@ impl ChainHelper {
 
     pub async fn set_route(
         &mut self,
-        token: TokenOrigin,
+        token: Origin,
         remote_warp: Addr,
         remote_domain: u32,
     ) -> anyhow::Result<SearchTxOutcome> {

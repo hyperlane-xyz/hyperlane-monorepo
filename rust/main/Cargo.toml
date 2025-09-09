@@ -201,16 +201,16 @@ sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch =
 ] }
 
 ## dango
-grug = { git = "https://github.com/left-curve/left-curve.git", branch = "dango/gateway-native" }
-grug-app = { git = "https://github.com/left-curve/left-curve.git", branch = "dango/gateway-native" }
-grug-jmt = { git = "https://github.com/left-curve/left-curve.git", branch = "dango/gateway-native" }
-grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", branch = "dango/gateway-native" }
-dango-types = { git = "https://github.com/left-curve/left-curve.git", branch = "dango/gateway-native" }
-dango-client = { git = "https://github.com/left-curve/left-curve.git", branch = "dango/gateway-native" }
-dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", branch = "dango/gateway-native" }
-dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", branch = "dango/gateway-native" }
-dango-testing = { git = "https://github.com/left-curve/left-curve.git", branch = "dango/gateway-native" }
-dango-genesis = { git = "https://github.com/left-curve/left-curve.git", branch = "dango/gateway-native" }
+grug = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
+grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
+grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
+grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "08ad3a3" }
+dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
+dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
+dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "08ad3a3" }
+dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
+dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
+dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
