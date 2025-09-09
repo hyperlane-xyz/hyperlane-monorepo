@@ -212,9 +212,8 @@ impl SovereignClient {
             )
             .unwrap();
             return Err(custom_err!(
-                "Transaction simulation reverted: {:?}, reason: {} (raw: {:?})",
+                "Transaction simulation reverted: {:?}, reason: {:?})",
                 receipt,
-                String::from_utf8_lossy(&reason),
                 &reason,
             ));
         }

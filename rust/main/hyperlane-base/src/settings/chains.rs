@@ -774,8 +774,12 @@ impl ChainConf {
             ChainConnectionConf::Sovereign(conf) => {
                 let signer = self.sovereign_signer().await?;
                 let indexer = Box::new(
-                    h_sovereign::SovereignInterchainGasPaymasterIndexer::new(conf.clone(), locator, signer)
-                        .await?,
+                    h_sovereign::SovereignInterchainGasPaymasterIndexer::new(
+                        conf.clone(),
+                        locator,
+                        signer,
+                    )
+                    .await?,
                 );
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
