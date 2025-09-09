@@ -14,7 +14,6 @@ impl NonceManagerState {
         tx_uuid: &TransactionUuid,
         nonce: &Option<U256>,
     ) -> NonceResult<U256> {
-        self.clear_tracked_tx_nonce(tx_uuid).await?;
         if let Some(nonce) = nonce {
             // If the different nonce was assigned to the transaction,
             // we clear the tracked nonce for the transaction first.
@@ -24,6 +23,7 @@ impl NonceManagerState {
             );
             self.clear_tracked_tx_uuid(nonce).await?;
         }
+        self.clear_tracked_tx_nonce(tx_uuid).await?;
 
         let (finalized_nonce, upper_nonce) = self.get_boundary_nonces().await?;
 
