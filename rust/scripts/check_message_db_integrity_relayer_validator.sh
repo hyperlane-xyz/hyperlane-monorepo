@@ -1,6 +1,6 @@
 #!/bin/bash
 
-HELP_MESSAGE="Script to check merkle root consistency between relayer and validator
+HELP_MESSAGE="Script to check message id consistency between relayer and validator
 Usage: $0 --chain-name <chain_name> --domain-id <domain_id> --leaf-index-start <number>
 
     --help -h               show help menu
@@ -9,13 +9,13 @@ Usage: $0 --chain-name <chain_name> --domain-id <domain_id> --leaf-index-start <
     --leaf-index-start      the leaf index to start at and go forward"
 
 # Function to extract message_id from checkpoint response
-extract_checkpoint_merkle_root() {
-    echo "$1" | jq -r '.value.checkpoint.root' 2>/dev/null
+extract_checkpoint_message_id() {
+    echo "$1" | jq -r '.value.message_id' 2>/dev/null || echo "$1" | grep -o '"value":{[^}]*"message_id":"[^"]*"' | grep -o '"message_id":"[^"]*"' | cut -d'"' -f4
 }
 
 # Function to extract message_id from merkle insertions response
-extract_relayer_merkle_root() {
-    echo "$1" | jq -r '.root' 2>/dev/null
+extract_merkle_message_id() {
+    echo "$1" | grep -o '"message_id":"[^"]*' | head -1 | cut -d'"' -f4
 }
 
 # Function to pretty print JSON
@@ -31,9 +31,8 @@ main() {
     chain=$1
     domain_id=$2
     start_index=$3
-
-    mismatch_found=false
     current_index=$start_index
+    mismatch_found=false
 
     url="https://hyperlane-mainnet3-${chain}-validator-0.s3.us-east-1.amazonaws.com"
 
@@ -55,32 +54,33 @@ main() {
             echo "🔍 Debugging checkpoint response:"
             echo "$checkpoint_response"
 
-            checkpoint_root=$(extract_checkpoint_merkle_root "$checkpoint_response")
-            echo "📋 Extracted checkpoint root: $checkpoint_root"
+            checkpoint_message_id=$(extract_checkpoint_message_id "$checkpoint_response")
+            echo "📋 Extracted checkpoint message_id: $checkpoint_message_id"
 
             # Fetch from merkle insertions endpoint
-            merkle_url="http://0.0.0.0:9090/merkle_proofs?domain_id=${domain_id}&leaf_index=${current_index}&root_index=${current_index}"
+            merkle_url="http://0.0.0.0:9090/merkle_tree_insertions?domain_id=${domain_id}&leaf_index_start=${current_index}&leaf_index_end=$((current_index + 1))"
             echo -e "\n🌐 API Call: GET $merkle_url"
             merkle_response=$(curl -s "$merkle_url")
-            response_status_code=$?
+            echo "📥 Response size: $(echo "$merkle_response" | wc -c) bytes"
 
             # Debug: Print the relevant part of the response
+            echo "🔍 Debugging merkle response:"
+            echo "$merkle_response" | grep -A 1 "message_id"
 
             # Check if merkle request was successful
-            if [ $response_status_code -eq 0 ]; then
-                extracted_merkle_root=$(extract_relayer_merkle_root "$merkle_response")
-                merkle_root="0x${extracted_merkle_root}"
-                echo "📋 Extracted merkle message_id: $merkle_root"
+            if [[ "$merkle_response" == *"message_id"* ]]; then
+                merkle_message_id=$(extract_merkle_message_id "$merkle_response")
+                echo "📋 Extracted merkle message_id: $merkle_message_id"
 
                 echo -e "\n📊 Comparison for index $current_index:"
-                echo "  Checkpoint root: $checkpoint_root"
-                echo "  Merkle root:     $merkle_root"
+                echo "  Checkpoint message_id: $checkpoint_message_id"
+                echo "  Merkle message_id:     $merkle_message_id"
 
                 # Compare the message IDs
-                if [ "$checkpoint_root" != "$merkle_root" ]; then
+                if [ "$checkpoint_message_id" != "$merkle_message_id" ]; then
                     echo -e "\n⚠️ MISMATCH FOUND at index $current_index:"
-                    echo "  Checkpoint: $checkpoint_root"
-                    echo "  Merkle:     $merkle_root"
+                    echo "  Checkpoint: $checkpoint_message_id"
+                    echo "  Merkle:     $merkle_message_id"
                     mismatch_found=true
                 else
                     echo "  ✓ Match"
@@ -102,7 +102,6 @@ main() {
     done
 
     echo -e "\n✅ Comparison complete. First mismatch found at index $current_index."
-
 }
 
 ## Start of execution
