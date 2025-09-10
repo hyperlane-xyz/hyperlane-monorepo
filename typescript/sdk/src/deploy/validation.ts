@@ -6,8 +6,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HookConfig } from '../hook/types.js';
-import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmERC20WarpRouteReader } from '../token/EvmERC20WarpRouteReader.js';
 import {
@@ -100,7 +98,7 @@ export async function validateWarpDeployOwners(
 
 /**
  * Extracts all owner addresses from warp deployment configuration.
- * Handles owner overrides, ISM owners, hook owners, and proxy admin owners.
+ * Handles owner overrides and proxy admin owners.
  */
 export function extractOwnersFromConfig(
   warpConfig: WarpRouteDeployConfigMailboxRequired,
@@ -114,37 +112,13 @@ export function extractOwnersFromConfig(
       owners.push(primaryOwner);
     }
 
-    // 2. ISM owner
-    if (config.interchainSecurityModule) {
-      const ismOwner = extractOwnerFromConfig(config.interchainSecurityModule);
-      if (ismOwner) {
-        owners.push(ismOwner);
-      }
-    }
-
-    // 3. Hook owner
-    if (config.hook) {
-      const hookOwner = extractOwnerFromConfig(config.hook);
-      if (hookOwner) {
-        owners.push(hookOwner);
-      }
-    }
-
-    // 4. Proxy admin owner (if proxy deployment configured)
+    // 2. Proxy admin owner (if proxy deployment configured)
     if (config.proxyAdmin?.owner) {
       owners.push(config.proxyAdmin.owner);
     }
 
     return [...new Set(owners)];
   });
-}
-
-function extractOwnerFromConfig(
-  config: IsmConfig | HookConfig,
-): Address | undefined {
-  return typeof config === 'object' && config !== null && 'owner' in config
-    ? (config as any).owner
-    : undefined;
 }
 
 /**

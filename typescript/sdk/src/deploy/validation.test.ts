@@ -90,7 +90,7 @@ describe('Owner Validation', () => {
       expect(result.ethereum).to.not.contain('0xBaseOwner');
     });
 
-    it('should extract owners from ISM and hook configurations', () => {
+    it('should extract owners from proxy admin configurations', () => {
       const config: WarpRouteDeployConfigMailboxRequired = {
         ethereum: {
           owner: '0xBaseOwner',
@@ -119,10 +119,8 @@ describe('Owner Validation', () => {
 
       const result = extractOwnersFromConfig(config);
 
-      expect(result.ethereum).to.have.length(4);
+      expect(result.ethereum).to.have.length(2);
       expect(result.ethereum).to.contain('0xBaseOwner');
-      expect(result.ethereum).to.contain('0xIsmOwner');
-      expect(result.ethereum).to.contain('0xHookOwner');
       expect(result.ethereum).to.contain('0xProxyOwner');
     });
 
@@ -399,8 +397,6 @@ describe('Owner Validation', () => {
       validateOwnerAddressStub
         .withArgs('ethereum', '0xBaseOwner')
         .resolves({ '0xBaseOwner': OwnerStatus.Active })
-        .withArgs('ethereum', '0xIsmOwner')
-        .resolves({ '0xIsmOwner': OwnerStatus.Active })
         .withArgs('ethereum', '0xProxyOwner')
         .resolves({ '0xProxyOwner': OwnerStatus.Inactive });
 

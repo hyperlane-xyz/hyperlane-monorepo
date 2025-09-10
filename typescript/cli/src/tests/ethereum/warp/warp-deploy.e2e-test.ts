@@ -1,7 +1,7 @@
 import { JsonRpcProvider } from '@ethersproject/providers';
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Wallet } from 'ethers';
+import { Wallet, constants } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
@@ -828,6 +828,118 @@ describe('hyperlane warp deploy e2e tests', async function () {
           ),
         );
       }
+    });
+  });
+
+  describe('owner validation integration tests', () => {
+    it('should fail deployment when owner is inactive', async function () {
+      // Deploy a token for testing
+      const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+
+      // Create config with an inactive owner address (using zero address which should be inactive)
+      const inactiveOwnerAddress = constants.AddressZero;
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: inactiveOwnerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          mailbox: chain3Addresses.mailbox,
+          owner: inactiveOwnerAddress,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Is this deployment plan correct?'),
+          input: KeyBoardKeys.ENTER,
+        },
+      ];
+
+      // Deploy - this should fail due to owner validation
+      const output = hyperlaneWarpDeployRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      // Assertions - deployment should fail with owner validation error
+      expect(finalOutput.exitCode).to.equal(1);
+      expect(finalOutput.text()).to.include('Owner validation failed');
+      expect(finalOutput.text()).to.include('Found');
+      expect(finalOutput.text()).to.include('invalid owner(s)');
+      expect(finalOutput.text()).to.include(inactiveOwnerAddress);
+    });
+
+    it('should succeed deployment when all owners are active', async function () {
+      // Deploy a token for testing
+      const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+
+      // Use the wallet address which should be active
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          mailbox: chain3Addresses.mailbox,
+          owner: ownerAddress,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Is this deployment plan correct?'),
+          input: KeyBoardKeys.ENTER,
+        },
+      ];
+
+      // Deploy - this should succeed since owners are valid
+      const output = hyperlaneWarpDeployRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      })
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      // Assertions - deployment should succeed
+      expect(finalOutput.exitCode).to.equal(0);
+      expect(finalOutput.text()).to.not.include('Owner validation failed');
     });
   });
 });
