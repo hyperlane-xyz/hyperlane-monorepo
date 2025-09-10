@@ -218,8 +218,7 @@ impl RadixProvider {
             .await
     }
 
-    /// Calls a method on a component
-    /// if specified will use the passed state_version
+    /// Calls a method with arguments on a component
     pub async fn call_method_with_arg<T: ScryptoSbor, A: ManifestEncode + ?Sized>(
         &self,
         component: &str,
