@@ -12,7 +12,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { getContext } from '../../../context/context.js';
@@ -581,15 +581,16 @@ export async function setupIncompleteWarpRouteExtension(
   const multiProtocolProvider = new MultiProtocolProvider(
     context.chainMetadata,
   );
-  const multiProtocolSigner = new MultiProtocolSignerManager(
+  const multiProtocolSigner = await MultiProtocolSignerManager.init(
     strategyConfig,
     [CHAIN_NAME_2, CHAIN_NAME_3],
-    context.multiProvider,
     multiProtocolProvider,
-    { key: ANVIL_KEY },
+    {
+      key: {
+        [ProtocolType.Ethereum]: ANVIL_KEY,
+      },
+    },
   );
-
-  await multiProtocolSigner.initAllSigners();
 
   context.multiProvider = await multiProtocolSigner.getMultiProvider();
 
@@ -598,7 +599,9 @@ export async function setupIncompleteWarpRouteExtension(
       context: {
         ...context,
         signer: signer3,
-        key: ANVIL_KEY,
+        key: {
+          [ProtocolType.Ethereum]: ANVIL_KEY,
+        },
         multiProtocolSigner,
       },
       warpCoreConfig,
