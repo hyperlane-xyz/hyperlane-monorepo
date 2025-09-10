@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 import { format } from 'util';
 
@@ -7,10 +8,9 @@ import {
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   Token,
   TransferParams,
-  TypedTransaction,
   getSignerForChain,
 } from '@hyperlane-xyz/sdk';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getDeployerKey } from '../../src/agents/key-utils.js';
@@ -116,12 +116,35 @@ async function fundAccount({
   const privateKeyAgent = getDeployerKey(agentConfig, chainName);
 
   await privateKeyAgent.fetch();
+
+  let accountInfo: { privateKey: string; address: Address };
+  if (protocol === ProtocolType.Sealevel) {
+    accountInfo = {
+      address: privateKeyAgent.address,
+      // Assumes the private key is base64 encoded on secrets manager
+      privateKey: String(Buffer.from(privateKeyAgent.privateKey, 'base64')),
+    };
+  } else if (protocol === ProtocolType.Starknet) {
+    accountInfo = {
+      // Assumes that both the private key and the related address are base58 encoded
+      // in secrets manager
+      address: ethers.utils.hexlify(
+        ethers.utils.base58.decode(privateKeyAgent.address),
+      ),
+      privateKey: ethers.utils.hexlify(
+        ethers.utils.base58.decode(privateKeyAgent.privateKey),
+      ),
+    };
+  } else {
+    accountInfo = {
+      address: privateKeyAgent.address,
+      privateKey: privateKeyAgent.privateKey,
+    };
+  }
+
   const signer = await getSignerForChain<typeof protocol>(
     chainName,
-    {
-      privateKey: privateKeyAgent.privateKey,
-      address: privateKeyAgent.address,
-    },
+    accountInfo,
     multiProtocolProvider,
   );
 

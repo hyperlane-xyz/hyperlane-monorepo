@@ -1,5 +1,6 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { GasPrice, SigningStargateClient } from '@cosmjs/stargate';
+import { ethers } from 'ethers';
 
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -12,6 +13,7 @@ export class CosmosNativeMultiProtocolSignerAdapter
   implements IMultiProtocolSigner<ProtocolType.CosmosNative>
 {
   constructor(
+    private readonly chainName: ChainName,
     private readonly accountAddress: Address,
     private readonly signer: SigningStargateClient,
   ) {}
@@ -28,6 +30,10 @@ export class CosmosNativeMultiProtocolSignerAdapter
     assert(bech32Prefix, 'prefix is required for cosmos chains');
     assert(rpc, 'rpc is required for configuring cosmos chains');
     assert(gasPrice, 'gas price is required for cosmos chains');
+    assert(
+      ethers.utils.isHexString(privateKey),
+      'Private key must be a hex string',
+    );
 
     const wallet = await DirectSecp256k1Wallet.fromKey(
       Buffer.from(privateKey, 'hex'),
@@ -44,7 +50,11 @@ export class CosmosNativeMultiProtocolSignerAdapter
       },
     );
 
-    return new CosmosNativeMultiProtocolSignerAdapter(account.address, signer);
+    return new CosmosNativeMultiProtocolSignerAdapter(
+      chainName,
+      account.address,
+      signer,
+    );
   }
 
   async address(): Promise<string> {
@@ -65,7 +75,9 @@ export class CosmosNativeMultiProtocolSignerAdapter
     );
 
     if (res.code !== 0) {
-      throw new Error('Transaction failed');
+      throw new Error(
+        `Transaction ${res.transactionHash} failed on chain ${this.chainName}`,
+      );
     }
 
     return res.transactionHash;

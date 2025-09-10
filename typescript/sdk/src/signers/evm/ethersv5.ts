@@ -1,7 +1,9 @@
-import { Wallet } from 'ethers';
+import { Wallet, ethers } from 'ethers';
+import { Wallet as ZkSyncWallet } from 'zksync-ethers';
 
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
+import { ChainTechnicalStack } from '../../index.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { EthersV5Transaction } from '../../providers/ProviderType.js';
@@ -19,8 +21,18 @@ export class EvmMultiProtocolSignerAdapter
     multiProtocolProvider: MultiProtocolProvider,
   ) {
     const multiProvider = multiProtocolProvider.toMultiProvider();
+    const { technicalStack } = multiProvider.getChainMetadata(chainName);
 
-    multiProvider.setSigner(this.chainName, new Wallet(privateKey));
+    assert(
+      ethers.utils.isHexString(privateKey),
+      `Private key for chain ${chainName} should be a hex string`,
+    );
+
+    const wallet =
+      technicalStack === ChainTechnicalStack.ZkSync
+        ? new ZkSyncWallet(privateKey)
+        : new Wallet(privateKey);
+    multiProvider.setSigner(this.chainName, wallet);
     this.multiProvider = multiProvider;
   }
 
