@@ -66,6 +66,10 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     );
   }
 
+  address(): Address {
+    return this.props.safeAddress;
+  }
+
   public async createSafeTransaction(
     ...transactions: AnnotatedEV5Transaction[]
   ): Promise<SafeTransaction> {

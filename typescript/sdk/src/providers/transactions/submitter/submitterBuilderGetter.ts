@@ -8,6 +8,7 @@ import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { TxSubmitterBuilder } from './builder/TxSubmitterBuilder.js';
 import { SubmissionStrategy } from './builder/types.js';
+import { EV5AccessManagerTxSubmitter } from './ethersV5/EV5AccessManagerTxSubmitter.js';
 import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
 import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
@@ -103,6 +104,29 @@ const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
       metadata,
       multiProvider,
       coreAddressesByChain,
+    );
+  },
+  [TxSubmitterType.ACCESS_MANAGER]: async (
+    multiProvider,
+    metadata,
+    coreAddressesByChain,
+  ) => {
+    assert(
+      metadata.type === TxSubmitterType.ACCESS_MANAGER,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.ACCESS_MANAGER}`,
+    );
+
+    // Get the proposer submitter recursively
+    const proposerSubmitter = await getSubmitter(
+      multiProvider,
+      metadata.proposerSubmitter,
+      coreAddressesByChain,
+    );
+
+    return EV5AccessManagerTxSubmitter.create(
+      metadata,
+      multiProvider,
+      proposerSubmitter,
     );
   },
 };
