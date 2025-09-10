@@ -22,6 +22,7 @@ import {
   MultiProvider,
   MultisigIsmConfig,
   OpStackIsmConfig,
+  OwnerValidationError,
   PausableIsmConfig,
   RoutingIsmConfig,
   SubmissionStrategy,
@@ -29,7 +30,6 @@ import {
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
   TxSubmitterType,
-  ValidationError,
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfigMailboxRequired,
@@ -239,7 +239,7 @@ async function validateAndConfirmOwners(
     // Validate all owner addresses before proceeding with deployment
     await validateWarpDeployOwners(warpDeployConfig, multiProvider);
   } catch (error: unknown) {
-    if (error instanceof ValidationError) {
+    if (error instanceof OwnerValidationError) {
       logRed(error.message);
       const isConfirmed = await confirm({
         message: 'Possible inactive/invalid owner. Do you wish to continue?',

@@ -128,7 +128,7 @@ export * as verificationUtils from './deploy/verify/utils.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
 export {
-  ValidationError,
+  OwnerValidationError,
   validateWarpDeployOwners,
 } from './deploy/validation.js';
 export {

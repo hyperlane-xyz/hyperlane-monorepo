@@ -12,7 +12,7 @@ import {
 } from '../token/types.js';
 
 import {
-  ValidationError,
+  OwnerValidationError,
   extractOwnersFromConfig,
   validateOwnerActivity,
   validateWarpDeployOwners,
@@ -297,8 +297,8 @@ describe('Owner Validation', () => {
         await validateWarpDeployOwners(config, mockMultiProvider);
         expect.fail('Should have thrown ValidationError');
       } catch (error) {
-        expect(error).to.be.instanceOf(ValidationError);
-        const validationError = error as ValidationError;
+        expect(error).to.be.instanceOf(OwnerValidationError);
+        const validationError = error as OwnerValidationError;
         expect(validationError.invalidOwners).to.have.length(1);
         expect(validationError.invalidOwners[0].chain).to.equal('arbitrum');
         expect(validationError.invalidOwners[0].address).to.equal(
@@ -341,8 +341,8 @@ describe('Owner Validation', () => {
         await validateWarpDeployOwners(config, mockMultiProvider);
         expect.fail('Should have thrown ValidationError');
       } catch (error) {
-        expect(error).to.be.instanceOf(ValidationError);
-        const validationError = error as ValidationError;
+        expect(error).to.be.instanceOf(OwnerValidationError);
+        const validationError = error as OwnerValidationError;
         expect(validationError.invalidOwners).to.have.length(2);
         expect(validationError.message).to.include('Found 2 invalid owner(s)');
       }
@@ -366,8 +366,8 @@ describe('Owner Validation', () => {
         await validateWarpDeployOwners(config, mockMultiProvider);
         expect.fail('Should have thrown ValidationError');
       } catch (error) {
-        expect(error).to.be.instanceOf(ValidationError);
-        const validationError = error as ValidationError;
+        expect(error).to.be.instanceOf(OwnerValidationError);
+        const validationError = error as OwnerValidationError;
         expect(validationError.invalidOwners[0].status).to.equal(
           OwnerStatus.Skipped,
         );
@@ -404,8 +404,8 @@ describe('Owner Validation', () => {
         await validateWarpDeployOwners(config, mockMultiProvider);
         expect.fail('Should have thrown ValidationError');
       } catch (error) {
-        expect(error).to.be.instanceOf(ValidationError);
-        const validationError = error as ValidationError;
+        expect(error).to.be.instanceOf(OwnerValidationError);
+        const validationError = error as OwnerValidationError;
         expect(validationError.invalidOwners).to.have.length(1);
         expect(validationError.invalidOwners[0].address).to.equal(
           '0xProxyOwner',

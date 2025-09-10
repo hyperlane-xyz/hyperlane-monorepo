@@ -28,8 +28,8 @@ export interface OwnerValidationResult {
  * Structured error thrown when owner validation fails.
  * Contains list of invalid owners and human-readable error details.
  */
-export class ValidationError extends Error {
-  public readonly name = 'ValidationError';
+export class OwnerValidationError extends Error {
+  public readonly name = 'OwnerValidationError';
 
   constructor(
     public readonly invalidOwners: OwnerValidationResult[],
@@ -43,7 +43,7 @@ export class ValidationError extends Error {
  * Validates all owner addresses in a warp deployment configuration.
  * Checks owner activity status for each chain and fails deployment if any owner is inactive.
  *
- * @throws ValidationError - When any owner is inactive/error/skipped
+ * @throws OwnerValidationError - When any owner is inactive/error/skipped
  */
 export async function validateWarpDeployOwners(
   warpConfig: WarpRouteDeployConfigMailboxRequired,
@@ -89,7 +89,7 @@ export async function validateWarpDeployOwners(
       (o) => `\n- Chain: ${o.chain}, Owner: ${o.address}, Status: ${o.status}`,
     )}`;
 
-    throw new ValidationError(invalidOwners, errorMessage);
+    throw new OwnerValidationError(invalidOwners, errorMessage);
   }
 
   logger.info('Owner validation completed successfully');
