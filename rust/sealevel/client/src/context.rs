@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufReader, BufWriter, Read};
 use std::path::PathBuf;
 
 use solana_client::{
@@ -16,8 +16,13 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
+use std::cell::RefCell;
 use std::error::Error;
-use std::{cell::RefCell, io::Read};
+
+const SOLANA_SQUADS_INSTRUCTIONS_DOC: &str =
+    "https://hyperlanexyz.notion.site/Solana-Using-Squads-2016d35200d6802480acfce20350db8d";
+const ALT_SVM_SQUADS_INSTRUCTIONS_DOC: &str =
+    "https://hyperlanexyz.notion.site/Alt-SVMs-Using-Squads-2016d35200d680d280d1eaa7565b3711";
 
 pub(crate) struct PayerKeypair {
     pub keypair: Keypair,
@@ -253,34 +258,33 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             })
             .collect();
 
-        let solana = matches!(chain_name.as_deref(), Some("solanamainnet"));
+        let is_solana = chain_name
+            .as_ref()
+            .map_or(false, |ch| ch == "solanamainnet");
 
         let new_entry = TransactionEntry {
             chain_name: chain_name.clone(),
             descriptions,
-            message_base58: if solana {
+            message_base58: if is_solana {
                 None
             } else {
                 Some(message_base58.clone())
             },
-            transaction_base58: if solana {
+            transaction_base58: if is_solana {
                 Some(transaction_base58.clone())
             } else {
                 None
             },
-            instructions: if solana {
-                "https://hyperlanexyz.notion.site/Solana-Using-Squads-2016d35200d6802480acfce20350db8d".to_string()
+            instructions: if is_solana {
+                SOLANA_SQUADS_INSTRUCTIONS_DOC.to_string()
             } else {
-                "https://hyperlanexyz.notion.site/Alt-SVMs-Using-Squads-2016d35200d680d280d1eaa7565b3711".to_string()
+                ALT_SVM_SQUADS_INSTRUCTIONS_DOC.to_string()
             },
         };
 
         // Read existing entries if file exists
         let mut existing_entries: Vec<TransactionEntry> = if final_path.exists() {
-            let mut file = File::open(&final_path)?;
-            let mut contents = String::new();
-            file.read_to_string(&mut contents)?;
-            serde_yaml::from_str(&contents).unwrap_or_default()
+            serde_yaml::from_reader(BufReader::new(File::open(&final_path)?))?
         } else {
             vec![]
         };
@@ -289,9 +293,10 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         existing_entries.push(new_entry);
 
         // Write back to file
-        let yaml_str = serde_yaml::to_string(&existing_entries)?;
-        let mut file = File::create(&final_path)?;
-        file.write_all(yaml_str.as_bytes())?;
+        serde_yaml::to_writer(
+            BufWriter::new(File::create(&final_path)?),
+            &existing_entries,
+        )?;
 
         Ok(())
     }
@@ -333,7 +338,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
                 self.write_transaction_to_yaml(payer, p.clone(), chain_name)
                     .expect("Failed to write transaction to instructions file.");
             } else {
-                println!("To write the transaction to an instructions file, a path needs to be provided. Continuing to print the transactions.");
+                println!("To write the transaction to an instructions file, use --write-instructions. Continuing to print transactions to stdout.");
 
                 self.pretty_print_transaction(payer);
 
@@ -398,7 +403,8 @@ fn wait_for_user_confirmation() {
     println!("Continue? [y/n] then press Enter");
     let mut input = [0u8; 1];
     loop {
-        std::io::stdin().read_exact(&mut input).unwrap();
+        let mut stdin = std::io::stdin();
+        std::io::Read::read_exact(&mut stdin, &mut input).unwrap();
         match input[0] {
             b'y' => {
                 println!("Continuing...");

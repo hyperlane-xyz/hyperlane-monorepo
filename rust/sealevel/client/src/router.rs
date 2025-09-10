@@ -458,7 +458,7 @@ fn configure_connection_client(
                     ),
                 )
                 .with_client(&client)
-                .send_with_pubkey_signer(&owner, Option::from(chain_metadata.clone().name));
+                .send_with_pubkey_signer(&owner, Some(chain_metadata.clone()));
         } else {
             println!(
                 "WARNING: Cannot set ISM for chain: {} ({}) to {:?}, the existing owner is None",
