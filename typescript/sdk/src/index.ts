@@ -683,6 +683,7 @@ export {
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
 export {
+  XERC20LimitsTokenConfig,
   CctpTokenConfig,
   CctpTokenConfigSchema,
   CollateralRebaseTokenConfigSchema,

@@ -3,8 +3,7 @@ use std::ops::RangeInclusive;
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, Indexed, Indexer, LogMeta, ReorgPeriod, SequenceAwareIndexer,
-    H256, H512,
+    ChainResult, ContractLocator, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::{encode_component_address, parse_process_id_event, ConnectionConf, RadixProvider};
@@ -77,13 +76,9 @@ impl Indexer<H256> for RadixDeliveryIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<H256> for RadixDeliveryIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let state_version = self
+        let (sequence, state_version): (u32, u64) = self
             .provider
-            .get_state_version(Some(&ReorgPeriod::None))
-            .await?;
-        let sequence: u32 = self
-            .provider
-            .call_method(&self.address, "processed", Some(state_version), Vec::new())
+            .call_method(&self.address, "processed", None, Vec::new())
             .await?;
         Ok((Some(sequence), state_version.try_into()?))
     }
