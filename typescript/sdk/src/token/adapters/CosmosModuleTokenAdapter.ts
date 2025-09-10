@@ -20,6 +20,7 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -203,11 +204,10 @@ export class CosmNativeHypCollateralAdapter
     return BigInt(bridged_supply.amount);
   }
 
-  async quoteTransferRemoteGas(
-    destination: Domain,
-    _?: Address,
-    customHook?: Address,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination,
+    customHook,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const provider = await this.getProvider();
     const { gas_payment } = await provider.query.warp.QuoteRemoteTransfer({
       id: this.tokenId,
@@ -217,8 +217,10 @@ export class CosmNativeHypCollateralAdapter
     });
 
     return {
-      addressOrDenom: gas_payment[0]?.denom,
-      amount: BigInt(gas_payment[0]?.amount ?? '0'),
+      igpQuote: {
+        amount: BigInt(gas_payment[0]?.amount ?? '0'),
+        addressOrDenom: gas_payment[0]?.denom,
+      },
     };
   }
 
@@ -226,11 +228,10 @@ export class CosmNativeHypCollateralAdapter
     params: TransferRemoteParams,
   ): Promise<MsgRemoteTransferEncodeObject> {
     if (!params.interchainGas) {
-      params.interchainGas = await this.quoteTransferRemoteGas(
-        params.destination,
-        undefined,
-        params.customHook,
-      );
+      params.interchainGas = await this.quoteTransferRemoteGas({
+        destination: params.destination,
+        customHook: params.customHook,
+      });
     }
 
     const provider = await this.getProvider();
@@ -249,7 +250,8 @@ export class CosmNativeHypCollateralAdapter
       );
     }
 
-    if (!params.interchainGas.addressOrDenom) {
+    const { igpQuote } = params.interchainGas;
+    if (!igpQuote.addressOrDenom) {
       throw new Error(
         `Require denom for max fee, didn't receive and denom in the interchainGas quote`,
       );
@@ -277,8 +279,8 @@ export class CosmNativeHypCollateralAdapter
         destination_domain: params.destination,
         gas_limit: router.gas,
         max_fee: {
-          denom: params.interchainGas.addressOrDenom || '',
-          amount: params.interchainGas.amount.toString(),
+          denom: igpQuote.addressOrDenom || '',
+          amount: igpQuote.amount.toString(),
         },
       },
     };

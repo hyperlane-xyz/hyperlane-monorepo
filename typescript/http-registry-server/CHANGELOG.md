@@ -59,16 +59,14 @@
 
 - Updated dependencies [451f3f6c3]
 - Updated dependencies [23861b70a]
-  <<<<<<< HEAD
 - Updated dependencies [e0c69e255]
 - Updated dependencies [e0ea8910c]
 - Updated dependencies [d16a853c0]
   - @hyperlane-xyz/utils@15.0.0-beta.0
-  - # @hyperlane-xyz/sdk@15.0.0-beta.0
+  - @hyperlane-xyz/sdk@15.0.0-beta.0
 - Updated dependencies [a33c8abd4]
 - Updated dependencies [a33c8abd4]
 - Updated dependencies [e0ea8910c]
 - Updated dependencies [d16a853c0]
   - @hyperlane-xyz/utils@15.0.0
   - @hyperlane-xyz/sdk@15.0.0
-    > > > > > > > main

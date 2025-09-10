@@ -618,6 +618,8 @@ export {
   ITokenAdapter,
   TransferParams,
   TransferRemoteParams,
+  Quote,
+  QuoteTransferRemoteParams,
 } from './token/adapters/ITokenAdapter.js';
 export {
   SealevelHypCollateralAdapter,
@@ -796,6 +798,7 @@ export {
   RouteBlacklist,
   WarpCoreConfig,
   WarpCoreConfigSchema,
+  WarpCoreFeeEstimate,
   WarpTxCategory,
   WarpTypedTransaction,
 } from './warp/types.js';
