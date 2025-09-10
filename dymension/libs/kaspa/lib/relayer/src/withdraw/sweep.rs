@@ -490,7 +490,7 @@ pub fn create_inputs_from_sweeping_bundle(
     Ok(vec![relayer_input, escrow_input])
 }
 
-pub fn utxo_reference_from_populated_input(
+pub(crate) fn utxo_reference_from_populated_input(
     (input, entry, _redeem_script): PopulatedInput,
 ) -> UtxoEntryReference {
     UtxoEntryReference::from(ClientUtxoEntry {
