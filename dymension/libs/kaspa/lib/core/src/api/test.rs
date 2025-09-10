@@ -155,7 +155,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "avoid api abuse"]
+    // #[ignore = "avoid api abuse"]
     async fn test_get_tx_by_id() -> Result<()> {
         let client = t_client();
 
