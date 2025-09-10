@@ -8228,7 +8228,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:9.0.16, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:10.0.0-beta.0, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
@@ -8273,6 +8273,26 @@ __metadata:
     "@types/sinon-chai": "*"
   languageName: unknown
   linkType: soft
+
+"@hyperlane-xyz/core@npm:9.0.16":
+  version: 9.0.16
+  resolution: "@hyperlane-xyz/core@npm:9.0.16"
+  dependencies:
+    "@arbitrum/nitro-contracts": "npm:^1.2.1"
+    "@chainlink/contracts-ccip": "npm:^1.5.0"
+    "@eth-optimism/contracts": "npm:^0.6.0"
+    "@hyperlane-xyz/utils": "npm:19.4.0"
+    "@matterlabs/hardhat-zksync-solc": "npm:1.2.5"
+    "@matterlabs/hardhat-zksync-verify": "npm:1.7.1"
+    "@openzeppelin/contracts": "npm:^4.9.3"
+    "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
+  peerDependencies:
+    "@ethersproject/abi": "*"
+    "@ethersproject/providers": "*"
+    "@types/sinon-chai": "*"
+  checksum: 10/e5f7bea12a41ca73419d0b3e608dbfe25018399947e664168aa8df5bbe4dd82db8a9aec84ba00c8cc14494701434d50208ba91829aa96261a0f99bdffb066e3d
+  languageName: node
+  linkType: hard
 
 "@hyperlane-xyz/cosmos-sdk@npm:19.4.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
   version: 0.0.0-use.local
@@ -8353,7 +8373,7 @@ __metadata:
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@eslint/js": "npm:^9.31.0"
-    "@hyperlane-xyz/core": "npm:9.0.16"
+    "@hyperlane-xyz/core": "npm:10.0.0-beta.0"
     "@hyperlane-xyz/registry": "npm:20.0.0"
     "@hyperlane-xyz/sdk": "npm:19.4.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -8562,7 +8582,7 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/proto-signing": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
-    "@hyperlane-xyz/core": "npm:9.0.16"
+    "@hyperlane-xyz/core": "npm:10.0.0-beta.0"
     "@hyperlane-xyz/cosmos-sdk": "npm:19.4.0"
     "@hyperlane-xyz/eslint-config": "workspace:^"
     "@hyperlane-xyz/radix-sdk": "npm:19.4.0"
