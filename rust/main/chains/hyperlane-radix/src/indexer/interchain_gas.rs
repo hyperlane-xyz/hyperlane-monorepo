@@ -103,13 +103,9 @@ impl Indexer<InterchainGasPayment> for RadixInterchainGasIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<InterchainGasPayment> for RadixInterchainGasIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let state_version = self
+        let (sequence, state_version): (u32, u64) = self
             .provider
-            .get_state_version(Some(&ReorgPeriod::None))
-            .await?;
-        let sequence: u32 = self
-            .provider
-            .call_method(&self.address, "sequence", Some(state_version), Vec::new())
+            .call_method(&self.address, "sequence", None, Vec::new())
             .await?;
         Ok((Some(sequence), state_version.try_into()?))
     }

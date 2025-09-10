@@ -148,14 +148,14 @@ impl RadixProvider {
         Ok(signer)
     }
 
-    /// Calls a method on a component
-    pub async fn call_method<T: ScryptoSbor>(
+    /// Calls a method on a component at a specific block
+    pub async fn call_method_at_state<T: ScryptoSbor>(
         &self,
         component: &str,
         method: &str,
         state_version: Option<u64>,
         raw_args: Vec<Vec<u8>>,
-    ) -> ChainResult<T> {
+    ) -> ChainResult<(T, u64)> {
         let selector = state_version.map(|state_version| {
             core_api_client::models::LedgerStateSelector::ByStateVersion(
                 VersionLedgerStateSelector { state_version },
@@ -185,7 +185,10 @@ impl RadixProvider {
                         );
                     };
                     let data = hex::decode(data)?;
-                    return Ok(scrypto_decode::<T>(&data).map_err(HyperlaneRadixError::from)?);
+                    return Ok((
+                        scrypto_decode::<T>(&data).map_err(HyperlaneRadixError::from)?,
+                        result.at_ledger_state.state_version,
+                    ));
                 }
                 Err(HyperlaneRadixError::SborCallMethod("no output found".into()).into())
             }
@@ -198,18 +201,37 @@ impl RadixProvider {
     }
 
     /// Calls a method on a component
+    pub async fn call_method<T: ScryptoSbor>(
+        &self,
+        component: &str,
+        method: &str,
+        reorg: Option<&ReorgPeriod>,
+        raw_args: Vec<Vec<u8>>,
+    ) -> ChainResult<(T, u64)> {
+        let state_version = match reorg {
+            Some(ReorgPeriod::None) => None,
+            Some(reorg) => Some(self.get_state_version(Some(reorg)).await?),
+            None => None,
+        };
+
+        self.call_method_at_state(component, method, state_version, raw_args)
+            .await
+    }
+
+    /// Calls a method on a component
     /// if specified will use the passed state_version
     pub async fn call_method_with_arg<T: ScryptoSbor, A: ManifestEncode + ?Sized>(
         &self,
         component: &str,
         method: &str,
-        state_version: Option<u64>,
         argument: &A,
     ) -> ChainResult<T> {
         let arguments = manifest_encode(argument).map_err(HyperlaneRadixError::from)?;
 
-        self.call_method(component, method, state_version, vec![arguments])
-            .await
+        Ok(self
+            .call_method::<T>(component, method, None, vec![arguments])
+            .await?
+            .0)
     }
 
     /// Returns the latest ledger state of the chain

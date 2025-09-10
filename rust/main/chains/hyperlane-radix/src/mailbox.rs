@@ -125,24 +125,31 @@ impl Mailbox for RadixMailbox {
     /// - `reorg_period` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.
     async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        self.provider
-            .call_method(&self.encoded_address, "count", None, Vec::new())
-            .await
+        Ok(self
+            .provider
+            .call_method::<u32>(&self.encoded_address, "count", None, Vec::new())
+            .await?
+            .0)
     }
 
     /// Fetch the status of a message
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         let id: Bytes32 = id.into();
         self.provider
-            .call_method_with_arg(&self.encoded_address, "delivered", None, &id)
+            .call_method_with_arg(&self.encoded_address, "delivered", &id)
             .await
     }
 
     /// Fetch the current default interchain security module value
     async fn default_ism(&self) -> ChainResult<H256> {
-        let default_ism: Option<ComponentAddress> = self
+        let (default_ism, _) = self
             .provider
-            .call_method(&self.encoded_address, "default_ism", None, Vec::new())
+            .call_method::<Option<ComponentAddress>>(
+                &self.encoded_address,
+                "default_ism",
+                None,
+                Vec::new(),
+            )
             .await?;
         match default_ism {
             Some(ism) => Ok(address_to_h256(ism)),
@@ -156,7 +163,7 @@ impl Mailbox for RadixMailbox {
 
         let default_ism: Option<ComponentAddress> = self
             .provider
-            .call_method_with_arg(&self.encoded_address, "recipient_ism", None, &recipient)
+            .call_method_with_arg(&self.encoded_address, "recipient_ism", &recipient)
             .await?;
         match default_ism {
             Some(ism) => Ok(address_to_h256(ism)),
