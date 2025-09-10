@@ -3,8 +3,7 @@ use std::ops::RangeInclusive;
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, Indexed, Indexer, LogMeta, ReorgPeriod, SequenceAwareIndexer,
-    H256, H512,
+    ChainResult, ContractLocator, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::{encode_component_address, parse_process_id_event, ConnectionConf, RadixProvider};

@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, LogMeta, ReorgPeriod,
+    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, LogMeta,
     SequenceAwareIndexer, H512,
 };
 

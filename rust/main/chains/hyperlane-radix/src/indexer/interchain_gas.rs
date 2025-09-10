@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    ReorgPeriod, SequenceAwareIndexer, H256, H512,
+    SequenceAwareIndexer, H256, H512,
 };
 
 use crate::{encode_component_address, parse_gas_payment_event, ConnectionConf, RadixProvider};
