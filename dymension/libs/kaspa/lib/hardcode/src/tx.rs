@@ -47,4 +47,4 @@ We choose 1000, which is probably over conservative.
 pub const REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS: i64 = 1000;
 
 // Maximum number of inputs to include in a sweeping bundle.
-pub const MAX_SWEEP_INPUTS: usize = 20;
+pub const MAX_SWEEP_INPUTS: usize = 1000;
