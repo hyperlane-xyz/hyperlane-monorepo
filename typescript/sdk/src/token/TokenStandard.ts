@@ -345,7 +345,7 @@ export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<
   [ProtocolType.Cosmos]: TokenStandard.CwHypNative,
   [ProtocolType.Sealevel]: TokenStandard.SealevelHypNative,
   [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
-  // HypCollateral and HypNative are the same for cosmosnative and radix
+  // collateral and native are the same for cosmosnative and radix
   [ProtocolType.Radix]: TokenStandard.RadixHypCollateral,
   [ProtocolType.CosmosNative]: TokenStandard.CosmNativeHypCollateral,
 };
