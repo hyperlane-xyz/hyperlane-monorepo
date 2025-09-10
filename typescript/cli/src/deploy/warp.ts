@@ -381,68 +381,58 @@ function fullyConnectTokens(
 export async function runWarpRouteApply(
   params: WarpApplyParams,
 ): Promise<void> {
-  try {
-    const { warpDeployConfig, warpCoreConfig, context } = params;
-    const { chainMetadata, skipConfirmation } = context;
+  const { warpDeployConfig, warpCoreConfig, context } = params;
+  const { chainMetadata, skipConfirmation } = context;
 
-    WarpRouteDeployConfigSchema.parse(warpDeployConfig);
-    WarpCoreConfigSchema.parse(warpCoreConfig);
+  WarpRouteDeployConfigSchema.parse(warpDeployConfig);
+  WarpCoreConfigSchema.parse(warpCoreConfig);
 
-    const chains = Object.keys(warpDeployConfig);
+  const chains = Object.keys(warpDeployConfig);
 
-    let apiKeys: ChainMap<string> = {};
-    if (!skipConfirmation)
-      apiKeys = await requestAndSaveApiKeys(
-        chains,
-        chainMetadata,
-        context.registry,
-      );
-
-    const { multiProvider } = context;
-    // temporarily configure deployer as owner so that warp update after extension
-    // can leverage JSON RPC submitter on new chains
-    const intermediateOwnerConfig = await promiseObjAll(
-      objMap(params.warpDeployConfig, async (chain, config) => {
-        const protocolType = multiProvider.getProtocol(chain);
-
-        if (protocolType !== ProtocolType.Ethereum) {
-          return config;
-        }
-
-        return {
-          ...config,
-          owner: await multiProvider.getSignerAddress(chain),
-        };
-      }),
+  let apiKeys: ChainMap<string> = {};
+  if (!skipConfirmation)
+    apiKeys = await requestAndSaveApiKeys(
+      chains,
+      chainMetadata,
+      context.registry,
     );
 
-    // Extend the warp route and get the updated configs
-    const updatedWarpCoreConfig = await extendWarpRoute(
-      { ...params, warpDeployConfig: intermediateOwnerConfig },
-      apiKeys,
-      warpCoreConfig,
-    );
+  const { multiProvider } = context;
+  // temporarily configure deployer as owner so that warp update after extension
+  // can leverage JSON RPC submitter on new chains
+  const intermediateOwnerConfig = await promiseObjAll(
+    objMap(params.warpDeployConfig, async (chain, config) => {
+      const protocolType = multiProvider.getProtocol(chain);
 
-    // Then create and submit update transactions
-    const transactions: AnnotatedEV5Transaction[] =
-      await updateExistingWarpRoute(
-        params,
-        apiKeys,
-        warpDeployConfig,
-        updatedWarpCoreConfig,
-      );
+      if (protocolType !== ProtocolType.Ethereum) {
+        return config;
+      }
 
-    if (transactions.length == 0)
-      return logGreen(`Warp config is the same as target. No updates needed.`);
-    await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
-  } catch (error: unknown) {
-    if (error instanceof ValidationError) {
-      logRed('⚠️ Invalid owner configuration');
-      logRed(error.message);
-      process.exit(1);
-    }
-    throw error;
-  }
+      return {
+        ...config,
+        owner: await multiProvider.getSignerAddress(chain),
+      };
+    }),
+  );
+
+  // Extend the warp route and get the updated configs
+  const updatedWarpCoreConfig = await extendWarpRoute(
+    { ...params, warpDeployConfig: intermediateOwnerConfig },
+    apiKeys,
+    warpCoreConfig,
+  );
+
+  // Then create and submit update transactions
+  const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
+    params,
+    apiKeys,
+    warpDeployConfig,
+    updatedWarpCoreConfig,
+  );
+
+  if (transactions.length == 0)
+    return logGreen(`Warp config is the same as target. No updates needed.`);
+  await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
 }
 
 /**
