@@ -124,10 +124,15 @@ impl Mailbox for RadixMailbox {
     ///
     /// - `reorg_period` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.
-    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         Ok(self
             .provider
-            .call_method::<u32>(&self.encoded_address, "count", None, Vec::new())
+            .call_method::<u32>(
+                &self.encoded_address,
+                "count",
+                Some(reorg_period),
+                Vec::new(),
+            )
             .await?
             .0)
     }
