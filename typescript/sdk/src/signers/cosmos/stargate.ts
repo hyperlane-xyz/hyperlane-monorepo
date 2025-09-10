@@ -2,7 +2,7 @@ import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { GasPrice, SigningStargateClient } from '@cosmjs/stargate';
 import { ethers } from 'ethers';
 
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { CosmJsNativeTransaction } from '../../providers/ProviderType.js';
@@ -36,7 +36,7 @@ export class CosmosNativeMultiProtocolSignerAdapter
     );
 
     const wallet = await DirectSecp256k1Wallet.fromKey(
-      Buffer.from(privateKey, 'hex'),
+      Buffer.from(strip0x(privateKey), 'hex'),
       bech32Prefix,
     );
 

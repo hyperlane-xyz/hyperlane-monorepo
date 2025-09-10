@@ -10,7 +10,7 @@ import {
   TransferParams,
   getSignerForChain,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, rootLogger, toWei } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getDeployerKey } from '../../src/agents/key-utils.js';
@@ -165,7 +165,7 @@ async function fundAccount({
 
   // Convert amount to wei/smallest unit
   const decimals = token.decimals;
-  const weiAmount = parseUnits(amount, decimals).toBigInt();
+  const weiAmount = BigInt(toWei(amount, decimals));
 
   logger.info(
     {
