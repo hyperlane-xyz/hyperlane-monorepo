@@ -99,11 +99,10 @@ main() {
             tx_hash=$(echo $event | jq -r '.transactionHash')
             event_block_number=$(echo $event | jq -r '.blockNumber')
             echo "⛓️ Tx Hash: $tx_hash"
-            echo "⛓️ Block Number: $event_block_number"
+            echo "⛓️ Block Number: $((event_block_number))"
 
             data=$(echo $event | jq -r '.data')
             decoded_event=$(cast decode-event --sig "$event_name" "$data" 2>/dev/null)
-            echo "$decoded_event"
             message_id=$(echo "$decoded_event" | sed '1q;d')
             leaf_index=$(echo "$decoded_event" | sed '2q;d' | cut -d ' ' -f 1)
 
