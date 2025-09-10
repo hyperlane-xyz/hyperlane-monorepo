@@ -1,6 +1,5 @@
 import {
   Address,
-  objKeys,
   objMap,
   objMapEntries,
   rootLogger,
@@ -86,8 +85,8 @@ export async function validateWarpDeployOwners(
   }
 
   if (invalidOwners.length > 0) {
-    const errorMessage = `Owner validation failed: Found ${invalidOwners.length} invalid owner(s) across ${objKeys(ownersByChain).length} chain(s). Invalid owners:\n${invalidOwners.map(
-      (o) => `- Chain: ${o.chain}, Owner: ${o.address}, Status: ${o.status}`,
+    const errorMessage = `Owner validation failed: Found ${invalidOwners.length} invalid owner(s). Invalid owners:\n${invalidOwners.map(
+      (o) => `\n- Chain: ${o.chain}, Owner: ${o.address}, Status: ${o.status}`,
     )}`;
 
     throw new ValidationError(invalidOwners, errorMessage);
