@@ -104,6 +104,7 @@ export class AgentGCPKey extends CloudAgentKey {
 
     // Trick to get the correct secret key value
     // as not all use the chain name in their identifier
+    // and some use the protocol type instead of the chain name
     let trickChainName = this.chainName;
     if (this.role === Role.Deployer && protocolType === ProtocolType.Ethereum) {
       trickChainName = undefined;
