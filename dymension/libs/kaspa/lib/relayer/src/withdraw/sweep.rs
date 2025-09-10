@@ -277,12 +277,16 @@ fn prepare_next_iteration_inputs(
 /// Each PSKT includes all relayer inputs and consolidates escrow inputs.
 /// Each PSKT has exactly 2 outputs: consolidated escrow and relayer change.
 /// Sweeping will stop when enough inputs are consolidated to cover withdrawal amount and MAX_SWEEP_INPUTS is also reached, even if more inputs are available.
+/// 
+/// # Parameters
+/// * `anchor_amount` - The amount available in the anchor UTXO that will be used for withdrawals (not swept)
 pub async fn create_sweeping_bundle(
     relayer_wallet: &EasyKaspaWallet,
     escrow: &EscrowPublic,
     mut escrow_inputs: Vec<PopulatedInput>,
     mut relayer_inputs: Vec<PopulatedInput>,
     total_withdrawal_amount: u64,
+    anchor_amount: u64,
 ) -> Result<Bundle> {
 
     use kaspa_txscript::standard::pay_to_address_script;
@@ -298,23 +302,35 @@ pub async fn create_sweeping_bundle(
     let mut bundle = Bundle::new();
     
     info!(
-        "Kaspa sweeping: starting with {} escrow inputs, {} relayer inputs, need {} sompi for withdrawals",
-        escrow_inputs.len(), relayer_inputs.len(), total_withdrawal_amount
+        "Kaspa sweeping: starting with {} escrow inputs, {} relayer inputs, need {} sompi for withdrawals (anchor has {} sompi)",
+        escrow_inputs.len(), relayer_inputs.len(), total_withdrawal_amount, anchor_amount
     );
     
     // Track total swept amount and number of inputs processed
     let mut total_swept_amount = 0u64;
     let mut total_inputs_swept = 0usize;
     
+    // Calculate how much more we need to sweep considering the anchor amount
+    let effective_withdrawal_amount = if anchor_amount >= total_withdrawal_amount {
+        0 // Anchor already covers all withdrawals, no need to sweep for withdrawal amount
+    } else {
+        total_withdrawal_amount - anchor_amount
+    };
+    
+    info!(
+        "Kaspa sweeping: need to sweep {} sompi (total withdrawals {} sompi - anchor {} sompi)",
+        effective_withdrawal_amount, total_withdrawal_amount, anchor_amount
+    );
+    
     // Process escrow inputs recursively until:
     // 1. All are consumed, OR
     // 2. We have enough for withdrawals AND reached the maximum number of inputs (1000)
     while !escrow_inputs.is_empty() {
         // Check if we've swept enough to cover withdrawals AND reached the maximum inputs
-        if total_swept_amount >= total_withdrawal_amount && total_inputs_swept >= MAX_SWEEP_INPUTS {
+        if total_swept_amount >= effective_withdrawal_amount && total_inputs_swept >= MAX_SWEEP_INPUTS {
             info!(
-                "Kaspa sweeping: stopping - swept {} sompi (covers withdrawal amount of {} sompi) and reached maximum of {} inputs",
-                total_swept_amount, total_withdrawal_amount, MAX_SWEEP_INPUTS
+                "Kaspa sweeping: stopping - swept {} sompi (covers effective withdrawal amount of {} sompi) and reached maximum of {} inputs",
+                total_swept_amount, effective_withdrawal_amount, MAX_SWEEP_INPUTS
             );
             break;
         }
@@ -409,8 +425,8 @@ pub async fn create_sweeping_bundle(
     }
     
     info!(
-        "Kaspa sweeping: completed with {} PSKTs, swept {} inputs totaling {} sompi (withdrawal amount: {} sompi)",
-        bundle.0.len(), total_inputs_swept, total_swept_amount, total_withdrawal_amount
+        "Kaspa sweeping: completed with {} PSKTs, swept {} inputs totaling {} sompi (total available: {} sompi for {} sompi withdrawals)",
+        bundle.0.len(), total_inputs_swept, total_swept_amount, anchor_amount + total_swept_amount, total_withdrawal_amount
     );
     Ok(bundle)
 }
