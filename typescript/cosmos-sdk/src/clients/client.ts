@@ -86,4 +86,14 @@ export class HyperlaneModuleClient extends StargateClient {
     );
     return Uint53.fromString(gasInfo?.gasUsed.toString() ?? '0').toNumber();
   }
+
+  public getCometClientOrFail(): CometClient {
+    const maybeClient = super.getCometClient();
+
+    if (!maybeClient) {
+      throw new Error('Failed to get CometClient');
+    }
+
+    return maybeClient;
+  }
 }
