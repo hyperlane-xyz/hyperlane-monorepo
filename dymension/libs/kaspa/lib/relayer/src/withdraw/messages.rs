@@ -107,12 +107,16 @@ pub async fn build_withdrawal_fxg(
                 .map_err(|e| eyre::eyre!("Extract current anchor: {}", e))?;
 
         let to_sweep_num = escrow_inputs_to_sweep.len();
+        
+        // Calculate total withdrawal amount needed
+        let total_withdrawal_amount: u64 = outputs.iter().map(|o| o.value).sum();
 
         let sweeping_bundle = create_sweeping_bundle(
             &relayer,
             &escrow_public,
             escrow_inputs_to_sweep,
             relayer_inputs,
+            total_withdrawal_amount,
         )
         .await
         .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;

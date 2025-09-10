@@ -45,4 +45,6 @@ Blue Score Difference (d)	Time Elapsed (Approx)	Upper Bound on Reorg Probability
 We choose 1000, which is probably over conservative.
  */
 pub const REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS: i64 = 1000;
-pub const FINALITY_APPROX_WAIT_TIME: Duration = Duration::from_secs(100 + 3); // give a bit of leeway
+
+// Maximum number of inputs to include in a sweeping bundle.
+pub const MAX_SWEEP_INPUTS: usize = 20;
