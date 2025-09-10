@@ -81,6 +81,6 @@ impl SequenceAwareIndexer<HyperlaneMessage> for RadixDispatchIndexer {
             .provider
             .call_method(&self.address, "nonce", None, Vec::new())
             .await?;
-        Ok((Some(sequence), state_version.try_into()?)) // TODO: check u32 bounds
+        Ok((Some(sequence), state_version.try_into()?))
     }
 }
