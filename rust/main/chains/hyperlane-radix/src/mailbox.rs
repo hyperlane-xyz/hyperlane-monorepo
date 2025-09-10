@@ -161,13 +161,13 @@ impl Mailbox for RadixMailbox {
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let recipient = address_from_h256(recipient);
 
-        let default_ism: Option<ComponentAddress> = self
+        let recipient_ism: Option<ComponentAddress> = self
             .provider
             .call_method_with_arg(&self.encoded_address, "recipient_ism", &recipient)
             .await?;
-        match default_ism {
+        match recipient_ism {
             Some(ism) => Ok(address_to_h256(ism)),
-            None => Err(HyperlaneRadixError::Other("no default ism present".to_owned()).into()),
+            None => Err(HyperlaneRadixError::Other("no recipient ism present".to_owned()).into()),
         }
     }
 
