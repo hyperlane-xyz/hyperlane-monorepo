@@ -1,5 +1,17 @@
 # @hyperlane-xyz/sdk
 
+## 18.1.0
+
+### Patch Changes
+
+- 73be9b8d2: Don't use radix-engine-toolkit for frontend application usage.
+- Updated dependencies [73be9b8d2]
+  - @hyperlane-xyz/radix-sdk@18.1.0
+  - @hyperlane-xyz/starknet-core@18.1.0
+  - @hyperlane-xyz/cosmos-sdk@18.1.0
+  - @hyperlane-xyz/utils@18.1.0
+  - @hyperlane-xyz/core@9.0.8
+
 ## 18.0.0
 
 ### Major Changes

@@ -253,7 +253,6 @@ pub enum KnownHyperlaneDomain {
     Unichain = 130,
     Vana = 1480,
     Viction = 88,
-    WeavevmTestnet = 9496,
     Worldchain = 480,
     StarknetMainnet = 23448592,
     Xai = 660279,
@@ -267,31 +266,22 @@ pub enum KnownHyperlaneDomain {
 
     // -- Test chains --
     //
-    AbstractTestnet = 11124,
-    AlephZeroEvmTestnet = 2039,
     ArbitrumSepolia = 421614,
     ArcadiaTestnet2 = 1098411886,
     AuroraTestnet = 1313161555,
     BasecampTestnet = 1000001114,
     BaseSepolia = 84532,
-    Bepolia = 80069,
     #[cfg_attr(feature = "strum", strum(serialize = "bsctestnet"))]
     BinanceSmartChainTestnet = 97,
     CarrchainTestnet = 76672,
     CelestiaTestnet = 1297040200,
     Chiado = 10200,
-    ChronicleYellowstone = 175188,
     CitreaTestnet = 5115,
-    ConnextSepolia = 6398,
     CotiTestnet = 7082400,
     EclipseTestnet = 239092742,
-    EcoTestnet = 471923,
-    FlameTestnet = 1660473773,
-    FormTestnet = 132902,
     Holesky = 17000,
     HyperLiquidEvmTestnet = 998,
     InfinityVmMonza = 96025,
-    InkSepolia = 763373,
     KyveTestnet = 1262571342,
     Matchain = 698,
     MegaEthTestnet = 6342,
@@ -302,11 +292,9 @@ pub enum KnownHyperlaneDomain {
     NeuraTestnet = 267,
     NobleTestnet = 1196573006,
     KyveAlpha = 75898669,
-    OdysseyTestnet = 911867,
     OptimismSepolia = 11155420,
     ParadexSepolia = 12263410,
     PlumeTestnet = 161221135,
-    Plumetestnet2 = 98867,
     Polygonamoy = 80002,
     PolynomialFi = 1000008008,
     PragmaDevnet = 6363709,
@@ -314,13 +302,9 @@ pub enum KnownHyperlaneDomain {
     Sepolia = 11155111,
     SolanaTestnet = 1399811150,
     SomniaTestnet = 50312,
-    SoneiumTestnet = 1946,
     SonicSvmTestnet = 15153042,
-    SonicBlaze = 57054,
     StarknetSepolia = 23448591,
     SubtensorTestnet = 945,
-    SuperpositionTestnet = 98985,
-    UnichainTestnet = 1301,
 
     // -- Local chains --
     //
@@ -452,31 +436,21 @@ impl KnownHyperlaneDomain {
         use self::KnownHyperlaneDomain::*;
 
         match self {
-            AbstractTestnet
-            | AlephZeroEvmTestnet
-            | ArbitrumSepolia
+            ArbitrumSepolia
             | ArcadiaTestnet2
             | AuroraTestnet
             | BasecampTestnet
             | BaseSepolia
-            | Bepolia
             | BinanceSmartChainTestnet
             | CarrchainTestnet
             | CelestiaTestnet
             | Chiado
-            | ChronicleYellowstone
             | CitreaTestnet
-            | ConnextSepolia
             | CotiTestnet
             | EclipseTestnet
-            | EcoTestnet
-            | FlameTestnet
-            | FormTestnet
-            | Fuji
             | Holesky
             | HyperLiquidEvmTestnet
             | InfinityVmMonza
-            | InkSepolia
             | KyveTestnet
             | MegaEthTestnet
             | MilkywayTestnet
@@ -485,28 +459,22 @@ impl KnownHyperlaneDomain {
             | MoonbaseAlpha
             | NeuraTestnet
             | NobleTestnet
-            | OdysseyTestnet
             | OptimismSepolia
             | ParadexSepolia
             | PlumeTestnet
-            | Plumetestnet2
             | Polygonamoy
             | PragmaDevnet
             | ScrollSepolia
             | Sepolia
             | SolanaTestnet
             | SomniaTestnet
-            | SoneiumTestnet
-            | SonicBlaze
             | SonicSvmTestnet
             | StarknetSepolia
             | SubtensorTestnet
-            | SuperpositionTestnet
-            | UnichainTestnet
-            | WeavevmTestnet => HyperlaneDomainType::Testnet,
+            | KyveAlpha => HyperlaneDomainType::Testnet,
             Test1 | Test2 | Test3 | Test4 | FuelTest1 | SealevelTest1 | SealevelTest2
             | CosmosTest99990 | CosmosTest99991 | CosmosTestNative1 | CosmosTestNative2
-            | KyveAlpha | StarknetTest23448593 => HyperlaneDomainType::LocalTestChain,
+            | StarknetTest23448593 | StarknetTest23448594 => HyperlaneDomainType::LocalTestChain,
             _ => HyperlaneDomainType::Mainnet,
         }
     }
@@ -560,17 +528,18 @@ impl KnownHyperlaneDomain {
     pub const fn domain_technical_stack(self) -> HyperlaneDomainTechnicalStack {
         use KnownHyperlaneDomain::*;
         match self {
-            AlephZeroEvmMainnet | AlephZeroEvmTestnet | ApeChain | AppChain | Arbitrum
-            | ArbitrumNova | ArbitrumSepolia | CarrchainTestnet | Cheesechain
-            | ChronicleYellowstone | ConnextSepolia | Corn | Everclear | Fluence | DegenChain
-            | Galactica | Game7 | Gravity | InEvm | MiracleChain | Molten | Plume
-            | PlumeTestnet | Plumetestnet2 | ProofOfPlay | Rarichain | SuperpositionMainnet
-            | SuperpositionTestnet | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
+            AlephZeroEvmMainnet | ApeChain | AppChain | Arbitrum | ArbitrumNova
+            | ArbitrumSepolia | CarrchainTestnet | Cheesechain | Corn | Everclear | Fluence
+            | DegenChain | Galactica | Game7 | Gravity | InEvm | MiracleChain | Molten | Plume
+            | PlumeTestnet | ProofOfPlay | Rarichain | SuperpositionMainnet | Xai => {
+                HyperlaneDomainTechnicalStack::ArbitrumNitro
+            }
             Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Form | Fraxtal | Guru
-            | Ink | InkSepolia | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint
-            | Mode | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone
-            | SnaxChain | Soneium | Superseed | Swell | Unichain | Worldchain | Zircuit
-            | ZoraMainnet => HyperlaneDomainTechnicalStack::OpStack,
+            | Ink | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint | Mode
+            | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone | SnaxChain
+            | Soneium | Superseed | Swell | Unichain | Worldchain | Zircuit | ZoraMainnet => {
+                HyperlaneDomainTechnicalStack::OpStack
+            }
             DogeChain | LumiaPrism | Katana | Merlin | PolygonZkEvm | Prom | Xlayer => {
                 HyperlaneDomainTechnicalStack::PolygonCDK
             }
@@ -580,7 +549,7 @@ impl KnownHyperlaneDomain {
             StarknetMainnet | StarknetTest23448593 | StarknetTest23448594 | PragmaDevnet => {
                 HyperlaneDomainTechnicalStack::Starknet
             }
-            Abstract | AbstractTestnet | Sophon | Treasure | Zeronetwork | Zksync => {
+            Abstract | Sophon | Treasure | Zeronetwork | Zksync => {
                 HyperlaneDomainTechnicalStack::ZkSync
             }
             _ => HyperlaneDomainTechnicalStack::Other,

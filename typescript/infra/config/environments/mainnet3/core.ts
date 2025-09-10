@@ -107,7 +107,7 @@ export const core: ChainMap<CoreConfig> = objMap(
 
     const pausableHook: PausableHookConfig = {
       type: HookType.PAUSABLE,
-      paused: local === 'zircuit',
+      paused: false,
       owner: DEPLOYER, // keep pausable hot
     };
 
