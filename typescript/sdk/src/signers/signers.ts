@@ -6,7 +6,7 @@ import { ChainName } from '../types.js';
 import { CosmosNativeMultiProtocolSignerAdapter } from './cosmos/stargate.js';
 import { EvmMultiProtocolSignerAdapter } from './evm/ethersv5.js';
 import { StarknetMultiProtocolSignerAdapter } from './starknet/starknetjs.js';
-import { SvmMultiprotocolSignerAdapter } from './svm/solanaweb3.js';
+import { SvmMultiprotocolSignerAdapter } from './svm/solana-web3js.js';
 import { IMultiProtocolSigner } from './types.js';
 
 export async function getSignerForChain<
