@@ -29,6 +29,7 @@ import {
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
   TxSubmitterType,
+  ValidationError,
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfigMailboxRequired,
@@ -63,6 +64,7 @@ import {
   logBlue,
   logGray,
   logGreen,
+  logRed,
   logTable,
   warnYellow,
 } from '../logger.js';
@@ -153,60 +155,77 @@ export async function runWarpRouteDeploy({
 
   const initialBalances = await prepareDeploy(context, null, deploymentChains);
 
-  const { deployedContracts } = await executeDeploy(deploymentParams, apiKeys);
-
-  const registryAddresses = await registry.getAddresses();
-
-  await enrollCrossChainRouters(
-    { multiProvider, multiProtocolSigner, registryAddresses, warpDeployConfig },
-    deployedContracts,
-  );
-
-  const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
-    deploymentParams,
-    deployedContracts,
-  );
-
-  // Use warpRouteId if provided, otherwise if the user is deploying
-  // using a config file use the name of the file to generate the id
-  // or just fallback to use the warpCoreConfig symbol
-  let warpRouteIdOptions: AddWarpRouteConfigOptions;
-  if (warpRouteId) {
-    warpRouteIdOptions = { warpRouteId };
-  } else if (warpDeployConfigFileName && 'symbol' in addWarpRouteOptions) {
-    // validate that the id is correct
-    let isIdOk = true;
-    const maybeId = warpRouteIdFromFileName(
-      warpDeployConfigFileName,
-      addWarpRouteOptions.symbol,
+  try {
+    const { deployedContracts } = await executeDeploy(
+      deploymentParams,
+      apiKeys,
     );
-    try {
-      BaseRegistry.warpDeployConfigToId(warpDeployConfig, {
-        warpRouteId: maybeId,
-      });
-    } catch {
-      isIdOk = false;
-      warnYellow(
-        `Generated id "${maybeId}" from input config file would be invalid, falling back to default options`,
+
+    const registryAddresses = await registry.getAddresses();
+
+    await enrollCrossChainRouters(
+      {
+        multiProvider,
+        multiProtocolSigner,
+        registryAddresses,
+        warpDeployConfig,
+      },
+      deployedContracts,
+    );
+
+    const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
+      deploymentParams,
+      deployedContracts,
+    );
+
+    // Use warpRouteId if provided, otherwise if the user is deploying
+    // using a config file use the name of the file to generate the id
+    // or just fallback to use the warpCoreConfig symbol
+    let warpRouteIdOptions: AddWarpRouteConfigOptions;
+    if (warpRouteId) {
+      warpRouteIdOptions = { warpRouteId };
+    } else if (warpDeployConfigFileName && 'symbol' in addWarpRouteOptions) {
+      // validate that the id is correct
+      let isIdOk = true;
+      const maybeId = warpRouteIdFromFileName(
+        warpDeployConfigFileName,
+        addWarpRouteOptions.symbol,
       );
+      try {
+        BaseRegistry.warpDeployConfigToId(warpDeployConfig, {
+          warpRouteId: maybeId,
+        });
+      } catch {
+        isIdOk = false;
+        warnYellow(
+          `Generated id "${maybeId}" from input config file would be invalid, falling back to default options`,
+        );
+      }
+
+      warpRouteIdOptions = isIdOk
+        ? { warpRouteId: maybeId }
+        : addWarpRouteOptions;
+    } else {
+      warpRouteIdOptions = addWarpRouteOptions;
     }
 
-    warpRouteIdOptions = isIdOk
-      ? { warpRouteId: maybeId }
-      : addWarpRouteOptions;
-  } else {
-    warpRouteIdOptions = addWarpRouteOptions;
+    await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
+
+    await completeDeploy(
+      context,
+      'warp',
+      initialBalances,
+      null,
+      deploymentChains,
+    );
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      logRed('⚠️ Invalid owner configuration');
+      logRed(error.message);
+      process.exit(1);
+    }
+    throw error;
   }
-
-  await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
-
-  await completeDeploy(
-    context,
-    'warp',
-    initialBalances,
-    null,
-    deploymentChains,
-  );
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -362,58 +381,68 @@ function fullyConnectTokens(
 export async function runWarpRouteApply(
   params: WarpApplyParams,
 ): Promise<void> {
-  const { warpDeployConfig, warpCoreConfig, context } = params;
-  const { chainMetadata, skipConfirmation } = context;
+  try {
+    const { warpDeployConfig, warpCoreConfig, context } = params;
+    const { chainMetadata, skipConfirmation } = context;
 
-  WarpRouteDeployConfigSchema.parse(warpDeployConfig);
-  WarpCoreConfigSchema.parse(warpCoreConfig);
+    WarpRouteDeployConfigSchema.parse(warpDeployConfig);
+    WarpCoreConfigSchema.parse(warpCoreConfig);
 
-  const chains = Object.keys(warpDeployConfig);
+    const chains = Object.keys(warpDeployConfig);
 
-  let apiKeys: ChainMap<string> = {};
-  if (!skipConfirmation)
-    apiKeys = await requestAndSaveApiKeys(
-      chains,
-      chainMetadata,
-      context.registry,
+    let apiKeys: ChainMap<string> = {};
+    if (!skipConfirmation)
+      apiKeys = await requestAndSaveApiKeys(
+        chains,
+        chainMetadata,
+        context.registry,
+      );
+
+    const { multiProvider } = context;
+    // temporarily configure deployer as owner so that warp update after extension
+    // can leverage JSON RPC submitter on new chains
+    const intermediateOwnerConfig = await promiseObjAll(
+      objMap(params.warpDeployConfig, async (chain, config) => {
+        const protocolType = multiProvider.getProtocol(chain);
+
+        if (protocolType !== ProtocolType.Ethereum) {
+          return config;
+        }
+
+        return {
+          ...config,
+          owner: await multiProvider.getSignerAddress(chain),
+        };
+      }),
     );
 
-  const { multiProvider } = context;
-  // temporarily configure deployer as owner so that warp update after extension
-  // can leverage JSON RPC submitter on new chains
-  const intermediateOwnerConfig = await promiseObjAll(
-    objMap(params.warpDeployConfig, async (chain, config) => {
-      const protocolType = multiProvider.getProtocol(chain);
+    // Extend the warp route and get the updated configs
+    const updatedWarpCoreConfig = await extendWarpRoute(
+      { ...params, warpDeployConfig: intermediateOwnerConfig },
+      apiKeys,
+      warpCoreConfig,
+    );
 
-      if (protocolType !== ProtocolType.Ethereum) {
-        return config;
-      }
+    // Then create and submit update transactions
+    const transactions: AnnotatedEV5Transaction[] =
+      await updateExistingWarpRoute(
+        params,
+        apiKeys,
+        warpDeployConfig,
+        updatedWarpCoreConfig,
+      );
 
-      return {
-        ...config,
-        owner: await multiProvider.getSignerAddress(chain),
-      };
-    }),
-  );
-
-  // Extend the warp route and get the updated configs
-  const updatedWarpCoreConfig = await extendWarpRoute(
-    { ...params, warpDeployConfig: intermediateOwnerConfig },
-    apiKeys,
-    warpCoreConfig,
-  );
-
-  // Then create and submit update transactions
-  const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
-    params,
-    apiKeys,
-    warpDeployConfig,
-    updatedWarpCoreConfig,
-  );
-
-  if (transactions.length == 0)
-    return logGreen(`Warp config is the same as target. No updates needed.`);
-  await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
+    if (transactions.length == 0)
+      return logGreen(`Warp config is the same as target. No updates needed.`);
+    await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      logRed('⚠️ Invalid owner configuration');
+      logRed(error.message);
+      process.exit(1);
+    }
+    throw error;
+  }
 }
 
 /**
