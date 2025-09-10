@@ -36,7 +36,6 @@ import { ChainMap, IMultiProtocolSignerManager } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
-import { validateWarpDeployOwners } from './validation.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 import { ExplorerLicenseType } from './verify/types.js';
 
@@ -71,9 +70,6 @@ export async function executeWarpDeploy(
     ismFactoryDeployer,
     contractVerifier,
   );
-
-  // Validate all owner addresses before proceeding with deployment
-  await validateWarpDeployOwners(modifiedConfig, multiProvider);
 
   let deployedContracts: ChainMap<Address> = {};
 

@@ -45,6 +45,7 @@ import {
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
+  validateWarpDeployOwners,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -139,6 +140,7 @@ export async function runWarpRouteDeploy({
   };
 
   await runDeployPlanStep(deploymentParams);
+  await validateAndConfirmOwners(multiProvider, warpDeployConfig);
 
   // Some of the below functions throw if passed non-EVM or Cosmos Native chains
   const deploymentChains = chains.filter(
@@ -155,77 +157,65 @@ export async function runWarpRouteDeploy({
 
   const initialBalances = await prepareDeploy(context, null, deploymentChains);
 
-  try {
-    const { deployedContracts } = await executeDeploy(
-      deploymentParams,
-      apiKeys,
+  const { deployedContracts } = await executeDeploy(deploymentParams, apiKeys);
+
+  const registryAddresses = await registry.getAddresses();
+
+  await enrollCrossChainRouters(
+    {
+      multiProvider,
+      multiProtocolSigner,
+      registryAddresses,
+      warpDeployConfig,
+    },
+    deployedContracts,
+  );
+
+  const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
+    deploymentParams,
+    deployedContracts,
+  );
+
+  // Use warpRouteId if provided, otherwise if the user is deploying
+  // using a config file use the name of the file to generate the id
+  // or just fallback to use the warpCoreConfig symbol
+  let warpRouteIdOptions: AddWarpRouteConfigOptions;
+  if (warpRouteId) {
+    warpRouteIdOptions = { warpRouteId };
+  } else if (warpDeployConfigFileName && 'symbol' in addWarpRouteOptions) {
+    // validate that the id is correct
+    let isIdOk = true;
+    const maybeId = warpRouteIdFromFileName(
+      warpDeployConfigFileName,
+      addWarpRouteOptions.symbol,
     );
-
-    const registryAddresses = await registry.getAddresses();
-
-    await enrollCrossChainRouters(
-      {
-        multiProvider,
-        multiProtocolSigner,
-        registryAddresses,
-        warpDeployConfig,
-      },
-      deployedContracts,
-    );
-
-    const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
-      deploymentParams,
-      deployedContracts,
-    );
-
-    // Use warpRouteId if provided, otherwise if the user is deploying
-    // using a config file use the name of the file to generate the id
-    // or just fallback to use the warpCoreConfig symbol
-    let warpRouteIdOptions: AddWarpRouteConfigOptions;
-    if (warpRouteId) {
-      warpRouteIdOptions = { warpRouteId };
-    } else if (warpDeployConfigFileName && 'symbol' in addWarpRouteOptions) {
-      // validate that the id is correct
-      let isIdOk = true;
-      const maybeId = warpRouteIdFromFileName(
-        warpDeployConfigFileName,
-        addWarpRouteOptions.symbol,
+    try {
+      BaseRegistry.warpDeployConfigToId(warpDeployConfig, {
+        warpRouteId: maybeId,
+      });
+    } catch {
+      isIdOk = false;
+      warnYellow(
+        `Generated id "${maybeId}" from input config file would be invalid, falling back to default options`,
       );
-      try {
-        BaseRegistry.warpDeployConfigToId(warpDeployConfig, {
-          warpRouteId: maybeId,
-        });
-      } catch {
-        isIdOk = false;
-        warnYellow(
-          `Generated id "${maybeId}" from input config file would be invalid, falling back to default options`,
-        );
-      }
-
-      warpRouteIdOptions = isIdOk
-        ? { warpRouteId: maybeId }
-        : addWarpRouteOptions;
-    } else {
-      warpRouteIdOptions = addWarpRouteOptions;
     }
 
-    await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
-
-    await completeDeploy(
-      context,
-      'warp',
-      initialBalances,
-      null,
-      deploymentChains,
-    );
-  } catch (error: unknown) {
-    if (error instanceof ValidationError) {
-      logRed('⚠️ Invalid owner configuration');
-      logRed(error.message);
-      process.exit(1);
-    }
-    throw error;
+    warpRouteIdOptions = isIdOk
+      ? { warpRouteId: maybeId }
+      : addWarpRouteOptions;
+  } else {
+    warpRouteIdOptions = addWarpRouteOptions;
   }
+
+  await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
+
+  await completeDeploy(
+    context,
+    'warp',
+    initialBalances,
+    null,
+    deploymentChains,
+  );
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -239,6 +229,26 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
     message: 'Is this deployment plan correct?',
   });
   if (!isConfirmed) throw new Error('Deployment cancelled');
+}
+
+async function validateAndConfirmOwners(
+  multiProvider: MultiProvider,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+) {
+  try {
+    // Validate all owner addresses before proceeding with deployment
+    await validateWarpDeployOwners(warpDeployConfig, multiProvider);
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      logRed(error.message);
+      const isConfirmed = await confirm({
+        message: 'Possible inactive/invalid owner. Do you wish to continue?',
+      });
+      if (isConfirmed) return;
+      process.exit(1);
+    }
+    throw error;
+  }
 }
 
 async function executeDeploy(
