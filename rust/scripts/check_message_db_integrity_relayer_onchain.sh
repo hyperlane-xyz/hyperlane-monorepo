@@ -34,7 +34,7 @@ fetch_merkle_tree_events() {
     from_block_hex=$(printf '0x%x' $from_block)
     to_block_hex=$(printf '0x%x' $to_block)
 
-    curl -s "$rpc_url" \
+    curl -sS --fail --max-time 20 "$rpc_url" \
         -X POST \
         -H "Content-Type: application/json" \
         --data '{
