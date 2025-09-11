@@ -26,6 +26,9 @@ const gasPricesFilePath = (environment: DeployEnvironment) => {
   return `config/environments/${environment}/gasPrices.json`;
 };
 
+// 5% threshold, adjust as needed
+const DIFF_THRESHOLD_PCT = 5;
+
 async function main() {
   const { environment, write } = await withWrite(getArgs()).argv;
   const { registry, supportedChainNames, gasPrices } =
@@ -48,14 +51,31 @@ async function main() {
     await Promise.all(
       supportedChainNames.map(async (chain) => {
         try {
-          return [
-            chain,
-            await getGasPrice(
-              mpp,
-              chain,
-              gasPrices[chain as keyof typeof gasPrices],
-            ),
-          ];
+          const currentGasPrice = gasPrices[
+            chain as keyof typeof gasPrices
+          ] as GasPriceConfig;
+          const newGasPrice = await getGasPrice(mpp, chain, currentGasPrice);
+
+          // Defensive: handle missing or malformed currentGasPrice
+          const currentAmount =
+            currentGasPrice && typeof currentGasPrice.amount === 'string'
+              ? parseFloat(currentGasPrice.amount)
+              : 0;
+          const newAmount =
+            newGasPrice && typeof newGasPrice.amount === 'string'
+              ? parseFloat(newGasPrice.amount)
+              : 0;
+
+          // If current is zero, always update (avoid division by zero)
+          let shouldUpdate = false;
+          if (currentAmount === 0) {
+            shouldUpdate = true;
+          } else {
+            const diff = Math.abs(newAmount - currentAmount) / currentAmount;
+            shouldUpdate = diff >= DIFF_THRESHOLD_PCT / 100;
+          }
+
+          return [chain, shouldUpdate ? newGasPrice : currentGasPrice];
         } catch (error) {
           console.error(`Error getting gas price for ${chain}:`, error);
           return [
