@@ -1,0 +1,26 @@
+arbitrum:
+  mailbox: '0x979Ca5202784112f4738403dBec5D0F3B9daabB9'
+  owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+  type: synthetic
+  interchainSecurityModule:
+    type: ccipIsm
+    originChain: polygon
+  hook:
+    type: aggregationHook
+    hooks:
+      - '0x3b6044acd6767f017e99318AA6Ef93b7B06A5a22'
+      - type: ccipHook
+        destinationChain: polygon
+polygon:
+  mailbox: '0x5d934f4e2f797775e53561bB72aca21ba36B96BB'
+  owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913'
+  type: native
+  interchainSecurityModule:
+    type: ccipIsm
+    originChain: arbitrum
+  hook:
+    type: aggregationHook
+    hooks:
+      - '0x0071740Bf129b05C4684abfbBeD248D80971cce2'
+      - type: ccipHook
+        destinationChain: arbitrum
