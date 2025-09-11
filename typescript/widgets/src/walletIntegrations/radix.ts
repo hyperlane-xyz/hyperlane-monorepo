@@ -2,7 +2,6 @@ import {
   DataRequestBuilder,
   generateRolaChallenge,
 } from '@radixdlt/radix-dapp-toolkit';
-import { RadixEngineToolkit } from '@radixdlt/radix-engine-toolkit';
 import { useCallback, useMemo } from 'react';
 
 import {
@@ -164,14 +163,7 @@ export function useRadixTransactionFns(
       assert(gatewayApi, `gateway api is not defined`);
 
       const transaction = tx.transaction as never as RadixSDKTransaction;
-
-      const transactionManifest = (
-        await RadixEngineToolkit.Instructions.convert(
-          transaction.manifest.instructions,
-          transaction.networkId,
-          'String',
-        )
-      ).value as string;
+      const transactionManifest = transaction.manifest as string;
 
       const transactionResult = await rdt.walletApi.sendTransaction({
         transactionManifest,

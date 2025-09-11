@@ -1,19 +1,13 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import {
-  ManifestBuilder,
-  ValueKind,
   address,
-  array,
-  bucket,
   decimal,
   enumeration,
-  expression,
   str,
   u8,
   u32,
 } from '@radixdlt/radix-engine-toolkit';
 import { BigNumber } from 'bignumber.js';
-import { Decimal } from 'decimal.js';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
@@ -190,44 +184,52 @@ export class RadixWarpPopulate {
   }) {
     const { origin_denom, divisibility } = await this.query.getToken({ token });
 
-    const tokenAmount = new Decimal(
-      new BigNumber(amount)
-        .dividedBy(new BigNumber(10).pow(divisibility))
-        .toFixed(divisibility),
-    );
+    const tokenAmount = new BigNumber(amount)
+      .dividedBy(new BigNumber(10).pow(divisibility))
+      .toFixed(divisibility);
 
     assert(origin_denom, `no origin_denom found on token ${token}`);
-
-    return new ManifestBuilder()
-      .callMethod(from_address, INSTRUCTIONS.WITHDRAW, [
-        address(origin_denom),
-        decimal(tokenAmount),
-      ])
-      .callMethod(from_address, INSTRUCTIONS.WITHDRAW, [
-        address(max_fee.denom),
-        decimal(max_fee.amount),
-      ])
-      .takeFromWorktop(origin_denom, tokenAmount, (builder1, bucketId1) =>
-        builder1.takeFromWorktop(
-          max_fee.denom,
-          new Decimal(max_fee.amount),
-          (builder2, bucketId2) =>
-            builder2
-              .callMethod(token, 'transfer_remote', [
-                u32(destination_domain),
-                bytes(recipient),
-                bucket(bucketId1),
-                array(ValueKind.Bucket, bucket(bucketId2)),
-                enumeration(0),
-                enumeration(0),
-              ])
-              .callMethod(
-                from_address,
-                INSTRUCTIONS.TRY_DEPOSIT_BATCH_OR_ABORT,
-                [expression('EntireWorktop'), enumeration(0)],
-              ),
-        ),
-      )
-      .build();
+    return `
+CALL_METHOD
+    Address("${from_address}")
+    "withdraw"
+    Address("${origin_denom}")
+    Decimal("${tokenAmount}")
+;
+CALL_METHOD
+    Address("${from_address}")
+    "withdraw"
+    Address("${max_fee.denom}")
+    Decimal("${max_fee.amount}")
+;
+TAKE_FROM_WORKTOP
+    Address("${origin_denom}")
+    Decimal("${tokenAmount}")
+    Bucket("bucket1")
+;
+TAKE_FROM_WORKTOP
+    Address("${max_fee.denom}")
+    Decimal("${max_fee.amount}")
+    Bucket("bucket2")
+;
+CALL_METHOD
+    Address("${token}")
+    "transfer_remote"
+    ${destination_domain}u32
+    Bytes("${recipient}")
+    Bucket("bucket1")
+    Array<Bucket>(
+        Bucket("bucket2")
+    )
+    Enum<0u8>()
+    Enum<0u8>()
+;
+CALL_METHOD
+    Address("${from_address}")
+    "try_deposit_batch_or_abort"
+    Expression("ENTIRE_WORKTOP")
+    Enum<0u8>()
+;
+`;
   }
 }

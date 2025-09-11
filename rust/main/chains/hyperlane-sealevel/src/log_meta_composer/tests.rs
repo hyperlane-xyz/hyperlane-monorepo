@@ -187,6 +187,48 @@ fn test_log_meta_block_with_multiple_txs_only_one_successful() {
     });
 }
 
+#[test]
+fn test_log_meta_block_with_txn_interchain_payment_search_solaxy() {
+    // This test case uses an example of a block where a message was dispatched from the Solaxy chain.
+    // We should be able to find the interchain payment details in the block.
+    // Transaction in the block - https://explorer.solaxy.io/tx/3wVK8GxSe6U1T9SE33Rh6GG52wRJZ1fQwRaJp7iCvkJ7MGVQVYLxpG51K4RwduYRPm4Tt7Lh81M5ArVutToNxNwq
+
+    // given
+    let interchain_payment_program_id =
+        decode_pubkey("VG7YDF5Am2hrgyydE2ufdusdtw5DjgzXJLFxn9p8ehU").unwrap();
+    let composer = LogMetaComposer::new(
+        interchain_payment_program_id,
+        "interchain gas payment".to_owned(),
+        is_interchain_payment_instruction,
+    );
+
+    let payment_pda_account =
+        decode_pubkey("4hWzwVjSd2Mi9kKxJuYGEL9j4dPnTtLSSBp3txR1egPM").unwrap();
+    let block = serde_json::from_str::<UiConfirmedBlock>(&read_json(
+        "dispatch_message_block_interchain_payment_search_solaxy.json",
+    ))
+    .unwrap();
+    let log_index = U256::zero();
+    let pda_slot = block.block_height.unwrap();
+    let blockhash = decode_h256(&block.blockhash).unwrap();
+
+    // when
+    let log_meta = composer
+        .log_meta(block, log_index, &payment_pda_account, &pda_slot)
+        .unwrap();
+
+    // then
+    assert_eq!(log_meta, LogMeta {
+        address: interchain_payment_program_id.to_bytes().into(),
+        block_number: pda_slot,
+        block_hash: blockhash,
+        // The successful transaction and its index in the block
+        transaction_id: decode_h512("3wVK8GxSe6U1T9SE33Rh6GG52wRJZ1fQwRaJp7iCvkJ7MGVQVYLxpG51K4RwduYRPm4Tt7Lh81M5ArVutToNxNwq").unwrap(),
+        transaction_index: 0,
+        log_index,
+    });
+}
+
 fn read_json(path: &str) -> String {
     let relative = PathBuf::new().join("src/log_meta_composer/").join(path);
     let absolute = fs::canonicalize(relative).expect("cannot find path");

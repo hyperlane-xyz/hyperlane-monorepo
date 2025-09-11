@@ -126,7 +126,7 @@ impl EthereumAdapter {
         Ok(adapter)
     }
 
-    async fn calculate_nonce(&self, tx: &Transaction) -> Result<Option<U256>, LanderError> {
+    async fn calculate_nonce(&self, tx: &Transaction) -> Result<U256, LanderError> {
         self.nonce_manager.calculate_next_nonce(tx).await
     }
 
@@ -162,7 +162,7 @@ impl EthereumAdapter {
         Ok(new_gas_price)
     }
 
-    fn update_tx(&self, tx: &mut Transaction, nonce: Option<U256>, gas_price: GasPrice) {
+    fn update_tx(&self, tx: &mut Transaction, nonce: U256, gas_price: GasPrice) {
         let precursor = tx.precursor_mut();
 
         if let GasPrice::Eip1559 {
@@ -210,13 +210,7 @@ impl EthereumAdapter {
             }
             GasPrice::Eip1559 { .. } => {}
         }
-
-        match nonce {
-            None => {}
-            Some(nonce) => {
-                precursor.tx.set_nonce(nonce);
-            }
-        }
+        precursor.tx.set_nonce(nonce);
 
         info!(?tx, "updated transaction with nonce and gas price");
     }

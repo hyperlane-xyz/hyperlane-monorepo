@@ -336,3 +336,16 @@ export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
     [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
     [ProtocolType.Radix]: TokenStandard.RadixNative,
   };
+
+export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<
+  ProtocolType,
+  TokenStandard
+> = {
+  [ProtocolType.Ethereum]: TokenStandard.EvmHypNative,
+  [ProtocolType.Cosmos]: TokenStandard.CwHypNative,
+  [ProtocolType.Sealevel]: TokenStandard.SealevelHypNative,
+  [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
+  // collateral and native are the same for cosmosnative and radix
+  [ProtocolType.Radix]: TokenStandard.RadixHypCollateral,
+  [ProtocolType.CosmosNative]: TokenStandard.CosmNativeHypCollateral,
+};

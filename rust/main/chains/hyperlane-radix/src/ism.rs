@@ -56,9 +56,9 @@ impl InterchainSecurityModule for RadixIsm {
     /// Returns the module type of the ISM compliant with the corresponding
     /// metadata offchain fetching and onchain formatting standard.
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        let types: IsmTypes = self
+        let (types, _) = self
             .provider
-            .call_method(&self.encoded_address, "module_type", None, Vec::new())
+            .call_method::<IsmTypes>(&self.encoded_address, "module_type", None, Vec::new())
             .await?;
 
         let result = match types {
@@ -96,12 +96,7 @@ impl MultisigIsm for RadixIsm {
 
         let (validators, threshold): (Vec<EthAddress>, usize) = self
             .provider
-            .call_method_with_arg(
-                &self.encoded_address,
-                "validators_and_threshold",
-                None,
-                &message,
-            )
+            .call_method_with_arg(&self.encoded_address, "validators_and_threshold", &message)
             .await?;
 
         Ok((
@@ -121,7 +116,7 @@ impl RoutingIsm for RadixIsm {
         let message = message.to_vec();
         let route: ComponentAddress = self
             .provider
-            .call_method_with_arg(&self.encoded_address, "route", None, &message)
+            .call_method_with_arg(&self.encoded_address, "route", &message)
             .await?;
 
         Ok(address_to_h256(route))
