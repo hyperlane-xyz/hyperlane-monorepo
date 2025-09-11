@@ -1,0 +1,33 @@
+warpRouteId: OFT
+strategy:
+  type: automatic
+  rebalanceStrategy: minAmount
+  minThreshold: 0.01
+  chains:
+    sepolia:
+      minBalance: 0.01
+      bridge: "0xDc9085fD70F555f440719ED4b59D3CC0230a0CAF"
+      bridgeLockTime: 300
+      minAmount:
+        min: 0.03
+        target: 0.03
+        type: absolute
+    arbitrumsepolia:
+      minBalance: 0.01
+      bridge: "0x9d0Ab2cdD1c9A36E92FF1171D2Ee8752c34a7Ec1"
+      bridgeLockTime: 300
+      minAmount:
+        min: 0.09
+        target: 0.10
+        type: absolute
+chains:
+  sepolia:
+    router: "0xDc9085fD70F555f440719ED4b59D3CC0230a0CAF"
+    oftToken: "0x85A99C9445a95e4E8220B8dAB8d3e5d8e4c34553"
+    lzEndpoint: "0x6EDCE65403992e310A62460808c4b910D972f10f"
+    lzEndpointId: 40161
+  arbitrumsepolia:
+    router: "0x9d0Ab2cdD1c9A36E92FF1171D2Ee8752c34a7Ec1"
+    oftToken: "0x507153B0975bd45F7E5Db31dEB37Cf8D30968740"
+    lzEndpoint: "0x6EDCE65403992e310A62460808c4b910D972f10f"
+    lzEndpointId: 40231

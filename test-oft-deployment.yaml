@@ -1,0 +1,10 @@
+sepolia:
+  type: collateralOft
+  token: "0x85A99C9445a95e4E8220B8dAB8d3e5d8e4c34553"
+  lzEndpoint: "0x6EDCE65403992e310A62460808c4b910D972f10f"
+  lzEndpointId: 40161
+basesepolia:
+  type: collateralOft
+  token: "0xa150924aFE5718c903233032689BC561c63A40B3"
+  lzEndpoint: "0x6EDCE65403992e310A62460808c4b910D972f10f"
+  lzEndpointId: 40245
