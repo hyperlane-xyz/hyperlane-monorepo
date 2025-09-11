@@ -66,7 +66,7 @@ mod test {
 
     #[test]
     fn test_address_from_h256() {
-        // values from <https://github.com/Sovereign-Labs/sov-rollup-starter-wip/blob/fd8ccb34ba6133c4c7696d4829f8fd7ac404da19/test-data/keys/token_deployer_private_key.json>
+        // values from <https://github.com/Sovereign-Labs/rollup-starter/blob/edb0177bf6982a9b0d4f48237013ebad0b23b780/test-data/keys/token_deployer_private_key.json>
         let private_key = H256([
             1, 135, 193, 46, 167, 193, 32, 36, 179, 247, 10, 197, 215, 53, 135, 70, 58, 241, 124,
             139, 206, 43, 217, 230, 254, 135, 56, 147, 16, 25, 108, 100,
