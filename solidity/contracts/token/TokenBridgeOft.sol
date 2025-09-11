@@ -173,6 +173,11 @@ contract TokenBridgeOft is HypERC20Collateral {
             lzTokenFee: 0
         });
 
+        // First reset approval to 0 to avoid SafeERC20 error
+        wrappedToken.approve(address(wrappedToken), 0);
+        // Then approve the exact amount needed
+        wrappedToken.approve(address(wrappedToken), outbound);
+        
         // Send via LayerZero V2
         messageId = IOFTV2(address(wrappedToken)).send{value: msg.value}(
             sendParam,
@@ -184,5 +189,35 @@ contract TokenBridgeOft is HypERC20Collateral {
     }
 
     function _transferTo(address, uint256, bytes calldata) internal override {}
+
+    /**
+     * @notice Rebalances tokens to another domain using LayerZero OFT bridging
+     * @dev This function follows the same pattern as CCTP rebalancer
+     * @param _destinationDomain The Hyperlane domain ID of the destination
+     * @param _amount The amount of tokens to rebalance
+     * @param _bridge The bridge address (typically the same router for OFT)
+     */
+    function rebalance(
+        uint32 _destinationDomain,
+        uint256 _amount,
+        address _bridge
+    ) external payable onlyRebalancer {
+        // For OFT, we use the router itself as the bridge
+        // The _bridge parameter maintains compatibility with CCTP pattern
+        require(_bridge == address(this), "Bridge must be this router for OFT");
+        
+        // Get the enrolled remote router for the destination
+        bytes32 enrolledRouter = _mustHaveRemoteRouter(_destinationDomain);
+        
+        // Call _transferRemote which handles the LayerZero bridging
+        _transferRemote(
+            _destinationDomain,
+            enrolledRouter,
+            _amount,
+            msg.value,
+            bytes(""), // empty hook metadata
+            address(0) // no hook
+        );
+    }
 
 }
