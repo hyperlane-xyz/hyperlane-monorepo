@@ -29,6 +29,7 @@ env:
 jobs:
   yarn-install:
     runs-on: depot-ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
