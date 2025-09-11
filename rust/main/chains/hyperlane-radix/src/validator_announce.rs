@@ -67,7 +67,6 @@ impl ValidatorAnnounce for RadixValidatorAnnounce {
             .call_method_with_arg(
                 &self.encoded_address,
                 "get_announced_storage_locations",
-                None,
                 &eth_addresses,
             )
             .await?;

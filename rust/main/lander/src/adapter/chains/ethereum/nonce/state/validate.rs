@@ -9,24 +9,41 @@ use super::NonceManagerState;
 use crate::transaction::{Transaction, TransactionUuid};
 use crate::TransactionStatus;
 
+/// What action to take given a tx
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum NonceAction {
-    Noop,
-    Assign,
+    // Assign the provided nonce
+    Assign { nonce: U256 },
+    // Assign the next available nonce, old_nonce will be unassigned if any.
+    AssignNext { old_nonce: Option<U256> },
 }
 
 impl NonceManagerState {
     pub(crate) async fn validate_assigned_nonce(
         &self,
         tx: &Transaction,
-    ) -> NonceResult<(NonceAction, Option<U256>)> {
-        use NonceAction::{Assign, Noop};
+    ) -> NonceResult<NonceAction> {
         use NonceStatus::{Committed, Freed, Taken};
 
         let tx_uuid = tx.uuid.clone();
         let tx_status = tx.status.clone();
-        let Some(nonce): Option<U256> = tx.precursor().tx.nonce().map(Into::into) else {
-            return Ok((Assign, None));
+
+        let nonce = match tx.precursor().tx.nonce().map(Into::into) {
+            Some(nonce) => nonce,
+            // if tx has no nonce assigned, check if it has one assigned in the
+            // db.
+            None => match self.get_tx_nonce(&tx_uuid).await? {
+                Some(nonce) => {
+                    if nonce == U256::MAX {
+                        return Ok(NonceAction::AssignNext { old_nonce: None });
+                    } else {
+                        nonce
+                    }
+                }
+                None => {
+                    return Ok(NonceAction::AssignNext { old_nonce: None });
+                }
+            },
         };
         let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
 
@@ -37,7 +54,9 @@ impl NonceManagerState {
             // If the nonce, which currently assigned to the transaction, is not tracked,
             // we should assign the new nonce.
             warn!(?nonce, "Nonce is not tracked, assigning new nonce");
-            return Ok((Assign, Some(nonce)));
+            return Ok(NonceAction::AssignNext {
+                old_nonce: Some(nonce),
+            });
         };
 
         if tracked_tx_uuid != tx_uuid {
@@ -51,7 +70,9 @@ impl NonceManagerState {
                 ?nonce_status,
                 "Nonce is assigned to a different transaction, assigning new nonce"
             );
-            return Ok((Assign, Some(nonce)));
+            return Ok(NonceAction::AssignNext {
+                old_nonce: Some(nonce),
+            });
         }
 
         let finalized_nonce = self.get_finalized_nonce().await?;
@@ -62,7 +83,9 @@ impl NonceManagerState {
                 // then the transaction was dropped. But we are validating the nonce just before
                 // we submit the transaction again. It means that we should assign the new nonce.
                 warn!(?nonce, ?nonce_status, "Nonce is freed, assigning new nonce");
-                Ok((Assign, Some(nonce)))
+                Ok(NonceAction::AssignNext {
+                    old_nonce: Some(nonce),
+                })
             }
             (Taken(_), Some(finalized_nonce)) if nonce <= finalized_nonce => {
                 // If the nonce is taken, but it is below or equal to the finalized nonce,
@@ -73,7 +96,9 @@ impl NonceManagerState {
                     ?nonce_status,
                     "Nonce is taken by the transaction but below or equal to the finalized nonce, assigning new nonce"
                 );
-                Ok((Assign, Some(nonce)))
+                Ok(NonceAction::AssignNext {
+                    old_nonce: Some(nonce),
+                })
             }
             (Taken(_), _) => {
                 // If the nonce is taken or committed, we don't need to do anything.
@@ -82,7 +107,7 @@ impl NonceManagerState {
                     ?nonce_status,
                     "Nonce is already assigned to the transaction, no action needed"
                 );
-                Ok((Noop, Some(nonce)))
+                Ok(NonceAction::Assign { nonce })
             }
             (Committed(_), _) => {
                 // If the nonce is taken or committed, we don't need to do anything.
@@ -92,7 +117,7 @@ impl NonceManagerState {
                     "Nonce is already assigned to the transaction, no action needed, \
                     but transaction should not be committed at this point"
                 );
-                Ok((Noop, Some(nonce)))
+                Ok(NonceAction::Assign { nonce })
             }
         }
     }

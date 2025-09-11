@@ -6,6 +6,7 @@ import {
   EvmChainId,
   ProtocolType,
   ValueOf,
+  addressToByteHexString,
   assert,
   eqAddress,
   hexOrBase58ToHex,
@@ -198,6 +199,9 @@ export function attachContractsMapAndGetForeignDeployments<
         case ProtocolType.CosmosNative:
         case ProtocolType.Starknet:
           return router;
+
+        case ProtocolType.Radix:
+          return addressToByteHexString(router, ProtocolType.Radix);
 
         case ProtocolType.Sealevel:
           return hexOrBase58ToHex(router);

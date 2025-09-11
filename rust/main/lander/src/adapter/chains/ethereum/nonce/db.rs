@@ -15,6 +15,7 @@ const FINALIZED_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str = "finalized_nonce_
 const UPPER_NONCE_BY_SIGNER_ADDRESS_STORAGE_PREFIX: &str = "upper_nonce_by_signer_address_";
 const TRANSACTION_UUID_BY_NONCE_AND_SIGNER_ADDRESS_STORAGE_PREFIX: &str =
     "transaction_uuid_by_nonce_and_signer_address_";
+const EVM_NONCE_BY_TRANSACTION_UUID_PREFIX: &str = "evm_nonce_by_transaction_uuid_";
 
 #[async_trait]
 pub trait NonceDb: Send + Sync {
@@ -51,6 +52,19 @@ pub trait NonceDb: Send + Sync {
         nonce: &U256,
         signer_address: &Address,
         tx_uuid: &TransactionUuid,
+    ) -> DbResult<()>;
+
+    async fn retrieve_nonce_by_transaction_uuid(
+        &self,
+        signer_address: &Address,
+        tx_uuid: &TransactionUuid,
+    ) -> DbResult<Option<U256>>;
+
+    async fn store_nonce_by_transaction_uuid(
+        &self,
+        signer_address: &Address,
+        tx_uuid: &TransactionUuid,
+        nonce: &U256,
     ) -> DbResult<()>;
 }
 
@@ -123,6 +137,30 @@ impl NonceDb for HyperlaneRocksDB {
             tx_uuid,
         )
     }
+
+    async fn retrieve_nonce_by_transaction_uuid(
+        &self,
+        signer_address: &Address,
+        tx_uuid: &TransactionUuid,
+    ) -> DbResult<Option<U256>> {
+        self.retrieve_value_by_key(
+            EVM_NONCE_BY_TRANSACTION_UUID_PREFIX,
+            &SignerAddressAndTransactionUuid(*signer_address, tx_uuid.clone()),
+        )
+    }
+
+    async fn store_nonce_by_transaction_uuid(
+        &self,
+        signer_address: &Address,
+        tx_uuid: &TransactionUuid,
+        nonce: &U256,
+    ) -> DbResult<()> {
+        self.store_value_by_key(
+            EVM_NONCE_BY_TRANSACTION_UUID_PREFIX,
+            &SignerAddressAndTransactionUuid(*signer_address, tx_uuid.clone()),
+            nonce,
+        )
+    }
 }
 
 struct SignerAddress(Address);
@@ -148,6 +186,20 @@ impl Encode for NonceAndSignerAddress {
 
         let mut written = nonce.write_to(writer)?;
         written = written.saturating_add(address.write_to(writer)?);
+        Ok(written)
+    }
+}
+
+struct SignerAddressAndTransactionUuid(Address, TransactionUuid);
+impl Encode for SignerAddressAndTransactionUuid {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: Write,
+    {
+        let (address, tx_uuid) = (SignerAddress(self.0), &self.1);
+
+        let mut written = address.write_to(writer)?;
+        written = written.saturating_add(tx_uuid.write_to(writer)?);
         Ok(written)
     }
 }

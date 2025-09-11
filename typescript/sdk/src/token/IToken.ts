@@ -80,6 +80,7 @@ export interface IToken extends TokenArgs {
 
   isNft(): boolean;
   isNative(): boolean;
+  isHypNative(): boolean;
   isHypToken(): boolean;
   isIbcToken(): boolean;
   isMultiChainToken(): boolean;

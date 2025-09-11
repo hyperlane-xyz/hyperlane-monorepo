@@ -431,6 +431,7 @@ export {
   EV5ImpersonatedAccountTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
   EvmIcaTxSubmitterProps,
+  isJsonRpcSubmitterConfig,
 } from './providers/transactions/submitter/ethersV5/types.js';
 
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
@@ -671,6 +672,7 @@ export {
   LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
   PROTOCOL_TO_NATIVE_STANDARD,
+  PROTOCOL_TO_HYP_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_COSMWASM_STANDARDS,
   TOKEN_HYP_STANDARDS,
@@ -683,6 +685,7 @@ export {
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
 export {
+  XERC20LimitsTokenConfig,
   CctpTokenConfig,
   CctpTokenConfigSchema,
   CollateralRebaseTokenConfigSchema,
