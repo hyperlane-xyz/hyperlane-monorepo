@@ -107,7 +107,7 @@ async function pollAndUpdateWarpRouteMetrics(
 ) {
   const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
     chainMetadata,
-    apiKey: await getCoinGeckoApiKey(),
+    apiKey: await getCoinGeckoApiKey(logger),
   });
 
   while (true) {

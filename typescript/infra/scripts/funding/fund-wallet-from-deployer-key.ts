@@ -239,6 +239,9 @@ async function fundAccount({
   }
 
   const transactionHash = await signer.sendTransaction(protocolTypedTx);
+  console.log(
+    `Account ${recipientAddress} funded at transaction ${transactionHash}`,
+  );
 
   // Verify the transfer
   const newBalance = await adapter.getBalance(fromAddress);

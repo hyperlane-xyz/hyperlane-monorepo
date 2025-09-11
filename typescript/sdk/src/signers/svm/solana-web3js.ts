@@ -1,6 +1,10 @@
-import { Keypair, sendAndConfirmTransaction } from '@solana/web3.js';
+import {
+  Connection,
+  Keypair,
+  TransactionConfirmationStatus,
+} from '@solana/web3.js';
 
-import { Address, ProtocolType, strip0x } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, retryAsync } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { SolanaWeb3Transaction } from '../../providers/ProviderType.js';
@@ -11,6 +15,8 @@ export class SvmMultiprotocolSignerAdapter
   implements IMultiProtocolSigner<ProtocolType.Sealevel>
 {
   private readonly signer: Keypair;
+  private readonly svmProvider: Connection;
+  private readonly commitment: TransactionConfirmationStatus = 'confirmed';
 
   constructor(
     private readonly chainName: ChainName,
@@ -18,9 +24,10 @@ export class SvmMultiprotocolSignerAdapter
     private readonly multiProtocolProvider: MultiProtocolProvider,
   ) {
     this.signer = Keypair.fromSecretKey(
-      Uint8Array.from(
-        JSON.parse(String(Buffer.from(strip0x(this.privateKey), 'base64'))),
-      ),
+      Uint8Array.from(JSON.parse(this.privateKey)),
+    );
+    this.svmProvider = this.multiProtocolProvider.getSolanaWeb3Provider(
+      this.chainName,
     );
   }
 
@@ -29,16 +36,42 @@ export class SvmMultiprotocolSignerAdapter
   }
 
   async sendTransaction(tx: SolanaWeb3Transaction): Promise<string> {
-    const svmProvider = this.multiProtocolProvider.getSolanaWeb3Provider(
-      this.chainName,
+    // Manually crafting and sending the transaction as sendTransactionAndConfirm might
+    // not always work depending on if the `signatureSubscribe` rpc method is available
+    const { blockhash, lastValidBlockHeight } =
+      await this.svmProvider.getLatestBlockhash(this.commitment);
+
+    tx.transaction.recentBlockhash = blockhash;
+    tx.transaction.lastValidBlockHeight = lastValidBlockHeight;
+    tx.transaction.sign(this.signer);
+
+    const txSignature = await this.svmProvider.sendRawTransaction(
+      tx.transaction.serialize(),
+      {
+        maxRetries: 3,
+        preflightCommitment: this.commitment,
+      },
     );
 
-    const txSignature = await sendAndConfirmTransaction(
-      svmProvider,
-      tx.transaction,
-      [this.signer],
-    );
+    // Manually checking if the transaction has been confirmed on chain
+    await this.waitForTransaction(txSignature);
 
     return txSignature;
+  }
+
+  async waitForTransaction(transactionHash: string): Promise<void> {
+    await retryAsync(
+      async () => {
+        const res = await this.svmProvider.getSignatureStatus(transactionHash);
+
+        if (res.value?.confirmationStatus !== this.commitment) {
+          throw new Error(
+            `Transaction ${transactionHash} is not yet in the expected commitment state: "${this.commitment}"`,
+          );
+        }
+      },
+      5,
+      1500,
+    );
   }
 }
