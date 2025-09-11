@@ -15,7 +15,6 @@ import {
   ProtocolTypedReceipt,
 } from '../../../ProviderType.js';
 import { CallData } from '../../types.js';
-import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
@@ -32,14 +31,14 @@ export class EV5AccessManagerTxSubmitter implements EV5TxSubmitterInterface {
   constructor(
     protected readonly config: AccessManagerSubmitterConfig,
     public readonly multiProvider: MultiProvider,
-    protected readonly proposerSubmitter: TxSubmitterInterface<any>,
+    protected readonly proposerSubmitter: EV5TxSubmitterInterface,
     protected readonly accessManager: IAccessManager,
   ) {}
 
   static async create(
     config: AccessManagerSubmitterConfig,
     multiProvider: MultiProvider,
-    proposerSubmitter: TxSubmitterInterface<any>,
+    proposerSubmitter: EV5TxSubmitterInterface,
   ): Promise<EV5AccessManagerTxSubmitter> {
     const provider = multiProvider.getProvider(config.chain);
     const accessManager = IAccessManager__factory.connect(
@@ -136,6 +135,7 @@ export class EV5AccessManagerTxSubmitter implements EV5TxSubmitterInterface {
         call.data,
         0,
       ]),
+      annotation: `Schedule ${call.to} with ${call.data} on AccessManager ${this.accessManager.address}`,
     }));
     const executeCalls = calldata.map((call) => ({
       to: this.accessManager.address,
@@ -143,14 +143,25 @@ export class EV5AccessManagerTxSubmitter implements EV5TxSubmitterInterface {
         call.to,
         call.data,
       ]),
+      annotation: `Execute ${call.to} with ${call.data} on AccessManager ${this.accessManager.address}`,
     }));
 
     const proposerCalls = [
       ...scheduleCalls.filter((_call, index) => !isImmediate[index]),
       ...executeCalls.filter((_call, index) => isImmediate[index]),
     ];
-    await this.proposerSubmitter.submit(proposerCalls);
+    const executeLaterCalls = executeCalls.filter(
+      (_call, index) => !isImmediate[index],
+    );
 
-    return executeCalls.filter((_call, index) => !isImmediate[index]);
+    // TODO: fix types of composed submitters
+    const bubbledUpCalls: any = await this.proposerSubmitter.submit(
+      ...proposerCalls,
+    );
+    if (!Array.isArray(bubbledUpCalls)) {
+      return executeLaterCalls;
+    } else {
+      return [...executeLaterCalls, ...bubbledUpCalls];
+    }
   }
 }

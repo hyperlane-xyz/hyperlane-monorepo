@@ -24,7 +24,7 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
   ) {}
 
   address(): Promise<Address> {
-    return this.multiProvider.getSigner(this.props.chain).getAddress();
+    return this.multiProvider.getSignerAddress(this.props.chain);
   }
 
   public async submit(
