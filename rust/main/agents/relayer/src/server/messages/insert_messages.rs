@@ -50,7 +50,7 @@ pub async fn handler(
                 let error_msg = "Failed to parse message_id";
                 tracing::debug!(message_id, ?err, "{error_msg}");
                 ServerErrorResponse::new(
-                    StatusCode::INTERNAL_SERVER_ERROR,
+                    StatusCode::BAD_REQUEST,
                     ServerErrorBody {
                         message: error_msg.to_string(),
                     },

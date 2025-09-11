@@ -8,6 +8,8 @@ Usage: $0 --chain-name <chain_name> --domain-id <domain_id> --leaf-index-start <
     --domain-id             the domain id of the chain
     --leaf-index-start      the leaf index to start at and go forward"
 
+set -euo pipefail
+
 # Function to extract message_id from checkpoint response
 extract_checkpoint_message_id() {
     echo "$1" | jq -r '.value.message_id' 2>/dev/null || echo "$1" | grep -o '"value":{[^}]*"message_id":"[^"]*"' | grep -o '"message_id":"[^"]*"' | cut -d'"' -f4

@@ -9,6 +9,8 @@ Usage: $0 --rpc-url <rpc_url> --merkle-hook-address <merkle_hook_address> --chai
     --chain-name            the name of the chain
     --start-block           the block to start at and go backwards"
 
+set -euo pipefail
+
 # Function to extract message_id from checkpoint response
 extract_checkpoint_message_id() {
     echo "$1" | jq -r '.value.message_id' 2>/dev/null || echo "$1" | grep -o '"value":{[^}]*"message_id":"[^"]*"' | grep -o '"message_id":"[^"]*"' | cut -d'"' -f4

@@ -8,6 +8,8 @@ Usage: $0 --chain-name <chain_name> --domain-id <domain_id> --leaf-index-start <
     --domain-id             the domain id of the chain
     --leaf-index-start      the leaf index to start at and go forward"
 
+set -euo pipefail
+
 # Function to extract message_id from checkpoint response
 extract_checkpoint_merkle_root() {
     echo "$1" | jq -r '.value.checkpoint.root' 2>/dev/null
@@ -49,12 +51,14 @@ main() {
         checkpoint_response=$(curl -s "$checkpoint_url")
         echo "📥 Response size: $(echo "$checkpoint_response" | wc -c) bytes"
 
-        # Check if checkpoint request was successful
-        if [[ "$checkpoint_response" == *"message_id"* ]]; then
-            # Debug: Print the relevant part of the response
-            echo "🔍 Debugging checkpoint response:"
-            echo "$checkpoint_response"
+        # Debug: Print the relevant part of the response
+        echo "🔍 Debugging checkpoint response:"
+        echo "$checkpoint_response"
 
+        checkpoint_root=$(extract_checkpoint_merkle_root "$checkpoint_response")
+
+        # Check if checkpoint request was successful
+        if [ "$checkpoint_root" != null ]; then
             checkpoint_root=$(extract_checkpoint_merkle_root "$checkpoint_response")
             echo "📋 Extracted checkpoint root: $checkpoint_root"
 
