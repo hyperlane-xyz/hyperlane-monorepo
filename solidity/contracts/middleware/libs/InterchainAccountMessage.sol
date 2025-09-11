@@ -164,6 +164,12 @@ library InterchainAccountMessage {
         return abi.decode(_message[97:], (CallLib.Call[]));
     }
 
+    function callsRaw(
+        bytes calldata _message
+    ) internal pure returns (bytes memory) {
+        return _message[97:];
+    }
+
     function commitment(
         bytes calldata _message
     ) internal pure returns (bytes32) {
