@@ -1,5 +1,13 @@
 # @hyperlane-xyz/cli
 
+## 18.2.0
+
+### Minor Changes
+
+- dfa9d368c: updated command context initialization logic to simplify signer configuration and remove private usage assumption
+
+## 18.1.0
+
 ## 18.0.0
 
 ### Major Changes
