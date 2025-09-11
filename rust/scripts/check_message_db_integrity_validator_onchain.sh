@@ -111,7 +111,7 @@ main() {
             echo "⛓️ Leaf Index: $leaf_index"
             echo "⛓️ Message ID: $message_id"
 
-            validator_checkpoint=$(fetch_validator_checkpoint $domain_id $leaf_index)
+            validator_checkpoint=$(fetch_validator_checkpoint "$leaf_index")
             # echo $validator_checkpoint
             validator_message_id=$(extract_checkpoint_message_id "$validator_checkpoint")
             echo "🛡️ Validator Message ID: $validator_message_id"
