@@ -100,7 +100,7 @@ describe('EV5AccessManagerTxSubmitter', () => {
       config,
       multiProvider,
       mockProposerSubmitter,
-      mockAccessManager,
+      mockAccessManager as any,
     );
   });
 
@@ -220,7 +220,7 @@ describe('EV5AccessManagerTxSubmitter', () => {
         },
         multiProvider,
         mockProposerSubmitter,
-        restrictedAccessManager,
+        restrictedAccessManager as any,
       );
 
       const mockTransaction: AnnotatedEV5Transaction = {
@@ -252,7 +252,7 @@ describe('EV5AccessManagerTxSubmitter', () => {
         },
         multiProvider,
         mockProposerSubmitter,
-        delayedAccessManager,
+        delayedAccessManager as any,
       );
 
       const mockTransaction: AnnotatedEV5Transaction = {
