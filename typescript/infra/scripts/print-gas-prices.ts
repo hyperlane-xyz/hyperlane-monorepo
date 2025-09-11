@@ -18,6 +18,10 @@ import { getRegistry as getTestnet4Registry } from '../config/environments/testn
 import testnet4GasPrices from '../config/environments/testnet4/gasPrices.json' with { type: 'json' };
 import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
 import { DeployEnvironment } from '../src/config/environment.js';
+import {
+  getSafeNumericValue,
+  updatePriceIfNeeded,
+} from '../src/config/gas-oracle.js';
 import { writeJsonAtPath } from '../src/utils/utils.js';
 
 import { getArgs, withWrite } from './agent-utils.js';
@@ -26,8 +30,19 @@ const gasPricesFilePath = (environment: DeployEnvironment) => {
   return `config/environments/${environment}/gasPrices.json`;
 };
 
-// 5% threshold, adjust as needed
-const DIFF_THRESHOLD_PCT = 5;
+// Helper function to extract numeric amount from GasPriceConfig
+const getGasPriceAmount = (gasPrice: GasPriceConfig | undefined): number => {
+  return getSafeNumericValue(gasPrice?.amount, '0');
+};
+
+// Helper function to create default gas price config
+const createDefaultGasPrice = (
+  chain: string,
+  decimals: number = 9,
+): GasPriceConfig => ({
+  amount: `PLEASE SET A GAS PRICE FOR ${chain.toUpperCase()}`,
+  decimals,
+});
 
 async function main() {
   const { environment, write } = await withWrite(getArgs()).argv;
@@ -56,34 +71,23 @@ async function main() {
           ] as GasPriceConfig;
           const newGasPrice = await getGasPrice(mpp, chain, currentGasPrice);
 
-          // Defensive: handle missing or malformed currentGasPrice
-          const currentAmount =
-            currentGasPrice && typeof currentGasPrice.amount === 'string'
-              ? parseFloat(currentGasPrice.amount)
-              : 0;
-          const newAmount =
-            newGasPrice && typeof newGasPrice.amount === 'string'
-              ? parseFloat(newGasPrice.amount)
-              : 0;
+          const currentAmount = getGasPriceAmount(currentGasPrice);
+          const newAmount = getGasPriceAmount(newGasPrice);
 
-          // If current is zero, always update (avoid division by zero)
-          let shouldUpdate = false;
-          if (currentAmount === 0) {
-            shouldUpdate = true;
-          } else {
-            const diff = Math.abs(newAmount - currentAmount) / currentAmount;
-            shouldUpdate = diff >= DIFF_THRESHOLD_PCT / 100;
-          }
+          const finalGasPrice = updatePriceIfNeeded(
+            newGasPrice,
+            currentGasPrice,
+            newAmount,
+            currentAmount,
+          );
 
-          return [chain, shouldUpdate ? newGasPrice : currentGasPrice];
+          return [chain, finalGasPrice];
         } catch (error) {
           console.error(`Error getting gas price for ${chain}:`, error);
           return [
             chain,
-            gasPrices[chain as keyof typeof gasPrices] || {
-              amount: '0',
-              decimals: 9,
-            },
+            gasPrices[chain as keyof typeof gasPrices] ||
+              createDefaultGasPrice(chain),
           ];
         }
       }),
@@ -129,14 +133,7 @@ async function getGasPrice(
           `Error getting gas price for cosmos chain ${chain}:`,
           error,
         );
-        if (currentGasPrice) {
-          return currentGasPrice;
-        } else {
-          return {
-            amount: 'PLEASE SET A GAS PRICE FOR COSMOS CHAIN',
-            decimals: 1,
-          };
-        }
+        return currentGasPrice || createDefaultGasPrice(chain, 1);
       }
     }
     case ProtocolType.Radix:
@@ -144,12 +141,7 @@ async function getGasPrice(
     case ProtocolType.Starknet:
       // Return the gas price from the config if it exists, otherwise return some default
       // TODO get a reasonable value
-      return (
-        currentGasPrice ?? {
-          amount: `PLEASE SET A GAS PRICE FOR ${chain.toUpperCase()}`,
-          decimals: 9,
-        }
-      );
+      return currentGasPrice || createDefaultGasPrice(chain);
     default:
       throw new Error(`Unsupported protocol type: ${protocolType}`);
   }
