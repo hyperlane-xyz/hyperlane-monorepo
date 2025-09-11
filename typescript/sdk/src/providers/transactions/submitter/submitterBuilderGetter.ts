@@ -14,6 +14,7 @@ import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
 import { EV5TimelockSubmitter } from './ethersV5/EV5TimelockSubmitter.js';
+import { EV5TxSubmitterInterface } from './ethersV5/EV5TxSubmitterInterface.js';
 import { SubmitterMetadata } from './types.js';
 
 export type SubmitterBuilderSettings = {
@@ -126,7 +127,7 @@ const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
     return EV5AccessManagerTxSubmitter.create(
       metadata,
       multiProvider,
-      proposerSubmitter,
+      proposerSubmitter as EV5TxSubmitterInterface,
     );
   },
 };

@@ -12,10 +12,10 @@ import {
 } from '../../../../consts/testChains.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
-import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5AccessManagerTxSubmitter } from './EV5AccessManagerTxSubmitter.js';
+import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
 import { AccessManagerSubmitterConfig } from './types.js';
 
 chai.use(chaiAsPromised);
@@ -40,9 +40,14 @@ const mockAccessManager = {
 };
 
 // Mock proposer submitter
-class MockProposerSubmitter implements TxSubmitterInterface<any> {
+class MockProposerSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType = TxSubmitterType.JSON_RPC;
+  public readonly multiProvider: MultiProvider;
   private submitResults: any[] = [];
+
+  constructor(multiProvider: MultiProvider) {
+    this.multiProvider = multiProvider;
+  }
 
   setSubmitResult(result: any) {
     this.submitResults.push(result);
@@ -62,7 +67,6 @@ describe('EV5AccessManagerTxSubmitter', () => {
   const CHAIN_NAME: TestChainName = TestChainName.test1;
   const ACCESS_MANAGER_ADDRESS: Address =
     '0x1234567890123456789012345678901234567890';
-  const ROLE_NAME = 'DEPLOYER';
 
   let multiProvider: MultiProvider;
   let mockProposerSubmitter: MockProposerSubmitter;
@@ -80,13 +84,12 @@ describe('EV5AccessManagerTxSubmitter', () => {
     multiProvider.getSignerAddress = async () => await mockSigner.getAddress();
     multiProvider.getDomainId = () => 1;
 
-    mockProposerSubmitter = new MockProposerSubmitter();
+    mockProposerSubmitter = new MockProposerSubmitter(multiProvider);
 
     const config: AccessManagerSubmitterConfig = {
       type: TxSubmitterType.ACCESS_MANAGER,
       chain: CHAIN_NAME,
       accessManagerAddress: ACCESS_MANAGER_ADDRESS,
-      roleName: ROLE_NAME,
       proposerSubmitter: {
         type: TxSubmitterType.JSON_RPC,
         chain: CHAIN_NAME,
@@ -178,9 +181,6 @@ describe('EV5AccessManagerTxSubmitter', () => {
         type: TxSubmitterType.ACCESS_MANAGER,
         chain: CHAIN_NAME,
         accessManagerAddress: ACCESS_MANAGER_ADDRESS,
-        roleName: 'OPERATOR',
-        executionDelay: BigInt(3600),
-        salt: '0x1234567890123456789012345678901234567890123456789012345678901234',
         proposerSubmitter: {
           type: TxSubmitterType.JSON_RPC,
           chain: CHAIN_NAME,
@@ -213,7 +213,6 @@ describe('EV5AccessManagerTxSubmitter', () => {
           type: TxSubmitterType.ACCESS_MANAGER,
           chain: CHAIN_NAME,
           accessManagerAddress: ACCESS_MANAGER_ADDRESS,
-          roleName: ROLE_NAME,
           proposerSubmitter: {
             type: TxSubmitterType.JSON_RPC,
             chain: CHAIN_NAME,
@@ -246,7 +245,6 @@ describe('EV5AccessManagerTxSubmitter', () => {
           type: TxSubmitterType.ACCESS_MANAGER,
           chain: CHAIN_NAME,
           accessManagerAddress: ACCESS_MANAGER_ADDRESS,
-          roleName: ROLE_NAME,
           proposerSubmitter: {
             type: TxSubmitterType.JSON_RPC,
             chain: CHAIN_NAME,

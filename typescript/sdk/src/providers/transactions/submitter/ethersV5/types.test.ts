@@ -73,7 +73,6 @@ describe('ethersV5 submitter props schemas', () => {
         type: TxSubmitterType.ACCESS_MANAGER,
         chain: CHAIN_MOCK,
         accessManagerAddress: ADDRESS_MOCK,
-        roleName: 'DEPLOYER',
         proposerSubmitter: mockProposerSubmitter,
       };
       const result = AccessManagerSubmitterConfigSchema.safeParse(validConfig);
@@ -85,9 +84,6 @@ describe('ethersV5 submitter props schemas', () => {
         type: TxSubmitterType.ACCESS_MANAGER,
         chain: CHAIN_MOCK,
         accessManagerAddress: ADDRESS_MOCK,
-        roleName: 'OPERATOR',
-        executionDelay: BigInt(3600),
-        salt: '0x1234567890123456789012345678901234567890123456789012345678901234',
         proposerSubmitter: mockProposerSubmitter,
       };
       const result = AccessManagerSubmitterConfigSchema.safeParse(validConfig);
@@ -99,7 +95,7 @@ describe('ethersV5 submitter props schemas', () => {
         type: TxSubmitterType.ACCESS_MANAGER,
         chain: CHAIN_MOCK,
         accessManagerAddress: ADDRESS_MOCK,
-        // Missing roleName and proposerSubmitter
+        // Missing proposerSubmitter
       };
       const result =
         AccessManagerSubmitterConfigSchema.safeParse(invalidConfig);
@@ -111,7 +107,6 @@ describe('ethersV5 submitter props schemas', () => {
         type: TxSubmitterType.ACCESS_MANAGER,
         chain: CHAIN_MOCK,
         accessManagerAddress: INVALID_ADDRESS,
-        roleName: 'DEPLOYER',
         proposerSubmitter: mockProposerSubmitter,
       };
       const result =
