@@ -4,6 +4,7 @@ import { format } from 'util';
 
 import {
   ChainName,
+  CoinGeckoTokenPriceGetter,
   ProtocolTypedTransaction,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   Token,
@@ -14,12 +15,24 @@ import { Address, ProtocolType, rootLogger, toWei } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getDeployerKey } from '../../src/agents/key-utils.js';
+import { getCoinGeckoApiKey } from '../../src/coingecko/utils.js';
 import { EnvironmentConfig } from '../../src/config/environment.js';
 import { assertChain } from '../../src/utils/utils.js';
 import { getAgentConfig, getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const logger = rootLogger.child({ module: 'fund-hot-wallet' });
+
+/**
+ * For solana deployments at least 2.5 SOL are needed for rent.
+ * As of 11/09/2025 the price is ~$227 meaning that 2.5 SOL are
+ * ~$600.
+ *
+ * Ethereum mainnet deployments can be expensive too depending
+ * on network activity. As the price is ~$4400, $1000 should be enough
+ * to cover mainnet costs
+ */
+const MAX_FUNDING_AMOUNT_IN_USD = 1000;
 
 async function main() {
   const argv = await getArgs()
@@ -102,6 +115,20 @@ async function fundAccount({
 
   const chainMetadata = multiProtocolProvider.getChainMetadata(chainName);
   const protocol = chainMetadata.protocol;
+
+  const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
+    chainMetadata: { [chainName]: chainMetadata },
+    apiKey: await getCoinGeckoApiKey(logger),
+  });
+
+  const tokenPrice = await tokenPriceGetter.getTokenPrice(chainName);
+  const fundingAmountInUsd = parseFloat(amount) * tokenPrice;
+
+  if (fundingAmountInUsd > MAX_FUNDING_AMOUNT_IN_USD) {
+    throw new Error(
+      `Funding amount in USD exceeds max funding amount. Max: ${MAX_FUNDING_AMOUNT_IN_USD}. Got: ${fundingAmountInUsd}`,
+    );
+  }
 
   // Create token instance
   logger.info({ chainName, protocol }, 'Preparing token adapter');
