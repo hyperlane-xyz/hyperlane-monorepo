@@ -37,6 +37,11 @@ export class EvmIcaTxSubmitter
     protected readonly interchainAccountApp: InterchainAccount,
   ) {}
 
+  // TODO: account for destination chain proxy address
+  address(): Address {
+    return this.config.originInterchainAccountRouter;
+  }
+
   static async fromConfig(
     config: EvmIcaTxSubmitterProps,
     multiProvider: MultiProvider,
