@@ -114,7 +114,7 @@ while [ "$#" -gt 0 ]; do
             ;&
         "--help")
             echo "$HELP_MESSAGE" >&2
-            exit 1
+            exit 0
             ;;
         "--chain-name")
             shift
@@ -130,7 +130,7 @@ while [ "$#" -gt 0 ]; do
             ;;
         *)
             echo "Unknown argument $1. Run -h for usage" >&2
-            exit 1;
+            exit 1
             ;;
     esac
     shift
@@ -138,15 +138,15 @@ done
 
 if [ -z "$chain_name" ]; then
     echo "$0: Error: Chain name not provided. Run -h for usage" >&2
-    exit 1;
+    exit 1
 fi
 if [ -z "$domain_id" ]; then
     echo "$0: Error: Domain id not provided. Run -h for usage" >&2
-    exit 1;
+    exit 1
 fi
 if [ -z "$leaf_index_start" ]; then
     echo "$0: Error: Leaf index start not provided. Run -h for usage" >&2
-    exit 1;
+    exit 1
 fi
 
 main "$chain_name" "$domain_id" "$leaf_index_start"

@@ -145,7 +145,7 @@ while [ "$#" -gt 0 ]; do
             ;&
         "--help")
             echo "$HELP_MESSAGE" >&2
-            exit 1
+            exit 0
             ;;
         "--rpc-url")
             shift
@@ -165,7 +165,7 @@ while [ "$#" -gt 0 ]; do
             ;;
         *)
             echo "Unknown argument $1" >&2
-            exit 1;
+            exit 1
             ;;
     esac
     shift
@@ -173,19 +173,19 @@ done
 
 if [ -z "$rpc_url" ]; then
     echo "$0: Error: RPC URL not provided. Run -h for usage" >&2
-    exit 1;
+    exit 1
 fi
 if [ -z "$address" ]; then
     echo "$0: Error: Merkle hook address not provided. Run -h for usage" >&2
-    exit 1;
+    exit 1
 fi
 if [ -z "$chain" ]; then
     echo "$0: Error: Chain name not provided. Run -h for usage" >&2
-    exit 1;
+    exit 1
 fi
 if [ -z "$block_start" ]; then
     echo "$0: Error: Block start not provided. Run -h for usage" >&2
-    exit 1;
+    exit 1
 fi
 
 main "$rpc_url" "$address" "$chain" "$block_start"
