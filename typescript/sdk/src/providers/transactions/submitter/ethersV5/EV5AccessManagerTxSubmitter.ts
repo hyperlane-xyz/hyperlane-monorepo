@@ -128,22 +128,22 @@ export class EV5AccessManagerTxSubmitter implements EV5TxSubmitterInterface {
       }),
     );
 
-    const scheduleCalls = calldata.map((call) => ({
+    const scheduleCalls = calldata.map((call, index) => ({
       to: this.accessManager.address,
       data: this.accessManager.interface.encodeFunctionData('schedule', [
         call.to,
         call.data,
         0,
       ]),
-      annotation: `Schedule ${call.to} with ${call.data} on AccessManager ${this.accessManager.address}`,
+      annotation: `Schedule ${txs[index].annotation ?? `to: ${call.to}, data: ${call.data}`} on AccessManager ${this.accessManager.address}`,
     }));
-    const executeCalls = calldata.map((call) => ({
+    const executeCalls = calldata.map((call, index) => ({
       to: this.accessManager.address,
       data: this.accessManager.interface.encodeFunctionData('execute', [
         call.to,
         call.data,
       ]),
-      annotation: `Execute ${call.to} with ${call.data} on AccessManager ${this.accessManager.address}`,
+      annotation: `Execute ${txs[index].annotation ?? `to: ${call.to}, data: ${call.data}`} on AccessManager ${this.accessManager.address}`,
     }));
 
     const proposerCalls = [
