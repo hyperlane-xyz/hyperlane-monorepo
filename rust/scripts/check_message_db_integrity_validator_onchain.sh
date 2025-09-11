@@ -53,7 +53,7 @@ fetch_validator_checkpoint() {
     leaf_index=$1
     # Fetch from checkpoint endpoint
     checkpoint_url="$validator_url/checkpoint_${leaf_index}_with_id.json"
-    curl -s "$checkpoint_url"
+    curl -sS --fail --max-time 20 "$checkpoint_url"
 }
 
 main() {
