@@ -58,7 +58,7 @@ main() {
         checkpoint_root=$(extract_checkpoint_merkle_root "$checkpoint_response")
 
         # Check if checkpoint request was successful
-        if [ "$checkpoint_root" != null ]; then
+        if [[ -n "$checkpoint_root" && "$checkpoint_root" != "null" ]]; then
             checkpoint_root=$(extract_checkpoint_merkle_root "$checkpoint_response")
             echo "📋 Extracted checkpoint root: $checkpoint_root"
 

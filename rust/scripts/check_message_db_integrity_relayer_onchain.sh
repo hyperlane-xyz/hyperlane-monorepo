@@ -77,10 +77,14 @@ main() {
     while [ "$mismatch_found" = false ]; do
         [ "$to_block" -le 0 ] && break
         to_block=$from_block
-        from_block=$(( $to_block - $batch_size ))
+        from_block=$((to_block - batch_size))
+        from_block=$((to_block - batch_size))
+        if [ "$from_block" -lt 0 ]; then
+            from_block=0
+        fi
 
         echo "Fetching logs $from_block .. $to_block"
-        events=$(fetch_merkle_tree_events $rpc_url $address $from_block $to_block | jq .result)
+        events=$(fetch_merkle_tree_events "$rpc_url" "$address" "$from_block" "$to_block" | jq .result)
 
         # echo "$events"
         event_count=$(echo $events | jq -r length)
