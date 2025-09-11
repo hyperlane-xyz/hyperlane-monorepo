@@ -88,11 +88,11 @@ main() {
             continue
         fi
 
-        for i in $(seq 0 $event_count); do
-            event=$(echo $events | jq -r ".[$i]")
+        for ((i=0; i<event_count; i++)); do
+            event=$(echo "$events" | jq -r ".[$i]")
             [ "$event" = "null" ] && continue
-            event_sig=$(echo $event | jq -r ".topics[0]")
-            if [ $event_sig != $event_signature ]; then
+            event_sig=$(echo "$event" | jq -r ".topics[0]")
+            if [ "$event_sig" != "$event_signature" ]; then
                 continue
             fi
 

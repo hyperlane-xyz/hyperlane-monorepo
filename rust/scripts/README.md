@@ -14,7 +14,7 @@ Example usage:
     --rpc-url 'https://eth.llamarpc.com' \
     --merkle-hook-address '0x48e6c30B97748d1e2e03bf3e9FbE3890ca5f8CCA' \
     --chain-name 'ethereum' \
-    --block-start 12345
+    --start-block 12345
 ```
 
 ### `check_message_db_integrity_relayer_onchain.sh`
@@ -29,7 +29,7 @@ Example usage:
     --rpc-url 'https://eth.llamarpc.com' \
     --merkle-hook-address '0x48e6c30B97748d1e2e03bf3e9FbE3890ca5f8CCA' \
     --domain-id 1 \
-    --block-start 12345
+    --start-block 12345
 ```
 
 ### `check_message_db_integrity_relayer_validator.sh`

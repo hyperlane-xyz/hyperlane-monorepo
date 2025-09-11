@@ -85,16 +85,16 @@ main() {
         events=$(fetch_merkle_tree_events $rpc_url $address $from_block $to_block | jq .result)
 
         # echo "$events"
-        event_count=$(echo $events | jq -r length)
+        event_count=$(echo "$events" | jq -r length)
         if [ $event_count -eq 0 ]; then
             continue
         fi
 
-        for i in $(seq 0 $event_count); do
-            event=$(echo $events | jq -r ".[$i]")
+        for ((i=0; i<event_count; i++)); do
+            event=$(echo "$events" | jq -r ".[$i]")
             [ "$event" = "null" ] && continue
-            event_sig=$(echo $event | jq -r ".topics[0]")
-            if [ $event_sig != $event_signature ]; then
+            event_sig=$(echo "$event" | jq -r ".topics[0]")
+            if [ "$event_sig" != "$event_signature" ]; then
                 continue
             fi
 
