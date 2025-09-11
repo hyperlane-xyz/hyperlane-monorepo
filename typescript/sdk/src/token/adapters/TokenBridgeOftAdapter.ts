@@ -115,14 +115,14 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
 
 
   /**
-   * Router-to-router: call router.rebalanceOft() for OFT tokens.
-   * This avoids approval issues since the router already holds the tokens.
+   * Router-to-router: call router.rebalance() for OFT tokens.
+   * This follows the same pattern as CCTP rebalancer.
    * Use LayerZero protocol fees from the quotes.
    */
   override async populateRebalanceTx(
     domain: number,
     amount: string | number | bigint,
-    _bridge: string,
+    bridge: string,
     quotes: any[],
   ): Promise<any> {
     // Use the protocol fee from quotes (first quote is the protocol fee)
@@ -131,11 +131,12 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
       nativeValue = BigInt(quotes[0].amount.toString());
     }
 
-    // Call the router's rebalanceOft function (no bridge parameter needed)
-    // rebalanceOft only takes domain and amount, uses router itself as bridge
-    const tx = await this.tokenBridgeOftContract.populateTransaction.rebalanceOft(
+    // Call the standard rebalance function (same as CCTP)
+    // This requires the user to be added as a rebalancer
+    const tx = await this.collateralContract.populateTransaction.rebalance(
       domain,
       amount,
+      bridge, // Use the bridge address (usually the router itself for OFT)
       {
         value: nativeValue, // Include LayerZero protocol fee
         gasLimit: 500000,
