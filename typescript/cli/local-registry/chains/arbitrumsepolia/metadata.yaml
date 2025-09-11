@@ -1,0 +1,19 @@
+chainId: 421614
+domainId: 421614
+name: arbitrumsepolia
+protocol: ethereum
+displayName: Arbitrum Sepolia
+nativeToken:
+  name: Ether
+  symbol: ETH
+  decimals: 18
+rpcUrls:
+  - http: https://arb-sepolia.g.alchemy.com/v2/lC2HDPB2Vs7-p-UPkgKD-VqFulU5elyk
+blockExplorers:
+  - name: Arbiscan
+    url: https://sepolia.arbiscan.io
+    apiUrl: https://api-sepolia.arbiscan.io/api
+blocks:
+  confirmations: 1
+  reorgPeriod: 1
+  estimateBlockTime: 2
