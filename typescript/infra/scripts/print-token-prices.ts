@@ -9,8 +9,10 @@ import { getRegistry as getMainnet3Registry } from '../config/environments/mainn
 import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
 import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
 import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
+import { DeployEnvironment } from '../src/config/environment.js';
+import { writeJsonAtPath } from '../src/utils/utils.js';
 
-import { getArgs } from './agent-utils.js';
+import { getArgs, withWrite } from './agent-utils.js';
 
 const CURRENCY = 'usd';
 
@@ -20,8 +22,12 @@ const DEFAULT_PRICE = {
   test: '100',
 };
 
+const tokenPricesFilePath = (environment: DeployEnvironment) => {
+  return `config/environments/${environment}/tokenPrices.json`;
+};
+
 async function main() {
-  const { environment } = await getArgs().argv;
+  const { environment, write } = await withWrite(getArgs()).argv;
 
   const { registry, supportedChainNames } =
     environment === 'mainnet3'
@@ -81,7 +87,14 @@ async function main() {
     return price.toString();
   });
 
-  console.log(JSON.stringify(prices, null, 2));
+  if (write) {
+    const outFile = tokenPricesFilePath(environment);
+    console.log(`Writing token prices to ${outFile}`);
+    writeJsonAtPath(outFile, prices);
+  } else {
+    console.log(JSON.stringify(prices, null, 2));
+  }
+
   process.exit(0);
 }
 

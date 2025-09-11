@@ -202,11 +202,6 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
   // By default, min cost is 20 cents
   let minUsdCost = 0.2;
 
-  // For Ethereum local, min cost is 1.5 USD
-  if (local === 'ethereum') {
-    minUsdCost = Math.max(minUsdCost, 1.5);
-  }
-
   // For all SVM chains, min cost is 0.50 USD to cover rent needs
   if (getChain(remote).protocol === ProtocolType.Sealevel) {
     minUsdCost = Math.max(minUsdCost, 0.5);

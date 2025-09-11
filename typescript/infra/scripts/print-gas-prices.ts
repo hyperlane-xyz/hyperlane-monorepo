@@ -17,11 +17,17 @@ import { supportedChainNames as mainnet3SupportedChainNames } from '../config/en
 import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
 import testnet4GasPrices from '../config/environments/testnet4/gasPrices.json' with { type: 'json' };
 import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
+import { DeployEnvironment } from '../src/config/environment.js';
+import { writeJsonAtPath } from '../src/utils/utils.js';
 
-import { getArgs } from './agent-utils.js';
+import { getArgs, withWrite } from './agent-utils.js';
+
+const gasPricesFilePath = (environment: DeployEnvironment) => {
+  return `config/environments/${environment}/gasPrices.json`;
+};
 
 async function main() {
-  const { environment } = await getArgs().argv;
+  const { environment, write } = await withWrite(getArgs()).argv;
   const { registry, supportedChainNames, gasPrices } =
     environment === 'mainnet3'
       ? {
@@ -64,7 +70,14 @@ async function main() {
     ),
   );
 
-  console.log(JSON.stringify(prices, null, 2));
+  if (write) {
+    const outFile = gasPricesFilePath(environment);
+    console.log(`Writing gas prices to ${outFile}`);
+    writeJsonAtPath(outFile, prices);
+  } else {
+    console.log(JSON.stringify(prices, null, 2));
+  }
+
   process.exit(0);
 }
 
