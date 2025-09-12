@@ -9,7 +9,7 @@ import {
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import { squadsConfigs } from '../../src/config/squads.js';
+import { getSquadsKeys, squadsConfigs } from '../../src/config/squads.js';
 import { getSquadProposal } from '../../src/utils/squads.js';
 import { withChain } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -85,7 +85,11 @@ async function main() {
       chalk.white(`  Multisig PDA: ${proposal.multisig.toBase58()}`),
     );
 
+    // Coerce all numeric fields to consistent types for safe comparison
+    const threshold = Number(multisig.threshold);
     const staleTransactionIndex = Number(multisig.staleTransactionIndex);
+    const currentTransactionIndex = Number(multisig.transactionIndex);
+    const timeLock = Number(multisig.timeLock);
 
     // Display proposal status
     rootLogger.info(chalk.green.bold('\n📊 Status Information:'));
@@ -111,11 +115,10 @@ async function main() {
     rootLogger.info(
       chalk.white(`  Cancellations: ${proposal.cancelled.length}`),
     );
-    rootLogger.info(chalk.white(`  Threshold: ${multisig.threshold}`));
+    rootLogger.info(chalk.white(`  Threshold: ${threshold}`));
 
     const status = proposal.status.__kind;
     const approvals = proposal.approved.length;
-    const threshold = multisig.threshold;
 
     if (status === 'Active' && approvals >= threshold) {
       rootLogger.info(
@@ -164,39 +167,30 @@ async function main() {
     // Display transaction details
     rootLogger.info(chalk.green.bold('\n💼 Transaction Details:'));
     rootLogger.info(
-      chalk.white(`  Transaction Index: ${proposal.transactionIndex}`),
+      chalk.white(`  Transaction Index: ${Number(proposal.transactionIndex)}`),
     );
-    rootLogger.info(chalk.white(`  Bump: ${proposal.bump}`));
+    rootLogger.info(chalk.white(`  Bump: ${Number(proposal.bump)}`));
 
     // Display vault information
+    const { vault } = getSquadsKeys(chain as any);
     const vaultBalance = await mpp
       .getSolanaWeb3Provider(chain as any)
-      .getBalance(
-        new (await import('@solana/web3.js')).PublicKey(
-          squadsConfigs[chain as keyof typeof squadsConfigs].vault,
-        ),
-      );
+      .getBalance(vault);
     const balanceFormatted = (vaultBalance / 1e9).toFixed(5);
     rootLogger.info(chalk.green.bold('\n💰 Vault Information:'));
-    rootLogger.info(
-      chalk.white(
-        `  Vault Address: ${squadsConfigs[chain as keyof typeof squadsConfigs].vault}`,
-      ),
-    );
+    rootLogger.info(chalk.white(`  Vault Address: ${vault.toBase58()}`));
     rootLogger.info(chalk.white(`  Balance: ${balanceFormatted} SOL`));
 
     // Display multisig information
     rootLogger.info(chalk.green.bold('\n🏛️  Multisig Information:'));
-    rootLogger.info(chalk.white(`  Threshold: ${multisig.threshold}`));
+    rootLogger.info(chalk.white(`  Threshold: ${threshold}`));
     rootLogger.info(chalk.white(`  Members: ${multisig.members.length}`));
     rootLogger.info(
-      chalk.white(`  Current Transaction Index: ${multisig.transactionIndex}`),
+      chalk.white(`  Current Transaction Index: ${currentTransactionIndex}`),
     );
-    rootLogger.info(chalk.white(`  Time Lock: ${multisig.timeLock}`));
+    rootLogger.info(chalk.white(`  Time Lock: ${timeLock}`));
     rootLogger.info(
-      chalk.white(
-        `  Stale Transaction Index: ${multisig.staleTransactionIndex}`,
-      ),
+      chalk.white(`  Stale Transaction Index: ${staleTransactionIndex}`),
     );
     rootLogger.info(
       chalk.white(`  Create Key: ${multisig.createKey.toBase58()}`),
@@ -222,11 +216,11 @@ async function main() {
           stringifyObject({
             createKey: multisig.createKey.toBase58(),
             configAuthority: multisig.configAuthority.toBase58(),
-            threshold: multisig.threshold,
-            timeLock: multisig.timeLock,
-            transactionIndex: multisig.transactionIndex,
-            staleTransactionIndex: multisig.staleTransactionIndex,
-            rentCollector: multisig.rentCollector,
+            threshold: threshold,
+            timeLock: timeLock,
+            transactionIndex: currentTransactionIndex,
+            staleTransactionIndex: staleTransactionIndex,
+            rentCollector: multisig.rentCollector?.toBase58() || 'null',
             bump: multisig.bump,
             members: multisig.members.map((m) => ({
               key: m.key.toBase58(),
