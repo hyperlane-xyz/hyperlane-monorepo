@@ -3,6 +3,7 @@ import { Logger, pino } from 'pino';
 
 import {
   raceWithContext,
+  retryAsync,
   rootLogger,
   runWithTimeout,
   sleep,
@@ -54,43 +55,13 @@ const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
-interface ErrorWithStopRetry extends Error {
-  stopRetry?: boolean;
-}
+class BlockchainError extends Error {
+  public readonly isRecoverable = false;
 
-/**
- * Retries an async function if it raises an exception, using exponential backoff.
- * Stops retrying if the error has stopRetry flag set to true.
- * @param runner callback to run
- * @param attempts max number of attempts
- * @param baseRetryMs base delay between attempts
- * @returns runner return value
- */
-async function retryAsyncWithStopFlag<T>(
-  runner: () => T,
-  attempts = 5,
-  baseRetryMs = 50,
-) {
-  let saveError: ErrorWithStopRetry | undefined;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      const result = await runner();
-      return result;
-    } catch (error) {
-      saveError = error as ErrorWithStopRetry;
-
-      // Stop retrying if the error has the stopRetry flag set
-      if (saveError.stopRetry) {
-        throw saveError;
-      }
-
-      // Don't sleep on the last attempt
-      if (i < attempts - 1) {
-        await sleep(baseRetryMs * 2 ** i);
-      }
-    }
+  constructor(message: string, options?: { cause?: Error }) {
+    super(message, options);
+    this.name = 'BlockchainError';
   }
-  throw saveError || new Error('Unknown error in retryAsyncWithStopFlag');
 }
 
 export class HyperlaneSmartProvider
@@ -241,7 +212,7 @@ export class HyperlaneSmartProvider
     this.requestCount += 1;
     const reqId = this.requestCount;
 
-    return retryAsyncWithStopFlag(
+    return retryAsync(
       () => this.performWithFallback(method, params, supportedProviders, reqId),
       this.options?.maxRetries || DEFAULT_MAX_RETRIES,
       this.options?.baseRetryDelayMs || DEFAULT_BASE_RETRY_DELAY_MS,
@@ -501,11 +472,6 @@ export class HyperlaneSmartProvider
       RPC_BLOCKCHAIN_ERRORS.includes(e.code),
     );
 
-    // Check if any error is a CALL_EXCEPTION - these are permanent failures that shouldn't be retried
-    const callExceptionError = errors.find(
-      (e) => e.code === EthersError.CALL_EXCEPTION,
-    );
-
     if (rpcServerError) {
       throw Error(
         rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
@@ -517,20 +483,11 @@ export class HyperlaneSmartProvider
         cause: timedOutError,
       });
     } else if (rpcBlockchainError) {
-      const error = Error(
+      // All blockchain errors are non-retryable
+      throw new BlockchainError(
         rpcBlockchainError.reason ?? rpcBlockchainError.code,
-        {
-          cause: rpcBlockchainError,
-        },
-      ) as ErrorWithStopRetry;
-
-      // Mark CALL_EXCEPTION errors as non-retryable
-      if (callExceptionError) {
-        error.stopRetry = true;
-        this.logger.debug('Marking CALL_EXCEPTION error as non-retryable');
-      }
-
-      throw error;
+        { cause: rpcBlockchainError },
+      );
     } else {
       this.logger.error(
         'Unhandled error case in combined provider error handler',
