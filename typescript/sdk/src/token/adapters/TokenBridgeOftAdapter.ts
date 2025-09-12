@@ -6,12 +6,17 @@ import { TokenMetadata } from '../types.js';
 import { EvmHypCollateralAdapter, EvmTokenAdapter } from './EvmTokenAdapter.js';
 
 /**
- * Custom adapter for TokenBridgeOft contracts that bridges OFT tokens via LayerZero.
- * This adapter queries the balance of the underlying OFT token held by the TokenBridgeOft contract.
- * Extends EvmHypCollateralAdapter since it behaves like collateral (holds underlying tokens).
+ * Adapter for OFT token bridge integration with Hyperlane.
+ * 
+ * This adapter works with TokenBridgeOft which:
+ * - Extends HypERC20Collateral to hold OFT tokens as collateral
+ * - Uses LayerZero for all cross-chain transfers (user and rebalancing)
+ * - Acts as its own bridge for rebalancing (following CCTP pattern)
+ * 
+ * The rebalancer uses the standard MovableCollateralRouter.rebalance() function,
+ * passing the TokenBridgeOft address as the bridge (router acts as its own bridge).
  */
 export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
-  private tokenBridgeOftContract: ethers.Contract;
   
   constructor(
     public readonly chainName: ChainName,
@@ -20,26 +25,14 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
     public readonly oftTokenAddress: Address,
   ) {
     super(chainName, multiProvider, addresses);
-    
-    // Create a contract instance with the rebalanceOft function
-    const tokenBridgeOftABI = [
-      ...this.collateralContract.interface.fragments,
-      'function rebalanceOft(uint32 domain, uint256 amount) payable',
-    ];
-    
-    this.tokenBridgeOftContract = new ethers.Contract(
-      addresses.token,
-      tokenBridgeOftABI,
-      this.getProvider(),
-    );
   }
 
   /**
-   * Gets the balance of the OFT token held by the TokenBridgeOft contract.
-   * This represents the "bridged supply" available for rebalancing.
+   * Gets the balance of the OFT token held by the TokenBridgeOft router.
+   * This represents the collateral available for bridging.
    */
   override async getBridgedSupply(): Promise<bigint | undefined> {
-    // Query the balance of the OFT token held by the TokenBridgeOft contract
+    // Query the balance of the OFT token held by the router
     const oftTokenContract = new ethers.Contract(
       this.oftTokenAddress,
       ['function balanceOf(address owner) view returns (uint256)'],
@@ -66,34 +59,46 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
   }
 
   /**
-   * Override to bypass rebalancer permission check since we use native OFT bridging
+   * Check if an address is an allowed rebalancer on the router
    */
-  override async isRebalancer(_address: Address): Promise<boolean> {
-    // Since we use native OFT send() directly, we don't need rebalancer permissions
-    return true;
+  override async isRebalancer(address: Address): Promise<boolean> {
+    // Use the standard MovableCollateralRouter allowedRebalancers check
+    try {
+      const allowedRebalancers = await this.collateralContract.allowedRebalancers();
+      return allowedRebalancers.map((r: string) => r.toLowerCase()).includes(address.toLowerCase());
+    } catch {
+      return false;
+    }
   }
 
   /**
-   * Override to allow any bridge since we use native OFT bridging
+   * Check if a bridge is allowed for a domain.
+   * For OFT, the router itself acts as the bridge (following CCTP pattern).
    */
-  override async isBridgeAllowed(_domain: number, _bridge: Address): Promise<boolean> {
-    // Since we use native OFT send() directly, any bridge is allowed
-    return true;
+  override async isBridgeAllowed(domain: number, bridge: Address): Promise<boolean> {
+    // Use the standard MovableCollateralRouter allowedBridges check
+    try {
+      const allowedBridges = await this.collateralContract.allowedBridges(domain);
+      return allowedBridges.map((b: string) => b.toLowerCase()).includes(bridge.toLowerCase());
+    } catch {
+      return false;
+    }
   }
 
   /**
-   * Override to get quotes from the TokenBridgeOft router (Hyperlane protocol fees)
+   * Get quotes for rebalancing.
+   * Since TokenBridgeOft acts as its own bridge, we query the router directly.
    */
   override async getRebalanceQuotes(
-    _bridge: string,
+    bridge: string,
     domain: number,
-    _recipient: string,
+    recipient: string,
     amount: string | number | bigint,
     _isWarp: boolean,
   ): Promise<any[]> {
-    // Use the TokenBridgeOft quoteTransferRemote function to get Hyperlane protocol fees
+    // Query the router's quoteTransferRemote for LayerZero fees
     const routerContract = new ethers.Contract(
-      this.addresses.token, // This is the TokenBridgeOft router address
+      this.addresses.token,
       [
         'function quoteTransferRemote(uint32 destination, bytes32 recipient, uint256 amount) view returns (tuple(address token, uint256 amount)[])',
       ],
@@ -101,49 +106,21 @@ export class TokenBridgeOftAdapter extends EvmHypCollateralAdapter {
     );
 
     try {
-      const recipientBytes32 = ethers.utils.hexZeroPad(_recipient, 32);
-      const quotes = await routerContract.quoteTransferRemote(domain, recipientBytes32, amount);
-      
-      // Convert quotes to expected format - quotes[0] is the protocol fee quote
-      return quotes.map((quote: any) => ({ amount: BigInt(quote.amount.toString()) }));
+      const recipientBytes32 = ethers.utils.hexZeroPad(recipient, 32);
+      const quotes = await routerContract.quoteTransferRemote(
+        domain,
+        recipientBytes32,
+        amount.toString(),
+      );
+      return quotes;
     } catch (error) {
-      // Failed to get TokenBridgeOft quote, using default
-      // Return a default quote to avoid blocking
-      return [{ amount: 100000000000000000n }]; // 0.1 ETH default
+      console.warn('Failed to get router quotes:', error);
+      // Return default quote if query fails
+      return [
+        { token: ethers.constants.AddressZero, amount: ethers.utils.parseEther('0.01') },
+        { token: this.oftTokenAddress, amount: amount },
+      ];
     }
   }
-
-
-  /**
-   * Router-to-router: call router.rebalance() for OFT tokens.
-   * This follows the same pattern as CCTP rebalancer.
-   * Use LayerZero protocol fees from the quotes.
-   */
-  override async populateRebalanceTx(
-    domain: number,
-    amount: string | number | bigint,
-    bridge: string,
-    quotes: any[],
-  ): Promise<any> {
-    // Use the protocol fee from quotes (first quote is the protocol fee)
-    let nativeValue = 0n;
-    if (quotes && quotes.length > 0 && quotes[0].amount) {
-      nativeValue = BigInt(quotes[0].amount.toString());
-    }
-
-    // Call the standard rebalance function (same as CCTP)
-    // This requires the user to be added as a rebalancer
-    const tx = await this.collateralContract.populateTransaction.rebalance(
-      domain,
-      amount,
-      bridge, // Use the bridge address (usually the router itself for OFT)
-      {
-        value: nativeValue, // Include LayerZero protocol fee
-        gasLimit: 500000,
-      },
-    );
-    return tx;
-  }
-
 
 }
