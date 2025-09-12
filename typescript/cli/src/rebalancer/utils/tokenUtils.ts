@@ -3,6 +3,7 @@ import { Token, TokenStandard } from '@hyperlane-xyz/sdk';
 const REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS = new Set<TokenStandard>([
   TokenStandard.EvmHypCollateral,
   TokenStandard.EvmHypNative,
+  TokenStandard.TokenBridgeOft,
 ]);
 
 /**
