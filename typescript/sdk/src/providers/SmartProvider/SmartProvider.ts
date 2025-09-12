@@ -324,10 +324,10 @@ export class HyperlaneSmartProvider
           providerResultErrors.push(result.error);
 
           // If this is a CALL_EXCEPTION, stop trying additional providers as it's a permanent failure
-          if ((result.error as any)?.code === EthersError.CALL_EXCEPTION) {
+          if (RPC_BLOCKCHAIN_ERRORS.includes((result.error as any)?.code)) {
             this.logger.debug(
               { ...providerMetadata },
-              'CALL_EXCEPTION detected - stopping provider fallback as this is a permanent failure',
+              `${(result.error as any)?.code} detected - stopping provider fallback as this is a permanent failure`,
             );
             break;
           }
@@ -340,49 +340,46 @@ export class HyperlaneSmartProvider
             )}`,
           );
         }
-
-        // All providers already triggered, wait for one to complete or all to fail/timeout
-      } else if (providerResultPromises.length > 0) {
-        const timeoutPromise = timeoutResult(
-          this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
-          20,
-        );
-        const resultPromise = this.waitForProviderSuccess(
-          providerResultPromises,
-        );
-        const result = await Promise.race([resultPromise, timeoutPromise]);
-
-        if (result.status === ProviderStatus.Success) {
-          return result.value;
-        } else if (result.status === ProviderStatus.Timeout) {
-          this.throwCombinedProviderErrors(
-            [result, ...providerResultErrors],
-            `All providers timed out on chain ${this._network.name} for method ${method}`,
-          );
-        } else if (result.status === ProviderStatus.Error) {
-          this.throwCombinedProviderErrors(
-            [result.error, ...providerResultErrors],
-            `All providers failed on chain ${
-              this._network.name
-            } for method ${method} and params ${JSON.stringify(
-              params,
-              null,
-              2,
-            )}`,
-          );
-        } else {
-          throw new Error('Unexpected result from provider');
-        }
-
-        // All providers have already failed, all hope is lost
       } else {
+        break;
+      }
+    }
+
+    // All providers already triggered, wait for one to complete or all to fail/timeout
+    if (providerResultPromises.length > 0) {
+      const timeoutPromise = timeoutResult(
+        this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
+        20,
+      );
+      const resultPromise = this.waitForProviderSuccess(providerResultPromises);
+      const result = await Promise.race([resultPromise, timeoutPromise]);
+
+      if (result.status === ProviderStatus.Success) {
+        return result.value;
+      } else if (result.status === ProviderStatus.Timeout) {
         this.throwCombinedProviderErrors(
-          providerResultErrors,
+          [result, ...providerResultErrors],
+          `All providers timed out on chain ${this._network.name} for method ${method}`,
+        );
+      } else if (result.status === ProviderStatus.Error) {
+        this.throwCombinedProviderErrors(
+          [result.error, ...providerResultErrors],
           `All providers failed on chain ${
             this._network.name
           } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
         );
+      } else {
+        throw new Error('Unexpected result from provider');
       }
+
+      // All providers have already failed, all hope is lost
+    } else {
+      this.throwCombinedProviderErrors(
+        providerResultErrors,
+        `All providers failed on chain ${
+          this._network.name
+        } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+      );
     }
   }
 
