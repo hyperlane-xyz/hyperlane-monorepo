@@ -45,11 +45,12 @@ impl StarknetValidatorAnnounce {
     /// Create a reference to a ValidatorAnnounce at a specific Starknet address on some
     /// chain
     pub async fn new(
+        provider: StarknetProvider,
         conn: &ConnectionConf,
         locator: &ContractLocator<'_>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let account = build_single_owner_account(conn.urls.clone(), signer).await?;
+        let account = build_single_owner_account(signer, provider.rpc_client()).await?;
 
         let va_address: Felt = HyH256(locator.address).into();
 
@@ -57,7 +58,7 @@ impl StarknetValidatorAnnounce {
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider,
             conn: conn.clone(),
         })
     }
