@@ -362,14 +362,14 @@ export class HyperlaneSmartProvider
       } else if (result.status === ProviderStatus.Timeout) {
         const CombinedError = this.getCombinedProviderError(
           [result, ...providerResultErrors],
-          `All providers timed out on chain ${this._network.name} for method ${method}`,
+          `All providers timed out on chain ${this.network.name} for method ${method}`,
         );
         throw new CombinedError();
       } else if (result.status === ProviderStatus.Error) {
         const CombinedError = this.getCombinedProviderError(
           [result.error, ...providerResultErrors],
           `All providers failed on chain ${
-            this._network.name
+            this.network.name
           } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
         );
         throw new CombinedError();
@@ -382,7 +382,7 @@ export class HyperlaneSmartProvider
       const CombinedError = this.getCombinedProviderError(
         providerResultErrors,
         `All providers failed on chain ${
-          this._network.name
+          this.network.name
         } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
       );
       throw new CombinedError();

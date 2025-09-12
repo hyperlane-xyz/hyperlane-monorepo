@@ -90,9 +90,9 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
 
 class ProviderError extends Error {
   public readonly reason: string;
-  public readonly code: EthersError;
+  public readonly code: string;
 
-  constructor(message: string, code: EthersError) {
+  constructor(message: string, code: string) {
     super(message);
     this.reason = message;
     this.code = code;
