@@ -1,8 +1,42 @@
 import { expect } from 'chai';
-import { errors as EthersError } from 'ethers';
+import { errors as EthersError, providers } from 'ethers';
 
+import { AllProviderMethods, IProviderMethods } from './ProviderMethods.js';
 import { HyperlaneSmartProvider } from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
+
+// Dummy provider for testing
+class DummyProvider extends providers.BaseProvider implements IProviderMethods {
+  public readonly supportedMethods = AllProviderMethods;
+  public called = false;
+
+  constructor(
+    private readonly baseUrl: string,
+    private readonly errorToThrow?: Error,
+    private readonly successValue?: any,
+  ) {
+    super({ name: 'test', chainId: 1 });
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  async perform(method: string, params: any, _reqId?: number): Promise<any> {
+    this.called = true;
+
+    if (this.errorToThrow) {
+      throw this.errorToThrow;
+    }
+
+    return this.successValue ?? { result: 'success', method, params };
+  }
+
+  // Required BaseProvider methods - minimal implementations
+  async detectNetwork() {
+    return { name: 'test', chainId: 1 };
+  }
+}
 
 // Test subclass to expose protected methods for testing
 class TestableSmartProvider extends HyperlaneSmartProvider {
@@ -11,6 +45,15 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
     fallbackMsg: string,
   ): new () => Error {
     return this.getCombinedProviderError(errors, fallbackMsg);
+  }
+
+  public async testPerformWithFallback(
+    method: string,
+    params: { [name: string]: any },
+    providers: any[],
+    reqId: number,
+  ): Promise<any> {
+    return this.performWithFallback(method, params, providers, reqId);
   }
 }
 
@@ -151,6 +194,91 @@ describe('SmartProvider Unit Tests', () => {
         expect(e.message).to.equal('insufficient funds');
         expect(e.cause).to.equal(blockchainError);
       }
+    });
+  });
+
+  describe('performWithFallback', () => {
+    it('returns success from first provider, second provider not called', async () => {
+      const provider1 = new DummyProvider('http://provider1', undefined, {
+        result: 'success1',
+      });
+      const provider2 = new DummyProvider('http://provider2', undefined, {
+        result: 'success2',
+      });
+
+      const result = await provider.testPerformWithFallback(
+        'getBlockNumber',
+        {},
+        [provider1, provider2],
+        1,
+      );
+
+      expect(result).to.deep.equal({ result: 'success1' });
+      expect(provider1.called).to.be.true;
+      expect(provider2.called).to.be.false;
+    });
+
+    it('calls second provider when first throws server error, returns success from second', async () => {
+      const serverError = new Error('connection refused');
+      (serverError as any).code = EthersError.SERVER_ERROR;
+
+      const provider1 = new DummyProvider('http://provider1', serverError);
+      const provider2 = new DummyProvider('http://provider2', undefined, {
+        result: 'success2',
+      });
+
+      const result = await provider.testPerformWithFallback(
+        'getBlockNumber',
+        {},
+        [provider1, provider2],
+        1,
+      );
+
+      expect(result).to.deep.equal({ result: 'success2' });
+      expect(provider1.called).to.be.true;
+      expect(provider2.called).to.be.true;
+    });
+
+    it('calls second provider when first times out, returns success from second', async () => {
+      // Create a SmartProvider with a short stagger delay for testing
+      const testProvider = new TestableSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://localhost:8545' }],
+        [],
+        { fallbackStaggerMs: 50 }, // Short delay for testing
+      );
+
+      // Create a provider that will timeout by taking longer than stagger delay
+      const provider1 = new DummyProvider('http://provider1', undefined, {
+        result: 'success1',
+      });
+      const provider2 = new DummyProvider('http://provider2', undefined, {
+        result: 'success2',
+      });
+
+      // Override the perform method to simulate slow response
+      const originalPerform1 = provider1.perform;
+      provider1.perform = async function (
+        method: string,
+        params: any,
+        reqId?: number,
+      ) {
+        this.called = true;
+        // Wait longer than the test stagger delay to cause timeout
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return originalPerform1.call(this, method, params, reqId);
+      };
+
+      const result = await testProvider.testPerformWithFallback(
+        'getBlockNumber',
+        {},
+        [provider1, provider2],
+        1,
+      );
+
+      expect(result).to.deep.equal({ result: 'success2' });
+      expect(provider1.called).to.be.true;
+      expect(provider2.called).to.be.true;
     });
   });
 });
