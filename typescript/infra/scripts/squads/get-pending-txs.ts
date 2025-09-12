@@ -63,20 +63,6 @@ async function main() {
     'balance',
   ]);
 
-  // Summary statistics
-  const statusCounts = pendingProposals.reduce(
-    (acc, proposal) => {
-      acc[proposal.status] = (acc[proposal.status] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
-
-  rootLogger.info(chalk.blue('\n📊 Summary:'));
-  Object.entries(statusCounts).forEach(([status, count]) => {
-    rootLogger.info(chalk.gray(`  ${status}: ${count}`));
-  });
-
   process.exit(0);
 }
 
