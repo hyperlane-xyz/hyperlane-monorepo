@@ -106,6 +106,8 @@ export enum WarpRouteIds {
 
   SonicSVMMoney = 'MONEY/sonicsvm',
 
+  PulsechainUSDC = 'USDC/pulsechain',
+
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
 
