@@ -14,6 +14,7 @@ class DummyProvider extends providers.BaseProvider implements IProviderMethods {
     private readonly baseUrl: string,
     private readonly errorToThrow?: Error,
     private readonly successValue?: any,
+    private readonly responseDelayMs = 0,
   ) {
     super({ name: 'test', chainId: 1 });
   }
@@ -24,6 +25,10 @@ class DummyProvider extends providers.BaseProvider implements IProviderMethods {
 
   async perform(method: string, params: any, _reqId?: number): Promise<any> {
     this.called = true;
+
+    if (this.responseDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, this.responseDelayMs));
+    }
 
     if (this.errorToThrow) {
       throw this.errorToThrow;
@@ -249,25 +254,15 @@ describe('SmartProvider Unit Tests', () => {
       );
 
       // Create a provider that will timeout by taking longer than stagger delay
-      const provider1 = new DummyProvider('http://provider1', undefined, {
-        result: 'success1',
-      });
+      const provider1 = new DummyProvider(
+        'http://provider1',
+        undefined,
+        { result: 'success1' },
+        100,
+      ); // 100ms delay > 50ms timeout
       const provider2 = new DummyProvider('http://provider2', undefined, {
         result: 'success2',
       });
-
-      // Override the perform method to simulate slow response
-      const originalPerform1 = provider1.perform;
-      provider1.perform = async function (
-        method: string,
-        params: any,
-        reqId?: number,
-      ) {
-        this.called = true;
-        // Wait longer than the test stagger delay to cause timeout
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        return originalPerform1.call(this, method, params, reqId);
-      };
 
       const result = await testProvider.testPerformWithFallback(
         'getBlockNumber',
@@ -279,6 +274,109 @@ describe('SmartProvider Unit Tests', () => {
       expect(result).to.deep.equal({ result: 'success2' });
       expect(provider1.called).to.be.true;
       expect(provider2.called).to.be.true;
+    });
+
+    it('both providers timeout, first provider ultimately returns result (waitForProviderSuccess)', async () => {
+      // Create a SmartProvider with a short stagger delay for testing
+      const testProvider = new TestableSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://localhost:8545' }],
+        [],
+        { fallbackStaggerMs: 50 }, // Short delay for testing
+      );
+
+      // Create two providers that both timeout initially but first eventually succeeds
+      const provider1 = new DummyProvider(
+        'http://provider1',
+        undefined,
+        { result: 'success1' },
+        120,
+      ); // 120ms delay
+      const provider2 = new DummyProvider(
+        'http://provider2',
+        undefined,
+        { result: 'success2' },
+        200,
+      ); // 200ms delay
+
+      const result = await testProvider.testPerformWithFallback(
+        'getBlockNumber',
+        {},
+        [provider1, provider2],
+        1,
+      );
+
+      // First provider should win since it completes first
+      expect(result).to.deep.equal({ result: 'success1' });
+      expect(provider1.called).to.be.true;
+      expect(provider2.called).to.be.true;
+    });
+
+    it('both providers throw errors, combined error is thrown', async () => {
+      const serverError1 = new Error('connection refused 1');
+      (serverError1 as any).code = EthersError.SERVER_ERROR;
+
+      const serverError2 = new Error('connection refused 2');
+      (serverError2 as any).code = EthersError.SERVER_ERROR;
+
+      const provider1 = new DummyProvider('http://provider1', serverError1);
+      const provider2 = new DummyProvider('http://provider2', serverError2);
+
+      try {
+        await provider.testPerformWithFallback(
+          'getBlockNumber',
+          {},
+          [provider1, provider2],
+          1,
+        );
+        expect.fail('Should have thrown an error');
+      } catch (e: any) {
+        expect(e.name).to.equal('Error');
+        expect(e.isRecoverable).to.be.undefined;
+        expect(e.cause).to.equal(serverError1); // First error should be the cause
+        expect(provider1.called).to.be.true;
+        expect(provider2.called).to.be.true;
+      }
+    });
+
+    it('both providers timeout, combined timeout error is thrown', async () => {
+      // Create a SmartProvider with a short stagger delay for testing
+      const testProvider = new TestableSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: 'http://localhost:8545' }],
+        [],
+        { fallbackStaggerMs: 50 }, // Short delay for testing
+      );
+
+      // Create two providers that both take very long to respond
+      const provider1 = new DummyProvider(
+        'http://provider1',
+        undefined,
+        { result: 'success1' },
+        2000,
+      ); // 2s delay
+      const provider2 = new DummyProvider(
+        'http://provider2',
+        undefined,
+        { result: 'success2' },
+        2000,
+      ); // 2s delay
+
+      try {
+        await testProvider.testPerformWithFallback(
+          'getBlockNumber',
+          {},
+          [provider1, provider2],
+          1,
+        );
+        expect.fail('Should have thrown an error');
+      } catch (e: any) {
+        expect(e.name).to.equal('Error');
+        expect(e.isRecoverable).to.be.undefined;
+        expect(e.message).to.include('All providers timed out');
+        expect(provider1.called).to.be.true;
+        expect(provider2.called).to.be.true;
+      }
     });
   });
 });

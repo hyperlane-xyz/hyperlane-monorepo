@@ -492,7 +492,7 @@ export class HyperlaneSmartProvider
     } else if (timedOutError) {
       return class extends Error {
         constructor() {
-          super(getSmartProviderErrorMessage(ProviderStatus.Timeout), {
+          super(fallbackMsg, {
             cause: timedOutError,
           });
         }
