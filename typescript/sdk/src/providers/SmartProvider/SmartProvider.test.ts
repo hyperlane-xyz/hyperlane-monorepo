@@ -6,11 +6,11 @@ import { ProviderStatus } from './types.js';
 
 // Test subclass to expose protected methods for testing
 class TestableSmartProvider extends HyperlaneSmartProvider {
-  public testThrowCombinedProviderErrors(
+  public testGetCombinedProviderError(
     errors: any[],
     fallbackMsg: string,
-  ): void {
-    return this.throwCombinedProviderErrors(errors, fallbackMsg);
+  ): new () => Error {
+    return this.getCombinedProviderError(errors, fallbackMsg);
   }
 }
 
@@ -26,7 +26,7 @@ describe('SmartProvider Unit Tests', () => {
     );
   });
 
-  describe('throwCombinedProviderErrors', () => {
+  describe('getCombinedProviderError', () => {
     const blockchainErrorTestCases = [
       {
         code: EthersError.INSUFFICIENT_FUNDS,
@@ -61,11 +61,11 @@ describe('SmartProvider Unit Tests', () => {
         (error as any).reason = message;
 
         try {
-          provider.testThrowCombinedProviderErrors(
+          const CombinedError = provider.testGetCombinedProviderError(
             [error],
             'Test fallback message',
           );
-          expect.fail('Should have thrown an error');
+          throw new CombinedError();
         } catch (e: any) {
           expect(e.name).to.equal('BlockchainError');
           expect(e.isRecoverable).to.equal(false);
@@ -81,11 +81,11 @@ describe('SmartProvider Unit Tests', () => {
       (error as any).code = EthersError.SERVER_ERROR;
 
       try {
-        provider.testThrowCombinedProviderErrors(
+        const CombinedError = provider.testGetCombinedProviderError(
           [error],
           'Test fallback message',
         );
-        expect.fail('Should have thrown an error');
+        throw new CombinedError();
       } catch (e: any) {
         expect(e.name).to.equal('Error');
         expect(e.isRecoverable).to.be.undefined;
@@ -98,11 +98,11 @@ describe('SmartProvider Unit Tests', () => {
       const error = { status: ProviderStatus.Timeout };
 
       try {
-        provider.testThrowCombinedProviderErrors(
+        const CombinedError = provider.testGetCombinedProviderError(
           [error],
           'Test fallback message',
         );
-        expect.fail('Should have thrown an error');
+        throw new CombinedError();
       } catch (e: any) {
         expect(e.name).to.equal('Error');
         expect(e.isRecoverable).to.be.undefined;
@@ -119,11 +119,11 @@ describe('SmartProvider Unit Tests', () => {
       (blockchainError as any).reason = 'execution reverted';
 
       try {
-        provider.testThrowCombinedProviderErrors(
+        const CombinedError = provider.testGetCombinedProviderError(
           [serverError, blockchainError],
           'Test fallback message',
         );
-        expect.fail('Should have thrown an error');
+        throw new CombinedError();
       } catch (e: any) {
         expect(e.name).to.equal('BlockchainError');
         expect(e.isRecoverable).to.equal(false);
@@ -140,11 +140,11 @@ describe('SmartProvider Unit Tests', () => {
       (blockchainError as any).reason = 'insufficient funds';
 
       try {
-        provider.testThrowCombinedProviderErrors(
+        const CombinedError = provider.testGetCombinedProviderError(
           [timeoutError, blockchainError],
           'Test fallback message',
         );
-        expect.fail('Should have thrown an error');
+        throw new CombinedError();
       } catch (e: any) {
         expect(e.name).to.equal('BlockchainError');
         expect(e.isRecoverable).to.equal(false);

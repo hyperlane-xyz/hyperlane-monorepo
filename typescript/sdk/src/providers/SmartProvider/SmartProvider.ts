@@ -357,29 +357,32 @@ export class HyperlaneSmartProvider
       if (result.status === ProviderStatus.Success) {
         return result.value;
       } else if (result.status === ProviderStatus.Timeout) {
-        this.throwCombinedProviderErrors(
+        const CombinedError = this.getCombinedProviderError(
           [result, ...providerResultErrors],
           `All providers timed out on chain ${this._network.name} for method ${method}`,
         );
+        throw new CombinedError();
       } else if (result.status === ProviderStatus.Error) {
-        this.throwCombinedProviderErrors(
+        const CombinedError = this.getCombinedProviderError(
           [result.error, ...providerResultErrors],
           `All providers failed on chain ${
             this._network.name
           } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
         );
+        throw new CombinedError();
       } else {
         throw new Error('Unexpected result from provider');
       }
 
       // All providers have already failed, all hope is lost
     } else {
-      this.throwCombinedProviderErrors(
+      const CombinedError = this.getCombinedProviderError(
         providerResultErrors,
         `All providers failed on chain ${
           this._network.name
         } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
       );
+      throw new CombinedError();
     }
   }
 
@@ -442,12 +445,18 @@ export class HyperlaneSmartProvider
     };
   }
 
-  protected throwCombinedProviderErrors(
+  protected getCombinedProviderError(
     errors: any[],
     fallbackMsg: string,
-  ): void {
+  ): new () => Error {
     this.logger.debug(fallbackMsg);
-    if (errors.length === 0) throw new Error(fallbackMsg);
+    if (errors.length === 0) {
+      return class extends Error {
+        constructor() {
+          super(fallbackMsg);
+        }
+      };
+    }
 
     const rpcBlockchainError = errors.find((e) =>
       RPC_BLOCKCHAIN_ERRORS.includes(e.code),
@@ -463,25 +472,40 @@ export class HyperlaneSmartProvider
 
     if (rpcBlockchainError) {
       // All blockchain errors are non-retryable and take priority
-      throw new BlockchainError(
-        rpcBlockchainError.reason ?? rpcBlockchainError.code,
-        { cause: rpcBlockchainError },
-      );
+      return class extends BlockchainError {
+        constructor() {
+          super(rpcBlockchainError.reason ?? rpcBlockchainError.code, {
+            cause: rpcBlockchainError,
+          });
+        }
+      };
     } else if (rpcServerError) {
-      throw Error(
-        rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
-          getSmartProviderErrorMessage(rpcServerError.code),
-        { cause: rpcServerError },
-      );
+      return class extends Error {
+        constructor() {
+          super(
+            rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
+              getSmartProviderErrorMessage(rpcServerError.code),
+            { cause: rpcServerError },
+          );
+        }
+      };
     } else if (timedOutError) {
-      throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout), {
-        cause: timedOutError,
-      });
+      return class extends Error {
+        constructor() {
+          super(getSmartProviderErrorMessage(ProviderStatus.Timeout), {
+            cause: timedOutError,
+          });
+        }
+      };
     } else {
       this.logger.error(
         'Unhandled error case in combined provider error handler',
       );
-      throw Error(fallbackMsg);
+      return class extends Error {
+        constructor() {
+          super(fallbackMsg);
+        }
+      };
     }
   }
 }
