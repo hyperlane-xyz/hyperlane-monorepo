@@ -27,7 +27,6 @@ enum ChainSelectionMode {
   WARP_CONFIG,
   WARP_APPLY,
   WARP_REBALANCER,
-  OFT_SETUP,
   STRATEGY,
   CORE_APPLY,
   CORE_DEPLOY,
@@ -52,8 +51,6 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveWarpApplyChains(argv);
       case ChainSelectionMode.WARP_REBALANCER:
         return this.resolveWarpRebalancerChains(argv);
-      case ChainSelectionMode.OFT_SETUP:
-        return this.resolveOftSetupChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
       case ChainSelectionMode.CORE_APPLY:
@@ -133,18 +130,6 @@ export class MultiChainResolver implements ChainResolver {
     assert(chains.length !== 0, 'No chains found in warp route config');
 
     return chains;
-  }
-
-  private async resolveOftSetupChains(
-    argv: Record<string, any>,
-  ): Promise<ChainName[]> {
-    const rc = RebalancerConfig.load(argv.config);
-    const chains = Object.keys((rc as any)?.strategyConfig?.chains || {});
-    assert(
-      chains.length > 0,
-      'No chains found in rebalancer config strategy.chains',
-    );
-    return chains as ChainName[];
   }
 
   private async resolveAgentChains(
@@ -324,10 +309,6 @@ export class MultiChainResolver implements ChainResolver {
 
   static forWarpRebalancer(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_REBALANCER);
-  }
-
-  static forOftSetup(): MultiChainResolver {
-    return new MultiChainResolver(ChainSelectionMode.OFT_SETUP);
   }
 
   static forCoreApply(): MultiChainResolver {

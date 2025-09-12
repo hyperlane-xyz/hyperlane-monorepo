@@ -32,7 +32,6 @@ import {
 } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { RebalancerRunner } from '../rebalancer/runner.js';
-// OFT setup and register functions are now integrated inline
 import { sendTestTransfer } from '../send/transfer.js';
 import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -75,8 +74,6 @@ export const warpCommand: CommandModule = {
       .command(apply)
       .command(check)
       .command(deploy)
-      .command(oftSetup)
-      .command(oftRegister)
       .command(fork)
       .command(init)
       .command(read)
@@ -520,70 +517,6 @@ export const rebalancer: CommandModuleWithWriteContext<{
   },
 };
 
-export const oftSetup: CommandModuleWithWriteContext<{
-  config: string;
-}> = {
-  command: 'oft-setup',
-  describe: 'Setup OFT bridges for a Warp Route: enroll peers and set LayerZero EIDs',
-  builder: {
-    config: {
-      type: 'string',
-      description: 'Path to an OFT rebalancer config (.json or .yaml) with strategy.chains and oft.domains',
-      demandOption: true,
-    },
-  },
-  handler: async ({ context, config }) => {
-    logCommandHeader('Hyperlane Warp OFT Setup');
-    // OFT setup is now handled through standard warp deploy with OFTBridgeAdapter
-    // The OFTBridgeAdapter should be deployed separately and configured via addBridge()
-    logYellow('OFT setup now uses OFTBridgeAdapter - deploy adapter and configure via router.addBridge()');
-    logYellow('Config file should specify the OFTBridgeAdapter address as the bridge');
-    logGreen('✅ OFT peers enrolled and LayerZero EIDs configured');
-    process.exit(0);
-  },
-};
-
-export const oftRegister: CommandModuleWithWriteContext<{
-  config: string;
-}> = {
-  command: 'oft-register',
-  describe: 'Register an OFT Warp Core config into the registry for rebalancer',
-  builder: {
-    config: {
-      type: 'string',
-      description: 'Path to an OFT rebalancer config (.json or .yaml) with strategy.chains',
-      demandOption: true,
-    },
-  },
-  handler: async ({ context, config }) => {
-    logCommandHeader('Hyperlane Warp OFT Register');
-    const cfg = readYamlOrJson(config) as any;
-    // OFT registration now follows standard warp route pattern
-    // For the new architecture, the OFT warp route should be registered with
-    // the OFTBridgeAdapter address specified in the config
-    const registryPath = context.registry;
-    const warpCoreConfig = {
-      symbol: cfg?.warpRouteId?.split('/')[0] || cfg?.symbol || 'OFT',
-      type: 'collateral',
-      chains: Object.fromEntries(
-        Object.entries(cfg?.strategy?.chains || {}).map(([k, v]: any) => [
-          k,
-          { 
-            address: v.bridge, // This should be the TokenBridgeOft router address
-            decimals: cfg?.oft?.decimals || 18,
-            // OFTBridgeAdapter will be configured separately via addBridge()
-          },
-        ]),
-      ),
-    };
-    
-    // Write to registry
-    const registryConfig = { [cfg?.warpRouteId || 'OFT']: warpCoreConfig };
-    await context.registry.updateWarpRoute(registryConfig);
-    logGreen('✅ OFT warp route registered');
-    process.exit(0);
-  },
-};
 
 export const verify: CommandModuleWithWriteContext<SelectWarpRouteBuilder> = {
   command: 'verify',

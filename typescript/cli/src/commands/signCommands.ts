@@ -12,7 +12,6 @@ export const SIGN_COMMANDS = [
   'submit',
   'relayer',
   'rebalancer',
-  'oft-setup',
 ];
 
 export function isSignCommand(argv: any): boolean {
@@ -45,7 +44,6 @@ export enum CommandType {
   WARP_SEND = 'warp:send',
   WARP_APPLY = 'warp:apply',
   WARP_REBALANCER = 'warp:rebalancer',
-  WARP_OFT_SETUP = 'warp:oft-setup',
   SEND_MESSAGE = 'send:message',
   AGENT_KURTOSIS = 'deploy:kurtosis-agents',
   STATUS = 'status:',
