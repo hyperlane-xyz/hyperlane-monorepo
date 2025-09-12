@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 
 # Store the PID of the anvil process we start and the temp directory
 ANVIL_PID=""
@@ -11,6 +12,7 @@ function cleanup() {
   if [[ -n "$ANVIL_PID" ]] && kill -0 "$ANVIL_PID" 2>/dev/null; then
     echo "Stopping anvil (PID: $ANVIL_PID)"
     kill "$ANVIL_PID"
+    wait "$ANVIL_PID" 2>/dev/null || true
   fi
   
   # Clean up the unique temporary directory we created
@@ -24,12 +26,12 @@ function cleanup() {
 
 # Set up trap to handle script interruption/termination
 trap cleanup EXIT
-trap 'echo "Received interrupt signal"; cleanup; exit 130' INT
-trap 'echo "Received termination signal"; cleanup; exit 143' TERM
-trap 'echo "Received quit signal"; cleanup; exit 131' QUIT
+trap 'echo "Received interrupt signal"; exit 130' INT
+trap 'echo "Received termination signal"; exit 143' TERM
+trap 'echo "Received quit signal"; exit 131' QUIT
 
 # Create a unique temporary directory for this anvil instance
-ANVIL_TEMP_DIR=$(mktemp -d -t anvil)
+ANVIL_TEMP_DIR=$(mktemp -d -t anvil.XXXXXX)
 echo "Using temporary directory: $ANVIL_TEMP_DIR"
 
 echo "Starting anvil chain"
