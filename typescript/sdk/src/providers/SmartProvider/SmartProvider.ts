@@ -449,6 +449,10 @@ export class HyperlaneSmartProvider
     this.logger.debug(fallbackMsg);
     if (errors.length === 0) throw new Error(fallbackMsg);
 
+    const rpcBlockchainError = errors.find((e) =>
+      RPC_BLOCKCHAIN_ERRORS.includes(e.code),
+    );
+
     const rpcServerError = errors.find((e) =>
       RPC_SERVER_ERRORS.includes(e.code),
     );
@@ -457,11 +461,13 @@ export class HyperlaneSmartProvider
       (e) => e.status === ProviderStatus.Timeout,
     );
 
-    const rpcBlockchainError = errors.find((e) =>
-      RPC_BLOCKCHAIN_ERRORS.includes(e.code),
-    );
-
-    if (rpcServerError) {
+    if (rpcBlockchainError) {
+      // All blockchain errors are non-retryable and take priority
+      throw new BlockchainError(
+        rpcBlockchainError.reason ?? rpcBlockchainError.code,
+        { cause: rpcBlockchainError },
+      );
+    } else if (rpcServerError) {
       throw Error(
         rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
           getSmartProviderErrorMessage(rpcServerError.code),
@@ -471,12 +477,6 @@ export class HyperlaneSmartProvider
       throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout), {
         cause: timedOutError,
       });
-    } else if (rpcBlockchainError) {
-      // All blockchain errors are non-retryable
-      throw new BlockchainError(
-        rpcBlockchainError.reason ?? rpcBlockchainError.code,
-        { cause: rpcBlockchainError },
-      );
     } else {
       this.logger.error(
         'Unhandled error case in combined provider error handler',

@@ -109,5 +109,48 @@ describe('SmartProvider Unit Tests', () => {
         expect(e.cause).to.equal(error);
       }
     });
+
+    it('prioritizes BlockchainError when mixed with SERVER_ERROR', () => {
+      const serverError = new Error('connection refused');
+      (serverError as any).code = EthersError.SERVER_ERROR;
+
+      const blockchainError = new Error('execution reverted');
+      (blockchainError as any).code = EthersError.CALL_EXCEPTION;
+      (blockchainError as any).reason = 'execution reverted';
+
+      try {
+        provider.testThrowCombinedProviderErrors(
+          [serverError, blockchainError],
+          'Test fallback message',
+        );
+        expect.fail('Should have thrown an error');
+      } catch (e: any) {
+        expect(e.name).to.equal('BlockchainError');
+        expect(e.isRecoverable).to.equal(false);
+        expect(e.message).to.equal('execution reverted');
+        expect(e.cause).to.equal(blockchainError);
+      }
+    });
+
+    it('prioritizes BlockchainError when mixed with TIMEOUT', () => {
+      const timeoutError = { status: ProviderStatus.Timeout };
+
+      const blockchainError = new Error('insufficient funds');
+      (blockchainError as any).code = EthersError.INSUFFICIENT_FUNDS;
+      (blockchainError as any).reason = 'insufficient funds';
+
+      try {
+        provider.testThrowCombinedProviderErrors(
+          [timeoutError, blockchainError],
+          'Test fallback message',
+        );
+        expect.fail('Should have thrown an error');
+      } catch (e: any) {
+        expect(e.name).to.equal('BlockchainError');
+        expect(e.isRecoverable).to.equal(false);
+        expect(e.message).to.equal('insufficient funds');
+        expect(e.cause).to.equal(blockchainError);
+      }
+    });
   });
 });
