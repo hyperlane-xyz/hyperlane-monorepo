@@ -85,9 +85,15 @@ async function main() {
       chalk.white(`  Multisig PDA: ${proposal.multisig.toBase58()}`),
     );
 
+    const staleTransactionIndex = Number(multisig.staleTransactionIndex);
+
     // Display proposal status
     rootLogger.info(chalk.green.bold('\n📊 Status Information:'));
-    rootLogger.info(chalk.white(`  Status: ${proposal.status.__kind}`));
+    rootLogger.info(
+      chalk.white(
+        `  Status: ${transactionIndex < staleTransactionIndex ? 'Stale' : proposal.status.__kind}`,
+      ),
+    );
     if ('timestamp' in proposal.status && proposal.status.timestamp) {
       const timestamp = Number(proposal.status.timestamp);
       const date = new Date(timestamp * 1000);
@@ -118,9 +124,15 @@ async function main() {
         ),
       );
     } else if (status === 'Active') {
-      rootLogger.info(
-        chalk.yellow(`  Status: Pending (${approvals}/${threshold} approvals)`),
-      );
+      if (transactionIndex < staleTransactionIndex) {
+        rootLogger.info(chalk.red(`  Status: Stale`));
+      } else {
+        rootLogger.info(
+          chalk.yellow(
+            `  Status: Pending (${approvals}/${threshold} approvals)`,
+          ),
+        );
+      }
     } else {
       rootLogger.info(chalk.blue(`  Status: ${status}`));
     }
