@@ -128,7 +128,7 @@ hyperlane:
       object_targz: ''
 
   relayerChains:
-    - name: 'alfajores'
+    - name: 'ethereum'
       signer:
         type: # "aws"
 

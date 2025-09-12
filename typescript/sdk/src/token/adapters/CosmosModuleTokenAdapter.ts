@@ -255,13 +255,22 @@ export class CosmNativeHypCollateralAdapter
       );
     }
 
+    const destinationMetadata = this.multiProvider.getChainMetadata(
+      params.destination,
+    );
+    const destinationProtocol = destinationMetadata.protocol;
+
     const msg: MsgRemoteTransferEncodeObject = {
       typeUrl: '/hyperlane.warp.v1.MsgRemoteTransfer',
       value: {
         sender: params.fromAccountOwner,
         recipient: addressToBytes32(
-          convertToProtocolAddress(params.recipient, ProtocolType.Ethereum),
-          ProtocolType.Ethereum,
+          convertToProtocolAddress(
+            params.recipient,
+            destinationMetadata.protocol,
+            destinationMetadata.bech32Prefix,
+          ),
+          destinationProtocol,
         ),
         amount: params.weiAmountOrId.toString(),
         token_id: this.tokenId,

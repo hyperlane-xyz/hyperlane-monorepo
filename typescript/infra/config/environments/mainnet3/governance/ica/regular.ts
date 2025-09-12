@@ -124,4 +124,17 @@ export const regularIcas: ChainMap<Address> = {
   zetachain: '0x4ffB88393797A9c42c837A317C1c28dB83313379',
   zircuit: '0xFC862c01cE846D151a7F45E5d38e778ed330b151',
   zoramainnet: '0x1c4E1d5fDd4F862D219fC7eeF45F4EA1a4fEE2D2',
+
+  // Aug 18, 2025 - Mitosis
+  // ----------------------------------------------------------
+  mitosis: '0x287Df0906671Fb56f6c2FDC0617F82D422796F8D',
+
+  // Sept 3, 2025 - Pulsechain
+  // ----------------------------------------------------------
+  pulsechain: '0x72655e4683E802AeaF7bff4Dd0189293dc16cD62',
+
+  // Sept 8, 2025
+  // ----------------------------------------------------------
+  plasma: '0xd7e64bA7BB6beE321D5E0C42a966FDc97f70a92f',
+  electroneum: '0xd7e64bA7BB6beE321D5E0C42a966FDc97f70a92f',
 } as const;
