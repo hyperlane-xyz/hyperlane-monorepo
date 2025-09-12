@@ -61,8 +61,16 @@ class MockProvider extends providers.BaseProvider implements IProviderMethods {
   }
 }
 
-// Test subclass to expose protected methods for testing
 class TestableSmartProvider extends HyperlaneSmartProvider {
+  constructor(public readonly mockProviders: MockProvider[]) {
+    super(
+      { chainId: 1, name: 'test' },
+      mockProviders.map((p) => ({ http: p.getBaseUrl() })),
+      [],
+      { fallbackStaggerMs: 50 },
+    );
+  }
+
   public testGetCombinedProviderError(
     errors: any[],
     fallbackMsg: string,
@@ -70,13 +78,24 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
     return this.getCombinedProviderError(errors, fallbackMsg);
   }
 
-  public async testPerformWithFallback(
-    method: string,
-    params: { [name: string]: any },
-    providers: any[],
-    reqId: number,
-  ): Promise<any> {
-    return this.performWithFallback(method, params, providers, reqId);
+  public async simplePerform(method: string, reqId: number): Promise<any> {
+    return this.performWithFallback(
+      method,
+      {},
+      this.mockProviders as any,
+      reqId,
+    );
+  }
+}
+
+class ProviderError extends Error {
+  public readonly reason: string;
+  public readonly code: EthersError;
+
+  constructor(message: string, code: EthersError) {
+    super(message);
+    this.reason = message;
+    this.code = code;
   }
 }
 
@@ -84,12 +103,7 @@ describe('SmartProvider', () => {
   let provider: TestableSmartProvider;
 
   beforeEach(() => {
-    // Create a minimal provider for testing
-    provider = new TestableSmartProvider(
-      { chainId: 1, name: 'test' },
-      [{ http: 'http://localhost:8545' }],
-      [],
-    );
+    provider = new TestableSmartProvider([MockProvider.success('success')]);
   });
 
   describe('getCombinedProviderError', () => {
@@ -122,9 +136,7 @@ describe('SmartProvider', () => {
 
     blockchainErrorTestCases.forEach(({ code, message }) => {
       it(`throws BlockchainError with isRecoverable=false for ${code}`, () => {
-        const error = new Error(message);
-        (error as any).code = code;
-        (error as any).reason = message;
+        const error = new ProviderError(message, code);
 
         try {
           const CombinedError = provider.testGetCombinedProviderError(
@@ -143,8 +155,10 @@ describe('SmartProvider', () => {
     });
 
     it('throws regular Error for SERVER_ERROR (not BlockchainError)', () => {
-      const error = new Error('connection refused');
-      (error as any).code = EthersError.SERVER_ERROR;
+      const error = new ProviderError(
+        'connection refused',
+        EthersError.SERVER_ERROR,
+      );
 
       try {
         const CombinedError = provider.testGetCombinedProviderError(
@@ -177,12 +191,14 @@ describe('SmartProvider', () => {
     });
 
     it('prioritizes BlockchainError when mixed with SERVER_ERROR', () => {
-      const serverError = new Error('connection refused');
-      (serverError as any).code = EthersError.SERVER_ERROR;
-
-      const blockchainError = new Error('execution reverted');
-      (blockchainError as any).code = EthersError.CALL_EXCEPTION;
-      (blockchainError as any).reason = 'execution reverted';
+      const serverError = new ProviderError(
+        'connection refused',
+        EthersError.SERVER_ERROR,
+      );
+      const blockchainError = new ProviderError(
+        'execution reverted',
+        EthersError.CALL_EXCEPTION,
+      );
 
       try {
         const CombinedError = provider.testGetCombinedProviderError(
@@ -200,10 +216,10 @@ describe('SmartProvider', () => {
 
     it('prioritizes BlockchainError when mixed with TIMEOUT', () => {
       const timeoutError = { status: ProviderStatus.Timeout };
-
-      const blockchainError = new Error('insufficient funds');
-      (blockchainError as any).code = EthersError.INSUFFICIENT_FUNDS;
-      (blockchainError as any).reason = 'insufficient funds';
+      const blockchainError = new ProviderError(
+        'insufficient funds',
+        EthersError.INSUFFICIENT_FUNDS,
+      );
 
       try {
         const CombinedError = provider.testGetCombinedProviderError(
@@ -224,13 +240,9 @@ describe('SmartProvider', () => {
     it('returns success from first provider, second provider not called', async () => {
       const provider1 = MockProvider.success('success1');
       const provider2 = MockProvider.success('success2');
+      const provider = new TestableSmartProvider([provider1, provider2]);
 
-      const result = await provider.testPerformWithFallback(
-        'getBlockNumber',
-        {},
-        [provider1, provider2],
-        1,
-      );
+      const result = await provider.simplePerform('getBlockNumber', 1);
 
       expect(result).to.deep.equal('success1');
       expect(provider1.called).to.be.true;
@@ -238,18 +250,16 @@ describe('SmartProvider', () => {
     });
 
     it('calls second provider when first throws server error, returns success from second', async () => {
-      const serverError = new Error('connection refused');
-      (serverError as any).code = EthersError.SERVER_ERROR;
+      const serverError = new ProviderError(
+        'connection refused',
+        EthersError.SERVER_ERROR,
+      );
 
       const provider1 = MockProvider.error(serverError);
       const provider2 = MockProvider.success('success2');
+      const provider = new TestableSmartProvider([provider1, provider2]);
 
-      const result = await provider.testPerformWithFallback(
-        'getBlockNumber',
-        {},
-        [provider1, provider2],
-        1,
-      );
+      const result = await provider.simplePerform('getBlockNumber', 1);
 
       expect(result).to.deep.equal('success2');
       expect(provider1.called).to.be.true;
@@ -257,24 +267,11 @@ describe('SmartProvider', () => {
     });
 
     it('calls second provider when first times out, returns success from second', async () => {
-      // Create a SmartProvider with a short stagger delay for testing
-      const testProvider = new TestableSmartProvider(
-        { chainId: 1, name: 'test' },
-        [{ http: 'http://localhost:8545' }],
-        [],
-        { fallbackStaggerMs: 50 }, // Short delay for testing
-      );
-
-      // Create a provider that will timeout by taking longer than stagger delay
-      const provider1 = MockProvider.success('success1', 100); // 100ms delay > 50ms timeout
+      const provider1 = MockProvider.success('success1', 100);
       const provider2 = MockProvider.success('success2');
+      const provider = new TestableSmartProvider([provider1, provider2]);
 
-      const result = await testProvider.testPerformWithFallback(
-        'getBlockNumber',
-        {},
-        [provider1, provider2],
-        1,
-      );
+      const result = await provider.simplePerform('getBlockNumber', 1);
 
       expect(result).to.deep.equal('success2');
       expect(provider1.called).to.be.true;
@@ -282,48 +279,33 @@ describe('SmartProvider', () => {
     });
 
     it('both providers timeout, first provider ultimately returns result (waitForProviderSuccess)', async () => {
-      // Create a SmartProvider with a short stagger delay for testing
-      const testProvider = new TestableSmartProvider(
-        { chainId: 1, name: 'test' },
-        [{ http: 'http://localhost:8545' }],
-        [],
-        { fallbackStaggerMs: 50 }, // Short delay for testing
-      );
-
-      // Create two providers that both timeout initially but first eventually succeeds
       const provider1 = MockProvider.success('success1', 120); // 120ms delay
       const provider2 = MockProvider.success('success2', 200); // 200ms delay
+      const provider = new TestableSmartProvider([provider1, provider2]);
 
-      const result = await testProvider.testPerformWithFallback(
-        'getBlockNumber',
-        {},
-        [provider1, provider2],
-        1,
-      );
+      const result = await provider.simplePerform('getBlockNumber', 1);
 
-      // First provider should win since it completes first
       expect(result).to.deep.equal('success1');
       expect(provider1.called).to.be.true;
       expect(provider2.called).to.be.true;
     });
 
     it('both providers throw errors, combined error is thrown', async () => {
-      const serverError1 = new Error('connection refused 1');
-      (serverError1 as any).code = EthersError.SERVER_ERROR;
-
-      const serverError2 = new Error('connection refused 2');
-      (serverError2 as any).code = EthersError.SERVER_ERROR;
+      const serverError1 = new ProviderError(
+        'connection refused 1',
+        EthersError.SERVER_ERROR,
+      );
+      const serverError2 = new ProviderError(
+        'connection refused 2',
+        EthersError.SERVER_ERROR,
+      );
 
       const provider1 = MockProvider.error(serverError1);
       const provider2 = MockProvider.error(serverError2);
+      const provider = new TestableSmartProvider([provider1, provider2]);
 
       try {
-        await provider.testPerformWithFallback(
-          'getBlockNumber',
-          {},
-          [provider1, provider2],
-          1,
-        );
+        await provider.simplePerform('getBlockNumber', 1);
         expect.fail('Should have thrown an error');
       } catch (e: any) {
         expect(e.name).to.equal('Error');
@@ -335,25 +317,12 @@ describe('SmartProvider', () => {
     });
 
     it('both providers timeout, combined timeout error is thrown', async () => {
-      // Create a SmartProvider with a short stagger delay for testing
-      const testProvider = new TestableSmartProvider(
-        { chainId: 1, name: 'test' },
-        [{ http: 'http://localhost:8545' }],
-        [],
-        { fallbackStaggerMs: 50 }, // Short delay for testing
-      );
-
-      // Create two providers that both take very long to respond
-      const provider1 = MockProvider.success('success1', 2000); // 2s delay
-      const provider2 = MockProvider.success('success2', 2000); // 2s delay
+      const provider1 = MockProvider.success('success1', 2000);
+      const provider2 = MockProvider.success('success2', 2000);
+      const provider = new TestableSmartProvider([provider1, provider2]);
 
       try {
-        await testProvider.testPerformWithFallback(
-          'getBlockNumber',
-          {},
-          [provider1, provider2],
-          1,
-        );
+        await provider.simplePerform('getBlockNumber', 1);
         expect.fail('Should have thrown an error');
       } catch (e: any) {
         expect(e.name).to.equal('Error');
@@ -365,20 +334,16 @@ describe('SmartProvider', () => {
     });
 
     it('blockchain error stops trying additional providers immediately', async () => {
-      const blockchainError = new Error('execution reverted');
-      (blockchainError as any).code = EthersError.CALL_EXCEPTION;
-      (blockchainError as any).reason = 'execution reverted';
+      const blockchainError = new ProviderError(
+        'execution reverted',
+        EthersError.CALL_EXCEPTION,
+      );
 
       const provider1 = MockProvider.error(blockchainError);
       const provider2 = MockProvider.success('success2');
-
+      const provider = new TestableSmartProvider([provider1, provider2]);
       try {
-        await provider.testPerformWithFallback(
-          'call',
-          {},
-          [provider1, provider2],
-          1,
-        );
+        await provider.simplePerform('getBlockNumber', 1);
         expect.fail('Should have thrown an error');
       } catch (e: any) {
         expect(e.name).to.equal('BlockchainError');
@@ -391,23 +356,21 @@ describe('SmartProvider', () => {
     });
 
     it('blockchain error takes priority over server error in actual flow', async () => {
-      const serverError = new Error('connection refused');
-      (serverError as any).code = EthersError.SERVER_ERROR;
-
-      const blockchainError = new Error('insufficient funds');
-      (blockchainError as any).code = EthersError.INSUFFICIENT_FUNDS;
-      (blockchainError as any).reason = 'insufficient funds';
+      const serverError = new ProviderError(
+        'connection refused',
+        EthersError.SERVER_ERROR,
+      );
+      const blockchainError = new ProviderError(
+        'insufficient funds',
+        EthersError.INSUFFICIENT_FUNDS,
+      );
 
       const provider1 = MockProvider.error(serverError);
       const provider2 = MockProvider.error(blockchainError);
+      const provider = new TestableSmartProvider([provider1, provider2]);
 
       try {
-        await provider.testPerformWithFallback(
-          'call',
-          {},
-          [provider1, provider2],
-          1,
-        );
+        await provider.simplePerform('getBlockNumber', 1);
         expect.fail('Should have thrown an error');
       } catch (e: any) {
         expect(e.name).to.equal('BlockchainError'); // Should get blockchain error, not server error
