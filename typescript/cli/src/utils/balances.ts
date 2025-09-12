@@ -1,6 +1,6 @@
 import { GasPrice } from '@cosmjs/stargate';
 import { BigNumber } from 'ethers';
-import { formatUnits } from 'ethers/lib/utils.js';
+import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 
 import {
   ChainMetadataManager,
@@ -69,11 +69,15 @@ export async function nativeBalancesAreSufficient(
         );
         assert(gasPrice, `gasPrice is not defined on chain ${chain}`);
 
-        requiredMinBalanceNativeDenom = BigNumber.from(
+        const gasPriceInNativeDenom = parseUnits(
           GasPrice.fromString(
             `${gasPrice.amount}${gasPrice.denom}`,
           ).amount.toString(),
-        ).mul(minGas[ProtocolType.CosmosNative]);
+          nativeToken.decimals,
+        );
+        requiredMinBalanceNativeDenom = gasPriceInNativeDenom.mul(
+          minGas[ProtocolType.CosmosNative],
+        );
         requiredMinBalance = formatUnits(
           requiredMinBalanceNativeDenom,
           nativeToken.decimals,
