@@ -253,8 +253,9 @@ export class HyperlaneSmartProvider
   }
 
   /**
-   * This perform method will trigger any providers that support the method
-   * one at a time in preferential order. If one is slow to respond, the next is triggered.
+   * This perform method has two phases:
+   * 1. Sequentially triggers providers until success or blockchain error (permanent failure)
+   * 2. Waits for any remaining pending provider promises to complete
    * TODO: Consider adding a quorum option that requires a certain number of providers to agree
    */
   protected async performWithFallback(
@@ -266,6 +267,8 @@ export class HyperlaneSmartProvider
     let pIndex = 0;
     const providerResultPromises: Promise<ProviderPerformResult>[] = [];
     const providerResultErrors: unknown[] = [];
+
+    // Phase 1: Trigger providers sequentially until success or blockchain error
     while (true) {
       // Trigger the next provider in line
       if (pIndex < providers.length) {
@@ -323,7 +326,7 @@ export class HyperlaneSmartProvider
           );
           providerResultErrors.push(result.error);
 
-          // If this is a CALL_EXCEPTION, stop trying additional providers as it's a permanent failure
+          // If this is a blockchain error, stop trying additional providers as it's a permanent failure
           if (RPC_BLOCKCHAIN_ERRORS.includes((result.error as any)?.code)) {
             this.logger.debug(
               { ...providerMetadata },
@@ -345,7 +348,7 @@ export class HyperlaneSmartProvider
       }
     }
 
-    // All providers already triggered, wait for one to complete or all to fail/timeout
+    // Phase 2: All providers already triggered, wait for one to complete or all to fail/timeout
     if (providerResultPromises.length > 0) {
       const timeoutPromise = timeoutResult(
         this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
@@ -386,7 +389,7 @@ export class HyperlaneSmartProvider
     }
   }
 
-  // Warp for additional logging and error handling
+  // Wrap for additional logging and error handling
   protected async wrapProviderPerform(
     provider: HyperlaneProvider,
     pIndex: number,
