@@ -41,6 +41,7 @@
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
+    "@sqds/multisig": "2.1.4",
     "@types/chai": "^4.2.21",
     "@types/json-stable-stringify": "^1.0.36",
     "@types/mocha": "^10.0.1",
