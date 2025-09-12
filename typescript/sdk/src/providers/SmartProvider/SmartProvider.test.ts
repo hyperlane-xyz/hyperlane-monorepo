@@ -6,9 +6,27 @@ import { HyperlaneSmartProvider } from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
 
 // Dummy provider for testing
-class DummyProvider extends providers.BaseProvider implements IProviderMethods {
+class MockProvider extends providers.BaseProvider implements IProviderMethods {
   public readonly supportedMethods = AllProviderMethods;
   public called = false;
+
+  static success(successValue?: any, responseDelayMs = 0) {
+    return new MockProvider(
+      'http://provider',
+      undefined,
+      successValue,
+      responseDelayMs,
+    );
+  }
+
+  static error(errorToThrow: Error, responseDelayMs = 0) {
+    return new MockProvider(
+      'http://provider',
+      errorToThrow,
+      undefined,
+      responseDelayMs,
+    );
+  }
 
   constructor(
     private readonly baseUrl: string,
@@ -23,7 +41,7 @@ class DummyProvider extends providers.BaseProvider implements IProviderMethods {
     return this.baseUrl;
   }
 
-  async perform(method: string, params: any, _reqId?: number): Promise<any> {
+  async perform(_method: string, _params: any, _reqId?: number): Promise<any> {
     this.called = true;
 
     if (this.responseDelayMs > 0) {
@@ -34,7 +52,7 @@ class DummyProvider extends providers.BaseProvider implements IProviderMethods {
       throw this.errorToThrow;
     }
 
-    return this.successValue ?? { result: 'success', method, params };
+    return this.successValue ?? 'success';
   }
 
   // Required BaseProvider methods - minimal implementations
@@ -62,7 +80,7 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
   }
 }
 
-describe('SmartProvider Unit Tests', () => {
+describe('SmartProvider', () => {
   let provider: TestableSmartProvider;
 
   beforeEach(() => {
@@ -204,12 +222,8 @@ describe('SmartProvider Unit Tests', () => {
 
   describe('performWithFallback', () => {
     it('returns success from first provider, second provider not called', async () => {
-      const provider1 = new DummyProvider('http://provider1', undefined, {
-        result: 'success1',
-      });
-      const provider2 = new DummyProvider('http://provider2', undefined, {
-        result: 'success2',
-      });
+      const provider1 = MockProvider.success('success1');
+      const provider2 = MockProvider.success('success2');
 
       const result = await provider.testPerformWithFallback(
         'getBlockNumber',
@@ -218,7 +232,7 @@ describe('SmartProvider Unit Tests', () => {
         1,
       );
 
-      expect(result).to.deep.equal({ result: 'success1' });
+      expect(result).to.deep.equal('success1');
       expect(provider1.called).to.be.true;
       expect(provider2.called).to.be.false;
     });
@@ -227,10 +241,8 @@ describe('SmartProvider Unit Tests', () => {
       const serverError = new Error('connection refused');
       (serverError as any).code = EthersError.SERVER_ERROR;
 
-      const provider1 = new DummyProvider('http://provider1', serverError);
-      const provider2 = new DummyProvider('http://provider2', undefined, {
-        result: 'success2',
-      });
+      const provider1 = MockProvider.error(serverError);
+      const provider2 = MockProvider.success('success2');
 
       const result = await provider.testPerformWithFallback(
         'getBlockNumber',
@@ -239,7 +251,7 @@ describe('SmartProvider Unit Tests', () => {
         1,
       );
 
-      expect(result).to.deep.equal({ result: 'success2' });
+      expect(result).to.deep.equal('success2');
       expect(provider1.called).to.be.true;
       expect(provider2.called).to.be.true;
     });
@@ -254,15 +266,8 @@ describe('SmartProvider Unit Tests', () => {
       );
 
       // Create a provider that will timeout by taking longer than stagger delay
-      const provider1 = new DummyProvider(
-        'http://provider1',
-        undefined,
-        { result: 'success1' },
-        100,
-      ); // 100ms delay > 50ms timeout
-      const provider2 = new DummyProvider('http://provider2', undefined, {
-        result: 'success2',
-      });
+      const provider1 = MockProvider.success('success1', 100); // 100ms delay > 50ms timeout
+      const provider2 = MockProvider.success('success2');
 
       const result = await testProvider.testPerformWithFallback(
         'getBlockNumber',
@@ -271,7 +276,7 @@ describe('SmartProvider Unit Tests', () => {
         1,
       );
 
-      expect(result).to.deep.equal({ result: 'success2' });
+      expect(result).to.deep.equal('success2');
       expect(provider1.called).to.be.true;
       expect(provider2.called).to.be.true;
     });
@@ -286,18 +291,8 @@ describe('SmartProvider Unit Tests', () => {
       );
 
       // Create two providers that both timeout initially but first eventually succeeds
-      const provider1 = new DummyProvider(
-        'http://provider1',
-        undefined,
-        { result: 'success1' },
-        120,
-      ); // 120ms delay
-      const provider2 = new DummyProvider(
-        'http://provider2',
-        undefined,
-        { result: 'success2' },
-        200,
-      ); // 200ms delay
+      const provider1 = MockProvider.success('success1', 120); // 120ms delay
+      const provider2 = MockProvider.success('success2', 200); // 200ms delay
 
       const result = await testProvider.testPerformWithFallback(
         'getBlockNumber',
@@ -307,7 +302,7 @@ describe('SmartProvider Unit Tests', () => {
       );
 
       // First provider should win since it completes first
-      expect(result).to.deep.equal({ result: 'success1' });
+      expect(result).to.deep.equal('success1');
       expect(provider1.called).to.be.true;
       expect(provider2.called).to.be.true;
     });
@@ -319,8 +314,8 @@ describe('SmartProvider Unit Tests', () => {
       const serverError2 = new Error('connection refused 2');
       (serverError2 as any).code = EthersError.SERVER_ERROR;
 
-      const provider1 = new DummyProvider('http://provider1', serverError1);
-      const provider2 = new DummyProvider('http://provider2', serverError2);
+      const provider1 = MockProvider.error(serverError1);
+      const provider2 = MockProvider.error(serverError2);
 
       try {
         await provider.testPerformWithFallback(
@@ -349,18 +344,8 @@ describe('SmartProvider Unit Tests', () => {
       );
 
       // Create two providers that both take very long to respond
-      const provider1 = new DummyProvider(
-        'http://provider1',
-        undefined,
-        { result: 'success1' },
-        2000,
-      ); // 2s delay
-      const provider2 = new DummyProvider(
-        'http://provider2',
-        undefined,
-        { result: 'success2' },
-        2000,
-      ); // 2s delay
+      const provider1 = MockProvider.success('success1', 2000); // 2s delay
+      const provider2 = MockProvider.success('success2', 2000); // 2s delay
 
       try {
         await testProvider.testPerformWithFallback(
@@ -384,10 +369,8 @@ describe('SmartProvider Unit Tests', () => {
       (blockchainError as any).code = EthersError.CALL_EXCEPTION;
       (blockchainError as any).reason = 'execution reverted';
 
-      const provider1 = new DummyProvider('http://provider1', blockchainError);
-      const provider2 = new DummyProvider('http://provider2', undefined, {
-        result: 'success2',
-      });
+      const provider1 = MockProvider.error(blockchainError);
+      const provider2 = MockProvider.success('success2');
 
       try {
         await provider.testPerformWithFallback(
@@ -415,8 +398,8 @@ describe('SmartProvider Unit Tests', () => {
       (blockchainError as any).code = EthersError.INSUFFICIENT_FUNDS;
       (blockchainError as any).reason = 'insufficient funds';
 
-      const provider1 = new DummyProvider('http://provider1', serverError);
-      const provider2 = new DummyProvider('http://provider2', blockchainError);
+      const provider1 = MockProvider.error(serverError);
+      const provider2 = MockProvider.error(blockchainError);
 
       try {
         await provider.testPerformWithFallback(
