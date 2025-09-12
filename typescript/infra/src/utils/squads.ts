@@ -113,14 +113,14 @@ export async function getPendingProposalsForChains(
           multisigPda,
         );
 
-        const threshold = multisig.threshold;
+        // Coerce all numeric fields to consistent types for safe comparison
+        const threshold = Number(multisig.threshold);
         const currentTransactionIndex = Number(multisig.transactionIndex);
         const staleTransactionIndex = Number(multisig.staleTransactionIndex);
 
-        // Get vault balance
-        const vaultBalance = await svmProvider.getBalance(
-          new PublicKey(squadsConfigs[chain as ChainName].vault),
-        );
+        // Get vault balance using getSquadsKeys for consistent PublicKey construction
+        const { vault } = getSquadsKeys(chain as ChainName);
+        const vaultBalance = await svmProvider.getBalance(vault);
         const balanceFormatted = (vaultBalance / 1e9).toFixed(5); // Convert lamports to SOL
 
         rootLogger.info(
