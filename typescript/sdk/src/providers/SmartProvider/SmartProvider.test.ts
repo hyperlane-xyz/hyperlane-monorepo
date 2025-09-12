@@ -378,5 +378,62 @@ describe('SmartProvider Unit Tests', () => {
         expect(provider2.called).to.be.true;
       }
     });
+
+    it('blockchain error stops trying additional providers immediately', async () => {
+      const blockchainError = new Error('execution reverted');
+      (blockchainError as any).code = EthersError.CALL_EXCEPTION;
+      (blockchainError as any).reason = 'execution reverted';
+
+      const provider1 = new DummyProvider('http://provider1', blockchainError);
+      const provider2 = new DummyProvider('http://provider2', undefined, {
+        result: 'success2',
+      });
+
+      try {
+        await provider.testPerformWithFallback(
+          'call',
+          {},
+          [provider1, provider2],
+          1,
+        );
+        expect.fail('Should have thrown an error');
+      } catch (e: any) {
+        expect(e.name).to.equal('BlockchainError');
+        expect(e.isRecoverable).to.equal(false);
+        expect(e.message).to.equal('execution reverted');
+        expect(e.cause).to.equal(blockchainError);
+        expect(provider1.called).to.be.true;
+        expect(provider2.called).to.be.false; // Key test - second provider should NOT be called
+      }
+    });
+
+    it('blockchain error takes priority over server error in actual flow', async () => {
+      const serverError = new Error('connection refused');
+      (serverError as any).code = EthersError.SERVER_ERROR;
+
+      const blockchainError = new Error('insufficient funds');
+      (blockchainError as any).code = EthersError.INSUFFICIENT_FUNDS;
+      (blockchainError as any).reason = 'insufficient funds';
+
+      const provider1 = new DummyProvider('http://provider1', serverError);
+      const provider2 = new DummyProvider('http://provider2', blockchainError);
+
+      try {
+        await provider.testPerformWithFallback(
+          'call',
+          {},
+          [provider1, provider2],
+          1,
+        );
+        expect.fail('Should have thrown an error');
+      } catch (e: any) {
+        expect(e.name).to.equal('BlockchainError'); // Should get blockchain error, not server error
+        expect(e.isRecoverable).to.equal(false);
+        expect(e.message).to.equal('insufficient funds');
+        expect(e.cause).to.equal(blockchainError);
+        expect(provider1.called).to.be.true;
+        expect(provider2.called).to.be.true;
+      }
+    });
   });
 });
