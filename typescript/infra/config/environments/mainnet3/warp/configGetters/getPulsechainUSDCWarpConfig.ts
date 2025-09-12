@@ -6,7 +6,13 @@ import { usdcTokenAddresses } from '../cctp.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
-const deploymentChains = ['arbitrum', 'base', 'polygon', 'pulsechain'] as const;
+const deploymentChains = [
+  'arbitrum',
+  'base',
+  'polygon',
+  'pulsechain',
+  'ethereum',
+] as const;
 
 type DeploymentChain = (typeof deploymentChains)[number];
 
@@ -17,6 +23,7 @@ const ownersByChain: Record<DeploymentChain, Address> = {
   arbitrum: '0x9adBd244557F59eE8F5633D2d2e2c0abec8FCCC2',
   base: '0x9adBd244557F59eE8F5633D2d2e2c0abec8FCCC2',
   polygon: '0x9adBd244557F59eE8F5633D2d2e2c0abec8FCCC2',
+  ethereum: '0x9adBd244557F59eE8F5633D2d2e2c0abec8FCCC2',
   pulsechain: '0x703cf58975B14142eD0Ba272555789610c85520c',
 };
 
