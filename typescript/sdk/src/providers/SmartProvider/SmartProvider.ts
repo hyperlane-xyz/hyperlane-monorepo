@@ -428,14 +428,6 @@ export class HyperlaneSmartProvider
         return result;
       } else if (result.status === ProviderStatus.Error) {
         combinedErrors.push(result.error);
-
-        // If this is a CALL_EXCEPTION, stop waiting for additional providers as it's a permanent failure
-        if ((result.error as any)?.code === EthersError.CALL_EXCEPTION) {
-          this.logger.debug(
-            'CALL_EXCEPTION detected in waitForProviderSuccess - stopping wait as this is a permanent failure',
-          );
-          break;
-        }
       } else {
         return {
           status: ProviderStatus.Error,
