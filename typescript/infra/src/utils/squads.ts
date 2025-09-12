@@ -241,7 +241,7 @@ export function getSquadTxStatus(
   }
 }
 
-export function parseSquadProposal(proposal: any) {
+export function parseSquadProposal(proposal: accounts.Proposal) {
   // This would parse the proposal data similar to parseSafeTx
   // For now, return basic info
   return {
