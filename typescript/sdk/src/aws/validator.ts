@@ -1,6 +1,7 @@
 import {
   Announcement,
   BaseValidator,
+  ReorgEvent,
   S3Announcement,
   S3CheckpointWithId,
   ValidatorConfig,
@@ -15,6 +16,7 @@ const checkpointWithMessageIdKey = (checkpointIndex: number) =>
 const LATEST_KEY = 'checkpoint_latest_index.json';
 const ANNOUNCEMENT_KEY = 'announcement.json';
 const METADATA_KEY = 'metadata_latest.json';
+const REORG_KEY = 'reorg_flag.json';
 export const S3_LOCATION_PREFIX = 's3://';
 
 /**
@@ -115,5 +117,14 @@ export class S3Validator extends BaseValidator {
 
   getLatestCheckpointUrl(): string {
     return this.s3Bucket.url(LATEST_KEY);
+  }
+
+  async getReorgStatus(): Promise<ReorgEvent | null> {
+    const resp = await this.s3Bucket.getS3Obj<ReorgEvent>(REORG_KEY);
+    if (!resp) {
+      return null;
+    }
+
+    return resp.data;
   }
 }
