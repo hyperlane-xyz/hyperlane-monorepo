@@ -45,6 +45,7 @@ impl Indexable for HyperlaneMessage {
             HyperlaneDomainProtocol::Starknet => CursorType::SequenceAware,
             HyperlaneDomainProtocol::CosmosNative => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Sovereign => CursorType::SequenceAware,
         }
     }
 
@@ -68,6 +69,7 @@ impl Indexable for InterchainGasPayment {
             HyperlaneDomainProtocol::Starknet => CursorType::RateLimited,
             HyperlaneDomainProtocol::CosmosNative => CursorType::RateLimited,
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Sovereign => CursorType::RateLimited,
         }
     }
 
@@ -86,6 +88,7 @@ impl Indexable for MerkleTreeInsertion {
             HyperlaneDomainProtocol::Starknet => CursorType::SequenceAware,
             HyperlaneDomainProtocol::CosmosNative => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Sovereign => CursorType::SequenceAware,
         }
     }
 
@@ -104,6 +107,7 @@ impl Indexable for Delivery {
             HyperlaneDomainProtocol::Starknet => CursorType::RateLimited,
             HyperlaneDomainProtocol::CosmosNative => CursorType::RateLimited,
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Sovereign => CursorType::RateLimited,
         }
     }
 
