@@ -208,7 +208,7 @@ async function main() {
     // Verbose output with raw data
     if (verbose) {
       rootLogger.info(chalk.green.bold('\n🔍 Raw Proposal Data:'));
-      rootLogger.info(chalk.gray(JSON.stringify(proposal, null, 2)));
+      rootLogger.info(chalk.gray(stringifyObject(proposal)));
 
       rootLogger.info(chalk.green.bold('\n🔍 Raw Multisig Data:'));
       rootLogger.info(
