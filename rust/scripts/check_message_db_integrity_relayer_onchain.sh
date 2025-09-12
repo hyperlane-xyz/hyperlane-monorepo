@@ -9,7 +9,7 @@ Usage: $0 --rpc-url <rpc_url> --merkle-hook-address <merkle_hook_address> --doma
     --domain-id             the domain id of the chain
     --start-block           the block to start at and go backwards"
 
-set -euo pipefail
+set -e
 
 # Function to extract message_id from merkle insertions response
 extract_merkle_message_id() {

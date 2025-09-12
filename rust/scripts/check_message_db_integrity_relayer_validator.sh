@@ -8,7 +8,7 @@ Usage: $0 --chain-name <chain_name> --domain-id <domain_id> --leaf-index-start <
     --domain-id             the domain id of the chain
     --leaf-index-start      the leaf index to start at and go forward"
 
-set -euo pipefail
+set -e
 
 # Function to extract message_id from checkpoint response
 extract_checkpoint_message_id() {
