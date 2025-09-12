@@ -133,13 +133,8 @@ contract TokenBridgeOft is HypERC20Collateral {
         bytes32 enrolledRouter = _mustHaveRemoteRouter(_destination);
         require(_recipient == enrolledRouter, "Invalid recipient");
 
-        // When called via router.rebalance(), this contract (router) calls its own transferRemote,
-        // so msg.sender == address(this). In that case, the collateral is already held by the router
-        // and pulling via transferFrom(msg.sender) is unnecessary and may revert. Only pull when
-        // an external EOA is the sender (user-initiated transferRemote).
-        if (msg.sender != address(this)) {
-            HypERC20Collateral._transferFromSender(_amount);
-        }
+        // Always pull tokens from sender (user or bridge adapter)
+        HypERC20Collateral._transferFromSender(_amount);
 
         uint256 outbound = _outboundAmount(_amount);
         
@@ -189,35 +184,4 @@ contract TokenBridgeOft is HypERC20Collateral {
     }
 
     function _transferTo(address, uint256, bytes calldata) internal override {}
-
-    /**
-     * @notice Rebalances tokens to another domain using LayerZero OFT bridging
-     * @dev This function follows the same pattern as CCTP rebalancer
-     * @param _destinationDomain The Hyperlane domain ID of the destination
-     * @param _amount The amount of tokens to rebalance
-     * @param _bridge The bridge address (typically the same router for OFT)
-     */
-    function rebalance(
-        uint32 _destinationDomain,
-        uint256 _amount,
-        address _bridge
-    ) external payable onlyRebalancer {
-        // For OFT, we use the router itself as the bridge
-        // The _bridge parameter maintains compatibility with CCTP pattern
-        require(_bridge == address(this), "Bridge must be this router for OFT");
-        
-        // Get the enrolled remote router for the destination
-        bytes32 enrolledRouter = _mustHaveRemoteRouter(_destinationDomain);
-        
-        // Call _transferRemote which handles the LayerZero bridging
-        _transferRemote(
-            _destinationDomain,
-            enrolledRouter,
-            _amount,
-            msg.value,
-            bytes(""), // empty hook metadata
-            address(0) // no hook
-        );
-    }
-
 }
