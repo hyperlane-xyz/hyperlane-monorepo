@@ -189,6 +189,9 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: gitleaks-install
+        uses: gitleaks/gitleaks-action@v2
+
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
         with:
