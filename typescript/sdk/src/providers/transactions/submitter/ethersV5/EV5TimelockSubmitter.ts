@@ -2,7 +2,7 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { EMPTY_BYTES_32 } from '../../../../timelock/evm/constants.js';
 import { ChainMap } from '../../../../types.js';
@@ -73,6 +73,10 @@ export class EV5TimelockSubmitter
       proposerSubmitter,
       timelockInstance,
     );
+  }
+
+  address(): Address {
+    return this.timelockInstance.address;
   }
 
   async submit(

@@ -1,4 +1,4 @@
-import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   ProtocolTypedProvider,
@@ -31,4 +31,8 @@ export interface TxSubmitterInterface<
     | ProtocolTypedReceipt<TProtocol>['receipt'][]
     | void
   >;
+  /**
+   * The address of the submitter onchain.
+   */
+  address(): Promise<Address> | Address;
 }
