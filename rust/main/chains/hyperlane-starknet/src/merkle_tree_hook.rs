@@ -9,6 +9,7 @@ use hyperlane_core::{
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
     IncrementalMerkleAtBlock, MerkleTreeHook, ReorgPeriod, H256,
 };
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use starknet::core::types::Felt;
 use tracing::instrument;
 
@@ -32,14 +33,18 @@ pub struct StarknetMerkleTreeHook {
 impl StarknetMerkleTreeHook {
     /// Create a reference to a merkle tree hook at a specific Starknet address on some
     /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
+    pub fn new(
+        conn: &ConnectionConf,
+        locator: &ContractLocator<'_>,
+        metrics: PrometheusClientMetrics,
+    ) -> ChainResult<Self> {
         let provider = build_json_provider(conn);
         let hook_address: Felt = HyH256(locator.address).into();
         let contract = MerkleTreeHookReader::new(hook_address, provider);
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider: StarknetProvider::new(locator.domain.clone(), conn, metrics),
             conn: conn.clone(),
         })
     }
@@ -72,12 +77,17 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
             get_block_height_for_reorg_period(self.provider.rpc_client(), reorg_period).await?;
 
         let (root, index) = self
-            .contract
-            .latest_checkpoint()
-            .block_id(starknet::core::types::BlockId::Number(block_number))
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("merkle_tree_hook_latest_checkpoint", || async {
+                self.contract
+                    .latest_checkpoint()
+                    .block_id(starknet::core::types::BlockId::Number(block_number))
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
 
         Ok(CheckpointAtBlock {
             checkpoint: Checkpoint {
@@ -97,12 +107,17 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
             get_block_height_for_reorg_period(self.provider.rpc_client(), reorg_period).await?;
 
         let tree = self
-            .contract
-            .tree()
-            .block_id(starknet::core::types::BlockId::Number(block_number))
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("merkle_tree_hook_tree", || async {
+                self.contract
+                    .tree()
+                    .block_id(starknet::core::types::BlockId::Number(block_number))
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
 
         let mut branch = tree
             .branch
@@ -135,12 +150,17 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
             get_block_height_for_reorg_period(self.provider.rpc_client(), reorg_period).await?;
 
         let count = self
-            .contract
-            .count()
-            .block_id(starknet::core::types::BlockId::Number(block_number))
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("merkle_tree_hook_count", || async {
+                self.contract
+                    .count()
+                    .block_id(starknet::core::types::BlockId::Number(block_number))
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
 
         Ok(count)
     }
@@ -148,12 +168,17 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
     /// Get the latest checkpoint at a specific block height.
     async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
         let (root, index) = self
-            .contract
-            .latest_checkpoint()
-            .block_id(starknet::core::types::BlockId::Number(height))
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("merkle_tree_hook_latest_checkpoint_at_block", || async {
+                self.contract
+                    .latest_checkpoint()
+                    .block_id(starknet::core::types::BlockId::Number(height))
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
 
         Ok(CheckpointAtBlock {
             checkpoint: Checkpoint {
