@@ -164,9 +164,13 @@ pub async fn build_withdrawal_fxg(
     )
     .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
 
-    // Remove outputs from the end if mass exceeds maximum
+    // Use tx_fee_multiplier as safety margin for mass limit too
+    // This ensures we stay under the limit even with estimation variance
+    let max_allowed_mass = (kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS as f64 / tx_fee_multiplier) as u64;
+
+    // Remove outputs from the end if mass exceeds maximum (with safety margin)
     let original_count = final_outputs.len();
-    while tx_mass > kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS && !final_outputs.is_empty() {
+    while tx_mass > max_allowed_mass && !final_outputs.is_empty() {
         final_outputs.pop();
         final_msgs.pop();
 
@@ -185,10 +189,11 @@ pub async fn build_withdrawal_fxg(
 
     if final_outputs.len() < original_count {
         info!(
-            "Kaspa relayer, reduced withdrawals from {} to {} due to mass limit. Final mass: {}",
+            "Kaspa relayer, reduced withdrawals from {} to {} due to mass limit. Final mass: {} (limit with margin: {})",
             original_count,
             final_outputs.len(),
-            tx_mass
+            tx_mass,
+            max_allowed_mass
         );
     }
 
