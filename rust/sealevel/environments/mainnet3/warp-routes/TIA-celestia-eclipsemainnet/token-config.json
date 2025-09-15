@@ -8,7 +8,7 @@
     "type": "synthetic",
     "decimals": 6,
     "name": "Celestia",
-    "owner": "4MvK458D2T4T1QgafH52gY3A61MDF78DbWJ4HuT4MY8E",
+    "owner": "8GAvyeQyBNwnuxVSpk9drn8TgJLEVWSQEpdcei6JwG8e",
     "symbol": "TIA",
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/b21b78514a42e8c050b36472c8325fd4b5177366/deployments/warp_routes/TIA/metadata.json",
     "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
