@@ -1,0 +1,10 @@
+{
+  "eclipsemainnet": {
+    "hex": "0x7230775c45e3809d11cd643c0673882fa37f39485c430dc823e66c1cdd69c0a3",
+    "base58": "8gkLoHDNA8VygyCD1T7bbDszYboUjALtrxgSLnKZsYBt"
+  },
+  "celestia": {
+    "hex": "0x726f757465725f61707000000000000000000000000000010000000000000004",
+    "base58": "8hi42sG6MAUwJi3u9YbCrmqgsS1bDADu2HDHpadNaY59"
+  }
+}
