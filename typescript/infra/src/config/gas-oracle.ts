@@ -202,11 +202,6 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
   // By default, min cost is 20 cents
   let minUsdCost = 0.2;
 
-  // For Ethereum local, min cost is 1.5 USD
-  if (local === 'ethereum') {
-    minUsdCost = Math.max(minUsdCost, 1.5);
-  }
-
   // For all SVM chains, min cost is 0.50 USD to cover rent needs
   if (getChain(remote).protocol === ProtocolType.Sealevel) {
     minUsdCost = Math.max(minUsdCost, 0.5);
@@ -348,3 +343,46 @@ export function getAllStorageGasOracleConfigs(
       };
     }, {}) as AllStorageGasOracleConfigs;
 }
+
+// 5% threshold, adjust as needed
+export const DEFAULT_DIFF_THRESHOLD_PCT = 5;
+
+/**
+ * Gets a safe numeric value with fallback, handling NaN and undefined cases
+ */
+export const getSafeNumericValue = (
+  value: string | number | undefined,
+  fallback: string | number,
+): number => {
+  const parsed =
+    value && !isNaN(Number(value)) ? Number(value) : Number(fallback);
+  return parsed;
+};
+
+/**
+ * Determines if a price should be updated based on percentage difference threshold
+ */
+export const shouldUpdatePrice = (
+  newPrice: number,
+  prevPrice: number,
+  thresholdPct: number = DEFAULT_DIFF_THRESHOLD_PCT,
+): boolean => {
+  if (prevPrice === 0) return true; // Avoid division by zero
+  const diff = Math.abs(newPrice - prevPrice) / prevPrice;
+  return diff > thresholdPct / 100;
+};
+
+/**
+ * Generic price update logic that can be reused across different price types
+ */
+export const updatePriceIfNeeded = <T>(
+  newValue: T,
+  prevValue: T,
+  newNumeric: number,
+  prevNumeric: number,
+  thresholdPct: number = DEFAULT_DIFF_THRESHOLD_PCT,
+): T => {
+  return shouldUpdatePrice(newNumeric, prevNumeric, thresholdPct)
+    ? newValue
+    : prevValue;
+};
