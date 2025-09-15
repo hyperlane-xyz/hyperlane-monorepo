@@ -9108,6 +9108,12 @@
           "apiUrl": "https://api.scan.pulsechain.com/api",
           "family": "blockscout",
           "name": "Pulsechain Explorer",
+          "url": "https://scan.pulsechainfoundation.org/#/"
+        },
+        {
+          "apiUrl": "https://api.scan.pulsechain.com/api",
+          "family": "blockscout",
+          "name": "Pulsechain Explorer",
           "url": "https://oldscan.gopulse.com/#/"
         },
         {
