@@ -292,7 +292,7 @@ describe('Token', () => {
       name: 'Ether',
     });
 
-    const evmHypCollateralNativeToken2 = new Token({
+    const evmHypNativeToken2 = new Token({
       chainName: TestChainName.test1,
       standard: TokenStandard.EvmHypNative,
       addressOrDenom: '0x41b5234A896FbC4b3e2F7237592D054716762131',
@@ -378,13 +378,11 @@ describe('Token', () => {
     });
 
     it('returns true for collateralized token without collateral address and native token', () => {
-      expect(evmHypCollateralNativeToken2.isFungibleWith(evmNativeToken)).to.be
-        .true;
+      expect(evmHypNativeToken2.isFungibleWith(evmNativeToken)).to.be.true;
     });
 
     it('returns true for collateralized token without collateral address and HypNative token', () => {
-      expect(evmHypCollateralNativeToken2.isFungibleWith(evmHypNativeToken)).to
-        .be.true;
+      expect(evmHypNativeToken2.isFungibleWith(evmHypNativeToken)).to.be.true;
     });
 
     it('returns true for IBC token and matching native token', () => {
