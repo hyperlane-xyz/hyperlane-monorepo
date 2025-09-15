@@ -1,5 +1,20 @@
 # @hyperlane-xyz/infra
 
+## 18.2.0
+
+### Minor Changes
+
+- ca64e73cd: Update the oXAUT bridge limits for avax, celo, ethereum, worldchain and base config. Export XERC20LimitsTokenConfig.
+
+### Patch Changes
+
+- Updated dependencies [fed6906e4]
+- Updated dependencies [ca64e73cd]
+- Updated dependencies [dfa9d368c]
+  - @hyperlane-xyz/sdk@18.2.0
+  - @hyperlane-xyz/helloworld@18.2.0
+  - @hyperlane-xyz/utils@18.2.0
+
 ## 18.1.0
 
 ### Minor Changes
