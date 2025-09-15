@@ -33,6 +33,7 @@ use radix_transactions::{
 };
 use reqwest::ClientBuilder;
 use scrypto::{
+    address::AddressBech32Decoder,
     constants::XRD,
     crypto::IsHash,
     data::{
@@ -40,17 +41,19 @@ use scrypto::{
         scrypto::{scrypto_decode, ScryptoSbor},
     },
     math::Decimal,
+    network::NetworkDefinition,
     types::Epoch,
 };
 
 use hyperlane_core::{
     rpc_clients::FallbackProvider, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
     ContractLocator, Encode, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, LogMeta,
-    ReorgPeriod, TxOutcome, TxnInfo, H256, H512, U256,
+    ReorgPeriod, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
 use crate::{
-    decimal_to_u256, decode_bech32, encode_tx, provider::RadixGatewayProvider, signer::RadixSigner,
+    decimal_to_u256, decode_bech32, encode_tx, manifest::find_fee_payer_from_manifest,
+    provider::RadixGatewayProvider, radix_address_bytes_to_h256, signer::RadixSigner,
     ConnectionConf, HyperlaneRadixError, RadixBaseCoreProvider, RadixBaseGatewayProvider,
     RadixCoreProvider, RadixFallbackProvider,
 };
@@ -145,14 +148,14 @@ impl RadixProvider {
         Ok(signer)
     }
 
-    /// Calls a method on a component
-    pub async fn call_method<T: ScryptoSbor>(
+    /// Calls a method on a component at a specific block
+    pub async fn call_method_at_state<T: ScryptoSbor>(
         &self,
         component: &str,
         method: &str,
         state_version: Option<u64>,
         raw_args: Vec<Vec<u8>>,
-    ) -> ChainResult<T> {
+    ) -> ChainResult<(T, u64)> {
         let selector = state_version.map(|state_version| {
             core_api_client::models::LedgerStateSelector::ByStateVersion(
                 VersionLedgerStateSelector { state_version },
@@ -182,7 +185,10 @@ impl RadixProvider {
                         );
                     };
                     let data = hex::decode(data)?;
-                    return Ok(scrypto_decode::<T>(&data).map_err(HyperlaneRadixError::from)?);
+                    return Ok((
+                        scrypto_decode::<T>(&data).map_err(HyperlaneRadixError::from)?,
+                        result.at_ledger_state.state_version,
+                    ));
                 }
                 Err(HyperlaneRadixError::SborCallMethod("no output found".into()).into())
             }
@@ -195,18 +201,36 @@ impl RadixProvider {
     }
 
     /// Calls a method on a component
-    /// if specified will use the passed state_version
+    pub async fn call_method<T: ScryptoSbor>(
+        &self,
+        component: &str,
+        method: &str,
+        reorg: Option<&ReorgPeriod>,
+        raw_args: Vec<Vec<u8>>,
+    ) -> ChainResult<(T, u64)> {
+        let state_version = match reorg {
+            Some(ReorgPeriod::None) => None,
+            Some(reorg) => Some(self.get_state_version(Some(reorg)).await?),
+            None => None,
+        };
+
+        self.call_method_at_state(component, method, state_version, raw_args)
+            .await
+    }
+
+    /// Calls a method with arguments on a component
     pub async fn call_method_with_arg<T: ScryptoSbor, A: ManifestEncode + ?Sized>(
         &self,
         component: &str,
         method: &str,
-        state_version: Option<u64>,
         argument: &A,
     ) -> ChainResult<T> {
         let arguments = manifest_encode(argument).map_err(HyperlaneRadixError::from)?;
 
-        self.call_method(component, method, state_version, vec![arguments])
-            .await
+        Ok(self
+            .call_method::<T>(component, method, None, vec![arguments])
+            .await?
+            .0)
     }
 
     /// Returns the latest ledger state of the chain
@@ -337,6 +361,8 @@ impl RadixProvider {
             .transaction_committed(TransactionCommittedDetailsRequest {
                 intent_hash: hash,
                 opt_ins: Some(TransactionDetailsOptIns {
+                    affected_global_entities: Some(true),
+                    manifest_instructions: Some(true),
                     receipt_events: Some(true),
                     receipt_fee_summary: Some(true),
                     ..Default::default()
@@ -583,6 +609,28 @@ impl RadixProvider {
         let response = self.transaction_status(hash).await?;
         Ok(response)
     }
+
+    fn find_first_component_address(
+        hash: &H512,
+        network: &NetworkDefinition,
+        addresses: &[String],
+    ) -> Option<H256> {
+        let address_bech32_decoder = AddressBech32Decoder::new(network);
+        addresses
+            .iter()
+            .filter(|addr| addr.starts_with("component_"))
+            .filter_map(
+                |addr| match address_bech32_decoder.validate_and_decode(addr) {
+                    Ok(s) => Some(s),
+                    Err(err) => {
+                        tracing::warn!(?err, ?hash, "Failed to decode component address");
+                        None
+                    }
+                },
+            )
+            .map(|addr| radix_address_bytes_to_h256(&addr.1))
+            .next()
+    }
 }
 
 impl HyperlaneChain for RadixProvider {
@@ -642,6 +690,25 @@ impl HyperlaneProvider for RadixProvider {
             return Err(HyperlaneRadixError::ParsingError("receipt".to_owned()).into());
         };
 
+        let Some(tx_manifest) = tx.manifest_instructions else {
+            return Err(
+                HyperlaneRadixError::ParsingError("manifest_instructions".to_owned()).into(),
+            );
+        };
+
+        let affected_global_entities = tx.affected_global_entities.unwrap_or_default();
+
+        // Radix doesn't have the concept of a single "primary" recipient of a transaction
+        // so its hard to who/what the "primary" entity each transaction is for.
+        // Instead, we just use the first component address in a transaction
+        let first_component_address =
+            Self::find_first_component_address(hash, &self.conf.network, &affected_global_entities);
+
+        // We assume the account that locked up XRD to pay for fees is the sender of the transaction.
+        // If we can't find fee payer, then default to H256::zero()
+        let fee_payer =
+            find_fee_payer_from_manifest(&tx_manifest, &self.conf.network).unwrap_or_default();
+
         let Some(fee_summary) = receipt.fee_summary else {
             return Err(
                 HyperlaneRadixError::ParsingError("expected fee summary".to_owned()).into(),
@@ -674,10 +741,15 @@ impl HyperlaneProvider for RadixProvider {
             max_priority_fee_per_gas: None,
             max_fee_per_gas: None,
             gas_price: Some(gas_price),
-            nonce: 0, // TODO: double check if we need a nonce, there are no nonces in radix, we might want to use the discriminator instead
-            sender: H256::zero(), // TODO: this is not easy to figure out, we can use the notary public key, but it is not always the sender
-            recipient: None, // TODO: hard to tell what the tx interacted with, this can be with more than just one person, maybe use the the first component address?
-            receipt: None,
+            // TODO: double check if we need a nonce, there are no nonces in radix, we might want to use the discriminator instead
+            nonce: 0,
+            sender: fee_payer,
+            recipient: first_component_address,
+            receipt: Some(TxnReceiptInfo {
+                gas_used: U256::from(gas_limit),
+                cumulative_gas_used: gas_price,
+                effective_gas_price: Some(gas_price),
+            }),
             raw_input_data: None,
         })
     }

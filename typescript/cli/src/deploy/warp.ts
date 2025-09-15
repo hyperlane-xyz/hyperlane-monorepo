@@ -216,7 +216,7 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
 
   displayWarpDeployPlan(warpDeployConfig);
 
-  if (skipConfirmation || context.isDryRun) return;
+  if (skipConfirmation) return;
 
   const isConfirmed = await confirm({
     message: 'Is this deployment plan correct?',
@@ -235,26 +235,15 @@ async function executeDeploy(
 
   const {
     warpDeployConfig,
-    context: {
-      multiProvider,
-      isDryRun,
-      dryRunChain,
-      multiProtocolSigner,
-      registry,
-    },
+    context: { multiProvider, multiProtocolSigner, registry },
   } = params;
 
   assert(multiProtocolSigner, `multiProtocolSigner not defined`);
 
-  const config: WarpRouteDeployConfigMailboxRequired =
-    isDryRun && dryRunChain
-      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
-      : warpDeployConfig;
-
   const registryAddresses = await registry.getAddresses();
 
   const deployedContracts = await executeWarpDeploy(
-    config,
+    warpDeployConfig,
     multiProvider,
     multiProtocolSigner,
     registryAddresses,
@@ -275,10 +264,9 @@ async function writeDeploymentArtifacts(
   context: WriteCommandContext,
   addWarpRouteOptions?: AddWarpRouteConfigOptions,
 ) {
-  if (!context.isDryRun) {
-    log('Writing deployment artifacts...');
-    await context.registry.addWarpRoute(warpCoreConfig, addWarpRouteOptions);
-  }
+  log('Writing deployment artifacts...');
+  await context.registry.addWarpRoute(warpCoreConfig, addWarpRouteOptions);
+
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
 

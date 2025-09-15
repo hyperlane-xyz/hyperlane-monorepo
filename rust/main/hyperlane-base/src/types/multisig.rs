@@ -138,7 +138,7 @@ impl MultisigCheckpointSyncer {
         // the highest index for which we (supposedly) have (n+1) signed checkpoints
         latest_indices.sort_by(|a, b| b.1.cmp(&a.1));
 
-        if let Some(&(_, highest_quorum_index)) = latest_indices.get(threshold - 1) {
+        if let Some(&(_, highest_quorum_index)) = latest_indices.get(threshold.saturating_sub(1)) {
             // The highest viable checkpoint index is the minimum of the highest index
             // we (supposedly) have a quorum for, and the maximum index for which we can
             // generate a proof.
@@ -207,60 +207,65 @@ impl MultisigCheckpointSyncer {
                 // Gracefully ignore an error fetching the checkpoint from a validator's
                 // checkpoint syncer, which can happen if the validator has not
                 // signed the checkpoint at `index`.
-                if let Ok(Some(signed_checkpoint)) = checkpoint {
-                    // If the signed checkpoint is for a different index, ignore it
-                    if signed_checkpoint.value.index != index {
+                let signed_checkpoint = match checkpoint {
+                    Ok(Some(c)) => c,
+                    _ => {
                         debug!(
                             validator = format!("{:#x}", validator),
                             index = index,
-                            checkpoint_index = signed_checkpoint.value.index,
-                            "Checkpoint index mismatch"
+                            "Unable to find signed checkpoint"
                         );
                         continue;
                     }
+                };
 
-                    // Ensure that the signature is actually by the validator
-                    let signer = signed_checkpoint.recover()?;
-
-                    if H256::from(signer) != *validator {
-                        debug!(
-                            validator = format!("{:#x}", validator),
-                            index = index,
-                            "Checkpoint signature mismatch"
-                        );
-                        continue;
-                    }
-
-                    // Push the signed checkpoint into the hashmap
-                    let root = signed_checkpoint.value.root;
-                    let signed_checkpoints = signed_checkpoints_per_root.entry(root).or_default();
-                    signed_checkpoints.push(signed_checkpoint);
-
-                    // Count the number of signatures for this signed checkpoint
-                    let signature_count = signed_checkpoints.len();
+                // If the signed checkpoint is for a different index, ignore it
+                if signed_checkpoint.value.index != index {
                     debug!(
                         validator = format!("{:#x}", validator),
                         index = index,
-                        root = format!("{:#x}", root),
-                        signature_count = signature_count,
-                        "Found signed checkpoint"
+                        checkpoint_index = signed_checkpoint.value.index,
+                        "Checkpoint index mismatch"
                     );
+                    continue;
+                }
 
-                    // If we've hit a quorum, create a MultisigSignedCheckpoint
-                    if signature_count >= threshold {
-                        let checkpoint: MultisigSignedCheckpoint = signed_checkpoints.try_into()?;
-                        debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
-                        return Ok(Some(checkpoint));
-                    }
-                } else {
+                // Ensure that the signature is actually by the validator
+                let signer = signed_checkpoint.recover()?;
+
+                if H256::from(signer) != *validator {
                     debug!(
                         validator = format!("{:#x}", validator),
                         index = index,
-                        "Unable to find signed checkpoint"
+                        "Checkpoint signature mismatch"
                     );
+                    continue;
+                }
+
+                // Push the signed checkpoint into the hashmap
+                let root = signed_checkpoint.value.root;
+                let signed_checkpoints = signed_checkpoints_per_root.entry(root).or_default();
+                signed_checkpoints.push(signed_checkpoint);
+
+                // Count the number of signatures for this signed checkpoint
+                let signature_count = signed_checkpoints.len();
+                debug!(
+                    validator = format!("{:#x}", validator),
+                    index = index,
+                    root = format!("{:#x}", root),
+                    signature_count = signature_count,
+                    "Found signed checkpoint"
+                );
+
+                // If we've hit a quorum, create a MultisigSignedCheckpoint
+                if signature_count >= threshold {
+                    let checkpoint: MultisigSignedCheckpoint = signed_checkpoints.try_into()?;
+                    debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
+                    return Ok(Some(checkpoint));
                 }
             }
         }
+
         debug!("No quorum checkpoint found for message");
         Ok(None)
     }
@@ -586,7 +591,7 @@ mod test {
         let result = multisig_syncer
             .fetch_checkpoint(validator_addresses.as_slice(), threshold, index)
             .await
-            .unwrap();
+            .expect("Failed to fetch checkpoint");
 
         let expected = Some(generate_multisig_signed_checkpoint(&validators, checkpoint).await);
         assert_eq!(result, expected);

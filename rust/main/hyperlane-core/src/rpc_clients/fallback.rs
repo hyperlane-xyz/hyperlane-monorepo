@@ -195,7 +195,7 @@ where
     pub async fn handle_failed_provider(&self, priority: &PrioritizedProviderInner) {
         self.increment_failed_count(priority.index).await;
 
-        if priority.last_failed_count + 1 >= FAILED_REQUEST_THRESHOLD {
+        if priority.last_failed_count.saturating_add(1) >= FAILED_REQUEST_THRESHOLD {
             let new_priority = priority.reset_failed_count();
             self.deprioritize_provider(new_priority).await;
             info!(
@@ -210,7 +210,7 @@ where
         let mut priorities = self.inner.priorities.write().await;
 
         if let Some(priority) = priorities.iter_mut().find(|p| p.index == index) {
-            priority.last_failed_count += 1;
+            priority.last_failed_count = priority.last_failed_count.saturating_add(1);
         }
     }
 

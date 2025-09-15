@@ -162,7 +162,10 @@ where
                 // if we are here, it means one of the providers returned a successful result
                 if !retryable_errors.is_empty() || !non_retryable_errors.is_empty() {
                     // we log a warning if we got errors from failed providers
-                    warn!(errors_count=?(retryable_errors.len() + non_retryable_errors.len()),  ?retryable_errors, ?non_retryable_errors, providers=?self.inner.providers, "multicast_request");
+                    let errors_count = retryable_errors
+                        .len()
+                        .saturating_add(non_retryable_errors.len());
+                    warn!(errors_count, ?retryable_errors, ?non_retryable_errors, providers=?self.inner.providers, "multicast_request");
                 }
 
                 return Ok(value);

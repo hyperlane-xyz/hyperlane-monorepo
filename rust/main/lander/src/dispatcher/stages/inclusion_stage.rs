@@ -121,8 +121,8 @@ impl InclusionStage {
         // Use adaptive polling interval based on block time, but never faster than 100ms
         // for small block time chains, and never slower than 1/4 block time for responsiveness
         let polling_interval = max(
-            base_interval / 4,         // Never slower than 1/4 block time for responsiveness
-            MIN_TX_STATUS_CHECK_DELAY, // Never faster than 100ms to avoid excessive RPC calls
+            base_interval.div_f64(4.0), // Never slower than 1/4 block time for responsiveness
+            MIN_TX_STATUS_CHECK_DELAY,  // Never faster than 100ms to avoid excessive RPC calls
         );
 
         loop {
@@ -160,6 +160,12 @@ impl InclusionStage {
         let now = chrono::Utc::now();
 
         for (_, mut tx) in pool_snapshot {
+            // Update liveness metric on every tx as well.
+            // This prevents alert misfires when there are many txs to process.
+            state
+                .metrics
+                .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), domain);
+
             if !Self::tx_ready_for_processing(base_interval, now, &tx) {
                 continue;
             }
@@ -191,11 +197,17 @@ impl InclusionStage {
                 if tx_age.num_seconds() < 1 {
                     Duration::ZERO // Immediate recheck for tests
                 } else {
-                    max(base_interval / 4, MIN_TX_STATUS_CHECK_DELAY / 4)
+                    max(
+                        base_interval.div_f64(4.0),
+                        MIN_TX_STATUS_CHECK_DELAY.div_f64(4.0),
+                    )
                 }
             } else if tx_age.num_seconds() < 300 {
                 // Medium age transactions: check every half of block time
-                max(base_interval / 2, MIN_TX_STATUS_CHECK_DELAY / 2)
+                max(
+                    base_interval.div_f64(2.0),
+                    MIN_TX_STATUS_CHECK_DELAY.div_f64(2.0),
+                )
             } else {
                 // Old transactions: check every full block time
                 max(base_interval, MIN_TX_STATUS_CHECK_DELAY)
@@ -296,7 +308,7 @@ impl InclusionStage {
         info!(?tx, "Processing pending transaction");
 
         // update tx submission attempts
-        tx.submission_attempts += 1;
+        tx.submission_attempts = tx.submission_attempts.saturating_add(1);
         tx.last_submission_attempt = Some(chrono::Utc::now());
 
         // Simulating transaction if it has never been submitted before

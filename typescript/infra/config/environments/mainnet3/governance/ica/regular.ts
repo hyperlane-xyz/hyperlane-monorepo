@@ -128,4 +128,13 @@ export const regularIcas: ChainMap<Address> = {
   // Aug 18, 2025 - Mitosis
   // ----------------------------------------------------------
   mitosis: '0x287Df0906671Fb56f6c2FDC0617F82D422796F8D',
+
+  // Sept 3, 2025 - Pulsechain
+  // ----------------------------------------------------------
+  pulsechain: '0x72655e4683E802AeaF7bff4Dd0189293dc16cD62',
+
+  // Sept 8, 2025
+  // ----------------------------------------------------------
+  plasma: '0xd7e64bA7BB6beE321D5E0C42a966FDc97f70a92f',
+  electroneum: '0xd7e64bA7BB6beE321D5E0C42a966FDc97f70a92f',
 } as const;
