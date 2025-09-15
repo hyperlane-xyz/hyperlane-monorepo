@@ -24,6 +24,7 @@ export type SquadProposalStatus = {
 export enum SquadTxStatus {
   DRAFT = '📝',
   ACTIVE = '🟡',
+  ONE_AWAY = '🔵',
   APPROVED = '🟢',
   REJECTED = '🔴',
   EXECUTING = '⚡',
@@ -232,7 +233,9 @@ export function getSquadTxStatus(
     case 'Active':
       return approvals >= threshold
         ? SquadTxStatus.APPROVED
-        : SquadTxStatus.ACTIVE;
+        : threshold - approvals === 1
+          ? SquadTxStatus.ONE_AWAY
+          : SquadTxStatus.ACTIVE;
     case 'Rejected':
       return SquadTxStatus.REJECTED;
     case 'Approved':
