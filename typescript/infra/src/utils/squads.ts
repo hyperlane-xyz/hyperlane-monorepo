@@ -121,7 +121,14 @@ export async function getPendingProposalsForChains(
         // Get vault balance using getSquadsKeys for consistent PublicKey construction
         const { vault } = getSquadsKeys(chain as ChainName);
         const vaultBalance = await svmProvider.getBalance(vault);
-        const balanceFormatted = (vaultBalance / 1e9).toFixed(5); // Convert lamports to SOL
+        const decimals = mpp.getChainMetadata(chain as ChainName).nativeToken
+          ?.decimals;
+        if (!decimals) {
+          rootLogger.error(chalk.red.bold(`No decimals found for ${chain}`));
+          return;
+        }
+        // Convert lamports to SOL
+        const balanceFormatted = (vaultBalance / 10 ** decimals).toFixed(5);
 
         rootLogger.info(
           chalk.gray.italic(
