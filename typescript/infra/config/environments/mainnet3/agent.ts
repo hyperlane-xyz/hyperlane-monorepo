@@ -800,6 +800,11 @@ const blacklist: MatchingList = [
       '0x867c1fd9341DEC12e4B779C35D7b7C475316b334',
     ],
   },
+  // StarkNet<>StarkNet messages
+  {
+    originDomain: getDomainId('starknet'),
+    destinationDomain: getDomainId('starknet'),
+  },
 ];
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [
