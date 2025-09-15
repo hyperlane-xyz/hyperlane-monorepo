@@ -621,6 +621,7 @@ async function updateExistingWarpRoute(
   const groupedTransactions: GroupedTransactions = {
     [ProtocolType.Ethereum]: {},
     [ProtocolType.CosmosNative]: {},
+    [ProtocolType.Radix]: {},
   };
 
   // Get all deployed router addresses
