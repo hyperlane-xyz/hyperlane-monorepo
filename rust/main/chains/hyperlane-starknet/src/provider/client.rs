@@ -78,7 +78,7 @@ impl HyperlaneChain for StarknetProvider {
 impl HyperlaneProvider for StarknetProvider {
     #[instrument(err, skip(self))]
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        let block = self
+        let block: MaybePendingBlockWithTxHashes = self
             .rpc_client()
             .get_block_with_tx_hashes(BlockId::Number(height))
             .await
@@ -193,6 +193,12 @@ impl HyperlaneProvider for StarknetProvider {
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<hyperlane_core::ChainInfo>> {
-        Ok(None)
+        let block_height = self
+            .rpc_client
+            .block_number()
+            .await
+            .map_err(HyperlaneStarknetError::from)?;
+        let block_info = self.get_block_by_height(block_height).await?;
+        Ok(Some(hyperlane_core::ChainInfo::new(block_info, None)))
     }
 }
