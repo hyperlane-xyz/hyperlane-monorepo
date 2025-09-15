@@ -176,7 +176,12 @@ async function main() {
     const vaultBalance = await mpp
       .getSolanaWeb3Provider(chain as any)
       .getBalance(vault);
-    const balanceFormatted = (vaultBalance / 1e9).toFixed(5);
+    const decimals = mpp.getChainMetadata(chain as any).nativeToken?.decimals;
+    if (!decimals) {
+      rootLogger.error(chalk.red.bold(`No decimals found for ${chain}`));
+      process.exit(1);
+    }
+    const balanceFormatted = (vaultBalance / 10 ** decimals).toFixed(5);
     rootLogger.info(chalk.green.bold('\n💰 Vault Information:'));
     rootLogger.info(chalk.white(`  Vault Address: ${vault.toBase58()}`));
     rootLogger.info(chalk.white(`  Balance: ${balanceFormatted} SOL`));
