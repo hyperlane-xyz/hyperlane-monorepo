@@ -12,9 +12,9 @@ impl NonceManagerState {
     pub(crate) async fn assign_next_nonce(
         &self,
         tx_uuid: &TransactionUuid,
-        nonce: &Option<U256>,
+        old_nonce: &Option<U256>,
     ) -> NonceResult<U256> {
-        if let Some(nonce) = nonce {
+        if let Some(nonce) = old_nonce {
             // If the different nonce was assigned to the transaction,
             // we clear the tracked nonce for the transaction first.
             warn!(
@@ -22,6 +22,7 @@ impl NonceManagerState {
                 "Reassigning nonce to transaction, clearing currently tracked nonce"
             );
             self.clear_tracked_tx_uuid(nonce).await?;
+            self.clear_tracked_tx_nonce(tx_uuid).await?;
         }
 
         let (finalized_nonce, upper_nonce) = self.get_boundary_nonces().await?;
@@ -38,7 +39,8 @@ impl NonceManagerState {
 
         if next_nonce == upper_nonce {
             // If we reached the upper nonce, we need to update it.
-            self.set_upper_nonce(&(next_nonce + 1)).await?;
+            self.set_upper_nonce(&(next_nonce.saturating_add(U256::one())))
+                .await?;
         }
 
         self.set_tracked_tx_uuid(&next_nonce, tx_uuid).await?;
@@ -61,7 +63,7 @@ impl NonceManagerState {
         let mut next_nonce = finalized_nonce;
 
         while next_nonce < upper_nonce {
-            next_nonce += U256::one();
+            next_nonce = next_nonce.saturating_add(U256::one());
 
             let tracked_tx_uuid = self.get_tracked_tx_uuid(&next_nonce).await?;
 

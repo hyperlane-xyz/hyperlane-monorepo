@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::Mul};
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -196,11 +196,12 @@ impl GasPaymentEnforcer {
             "{}",
             GAS_EXPENDITURE_LOG_MESSAGE,
         );
+
+        let tokens_used = FixedPointNumber::try_from(outcome.gas_used)?.mul(outcome.gas_price);
         self.db.process_gas_expenditure(InterchainGasExpenditure {
             message_id: message.id(),
             gas_used: outcome.gas_used,
-            tokens_used: (FixedPointNumber::try_from(outcome.gas_used)? * outcome.gas_price)
-                .try_into()?,
+            tokens_used: tokens_used.try_into()?,
         })?;
         Ok(())
     }

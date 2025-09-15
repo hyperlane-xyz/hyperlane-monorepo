@@ -238,15 +238,12 @@ export class MultiChainResolver implements ChainResolver {
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     try {
-      const { chainMetadata, dryRunChain, registry, skipConfirmation } =
-        argv.context;
+      const { chainMetadata, registry, skipConfirmation } = argv.context;
 
       let chain: string;
 
       if (argv.chain) {
         chain = argv.chain;
-      } else if (dryRunChain) {
-        chain = dryRunChain;
       } else {
         if (skipConfirmation) throw new Error('No chain provided');
         chain = await runSingleChainSelectionStep(
