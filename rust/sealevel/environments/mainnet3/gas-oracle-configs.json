@@ -112,6 +112,14 @@
       },
       "overhead": 166887
     },
+    "galactica": {
+      "oracleConfig": {
+        "tokenExchangeRate": "66050198150594451",
+        "gasPrice": "614759236838",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "hyperevm": {
       "oracleConfig": {
         "tokenExchangeRate": "3696221731936017650",
