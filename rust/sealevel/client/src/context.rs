@@ -223,15 +223,6 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
     ) -> Result<(), Box<dyn Error>> {
         let final_path = if path.exists() && path.is_dir() {
             path.join("instructions.yaml")
-        } else if path
-            .extension()
-            .map_or(false, |ext| ext == "yaml" || ext == "yml")
-        {
-            path.to_path_buf()
-        } else if path.exists() && path.is_file() {
-            return Err("Provided file does not have a .yaml or .yml extension.".into());
-        } else if path.extension().is_none() {
-            path.with_extension("yaml")
         } else {
             return Err("Invalid path provided.".into());
         };
