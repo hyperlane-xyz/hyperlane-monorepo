@@ -429,6 +429,7 @@ where
     M: Middleware + 'static,
 {
     if is_rewards_non_zero(&default_fee_history) {
+        debug!(?default_fee_history, "default rewards non zero");
         return Ok(default_fee_history);
     }
 
@@ -437,6 +438,8 @@ where
         .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
         .filter(|p| *p <= 100.0)
         .collect::<Vec<_>>();
+
+    debug!(?percentiles, "percentiles to request fee history");
 
     let fee_history_futures = percentiles
         .iter()
@@ -455,6 +458,12 @@ where
     // Results will be ordered by percentile, so we can just take the first non-empty one.
     let fee_histories = try_join_all(fee_history_futures).await?;
 
+    debug!(
+        ?fee_histories,
+        ?percentiles,
+        "fee history for each percentile"
+    );
+
     // We return the first non-empty fee history.
     // If all are empty, we return the default fee history which is empty at this point.
     let mut chosen_fee_history = default_fee_history;
@@ -464,6 +473,8 @@ where
             break;
         }
     }
+
+    debug!(?chosen_fee_history, "chosen fee history");
 
     Ok(chosen_fee_history)
 }
