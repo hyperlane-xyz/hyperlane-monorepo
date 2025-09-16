@@ -1,5 +1,4 @@
 import { confirm } from '@inquirer/prompts';
-import { groupBy } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -10,7 +9,6 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
-  AnnotatedEV5Transaction,
   CCIPContractCache,
   ChainMap,
   ChainName,
@@ -407,17 +405,19 @@ export async function runWarpRouteApply(
     updatedWarpCoreConfig,
   );
 
+  console.log('groupedTransactions', JSON.stringify(groupedTransactions));
+
+  // Check if grouped transactions are empty
   if (
-    Object.keys(groupedTransactions[ProtocolType.Ethereum]).length === 0 &&
-    Object.keys(groupedTransactions[ProtocolType.CosmosNative]).length === 0
+    !Object.keys(groupedTransactions).some((protocol) =>
+      Object.keys((groupedTransactions as any)[protocol]).some(
+        (chain) => (groupedTransactions as any)[protocol][chain].length!!,
+      ),
+    )
   )
     return logGreen(`Warp config is the same as target. No updates needed.`);
 
-  // TODO: COSMOS
-  await submitWarpApplyTransactions(
-    params,
-    groupBy(groupedTransactions, 'chainId'),
-  );
+  await submitWarpApplyTransactions(params, groupedTransactions);
 }
 
 /**
@@ -900,81 +900,77 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
 /**
  * Submits a set of transactions to the specified chain and outputs transaction receipts
  */
+// TODO: COSMOS
+// submit transactions to chain
 async function submitWarpApplyTransactions(
   params: WarpApplyParams,
-  chainTransactions: Record<string, AnnotatedEV5Transaction[]>,
+  groupedTransactions: GroupedTransactions,
 ): Promise<void> {
-  // Create mapping of chain ID to chain name for all chains in warpDeployConfig
-  const chains = Object.keys(params.warpDeployConfig);
-  const chainIdToName = Object.fromEntries(
-    chains.map((chain) => [
-      params.context.multiProvider.getChainId(chain),
-      chain,
-    ]),
-  );
-
   const { extendedChains } = getWarpRouteExtensionDetails(
     params.warpCoreConfig,
     params.warpDeployConfig,
   );
 
   await promiseObjAll(
-    objMap(chainTransactions, async (chainId, transactions) => {
-      try {
-        await retryAsync(
-          async () => {
-            const chain = chainIdToName[chainId];
-            const isExtendedChain = extendedChains.includes(chain);
-            const { submitter, config } = await getSubmitterByStrategy({
-              chain,
-              context: params.context,
-              strategyUrl: params.strategyUrl,
-              isExtendedChain,
-            });
-            const transactionReceipts = await submitter.submit(...transactions);
-            if (transactionReceipts) {
-              const receiptPath = `${params.receiptsDir}/${chain}-${
-                submitter.txSubmitterType
-              }-${Date.now()}-receipts.json`;
-              writeYamlOrJson(receiptPath, transactionReceipts);
-              logGreen(
-                `Transactions receipts successfully written to ${receiptPath}`,
+    objMap(groupedTransactions, async (protocol, chainTransactions) => {
+      objMap(chainTransactions, async (chain, transactions) => {
+        try {
+          await retryAsync(
+            async () => {
+              const isExtendedChain = extendedChains.includes(chain);
+              const { submitter, config } = await getSubmitterByStrategy({
+                chain,
+                context: params.context,
+                strategyUrl: params.strategyUrl,
+                isExtendedChain,
+              });
+              const transactionReceipts = await submitter.submit(
+                ...transactions,
               );
-            }
+              if (transactionReceipts) {
+                const receiptPath = `${params.receiptsDir}/${chain}-${
+                  submitter.txSubmitterType
+                }-${Date.now()}-receipts.json`;
+                writeYamlOrJson(receiptPath, transactionReceipts);
+                logGreen(
+                  `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+                );
+              }
 
-            const canRelay = canSelfRelay(
-              params.selfRelay ?? false,
-              config,
-              transactionReceipts,
-            );
-
-            if (!canRelay.relay) {
-              return;
-            }
-
-            // if self relaying does not work (possibly because metadata cannot be built yet)
-            // we don't want to rerun the complete code block as this will result in
-            // the update transactions being sent multiple times
-            try {
-              await retryAsync(() =>
-                runSelfRelay({
-                  txReceipt: canRelay.txReceipt,
-                  multiProvider: params.context.multiProvider,
-                  registry: params.context.registry,
-                  successMessage: WarpSendLogs.SUCCESS,
-                }),
+              const canRelay = canSelfRelay(
+                params.selfRelay ?? false,
+                config,
+                transactionReceipts,
               );
-            } catch (error) {
-              warnYellow(`Error when self-relaying Warp transaction`, error);
-            }
-          },
-          5, // attempts
-          100, // baseRetryMs
-        );
-      } catch (e) {
-        logBlue(`Error in submitWarpApplyTransactions`, e);
-        console.dir(transactions);
-      }
+
+              if (!canRelay.relay) {
+                return;
+              }
+
+              // if self relaying does not work (possibly because metadata cannot be built yet)
+              // we don't want to rerun the complete code block as this will result in
+              // the update transactions being sent multiple times
+              try {
+                await retryAsync(() =>
+                  runSelfRelay({
+                    txReceipt: canRelay.txReceipt,
+                    multiProvider: params.context.multiProvider,
+                    registry: params.context.registry,
+                    successMessage: WarpSendLogs.SUCCESS,
+                  }),
+                );
+              } catch (error) {
+                warnYellow(`Error when self-relaying Warp transaction`, error);
+              }
+            },
+            5, // attempts
+            100, // baseRetryMs
+          );
+        } catch (e) {
+          logBlue(`Error in submitWarpApplyTransactions`, e);
+          console.dir(transactions);
+        }
+      });
     }),
   );
 }

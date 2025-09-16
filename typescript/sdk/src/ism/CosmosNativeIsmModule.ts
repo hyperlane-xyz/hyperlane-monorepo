@@ -90,6 +90,15 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       );
     }
 
+    // if there is no ism deployed yet we deploy one
+    if (!this.args.addresses.deployedIsm) {
+      this.args.addresses.deployedIsm = await this.deploy({
+        config: expectedConfig,
+      });
+
+      return [];
+    }
+
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
     const actualConfig = normalizeConfig(await this.read());
