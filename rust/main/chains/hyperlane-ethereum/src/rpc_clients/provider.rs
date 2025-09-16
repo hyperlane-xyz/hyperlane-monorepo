@@ -275,7 +275,7 @@ where
             .map(Into::into)
     }
 
-    #[instrument(skip(self), fields(domain=%self.domain.name(),provider=?self.provider), ret)]
+    #[instrument(skip(self), ret)]
     async fn fee_history(
         &self,
         block_count: U256,
