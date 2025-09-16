@@ -473,7 +473,7 @@ fn is_rewards_non_zero(fee_history: &FeeHistory) -> bool {
         .reward
         .iter()
         .map(|r| r[0])
-        .any(|r| *r > ethers::prelude::U256::zero())
+        .any(|r| r > ethers::prelude::U256::zero())
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(
