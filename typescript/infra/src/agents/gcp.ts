@@ -114,7 +114,10 @@ export class AgentGCPKey extends CloudAgentKey {
     let protocolOrChain: string | undefined;
     if (this.role === Role.Deployer && protocolType === ProtocolType.Ethereum) {
       protocolOrChain = undefined;
-    } else if (this.role === Role.Deployer && ProtocolType.Sealevel) {
+    } else if (
+      this.role === Role.Deployer &&
+      protocolType === ProtocolType.Sealevel
+    ) {
       protocolOrChain = ProtocolType.Sealevel;
     } else {
       protocolOrChain = this.chainName;
