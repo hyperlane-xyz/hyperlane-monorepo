@@ -493,8 +493,10 @@ where
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
     use std::sync::Arc;
 
+    use ethers::prelude::U256;
     use ethers::{
         providers::{Http, Provider},
         types::{
@@ -502,10 +504,32 @@ mod test {
             NameOrAddress,
         },
     };
-    use std::str::FromStr;
+    use ethers_core::types::FeeHistory;
     use url::Url;
 
     use crate::tx::zksync_estimate_fee;
+
+    #[test]
+    fn test_is_rewards_non_zero_all_zero() {
+        let fee_history = FeeHistory {
+            reward: vec![vec![U256::zero()], vec![U256::zero()]],
+            oldest_block: U256::zero(),
+            base_fee_per_gas: vec![],
+            gas_used_ratio: vec![],
+        };
+        assert!(!super::is_rewards_non_zero(&fee_history));
+    }
+
+    #[test]
+    fn test_is_rewards_non_zero_some_non_zero() {
+        let fee_history = FeeHistory {
+            reward: vec![vec![U256::zero()], vec![U256::from(1)]],
+            oldest_block: U256::zero(),
+            base_fee_per_gas: vec![],
+            gas_used_ratio: vec![],
+        };
+        assert!(super::is_rewards_non_zero(&fee_history));
+    }
 
     #[ignore = "Not running a flaky test requiring network"]
     #[tokio::test]
