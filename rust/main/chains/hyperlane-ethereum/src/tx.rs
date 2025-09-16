@@ -10,7 +10,7 @@ use ethers::{
     types::{Block, Eip1559TransactionRequest, TxHash},
 };
 use ethers_contract::builders::ContractCall;
-use ethers_core::types::H160;
+use ethers_core::types::{FeeHistory, H160};
 use ethers_core::{
     types::{BlockNumber, U256 as EthersU256},
     utils::{
@@ -18,6 +18,7 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
+use futures_util::future::try_join_all;
 use tokio::sync::Mutex;
 use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
@@ -401,6 +402,8 @@ where
 
     let (latest_block, fee_history) = try_join!(latest_block, fee_history)?;
 
+    let fee_history = ensure_non_empty_rewards(provider.clone(), fee_history).await?;
+
     let base_fee_per_gas = latest_block
         .base_fee_per_gas
         .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
@@ -416,6 +419,64 @@ where
         (base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas),
         latest_block,
     ))
+}
+
+async fn ensure_non_empty_rewards<M>(
+    provider: Arc<M>,
+    default_fee_history: FeeHistory,
+) -> ChainResult<FeeHistory>
+where
+    M: Middleware + 'static,
+{
+    if !is_rewards_empty(&default_fee_history) {
+        return Ok(default_fee_history);
+    }
+
+    // We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile
+    let percentiles = (2..5)
+        .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
+        .filter(|p| *p <= 100.0)
+        .collect::<Vec<_>>();
+
+    let fee_history_futures = percentiles
+        .iter()
+        .map(|p| async {
+            provider
+                .fee_history(
+                    EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
+                    BlockNumber::Latest,
+                    &[*p],
+                )
+                .await
+                .map_err(ChainCommunicationError::from_other)
+        })
+        .collect::<Vec<_>>();
+
+    // Results will be ordered by percentile, so we can just take the first non-empty one.
+    let fee_histories = try_join_all(fee_history_futures).await?;
+
+    // We return the first non-empty fee history
+    // If all are empty, we return the default fee history which is empty at this point.
+    let mut chosen_fee_history = default_fee_history;
+    for fee_history in fee_histories {
+        if !is_rewards_empty(&fee_history) {
+            chosen_fee_history = fee_history;
+            break;
+        }
+    }
+
+    Ok(chosen_fee_history)
+}
+
+fn is_rewards_empty(fee_history: &FeeHistory) -> bool {
+    let rewards: Vec<ethers::prelude::U256> = fee_history
+        .reward
+        .iter()
+        .map(|r| r[0])
+        .filter(|r| *r > ethers::prelude::U256::zero())
+        .collect();
+
+    rewards.is_empty()
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(
