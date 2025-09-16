@@ -428,11 +428,11 @@ async fn ensure_non_empty_rewards<M>(
 where
     M: Middleware + 'static,
 {
-    if !is_rewards_empty(&default_fee_history) {
+    if is_rewards_non_zero(&default_fee_history) {
         return Ok(default_fee_history);
     }
 
-    // We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile
+    // We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
     let percentiles = (2..5)
         .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
         .filter(|p| *p <= 100.0)
@@ -455,11 +455,11 @@ where
     // Results will be ordered by percentile, so we can just take the first non-empty one.
     let fee_histories = try_join_all(fee_history_futures).await?;
 
-    // We return the first non-empty fee history
+    // We return the first non-empty fee history.
     // If all are empty, we return the default fee history which is empty at this point.
     let mut chosen_fee_history = default_fee_history;
     for fee_history in fee_histories {
-        if !is_rewards_empty(&fee_history) {
+        if is_rewards_non_zero(&fee_history) {
             chosen_fee_history = fee_history;
             break;
         }
@@ -468,15 +468,12 @@ where
     Ok(chosen_fee_history)
 }
 
-fn is_rewards_empty(fee_history: &FeeHistory) -> bool {
-    let rewards: Vec<ethers::prelude::U256> = fee_history
+fn is_rewards_non_zero(fee_history: &FeeHistory) -> bool {
+    fee_history
         .reward
         .iter()
         .map(|r| r[0])
-        .filter(|r| *r > ethers::prelude::U256::zero())
-        .collect();
-
-    rewards.is_empty()
+        .any(|r| *r > ethers::prelude::U256::zero())
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(
