@@ -107,16 +107,17 @@ export class AgentGCPKey extends CloudAgentKey {
       ? getChain(this.chainName).protocol
       : undefined;
 
-    // Trick to get the correct secret key value
-    // as not all use the chain name in their identifier
-    // and some use the protocol type instead of the chain name
-    let protocolOrChain = undefined;
-    if (this.role === Role.Deployer) {
-      if (protocolType === ProtocolType.Sealevel) {
-        protocolOrChain = ProtocolType.Sealevel;
-      } else if (protocolType !== ProtocolType.Ethereum) {
-        protocolOrChain = this.chainName;
-      }
+    // If the role is Deployer and the ProtocolType
+    // - is Ethereum we don't add the chain name as the key does not have it to get the correct secret key value
+    // - is Sealvel then we use the protocol name instead of the chain name as all sealevel chains use the same key
+    // - is none of the above, fallback to using the chain name in all other cases as other roles might require it
+    let protocolOrChain: string | undefined;
+    if (this.role === Role.Deployer && protocolType === ProtocolType.Ethereum) {
+      protocolOrChain = undefined;
+    } else if (this.role === Role.Deployer && ProtocolType.Sealevel) {
+      protocolOrChain = ProtocolType.Sealevel;
+    } else {
+      protocolOrChain = this.chainName;
     }
 
     return keyIdentifier(
