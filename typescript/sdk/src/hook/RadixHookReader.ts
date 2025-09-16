@@ -21,17 +21,18 @@ export class RadixHookReader {
   ) {}
 
   async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
-    try {
-      if (await this.isIgpHook(address)) {
+    const hookType = await this.deriveHookType(address);
+
+    switch (hookType) {
+      case HookType.INTERCHAIN_GAS_PAYMASTER: {
         return this.deriveIgpConfig(address);
-      } else if (await this.isMerkleTreeHook(address)) {
+      }
+      case HookType.MERKLE_TREE: {
         return this.deriveMerkleTreeConfig(address);
-      } else {
+      }
+      default: {
         throw new Error(`Unsupported hook type for address: ${address}`);
       }
-    } catch (error) {
-      this.logger.error(`Failed to derive Hook config for ${address}`, error);
-      throw error;
     }
   }
 
@@ -51,11 +52,11 @@ export class RadixHookReader {
 
       const gasConfig = igp.destination_gas_configs[remoteDomain];
 
-      overhead[name] = parseInt(gasConfig.gas_overhead);
+      overhead[name] = parseInt(gasConfig?.gas_overhead ?? '');
       oracleConfig[name] = {
-        gasPrice: gasConfig.gas_oracle?.gas_price ?? '',
-        tokenExchangeRate: gasConfig.gas_oracle?.token_exchange_rate ?? '',
-        tokenDecimals: nativeToken?.decimals,
+        gasPrice: gasConfig?.gas_oracle?.gas_price ?? '',
+        tokenExchangeRate: gasConfig?.gas_oracle?.token_exchange_rate ?? '',
+        tokenDecimals: gasConfig ? nativeToken?.decimals : 0,
       };
     });
 
@@ -85,23 +86,23 @@ export class RadixHookReader {
     };
   }
 
-  private async isIgpHook(address: Address): Promise<boolean> {
+  private async deriveHookType(address: Address): Promise<HookType> {
     try {
       const igp = await this.sdk.query.core.getIgpHook({ hook: address });
-      return !!igp;
-    } catch {
-      return false;
-    }
-  }
+      if (!!igp) {
+        return HookType.INTERCHAIN_GAS_PAYMASTER;
+      }
+    } catch {}
 
-  private async isMerkleTreeHook(address: Address): Promise<boolean> {
     try {
-      const merkleTreeHook = await this.sdk.query.core.getMerkleTreeHook({
+      const igp = await this.sdk.query.core.getMerkleTreeHook({
         hook: address,
       });
-      return !!merkleTreeHook;
-    } catch {
-      return false;
-    }
+      if (!!igp) {
+        return HookType.MERKLE_TREE;
+      }
+    } catch {}
+
+    throw new Error(`Unsupported hook type for address: ${address}`);
   }
 }
