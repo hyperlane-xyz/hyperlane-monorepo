@@ -374,3 +374,10 @@ export const IsmConfigSchema = z.union([
   OffchainLookupIsmConfigSchema,
   InterchainAccountRouterIsmSchema,
 ]);
+
+export enum RadixIsmTypes {
+  MERKLE_ROOT_MULTISIG = 'MerkleRootMultisigIsm',
+  MESSAGE_ID_MULTISIG = 'MerkleRootMultisigIsm',
+  ROUTING_ISM = 'RoutingIsm',
+  NOOP_ISM = 'NoopIsm',
+}

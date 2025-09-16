@@ -8,6 +8,7 @@ import {
   DomainRoutingIsmConfig,
   IsmType,
   MultisigIsmConfig,
+  RadixIsmTypes,
 } from './types.js';
 
 export class RadixIsmReader {
@@ -27,13 +28,13 @@ export class RadixIsmReader {
       assert(ismType, `ISM with id ${address} not found`);
 
       switch (ismType) {
-        case 'MerkleRootMultisigIsm':
+        case RadixIsmTypes.MERKLE_ROOT_MULTISIG:
           return this.deriveMerkleRootMultisigConfig(address);
-        case 'MessageIdMultisigIsm':
+        case RadixIsmTypes.MESSAGE_ID_MULTISIG:
           return this.deriveMessageIdMultisigConfig(address);
-        case 'RoutingIsm':
+        case RadixIsmTypes.ROUTING_ISM:
           return this.deriveRoutingIsmConfig(address);
-        case 'NoopIsm':
+        case RadixIsmTypes.NOOP_ISM:
           return this.deriveTestConfig(address);
         default:
           throw new Error(`Unknown ISM ModuleType: ${ismType}`);
