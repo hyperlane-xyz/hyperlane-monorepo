@@ -70,7 +70,7 @@ pub async fn handler(
     let messages: Vec<_> = messages
         .into_iter()
         .map(|m| MessageResponse {
-            message_id: format!("0x{:x}", m.id()),
+            message_id: format!("{:x}", m.id()),
             message: m,
         })
         .collect();
