@@ -20,12 +20,10 @@ export class SvmMultiprotocolSignerAdapter
 
   constructor(
     private readonly chainName: ChainName,
-    private readonly privateKey: string,
+    private readonly privateKey: Uint8Array,
     private readonly multiProtocolProvider: MultiProtocolProvider,
   ) {
-    this.signer = Keypair.fromSecretKey(
-      Uint8Array.from(JSON.parse(this.privateKey)),
-    );
+    this.signer = Keypair.fromSecretKey(this.privateKey);
     this.svmProvider = this.multiProtocolProvider.getSolanaWeb3Provider(
       this.chainName,
     );

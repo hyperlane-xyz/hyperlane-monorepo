@@ -5,7 +5,12 @@ import { Logger } from 'pino';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger, strip0x } from '@hyperlane-xyz/utils';
+import {
+  HexString,
+  ProtocolType,
+  rootLogger,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
@@ -105,21 +110,20 @@ export class AgentGCPKey extends CloudAgentKey {
     // Trick to get the correct secret key value
     // as not all use the chain name in their identifier
     // and some use the protocol type instead of the chain name
-    let trickChainName = this.chainName;
-    if (this.role === Role.Deployer && protocolType === ProtocolType.Ethereum) {
-      trickChainName = undefined;
-    } else if (
-      this.role === Role.Deployer &&
-      protocolType === ProtocolType.Sealevel
-    ) {
-      trickChainName = ProtocolType.Sealevel;
+    let protocolOrChain = undefined;
+    if (this.role === Role.Deployer) {
+      if (protocolType === ProtocolType.Sealevel) {
+        protocolOrChain = ProtocolType.Sealevel;
+      } else if (protocolType !== ProtocolType.Ethereum) {
+        protocolOrChain = this.chainName;
+      }
     }
 
     return keyIdentifier(
       this.environment,
       this.context,
       this.role,
-      trickChainName,
+      protocolOrChain,
       this.index,
     );
   }
@@ -144,9 +148,12 @@ export class AgentGCPKey extends CloudAgentKey {
       case ProtocolType.Ethereum:
         return this.address;
       case ProtocolType.Sealevel:
-        return Keypair.fromSeed(
-          Buffer.from(strip0x(this.privateKey), 'hex'),
+        return Keypair.fromSecretKey(
+          this.privateKeyForProtocol(ProtocolType.Sealevel),
         ).publicKey.toBase58();
+      case ProtocolType.Starknet:
+        // Assumes that the address is base58 encoded in secrets manager
+        return ethers.utils.hexlify(ethers.utils.base58.decode(this.address));
       case ProtocolType.Cosmos:
       case ProtocolType.CosmosNative: {
         const compressedPubkey = ethers.utils.computePublicKey(
@@ -163,6 +170,26 @@ export class AgentGCPKey extends CloudAgentKey {
       default:
         this.logger.debug(`Unsupported protocol: ${protocol}`);
         return undefined;
+    }
+  }
+
+  override privateKeyForProtocol(
+    protocol: Exclude<ProtocolType, ProtocolType.Sealevel>,
+  ): HexString;
+  override privateKeyForProtocol(protocol: ProtocolType.Sealevel): Uint8Array;
+  override privateKeyForProtocol(
+    protocol: ProtocolType,
+  ): HexString | Uint8Array {
+    this.requireFetched();
+
+    if (protocol === ProtocolType.Sealevel) {
+      return Uint8Array.from(
+        JSON.parse(String(Buffer.from(this.privateKey, 'base64'))),
+      );
+    } else if (protocol === ProtocolType.Starknet) {
+      return ethers.utils.hexlify(ethers.utils.base58.decode(this.privateKey));
+    } else {
+      return this.privateKey;
     }
   }
 

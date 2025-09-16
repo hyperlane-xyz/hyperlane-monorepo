@@ -5,13 +5,21 @@ import { format } from 'util';
 import {
   ChainName,
   CoinGeckoTokenPriceGetter,
+  MultiProtocolSignerSignerAccountInfo,
   ProtocolTypedTransaction,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   Token,
   TransferParams,
   getSignerForChain,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, rootLogger, toWei } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  assert,
+  rootLogger,
+  strip0x,
+  toWei,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getDeployerKey } from '../../src/agents/key-utils.js';
@@ -144,29 +152,26 @@ async function fundAccount({
 
   await privateKeyAgent.fetch();
 
-  let accountInfo: { privateKey: string; address: Address };
-  if (protocol === ProtocolType.Sealevel) {
+  let accountInfo: MultiProtocolSignerSignerAccountInfo;
+  if (protocol === ProtocolType.Starknet) {
+    const address = privateKeyAgent.addressForProtocol(protocol);
+    assert(address, `missing private key address for protocol ${protocol}`);
+
     accountInfo = {
-      address: privateKeyAgent.address,
-      // Assumes the private key is base64 encoded on secrets manager
-      privateKey: String(Buffer.from(privateKeyAgent.privateKey, 'base64')),
+      protocol,
+      address,
+      privateKey: privateKeyAgent.privateKeyForProtocol(protocol),
     };
-  } else if (protocol === ProtocolType.Starknet) {
+  } else if (protocol === ProtocolType.Sealevel) {
     accountInfo = {
-      // Assumes that both the private key and the related address are base58 encoded
-      // in secrets manager
-      address: ethers.utils.hexlify(
-        ethers.utils.base58.decode(privateKeyAgent.address),
-      ),
-      privateKey: ethers.utils.hexlify(
-        ethers.utils.base58.decode(privateKeyAgent.privateKey),
-      ),
+      protocol,
+      privateKey: privateKeyAgent.privateKeyForProtocol(protocol),
     };
   } else {
     accountInfo = {
-      address: privateKeyAgent.address,
-      privateKey: privateKeyAgent.privateKey,
-    };
+      protocol,
+      privateKey: privateKeyAgent.privateKeyForProtocol(protocol),
+    } as MultiProtocolSignerSignerAccountInfo;
   }
 
   const signer = await getSignerForChain<typeof protocol>(

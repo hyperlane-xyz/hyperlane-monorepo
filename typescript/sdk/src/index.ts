@@ -815,4 +815,7 @@ export {
 } from './timelock/evm/constants.js';
 export { EvmEventLogsReader } from './rpc/evm/EvmEventLogsReader.js';
 export { getTimelockExecutableTransactionFromBatch } from './timelock/evm/utils.js';
-export { getSignerForChain } from './signers/signers.js';
+export {
+  getSignerForChain,
+  MultiProtocolSignerSignerAccountInfo,
+} from './signers/signers.js';
