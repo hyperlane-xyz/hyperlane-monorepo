@@ -1,4 +1,5 @@
 import { RadixSDK, RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
+import { RadixIsmTypes } from '@hyperlane-xyz/radix-sdk';
 import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
@@ -8,7 +9,6 @@ import {
   DomainRoutingIsmConfig,
   IsmType,
   MultisigIsmConfig,
-  RadixIsmTypes,
 } from './types.js';
 
 export class RadixIsmReader {
