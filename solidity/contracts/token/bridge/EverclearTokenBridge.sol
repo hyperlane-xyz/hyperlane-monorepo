@@ -69,6 +69,9 @@ contract EverclearTokenBridge is HypERC20Collateral {
 
     /**
      * @notice Constructor to initialize the Everclear token bridge
+     * @param _erc20 The address of the ERC20 token to be bridged
+     * @param _scale The scaling factor for token amounts (typically 1 for 18-decimal tokens)
+     * @param _mailbox The address of the Hyperlane mailbox contract
      * @param _everclearAdapter The address of the Everclear adapter contract
      */
     constructor(
@@ -82,8 +85,10 @@ contract EverclearTokenBridge is HypERC20Collateral {
     }
 
     /**
-     * @notice Initializes the proxy contract.
-     * @dev Approves the Everclear adapter to spend tokens
+     * @notice Initializes the proxy contract
+     * @dev Approves the Everclear adapter to spend tokens and calls parent initialization
+     * @param _hook The address of the post-dispatch hook (can be zero address)
+     * @param _owner The address that will own this contract
      */
     function initialize(address _hook, address _owner) public initializer {
         _HypERC20_initialize(_hook, address(0), _owner);
@@ -110,6 +115,11 @@ contract EverclearTokenBridge is HypERC20Collateral {
         emit FeeParamsUpdated(_fee, _deadline);
     }
 
+    /**
+     * @notice Internal function to set the output asset for a destination domain
+     * @dev Emits OutputAssetSet event when successful
+     * @param _outputAssetInfo The output asset information containing destination and asset address
+     */
     function _setOutputAsset(
         OutputAssetInfo calldata _outputAssetInfo
     ) internal {
@@ -179,6 +189,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
      * @param _destination The destination domain ID
      * @param _recipient The recipient address on the destination chain
      * @param _amount The amount of tokens to transfer
+     * @return The created Everclear intent struct containing all transfer details
      */
     function _createIntent(
         uint32 _destination,
@@ -211,6 +222,13 @@ contract EverclearTokenBridge is HypERC20Collateral {
         return intent;
     }
 
+    /**
+     * @notice Gets the receiver address for an intent
+     * @dev Virtual function that can be overridden by derived contracts
+     * @param _destination The destination domain ID
+     * @param _recipient The intended recipient address
+     * @return receiver The receiver address to use in the intent (typically the recipient for token bridge)
+     */
     function _getReceiver(
         uint32 _destination,
         bytes32 _recipient
@@ -219,9 +237,11 @@ contract EverclearTokenBridge is HypERC20Collateral {
     }
 
     /**
-     * @notice Gets the calldata for the intent that will unwrap WETH to ETH on destination
-     * @dev Overrides parent to return calldata for unwrapping WETH to ETH
-     * @return The encoded calldata for the unwrap and send operation
+     * @notice Gets the calldata for the intent execution on the destination chain
+     * @dev Virtual function that can be overridden by derived contracts. Base implementation returns empty bytes
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of tokens being transferred
+     * @return calldata The encoded calldata for intent execution (empty for base token bridge)
      */
     function _getIntentCalldata(
         bytes32 _recipient,
@@ -230,8 +250,15 @@ contract EverclearTokenBridge is HypERC20Collateral {
         return "";
     }
 
-    // @dev We can't use _feeAmount here because Everclear wants to pull tokens from this contract
-    /// and the amount from _feeAmount is sent to the fee recipient.
+    /**
+     * @notice Charges the sender for the transfer including Everclear fees
+     * @dev We can't use _feeAmount here because Everclear wants to pull tokens from this contract
+     *      and the amount from _feeAmount is sent to the fee recipient.
+     * @param _destination The destination domain ID
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of tokens to transfer (excluding fees)
+     * @return dispatchValue The ETH value to include with the Hyperlane message dispatch
+     */
     function _chargeSender(
         uint32 _destination,
         bytes32 _recipient,
@@ -245,6 +272,15 @@ contract EverclearTokenBridge is HypERC20Collateral {
             );
     }
 
+    /**
+     * @notice Handles pre-dispatch logic including charging sender and creating Everclear intent
+     * @dev Overrides parent function to integrate with Everclear's intent system
+     * @param _destination The destination domain ID
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of tokens to transfer
+     * @return dispatchValue The ETH value to include with the message dispatch
+     * @return message The encoded message containing transfer details and intent
+     */
     function _beforeDispatch(
         uint32 _destination,
         bytes32 _recipient,
@@ -271,6 +307,12 @@ contract EverclearTokenBridge is HypERC20Collateral {
         return (dispatchValue, message);
     }
 
+    /**
+     * @notice Handles incoming messages from remote chains
+     * @dev For the base token bridge, this is a no-op since funds are transferred via Everclear
+     * @param _origin The origin domain ID where the message was sent from
+     * @param _message The message payload (unused in base implementation)
+     */
     function _handle(
         uint32 _origin,
         bytes32 /* sender */,

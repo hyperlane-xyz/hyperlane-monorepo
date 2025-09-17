@@ -25,6 +25,9 @@ contract EverclearEthBridge is EverclearTokenBridge {
 
     /**
      * @notice Constructor to initialize the Everclear ETH bridge
+     * @param _weth The WETH contract address for wrapping/unwrapping ETH
+     * @param _scale The scaling factor for token amounts (typically 1 for 18-decimal tokens)
+     * @param _mailbox The address of the Hyperlane mailbox contract
      * @param _everclearAdapter The address of the Everclear adapter contract
      */
     constructor(
@@ -41,13 +44,26 @@ contract EverclearEthBridge is EverclearTokenBridge {
         )
     {}
 
+    /**
+     * @notice Gets the receiver address for an ETH transfer intent
+     * @dev Overrides parent to use the remote router instead of direct recipient
+     * @param _destination The destination domain ID
+     * @return receiver The remote router address that will handle the ETH transfer
+     */
     function _getReceiver(
         uint32 _destination,
-        bytes32 _recipient
-    ) internal view override returns (bytes32) {
+        bytes32 /* _recipient */
+    ) internal view override returns (bytes32 receiver) {
         return _mustHaveRemoteRouter(_destination);
     }
 
+    /**
+     * @notice Gets the calldata for ETH transfer intent execution on destination chain
+     * @dev Overrides parent to encode recipient and amount for ETH unwrapping and transfer
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of ETH to transfer
+     * @return calldata The encoded calldata containing recipient and amount for ETH transfer
+     */
     function _getIntentCalldata(
         bytes32 _recipient,
         uint256 _amount
@@ -55,6 +71,14 @@ contract EverclearEthBridge is EverclearTokenBridge {
         return abi.encode(_recipient, _amount);
     }
 
+    /**
+     * @notice Provides a quote for transferring ETH to a remote chain
+     * @dev Overrides parent to return a single quote for ETH (including transfer amount, fees, and gas)
+     * @param _destination The destination domain ID
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of ETH to transfer
+     * @return quotes Array containing a single quote with total ETH amount needed
+     */
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
@@ -71,6 +95,8 @@ contract EverclearEthBridge is EverclearTokenBridge {
 
     /**
      * @notice Transfers ETH from sender, wrapping to WETH
+     * @dev Requires msg.value to be at least the specified amount, then wraps ETH to WETH
+     * @param _amount The amount of ETH to wrap to WETH (includes transfer amount and fees)
      */
     function _transferFromSender(uint256 _amount) internal override {
         // The `_amount` here will be amount + fee where amount is what the user wants to send,
@@ -80,6 +106,12 @@ contract EverclearEthBridge is EverclearTokenBridge {
         IWETH(address(wrappedToken)).deposit{value: _amount}();
     }
 
+    /**
+     * @notice Transfers ETH to a recipient by unwrapping WETH and sending native ETH
+     * @dev Unwraps WETH to ETH and uses Address.sendValue for safe ETH transfer
+     * @param _recipient The address to receive the ETH
+     * @param _amount The amount of ETH to transfer
+     */
     function _transferTo(
         address _recipient,
         uint256 _amount
@@ -91,6 +123,14 @@ contract EverclearEthBridge is EverclearTokenBridge {
         payable(_recipient).sendValue(_amount);
     }
 
+    /**
+     * @notice Charges the sender for ETH transfer including all fees
+     * @dev Overrides parent to handle ETH-specific charging logic with fee calculation and distribution
+     * @param _destination The destination domain ID
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of ETH to transfer (excluding fees)
+     * @return dispatchValue The remaining ETH value to include with the Hyperlane message dispatch
+     */
     function _chargeSender(
         uint32 _destination,
         bytes32 _recipient,
@@ -107,6 +147,12 @@ contract EverclearEthBridge is EverclearTokenBridge {
         return dispatchValue;
     }
 
+    /**
+     * @notice Handles incoming messages for ETH transfers from remote chains
+     * @dev Processes Everclear intent settlement and transfers ETH to the final recipient
+     * @param _origin The origin domain ID where the message was sent from
+     * @param _message The message payload containing intent data and transfer details
+     */
     function _handle(
         uint32 _origin,
         bytes32 /* sender */,
@@ -141,5 +187,9 @@ contract EverclearEthBridge is EverclearTokenBridge {
         _transferTo(_recipient.bytes32ToAddress(), _amount);
     }
 
+    /**
+     * @notice Allows the contract to receive ETH
+     * @dev Required for WETH unwrapping functionality
+     */
     receive() external payable {}
 }
