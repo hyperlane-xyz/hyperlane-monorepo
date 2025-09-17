@@ -18,7 +18,7 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
-use futures_util::future::try_join_all;
+use futures_util::future::{join_all, try_join_all};
 use tokio::sync::Mutex;
 use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
@@ -456,7 +456,7 @@ where
         .collect::<Vec<_>>();
 
     // Results will be ordered by percentile, so we can just take the first non-empty one.
-    let fee_histories = try_join_all(fee_history_futures).await?;
+    let fee_histories = join_all(fee_history_futures).await;
 
     debug!(
         ?fee_histories,
@@ -468,6 +468,9 @@ where
     // If all are empty, we return the default fee history which is empty at this point.
     let mut chosen_fee_history = default_fee_history;
     for fee_history in fee_histories {
+        let Ok(fee_history) = fee_history else {
+            continue;
+        };
         if is_rewards_non_zero(&fee_history) {
             chosen_fee_history = fee_history;
             break;
