@@ -26,14 +26,12 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
 
     constructor(
         address _erc20,
-        uint256 _scale,
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
         ITokenMessengerV1 _tokenMessenger
     )
         TokenBridgeCctpBase(
             _erc20,
-            _scale,
             _mailbox,
             _messageTransmitter,
             _tokenMessenger
