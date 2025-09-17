@@ -18,7 +18,7 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
-use futures_util::future::{join_all, try_join_all};
+use futures_util::future::join_all;
 use tokio::sync::Mutex;
 use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
