@@ -88,20 +88,28 @@ export class RadixHookReader {
 
   private async deriveHookType(address: Address): Promise<HookType> {
     try {
-      const igp = await this.sdk.query.core.getIgpHook({ hook: address });
-      if (!!igp) {
+      const hook = await this.sdk.query.core.getIgpHook({ hook: address });
+      if (hook) {
         return HookType.INTERCHAIN_GAS_PAYMASTER;
       }
-    } catch {}
+    } catch {
+      this.logger.debug(
+        `Hook with address ${address} is not of type ${HookType.INTERCHAIN_GAS_PAYMASTER}`,
+      );
+    }
 
     try {
-      const igp = await this.sdk.query.core.getMerkleTreeHook({
+      const hook = await this.sdk.query.core.getMerkleTreeHook({
         hook: address,
       });
-      if (!!igp) {
+      if (hook) {
         return HookType.MERKLE_TREE;
       }
-    } catch {}
+    } catch {
+      this.logger.debug(
+        `Hook with address ${address} is not of type ${HookType.MERKLE_TREE}`,
+      );
+    }
 
     throw new Error(`Unsupported hook type for address: ${address}`);
   }
