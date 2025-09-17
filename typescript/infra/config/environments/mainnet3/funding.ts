@@ -2,6 +2,7 @@ import { KeyFunderConfig } from '../../../src/config/funding.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
+import desiredRebalancerBalances from './balances/desiredRebalancerBalances.json' with { type: 'json' };
 import desiredRelayerBalances from './balances/desiredRelayerBalances.json' with { type: 'json' };
 import { environment } from './chains.js';
 import { mainnet3SupportedChainNames } from './supportedChainNames.js';
@@ -13,6 +14,14 @@ const desiredRelayerBalancePerChain = Object.fromEntries(
     balance.toString(),
   ]),
 ) as Record<DesiredRelayerBalanceChains, string>;
+
+type DesiredRebalancerBalanceChains = keyof typeof desiredRebalancerBalances;
+const desiredRebalancerBalancePerChain = Object.fromEntries(
+  Object.entries(desiredRebalancerBalances).map(([chain, balance]) => [
+    chain,
+    balance.toString(),
+  ]),
+) as Record<DesiredRebalancerBalanceChains, string>;
 
 export const keyFunderConfig: KeyFunderConfig<
   typeof mainnet3SupportedChainNames
@@ -30,7 +39,7 @@ export const keyFunderConfig: KeyFunderConfig<
     'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
-    [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
+    [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy, Role.Rebalancer],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
   chainsToSkip: ['infinityvmmainnet', 'game7'],
@@ -90,6 +99,8 @@ export const keyFunderConfig: KeyFunderConfig<
     soon: '0',
     sonicsvm: '0',
   },
+  // desired rebalancer balance config
+  desiredRebalancerBalancePerChain: desiredRebalancerBalancePerChain,
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
     ancient8: '0.1',
