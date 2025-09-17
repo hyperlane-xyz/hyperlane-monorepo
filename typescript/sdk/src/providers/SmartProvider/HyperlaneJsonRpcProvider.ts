@@ -7,6 +7,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { DataLoaderJsonRpcBatchingProvider } from './DataloaderJsonRpcBatchingProvider.js';
 import {
   AllProviderMethods,
   IProviderMethods,
@@ -18,7 +19,7 @@ const NUM_LOG_BLOCK_RANGES_TO_QUERY = 10;
 const NUM_PARALLEL_LOG_QUERIES = 5;
 
 export class HyperlaneJsonRpcProvider
-  extends providers.StaticJsonRpcProvider
+  extends DataLoaderJsonRpcBatchingProvider
   implements IProviderMethods
 {
   protected readonly logger = rootLogger.child({ module: 'JsonRpcProvider' });

@@ -34,3 +34,6 @@ tsconfig.editor.json
 # yalc
 yalc.lock
 .yalc
+
+# claude
+.claude
