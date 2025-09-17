@@ -2,6 +2,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use ethers::contract::Lazy;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::{
     abi::Detokenize,
@@ -37,6 +38,14 @@ pub const DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR: u32 = 11;
 pub const DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
 
 pub const PENDING_TX_TIMEOUT_SECS: u64 = 90;
+
+// We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
+const PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
+    (2..5)
+        .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
+        .filter(|p| *p <= 100.0)
+        .collect::<Vec<_>>()
+});
 
 pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainResult<U256> {
     // Arbitrum Nitro chains use 2d fees are especially prone to costs increasing
@@ -433,25 +442,21 @@ where
         return Ok(default_fee_history);
     }
 
-    // We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
-    let percentiles = (2..5)
-        .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
-        .filter(|p| *p <= 100.0)
-        .collect::<Vec<_>>();
-
-    debug!(?percentiles, "percentiles to request fee history");
-
-    let fee_history_futures = percentiles
-        .iter()
-        .map(|p| async {
-            provider
-                .fee_history(
-                    EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
-                    BlockNumber::Latest,
-                    &[*p],
-                )
-                .await
-                .map_err(ChainCommunicationError::from_other)
+    let fee_history_futures = PERCENTILES
+        .clone()
+        .into_iter()
+        .map(|p| {
+            let provider = provider.clone();
+            async move {
+                provider
+                    .fee_history(
+                        EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
+                        BlockNumber::Latest,
+                        &[p.clone()],
+                    )
+                    .await
+                    .map_err(ChainCommunicationError::from_other)
+            }
         })
         .collect::<Vec<_>>();
 
@@ -460,7 +465,7 @@ where
 
     debug!(
         ?fee_histories,
-        ?percentiles,
+        ?PERCENTILES,
         "fee history for each percentile"
     );
 
