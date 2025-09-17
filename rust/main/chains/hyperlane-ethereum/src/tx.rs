@@ -437,7 +437,7 @@ async fn ensure_non_empty_rewards<M>(
 where
     M: Middleware + 'static,
 {
-    if is_rewards_non_zero(&default_fee_history) {
+    if has_rewards(&default_fee_history) {
         debug!(?default_fee_history, "default rewards non zero");
         return Ok(default_fee_history);
     }
@@ -476,7 +476,7 @@ where
         let Ok(fee_history) = fee_history else {
             continue;
         };
-        if is_rewards_non_zero(&fee_history) {
+        if has_rewards(&fee_history) {
             chosen_fee_history = fee_history;
             break;
         }
@@ -487,7 +487,7 @@ where
     Ok(chosen_fee_history)
 }
 
-fn is_rewards_non_zero(fee_history: &FeeHistory) -> bool {
+fn has_rewards(fee_history: &FeeHistory) -> bool {
     fee_history
         .reward
         .iter()
@@ -536,7 +536,7 @@ mod test {
             base_fee_per_gas: vec![],
             gas_used_ratio: vec![],
         };
-        assert!(!super::is_rewards_non_zero(&fee_history));
+        assert!(!super::has_rewards(&fee_history));
     }
 
     #[test]
@@ -547,7 +547,7 @@ mod test {
             base_fee_per_gas: vec![],
             gas_used_ratio: vec![],
         };
-        assert!(super::is_rewards_non_zero(&fee_history));
+        assert!(super::has_rewards(&fee_history));
     }
 
     #[ignore = "Not running a flaky test requiring network"]

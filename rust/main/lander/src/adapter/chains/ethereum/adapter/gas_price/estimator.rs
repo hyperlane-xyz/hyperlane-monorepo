@@ -264,7 +264,7 @@ async fn ensure_non_empty_rewards(
     provider: &Arc<dyn EvmProviderForLander>,
     default_fee_history: FeeHistory,
 ) -> ChainResult<FeeHistory> {
-    if is_rewards_non_zero(&default_fee_history) {
+    if has_rewards(&default_fee_history) {
         debug!(?default_fee_history, "default rewards non zero");
         return Ok(default_fee_history);
     }
@@ -303,7 +303,7 @@ async fn ensure_non_empty_rewards(
         let Ok(fee_history) = fee_history else {
             continue;
         };
-        if is_rewards_non_zero(&fee_history) {
+        if has_rewards(&fee_history) {
             chosen_fee_history = fee_history;
             break;
         }
@@ -314,7 +314,7 @@ async fn ensure_non_empty_rewards(
     Ok(chosen_fee_history)
 }
 
-fn is_rewards_non_zero(fee_history: &FeeHistory) -> bool {
+fn has_rewards(fee_history: &FeeHistory) -> bool {
     fee_history
         .reward
         .iter()
