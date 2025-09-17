@@ -12,7 +12,7 @@
 
 ## Versioning
 
-Note this is the branch for Hyperlane v3.
+Note this the branch for Hyperlane v3.
 
 V2 is deprecated in favor of V3. The code for V2 can be found in the [v2](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v2) branch. For V1 code, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
 
