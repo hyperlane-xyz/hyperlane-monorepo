@@ -486,8 +486,8 @@ fn is_rewards_non_zero(fee_history: &FeeHistory) -> bool {
     fee_history
         .reward
         .iter()
-        .map(|r| r[0])
-        .any(|r| r > ethers::prelude::U256::zero())
+        .filter_map(|r| r.first())
+        .any(|r| !r.is_zero())
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(
