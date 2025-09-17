@@ -40,7 +40,7 @@ pub const DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
 pub const PENDING_TX_TIMEOUT_SECS: u64 = 90;
 
 // We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
-const PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
+static PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
     (2..5)
         .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
         .filter(|p| *p <= 100.0)
@@ -452,7 +452,7 @@ where
                     .fee_history(
                         EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
                         BlockNumber::Latest,
-                        &[p.clone()],
+                        &[p],
                     )
                     .await
                     .map_err(ChainCommunicationError::from_other)

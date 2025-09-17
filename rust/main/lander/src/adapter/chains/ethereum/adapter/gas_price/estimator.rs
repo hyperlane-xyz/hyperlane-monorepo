@@ -33,7 +33,7 @@ type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU
 const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
 
 // We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
-const PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
+static PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
     (2..5)
         .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
         .filter(|p| *p <= 100.0)
@@ -279,7 +279,7 @@ async fn ensure_non_empty_rewards(
                     .fee_history(
                         EIP1559_FEE_ESTIMATION_PAST_BLOCKS.into(),
                         BlockNumber::Latest,
-                        &[p.clone()],
+                        &[p],
                     )
                     .await
                     .map_err(ChainCommunicationError::from_other)
