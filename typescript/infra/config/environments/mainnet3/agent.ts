@@ -112,7 +112,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
-    game7: true,
+    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -252,7 +252,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
-    game7: true,
+    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -392,7 +392,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
-    game7: true,
+    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -800,6 +800,11 @@ const blacklist: MatchingList = [
       '0x867c1fd9341DEC12e4B779C35D7b7C475316b334',
     ],
   },
+  // StarkNet<>StarkNet messages
+  {
+    originDomain: getDomainId('starknet'),
+    destinationDomain: getDomainId('starknet'),
+  },
 ];
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [
@@ -830,7 +835,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cd3d0f4-20250908-125850',
+      tag: 'e8b16e1-20250914-163558',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -861,7 +866,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7896025-20250910-204859',
+      tag: 'e8b16e1-20250914-163558',
     },
     resources: scraperResources,
   },
@@ -876,7 +881,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '093e0be-20250904-212216',
+      tag: 'e8b16e1-20250914-163558',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
