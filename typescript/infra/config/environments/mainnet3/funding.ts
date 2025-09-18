@@ -100,7 +100,7 @@ export const keyFunderConfig: KeyFunderConfig<
     sonicsvm: '0',
   },
   // desired rebalancer balance config
-  desiredRebalancerBalancePerChain: desiredRebalancerBalancePerChain,
+  desiredRebalancerBalancePerChain,
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
     ancient8: '0.1',
