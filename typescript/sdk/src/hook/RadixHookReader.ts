@@ -92,9 +92,9 @@ export class RadixHookReader {
       if (hook) {
         return HookType.INTERCHAIN_GAS_PAYMASTER;
       }
-    } catch {
+    } catch (err) {
       this.logger.debug(
-        `Hook with address ${address} is not of type ${HookType.INTERCHAIN_GAS_PAYMASTER}`,
+        `Hook with address ${address} is not of type ${HookType.INTERCHAIN_GAS_PAYMASTER}: ${err}`,
       );
     }
 
@@ -105,9 +105,9 @@ export class RadixHookReader {
       if (hook) {
         return HookType.MERKLE_TREE;
       }
-    } catch {
+    } catch (err) {
       this.logger.debug(
-        `Hook with address ${address} is not of type ${HookType.MERKLE_TREE}`,
+        `Hook with address ${address} is not of type ${HookType.MERKLE_TREE}: ${err}`,
       );
     }
 
