@@ -107,6 +107,9 @@ function getChainConnections(
       ['solanamainnet', 'abstract'],
       ['solanamainnet', 'apechain'],
       ['solanamainnet', 'subtensor'],
+      ['solanamainnet', 'pulsechain'],
+      ['solanamainnet', 'electroneum'],
+      ['solanamainnet', 'galactica'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
@@ -124,6 +127,9 @@ function getChainConnections(
       // for solaxy routes
       ['solaxy', 'solanamainnet'],
       ['solaxy', 'ethereum'],
+      // for celestia svm routes
+      ['celestia', 'solanamainnet'],
+      ['celestia', 'eclipsemainnet'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];

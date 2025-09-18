@@ -28,7 +28,7 @@ pub struct BuildingStage {
 }
 
 impl BuildingStage {
-    #[instrument(skip(self), name = "BuildingStage::run")]
+    #[instrument(skip(self), name = "BuildingStage::run", fields(domain=%self.domain))]
     pub async fn run(&self) {
         loop {
             // event-driven by the Building queue

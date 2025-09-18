@@ -21,9 +21,6 @@ import { getSecretRpcEndpoints } from '../agents/index.js';
 
 import { DeployEnvironment } from './environment.js';
 
-// Separate list of chains that we want to keep updated operationally but
-// skip in regular check-deploy as they require manual updates via
-// legacy ICAs.
 // V2 ICAs are not supported on these chains, due to the block gas limit being
 // lower than the amount required to deploy the new InterchainAccountRouter
 // implementation.
@@ -54,8 +51,10 @@ export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
-// unsupported (e.g. zksync, zeronetwork) or have known issues (e.g. lumia).
+// unsupported (e.g. zksync, zeronetwork) or have known issues (e.g. infinityvmmainnet).
 export const chainsToSkip: ChainName[] = [
+  'infinityvmmainnet',
+
   // TODO: remove once zksync PR is merged into main
   // mainnets
   'zksync',
@@ -66,16 +65,18 @@ export const chainsToSkip: ChainName[] = [
   // testnets
   'abstracttestnet',
 
-  // Oct 16 batch
-  'lumia',
-
   // special case for arcadia as it's currently under maintenance.
   // will update this separately in the next batch.
   'arcadia',
-  // special case for viction, ontology as there are RPC issues currently
-  // will update this separately in the next batch
+
+  // legacy ICAs
   'viction',
   'ontology',
+
+  // legacy icas
+  'carrchaintestnet',
+  'infinityvmmonza',
+  'rometestnet',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {

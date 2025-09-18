@@ -55,11 +55,7 @@ async fn test_assign_nonce_sets_nonce_when_none_present() {
     );
 
     // Should assign nonce 1, since mock provider returns 1
-    let nonce = manager
-        .calculate_next_nonce(&mut tx)
-        .await
-        .unwrap()
-        .unwrap();
+    let nonce = manager.calculate_next_nonce(&mut tx).await.unwrap();
     assert_eq!(nonce, U256::one());
 }
 

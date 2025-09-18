@@ -1,8 +1,10 @@
+use std::cmp::max;
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use derive_new::new;
 use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
@@ -26,6 +28,8 @@ pub mod tests;
 pub type InclusionStagePool = Arc<Mutex<HashMap<TransactionUuid, Transaction>>>;
 
 pub const STAGE_NAME: &str = "InclusionStage";
+
+const MIN_TX_STATUS_CHECK_DELAY: Duration = Duration::from_millis(100);
 
 pub struct InclusionStage {
     pub(crate) pool: InclusionStagePool,
@@ -77,6 +81,7 @@ impl InclusionStage {
         }
     }
 
+    #[instrument(skip_all, fields(domain))]
     pub async fn receive_txs(
         mut building_stage_receiver: mpsc::Receiver<Transaction>,
         pool: InclusionStagePool,
@@ -105,16 +110,23 @@ impl InclusionStage {
         }
     }
 
+    #[instrument(skip_all, fields(domain))]
     async fn process_txs(
         pool: InclusionStagePool,
         finality_stage_sender: mpsc::Sender<Transaction>,
         state: DispatcherState,
         domain: String,
     ) -> Result<(), LanderError> {
-        loop {
-            // evaluate the pool every block
-            sleep(Duration::from_millis(10)).await;
+        let base_interval = *state.adapter.estimated_block_time();
+        // Use adaptive polling interval based on block time, but never faster than 100ms
+        // for small block time chains, and never slower than 1/4 block time for responsiveness
+        let polling_interval = max(
+            base_interval.div_f64(4.0), // Never slower than 1/4 block time for responsiveness
+            MIN_TX_STATUS_CHECK_DELAY,  // Never faster than 100ms to avoid excessive RPC calls
+        );
 
+        loop {
+            sleep(polling_interval).await;
             Self::process_txs_step(&pool, &finality_stage_sender, &state, &domain).await?;
         }
     }
@@ -143,7 +155,21 @@ impl InclusionStage {
             return Ok(());
         }
         info!(pool_size=?pool_snapshot.len() , "Processing transactions in inclusion pool");
+
+        let base_interval = *state.adapter.estimated_block_time();
+        let now = chrono::Utc::now();
+
         for (_, mut tx) in pool_snapshot {
+            // Update liveness metric on every tx as well.
+            // This prevents alert misfires when there are many txs to process.
+            state
+                .metrics
+                .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), domain);
+
+            if !Self::tx_ready_for_processing(base_interval, now, &tx) {
+                continue;
+            }
+
             if let Err(err) =
                 Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
             {
@@ -154,18 +180,67 @@ impl InclusionStage {
         Ok(())
     }
 
+    fn tx_ready_for_processing(
+        base_interval: Duration,
+        now: DateTime<Utc>,
+        tx: &Transaction,
+    ) -> bool {
+        // Implement per-transaction backoff: don't check transactions too frequently
+        if let Some(last_check) = tx.last_status_check {
+            let time_since_last_check = now.signed_duration_since(last_check);
+
+            // Calculate the backoff interval based on how long the transaction has been pending
+            let tx_age = now.signed_duration_since(tx.creation_timestamp);
+            let backoff_interval = if tx_age.num_seconds() < 30 {
+                // New transactions: check every quarter of block time (responsive)
+                // But for very new transactions (< 1 second), allow immediate recheck for testing
+                if tx_age.num_seconds() < 1 {
+                    Duration::ZERO // Immediate recheck for tests
+                } else {
+                    max(
+                        base_interval.div_f64(4.0),
+                        MIN_TX_STATUS_CHECK_DELAY.div_f64(4.0),
+                    )
+                }
+            } else if tx_age.num_seconds() < 300 {
+                // Medium age transactions: check every half of block time
+                max(
+                    base_interval.div_f64(2.0),
+                    MIN_TX_STATUS_CHECK_DELAY.div_f64(2.0),
+                )
+            } else {
+                // Old transactions: check every full block time
+                max(base_interval, MIN_TX_STATUS_CHECK_DELAY)
+            };
+
+            // Skip this transaction if we checked it too recently
+            if time_since_last_check
+                .to_std()
+                .unwrap_or(Duration::from_secs(0))
+                < backoff_interval
+            {
+                return false;
+            }
+        }
+        true
+    }
+
     #[instrument(
         skip_all,
         name = "InclusionStage::try_process_tx",
         fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
     )]
     async fn try_process_tx(
-        tx: Transaction,
+        mut tx: Transaction,
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
     ) -> Result<()> {
         info!(?tx, "Processing inclusion stage transaction");
+
+        // Update the last status check timestamp before querying
+        tx.last_status_check = Some(chrono::Utc::now());
+
         let tx_status = call_until_success_or_nonretryable_error(
             || state.adapter.tx_status(&tx),
             "Querying transaction status",
@@ -173,6 +248,12 @@ impl InclusionStage {
         )
         .await?;
         info!(?tx, next_tx_status = ?tx_status, "Transaction status");
+
+        // Update the transaction in the pool with the new timestamp
+        {
+            let mut pool_lock = pool.lock().await;
+            pool_lock.insert(tx.uuid.clone(), tx.clone());
+        }
 
         Self::try_process_tx_with_next_status(tx, tx_status, finality_stage_sender, state, pool)
             .await
@@ -227,7 +308,7 @@ impl InclusionStage {
         info!(?tx, "Processing pending transaction");
 
         // update tx submission attempts
-        tx.submission_attempts += 1;
+        tx.submission_attempts = tx.submission_attempts.saturating_add(1);
         tx.last_submission_attempt = Some(chrono::Utc::now());
 
         // Simulating transaction if it has never been submitted before

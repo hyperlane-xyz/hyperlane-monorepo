@@ -10,8 +10,10 @@ use tokio::sync::broadcast::Sender;
 use hyperlane_base::db::HyperlaneRocksDB;
 use tokio::sync::RwLock;
 
+use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
+use crate::msg::pending_message::MessageContext;
 use crate::server::environment_variable::EnvironmentVariableApi;
 
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
@@ -21,6 +23,7 @@ pub mod igp;
 pub mod merkle_tree_insertions;
 pub mod messages;
 pub mod operations;
+pub mod proofs;
 
 #[derive(new)]
 pub struct Server {
@@ -33,6 +36,11 @@ pub struct Server {
     dbs: Option<HashMap<u32, HyperlaneRocksDB>>,
     #[new(default)]
     gas_enforcers: Option<HashMap<HyperlaneDomain, Arc<RwLock<GasPaymentEnforcer>>>>,
+    #[new(default)]
+    // (origin, destination)
+    msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
+    #[new(default)]
+    prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
 }
 
 impl Server {
@@ -62,6 +70,19 @@ impl Server {
         self
     }
 
+    pub fn with_msg_ctxs(mut self, msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>) -> Self {
+        self.msg_ctxs = msg_ctxs;
+        self
+    }
+
+    pub fn with_prover_sync(
+        mut self,
+        prover_syncs: HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>,
+    ) -> Self {
+        self.prover_syncs = Some(prover_syncs);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -72,20 +93,34 @@ impl Server {
             )
         }
         if let Some(op_queues) = self.op_queues {
-            router = router.merge(operations::list_messages::ServerState::new(op_queues).router());
+            router = router
+                .merge(operations::list_messages::ServerState::new(op_queues.clone()).router());
+            if let Some(dbs) = self.dbs.as_ref() {
+                router = router.merge(
+                    operations::reprocess_message::ServerState::new(
+                        dbs.clone(),
+                        op_queues.clone(),
+                        self.msg_ctxs.clone(),
+                    )
+                    .router(),
+                );
+            }
         }
-        if let Some(dbs) = self.dbs {
+        if let Some(dbs) = self.dbs.as_ref() {
             router = router
                 .merge(messages::ServerState::new(dbs.clone()).router())
-                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router())
+                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router());
         }
         if let Some(gas_enforcers) = self.gas_enforcers {
-            router = router.merge(igp::ServerState::new(gas_enforcers.clone()).router())
+            router = router.merge(igp::ServerState::new(gas_enforcers.clone()).router());
+        }
+        if let Some(prover_syncs) = self.prover_syncs {
+            router = router.merge(proofs::ServerState::new(prover_syncs).router());
         }
 
         let expose_environment_variable_endpoint =
             env::var("HYPERLANE_RELAYER_ENVIRONMENT_VARIABLE_ENDPOINT_ENABLED")
-                .map_or(false, |v| v == "true");
+                .is_ok_and(|v| v == "true");
         if expose_environment_variable_endpoint {
             router = router.merge(EnvironmentVariableApi::new().router());
         }

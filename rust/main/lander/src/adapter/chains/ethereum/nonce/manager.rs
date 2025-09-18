@@ -56,9 +56,7 @@ impl NonceManager {
     pub(crate) async fn calculate_next_nonce(
         &self,
         tx: &Transaction,
-    ) -> eyre::Result<Option<U256>, LanderError> {
-        use NonceAction::Noop;
-
+    ) -> eyre::Result<U256, LanderError> {
         let tx_uuid = tx.uuid.clone();
         let precursor = tx.precursor();
 
@@ -77,29 +75,29 @@ impl NonceManager {
             .await
             .map_err(|e| eyre::eyre!("Failed to update boundary nonces: {}", e))?;
 
-        let (action, nonce) = self
+        let nonce_action = self
             .state
             .validate_assigned_nonce(tx)
             .await
             .map_err(|e| eyre::eyre!("Failed to validate assigned nonce: {}", e))?;
 
-        if matches!(action, Noop) {
-            return Ok(None);
+        match nonce_action {
+            NonceAction::Assign { nonce } => Ok(nonce),
+            NonceAction::AssignNext { old_nonce } => {
+                let next_nonce = self
+                    .state
+                    .assign_next_nonce(&tx_uuid, &old_nonce)
+                    .await
+                    .map_err(|e| {
+                        eyre::eyre!(
+                            "Failed to assign next nonce for transaction {}: {}",
+                            tx_uuid,
+                            e
+                        )
+                    })?;
+                Ok(next_nonce)
+            }
         }
-
-        let next_nonce = self
-            .state
-            .assign_next_nonce(&tx_uuid, &nonce)
-            .await
-            .map_err(|e| {
-                eyre::eyre!(
-                    "Failed to assign next nonce for transaction {}: {}",
-                    tx_uuid,
-                    e
-                )
-            })?;
-
-        Ok(Some(next_nonce))
     }
 
     async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {

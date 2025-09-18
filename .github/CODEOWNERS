@@ -5,7 +5,7 @@ solidity/ @yorhodes @ltyu @larryob
 starknet/ @yorhodes @troykessler
 
 ## Agents
-rust/ @ameten @kamiyaa
+rust/ @ameten @kamiyaa @yjamin
 
 ## SDK
 typescript/utils @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
@@ -24,3 +24,6 @@ typescript/cosmos-types @troykessler @yjamin
 
 ## CCIP Server
 typescript/ccip-server @Mo-Hussain @nambrot
+
+## Radix
+typescript/radix-sdk @troykessler @yjamin

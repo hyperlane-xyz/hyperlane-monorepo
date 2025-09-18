@@ -25,6 +25,7 @@ export const getBscMilkywayMILKWarpConfig = async (
       ...routerConfig.milkyway,
       owner: safeOwners.milkyway,
       type: TokenType.native,
+      decimals: 6,
       foreignDeployment:
         '0x726f757465725f61707000000000000000000000000000010000000000000000',
     },

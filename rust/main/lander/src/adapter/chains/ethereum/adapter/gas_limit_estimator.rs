@@ -34,6 +34,8 @@ pub async fn estimate_gas_limit(
             estimated_gas_limit = estimated_gas_limit.max(gas_limit)
         }
     }
+
+    estimated_gas_limit = apply_gas_limit_cap(transaction_overrides, estimated_gas_limit);
     let gas_limit = estimated_gas_limit;
 
     // Cap the gas limit to the block gas limit
@@ -78,11 +80,129 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
     Ok(gas.saturating_add(GAS_LIMIT_BUFFER.into()))
 }
 
+pub fn apply_gas_limit_cap(transaction_overrides: &TransactionOverrides, gas_limit: U256) -> U256 {
+    if let Some(gas_limit_cap) = transaction_overrides.gas_limit_cap {
+        if gas_limit > gas_limit_cap {
+            warn!(
+                ?gas_limit,
+                ?gas_limit_cap,
+                "Gas limit for transaction is higher than the gas limit cap. Capping it to the gas limit cap."
+            );
+            return gas_limit_cap;
+        }
+    }
+    gas_limit
+}
 // Used for testing
 #[cfg(test)]
-pub fn apply_estimate_buffer_to_ethers(
-    gas: EthersU256,
-    domain: &HyperlaneDomain,
-) -> ChainResult<EthersU256> {
-    apply_gas_estimate_buffer(gas.into(), domain).map(Into::into)
+pub mod tests {
+    use ethers::{
+        abi::Function,
+        types::{transaction::eip2718::TypedTransaction, Block, Eip1559TransactionRequest},
+    };
+
+    use crate::adapter::chains::ethereum::tests::MockEvmProvider;
+
+    use super::*;
+
+    pub fn apply_estimate_buffer_to_ethers(
+        gas: EthersU256,
+        domain: &HyperlaneDomain,
+    ) -> ChainResult<EthersU256> {
+        apply_gas_estimate_buffer(gas.into(), domain).map(Into::into)
+    }
+
+    #[tokio::test]
+    async fn test_gas_limit_cap_applies() {
+        #[allow(deprecated)]
+        let mut tx_precursor = EthereumTxPrecursor {
+            tx: TypedTransaction::Eip1559(Eip1559TransactionRequest::default()),
+            function: Function {
+                name: "test".into(),
+                inputs: Vec::new(),
+                outputs: Vec::new(),
+                constant: None,
+                state_mutability: ethers::abi::StateMutability::Payable,
+            },
+        };
+        let mut provider = MockEvmProvider::new();
+
+        provider
+            .expect_estimate_gas_limit()
+            .returning(|_, _| Ok(U256::from(10_000)));
+        provider.expect_get_block().returning(|_| {
+            Ok(Some(Block {
+                gas_limit: EthersU256::from(100_000),
+                ..Default::default()
+            }))
+        });
+
+        let transaction_overrides = TransactionOverrides {
+            gas_limit_cap: Some(U256::from(100)),
+            ..Default::default()
+        };
+        let domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Ethereum);
+        let with_gas_limit_overrides = false;
+
+        estimate_gas_limit(
+            Arc::new(provider),
+            &mut tx_precursor,
+            &transaction_overrides,
+            &domain,
+            with_gas_limit_overrides,
+        )
+        .await
+        .expect("Failed to estimate gas limit");
+
+        let expected_gas = EthersU256::from(100);
+        let expected = Some(&expected_gas);
+        assert_eq!(tx_precursor.tx.gas(), expected);
+    }
+
+    #[tokio::test]
+    async fn test_gas_limit_cap_applies_with_gas_limit_override() {
+        #[allow(deprecated)]
+        let mut tx_precursor = EthereumTxPrecursor {
+            tx: TypedTransaction::Eip1559(Eip1559TransactionRequest::default()),
+            function: Function {
+                name: "test".into(),
+                inputs: Vec::new(),
+                outputs: Vec::new(),
+                constant: None,
+                state_mutability: ethers::abi::StateMutability::Payable,
+            },
+        };
+        let mut provider = MockEvmProvider::new();
+
+        provider
+            .expect_estimate_gas_limit()
+            .returning(|_, _| Ok(U256::from(10_000)));
+        provider.expect_get_block().returning(|_| {
+            Ok(Some(Block {
+                gas_limit: EthersU256::from(100_000),
+                ..Default::default()
+            }))
+        });
+
+        let transaction_overrides = TransactionOverrides {
+            gas_limit_cap: Some(U256::from(100)),
+            ..Default::default()
+        };
+        let domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Ethereum);
+        let with_gas_limit_overrides = true;
+
+        estimate_gas_limit(
+            Arc::new(provider),
+            &mut tx_precursor,
+            &transaction_overrides,
+            &domain,
+            with_gas_limit_overrides,
+        )
+        .await
+        .expect("Failed to estimate gas limit");
+
+        let expected_gas = EthersU256::from(100);
+        let expected = Some(&expected_gas);
+        assert_eq!(tx_precursor.tx.gas(), expected);
+    }
 }

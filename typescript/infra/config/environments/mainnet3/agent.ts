@@ -69,7 +69,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
-    alephzeroevmmainnet: true,
+    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arbitrum: true,
@@ -99,6 +99,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     eclipsemainnet: true,
+    electroneum: true,
     endurance: true,
     ethereum: true,
     everclear: true,
@@ -111,7 +112,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
-    game7: true,
+    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -120,7 +121,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvmmainnet: true,
+    infinityvmmainnet: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -129,7 +130,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     linea: true,
     lisk: true,
     lukso: true,
-    lumia: true,
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
@@ -140,6 +140,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -155,12 +156,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     osmosis: true,
     paradex: true,
     peaq: true,
+    plasma: true,
     plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
     proofofplay: true,
+    pulsechain: true,
+    radix: true,
     rarichain: true,
     reactive: true,
     redstone: true,
@@ -205,7 +209,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
-    alephzeroevmmainnet: true,
+    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arcadia: true,
@@ -235,6 +239,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     eclipsemainnet: true,
+    electroneum: true,
     endurance: true,
     ethereum: true,
     everclear: true,
@@ -247,7 +252,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
-    game7: true,
+    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -256,7 +261,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvmmainnet: true,
+    infinityvmmainnet: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -265,7 +270,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     linea: true,
     lisk: true,
     lukso: true,
-    lumia: true,
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
@@ -276,6 +280,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -291,12 +296,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     osmosis: true,
     paradex: true,
     peaq: true,
+    plasma: true,
     plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
     proofofplay: true,
+    pulsechain: true,
+    radix: true,
     rarichain: true,
     reactive: true,
     redstone: true,
@@ -341,7 +349,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
-    alephzeroevmmainnet: true,
+    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arbitrum: true,
@@ -371,6 +379,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     eclipsemainnet: true,
+    electroneum: true,
     endurance: true,
     ethereum: true,
     everclear: true,
@@ -383,7 +392,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
-    game7: true,
+    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -392,7 +401,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvmmainnet: true,
+    infinityvmmainnet: false,
     ink: true,
     injective: true,
     kaia: true,
@@ -401,7 +410,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     linea: true,
     lisk: true,
     lukso: true,
-    lumia: true,
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
@@ -412,6 +420,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     milkyway: true,
     mint: true,
     miraclechain: true,
+    mitosis: true,
     mode: true,
     molten: true,
     moonbeam: true,
@@ -427,12 +436,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     osmosis: true,
     paradex: true,
     peaq: true,
+    plasma: true,
     plume: true,
     polygon: true,
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
     proofofplay: true,
+    pulsechain: true,
+    radix: true,
     rarichain: true,
     reactive: true,
     redstone: true,
@@ -555,20 +567,20 @@ const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
 );
 
 // ICA v2 deploys that superswaps make use of
-const superswapIcaV2MatchingList = chainMapMatchingList({
-  base: '0x44647Cd983E80558793780f9a0c7C2aa9F384D07',
-  bob: '0xA6f0A37DFDe9C2c8F46F010989C47d9edB3a9FA8',
-  celo: '0x1eA7aC243c398671194B7e2C51d76d1a1D312953',
-  fraxtal: '0xD59a200cCEc5b3b1bF544dD7439De452D718f594',
-  ink: '0x55Ba00F1Bac2a47e0A73584d7c900087642F9aE3',
-  lisk: '0xE59592a179c4f436d5d2e4caA6e2750beA4E3166',
-  metal: '0x0b2d429acccAA411b867d57703F88Ed208eC35E4',
-  mode: '0x860ec58b115930EcbC53EDb8585C1B16AFFF3c50',
-  optimism: '0x3E343D07D024E657ECF1f8Ae8bb7a12f08652E75',
-  soneium: '0xc08C1451979e9958458dA3387E92c9Feb1571f9C',
-  superseed: '0x3CA0e8AEfC14F962B13B40c6c4b9CEE3e4927Ae3',
-  swell: '0x95Fb6Ca1BBF441386b119ad097edcAca3b1C35B7',
-  unichain: '0x43320f6B410322Bf5ca326a0DeAaa6a2FC5A021B',
+const superswapIcaV2MatchingList = senderMatchingList({
+  base: { sender: '0x44647Cd983E80558793780f9a0c7C2aa9F384D07' },
+  bob: { sender: '0xA6f0A37DFDe9C2c8F46F010989C47d9edB3a9FA8' },
+  celo: { sender: '0x1eA7aC243c398671194B7e2C51d76d1a1D312953' },
+  fraxtal: { sender: '0xD59a200cCEc5b3b1bF544dD7439De452D718f594' },
+  ink: { sender: '0x55Ba00F1Bac2a47e0A73584d7c900087642F9aE3' },
+  lisk: { sender: '0xE59592a179c4f436d5d2e4caA6e2750beA4E3166' },
+  metal: { sender: '0x0b2d429acccAA411b867d57703F88Ed208eC35E4' },
+  mode: { sender: '0x860ec58b115930EcbC53EDb8585C1B16AFFF3c50' },
+  optimism: { sender: '0x3E343D07D024E657ECF1f8Ae8bb7a12f08652E75' },
+  soneium: { sender: '0xc08C1451979e9958458dA3387E92c9Feb1571f9C' },
+  superseed: { sender: '0x3CA0e8AEfC14F962B13B40c6c4b9CEE3e4927Ae3' },
+  swell: { sender: '0x95Fb6Ca1BBF441386b119ad097edcAca3b1C35B7' },
+  unichain: { sender: '0x43320f6B410322Bf5ca326a0DeAaa6a2FC5A021B' },
 });
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
@@ -641,13 +653,6 @@ const stagingStHyperMatchingList = chainMapMatchingList({
   bsc: '0xf0c8c5fc69fCC3fA49C319Fdf422D8279756afE2',
   ethereum: '0x0C919509663cb273E156B706f065b9F7e6331891',
 });
-
-const vanguardMatchingList = [
-  ...hyperMatchingList,
-  ...stHyperMatchingList,
-  ...stagingHyperMatchingList,
-  ...stagingStHyperMatchingList,
-];
 
 // Gets metric app contexts, including:
 // - helloworld
@@ -746,6 +751,12 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       name: 'superswap_ica_v2',
       matchingList: superswapIcaV2MatchingList,
     },
+    {
+      name: 'm0',
+      matchingList: consistentSenderRecipientMatchingList(
+        '0x36f586A30502AE3afb555b8aA4dCc05d233c2ecE',
+      ),
+    },
   ];
 };
 
@@ -776,6 +787,24 @@ const blacklist: MatchingList = [
   ...blacklistedMessageIds.map((messageId) => ({
     messageId,
   })),
+  // routes on legacy pulsechain mailbox
+  {
+    destinationDomain: getDomainId('pulsechain'),
+    recipientAddress: [
+      '0x688B161745c4eCEc2Ce07DC385cF2B57D9980244',
+      '0x50d03965Ed30de5d246BdDa18E7B10A8904B8CF1',
+      '0xD110Cbf543c3b237aB3EC171D7117932A4807F9B',
+      '0x87353B9AA546F8cf7290DeD2d339C0Ec694d7144',
+      '0x5DD749B87FA2e456482adb231FB9c2b0302A3027',
+      '0xe227B51F5D7079fAa07b7621657e3aa5906d2185',
+      '0x867c1fd9341DEC12e4B779C35D7b7C475316b334',
+    ],
+  },
+  // StarkNet<>StarkNet messages
+  {
+    originDomain: getDomainId('starknet'),
+    destinationDomain: getDomainId('starknet'),
+  },
 ];
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [
@@ -806,7 +835,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7199ade-20250808-152553',
+      tag: 'a62b4a4-20250918-104420',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -826,7 +855,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'bbf3258-20250804-133531',
+      tag: '093e0be-20250904-212216',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -837,7 +866,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7199ade-20250808-152553',
+      tag: 'e8b16e1-20250914-163558',
     },
     resources: scraperResources,
   },
@@ -852,7 +881,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7199ade-20250808-152553',
+      tag: 'a62b4a4-20250918-104420',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -875,7 +904,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '5291797-20250701-134531',
+      tag: '093e0be-20250904-212216',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -915,79 +944,8 @@ const neutron: RootAgentConfig = {
   },
 };
 
-const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
-  ...contextBase,
-  context: mustBeValidContext(`vanguard${index}`),
-  contextChainNames: {
-    validator: [],
-    relayer: ['bsc', 'arbitrum', 'optimism', 'ethereum', 'base'],
-    scraper: [],
-  },
-  rolesWithKeys: [Role.Relayer],
-  relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    docker: {
-      repo,
-      // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
-      tag: '420c950-20250612-172436',
-    },
-    whitelist: vanguardMatchingList,
-    // Not specifying a blacklist for optimization purposes -- all the message IDs
-    // in there are not vanguard-specific.
-    gasPaymentEnforcement: [
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: vanguardMatchingList,
-      },
-    ],
-    metricAppContextsGetter,
-    ismCacheConfigs,
-    cache: {
-      enabled: true,
-      // Cache for 10 minutes
-      defaultExpirationSeconds: 10 * 60,
-    },
-    resources: {
-      requests: {
-        // Big enough to claim a c3-standard-44 each
-        cpu: '35000m',
-        memory: '100Gi',
-      },
-    },
-    dbBootstrap: true,
-    mixing: {
-      enabled: true,
-      // Arbitrary salt to ensure different agents have different sorting behavior for pending messages
-      salt: 69690 + index,
-    },
-    batch: {
-      defaultBatchSize: 32,
-      batchSizeOverrides: {
-        // Slightly lower to ideally fit within 5M
-        ethereum: 26,
-      },
-      bypassBatchSimulation: true,
-      maxSubmitQueueLength: {
-        arbitrum: 350,
-        base: 350,
-        bsc: 350,
-        optimism: 350,
-        ethereum: 75,
-      },
-    },
-    txIdIndexingEnabled: false,
-    igpIndexingEnabled: false,
-  },
-});
-
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
-  [Contexts.Vanguard0]: getVanguardRootAgentConfig(0),
-  [Contexts.Vanguard1]: getVanguardRootAgentConfig(1),
-  [Contexts.Vanguard2]: getVanguardRootAgentConfig(2),
-  [Contexts.Vanguard3]: getVanguardRootAgentConfig(3),
-  [Contexts.Vanguard4]: getVanguardRootAgentConfig(4),
-  [Contexts.Vanguard5]: getVanguardRootAgentConfig(5),
 };

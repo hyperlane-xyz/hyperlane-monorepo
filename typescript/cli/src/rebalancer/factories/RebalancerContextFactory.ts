@@ -200,7 +200,6 @@ export class RebalancerContextFactory {
       this.warpCore.tokens.map(async (token) => {
         if (
           isCollateralizedTokenEligibleForRebalancing(token) &&
-          token.collateralAddressOrDenom &&
           chainNames.has(token.chainName)
         ) {
           const adapter = token.getHypAdapter(this.warpCore.multiProvider);

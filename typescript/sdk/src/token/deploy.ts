@@ -228,7 +228,7 @@ abstract class TokenDeployer<
       if (isNativeTokenConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
-          metadataMap.set(
+          metadataMap.update(
             chain,
             TokenMetadataSchema.parse({
               ...nativeToken,
@@ -254,7 +254,7 @@ abstract class TokenDeployer<
             erc721.name(),
             erc721.symbol(),
           ]);
-          metadataMap.set(
+          metadataMap.update(
             chain,
             TokenMetadataSchema.parse({
               name,
@@ -290,7 +290,7 @@ abstract class TokenDeployer<
           erc20.decimals(),
         ]);
 
-        metadataMap.set(
+        metadataMap.update(
           chain,
           TokenMetadataSchema.parse({
             name,
