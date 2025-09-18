@@ -21,6 +21,7 @@ use hyperlane_core::ChainResult;
 use crate::HyperlaneRadixError;
 
 mod fallback;
+pub mod lander;
 mod radix;
 
 pub use {fallback::RadixFallbackProvider, radix::RadixProvider};
