@@ -191,6 +191,8 @@ jobs:
 
       - name: gitleaks-install
         uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}}
 
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
