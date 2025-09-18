@@ -45,7 +45,7 @@ impl AdaptsChain for RadixAdapter {
             .provider
             .get_tx_hash_status(hash)
             .await
-            .map_err(|err| LanderError::ChainCommunicationError(err))?;
+            .map_err(LanderError::ChainCommunicationError)?;
 
         match resp.status {
             gateway_api_client::models::TransactionStatus::Unknown => {
