@@ -1,6 +1,9 @@
 import { Logger } from 'pino';
 
 import {
+  MsgCreateMerkleRootMultisigIsmEncodeObject,
+  MsgCreateMessageIdMultisigIsmEncodeObject,
+  MsgCreateNoopIsmEncodeObject,
   COSMOS_MODULE_MESSAGE_REGISTRY as R,
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
@@ -196,6 +199,72 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
     }
   }
 
+  protected async multiDeploy({
+    configs,
+  }: {
+    configs: IsmConfig[];
+  }): Promise<Address[]> {
+    const msgs = [];
+
+    for (const config of configs) {
+      assert(
+        typeof config !== 'string',
+        `config of type string not allowed in ism multi deploy`,
+      );
+
+      const ismType = config.type;
+      this.logger.info(`Deploying ${ismType} to ${this.chain}`);
+
+      switch (ismType) {
+        case IsmType.MERKLE_ROOT_MULTISIG: {
+          const msg: MsgCreateMerkleRootMultisigIsmEncodeObject = {
+            typeUrl: R.MsgCreateMerkleRootMultisigIsm.proto.type,
+            value: R.MsgCreateMerkleRootMultisigIsm.proto.converter.create({
+              validators: config.validators,
+              threshold: config.threshold,
+              creator: this.signer.account.address,
+            }),
+          };
+          msgs.push(msg);
+          break;
+        }
+        case IsmType.MESSAGE_ID_MULTISIG: {
+          const msg: MsgCreateMessageIdMultisigIsmEncodeObject = {
+            typeUrl: R.MsgCreateMessageIdMultisigIsm.proto.type,
+            value: R.MsgCreateMessageIdMultisigIsm.proto.converter.create({
+              validators: config.validators,
+              threshold: config.threshold,
+              creator: this.signer.account.address,
+            }),
+          };
+          msgs.push(msg);
+          break;
+        }
+        case IsmType.TEST_ISM: {
+          const msg: MsgCreateNoopIsmEncodeObject = {
+            typeUrl: R.MsgCreateNoopIsm.proto.type,
+            value: R.MsgCreateNoopIsm.proto.converter.create({
+              creator: this.signer.account.address,
+            }),
+          };
+          msgs.push(msg);
+          break;
+        }
+        default:
+          throw new Error(
+            `ISM type ${ismType} is not supported on Cosmos Native multi deploy`,
+          );
+      }
+    }
+
+    this.logger.info(
+      `Deploying ${configs.map((c) => (typeof c === 'string' ? c : c.type)).join(', ')} to ${this.chain} in one transaction`,
+    );
+
+    const isms = await this.signer.submitMultiTx<{ id: string }>(msgs);
+    return isms.responses.map((response) => response.id);
+  }
+
   protected async deployMerkleRootMultisigIsm(
     config: MultisigIsmConfig,
   ): Promise<Address> {
@@ -229,21 +298,64 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
   ): Promise<Address> {
     const routes = [];
 
-    // deploy ISMs for each domain
-    for (const chainName of Object.keys(config.domains)) {
-      const domainId = this.metadataManager.tryGetDomainId(chainName);
-      if (!domainId) {
-        this.logger.warn(
-          `Unknown chain ${chainName}, skipping ISM configuration`,
-        );
-        continue;
+    // if every sub ism is a non-routing ism we can deploy all sub isms
+    // simultaniously
+    const allIsmsNonRouting = Object.keys(config.domains).every((chainName) => {
+      const subIsmConfig = config.domains[chainName];
+
+      if (typeof subIsmConfig === 'string') {
+        return false;
       }
 
-      const address = await this.deploy({ config: config.domains[chainName] });
-      routes.push({
-        ism: address,
-        domain: domainId,
+      if (subIsmConfig.type === IsmType.ROUTING) {
+        return false;
+      }
+
+      return true;
+    });
+
+    if (allIsmsNonRouting) {
+      // deploy all ISMs in one transaction
+      const isms = await this.multiDeploy({
+        configs: Object.keys(config.domains).map(
+          (chainName) => config.domains[chainName],
+        ),
       });
+
+      for (let i = 0; i < Object.keys(config.domains).length; i++) {
+        const chainName = Object.keys(config.domains)[i];
+        const domainId = this.metadataManager.tryGetDomainId(chainName);
+        if (!domainId) {
+          this.logger.warn(
+            `Unknown chain ${chainName}, skipping ISM configuration`,
+          );
+          continue;
+        }
+
+        routes.push({
+          ism: isms[i],
+          domain: domainId,
+        });
+      }
+    } else {
+      // deploy ISMs sequentially for each domain
+      for (const chainName of Object.keys(config.domains)) {
+        const domainId = this.metadataManager.tryGetDomainId(chainName);
+        if (!domainId) {
+          this.logger.warn(
+            `Unknown chain ${chainName}, skipping ISM configuration`,
+          );
+          continue;
+        }
+
+        const address = await this.deploy({
+          config: config.domains[chainName],
+        });
+        routes.push({
+          ism: address,
+          domain: domainId,
+        });
+      }
     }
 
     const { response } = await this.signer.createRoutingIsm({
@@ -270,17 +382,20 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       expected,
     );
 
-    const knownEnrolls = intersection(knownChains, new Set(domainsToEnroll));
+    const knownEnrolls = Array.from(
+      intersection(knownChains, new Set(domainsToEnroll)).values(),
+    );
 
     // Enroll domains
-    for (const origin of knownEnrolls) {
+    const isms = await this.multiDeploy({
+      configs: knownEnrolls.map((origin) => expected.domains[origin]),
+    });
+
+    for (let i = 0; i < knownEnrolls.length; i++) {
+      const origin = knownEnrolls[i];
       logger.debug(
         `Reconfiguring preexisting routing ISM for origin ${origin}...`,
       );
-      const ism = await this.deploy({
-        config: expected.domains[origin],
-      });
-
       const domain = this.metadataManager.getDomainId(origin);
       updateTxs.push({
         annotation: `Setting new ISM for origin ${origin}...`,
@@ -289,7 +404,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
           owner: actual.owner,
           ism_id: this.args.addresses.deployedIsm,
           route: {
-            ism,
+            ism: isms[i],
             domain,
           },
         }),

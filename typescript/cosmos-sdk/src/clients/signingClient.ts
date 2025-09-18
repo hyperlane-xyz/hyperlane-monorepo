@@ -67,6 +67,10 @@ export interface TxResponse<R> extends DeliverTxResponse {
   response: R;
 }
 
+export interface TxResponses<R> extends DeliverTxResponse {
+  responses: R[];
+}
+
 export class SigningHyperlaneModuleClient extends SigningStargateClient {
   public query: HyperlaneQueryClient;
   public account: AccountData;
@@ -142,7 +146,7 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     );
   }
 
-  private async submitTx<T>(
+  public async submitTx<T>(
     msg: EncodeObject,
     options?: TxOptions,
   ): Promise<TxResponse<T>> {
@@ -157,6 +161,26 @@ export class SigningHyperlaneModuleClient extends SigningStargateClient {
     return {
       ...result,
       response: this.registry.decode(result.msgResponses[0]),
+    };
+  }
+
+  public async submitMultiTx<T>(
+    msgs: EncodeObject[],
+    options?: TxOptions,
+  ): Promise<TxResponses<T>> {
+    const result = await this.signAndBroadcast(
+      this.account.address,
+      msgs,
+      options?.fee ?? this.GAS_MULTIPLIER,
+      options?.memo,
+    );
+    assertIsDeliverTxSuccess(result);
+
+    return {
+      ...result,
+      responses: result.msgResponses.map((response) =>
+        this.registry.decode(response),
+      ),
     };
   }
 
