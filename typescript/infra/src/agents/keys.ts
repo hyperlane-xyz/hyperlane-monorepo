@@ -75,7 +75,9 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
     };
   }
 
-  privateKeyForProtocol(protocol: Exclude<ProtocolType, 'sealevel'>): HexString;
+  privateKeyForProtocol(
+    protocol: Exclude<ProtocolType, ProtocolType.Sealevel>,
+  ): HexString;
   privateKeyForProtocol(protocol: ProtocolType.Sealevel): Uint8Array;
   privateKeyForProtocol(protocol: ProtocolType): HexString | Uint8Array {
     if (protocol === ProtocolType.Ethereum) {

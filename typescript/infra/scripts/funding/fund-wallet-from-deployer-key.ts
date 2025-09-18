@@ -129,7 +129,16 @@ async function fundAccount({
     apiKey: await getCoinGeckoApiKey(logger),
   });
 
-  const tokenPrice = await tokenPriceGetter.getTokenPrice(chainName);
+  let tokenPrice;
+  try {
+    tokenPrice = await tokenPriceGetter.getTokenPrice(chainName);
+  } catch (err) {
+    logger.error(
+      { chainName, err },
+      `Failed to get native token price for ${chainName}, falling back to 1usd`,
+    );
+    tokenPrice = 1;
+  }
   const fundingAmountInUsd = parseFloat(amount) * tokenPrice;
 
   if (fundingAmountInUsd > MAX_FUNDING_AMOUNT_IN_USD) {
