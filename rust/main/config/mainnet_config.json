@@ -2253,7 +2253,7 @@
       "domainId": 875,
       "gasCurrencyCoinGeckoId": "osmosis",
       "gasPrice": {
-        "amount": "0.1",
+        "amount": "0.025",
         "denom": "uosmo"
       },
       "grpcUrls": [
@@ -4029,7 +4029,7 @@
       "validatorAnnounce": "0xf57d954bf3ddb5f1032a0e020a99e931215cf83ceb4de987c781488065aaae0d",
       "gasPrice": {
         "denom": "ustrd",
-        "amount": "0.005"
+        "amount": "0.025"
       },
       "canonicalAsset": "ustrd",
       "contractAddressBytes": 32,
@@ -9105,16 +9105,16 @@
     "pulsechain": {
       "blockExplorers": [
         {
-          "apiUrl": "https://api.scan.pulsechain.com/api",
+          "apiUrl": "https://scan.pulsechain.box/api",
           "family": "blockscout",
           "name": "Pulsechain Explorer",
-          "url": "https://scan.pulsechainfoundation.org/#/"
+          "url": "https://scan.pulsechain.box"
         },
         {
           "apiUrl": "https://api.scan.pulsechain.com/api",
           "family": "blockscout",
           "name": "Pulsechain Explorer",
-          "url": "https://oldscan.gopulse.com/#/"
+          "url": "https://scan.pulsechainfoundation.org/#/"
         },
         {
           "apiUrl": "https://api.scan.pulsechain.com/api",
