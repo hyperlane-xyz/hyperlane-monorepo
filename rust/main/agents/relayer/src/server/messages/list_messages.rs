@@ -247,7 +247,7 @@ mod tests {
             .into_iter()
             .take(2)
             .map(|(_, msg)| MessageResponse {
-                message_id: format!("0x{:x}", msg.id()),
+                message_id: format!("{:x}", msg.id()),
                 message: msg,
             })
             .collect();
