@@ -4,6 +4,7 @@ import { Logger } from 'pino';
 import { buildArtifact as zksyncBuildArtifact } from '@hyperlane-xyz/core/buildArtifact-zksync.js';
 import { Address, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
 
+import { getContractSourceCode } from '../../block-explorer/etherscan.js';
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ContractVerificationStatus } from '../../token/types.js';
@@ -53,6 +54,22 @@ export class ContractVerifier extends BaseContractVerifier {
     verificationLogger: Logger,
   ): Promise<void> {
     const contractType: string = input.isProxy ? 'proxy' : 'implementation';
+
+    const verificationStatus = await this.getContractVerificationStatus(
+      chain,
+      input.address,
+      verificationLogger,
+    );
+
+    if (
+      verificationStatus === ContractVerificationStatus.Verified ||
+      verificationStatus === ContractVerificationStatus.Skipped
+    ) {
+      verificationLogger.debug(
+        `Contract ${contractType} at address "${input.address}" on chain "${chain}" is already verified. Skipping...`,
+      );
+      return;
+    }
 
     verificationLogger.debug(`📝 Verifying ${contractType}...`);
 
@@ -310,17 +327,17 @@ export class ContractVerifier extends BaseContractVerifier {
     verificationLogger: Logger = this.logger,
   ): Promise<ContractVerificationStatus> {
     try {
+      const apiUrl = this.multiProvider.getExplorerApiUrl(chain);
+
       verificationLogger.trace(
         `Fetching contract ABI for ${chain} address ${address}`,
       );
-      const sourceCodeResults = (
-        await this.submitForm(
-          chain,
-          ExplorerApiActions.GETSOURCECODE,
-          verificationLogger,
-          { address },
-        )
-      )[0]; // This specific query only returns 1 result
+      const sourceCodeResults = await getContractSourceCode(
+        {
+          apiUrl,
+        },
+        { contractAddress: address },
+      );
 
       // Explorer won't return ContractName if unverified
       return sourceCodeResults.ContractName

@@ -2,6 +2,21 @@ import { Address, HexString } from '@hyperlane-xyz/utils';
 
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 
+export enum EtherscanLikeExplorerApiModule {
+  LOGS = 'logs',
+  CONTRACT = 'contract',
+}
+
+export enum EtherscanLikeExplorerApiAction {
+  GETSOURCECODE = 'getsourcecode',
+  VERIFY_IMPLEMENTATION = 'verifysourcecode',
+  VERIFY_PROXY = 'verifyproxycontract',
+  CHECK_IMPLEMENTATION_STATUS = 'checkverifystatus',
+  CHECK_PROXY_STATUS = 'checkproxyverification',
+  GET_CONTRACT_CREATION_CODE = 'getcontractcreation',
+  GET_LOGS = 'getLogs',
+}
+
 interface EtherscanLikeAPIOptions {
   // Explorers like Blockscout don't require an API key for requests
   apiKey?: string;
@@ -9,14 +24,17 @@ interface EtherscanLikeAPIOptions {
 }
 
 interface BaseEtherscanLikeAPIParams<
-  TModule extends string,
-  TAction extends string,
+  TModule extends EtherscanLikeExplorerApiModule,
+  TAction extends EtherscanLikeExplorerApiAction,
 > {
   module: TModule;
   action: TAction;
 }
 
-function formatExplorerUrl<TModule extends string, TAction extends string>(
+function formatExplorerUrl<
+  TModule extends EtherscanLikeExplorerApiModule,
+  TAction extends EtherscanLikeExplorerApiAction,
+>(
   { apiUrl, apiKey }: EtherscanLikeAPIOptions,
   params: BaseEtherscanLikeAPIParams<TModule, TAction>,
 ): string {
@@ -55,7 +73,10 @@ async function handleEtherscanResponse<T>(response: Response): Promise<T> {
 }
 
 interface GetContractDeploymentTransaction
-  extends BaseEtherscanLikeAPIParams<'contract', 'getcontractcreation'> {
+  extends BaseEtherscanLikeAPIParams<
+    EtherscanLikeExplorerApiModule.CONTRACT,
+    EtherscanLikeExplorerApiAction.GET_CONTRACT_CREATION_CODE
+  > {
   contractaddresses: Address;
 }
 
@@ -70,8 +91,8 @@ export async function tryGetContractDeploymentTransaction(
   { contractAddress }: { contractAddress: Address },
 ): Promise<GetContractDeploymentTransactionResponse | undefined> {
   const options: GetContractDeploymentTransaction = {
-    module: 'contract',
-    action: 'getcontractcreation',
+    module: EtherscanLikeExplorerApiModule.CONTRACT,
+    action: EtherscanLikeExplorerApiAction.GET_CONTRACT_CREATION_CODE,
     contractaddresses: contractAddress,
   };
 
@@ -105,7 +126,11 @@ export async function getContractDeploymentTransaction(
 }
 
 // based on https://docs.etherscan.io/api-endpoints/logs
-interface GetEventLogs extends BaseEtherscanLikeAPIParams<'logs', 'getLogs'> {
+interface GetEventLogs
+  extends BaseEtherscanLikeAPIParams<
+    EtherscanLikeExplorerApiModule.LOGS,
+    EtherscanLikeExplorerApiAction.GET_LOGS
+  > {
   address: Address;
   fromBlock: number;
   toBlock: number;
@@ -130,8 +155,8 @@ export async function getLogsFromEtherscanLikeExplorerAPI(
   options: Omit<GetEventLogs, 'module' | 'action'>,
 ): Promise<Array<GetEventLogsResponse>> {
   const data: GetEventLogs = {
-    module: 'logs',
-    action: 'getLogs',
+    module: EtherscanLikeExplorerApiModule.LOGS,
+    action: EtherscanLikeExplorerApiAction.GET_LOGS,
     address: options.address,
     fromBlock: options.fromBlock,
     toBlock: options.toBlock,
@@ -156,4 +181,49 @@ export async function getLogsFromEtherscanLikeExplorerAPI(
       transactionIndex: Number(rawLogs.transactionIndex),
     }),
   );
+}
+
+interface GetContractVerificationStatus
+  extends BaseEtherscanLikeAPIParams<
+    EtherscanLikeExplorerApiModule.CONTRACT,
+    EtherscanLikeExplorerApiAction.GETSOURCECODE
+  > {
+  address: Address;
+}
+
+type GetContractSourceCodeResponse = {
+  SourceCode: string;
+  ContractName: string;
+  CompilerVersion: string;
+  OptimizationUsed: string;
+  Runs: string;
+  ConstructorArguments: string;
+  EVMVersion: string;
+  Library: string;
+  LicenseType: string;
+  Proxy: string;
+  Implementation: string;
+  SwarmSource: string;
+  SimilarMatch: string;
+};
+
+export async function getContractSourceCode(
+  explorerOptions: EtherscanLikeAPIOptions,
+  { contractAddress }: { contractAddress: Address },
+): Promise<GetContractSourceCodeResponse> {
+  const options: GetContractVerificationStatus = {
+    action: EtherscanLikeExplorerApiAction.GETSOURCECODE,
+    address: contractAddress,
+    module: EtherscanLikeExplorerApiModule.CONTRACT,
+  };
+
+  const requestUrl = formatExplorerUrl(explorerOptions, options);
+  const response = await fetch(requestUrl);
+
+  const [sourceCodeResults] =
+    await handleEtherscanResponse<Array<GetContractSourceCodeResponse>>(
+      response,
+    );
+
+  return sourceCodeResults;
 }
