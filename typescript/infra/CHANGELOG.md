@@ -1,5 +1,46 @@
 # @hyperlane-xyz/infra
 
+## 18.2.0
+
+### Minor Changes
+
+- ca64e73cd: Update the oXAUT bridge limits for avax, celo, ethereum, worldchain and base config. Export XERC20LimitsTokenConfig.
+
+### Patch Changes
+
+- Updated dependencies [fed6906e4]
+- Updated dependencies [ca64e73cd]
+- Updated dependencies [dfa9d368c]
+  - @hyperlane-xyz/sdk@18.2.0
+  - @hyperlane-xyz/helloworld@18.2.0
+  - @hyperlane-xyz/utils@18.2.0
+
+## 18.1.0
+
+### Minor Changes
+
+- d7c5f30df: Add radix USDC warp route getter
+
+### Patch Changes
+
+- Updated dependencies [73be9b8d2]
+  - @hyperlane-xyz/sdk@18.1.0
+  - @hyperlane-xyz/helloworld@18.1.0
+  - @hyperlane-xyz/utils@18.1.0
+
+## 18.0.0
+
+### Patch Changes
+
+- 0bcb90abc: set token decimals in more warp config getters to satisfy warp checker rules
+- cb908b8aa: set token decimals in warp config getters to satisfy stricter warp checker rules
+- Updated dependencies [552b253b9]
+- Updated dependencies [ba832828f]
+- Updated dependencies [cfc0eb2a7]
+  - @hyperlane-xyz/sdk@18.0.0
+  - @hyperlane-xyz/utils@18.0.0
+  - @hyperlane-xyz/helloworld@18.0.0
+
 ## 17.0.0
 
 ### Patch Changes

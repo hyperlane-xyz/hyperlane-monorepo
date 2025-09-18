@@ -92,7 +92,12 @@ export function getExplorerTxUrl(
   if (!baseUrl) return null;
   const chainName = metadata.name;
   // TODO consider move handling of these chain/protocol specific quirks to ChainMetadata
-  const urlPathStub = ['nautilus', 'proteustestnet'].includes(chainName)
+  const urlPathStub = [
+    'nautilus',
+    'proteustestnet',
+    'radix',
+    'radixtestnet',
+  ].includes(chainName)
     ? 'transaction'
     : 'tx';
   return appendToPath(baseUrl, `${urlPathStub}/${hash}`).toString();
@@ -105,7 +110,7 @@ export function getExplorerAddressUrl(
   const baseUrl = getExplorerBaseUrl(metadata);
   if (!baseUrl) return null;
 
-  const urlPathStub = getExplorerAddressPathStub(metadata);
+  const urlPathStub = getExplorerAddressPathStub(metadata, 0, address);
   if (!urlPathStub) return null;
 
   return appendToPath(baseUrl, `${urlPathStub}/${address}`).toString();
@@ -121,9 +126,16 @@ function appendToPath(baseUrl: string, pathExtension: string) {
   return newUrl;
 }
 
-function getExplorerAddressPathStub(metadata: ChainMetadata, index = 0) {
+function getExplorerAddressPathStub(
+  metadata: ChainMetadata,
+  index = 0,
+  address?: string,
+) {
   if (!metadata?.blockExplorers?.[index]) return null;
   const blockExplorer = metadata.blockExplorers[index];
+  if (blockExplorer.family === ExplorerFamily.RadixDashboard) {
+    return address?.startsWith('account') ? 'account' : 'component';
+  }
   if (!blockExplorer.family) return null;
 
   return blockExplorer.family === ExplorerFamily.Voyager

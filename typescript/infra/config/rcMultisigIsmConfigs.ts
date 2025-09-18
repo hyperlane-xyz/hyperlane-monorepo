@@ -88,15 +88,6 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     ],
   },
   // ----------------- Testnets -----------------
-  alfajores: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0xace978aaa61d9ee44fe3ab147fd227e0e66b8909',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
   fuji: {
     threshold: 1,
     validators: [
