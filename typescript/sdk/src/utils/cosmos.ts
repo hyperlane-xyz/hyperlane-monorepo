@@ -33,7 +33,7 @@ export const CosmosChainSchema = z.object({
       'unknown',
     ])
     .describe(
-      "The 'type' of chain as the corresponding CAIP-2 Namespace value. E.G., 'cosmos' or 'eip155'. Namespaces cna be found here: https://github.com/ChainAgnostic/namespaces/tree/main.",
+      "The 'type' of chain as the corresponding CAIP-2 Namespace value. E.G., 'cosmos' or 'eip155'. Namespaces can be found here: https://github.com/ChainAgnostic/namespaces/tree/main.",
     ),
   chain_id: z.string().min(1).optional(),
   pre_fork_chain_name: z
