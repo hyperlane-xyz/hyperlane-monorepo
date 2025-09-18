@@ -12,6 +12,7 @@ use crate::{
 
 #[derive(Clone)]
 pub struct RadixAdapter {
+    pub estimated_block_time: Duration,
     pub provider: Arc<dyn RadixProviderForLander>,
 }
 
@@ -78,11 +79,11 @@ impl AdaptsChain for RadixAdapter {
     }
 
     fn estimated_block_time(&self) -> &Duration {
-        todo!()
+        &self.estimated_block_time
     }
 
     fn max_batch_size(&self) -> u32 {
-        todo!()
+        1
     }
 
     fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics) {
