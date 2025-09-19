@@ -23,11 +23,15 @@ impl ConnectionConf {
     pub fn new(
         core: Vec<Url>,
         gateway: Vec<Url>,
-        network: String,
+        network_name: String,
         core_header: Vec<HashMap<String, String>>,
         gateway_header: Vec<HashMap<String, String>>,
     ) -> Self {
-        let network = NetworkDefinition::from_str(&network).unwrap_or(NetworkDefinition::mainnet());
+        let network = match network_name.as_str() {
+            "localnet" => NetworkDefinition::localnet(),
+            _ => NetworkDefinition::from_str(&network_name).unwrap_or(NetworkDefinition::mainnet()),
+        };
+
         Self {
             core,
             core_header,
