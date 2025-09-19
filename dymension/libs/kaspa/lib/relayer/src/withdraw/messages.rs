@@ -150,17 +150,71 @@ pub async fn build_withdrawal_fxg(
         (None, inputs)
     };
 
-    let payload = MessageIDs::from(&valid_msgs).to_bytes();
+    // Estimate mass and remove outputs if necessary
+    let mut final_outputs = outputs.clone();
+    let mut final_msgs = valid_msgs.clone();
+
+    // Calculate initial mass
+    let mut tx_mass = super::hub_to_kaspa::estimate_mass(
+        inputs.clone(),
+        final_outputs.clone(),
+        MessageIDs::from(&final_msgs).to_bytes(),
+        relayer.net.network_id,
+        escrow_public.m() as u16,
+    )
+    .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
+
+    // Use tx_fee_multiplier as safety margin for mass limit too
+    // This ensures we stay under the limit even with estimation variance
+    let max_allowed_mass = (kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS as f64 / tx_fee_multiplier) as u64;
+
+    // Remove outputs from the end if mass exceeds maximum (with safety margin)
+    let original_count = final_outputs.len();
+    while tx_mass > max_allowed_mass && !final_outputs.is_empty() {
+        final_outputs.pop();
+        final_msgs.pop();
+
+        // Recalculate mass with reduced outputs
+        if !final_outputs.is_empty() {
+            tx_mass = super::hub_to_kaspa::estimate_mass(
+                inputs.clone(),
+                final_outputs.clone(),
+                MessageIDs::from(&final_msgs).to_bytes(),
+                relayer.net.network_id,
+                escrow_public.m() as u16,
+            )
+            .map_err(|e| eyre::eyre!("Estimate TX mass after output removal: {e}"))?;
+        }
+    }
+
+    if final_outputs.len() < original_count {
+        info!(
+            "Kaspa relayer, reduced withdrawals from {} to {} due to mass limit. Final mass: {} (limit with margin: {})",
+            original_count,
+            final_outputs.len(),
+            tx_mass,
+            max_allowed_mass
+        );
+    }
+
+    if final_outputs.is_empty() {
+        return Err(eyre::eyre!(
+            "Cannot process any withdrawals - even a single withdrawal exceeds mass limit"
+        ));
+    }
+
+    let payload = MessageIDs::from(&final_msgs).to_bytes();
 
     let pskt = build_withdrawal_pskt(
         inputs,
-        outputs,
+        final_outputs,
         payload,
         &escrow_public,
         &relayer_address,
         relayer.net.network_id,
         min_deposit_sompi,
-        feerate * tx_fee_multiplier,
+        feerate*tx_fee_multiplier,
+        tx_mass,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
@@ -171,9 +225,9 @@ pub async fn build_withdrawal_fxg(
     // The last element is the withdrawal PSKT, so it should have all the HL messages.
     let messages = {
         let sweep_count = sweeping_bundle.as_ref().map_or(0, |b| b.0.len());
-        let mut messages = Vec::with_capacity(sweep_count + valid_msgs.len());
+        let mut messages = Vec::with_capacity(sweep_count + final_msgs.len());
         messages.extend(vec![Vec::new(); sweep_count]);
-        messages.push(valid_msgs);
+        messages.push(final_msgs);
         messages
     };
 

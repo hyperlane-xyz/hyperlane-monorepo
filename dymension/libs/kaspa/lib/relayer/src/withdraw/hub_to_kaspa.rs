@@ -4,7 +4,6 @@ use crate::withdraw::sweep::utxo_reference_from_populated_input;
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
 use corelib::message::parse_hyperlane_metadata;
-use corelib::payload::MessageIDs;
 use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::SigningResources;
@@ -26,7 +25,7 @@ use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
 use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_core::tx::{MassCalculator, MAXIMUM_STANDARD_TRANSACTION_MASS};
+use kaspa_wallet_core::tx::MassCalculator;
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
@@ -110,9 +109,10 @@ pub fn build_withdrawal_pskt(
     payload: Vec<u8>,
     escrow: &EscrowPublic,
     relayer_addr: &kaspa_addresses::Address,
-    network_id: NetworkId,
+    _network_id: NetworkId,
     min_deposit_sompi: U256,
     feerate: f64,
+    tx_mass: u64,
 ) -> Result<PSKT<Signer>> {
     //////////////////
     //   Balances   //
@@ -159,15 +159,6 @@ pub fn build_withdrawal_pskt(
     //////////////////
     //     Fee      //
     //////////////////
-
-    let tx_mass = estimate_mass(
-        inputs.clone(),
-        outputs.clone(),
-        payload.clone(),
-        network_id,
-        escrow.m() as u16,
-    )
-    .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
 
     // Apply TX mass multiplier and feerate
     let tx_fee = (tx_mass as f64 * feerate).round() as u64;
