@@ -74,13 +74,19 @@ export class ExplorerClient {
     logger.debug({ status: res.status }, 'Explorer query response');
 
     if (!res.ok) {
-      let body: string | undefined;
+      let errorDetails: string;
       try {
-        body = await res.text();
+        const errorJson = await res.json();
+        errorDetails = JSON.stringify(errorJson);
       } catch (_e) {
-        // ignore
+        try {
+          // Fallback to text if JSON parsing fails
+          errorDetails = await res.text();
+        } catch (_textError) {
+          errorDetails = 'Unable to read response body';
+        }
       }
-      throw new Error(`Explorer query failed: ${res.status} ${body ?? ''}`);
+      throw new Error(`Explorer query failed: ${res.status} ${errorDetails}`);
     }
 
     const json = await res.json();
