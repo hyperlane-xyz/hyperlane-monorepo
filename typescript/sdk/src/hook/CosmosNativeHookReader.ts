@@ -8,6 +8,7 @@ import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 
 import {
   DerivedHookConfig,
+  HookConfig,
   HookType,
   IgpHookConfig,
   MailboxDefaultHookConfig,
@@ -26,7 +27,9 @@ export class CosmosNativeHookReader {
       | SigningHyperlaneModuleClient,
   ) {}
 
-  async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
+  async deriveHookConfigFromAddress(
+    address: Address,
+  ): Promise<DerivedHookConfig> {
     try {
       if (await this.isIgpHook(address)) {
         return this.deriveIgpConfig(address);
@@ -41,6 +44,13 @@ export class CosmosNativeHookReader {
       this.logger.error(`Failed to derive Hook config for ${address}`, error);
       throw error;
     }
+  }
+
+  async deriveHookConfig(config: HookConfig): Promise<DerivedHookConfig> {
+    if (typeof config === 'string')
+      return this.deriveHookConfigFromAddress(config);
+
+    return config as DerivedHookConfig;
   }
 
   private async deriveIgpConfig(
