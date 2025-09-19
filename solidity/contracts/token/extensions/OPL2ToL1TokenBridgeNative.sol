@@ -13,10 +13,11 @@ import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 import {Message} from "../../libs/Message.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {NativeCollateral} from "../../token/libs/TokenCollateral.sol";
 
 uint256 constant SCALE = 1;
 
-contract OpL2NativeTokenBridge is HypNative {
+contract OpL2NativeTokenBridge is TokenRouter {
     using TypeCasts for bytes32;
     using StandardHookMetadata for bytes;
     using Address for address payable;
@@ -32,7 +33,7 @@ contract OpL2NativeTokenBridge is HypNative {
     constructor(
         address _mailbox,
         address _l2Bridge
-    ) HypNative(SCALE, _mailbox) {
+    ) TokenRouter(SCALE, _mailbox) {
         require(_l2Bridge.isContract(), "L2 bridge must be a contract");
         l2Bridge = IStandardBridge(payable(_l2Bridge));
     }
@@ -157,12 +158,31 @@ contract OpL2NativeTokenBridge is HypNative {
             });
     }
 
+    // needed for hook refunds
+    receive() external payable {}
+
+    function token() public view override returns (address) {
+        return address(0);
+    }
+
+    function _transferFromSender(uint256 _amount) internal override {
+        NativeCollateral._transferFromSender(_amount);
+    }
+
+    function _transferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal override {
+        // should never be called
+        assert(false);
+    }
+
     function handle(uint32, bytes32, bytes calldata) external payable override {
         revert("OP L2 token bridge should not receive messages");
     }
 }
 
-abstract contract OpL1NativeTokenBridge is HypNative, OPL2ToL1CcipReadIsm {
+abstract contract OpL1NativeTokenBridge is TokenRouter, OPL2ToL1CcipReadIsm {
     using Message for bytes;
     using TokenMessage for bytes;
 
@@ -192,6 +212,14 @@ abstract contract OpL1NativeTokenBridge is HypNative, OPL2ToL1CcipReadIsm {
         return _message.body().amount() == 0;
     }
 
+    function token() public view override returns (address) {
+        return address(0);
+    }
+
+    function _transferFromSender(uint256 _amount) internal override {
+        assert(false);
+    }
+
     function _transferTo(
         address _recipient,
         uint256 _amount
@@ -216,7 +244,7 @@ contract OpL1V1NativeTokenBridge is
     constructor(
         address _mailbox,
         address _opPortal
-    ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
+    ) TokenRouter(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
 }
 
 contract OpL1V2NativeTokenBridge is
@@ -226,5 +254,5 @@ contract OpL1V2NativeTokenBridge is
     constructor(
         address _mailbox,
         address _opPortal
-    ) HypNative(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
+    ) TokenRouter(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
 }

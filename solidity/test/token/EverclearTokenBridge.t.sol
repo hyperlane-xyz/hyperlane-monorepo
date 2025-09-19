@@ -16,6 +16,7 @@ pragma solidity ^0.8.22;
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {EverclearBridge} from "../../contracts/token/libs/EverclearBridge.sol";
 
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
@@ -189,7 +190,7 @@ contract EverclearTokenBridgeTest is Test {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
-            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
+            abi.encodeCall(EverclearBridge.initialize, (address(0), OWNER))
         );
 
         bridge = EverclearTokenBridge(address(proxy));
@@ -810,7 +811,7 @@ contract EverclearTokenBridgeForkTest is Test {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
-            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
+            abi.encodeCall(EverclearBridge.initialize, (address(0), OWNER))
         );
 
         bridge = MockEverclearTokenBridge(address(proxy));
@@ -985,7 +986,7 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             address(implementation),
             PROXY_ADMIN,
             abi.encodeCall(
-                EverclearTokenBridge.initialize,
+                EverclearBridge.initialize,
                 (address(new TestPostDispatchHook()), OWNER)
             )
         );
@@ -1046,7 +1047,7 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         vm.deal(ALICE, totalAmount - 1);
 
         vm.prank(ALICE);
-        vm.expectRevert("EEB: ETH amount mismatch");
+        vm.expectRevert("Native: amount exceeds msg.value");
         ethBridge.transferRemote{value: totalAmount - 1}(
             OPTIMISM_DOMAIN,
             RECIPIENT,

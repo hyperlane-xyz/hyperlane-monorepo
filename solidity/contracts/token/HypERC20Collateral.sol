@@ -19,6 +19,7 @@ import {TokenRouter} from "./libs/TokenRouter.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
 import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
 import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
+import {ERC20Collateral} from "./libs/TokenCollateral.sol";
 
 // ============ External Imports ============
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -32,6 +33,7 @@ import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Cont
  * @author Abacus Works
  */
 contract HypERC20Collateral is LpCollateralRouter {
+    using ERC20Collateral for IERC20;
     using SafeERC20 for IERC20;
 
     IERC20 public immutable wrappedToken;
@@ -66,37 +68,25 @@ contract HypERC20Collateral is LpCollateralRouter {
         _LpCollateralRouter_initialize();
     }
 
-    // ============ TokenRouter overrides ============
-
-    /**
-     * @inheritdoc TokenRouter
-     */
-    function token() public view virtual override returns (address) {
+    function token() public view override returns (address) {
         return address(wrappedToken);
     }
 
-    /**
-     * @inheritdoc TokenRouter
-     * @dev Override to transfer `_amount` of `wrappedToken` from `msg.sender` to this contract.
-     */
     function _transferFromSender(uint256 _amount) internal virtual override {
-        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
+        wrappedToken._transferFromSender(_amount);
     }
 
-    /**
-     * @inheritdoc TokenRouter
-     * @dev Override to transfer `_amount` of `wrappedToken` from this contract to `_recipient`.
-     */
     function _transferTo(
         address _recipient,
         uint256 _amount
     ) internal virtual override {
-        wrappedToken.safeTransfer(_recipient, _amount);
+        wrappedToken._transferTo(_recipient, _amount);
     }
 
+    // ============ TokenRouter overrides ============
     function _addBridge(uint32 domain, ITokenBridge bridge) internal override {
         MovableCollateralRouter._addBridge(domain, bridge);
-        IERC20(wrappedToken).safeApprove(address(bridge), type(uint256).max);
+        wrappedToken.safeApprove(address(bridge), type(uint256).max);
     }
 
     function _removeBridge(
@@ -104,6 +94,6 @@ contract HypERC20Collateral is LpCollateralRouter {
         ITokenBridge bridge
     ) internal override {
         MovableCollateralRouter._removeBridge(domain, bridge);
-        IERC20(wrappedToken).safeApprove(address(bridge), 0);
+        wrappedToken.safeApprove(address(bridge), 0);
     }
 }

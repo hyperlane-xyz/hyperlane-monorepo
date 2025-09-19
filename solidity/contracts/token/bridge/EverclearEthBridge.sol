@@ -4,12 +4,15 @@ pragma solidity ^0.8.22;
 import {EverclearTokenBridge, Quote} from "./EverclearTokenBridge.sol";
 import {IEverclearAdapter, IEverclear} from "../../interfaces/IEverclearAdapter.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {TokenMessage} from "../libs/TokenMessage.sol";
+import {EverclearBridge} from "../libs/EverclearBridge.sol";
+import {WETHCollateral} from "../libs/TokenCollateral.sol";
+import {TokenRouter} from "../libs/TokenRouter.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {TypeCasts} from "../../libs/TypeCasts.sol";
-import {HypERC20Collateral} from "../HypERC20Collateral.sol";
-import {TokenMessage} from "../libs/TokenMessage.sol";
 
 /**
  * @title EverclearEthBridge
@@ -17,7 +20,8 @@ import {TokenMessage} from "../libs/TokenMessage.sol";
  * @notice A specialized ETH bridge that integrates with Everclear's intent-based architecture
  * @dev Extends EverclearTokenBridge to handle ETH by wrapping to WETH for transfers and unwrapping on destination
  */
-contract EverclearEthBridge is EverclearTokenBridge {
+contract EverclearEthBridge is EverclearBridge {
+    using WETHCollateral for IWETH;
     using TokenMessage for bytes;
     using SafeERC20 for IERC20;
     using Address for address payable;
@@ -32,16 +36,9 @@ contract EverclearEthBridge is EverclearTokenBridge {
         uint256 _scale,
         address _mailbox,
         IEverclearAdapter _everclearAdapter
-    )
-        EverclearTokenBridge(
-            address(_weth),
-            _scale,
-            _mailbox,
-            _everclearAdapter
-        )
-    {}
+    ) EverclearBridge(_everclearAdapter, IERC20(_weth), _scale, _mailbox) {}
 
-    // this contract wraps ETH to WETH, so we return address(0)
+    // senders and recipients are ETH, so we return address(0)
     function token() public pure override returns (address) {
         return address(0);
     }
@@ -50,21 +47,13 @@ contract EverclearEthBridge is EverclearTokenBridge {
      * @notice Transfers ETH from sender, wrapping to WETH
      */
     function _transferFromSender(uint256 _amount) internal override {
-        // The `_amount` here will be amount + fee where amount is what the user wants to send,
-        // And `fee` is what is being payed to everclear.
-        // The user will also include the gas payment in the msg.value.
-        require(msg.value >= _amount, "EEB: ETH amount mismatch");
-        IWETH(address(wrappedToken)).deposit{value: _amount}();
+        IWETH(address(wrappedToken))._transferFromSender(_amount);
     }
 
     function _transferTo(
         address _recipient,
         uint256 _amount
     ) internal override {
-        // Withdraw WETH to ETH
-        IWETH(address(wrappedToken)).withdraw(_amount);
-
-        // Send ETH to recipient
-        payable(_recipient).sendValue(_amount);
+        IWETH(address(wrappedToken))._transferTo(_recipient, _amount);
     }
 }

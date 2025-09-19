@@ -18,21 +18,26 @@ import {TokenMessage} from "../libs/TokenMessage.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
+import {ERC20Collateral} from "../libs/TokenCollateral.sol";
 
 // ============ External Imports ============
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Hyperlane ERC4626 Token Collateral with deposits collateral to a vault
  * @author Abacus Works
  */
-contract HypERC4626Collateral is HypERC20Collateral {
+contract HypERC4626Collateral is TokenRouter {
+    using ERC20Collateral for IERC20;
     using TypeCasts for address;
     using TokenMessage for bytes;
     using Math for uint256;
 
     // Address of the ERC4626 compatible vault
     ERC4626 public immutable vault;
+    IERC20 public immutable wrappedToken;
+
     // Precision for the exchange rate
     uint256 public constant PRECISION = 1e10;
     // Null recipient for rebase transfer
@@ -45,15 +50,16 @@ contract HypERC4626Collateral is HypERC20Collateral {
         ERC4626 _vault,
         uint256 _scale,
         address _mailbox
-    ) HypERC20Collateral(_vault.asset(), _scale, _mailbox) {
+    ) TokenRouter(_scale, _mailbox) {
         vault = _vault;
+        wrappedToken = IERC20(_vault.asset());
     }
 
     function initialize(
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public override initializer {
+    ) public initializer {
         wrappedToken.approve(address(vault), type(uint256).max);
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
@@ -83,7 +89,7 @@ contract HypERC4626Collateral is HypERC20Collateral {
         );
         _transferFromSender(_amount + feeRecipientFee);
         if (feeRecipientFee > 0) {
-            HypERC20Collateral._transferTo(feeRecipient(), feeRecipientFee);
+            wrappedToken._transferTo(feeRecipient(), feeRecipientFee);
         }
 
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
@@ -117,17 +123,19 @@ contract HypERC4626Collateral is HypERC20Collateral {
             );
     }
 
-    /**
-     * @inheritdoc HypERC20Collateral
-     * @dev Override to redeem from vault when transferring to user.
-     * Known overrides:
-     * - HypERC4626OwnerCollateral: Trackes and keeps the yield for the owner.
-     */
+    function token() public view override returns (address) {
+        return address(wrappedToken);
+    }
+
     function _transferTo(
         address _recipient,
         uint256 _shares
     ) internal virtual override {
         vault.redeem(_shares, _recipient, address(this));
+    }
+
+    function _transferFromSender(uint256 _amount) internal override {
+        wrappedToken._transferFromSender(_amount);
     }
 
     /**
