@@ -12,6 +12,14 @@ hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
+hyperlane-radix = { path = "../../chains/hyperlane-radix" }
+radix-common = { workspace = true }
+radix-engine-interface = { workspace = true }
+radix-transactions = { workspace = true }
+core-api-client = { workspace = true }
+gateway-api-client = { workspace = true }
+scrypto = { workspace = true }
+url = { workspace = true }
 toml_edit.workspace = true
 k256.workspace = true
 jobserver.workspace = true
@@ -39,6 +47,7 @@ regex.workspace = true
 relayer = { path = "../../agents/relayer" }
 hyperlane-cosmwasm-interface.workspace = true
 cosmwasm-schema.workspace = true
+sbor = { workspace = true, features = ["serde"] }
 
 [build-dependencies]
 anyhow = { workspace = true }
@@ -49,3 +58,4 @@ cosmos = []
 starknet = []
 cosmosnative = []
 sealevel = []
+radix = []

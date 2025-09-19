@@ -22,5 +22,6 @@ pub(crate) use {events::*, parse::*, provider::*, utils::*};
 
 pub use {
     config::ConnectionConf, error::HyperlaneRadixError, ism::RadixIsm, mailbox::RadixMailbox,
-    provider::RadixProvider, signer::RadixSigner, validator_announce::RadixValidatorAnnounce,
+    provider::RadixGatewayProvider, provider::RadixProvider, signer::RadixSigner,
+    validator_announce::RadixValidatorAnnounce,
 };
