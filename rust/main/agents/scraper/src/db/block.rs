@@ -6,7 +6,6 @@ use sea_orm::{
 use tracing::{debug, trace};
 
 use hyperlane_core::{address_to_bytes, h256_to_bytes, BlockInfo, H256};
-use migration::OnConflict;
 
 use crate::date_time;
 use crate::db::ScraperDb;
@@ -95,15 +94,7 @@ impl ScraperDb {
         debug_assert!(!models.is_empty());
         debug!(blocks = models.len(), "Writing blocks to database");
         trace!(?models, "Writing blocks to database");
-        match Insert::many(models)
-            .on_conflict(
-                OnConflict::column(block::Column::Hash)
-                    .do_nothing()
-                    .to_owned(),
-            )
-            .exec(&self.0)
-            .await
-        {
+        match Insert::many(models).exec(&self.0).await {
             Ok(_) => Ok(()),
             Err(DbErr::RecordNotInserted) => Ok(()),
             Err(e) => Err(e).context("When inserting blocks"),
