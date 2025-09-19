@@ -21,9 +21,10 @@ use hyperlane_core::ChainResult;
 use crate::HyperlaneRadixError;
 
 mod fallback;
+mod lander;
 mod radix;
 
-pub use {fallback::RadixFallbackProvider, radix::RadixProvider};
+pub use {fallback::RadixFallbackProvider, lander::RadixProviderForLander, radix::RadixProvider};
 
 /// Base Raidx provider
 /// defined the most basic methods the provider has to implement.
