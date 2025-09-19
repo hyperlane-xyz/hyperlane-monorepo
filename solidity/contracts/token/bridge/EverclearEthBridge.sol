@@ -41,10 +41,6 @@ contract EverclearEthBridge is EverclearTokenBridge {
         )
     {}
 
-    function _transfersNativeTokens() internal pure override returns (bool) {
-        return true;
-    }
-
     /**
      * @notice Transfers ETH from sender, wrapping to WETH
      */

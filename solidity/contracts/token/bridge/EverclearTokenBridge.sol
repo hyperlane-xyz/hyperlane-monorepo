@@ -284,7 +284,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
     function _getIntentCalldata(
         bytes32 _recipient,
         uint256 _amount
-    ) internal view returns (bytes memory) {
+    ) internal pure returns (bytes memory) {
         return abi.encode(_recipient, _amount);
     }
 }

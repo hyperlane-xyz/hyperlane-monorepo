@@ -348,11 +348,13 @@ contract EverclearTokenBridgeTest is Test {
             TRANSFER_AMT
         );
 
-        assertEq(quotes.length, 2);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
         assertEq(quotes[0].amount, 0); // Gas payment is 0 for test dispatch hooks
         assertEq(quotes[1].token, address(token));
-        assertEq(quotes[1].amount, TRANSFER_AMT + FEE_AMOUNT);
+        assertEq(quotes[1].amount, TRANSFER_AMT);
+        assertEq(quotes[2].token, address(token));
+        assertEq(quotes[2].amount, FEE_AMOUNT);
     }
 
     // ============ transferRemote Tests ============
@@ -497,7 +499,8 @@ contract EverclearTokenBridgeTest is Test {
             RECIPIENT,
             transferAmount
         );
-        uint256 tokenCost = quotes[1].amount; // Token cost including fee
+        uint256 tokenCost = quotes[1].amount;
+        uint256 fee = quotes[2].amount;
 
         // 2. Execute transfer
         vm.prank(ALICE);
@@ -508,7 +511,7 @@ contract EverclearTokenBridgeTest is Test {
         );
 
         // 3. Verify state changes
-        assertEq(token.balanceOf(ALICE), initialAliceBalance - tokenCost);
+        assertEq(token.balanceOf(ALICE), initialAliceBalance - tokenCost - fee);
 
         // 4. Verify Everclear intent was created correctly
         assertEq(everclearAdapter.newIntentCallCount(), 1);
