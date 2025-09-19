@@ -601,8 +601,9 @@ mod tests {
 
         // Test batch statistics - create fresh metrics to avoid interference from previous withdrawal processing
         let batch_registry = Registry::new();
-        let batch_metrics = KaspaBridgeMetrics::new(&batch_registry).expect("Failed to create batch metrics");
-        
+        let batch_metrics =
+            KaspaBridgeMetrics::new(&batch_registry).expect("Failed to create batch metrics");
+
         batch_metrics.update_withdrawal_batch_stats(5);
         assert_eq!(batch_metrics.withdrawal_batch_min_messages.get(), 5);
         assert_eq!(batch_metrics.withdrawal_batch_max_messages.get(), 5);

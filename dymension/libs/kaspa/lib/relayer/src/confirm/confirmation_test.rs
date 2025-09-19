@@ -58,18 +58,18 @@ mod tests {
         assert_eq!(processed_withdrawals.len(), 1);
     }
 
-
     #[test]
     fn message_ids_from_payload() {
         // 32-byte (64 hex chars) message ID
         let payload = "27b204ce0deab9f8cd602b11e9b9298d9dfcd28062725352609744f2ac356782";
         let decoded_payload = hex::decode(payload).unwrap();
-        
+
         // Create a MessageIDs with this single ID
         use hyperlane_core::H256;
         let h256_id = H256::from_slice(&decoded_payload);
-        let message_ids = corelib::payload::MessageIDs::new(vec![corelib::payload::MessageID(h256_id)]);
-        
+        let message_ids =
+            corelib::payload::MessageIDs::new(vec![corelib::payload::MessageID(h256_id)]);
+
         assert_eq!(message_ids.0.len(), 1);
         assert_eq!(message_ids.0[0].0, h256_id);
     }

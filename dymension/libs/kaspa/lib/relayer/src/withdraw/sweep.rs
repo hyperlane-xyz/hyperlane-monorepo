@@ -359,7 +359,9 @@ pub async fn create_sweeping_bundle(
     // 2. We have enough for withdrawals AND reached the maximum number of inputs (1000)
     while !escrow_inputs.is_empty() {
         // Check if we've swept enough to cover withdrawals AND reached the maximum inputs
-        if total_swept_amount >= effective_withdrawal_amount && total_inputs_swept >= MAX_SWEEP_INPUTS {
+        if total_swept_amount >= effective_withdrawal_amount
+            && total_inputs_swept >= MAX_SWEEP_INPUTS
+        {
             info!(
                 "Kaspa sweeping: stopping - swept {} sompi (covers effective withdrawal amount of {} sompi) and reached maximum of {} inputs",
                 total_swept_amount, effective_withdrawal_amount, MAX_SWEEP_INPUTS
@@ -377,10 +379,13 @@ pub async fn create_sweeping_bundle(
 
         // Take batch of escrow inputs
         let batch_escrow_inputs: Vec<_> = escrow_inputs.drain(0..batch_size).collect();
-        let batch_escrow_balance = batch_escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
+        let batch_escrow_balance = batch_escrow_inputs
+            .iter()
+            .map(|(_, e, _)| e.amount)
+            .sum::<u64>();
         total_swept_amount += batch_escrow_balance;
         total_inputs_swept += batch_escrow_inputs.len();
-        
+
         // Calculate relayer fee and output amount
         let (estimated_fee, relayer_output_amount) = calculate_relayer_fee(
             &batch_escrow_inputs,

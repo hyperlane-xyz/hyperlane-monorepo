@@ -274,7 +274,7 @@ mod tests {
         let url = Url::parse(s).unwrap();
         assert_eq!(url.host_str().unwrap(), "localhost");
         assert_eq!(url.port().unwrap(), 17210);
-        
+
         let s = "http://152.53.178.127:8080";
         let url = Url::parse(s).unwrap();
         assert_eq!(url.host_str().unwrap(), "152.53.178.127");
