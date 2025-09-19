@@ -5,6 +5,7 @@ import {
   Address,
   ProtocolType,
   assert,
+  eqAddress,
   objFilter,
   objMap,
   rootLogger,
@@ -74,6 +75,28 @@ export class CosmosNativeDeployer {
             `Token type ${config.type} not supported on chain ${chain}`,
           );
         }
+      }
+
+      if (config.interchainSecurityModule) {
+        this.logger.info(`Set ISM for token`);
+
+        await this.signersMap[chain].setToken({
+          token_id: result[chain],
+          new_owner: '',
+          ism_id: config.interchainSecurityModule,
+          renounce_ownership: false,
+        });
+      }
+
+      if (!eqAddress(this.signersMap[chain].account.address, config.owner)) {
+        this.logger.info(`Set new owner for token`);
+
+        await this.signersMap[chain].setToken({
+          token_id: result[chain],
+          new_owner: config.owner,
+          ism_id: config.interchainSecurityModule,
+          renounce_ownership: false,
+        });
       }
 
       this.logger.info(`Successfully deployed contracts on ${chain}`);
