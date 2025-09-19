@@ -469,7 +469,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet]
+        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet, radix]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -603,6 +603,13 @@ jobs:
       - name: agent tests (CosmosNative)
         run: cargo test --release --package run-locally --bin run-locally --features cosmosnative -- cosmosnative::test --nocapture
         if: ${{ matrix.e2e-type == 'cosmosnative' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+
+      - name: agent tests (Radix)
+        run: cargo test --release --package run-locally --bin run-locally --features radix -- radix::test --nocapture
+        if: ${{ matrix.e2e-type == 'radix' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
