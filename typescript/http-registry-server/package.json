@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/http-registry-server",
-  "version": "18.2.0",
+  "version": "18.3.0",
   "private": true,
   "description": "An HTTP server for the Hyperlane registry",
   "license": "Apache-2.0",
@@ -26,8 +26,8 @@
   },
   "dependencies": {
     "@hyperlane-xyz/registry": "20.0.0",
-    "@hyperlane-xyz/sdk": "18.2.0",
-    "@hyperlane-xyz/utils": "18.2.0",
+    "@hyperlane-xyz/sdk": "18.3.0",
+    "@hyperlane-xyz/utils": "18.3.0",
     "express": "^5.1.0",
     "pino": "^8.19.0",
     "zod": "^3.21.2",

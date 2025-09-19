@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 18.3.0
+
+### Patch Changes
+
+- c41bc3b93: fix cosmos native bytes to address
+
 ## 18.2.0
 
 ## 18.1.0
