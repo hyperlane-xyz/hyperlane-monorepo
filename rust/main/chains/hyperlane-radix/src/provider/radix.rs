@@ -20,7 +20,7 @@ use gateway_api_client::{
         self, CommittedTransactionInfo, CompiledPreviewTransaction, LedgerStateSelector,
         ProgrammaticScryptoSborValue, StreamTransactionsRequest,
         TransactionCommittedDetailsRequest, TransactionDetailsOptIns, TransactionPreviewV2Request,
-        TransactionStatusResponse, TransactionSubmitResponse,
+        TransactionStatusResponse,
     },
 };
 use radix_common::traits::ScryptoEvent;
@@ -302,7 +302,7 @@ impl RadixProvider {
                         padded_address[32 - len..].copy_from_slice(&address[..len]);
                         let address: H256 = padded_address.into();
 
-                        let height = U256::from(tx.state_version).to_vec();
+                        let height = U256::from(tx.state_version as u64).to_vec();
 
                         let meta = LogMeta {
                             address,
@@ -675,7 +675,6 @@ impl HyperlaneProvider for RadixProvider {
             .map_err(HyperlaneRadixError::from)?;
         let timestamp = datetime.with_timezone(&Utc).timestamp() as u64;
         let height_bytes = U256::from(tx.ledger_state.state_version).to_vec();
-
         Ok(BlockInfo {
             hash: H256::from_slice(&height_bytes),
             timestamp,

@@ -1,4 +1,5 @@
 use eyre::{Context, Result};
+use migration::OnConflict;
 use sea_orm::{
     prelude::*, ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult,
     QuerySelect,
@@ -94,7 +95,15 @@ impl ScraperDb {
         debug_assert!(!models.is_empty());
         debug!(blocks = models.len(), "Writing blocks to database");
         trace!(?models, "Writing blocks to database");
-        match Insert::many(models).exec(&self.0).await {
+        match Insert::many(models)
+            .on_conflict(
+                OnConflict::columns([block::Column::Domain, block::Column::Height])
+                    .do_nothing()
+                    .to_owned(),
+            )
+            .exec(&self.0)
+            .await
+        {
             Ok(_) => Ok(()),
             Err(DbErr::RecordNotInserted) => Ok(()),
             Err(e) => Err(e).context("When inserting blocks"),
