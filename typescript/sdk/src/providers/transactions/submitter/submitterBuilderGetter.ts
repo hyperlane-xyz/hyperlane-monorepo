@@ -12,6 +12,7 @@ import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { TxSubmitterBuilder } from './builder/TxSubmitterBuilder.js';
 import { SubmissionStrategy } from './builder/types.js';
+import { CosmosNativeRpcTxSubmitter } from './cosmosnative/CosmosNativeJsonRpcTxSubmitter.js';
 import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
 import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
@@ -121,15 +122,21 @@ const defaultSubmitterFactories: ProtocolMap<Record<string, SubmitterFactory>> =
       },
     },
     [ProtocolType.CosmosNative]: {
-      // TODO: COSMOS
-      // implement cosmos native json rpc submitter
-      [TxSubmitterType.JSON_RPC]: (multiProvider, _, metadata) => {
+      [TxSubmitterType.JSON_RPC]: (
+        multiProvider,
+        multiProtocolSigner,
+        metadata,
+      ) => {
         // Used to type narrow metadata
         assert(
           metadata.type === TxSubmitterType.JSON_RPC,
           `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
         );
-        return new EV5JsonRpcTxSubmitter(multiProvider, metadata);
+        return new CosmosNativeRpcTxSubmitter(
+          multiProvider,
+          multiProtocolSigner,
+          metadata,
+        );
       },
     },
   };

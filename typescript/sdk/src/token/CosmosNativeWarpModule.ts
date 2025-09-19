@@ -323,8 +323,6 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
       return [];
     }
 
-    // TODO: COSMOS
-    // fails here
     const actualDeployedIsm =
       (actualConfig.interchainSecurityModule as DerivedIsmConfig)?.address ??
       '';
