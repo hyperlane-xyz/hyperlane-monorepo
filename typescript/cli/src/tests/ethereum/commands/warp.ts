@@ -21,6 +21,7 @@ import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
+  ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
@@ -260,7 +261,9 @@ export function hyperlaneWarpRebalancer(
   key?: string,
   explorerUrl?: string,
 ): ProcessPromise {
-  const rebalancerAddress = new Wallet(key ?? ANVIL_KEY).address;
+  const rebalancerAddress = key
+    ? new Wallet(key).address
+    : ANVIL_DEPLOYER_ADDRESS;
   return $`${explorerUrl ? [`EXPLORER_API_URL=${explorerUrl}`] : []} REBALANCER=${rebalancerAddress} ${localTestRunCmdPrefix()} hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
         --checkFrequency ${checkFrequency} \
