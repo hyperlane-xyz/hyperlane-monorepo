@@ -42,7 +42,7 @@ contract EverclearEthBridge is EverclearTokenBridge {
     {}
 
     // this contract wraps ETH to WETH, so we return address(0)
-    function token() public view override returns (address) {
+    function token() public pure override returns (address) {
         return address(0);
     }
 
