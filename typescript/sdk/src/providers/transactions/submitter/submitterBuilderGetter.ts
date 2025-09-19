@@ -163,12 +163,25 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
     Record<string, SubmitterFactory>
   > = {} as ProtocolMap<{}>,
 ): Promise<TxSubmitterInterface<TProtocol>> {
-  // TODO: COSMOS
-  // merge factories correctly
   const mergedSubmitterRegistry = {
     ...defaultSubmitterFactories,
-    ...additionalSubmitterFactories,
   };
+
+  for (const [p] of Object.entries(additionalSubmitterFactories)) {
+    const protocol = p as ProtocolType;
+
+    if (mergedSubmitterRegistry[protocol]) {
+      mergedSubmitterRegistry[protocol] = {
+        ...mergedSubmitterRegistry[protocol],
+        ...additionalSubmitterFactories[protocol],
+      };
+    } else {
+      mergedSubmitterRegistry[protocol] = {
+        ...additionalSubmitterFactories[protocol],
+      };
+    }
+  }
+
   const protocolType = multiProvider.getProtocol(submitterMetadata.chain);
 
   if (!mergedSubmitterRegistry[protocolType]) {
