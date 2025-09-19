@@ -40,7 +40,7 @@ export class EvmMultiProtocolSignerAdapter
     return this.multiProvider.getSignerAddress(this.chainName);
   }
 
-  async sendTransaction(tx: EthersV5Transaction): Promise<string> {
+  async sendAndConfirmTransaction(tx: EthersV5Transaction): Promise<string> {
     const res = await this.multiProvider.sendTransaction(
       this.chainName,
       tx.transaction,

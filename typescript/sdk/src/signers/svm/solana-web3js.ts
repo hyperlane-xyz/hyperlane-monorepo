@@ -33,7 +33,7 @@ export class SvmMultiprotocolSignerAdapter
     return this.signer.publicKey.toBase58();
   }
 
-  async sendTransaction(tx: SolanaWeb3Transaction): Promise<string> {
+  async sendAndConfirmTransaction(tx: SolanaWeb3Transaction): Promise<string> {
     // Manually crafting and sending the transaction as sendTransactionAndConfirm might
     // not always work depending on if the `signatureSubscribe` rpc method is available
     const { blockhash, lastValidBlockHeight } =

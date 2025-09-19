@@ -4,5 +4,7 @@ import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
 
 export interface IMultiProtocolSigner<TProtocol extends ProtocolType> {
   address(): Promise<Address>;
-  sendTransaction(tx: ProtocolTypedTransaction<TProtocol>): Promise<string>;
+  sendAndConfirmTransaction(
+    tx: ProtocolTypedTransaction<TProtocol>,
+  ): Promise<string>;
 }

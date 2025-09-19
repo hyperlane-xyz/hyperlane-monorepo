@@ -187,6 +187,13 @@ export class AgentGCPKey extends CloudAgentKey {
     this.requireFetched();
 
     if (protocol === ProtocolType.Sealevel) {
+      // This assumes the key is stored as the base64 encoded
+      // string of the stringified version of the private key
+      // in array format (format used by the solana CLI).
+      // So we need to:
+      // - convert the base64 string to a buffer so we can get the stringified json string
+      // - get the the json array from its stringified representation
+      // - finally get the byte array from the parsed json array
       return Uint8Array.from(
         JSON.parse(String(Buffer.from(this.privateKey, 'base64'))),
       );

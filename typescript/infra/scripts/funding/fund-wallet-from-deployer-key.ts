@@ -29,8 +29,9 @@ import { assertChain } from '../../src/utils/utils.js';
 import { getAgentConfig, getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-const logger = rootLogger.child({ module: 'fund-hot-wallet' });
-
+const logger = rootLogger.child({
+  module: 'fund-hot-wallet',
+});
 /**
  * For solana deployments at least 2.5 SOL are needed for rent.
  * As of 11/09/2025 the price is ~$227 meaning that 2.5 SOL are
@@ -124,16 +125,21 @@ async function fundAccount({
   const chainMetadata = multiProtocolProvider.getChainMetadata(chainName);
   const protocol = chainMetadata.protocol;
 
+  const fundingLogger = logger.child({
+    chainName,
+    protocol,
+  });
+
   const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
     chainMetadata: { [chainName]: chainMetadata },
-    apiKey: await getCoinGeckoApiKey(logger),
+    apiKey: await getCoinGeckoApiKey(fundingLogger),
   });
 
   let tokenPrice;
   try {
     tokenPrice = await tokenPriceGetter.getTokenPrice(chainName);
   } catch (err) {
-    logger.error(
+    fundingLogger.error(
       { chainName, err },
       `Failed to get native token price for ${chainName}, falling back to 1usd`,
     );
@@ -148,13 +154,11 @@ async function fundAccount({
   }
 
   // Create token instance
-  logger.info({ chainName, protocol }, 'Preparing token adapter');
-
   const token = Token.FromChainMetadataNativeToken(chainMetadata);
   const adapter = token.getAdapter(multiProtocolProvider);
 
   // Get signer
-  logger.info({ chainName, protocol }, 'Retrieving signer info');
+  fundingLogger.info('Retrieved signer info');
 
   const agentConfig = getAgentConfig(Contexts.Hyperlane, config.environment);
   const privateKeyAgent = getDeployerKey(agentConfig, chainName);
@@ -183,19 +187,22 @@ async function fundAccount({
     } as MultiProtocolSignerSignerAccountInfo;
   }
 
-  const signer = await getSignerForChain<typeof protocol>(
+  const signer = await getSignerForChain(
     chainName,
     accountInfo,
     multiProtocolProvider,
   );
 
-  logger.info({ chainName, protocol }, 'Performing pre transaction checks');
+  fundingLogger.info(
+    { chainName, protocol },
+    'Performing pre transaction checks',
+  );
 
   // Check balance before transfer
   const fromAddress = await signer.address();
   const currentBalance = await adapter.getBalance(fromAddress);
 
-  logger.info(
+  fundingLogger.info(
     {
       fromAddress,
       currentBalance: currentBalance.toString(),
@@ -208,7 +215,7 @@ async function fundAccount({
   const decimals = token.decimals;
   const weiAmount = BigInt(toWei(amount, decimals));
 
-  logger.info(
+  fundingLogger.info(
     {
       amount,
       decimals,
@@ -231,7 +238,7 @@ async function fundAccount({
     fromAccountOwner: fromAddress,
   };
 
-  logger.info(
+  fundingLogger.info(
     {
       transferParams,
       dryRun,
@@ -248,11 +255,12 @@ async function fundAccount({
   } as ProtocolTypedTransaction<typeof protocol>;
 
   if (dryRun) {
-    logger.info('DRY RUN: Would execute transfer with above parameters');
+    fundingLogger.info('DRY RUN: Would execute transfer with above parameters');
     return;
   }
 
-  const transactionHash = await signer.sendTransaction(protocolTypedTx);
+  const transactionHash =
+    await signer.sendAndConfirmTransaction(protocolTypedTx);
   console.log(
     `Account ${recipientAddress} funded at transaction ${transactionHash}`,
   );
@@ -261,7 +269,7 @@ async function fundAccount({
   const newBalance = await adapter.getBalance(fromAddress);
   const recipientBalance = await adapter.getBalance(recipientAddress);
 
-  logger.info(
+  fundingLogger.info(
     {
       transactionHash,
       senderNewBalance: formatUnits(newBalance, decimals),

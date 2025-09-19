@@ -27,9 +27,7 @@ export type MultiProtocolSignerSignerAccountInfo =
       address: HexString;
     };
 
-export async function getSignerForChain<
-  TProtocol extends ProtocolType = ProtocolType,
->(
+export async function getSignerForChain<TProtocol extends ProtocolType>(
   chainName: ChainName,
   accountConfig: MultiProtocolSignerSignerAccountInfo,
   multiProtocolProvider: MultiProtocolProvider,

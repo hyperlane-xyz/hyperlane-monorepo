@@ -56,7 +56,9 @@ export class CosmosNativeMultiProtocolSignerAdapter
     return this.accountAddress;
   }
 
-  async sendTransaction(tx: CosmJsNativeTransaction): Promise<string> {
+  async sendAndConfirmTransaction(
+    tx: CosmJsNativeTransaction,
+  ): Promise<string> {
     await this.signer.simulate(
       this.accountAddress,
       [tx.transaction],

@@ -37,7 +37,7 @@ export class StarknetMultiProtocolSignerAdapter
     return this.signer.address;
   }
 
-  async sendTransaction(tx: StarknetJsTransaction): Promise<string> {
+  async sendAndConfirmTransaction(tx: StarknetJsTransaction): Promise<string> {
     const { entrypoint, calldata, contractAddress } = tx.transaction;
     assert(entrypoint, 'entrypoint is required for starknet transactions');
 
