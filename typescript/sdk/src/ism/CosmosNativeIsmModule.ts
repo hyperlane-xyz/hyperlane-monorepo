@@ -220,7 +220,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
           const msg: MsgCreateMerkleRootMultisigIsmEncodeObject = {
             typeUrl: R.MsgCreateMerkleRootMultisigIsm.proto.type,
             value: R.MsgCreateMerkleRootMultisigIsm.proto.converter.create({
-              validators: config.validators.sort((a, b) => a.localeCompare(b)),
+              validators: config.validators.sort(),
               threshold: config.threshold,
               creator: this.signer.account.address,
             }),
@@ -232,7 +232,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
           const msg: MsgCreateMessageIdMultisigIsmEncodeObject = {
             typeUrl: R.MsgCreateMessageIdMultisigIsm.proto.type,
             value: R.MsgCreateMessageIdMultisigIsm.proto.converter.create({
-              validators: config.validators.sort((a, b) => a.localeCompare(b)),
+              validators: config.validators.sort(),
               threshold: config.threshold,
               creator: this.signer.account.address,
             }),
@@ -273,7 +273,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       `threshold (${config.threshold}) for merkle root multisig ISM is greater than number of validators (${config.validators.length})`,
     );
     const { response } = await this.signer.createMerkleRootMultisigIsm({
-      validators: config.validators.sort((a, b) => a.localeCompare(b)),
+      validators: config.validators.sort(),
       threshold: config.threshold,
     });
     return response.id;
@@ -287,7 +287,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       `threshold (${config.threshold}) for message id multisig ISM is greater than number of validators (${config.validators.length})`,
     );
     const { response } = await this.signer.createMessageIdMultisigIsm({
-      validators: config.validators.sort((a, b) => a.localeCompare(b)),
+      validators: config.validators.sort(),
       threshold: config.threshold,
     });
     return response.id;
