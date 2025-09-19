@@ -13,6 +13,7 @@ import {
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
+  RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
   TokenType,
@@ -282,6 +283,39 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   }
 
+  /**
+   * Creates a mock GraphQL server for Explorer API
+   * @param responseData The data to return in the GraphQL response
+   * @returns Promise with server instance and URL
+   */
+  async function createMockExplorerServer(responseData: any): Promise<{
+    server: any;
+    url: string;
+    close: () => Promise<void>;
+  }> {
+    const http = await import('http');
+    const server = http.createServer((req, res) => {
+      if (req.method === 'POST') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(responseData));
+      } else {
+        res.statusCode = 404;
+        res.end();
+      }
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address: any = server.address();
+    const url = `http://127.0.0.1:${address.port}`;
+
+    return {
+      server,
+      url,
+      close: () =>
+        new Promise<void>((resolve) => server.close(() => resolve())),
+    };
+  }
+
   async function startRebalancerAndExpectLog(
     log: string | string[],
     options: {
@@ -407,25 +441,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   it('should skip when inflight detected by explorer', async () => {
-    // Simple mock GraphQL server
-    const http = await import('http');
-    const server = http.createServer((req, res) => {
-      if (req.method === 'POST') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        // Return a non-empty message_view to simulate inflight
-        res.end(JSON.stringify({ data: { message_view: [{ msg_id: '1' }] } }));
-      } else {
-        res.statusCode = 404;
-        res.end();
-      }
+    // Create mock server that returns inflight messages
+    const mockServer = await createMockExplorerServer({
+      data: { message_view: [{ msg_id: '1' }] },
     });
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    const address: any = server.address();
-    const explorerUrl = `http://127.0.0.1:${address.port}`;
 
     try {
       // Ensure there is a potential route by creating an imbalance
-      writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      const config: RebalancerConfigFileInput = {
         warpRouteId,
         strategy: {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
@@ -442,32 +465,24 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             },
           },
         },
-      });
+      };
+
+      writeYamlOrJson(REBALANCER_CONFIG_PATH, config);
 
       await startRebalancerAndExpectLog(
         'Inflight rebalance detected via Explorer; skipping this cycle',
-        { explorerUrl, checkFrequency: 2000 },
+        { explorerUrl: mockServer.url, checkFrequency: 2000 },
       );
     } finally {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await mockServer.close();
     }
   });
 
   it('should proceed when no inflight detected by explorer', async () => {
-    const http = await import('http');
-    const server = http.createServer((req, res) => {
-      if (req.method === 'POST') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        // Return empty message_view to simulate no inflight
-        res.end(JSON.stringify({ data: { message_view: [] } }));
-      } else {
-        res.statusCode = 404;
-        res.end();
-      }
+    // Create mock server that returns no inflight messages
+    const mockServer = await createMockExplorerServer({
+      data: { message_view: [] },
     });
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    const address: any = server.address();
-    const explorerUrl = `http://127.0.0.1:${address.port}`;
 
     try {
       // Deploy and allow a bridge so the route can succeed
@@ -490,7 +505,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       );
 
       // Configure imbalance and set bridge on origin chain
-      writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+      const config: RebalancerConfigFileInput = {
         warpRouteId,
         strategy: {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
@@ -507,7 +522,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             },
           },
         },
-      });
+      };
+
+      writeYamlOrJson(REBALANCER_CONFIG_PATH, config);
 
       await startRebalancerAndExpectLog(
         [
@@ -520,12 +537,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           '✅ Rebalance successful',
         ],
         {
-          explorerUrl,
+          explorerUrl: mockServer.url,
           timeout: 30000,
         },
       );
     } finally {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await mockServer.close();
     }
   });
 
