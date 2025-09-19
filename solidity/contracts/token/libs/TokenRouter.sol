@@ -5,16 +5,27 @@ pragma solidity >=0.8.0;
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {GasRouter} from "../../client/GasRouter.sol";
 import {TokenMessage} from "./TokenMessage.sol";
-import {Quote, ITokenBridge} from "../../interfaces/ITokenBridge.sol";
+import {Quote, ITokenBridge, ITokenFee} from "../../interfaces/ITokenBridge.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 /**
  * @title Hyperlane Token Router that extends Router with abstract token (ERC20/ERC721) remote transfer functionality.
+ * @dev Overridable functions:
+ *  - token(): specify the managed token address
+ *  - _transfersNativeTokens(): true if charging native tokens (token() == address(0))
+ *  - _transferFromSender(uint256): pull tokens/ETH from msg.sender
+ *  - _transferTo(address,uint256): send tokens/ETH to the recipient
+ *  - _quoteGasPayment(uint32,bytes32,uint256): compute gas payment for message dispatch
+ *  - _externalFeeAmount(uint32,bytes32,uint256): compute external fees (default returns 0)
+ * @dev Override transferRemote only to implement custom logic that can't be accomplished with the above functions.
+ *
  * @author Abacus Works
  */
 abstract contract TokenRouter is GasRouter, ITokenBridge {
     using TypeCasts for bytes32;
     using TypeCasts for address;
     using TokenMessage for bytes;
+    using StorageSlot for bytes32;
 
     /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
@@ -40,140 +51,269 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 amountOrId
     );
 
-    constructor(address _mailbox) GasRouter(_mailbox) {}
+    uint256 public immutable scale;
+
+    bytes32 private constant FEE_RECIPIENT_SLOT =
+        keccak256("FungibleTokenRouter.feeRecipient");
+
+    event FeeRecipientSet(address feeRecipient);
+
+    constructor(uint256 _scale, address _mailbox) GasRouter(_mailbox) {
+        scale = _scale;
+    }
+
+    // ===========================
+    // ========== Main API ==========
+    // ===========================
 
     /**
-     * @notice Returns the address of the token managed by this router.
+     * @notice Returns the address of the token managed by this router. It can be one of three options:
+     * - ERC20 token address for fungible tokens that are being collateralized (HypERC20Collateral, HypERC4626, etc.)
+     * - 0x0 address for native tokens (ETH, MATIC, etc.) (HypNative, etc.)
+     * - address(this) for synthetic ERC20 tokens (HypERC20, etc.)
+     * It is being used for quotes and fees from the fee recipient and pulling/push the tokens from the sender/receipient.
      * @dev This function must be implemented by derived contracts to specify the token address.
      * @return The address of the token contract.
      */
     function token() public view virtual returns (address);
 
     /**
-     * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
-     * @dev Delegates transfer logic to `_transferFromSender` implementation.
-     * @dev Emits `SentTransferRemote` event on the origin chain.
+     * @inheritdoc ITokenFee
+     * @notice Implements the standardized fee quoting interface for token transfers based on
+     * overridable internal functions of _quoteGasPayment, _feeRecipientAmount, and
+     * _externalFeeAmount. The implementation assumes that feeRecipient and external
+     * fees are charged in the same token as the transfer. Currently no children override
+     * quoteTransferRemote itself.
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
-     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
-     * @return messageId The identifier of the dispatched message.
-     */
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amountOrId
-    ) external payable virtual returns (bytes32 messageId) {
-        return
-            _transferRemote(
-                _destination,
-                _recipient,
-                _amountOrId,
-                _GasRouter_hookMetadata(_destination),
-                address(hook)
-            );
-    }
-
-    /**
-     * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain with a specified hook
-     * @dev Delegates transfer logic to `_transferFromSender` implementation.
-     * @dev The metadata is the token metadata, and is DIFFERENT than the hook metadata.
-     * @dev Emits `SentTransferRemote` event on the origin chain.
-     * @param _destination The identifier of the destination chain.
-     * @param _recipient The address of the recipient on the destination chain.
-     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
-     * @param _hookMetadata The metadata passed into the hook
-     * @param _hook The post dispatch hook to be called by the Mailbox
-     * @return messageId The identifier of the dispatched message.
-     */
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amountOrId,
-        bytes calldata _hookMetadata,
-        address _hook
-    ) external payable virtual returns (bytes32 messageId) {
-        return
-            _transferRemote(
-                _destination,
-                _recipient,
-                _amountOrId,
-                _hookMetadata,
-                _hook
-            );
-    }
-
-    function _transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amountOrId,
-        bytes memory _hookMetadata,
-        address _hook
-    ) internal virtual returns (bytes32 messageId) {
-        // checks
-        (uint256 _dispatchValue, bytes memory _tokenMessage) = _beforeDispatch(
-            _destination,
-            _recipient,
-            _amountOrId
-        );
-
-        // effects
-        emit SentTransferRemote(_destination, _recipient, _amountOrId);
-
-        // interactions
-        messageId = _Router_dispatch(
-            _destination,
-            _dispatchValue,
-            _tokenMessage,
-            _hookMetadata,
-            _hook
-        );
-    }
-
-    /**
-     * @dev Called by `transferRemote` before message dispatch.
-     * @dev Can be overriden to add metadata to the message.
-     * @dev Can be overriden to change the value forwarded to the mailbox.
-     * @param _destination The identifier of the destination chain.
-     * @param _recipient The address of the recipient on the destination chain.
-     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
-     * @return dispatchValue The value to be forwarded to the mailbox.
-     * @return message The message to the router on the destination chain.
-     */
-    function _beforeDispatch(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amountOrId
-    ) internal virtual returns (uint256 dispatchValue, bytes memory message) {
-        _transferFromSender(_amountOrId);
-
-        dispatchValue = msg.value;
-        message = TokenMessage.format(_recipient, _amountOrId);
-    }
-
-    /**
-     * @dev Should transfer `_amountOrId` of tokens from `msg.sender` to this token router.
-     * @dev Called by `transferRemote` before message dispatch.
-     */
-    function _transferFromSender(uint256 _amountOrId) internal virtual;
-
-    /**
-     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
-     * @param _destination The domain of the router.
-     * @param _recipient The address of the recipient on the destination chain.
-     * @param _amount The amount of tokens to be sent to the remote recipient.
-     * @dev This should be overridden for warp routes that require additional fees/approvals.
-     * @return quotes Indicate how much of each token to approve and/or send.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient
+     * @return quotes An array of Quote structs representing the fees in different tokens.
      */
     function quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount)
-        });
+    ) external view override returns (Quote[] memory quotes) {
+        uint256 gasPayment = _quoteGasPayment(
+            _destination,
+            _recipient,
+            _amount
+        );
+        uint256 feeRecipientFee = _feeRecipientAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        uint256 externalFee = _externalFeeAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        if (_transfersNativeTokens()) {
+            quotes = new Quote[](1);
+            quotes[0] = Quote({
+                token: address(0),
+                amount: gasPayment + feeRecipientFee + externalFee + _amount
+            });
+        } else {
+            quotes = new Quote[](2);
+            quotes[0] = Quote({token: address(0), amount: gasPayment});
+            quotes[1] = Quote({
+                token: token(),
+                amount: feeRecipientFee + externalFee + _amount
+            });
+        }
+        return quotes;
+    }
+
+    // TODO: Ensure overrides are consistent and documented
+    /**
+     * @notice Transfers `_amount` token to `_recipient` on the `_destination` domain.
+     * @dev Delegates transfer logic to `_transferFromSender` implementation.
+     * Emits `SentTransferRemote` event on the origin chain.
+     * Override with custom behavior for storing or forwarding tokens.
+     * Known overrides:
+     * - OPL2ToL1TokenBridgeNative: adds hook metadata for message dispatch.
+     * - EverclearTokenBridge: creates Everclear intent for cross-chain token transfer.
+     * - TokenBridgeCctpBase: adds CCTP-specific metadata for message dispatch.
+     * - HypERC4626Collateral: deposits into vault and handles shares.
+     * When overriding, mirror the general flow of this function for consistency:
+     * 1. Calculate fees and charge the sender.
+     * 2. Prepare the token message with recipient, amount, and any additional metadata.
+     * 3. Emit `SentTransferRemote` event.
+     * 4. Dispatch the message.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient.
+     * @return messageId The identifier of the dispatched message.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public payable virtual returns (bytes32 messageId) {
+        // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
+        (uint256 feeRecipientFee, uint256 externalFee) = calculateFeesAndCharge(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            _outboundAmount(_amount)
+        );
+
+        // 3. Emit the SentTransferRemote event and 4. dispatch the message
+        return
+            emitAndDispatch(
+                _destination,
+                _recipient,
+                _amount,
+                _tokenMessage,
+                feeRecipientFee,
+                externalFee
+            );
+    }
+
+    // ===========================
+    // ========== Internal convenience functions for readability ==========
+    // ==========================
+    function calculateFeesAndCharge(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal returns (uint256 feeRecipientFee, uint256 externalFee) {
+        // Calculate the fee amount for the fee recipient
+        feeRecipientFee = _feeRecipientAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        externalFee = _externalFeeAmount(_destination, _recipient, _amount);
+        _transferFromSender(_amount + feeRecipientFee + externalFee);
+        if (feeRecipientFee > 0) {
+            _transferTo(feeRecipient(), feeRecipientFee);
+        }
+    }
+
+    /** @notice Simple helper to calculate the message dispatch value. When transferring native tokens, it subtracts the amount with fees from the original msg.value to avoid the revert.
+     * @param msgValue The original message value.
+     * @param amountWithFeeRecipientAndExternalFee The amount with both the feeRecipient fee and external fees included.
+     * @return The msg.value to be used for the message dispatch.
+     */
+    function messageDispatchValue(
+        uint256 msgValue,
+        uint256 amountWithFeeRecipientAndExternalFee
+    ) internal view returns (uint256) {
+        if (_transfersNativeTokens()) {
+            return msgValue - amountWithFeeRecipientAndExternalFee;
+        }
+        return msgValue;
+    }
+
+    // Emits the SentTransferRemote event and dispatches the message.
+    function emitAndDispatch(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes memory _tokenMessage,
+        uint256 feeRecipientFee,
+        uint256 externalFee
+    ) internal returns (bytes32 messageId) {
+        // effects
+        emit SentTransferRemote(_destination, _recipient, _amount);
+
+        // interactions
+        // TODO: Consider flattening with GasRouter
+        messageId = _GasRouter_dispatch(
+            _destination,
+            messageDispatchValue(
+                msg.value,
+                _amount + feeRecipientFee + externalFee
+            ),
+            _tokenMessage,
+            address(hook)
+        );
+    }
+
+    // ===========================
+    // ========== Fees & Quoting ==========
+    // ===========================
+
+    /**
+     * @notice Sets the fee recipient for the router.
+     * @dev Allows for address(0) to be set, which disables fees.
+     * @param _feeRecipient The address of the fee recipient.
+     */
+    function setFeeRecipient(address _feeRecipient) public onlyOwner {
+        FEE_RECIPIENT_SLOT.getAddressSlot().value = _feeRecipient;
+        emit FeeRecipientSet(_feeRecipient);
+    }
+
+    /**
+     * @notice Returns the address of the fee recipient.
+     * @dev Returns address(0) if no fee recipient is set.
+     * @return The address of the fee recipient.
+     */
+    function feeRecipient() public view returns (address) {
+        return FEE_RECIPIENT_SLOT.getAddressSlot().value;
+    }
+
+    // To be overridden by derived contracts if they have additional fees
+    /**
+     * @notice Returns the external fee amount for the given parameters.
+     * param _destination The identifier of the destination chain.
+     * param _recipient The address of the recipient on the destination chain.
+     * param _amount The amount or identifier of tokens to be sent to the remote recipient
+     * @return feeAmount The external fee amount.
+     * @dev The default implementation returns 0, meaning no external fees are charged.
+     * This function is intended to be overridden by derived contracts that have additional fees.
+     * Known overrides:
+     * - TokenBridgeCctpBase: for CCTP-specific fees
+     * - EverclearTokenBridge: for Everclear-specific fees
+     */
+    function _externalFeeAmount(
+        uint32, // _destination,
+        bytes32, // _recipient,
+        uint256 // _amount
+    ) internal view virtual returns (uint256 feeAmount) {
+        return 0;
+    }
+
+    /**
+     * @notice Returns the fee recipient amount for the given parameters.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient
+     * @return feeAmount The fee recipient amount.
+     * @dev This function is is not intended to be overridden as storage and logic is contained in TokenRouter.
+     */
+    function _feeRecipientAmount(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view returns (uint256 feeAmount) {
+        // TODO: This still incurs a SLOAD for fetching feeRecipient, consider allowing children to override this in bytecode
+        if (feeRecipient() == address(0)) {
+            return 0;
+        }
+
+        Quote[] memory quotes = ITokenFee(feeRecipient()).quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
+        );
+        if (quotes.length == 0) {
+            return 0;
+        }
+
+        require(
+            quotes.length == 1 && quotes[0].token == token(),
+            "FungibleTokenRouter: fee must match token"
+        );
+        return quotes[0].amount;
     }
 
     /**
@@ -185,29 +325,118 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      */
     function quoteGasPayment(
         uint32 _destinationDomain
-    ) public view virtual override returns (uint256) {
-        return
-            _quoteGasPayment(_destinationDomain, bytes32(0), type(uint256).max);
+    ) public view override returns (uint256 payment) {
+        payment = _quoteGasPayment(
+            _destinationDomain,
+            bytes32(0),
+            type(uint256).max
+        );
     }
 
+    /**
+     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient
+     * @return payment How much native value to send in transferRemote call.
+     * @dev This function is intended to be overridden by derived contracts that trigger multiple messages.
+     * Known overrides:
+     * - OPL2ToL1TokenBridgeNative: Quote for two messages (prove and finalize).
+     */
     function _quoteGasPayment(
-        uint32 _destinationDomain,
+        uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view returns (uint256) {
+    ) internal view virtual returns (uint256) {
         return
             _GasRouter_quoteDispatch(
-                _destinationDomain,
+                _destination,
                 TokenMessage.format(_recipient, _amount),
                 address(hook)
             );
     }
 
+    // ===========================
+    // ========== Internal virtual functions for token handling ==========
+    // ===========================
+
     /**
-     * @dev Mints tokens to recipient when router receives transfer message.
-     * @dev Emits `ReceivedTransferRemote` event on the destination chain.
+     * @notice Determines whether this router charges native tokens from the sender. Typically this is true for any router where token() == address(0).
+     * Only overriden by EverclearEthBridge (because it needs to send WETH to Everclear).
+     */
+    function _transfersNativeTokens() internal view virtual returns (bool) {
+        return token() == address(0);
+    }
+
+    /**
+     * @dev Should transfer `_amount` of tokens from `msg.sender` to this token router.
+     * Called by `transferRemote` before message dispatch.
+     * Known overrides:
+     * - HypERC20: Burns the tokens from the sender.
+     * - HypERC20Collateral: Pulls the tokens from the sender.
+     * - HypNative: Asserts msg.value >= _amount
+     * - TokenBridgeCctpBase: (like HypERC20Collateral) Pulls the tokens from the sender.
+     * - EverclearEthTokenBridge: Wraps the native token (ETH) to WETH
+     * - HypERC4626: Converts the amounts to shares and burns from the User (via HypERC20 implementation)
+     * - HypFiatToken: Pulls the tokens from the sender and burns them on the FiatToken contract.
+     * - HypXERC20: Burns the tokens from the sender.
+     * - HypXERC20Lockbox: Pulls the tokens from the sender, locks them in the XERC20Lockbox contract and burns the resulting xERC20 tokens.
+     */
+    function _transferFromSender(uint256 _amountOrId) internal virtual;
+
+    /**
+     * @dev Should transfer `_amountOrId` of tokens from this token router to `_recipient`.
+     * @dev Called by `handle` after message decoding.
+     * Known overrides:
+     * - HypERC20: Mints the tokens to the recipient.
+     * - HypERC20Collateral: Releases the tokens to the recipient.
+     * - HypNative: Releases native tokens to the recipient.
+     * - TokenBridgeCctpBase: Do nothing (CCTP transfers tokens to the recipient directly).
+     * - EverclearEthTokenBridge: Unwraps WETH to ETH and sends to the recipient.
+     * - HypERC4626: Converts the amount to shares and mints to the User (via HypERC20 implementation)
+     * - HypFiatToken: Mints the tokens to the recipient on the FiatToken contract.
+     * - HypXERC20: Mints the tokens to the recipient.
+     * - HypXERC20Lockbox: Withdraws the underlying tokens from the Lockbox and sends to the recipient.
+     * - OpL1NativeTokenBridge: Do nothing (the L2 bridge transfers the native tokens to the recipient directly).
+     */
+    function _transferTo(
+        address _recipient,
+        uint256 _amountOrId
+    ) internal virtual;
+
+    /**
+     * @dev Scales local amount to message amount (up by scale factor).
+     * Known overrides:
+     * - HypERC4626: Scales by exchange rate
+     */
+    function _outboundAmount(
+        uint256 _localAmount
+    ) internal view virtual returns (uint256 _messageAmount) {
+        _messageAmount = _localAmount * scale;
+    }
+
+    /**
+     * @dev Scales message amount to local amount (down by scale factor).
+     * Known overrides:
+     * - HypERC4626: Scales by exchange rate
+     */
+    function _inboundAmount(
+        uint256 _messageAmount
+    ) internal view virtual returns (uint256 _localAmount) {
+        _localAmount = _messageAmount / scale;
+    }
+
+    /**
+     * @notice Handles the incoming transfer message.
+     * It decodes the message, emits the ReceivedTransferRemote event, and transfers tokens to the recipient.
      * @param _origin The identifier of the origin chain.
-     * @param _message The encoded remote transfer message containing the recipient address and amount.
+     * @dev param _sender The address of the sender router on the origin chain.
+     * @param _message The message data containing recipient and amount.
+     * @dev Override this function if custom logic is required for sending out the tokens.
+     * Known overrides:
+     * - EverclearTokenBridge: Receives the tokens and sends them to the recipient.
+     * - EverclearEthBridge: Receives WETH, unwraps it and sends native ETH to the recipient.
+     * - HypERC4626: Updates the exchange rate from the metadata
      */
     function _handle(
         uint32 _origin,
@@ -221,15 +450,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         emit ReceivedTransferRemote(_origin, recipient, amount);
 
         // interactions
-        _transferTo(recipient.bytes32ToAddress(), amount);
+        _transferTo(recipient.bytes32ToAddress(), _inboundAmount(amount));
     }
-
-    /**
-     * @dev Should transfer `_amountOrId` of tokens from this token router to `_recipient`.
-     * @dev Called by `handle` after message decoding.
-     */
-    function _transferTo(
-        address _recipient,
-        uint256 _amountOrId
-    ) internal virtual;
 }
