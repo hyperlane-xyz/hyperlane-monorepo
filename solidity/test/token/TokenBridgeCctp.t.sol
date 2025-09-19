@@ -1043,6 +1043,9 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
     }
 
     function testFork_transferRemote(bytes32 recipient, uint32 amount) public {
+        // recipient cannot be bytes32(0) in CCTP
+        vm.assume(recipient != bytes32(0));
+
         // depositForBurn will revert if amount is less than maxFee
         vm.assume(amount > maxFee);
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);

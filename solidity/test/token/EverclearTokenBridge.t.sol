@@ -1063,9 +1063,13 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             amount
         );
 
-        assertEq(quotes.length, 1);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
-        assertEq(quotes[0].amount, amount + FEE_AMOUNT);
+        assertEq(quotes[0].amount, 0);
+        assertEq(quotes[1].token, address(0));
+        assertEq(quotes[1].amount, amount);
+        assertEq(quotes[2].token, address(0));
+        assertEq(quotes[2].amount, FEE_AMOUNT);
     }
 
     function testEthBridgeConstructor() public {
@@ -1081,6 +1085,6 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             address(newBridge.everclearAdapter()),
             address(everclearAdapter)
         );
-        assertEq(address(newBridge.token()), address(weth));
+        assertEq(address(newBridge.token()), address(0));
     }
 }
