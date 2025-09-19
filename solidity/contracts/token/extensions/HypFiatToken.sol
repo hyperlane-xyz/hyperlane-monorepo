@@ -4,16 +4,26 @@ pragma solidity >=0.8.0;
 import {IFiatToken} from "../interfaces/IFiatToken.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
+import {ERC20Collateral} from "../libs/TokenCollateral.sol";
 
 // see https://github.com/circlefin/stablecoin-evm/blob/master/doc/tokendesign.md#issuing-and-destroying-tokens
-contract HypFiatToken is HypERC20Collateral {
+contract HypFiatToken is TokenRouter {
+    using ERC20Collateral for IFiatToken;
+
+    IFiatToken public immutable wrappedToken;
+
     constructor(
         address _fiatToken,
         uint256 _scale,
         address _mailbox
-    ) HypERC20Collateral(_fiatToken, _scale, _mailbox) {}
+    ) TokenRouter(_scale, _mailbox) {
+        wrappedToken = IFiatToken(_fiatToken);
+    }
 
     // ============ TokenRouter overrides ============
+    function token() public view override returns (address) {
+        return address(wrappedToken);
+    }
 
     /**
      * @inheritdoc TokenRouter
@@ -21,9 +31,9 @@ contract HypFiatToken is HypERC20Collateral {
      */
     function _transferFromSender(uint256 _amount) internal override {
         // transfer amount to address(this)
-        HypERC20Collateral._transferFromSender(_amount);
+        wrappedToken._transferFromSender(_amount);
         // burn amount of address(this) balance
-        IFiatToken(address(wrappedToken)).burn(_amount);
+        wrappedToken.burn(_amount);
     }
 
     /**
@@ -35,7 +45,7 @@ contract HypFiatToken is HypERC20Collateral {
         uint256 _amount
     ) internal override {
         require(
-            IFiatToken(address(wrappedToken)).mint(_recipient, _amount),
+            wrappedToken.mint(_recipient, _amount),
             "FiatToken mint failed"
         );
     }
