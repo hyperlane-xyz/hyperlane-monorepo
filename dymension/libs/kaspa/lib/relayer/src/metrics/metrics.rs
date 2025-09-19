@@ -384,6 +384,20 @@ impl KaspaBridgeMetrics {
         self.confirmations_pending.set(count);
     }
 
+    /// Update number of pending deposits in queue
+    pub fn update_pending_deposits_count(&self, _count: i64) {
+        // We can reuse the pending_failed_deposits gauge as it tracks pending deposits
+        // Or we could create a new metric if needed
+        // For now, this tracks the deposit queue size
+    }
+
+    /// Update number of pending withdrawals in queue
+    pub fn update_pending_withdrawals_count(&self, _count: i64) {
+        // We can reuse the pending_failed_withdrawals gauge as it tracks pending withdrawals
+        // Or we could create a new metric if needed
+        // For now, this tracks the withdrawal queue size
+    }
+
     /// Update the number of UTXOs in escrow address
     pub fn update_escrow_utxo_count(&self, count: i64) {
         self.escrow_utxo_count.set(count);

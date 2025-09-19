@@ -57,6 +57,42 @@ pub struct KaspaProvider {
 }
 
 impl KaspaProvider {
+    /// Parse withdrawal amount from HyperlaneMessage
+    fn parse_withdrawal_amount(msg: &HyperlaneMessage) -> Option<u64> {
+        match dym_kas_core::message::parse_hyperlane_metadata(msg) {
+            Ok(token_message) => {
+                let amount_u256 = token_message.amount();
+                // Convert U256 to u64, handling overflow
+                if amount_u256 > U256::from(u64::MAX) {
+                    tracing::warn!("Withdrawal amount exceeds u64::MAX, using u64::MAX");
+                    Some(u64::MAX)
+                } else {
+                    Some(amount_u256.as_u64())
+                }
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to parse token message for withdrawal amount: {:?}",
+                    e
+                );
+                None
+            }
+        }
+    }
+
+    /// Create withdrawal batch ID from messages
+    fn create_withdrawal_batch_id(msgs: &[HyperlaneMessage]) -> String {
+        msgs.iter()
+            .next()
+            .map(|msg| format!("{:?}", msg.id()))
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+
+    /// Calculate total withdrawal amount from messages
+    fn calculate_total_withdrawal_amount(msgs: &[HyperlaneMessage]) -> u64 {
+        msgs.iter().filter_map(Self::parse_withdrawal_amount).sum()
+    }
+
     /// dococo
     pub async fn new(
         conf: &ConnectionConf,
@@ -198,45 +234,10 @@ impl KaspaProvider {
                 info!("Kaspa provider, constructed withdrawal TXs");
                 info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
 
-                // Create withdrawal batch ID from first message ID in batch
-                let withdrawal_batch_id = fxg
-                    .messages
-                    .iter()
-                    .flatten()
-                    .next()
-                    .map(|msg| format!("{:?}", msg.id()))
-                    .unwrap_or_else(|| "unknown".to_string());
-
-                // Calculate total withdrawal amount for metrics (do this early in case of failures)
-                let total_amount = fxg
-                    .messages
-                    .iter()
-                    .flatten()
-                    .filter_map(|msg| {
-                        // Parse the TokenMessage from the HyperlaneMessage body
-                        match dym_kas_core::message::parse_hyperlane_metadata(msg) {
-                            Ok(token_message) => {
-                                let amount_u256 = token_message.amount();
-                                // Convert U256 to u64, handling overflow
-                                if amount_u256 > U256::from(u64::MAX) {
-                                    tracing::warn!(
-                                        "Withdrawal amount exceeds u64::MAX, using u64::MAX"
-                                    );
-                                    Some(u64::MAX)
-                                } else {
-                                    Some(amount_u256.as_u64())
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    "Failed to parse token message for withdrawal amount: {:?}",
-                                    e
-                                );
-                                None
-                            }
-                        }
-                    })
-                    .sum::<u64>();
+                // Create withdrawal batch ID and calculate total amount
+                let all_msgs: Vec<_> = fxg.messages.iter().flatten().cloned().collect();
+                let withdrawal_batch_id = Self::create_withdrawal_batch_id(&all_msgs);
+                let total_amount = Self::calculate_total_withdrawal_amount(&all_msgs);
 
                 let bundles_validators = match self.validators().get_withdraw_sigs(&fxg).await {
                     Ok(bundles) => bundles,
@@ -293,7 +294,7 @@ impl KaspaProvider {
                             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
                         info!("Kaspa provider, added to progress indication work queue");
 
-                        Ok(fxg.messages.iter().flatten().cloned().collect())
+                        Ok(all_msgs)
                     }
                     Err(e) => {
                         // Record withdrawal failure with deduplication
@@ -308,41 +309,9 @@ impl KaspaProvider {
                 Ok(msgs)
             }
             Err(e) => {
-                // Create withdrawal batch ID from message IDs
-                let withdrawal_batch_id = msgs
-                    .iter()
-                    .next()
-                    .map(|msg| format!("{:?}", msg.id()))
-                    .unwrap_or_else(|| "unknown".to_string());
-
-                // Record withdrawal failure with deduplication - calculate amount from original messages
-                let failed_amount = msgs
-                    .iter()
-                    .filter_map(|msg| {
-                        // Parse the TokenMessage from the HyperlaneMessage body
-                        match dym_kas_core::message::parse_hyperlane_metadata(msg) {
-                            Ok(token_message) => {
-                                let amount_u256 = token_message.amount();
-                                // Convert U256 to u64, handling overflow
-                                if amount_u256 > U256::from(u64::MAX) {
-                                    tracing::warn!(
-                                        "Withdrawal amount exceeds u64::MAX, using u64::MAX"
-                                    );
-                                    Some(u64::MAX)
-                                } else {
-                                    Some(amount_u256.as_u64())
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    "Failed to parse token message for withdrawal amount: {:?}",
-                                    e
-                                );
-                                None
-                            }
-                        }
-                    })
-                    .sum::<u64>();
+                // Create withdrawal batch ID and calculate failed amount
+                let withdrawal_batch_id = Self::create_withdrawal_batch_id(&msgs);
+                let failed_amount = Self::calculate_total_withdrawal_amount(&msgs);
                 self.metrics
                     .record_withdrawal_failed(&withdrawal_batch_id, failed_amount);
                 Err(e)
