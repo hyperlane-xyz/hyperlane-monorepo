@@ -1,4 +1,4 @@
-import { RadixSDK, RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
+import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import { RadixIsmTypes } from '@hyperlane-xyz/radix-sdk';
 import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -18,7 +18,7 @@ export class RadixIsmReader {
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly sdk: RadixSDK | RadixSigningSDK,
+    protected readonly sdk: RadixSDK,
   ) {}
 
   async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
