@@ -2,9 +2,13 @@ export enum TokenType {
   synthetic = 'synthetic',
   syntheticRebase = 'syntheticRebase',
   syntheticUri = 'syntheticUri',
+  syntheticLSP7 = 'syntheticLSP7',
+  syntheticLSP8 = 'syntheticLSP8',
   collateral = 'collateral',
   collateralVault = 'collateralVault',
   collateralVaultRebase = 'collateralVaultRebase',
+  collateralLSP7 = 'collateralLSP7',
+  collateralLSP8 = 'collateralLSP8',
   XERC20 = 'xERC20',
   XERC20Lockbox = 'xERC20Lockbox',
   collateralFiat = 'collateralFiat',
@@ -28,6 +32,8 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.collateralUri]: false,
   [TokenType.collateralVault]: true,
   [TokenType.collateralVaultRebase]: true,
+  [TokenType.collateralLSP7]: true,
+  [TokenType.collateralLSP8]: true,
   [TokenType.native]: true,
   [TokenType.nativeOpL1]: false,
   [TokenType.nativeOpL2]: false,
@@ -35,6 +41,8 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.synthetic]: false,
   [TokenType.syntheticRebase]: false,
   [TokenType.syntheticUri]: false,
+  [TokenType.syntheticLSP7]: false,
+  [TokenType.syntheticLSP8]: false,
 } as const;
 
 export type MovableTokenType = {
