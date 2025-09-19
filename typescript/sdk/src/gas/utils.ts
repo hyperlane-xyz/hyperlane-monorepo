@@ -90,13 +90,16 @@ export async function getCosmosChainGasPrice(
   let cosmosRegistryChain;
   try {
     cosmosRegistryChain = await getCosmosRegistryChain(chain);
-  } catch {
+  } catch (err) {
     // Fallback to our registry gas price from the metadata.
     if (metadata.gasPrice) {
       return metadata.gasPrice;
     }
     throw new Error(
       `No gas price found for Cosmos chain ${chain} in the registry or metadata`,
+      {
+        cause: err,
+      },
     );
   }
 
