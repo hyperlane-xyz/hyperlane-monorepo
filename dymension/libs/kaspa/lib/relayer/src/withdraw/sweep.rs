@@ -272,7 +272,6 @@ fn prepare_next_iteration_inputs(
         ),
         None,
     );
-
     // Create escrow input from previous PSKT's escrow output
     let escrow_input = (
         TransactionInput::new(
@@ -289,7 +288,6 @@ fn prepare_next_iteration_inputs(
         ),
         Some(escrow.redeem_script.clone()),
     );
-
     // Next iteration will use both outputs as inputs
     let new_relayer_inputs = vec![relayer_input];
     // Add the escrow output from previous PSKT to the beginning of remaining escrow inputs
@@ -352,20 +350,16 @@ pub async fn create_sweeping_bundle(
     } else {
         total_withdrawal_amount - anchor_amount
     };
-
     info!(
         "Kaspa sweeping: need to sweep {} sompi (total withdrawals {} sompi - anchor {} sompi)",
         effective_withdrawal_amount, total_withdrawal_amount, anchor_amount
     );
-
     // Process escrow inputs recursively until:
     // 1. All are consumed, OR
     // 2. We have enough for withdrawals AND reached the maximum number of inputs (1000)
     while !escrow_inputs.is_empty() {
         // Check if we've swept enough to cover withdrawals AND reached the maximum inputs
-        if total_swept_amount >= effective_withdrawal_amount
-            && total_inputs_swept >= MAX_SWEEP_INPUTS
-        {
+        if total_swept_amount >= effective_withdrawal_amount && total_inputs_swept >= MAX_SWEEP_INPUTS {
             info!(
                 "Kaspa sweeping: stopping - swept {} sompi (covers effective withdrawal amount of {} sompi) and reached maximum of {} inputs",
                 total_swept_amount, effective_withdrawal_amount, MAX_SWEEP_INPUTS
@@ -383,13 +377,10 @@ pub async fn create_sweeping_bundle(
 
         // Take batch of escrow inputs
         let batch_escrow_inputs: Vec<_> = escrow_inputs.drain(0..batch_size).collect();
-        let batch_escrow_balance = batch_escrow_inputs
-            .iter()
-            .map(|(_, e, _)| e.amount)
-            .sum::<u64>();
+        let batch_escrow_balance = batch_escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
         total_swept_amount += batch_escrow_balance;
         total_inputs_swept += batch_escrow_inputs.len();
-
+        
         // Calculate relayer fee and output amount
         let (estimated_fee, relayer_output_amount) = calculate_relayer_fee(
             &batch_escrow_inputs,
@@ -466,7 +457,6 @@ pub async fn create_sweeping_bundle(
         bundle.add_pskt(pskt_signer);
         info!("Kaspa sweeping: created PSKT {}", pskt_id);
     }
-
     info!(
         "Kaspa sweeping: completed with {} PSKTs, swept {} inputs totaling {} sompi (total available: {} sompi for {} sompi withdrawals)",
         bundle.0.len(), total_inputs_swept, total_swept_amount, anchor_amount + total_swept_amount, total_withdrawal_amount
@@ -533,7 +523,7 @@ pub fn create_inputs_from_sweeping_bundle(
     Ok(vec![relayer_input, escrow_input])
 }
 
-pub(crate) fn utxo_reference_from_populated_input(
+pub fn utxo_reference_from_populated_input(
     (input, entry, _redeem_script): PopulatedInput,
 ) -> UtxoEntryReference {
     UtxoEntryReference::from(ClientUtxoEntry {
