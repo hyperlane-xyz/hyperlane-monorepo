@@ -2150,6 +2150,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  sova: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x1763d686c45df79f6d5f63564255546b08cb206c',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   starknet: {
     threshold: 2,
     validators: [
@@ -2485,6 +2495,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  zerogravity: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xc37e7dad064c11d7ecfc75813a4d8d649d797275',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 

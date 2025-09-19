@@ -1577,5 +1577,25 @@ export const validatorChainConfig = (
         'electroneum',
       ),
     },
+    zerogravity: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('zerogravity'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc37e7dad064c11d7ecfc75813a4d8d649d797275'],
+        },
+        'zerogravity',
+      ),
+    },
+    sova: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sova'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x1763d686c45df79f6d5f63564255546b08cb206c'],
+        },
+        'sova',
+      ),
+    },
   };
 };

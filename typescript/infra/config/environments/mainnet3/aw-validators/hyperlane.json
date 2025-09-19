@@ -8,9 +8,6 @@
   "ancient8": {
     "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
   },
-  "alephzeroevmmainnet": {
-    "validators": ["0x33f20e6e775747d60301c6ea1c50e51f0389740c"]
-  },
   "apechain": {
     "validators": ["0x773d7fe6ffb1ba4de814c28044ff9a2d83a48221"]
   },
@@ -133,9 +130,6 @@
   },
   "galactica": {
     "validators": ["0xfc48af3372d621f476c53d79d42a9e96ce11fd7d"]
-  },
-  "game7": {
-    "validators": ["0x691dc4e763514df883155df0952f847b539454c0"]
   },
   "gnosis": {
     "validators": ["0xd4df66a859585678f2ea8357161d896be19cc1ca"]
@@ -394,5 +388,11 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+  },
+  "zerogravity": {
+    "validators": ["0xc37e7dad064c11d7ecfc75813a4d8d649d797275"]
+  },
+  "sova": {
+    "validators": ["0x1763d686c45df79f6d5f63564255546b08cb206c"]
   }
 }
