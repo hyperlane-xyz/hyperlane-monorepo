@@ -107,10 +107,10 @@ pub async fn build_withdrawal_fxg(
                 .map_err(|e| eyre::eyre!("Extract current anchor: {}", e))?;
 
         let to_sweep_num = escrow_inputs_to_sweep.len();
-        
+
         // Calculate total withdrawal amount needed
         let total_withdrawal_amount: u64 = outputs.iter().map(|o| o.value).sum();
-        
+
         // Get anchor amount (not swept but available for withdrawals)
         let anchor_amount = anchor_input.1.amount; // anchor_input is (TransactionInput, UtxoEntry, Option<Vec<u8>>)
 
@@ -160,7 +160,7 @@ pub async fn build_withdrawal_fxg(
         &relayer_address,
         relayer.net.network_id,
         min_deposit_sompi,
-        feerate*tx_fee_multiplier,
+        feerate * tx_fee_multiplier,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
