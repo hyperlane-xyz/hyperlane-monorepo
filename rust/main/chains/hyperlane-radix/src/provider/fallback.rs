@@ -13,14 +13,15 @@ use gateway_api_client::models::{
 use hyperlane_core::{rpc_clients::FallbackProvider, ChainResult};
 
 use crate::{
-    RadixBaseCoreProvider, RadixBaseGatewayProvider, RadixCoreProvider, RadixGatewayProvider,
+    provider::metric::{RadixMetricCoreProvider, RadixMetricGatewayProvider},
+    RadixCoreProvider, RadixGatewayProvider,
 };
 
 /// Radix fallback provider
 #[derive(new, Debug, Clone)]
 pub struct RadixFallbackProvider {
-    core: FallbackProvider<RadixBaseCoreProvider, RadixBaseCoreProvider>,
-    gateway: FallbackProvider<RadixBaseGatewayProvider, RadixBaseGatewayProvider>,
+    core: FallbackProvider<RadixMetricCoreProvider, RadixMetricCoreProvider>,
+    gateway: FallbackProvider<RadixMetricGatewayProvider, RadixMetricGatewayProvider>,
 }
 
 #[async_trait]
@@ -33,6 +34,7 @@ impl RadixGatewayProvider for RadixFallbackProvider {
             })
             .await
     }
+
     async fn transaction_committed(
         &self,
         tx_intent: TransactionCommittedDetailsRequest,
@@ -45,6 +47,7 @@ impl RadixGatewayProvider for RadixFallbackProvider {
             })
             .await
     }
+
     async fn submit_transaction(&self, tx: Vec<u8>) -> ChainResult<TransactionSubmitResponse> {
         self.gateway
             .call(|client| {
@@ -54,6 +57,7 @@ impl RadixGatewayProvider for RadixFallbackProvider {
             })
             .await
     }
+
     async fn transaction_preview(
         &self,
         request: TransactionPreviewV2Request,
@@ -66,6 +70,7 @@ impl RadixGatewayProvider for RadixFallbackProvider {
             })
             .await
     }
+
     async fn stream_txs(
         &self,
         request: StreamTransactionsRequest,
@@ -78,6 +83,7 @@ impl RadixGatewayProvider for RadixFallbackProvider {
             })
             .await
     }
+
     async fn transaction_status(
         &self,
         intent_hash: String,
@@ -90,6 +96,7 @@ impl RadixGatewayProvider for RadixFallbackProvider {
             })
             .await
     }
+
     async fn entity_details(
         &self,
         request: StateEntityDetailsRequest,
