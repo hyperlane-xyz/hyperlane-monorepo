@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
+// ============ Internal Imports ============
+import {MovableCollateralRouter} from "./MovableCollateralRouter.sol";
+
+// ============ External Imports ============
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import {MovableCollateralRouter} from "./MovableCollateralRouter.sol";
 
 abstract contract LpCollateralRouter is
     MovableCollateralRouter,
     ERC4626Upgradeable
 {
-    uint256 private lpAssets;
+    uint256 private lpAssets = 0;
 
     event Donation(address sender, uint256 amount);
 

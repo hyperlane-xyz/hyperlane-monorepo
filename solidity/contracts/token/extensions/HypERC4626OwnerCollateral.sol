@@ -36,6 +36,12 @@ contract HypERC4626OwnerCollateral is HypERC4626Collateral {
         address _mailbox
     ) HypERC4626Collateral(_vault, _scale, _mailbox) {}
 
+    // =========== TokenRouter Overrides ============
+
+    /**
+     * @inheritdoc HypERC4626Collateral
+     * @dev Overrides to track the total asset deposited.
+     */
     function _depositIntoVault(
         uint256 _amount
     ) internal virtual override returns (uint256) {
@@ -45,8 +51,8 @@ contract HypERC4626OwnerCollateral is HypERC4626Collateral {
     }
 
     /**
-     * @dev Transfers `_amount` of `wrappedToken` from this contract to `_recipient`, and withdraws from vault
-     * @inheritdoc HypERC20Collateral
+     * @inheritdoc HypERC4626Collateral
+     * @dev Overrides to withdraw from the vault and track the asset deposited.
      */
     function _transferTo(
         address _recipient,

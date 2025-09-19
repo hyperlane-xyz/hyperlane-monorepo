@@ -142,33 +142,26 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         );
     }
 
-    function _beforeDispatch(
-        uint32 destination,
-        bytes32 recipient,
-        uint256 amount
-    )
-        internal
-        virtual
-        override
-        returns (uint256 dispatchValue, bytes memory message)
-    {
-        dispatchValue = _chargeSender(destination, recipient, amount);
-
-        uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
-
+    function _bridgeViaCircle(
+        uint32 circleDomain,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal override returns (bytes memory _message) {
         uint64 nonce = ITokenMessengerV1(address(tokenMessenger))
             .depositForBurn(
-                amount,
+                _amount,
                 circleDomain,
-                recipient,
+                _recipient,
                 address(wrappedToken)
             );
 
-        message = TokenMessage.format(
-            recipient,
-            _outboundAmount(amount),
+        _message = TokenMessage.format(
+            _recipient,
+            _outboundAmount(_amount),
             abi.encodePacked(nonce)
         );
-        _validateTokenMessageLength(message);
+        _validateTokenMessageLength(_message);
+
+        return _message;
     }
 }

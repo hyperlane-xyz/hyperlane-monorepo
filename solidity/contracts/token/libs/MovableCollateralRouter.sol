@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {Router} from "../../client/Router.sol";
-import {FungibleTokenRouter} from "./FungibleTokenRouter.sol";
 import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-
+import {TokenRouter} from "./TokenRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Router} from "../../client/Router.sol";
 
-abstract contract MovableCollateralRouter is FungibleTokenRouter {
+abstract contract MovableCollateralRouter is TokenRouter {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -151,6 +150,7 @@ abstract contract MovableCollateralRouter is FungibleTokenRouter {
         emit CollateralMoved(domain, recipient, amount, msg.sender);
     }
 
+    // TODO: Add documentation of why it exists
     function _nativeRebalanceValue(
         uint256 /*amount*/
     ) internal virtual returns (uint256 nativeValue) {

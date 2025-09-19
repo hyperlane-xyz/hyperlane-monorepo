@@ -16,6 +16,7 @@ pragma solidity ^0.8.22;
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {EverclearBridge} from "../../contracts/token/libs/EverclearBridge.sol";
 
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
@@ -189,7 +190,7 @@ contract EverclearTokenBridgeTest is Test {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
-            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
+            abi.encodeCall(EverclearBridge.initialize, (address(0), OWNER))
         );
 
         bridge = EverclearTokenBridge(address(proxy));
@@ -348,11 +349,13 @@ contract EverclearTokenBridgeTest is Test {
             TRANSFER_AMT
         );
 
-        assertEq(quotes.length, 2);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
         assertEq(quotes[0].amount, 0); // Gas payment is 0 for test dispatch hooks
         assertEq(quotes[1].token, address(token));
-        assertEq(quotes[1].amount, TRANSFER_AMT + FEE_AMOUNT);
+        assertEq(quotes[1].amount, TRANSFER_AMT);
+        assertEq(quotes[2].token, address(token));
+        assertEq(quotes[2].amount, FEE_AMOUNT);
     }
 
     // ============ transferRemote Tests ============
@@ -497,7 +500,8 @@ contract EverclearTokenBridgeTest is Test {
             RECIPIENT,
             transferAmount
         );
-        uint256 tokenCost = quotes[1].amount; // Token cost including fee
+        uint256 tokenCost = quotes[1].amount;
+        uint256 fee = quotes[2].amount;
 
         // 2. Execute transfer
         vm.prank(ALICE);
@@ -508,7 +512,7 @@ contract EverclearTokenBridgeTest is Test {
         );
 
         // 3. Verify state changes
-        assertEq(token.balanceOf(ALICE), initialAliceBalance - tokenCost);
+        assertEq(token.balanceOf(ALICE), initialAliceBalance - tokenCost - fee);
 
         // 4. Verify Everclear intent was created correctly
         assertEq(everclearAdapter.newIntentCallCount(), 1);
@@ -807,7 +811,7 @@ contract EverclearTokenBridgeForkTest is Test {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
-            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
+            abi.encodeCall(EverclearBridge.initialize, (address(0), OWNER))
         );
 
         bridge = MockEverclearTokenBridge(address(proxy));
@@ -982,7 +986,7 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             address(implementation),
             PROXY_ADMIN,
             abi.encodeCall(
-                EverclearTokenBridge.initialize,
+                EverclearBridge.initialize,
                 (address(new TestPostDispatchHook()), OWNER)
             )
         );
@@ -1043,7 +1047,7 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         vm.deal(ALICE, totalAmount - 1);
 
         vm.prank(ALICE);
-        vm.expectRevert("EEB: ETH amount mismatch");
+        vm.expectRevert("Native: amount exceeds msg.value");
         ethBridge.transferRemote{value: totalAmount - 1}(
             OPTIMISM_DOMAIN,
             RECIPIENT,
@@ -1060,9 +1064,13 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             amount
         );
 
-        assertEq(quotes.length, 1);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
-        assertEq(quotes[0].amount, amount + FEE_AMOUNT);
+        assertEq(quotes[0].amount, 0);
+        assertEq(quotes[1].token, address(0));
+        assertEq(quotes[1].amount, amount);
+        assertEq(quotes[2].token, address(0));
+        assertEq(quotes[2].amount, FEE_AMOUNT);
     }
 
     function testEthBridgeConstructor() public {
@@ -1078,6 +1086,6 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             address(newBridge.everclearAdapter()),
             address(everclearAdapter)
         );
-        assertEq(address(newBridge.token()), address(weth));
+        assertEq(address(newBridge.token()), address(0));
     }
 }
