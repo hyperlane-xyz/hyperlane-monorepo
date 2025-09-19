@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { CosmosNativeHookModule } from '../hook/CosmosNativeHookModule.js';
-import { DerivedHookConfig, HookConfig } from '../hook/types.js';
+import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
 import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
@@ -107,7 +107,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     const { config, multiProvider, chain, signer } = params;
 
     const chainName = multiProvider.getChainName(chain);
-    // const domainId = multiProvider.getDomainId(chain);
+    const domainId = multiProvider.getDomainId(chain);
 
     // 1. Deploy default ISM
     const ismModule = await CosmosNativeIsmModule.create({
@@ -122,51 +122,51 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
 
     const { deployedIsm: defaultIsm } = ismModule.serialize();
 
-    // // 2. Deploy Mailbox with initial configuration
-    // const { response: mailbox } = await signer.createMailbox({
-    //   local_domain: domainId,
-    //   default_ism: defaultIsm,
-    //   default_hook: '',
-    //   required_hook: '',
-    // });
+    // 2. Deploy Mailbox with initial configuration
+    const { response: mailbox } = await signer.createMailbox({
+      local_domain: domainId,
+      default_ism: defaultIsm,
+      default_hook: '',
+      required_hook: '',
+    });
 
-    // // 3. Deploy default hook
-    // const defaultHookModule = await CosmosNativeHookModule.create({
-    //   chain: chainName,
-    //   config: config.defaultHook,
-    //   addresses: {
-    //     deployedHook: '',
-    //     mailbox: mailbox.id,
-    //   },
-    //   multiProvider,
-    //   signer,
-    // });
+    // 3. Deploy default hook
+    const defaultHookModule = await CosmosNativeHookModule.create({
+      chain: chainName,
+      config: config.defaultHook,
+      addresses: {
+        deployedHook: '',
+        mailbox: mailbox.id,
+      },
+      multiProvider,
+      signer,
+    });
 
-    // const { deployedHook: defaultHook } = defaultHookModule.serialize();
+    const { deployedHook: defaultHook } = defaultHookModule.serialize();
 
-    // // 4. Deploy required hook
-    // const requiredHookModule = await CosmosNativeHookModule.create({
-    //   chain: chainName,
-    //   config: config.requiredHook,
-    //   addresses: {
-    //     deployedHook: '',
-    //     mailbox: mailbox.id,
-    //   },
-    //   multiProvider,
-    //   signer,
-    // });
+    // 4. Deploy required hook
+    const requiredHookModule = await CosmosNativeHookModule.create({
+      chain: chainName,
+      config: config.requiredHook,
+      addresses: {
+        deployedHook: '',
+        mailbox: mailbox.id,
+      },
+      multiProvider,
+      signer,
+    });
 
-    // const { deployedHook: requiredHook } = requiredHookModule.serialize();
+    const { deployedHook: requiredHook } = requiredHookModule.serialize();
 
-    // // 5. Update the configuration with the newly created hooks
-    // await signer.setMailbox({
-    //   mailbox_id: mailbox.id,
-    //   default_ism: defaultIsm,
-    //   default_hook: defaultHook,
-    //   required_hook: requiredHook,
-    //   new_owner: config.owner || '',
-    //   renounce_ownership: !config.owner, // if owner is empty we renounce the ownership
-    // });
+    // 5. Update the configuration with the newly created hooks
+    await signer.setMailbox({
+      mailbox_id: mailbox.id,
+      default_ism: defaultIsm,
+      default_hook: defaultHook,
+      required_hook: requiredHook,
+      new_owner: config.owner || '',
+      renounce_ownership: !config.owner, // if owner is empty we renounce the ownership
+    });
 
     const addresses: DeployedCoreAddresses = {
       mailbox: '',
@@ -200,31 +200,31 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
       }
     }
 
-    // if (typeof config.defaultHook !== 'string') {
-    //   switch (config.defaultHook.type) {
-    //     case HookType.INTERCHAIN_GAS_PAYMASTER: {
-    //       addresses.interchainGasPaymaster = defaultHook;
-    //       break;
-    //     }
-    //     case HookType.MERKLE_TREE: {
-    //       addresses.merkleTreeHook = defaultHook;
-    //       break;
-    //     }
-    //   }
-    // }
+    if (typeof config.defaultHook !== 'string') {
+      switch (config.defaultHook.type) {
+        case HookType.INTERCHAIN_GAS_PAYMASTER: {
+          addresses.interchainGasPaymaster = defaultHook;
+          break;
+        }
+        case HookType.MERKLE_TREE: {
+          addresses.merkleTreeHook = defaultHook;
+          break;
+        }
+      }
+    }
 
-    // if (typeof config.requiredHook !== 'string') {
-    //   switch (config.requiredHook.type) {
-    //     case HookType.INTERCHAIN_GAS_PAYMASTER: {
-    //       addresses.interchainGasPaymaster = requiredHook;
-    //       break;
-    //     }
-    //     case HookType.MERKLE_TREE: {
-    //       addresses.merkleTreeHook = requiredHook;
-    //       break;
-    //     }
-    //   }
-    // }
+    if (typeof config.requiredHook !== 'string') {
+      switch (config.requiredHook.type) {
+        case HookType.INTERCHAIN_GAS_PAYMASTER: {
+          addresses.interchainGasPaymaster = requiredHook;
+          break;
+        }
+        case HookType.MERKLE_TREE: {
+          addresses.merkleTreeHook = requiredHook;
+          break;
+        }
+      }
+    }
 
     return addresses;
   }
