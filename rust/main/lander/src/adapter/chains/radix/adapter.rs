@@ -97,3 +97,152 @@ impl AdaptsChain for RadixAdapter {
         todo!()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use gateway_api_client::models::TransactionStatusResponse;
+    use hyperlane_core::ChainResult;
+
+    use super::*;
+
+    mockall::mock! {
+        pub MockRadixProviderForLander {
+
+        }
+
+        #[async_trait::async_trait]
+        impl RadixProviderForLander for MockRadixProviderForLander {
+            async fn get_tx_hash_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse>;
+        }
+    }
+
+    #[tokio::test]
+    async fn get_tx_hash_status_pending() {
+        let mut provider = MockMockRadixProviderForLander::new();
+
+        provider.expect_get_tx_hash_status().returning(|_| {
+            Ok(TransactionStatusResponse {
+                status: gateway_api_client::models::TransactionStatus::Pending,
+                ..Default::default()
+            })
+        });
+
+        let adapter = RadixAdapter {
+            provider: Arc::new(provider),
+        };
+
+        let hash = H512::zero();
+        let tx_status = adapter
+            .get_tx_hash_status(hash)
+            .await
+            .expect("Failed to get tx hash status");
+
+        assert_eq!(tx_status, TransactionStatus::Mempool);
+    }
+
+    #[tokio::test]
+    async fn get_tx_hash_status_rejected() {
+        let mut provider = MockMockRadixProviderForLander::new();
+
+        provider.expect_get_tx_hash_status().returning(|_| {
+            Ok(TransactionStatusResponse {
+                status: gateway_api_client::models::TransactionStatus::Rejected,
+                ..Default::default()
+            })
+        });
+
+        let adapter = RadixAdapter {
+            provider: Arc::new(provider),
+        };
+
+        let hash = H512::zero();
+        let tx_status = adapter
+            .get_tx_hash_status(hash)
+            .await
+            .expect("Failed to get tx hash status");
+
+        assert_eq!(
+            tx_status,
+            TransactionStatus::Dropped(TransactionDropReason::DroppedByChain)
+        );
+    }
+
+    #[tokio::test]
+    async fn get_tx_hash_status_unknown() {
+        let mut provider = MockMockRadixProviderForLander::new();
+
+        provider.expect_get_tx_hash_status().returning(|_| {
+            Ok(TransactionStatusResponse {
+                status: gateway_api_client::models::TransactionStatus::Unknown,
+                ..Default::default()
+            })
+        });
+
+        let adapter = RadixAdapter {
+            provider: Arc::new(provider),
+        };
+
+        let hash = H512::zero();
+        let tx_status = adapter.get_tx_hash_status(hash.clone()).await;
+
+        match tx_status {
+            Err(LanderError::TxHashNotFound(tx_hash)) => {
+                assert_eq!(tx_hash, format!("{:x}", hash));
+            }
+            val => {
+                panic!("Incorrect status {:?}", val);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn get_tx_hash_status_committed_failure() {
+        let mut provider = MockMockRadixProviderForLander::new();
+
+        provider.expect_get_tx_hash_status().returning(|_| {
+            Ok(TransactionStatusResponse {
+                status: gateway_api_client::models::TransactionStatus::CommittedFailure,
+                ..Default::default()
+            })
+        });
+
+        let adapter = RadixAdapter {
+            provider: Arc::new(provider),
+        };
+
+        let hash = H512::zero();
+        let tx_status = adapter
+            .get_tx_hash_status(hash.clone())
+            .await
+            .expect("Failed to get tx hash status");
+
+        assert_eq!(
+            tx_status,
+            TransactionStatus::Dropped(TransactionDropReason::FailedSimulation)
+        );
+    }
+
+    #[tokio::test]
+    async fn get_tx_hash_status_committed_success() {
+        let mut provider = MockMockRadixProviderForLander::new();
+
+        provider.expect_get_tx_hash_status().returning(|_| {
+            Ok(TransactionStatusResponse {
+                status: gateway_api_client::models::TransactionStatus::CommittedSuccess,
+                ..Default::default()
+            })
+        });
+
+        let adapter = RadixAdapter {
+            provider: Arc::new(provider),
+        };
+
+        let hash = H512::zero();
+        let tx_status = adapter
+            .get_tx_hash_status(hash.clone())
+            .await
+            .expect("Failed to get tx hash status");
+
+        assert_eq!(tx_status, TransactionStatus::Finalized);
+    }
+}

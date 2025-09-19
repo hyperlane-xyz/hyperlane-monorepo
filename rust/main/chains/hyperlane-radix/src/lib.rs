@@ -25,7 +25,7 @@ pub use {
     error::HyperlaneRadixError,
     ism::RadixIsm,
     mailbox::RadixMailbox,
-    provider::{lander::RadixProviderForLander, RadixProvider},
+    provider::{RadixProvider, RadixProviderForLander},
     signer::RadixSigner,
     validator_announce::RadixValidatorAnnounce,
 };
