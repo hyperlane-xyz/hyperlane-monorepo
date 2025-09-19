@@ -1,5 +1,17 @@
 # @hyperlane-xyz/widgets
 
+## 18.3.0
+
+### Patch Changes
+
+- 57cf9e953: now token.isFungibleWith() will also check for isHypNative() tokens
+- Updated dependencies [57cf9e953]
+- Updated dependencies [c41bc3b93]
+- Updated dependencies [2b16904f8]
+  - @hyperlane-xyz/sdk@18.3.0
+  - @hyperlane-xyz/utils@18.3.0
+  - @hyperlane-xyz/cosmos-sdk@18.3.0
+
 ## 18.2.0
 
 ### Patch Changes

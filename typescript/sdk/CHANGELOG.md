@@ -1,5 +1,22 @@
 # @hyperlane-xyz/sdk
 
+## 18.3.0
+
+### Minor Changes
+
+- 2b16904f8: Add getBridgedSupply to EvmHypNativeAdapter to return the native token balance as collateral
+
+### Patch Changes
+
+- 57cf9e953: now token.isFungibleWith() will also check for isHypNative() tokens
+- Updated dependencies [a5728818f]
+- Updated dependencies [c41bc3b93]
+  - @hyperlane-xyz/core@9.0.10
+  - @hyperlane-xyz/utils@18.3.0
+  - @hyperlane-xyz/radix-sdk@18.3.0
+  - @hyperlane-xyz/starknet-core@18.3.0
+  - @hyperlane-xyz/cosmos-sdk@18.3.0
+
 ## 18.2.0
 
 ### Minor Changes
