@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use hyperlane_core::H512;
-use hyperlane_radix::RadixProviderForLander;
+use hyperlane_radix::{DeliveredCalldata, RadixProviderForLander};
 
 use crate::{
     adapter::{AdaptsChain, GasLimit, TxBuildingResult},
@@ -72,9 +72,32 @@ impl AdaptsChain for RadixAdapter {
 
     async fn reverted_payloads(
         &self,
-        _tx: &Transaction,
+        tx: &Transaction,
     ) -> Result<Vec<PayloadDetails>, LanderError> {
-        todo!()
+        let delivered_calldata_list: Vec<(DeliveredCalldata, &PayloadDetails)> = tx
+            .payload_details
+            .iter()
+            .filter_map(|d| {
+                let calldata = d
+                    .success_criteria
+                    .as_ref()
+                    .and_then(|s| serde_json::from_slice(s).ok())?;
+                Some((calldata, d))
+            })
+            .collect();
+
+        let mut reverted = Vec::new();
+        for (delivered_calldata, payload_details) in delivered_calldata_list {
+            let success = self
+                .provider
+                .check_preview(&delivered_calldata)
+                .await
+                .unwrap_or(false);
+            if !success {
+                reverted.push(payload_details.clone());
+            }
+        }
+        Ok(reverted)
     }
 
     fn estimated_block_time(&self) -> &Duration {
@@ -113,6 +136,7 @@ mod tests {
         #[async_trait::async_trait]
         impl RadixProviderForLander for MockRadixProviderForLander {
             async fn get_tx_hash_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse>;
+            async fn check_preview(&self, params: &DeliveredCalldata) -> ChainResult<bool>;
         }
     }
 
