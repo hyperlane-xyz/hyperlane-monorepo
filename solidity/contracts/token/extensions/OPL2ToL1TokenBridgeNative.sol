@@ -93,23 +93,28 @@ contract OpL2NativeTokenBridge is HypNative {
         // 2. Prepare the "dispatch" of messages by actually dispatching the Hyperlane messages
 
         // Dispatch proof message (no token amount)
-        bytes32 proveMessageId = _Router_quoteAndDispatch(
+        bytes32 proveMessageId = _Router_dispatch(
             _destination,
+            msg.value - _amount,
             TokenMessage.format(_recipient, 0),
             _proveHookMetadata(),
             address(hook)
         );
 
         // Dispatch withdrawal message (token + fee)
-        bytes32 withdrawMessageId = _Router_quoteAndDispatch(
+        bytes32 withdrawMessageId = _Router_dispatch(
             _destination,
+            address(this).balance - _amount,
             TokenMessage.format(_recipient, _amount),
             _finalizeHookMetadata(),
             address(hook)
         );
 
         // include for legible error message
-        HypNative._transferFromSender(_amount);
+        require(
+            address(this).balance >= _amount,
+            "OP L2 token bridge: insufficient balance"
+        );
 
         // 3. Emit event manually
         emit SentTransferRemote(_destination, _recipient, _amount);

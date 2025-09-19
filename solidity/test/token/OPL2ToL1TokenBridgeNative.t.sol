@@ -183,7 +183,9 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
     function test_transferRemote_fundsReceived() public {
         Quote[] memory quotes = _getQuote();
 
-        vtbOrigin.transferRemote{value: quotes[0].amount}(
+        uint256 value = quotes[0].amount + quotes[1].amount + quotes[2].amount;
+
+        vtbOrigin.transferRemote{value: value}(
             destination,
             userB32,
             transferAmount
@@ -215,9 +217,11 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
     function test_transferRemote_refunds() public {
         Quote[] memory quotes = _getQuote();
 
+        uint256 value = quotes[0].amount + quotes[1].amount + quotes[2].amount;
+
         uint256 balanceBefore = address(this).balance;
 
-        vtbOrigin.transferRemote{value: 2 * quotes[0].amount}(
+        vtbOrigin.transferRemote{value: 2 * value}(
             destination,
             userB32,
             transferAmount
@@ -225,7 +229,7 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
 
         uint256 balanceAfter = address(this).balance;
 
-        assertEq(balanceBefore - balanceAfter, quotes[0].amount);
+        assertEq(balanceBefore - balanceAfter, value);
     }
 
     function test_interchainSecurityModule_returnsConfiguredIsm() public {
