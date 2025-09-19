@@ -231,7 +231,11 @@ contract TokenBridgeCctpV1Test is Test {
         );
 
         vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+        // approve internal and external fees
+        tokenOrigin.approve(
+            address(tbOrigin),
+            quote[1].amount + quote[2].amount
+        );
 
         cctpNonce = tokenMessengerOrigin.nextNonce();
         tbOrigin.transferRemote{value: quote[0].amount}(
@@ -262,7 +266,7 @@ contract TokenBridgeCctpV1Test is Test {
             amount
         );
 
-        assertEq(quotes.length, 2);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
         assertEq(
             quotes[0].amount,
@@ -270,6 +274,9 @@ contract TokenBridgeCctpV1Test is Test {
         );
         assertEq(quotes[1].token, address(tokenOrigin));
         assertEq(quotes[1].amount, amount);
+        // external fee
+        assertEq(quotes[2].token, address(tokenOrigin));
+        assertEq(quotes[2].amount, 0);
     }
 
     function test_transferRemoteCctp() public virtual {
@@ -332,6 +339,7 @@ contract TokenBridgeCctpV1Test is Test {
         assertEq(tbDestination.verify(metadata, message), true);
     }
 
+    // TODO: this is no longer backwards compatible, replace with new deployment for fork tests
     function _upgrade(TokenBridgeCctpBase bridge) internal virtual {
         TokenBridgeCctpV1 newImplementation = new TokenBridgeCctpV1(
             address(bridge.wrappedToken()),
@@ -352,6 +360,9 @@ contract TokenBridgeCctpV1Test is Test {
     }
 
     function testFork_verify_upgrade() public virtual {
+        // no longer backwards compatible
+        vm.skip(true);
+
         TokenBridgeCctpV1 recipient = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
         );
@@ -620,6 +631,9 @@ contract TokenBridgeCctpV1Test is Test {
         bytes32 recipient,
         bytes calldata body
     ) public virtual {
+        // no longer backwards compatible
+        vm.skip(true);
+
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
         TokenBridgeCctpV1 hook = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
@@ -666,10 +680,14 @@ contract TokenBridgeCctpV1Test is Test {
     }
 
     function testFork_verify() public virtual {
+        // no longer backwards compatible
+        vm.skip(true);
+
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
         TokenBridgeCctpV1 hook = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
         );
+
         bytes32 router = hook.routers(1);
         uint32 origin = hook.localDomain();
 
@@ -1047,13 +1065,16 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         assertEq(quotes[1].token, usdc);
         uint256 usdcQuote = quotes[1].amount;
 
-        deal(usdc, address(this), usdcQuote);
-        IERC20(usdc).approve(address(router), usdcQuote);
+        assertEq(quotes[2].token, usdc);
+        uint256 fastFee = quotes[2].amount;
+
+        deal(usdc, address(this), usdcQuote + fastFee);
+        IERC20(usdc).approve(address(router), usdcQuote + fastFee);
 
         vm.expectEmit(true, true, true, true, address(router.tokenMessenger()));
         emit ITokenMessengerV2.DepositForBurn(
             usdc,
-            usdcQuote,
+            usdcQuote + fastFee,
             address(router),
             recipient,
             circleDestination,
@@ -1177,15 +1198,16 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
 
         uint256 tokenQuote = quote[1].amount;
+        uint256 fastFee = quote[2].amount;
         vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), tokenQuote);
+        tokenOrigin.approve(address(tbOrigin), tokenQuote + fastFee);
 
         vm.expectCall(
             address(tokenMessengerOrigin),
             abi.encodeCall(
                 ITokenMessengerV2.depositForBurn,
                 (
-                    tokenQuote,
+                    tokenQuote + fastFee,
                     cctpDestination,
                     user.addressToBytes32(),
                     address(tokenOrigin),
@@ -1283,14 +1305,16 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             amount
         );
 
-        assertEq(quotes.length, 2);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
         assertEq(
             quotes[0].amount,
             igpOrigin.quoteGasPayment(destination, gasLimit)
         );
         assertEq(quotes[1].token, address(tokenOrigin));
+        assertEq(quotes[1].amount, amount);
         uint256 fastFee = (amount * maxFee) / 10_000;
-        assertEq(quotes[1].amount, amount + fastFee);
+        assertEq(quotes[2].token, address(tokenOrigin));
+        assertEq(quotes[2].amount, fastFee);
     }
 }

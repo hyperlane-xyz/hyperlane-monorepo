@@ -30,7 +30,7 @@ interface CctpService {
 }
 
 abstract contract TokenBridgeCctpBase is
-    MovableCollateralRouter,
+    TokenRouter,
     AbstractCcipReadIsm,
     IPostDispatchHook
 {
@@ -128,7 +128,7 @@ abstract contract TokenBridgeCctpBase is
 
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
-        bytes memory _message = bridgeViaCircle(
+        bytes memory _message = _bridgeViaCircle(
             circleDomain,
             _recipient,
             _amount + feeRecipientFee + externalFee
@@ -297,7 +297,7 @@ abstract contract TokenBridgeCctpBase is
 
     /// @inheritdoc IPostDispatchHook
     function supportsMetadata(
-        bytes calldata metadata
+        bytes calldata /*metadata*/
     ) public pure override returns (bool) {
         return true;
     }
@@ -325,7 +325,7 @@ abstract contract TokenBridgeCctpBase is
         _sendMessageIdToIsm(circleDestination, ism, id);
     }
 
-    function bridgeViaCircle(
+    function _bridgeViaCircle(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount

@@ -142,7 +142,7 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         );
     }
 
-    function bridgeViaCircle(
+    function _bridgeViaCircle(
         uint32 circleDomain,
         bytes32 _recipient,
         uint256 _amount
