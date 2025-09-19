@@ -7,7 +7,6 @@ import {IWETH} from "../interfaces/IWETH.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC4626} from "lib/forge-std/src/interfaces/IERC4626.sol";
 
 /**
  * @title Hyperlane Native Token Router that extends ERC20 with remote transfer functionality.
@@ -55,21 +54,3 @@ library ERC20Collateral {
         token.safeTransfer(_recipient, _amount);
     }
 }
-
-// library ERC4626Collateral {
-//     using ERC20Collateral for address;
-
-//     function _transferFromSender(address token, uint256 _amount) internal {
-//         IERC4626(token).asset()._transferFromSender(_amount);
-//         IERC4626(token).deposit(_amount, address(this));
-//     }
-
-//     function _transferTo(
-//         address token,
-//         address _recipient,
-//         uint256 _amount
-//     ) internal {
-//         assert(token != address(0));
-//         IERC4626(token).withdraw(_amount, _recipient, address(this));
-//     }
-// }
