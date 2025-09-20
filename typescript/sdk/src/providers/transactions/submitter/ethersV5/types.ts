@@ -94,6 +94,13 @@ export type EvmTimelockControllerSubmitterProps = {
   proposerSubmitter: EvmSubmitterMetadata;
 };
 
+export type AccessManagerSubmitterConfig = {
+  type: TxSubmitterType.ACCESS_MANAGER;
+  chain: ChainName;
+  accessManagerAddress: Address;
+  proposerSubmitter: EvmSubmitterMetadata;
+};
+
 // @ts-expect-error same as the ICA
 export const EvmTimelockControllerSubmitterPropsSchema: z.ZodSchema<EvmTimelockControllerSubmitterProps> =
   z.lazy(() =>
@@ -104,6 +111,17 @@ export const EvmTimelockControllerSubmitterPropsSchema: z.ZodSchema<EvmTimelockC
       salt: ZBytes32String.optional(),
       delay: ZBigNumberish.optional(),
       predecessor: ZBytes32String.optional(),
+      proposerSubmitter: EvmSubmitterMetadataSchema,
+    }),
+  );
+
+// @ts-expect-error same as the ICA
+export const AccessManagerSubmitterConfigSchema: z.ZodSchema<AccessManagerSubmitterConfig> =
+  z.lazy(() =>
+    z.object({
+      type: z.literal(TxSubmitterType.ACCESS_MANAGER),
+      chain: ZChainName,
+      accessManagerAddress: ZHash,
       proposerSubmitter: EvmSubmitterMetadataSchema,
     }),
   );
@@ -127,6 +145,7 @@ export const EvmSubmitterMetadataSchema = z.union([
   }),
   EvmIcaTxSubmitterPropsSchema,
   EvmTimelockControllerSubmitterPropsSchema,
+  AccessManagerSubmitterConfigSchema,
 ]);
 
 export type EvmSubmitterMetadata = z.infer<typeof EvmSubmitterMetadataSchema>;
