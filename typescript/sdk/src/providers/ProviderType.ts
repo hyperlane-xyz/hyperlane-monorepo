@@ -12,6 +12,11 @@ import type {
   Transaction as SolTransaction,
   VersionedTransactionResponse as SolTransactionReceipt,
 } from '@solana/web3.js';
+import {
+  Transaction as SovereignRollupTransaction,
+  TransactionResult as SovereignTransactionResult,
+  StandardRollup,
+} from '@sovereign-sdk/web3';
 import type {
   Contract as EV5Contract,
   providers as EV5Providers,
@@ -52,6 +57,7 @@ export enum ProviderType {
   Starknet = 'starknet',
   ZkSync = 'zksync',
   Radix = 'radix',
+  Sovereign = 'sovereign-sdk-web3',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -64,6 +70,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.CosmosNative]: ProviderType.CosmJsNative,
   [ProtocolType.Starknet]: ProviderType.Starknet,
   [ProtocolType.Radix]: ProviderType.Radix,
+  [ProtocolType.Sovereign]: ProviderType.Sovereign,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -104,6 +111,12 @@ type ProtocolTypesMapping = {
     provider: RadixProvider;
     contract: null;
     receipt: RadixTransactionReceipt;
+  };
+  [ProtocolType.Sovereign]: {
+    transaction: SovereignTransaction;
+    provider: SovereignProvider;
+    contract: null;
+    receipt: SovereignTransactionReceipt;
   };
 };
 
@@ -188,6 +201,12 @@ export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
   provider: ZKSyncBaseProvider;
 }
 
+export interface SovereignProvider
+  extends TypedProviderBase<Promise<StandardRollup<any>>> {
+  type: ProviderType.Sovereign;
+  provider: Promise<StandardRollup<any>>;
+}
+
 export type TypedProvider =
   | EthersV5Provider
   // | EthersV6Provider
@@ -198,7 +217,8 @@ export type TypedProvider =
   | CosmJsNativeProvider
   | StarknetJsProvider
   | ZKSyncProvider
-  | RadixProvider;
+  | RadixProvider
+  | SovereignProvider;
 
 /**
  * Contracts with discriminated union of provider type
@@ -336,6 +356,12 @@ export interface ZKSyncTransaction
   transaction: zkSyncTypes.TransactionRequest;
 }
 
+export interface SovereignTransaction
+  extends TypedTransactionBase<SovereignRollupTransaction<any>> {
+  type: ProviderType.Sovereign;
+  transaction: SovereignRollupTransaction<any>;
+}
+
 export type TypedTransaction =
   | EthersV5Transaction
   // | EthersV6Transaction
@@ -346,7 +372,8 @@ export type TypedTransaction =
   | CosmJsNativeTransaction
   | StarknetJsTransaction
   | ZKSyncTransaction
-  | RadixTransaction;
+  | RadixTransaction
+  | SovereignTransaction;
 
 /**
  * Transaction receipt/response with discriminated union of provider type
@@ -411,6 +438,12 @@ export interface RadixTransactionReceipt
   receipt: TransactionCommittedDetailsResponse & { transactionHash: string };
 }
 
+export interface SovereignTransactionReceipt
+  extends TypedTransactionReceiptBase<SovereignTransactionResult<any>> {
+  type: ProviderType.Sovereign;
+  receipt: SovereignTransactionResult<any>;
+}
+
 export type TypedTransactionReceipt =
   | EthersV5TransactionReceipt
   | ViemTransactionReceipt
@@ -420,4 +453,5 @@ export type TypedTransactionReceipt =
   | CosmJsNativeTransactionReceipt
   | StarknetJsTransactionReceipt
   | ZKSyncTransactionReceipt
-  | RadixTransactionReceipt;
+  | RadixTransactionReceipt
+  | SovereignTransactionReceipt;
