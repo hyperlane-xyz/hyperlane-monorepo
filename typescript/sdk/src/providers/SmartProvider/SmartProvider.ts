@@ -55,6 +55,15 @@ const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
+class BlockchainError extends Error {
+  public readonly isRecoverable = false;
+
+  constructor(message: string, options?: { cause?: Error }) {
+    super(message, options);
+    this.name = 'BlockchainError';
+  }
+}
+
 export class HyperlaneSmartProvider
   extends providers.BaseProvider
   implements IProviderMethods
@@ -244,8 +253,9 @@ export class HyperlaneSmartProvider
   }
 
   /**
-   * This perform method will trigger any providers that support the method
-   * one at a time in preferential order. If one is slow to respond, the next is triggered.
+   * This perform method has two phases:
+   * 1. Sequentially triggers providers until success or blockchain error (permanent failure)
+   * 2. Waits for any remaining pending provider promises to complete
    * TODO: Consider adding a quorum option that requires a certain number of providers to agree
    */
   protected async performWithFallback(
@@ -257,6 +267,8 @@ export class HyperlaneSmartProvider
     let pIndex = 0;
     const providerResultPromises: Promise<ProviderPerformResult>[] = [];
     const providerResultErrors: unknown[] = [];
+
+    // Phase 1: Trigger providers sequentially until success or blockchain error
     while (true) {
       // Trigger the next provider in line
       if (pIndex < providers.length) {
@@ -313,6 +325,16 @@ export class HyperlaneSmartProvider
             isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultErrors.push(result.error);
+
+          // If this is a blockchain error, stop trying additional providers as it's a permanent failure
+          if (RPC_BLOCKCHAIN_ERRORS.includes((result.error as any)?.code)) {
+            this.logger.debug(
+              { ...providerMetadata },
+              `${(result.error as any)?.code} detected - stopping provider fallback as this is a permanent failure`,
+            );
+            break;
+          }
+
           pIndex += 1;
         } else {
           throw new Error(
@@ -321,53 +343,53 @@ export class HyperlaneSmartProvider
             )}`,
           );
         }
-
-        // All providers already triggered, wait for one to complete or all to fail/timeout
-      } else if (providerResultPromises.length > 0) {
-        const timeoutPromise = timeoutResult(
-          this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
-          20,
-        );
-        const resultPromise = this.waitForProviderSuccess(
-          providerResultPromises,
-        );
-        const result = await Promise.race([resultPromise, timeoutPromise]);
-
-        if (result.status === ProviderStatus.Success) {
-          return result.value;
-        } else if (result.status === ProviderStatus.Timeout) {
-          this.throwCombinedProviderErrors(
-            [result, ...providerResultErrors],
-            `All providers timed out on chain ${this._network.name} for method ${method}`,
-          );
-        } else if (result.status === ProviderStatus.Error) {
-          this.throwCombinedProviderErrors(
-            [result.error, ...providerResultErrors],
-            `All providers failed on chain ${
-              this._network.name
-            } for method ${method} and params ${JSON.stringify(
-              params,
-              null,
-              2,
-            )}`,
-          );
-        } else {
-          throw new Error('Unexpected result from provider');
-        }
-
-        // All providers have already failed, all hope is lost
       } else {
-        this.throwCombinedProviderErrors(
-          providerResultErrors,
+        break;
+      }
+    }
+
+    // Phase 2: All providers already triggered, wait for one to complete or all to fail/timeout
+    if (providerResultPromises.length > 0) {
+      const timeoutPromise = timeoutResult(
+        this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
+        20,
+      );
+      const resultPromise = this.waitForProviderSuccess(providerResultPromises);
+      const result = await Promise.race([resultPromise, timeoutPromise]);
+
+      if (result.status === ProviderStatus.Success) {
+        return result.value;
+      } else if (result.status === ProviderStatus.Timeout) {
+        const CombinedError = this.getCombinedProviderError(
+          [result, ...providerResultErrors],
+          `All providers timed out on chain ${this.network.name} for method ${method}`,
+        );
+        throw new CombinedError();
+      } else if (result.status === ProviderStatus.Error) {
+        const CombinedError = this.getCombinedProviderError(
+          [result.error, ...providerResultErrors],
           `All providers failed on chain ${
-            this._network.name
+            this.network.name
           } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
         );
+        throw new CombinedError();
+      } else {
+        throw new Error('Unexpected result from provider');
       }
+
+      // All providers have already failed, all hope is lost
+    } else {
+      const CombinedError = this.getCombinedProviderError(
+        providerResultErrors,
+        `All providers failed on chain ${
+          this.network.name
+        } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+      );
+      throw new CombinedError();
     }
   }
 
-  // Warp for additional logging and error handling
+  // Wrap for additional logging and error handling
   protected async wrapProviderPerform(
     provider: HyperlaneProvider,
     pIndex: number,
@@ -426,12 +448,22 @@ export class HyperlaneSmartProvider
     };
   }
 
-  protected throwCombinedProviderErrors(
+  protected getCombinedProviderError(
     errors: any[],
     fallbackMsg: string,
-  ): void {
+  ): new () => Error {
     this.logger.debug(fallbackMsg);
-    if (errors.length === 0) throw new Error(fallbackMsg);
+    if (errors.length === 0) {
+      return class extends Error {
+        constructor() {
+          super(fallbackMsg);
+        }
+      };
+    }
+
+    const rpcBlockchainError = errors.find((e) =>
+      RPC_BLOCKCHAIN_ERRORS.includes(e.code),
+    );
 
     const rpcServerError = errors.find((e) =>
       RPC_SERVER_ERRORS.includes(e.code),
@@ -441,29 +473,42 @@ export class HyperlaneSmartProvider
       (e) => e.status === ProviderStatus.Timeout,
     );
 
-    const rpcBlockchainError = errors.find((e) =>
-      RPC_BLOCKCHAIN_ERRORS.includes(e.code),
-    );
-
-    if (rpcServerError) {
-      throw Error(
-        rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
-          getSmartProviderErrorMessage(rpcServerError.code),
-        { cause: rpcServerError },
-      );
+    if (rpcBlockchainError) {
+      // All blockchain errors are non-retryable and take priority
+      return class extends BlockchainError {
+        constructor() {
+          super(rpcBlockchainError.reason ?? rpcBlockchainError.code, {
+            cause: rpcBlockchainError,
+          });
+        }
+      };
+    } else if (rpcServerError) {
+      return class extends Error {
+        constructor() {
+          super(
+            rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
+              getSmartProviderErrorMessage(rpcServerError.code),
+            { cause: rpcServerError },
+          );
+        }
+      };
     } else if (timedOutError) {
-      throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout), {
-        cause: timedOutError,
-      });
-    } else if (rpcBlockchainError) {
-      throw Error(rpcBlockchainError.reason ?? rpcBlockchainError.code, {
-        cause: rpcBlockchainError,
-      });
+      return class extends Error {
+        constructor() {
+          super(fallbackMsg, {
+            cause: timedOutError,
+          });
+        }
+      };
     } else {
       this.logger.error(
         'Unhandled error case in combined provider error handler',
       );
-      throw Error(fallbackMsg);
+      return class extends Error {
+        constructor() {
+          super(fallbackMsg);
+        }
+      };
     }
   }
 }
