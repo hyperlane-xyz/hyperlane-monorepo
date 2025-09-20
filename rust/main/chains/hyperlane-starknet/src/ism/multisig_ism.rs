@@ -6,6 +6,7 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
 };
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use starknet::core::types::Felt;
 use tracing::instrument;
 
@@ -26,14 +27,18 @@ pub struct StarknetMultisigIsm {
 impl StarknetMultisigIsm {
     /// Create a reference to a MultisigISM at a specific Starknet address on some
     /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
+    pub fn new(
+        conn: &ConnectionConf,
+        locator: &ContractLocator<'_>,
+        metrics: PrometheusClientMetrics,
+    ) -> ChainResult<Self> {
         let provider = build_json_provider(conn);
         let ism_address: Felt = HyH256(locator.address).into();
         let contract = MultisigIsmReader::new(ism_address, provider);
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider: StarknetProvider::new(locator.domain.clone(), conn, metrics),
             conn: conn.clone(),
         })
     }
@@ -65,11 +70,16 @@ impl MultisigIsm for StarknetMultisigIsm {
         let message = &message.into();
 
         let (validator_addresses, threshold) = self
-            .contract
-            .validators_and_threshold(message)
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call("multisig_ism_validators_and_threshold", || async {
+                self.contract
+                    .validators_and_threshold(message)
+                    .call()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await?;
 
         Ok((
             validator_addresses

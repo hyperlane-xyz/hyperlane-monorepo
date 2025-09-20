@@ -6,6 +6,7 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, InterchainGasPaymaster, H256,
 };
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::{ConnectionConf, StarknetProvider};
 
@@ -18,9 +19,13 @@ pub struct StarknetInterchainGasPaymaster {
 }
 
 impl StarknetInterchainGasPaymaster {
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator) -> ChainResult<Self> {
+    pub fn new(
+        conn: &ConnectionConf,
+        locator: &ContractLocator,
+        metrics: PrometheusClientMetrics,
+    ) -> ChainResult<Self> {
         Ok(Self {
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider: StarknetProvider::new(locator.domain.clone(), conn, metrics),
             conn: conn.clone(),
         })
     }
