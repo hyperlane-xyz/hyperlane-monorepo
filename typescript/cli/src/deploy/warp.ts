@@ -22,6 +22,7 @@ import {
   MultiProvider,
   MultisigIsmConfig,
   OpStackIsmConfig,
+  OwnerValidationError,
   PausableIsmConfig,
   RoutingIsmConfig,
   SubmissionStrategy,
@@ -44,6 +45,7 @@ import {
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
   tokenTypeToStandard,
+  validateWarpDeployOwners,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -63,6 +65,7 @@ import {
   logBlue,
   logGray,
   logGreen,
+  logRed,
   logTable,
   warnYellow,
 } from '../logger.js';
@@ -137,6 +140,7 @@ export async function runWarpRouteDeploy({
   };
 
   await runDeployPlanStep(deploymentParams);
+  await validateAndConfirmOwners(multiProvider, warpDeployConfig);
 
   // Some of the below functions throw if passed non-EVM or Cosmos Native chains
   const deploymentChains = chains.filter(
@@ -158,7 +162,12 @@ export async function runWarpRouteDeploy({
   const registryAddresses = await registry.getAddresses();
 
   await enrollCrossChainRouters(
-    { multiProvider, multiProtocolSigner, registryAddresses, warpDeployConfig },
+    {
+      multiProvider,
+      multiProtocolSigner,
+      registryAddresses,
+      warpDeployConfig,
+    },
     deployedContracts,
   );
 
@@ -220,6 +229,26 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
     message: 'Is this deployment plan correct?',
   });
   if (!isConfirmed) throw new Error('Deployment cancelled');
+}
+
+async function validateAndConfirmOwners(
+  multiProvider: MultiProvider,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+) {
+  try {
+    // Validate all owner addresses before proceeding with deployment
+    await validateWarpDeployOwners(warpDeployConfig, multiProvider);
+  } catch (error: unknown) {
+    if (error instanceof OwnerValidationError) {
+      logRed(error.message);
+      const isConfirmed = await confirm({
+        message: 'Possible inactive/invalid owner. Do you wish to continue?',
+      });
+      if (isConfirmed) return;
+      process.exit(1);
+    }
+    throw error;
+  }
 }
 
 async function executeDeploy(
