@@ -1,7 +1,7 @@
-import { ChainMap, OwnableConfig, RouterConfig } from '@hyperlane-xyz/sdk';
+import { OwnableConfig, RouterConfig } from '@hyperlane-xyz/sdk';
 
 // Common collateral tokens to be used by warp route deployments.
-export const tokens: ChainMap<Record<string, string>> = {
+export const tokens = {
   ethereum: {
     amphrETH: '0x5fD13359Ba15A84B76f7F87568309040176167cd',
     apxETH: '0x9ba021b0a9b958b5e75ce9f6dff97c7ee52cb3e6',
@@ -39,6 +39,7 @@ export const tokens: ChainMap<Record<string, string>> = {
     USDC: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
   },
   bsc: {
+    USDC: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
     USDT: '0x55d398326f99059fF775485246999027B3197955',
     WETH: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8',
     enzoBTC: '0x6A9A65B84843F5fD4aC9a0471C4fc11AFfFBce4a',

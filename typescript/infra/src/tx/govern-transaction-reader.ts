@@ -354,7 +354,7 @@ export class GovernTransactionReader {
       return false;
     }
 
-    const chainTokens = tokens[chain];
+    const chainTokens = tokens[chain as keyof typeof tokens];
     if (!chainTokens) {
       return false;
     }
