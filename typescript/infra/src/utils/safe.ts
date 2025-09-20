@@ -518,7 +518,7 @@ export async function getPendingTxsForChains(
               ? SafeTxStatus.READY_TO_EXECUTE
               : confs === 0
                 ? SafeTxStatus.NO_CONFIRMATIONS
-                : threshold - confs
+                : threshold - confs === 1
                   ? SafeTxStatus.ONE_AWAY
                   : SafeTxStatus.PENDING;
 
