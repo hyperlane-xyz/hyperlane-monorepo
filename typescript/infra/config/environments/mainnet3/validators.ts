@@ -1597,5 +1597,15 @@ export const validatorChainConfig = (
         'sova',
       ),
     },
+    mantra: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('mantra'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x89b8064e29f125e896f6081ebb77090c46bca9cd'],
+        },
+        'mantra',
+      ),
+    },
   };
 };

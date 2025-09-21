@@ -394,5 +394,8 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+  },
+  "mantra": {
+    "validators": ["0x89b8064e29f125e896f6081ebb77090c46bca9cd"]
   }
 }

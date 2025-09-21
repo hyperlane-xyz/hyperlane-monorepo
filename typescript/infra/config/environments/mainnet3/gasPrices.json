@@ -259,6 +259,10 @@
     "amount": "0.02",
     "decimals": 9
   },
+  "mantra": {
+    "amount": "11.25",
+    "decimals": 9
+  },
   "matchain": {
     "amount": "0.001",
     "decimals": 9

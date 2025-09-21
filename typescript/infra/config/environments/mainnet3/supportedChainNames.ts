@@ -66,6 +66,7 @@ export const mainnet3SupportedChainNames = [
   'lumiaprism',
   'mantapacific',
   'mantle',
+  'mantra',
   'matchain',
   'merlin',
   'metal',
