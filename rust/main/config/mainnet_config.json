@@ -9425,6 +9425,11 @@
       "validatorAnnounce": "0x5b1A451c85e5bcCd79A56eb638aBd9998fA215f9",
       "index": {
         "from": 5797421
+      },
+      "transactionOverrides": {
+        "minPriorityFeePerGas": 2000000000,
+        "maxFeePerGas": 50000000000,
+        "maxPriorityFeePerGas": 10000000000
       }
     },
     "mantra": {
