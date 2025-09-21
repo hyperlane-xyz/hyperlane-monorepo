@@ -188,6 +188,9 @@
   "mantle": {
     "validators": ["0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52"]
   },
+  "mantra": {
+    "validators": ["0x89b8064e29f125e896f6081ebb77090c46bca9cd"]
+  },
   "matchain": {
     "validators": ["0x8a052f7934b0626105f34f980c875ec03aaf82e8"]
   },
@@ -394,8 +397,5 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
-  },
-  "mantra": {
-    "validators": ["0x89b8064e29f125e896f6081ebb77090c46bca9cd"]
   }
 }
