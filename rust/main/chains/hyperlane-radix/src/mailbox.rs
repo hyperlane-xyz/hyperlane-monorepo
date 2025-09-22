@@ -253,15 +253,19 @@ impl Mailbox for RadixMailbox {
             method_name: "delivered".into(),
             encoded_arguments,
         };
-        let json_val = serde_json::to_vec(&calldata)
-            .map_err(|err| ChainCommunicationError::JsonParseError(err))?;
+        let json_val =
+            serde_json::to_vec(&calldata).map_err(ChainCommunicationError::JsonParseError)?;
         Ok(Some(json_val))
     }
 }
 
+/// Data required to check if a message was delivered on-chain for Radix chain
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DeliveredCalldata {
+    /// Address of mailbox (already encoded)
     pub component_address: String,
+    /// Method to call on mailbox
     pub method_name: String,
+    /// parameters required to call method
     pub encoded_arguments: Vec<u8>,
 }
