@@ -210,6 +210,7 @@ where
                 tracing::debug!(
                     fallback_count = idx,
                     provider_index = priority.index,
+                    method,
                     "fallback_request"
                 );
 

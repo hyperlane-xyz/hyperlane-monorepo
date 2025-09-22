@@ -2413,7 +2413,7 @@
       "blockExplorers": [
         {
           "apiUrl": "https://stokenet-dashboard.radixdlt.com",
-          "family": "other",
+          "family": "radixdashboard",
           "name": "Radix Dashboard",
           "url": "https://stokenet-dashboard.radixdlt.com"
         }

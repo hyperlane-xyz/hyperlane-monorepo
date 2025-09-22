@@ -2765,7 +2765,7 @@
         }
       ],
       "validatorAnnounce": "pRgs5vN4Pj7WvFbxf6QDHizo2njq2uksqEUbaSghVA8",
-      "interchainSecurityModule": "EpAuVN1oc5GccKAk41VMBHTgzJFtB5bftvi92SywQdbS",
+      "interchainSecurityModule": "Da6Lp9syj8hLRiqjZLTLbZEC1NPhPMPd1JJ3HQRN4NyJ",
       "technicalStack": "other"
     },
     "taiko": {
@@ -3257,7 +3257,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 2,
-        "reorgPeriod": 21600
+        "reorgPeriod": 300
       },
       "chainId": 48900,
       "deployer": {
@@ -9053,7 +9053,7 @@
       "blockExplorers": [
         {
           "apiUrl": "https://dashboard.radixdlt.com",
-          "family": "other",
+          "family": "radixdashboard",
           "name": "Radix Dashboard",
           "url": "https://dashboard.radixdlt.com"
         }
@@ -9105,10 +9105,16 @@
     "pulsechain": {
       "blockExplorers": [
         {
+          "apiUrl": "https://scan.pulsechain.box/api",
+          "family": "blockscout",
+          "name": "Pulsechain Explorer",
+          "url": "https://scan.pulsechain.box"
+        },
+        {
           "apiUrl": "https://api.scan.pulsechain.com/api",
           "family": "blockscout",
           "name": "Pulsechain Explorer",
-          "url": "https://oldscan.gopulse.com/#/"
+          "url": "https://scan.pulsechainfoundation.org/#/"
         },
         {
           "apiUrl": "https://api.scan.pulsechain.com/api",

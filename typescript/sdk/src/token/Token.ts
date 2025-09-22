@@ -493,7 +493,10 @@ export class Token implements IToken {
         return true;
       }
 
-      if (!this.collateralAddressOrDenom && token.isNative()) {
+      if (
+        !this.collateralAddressOrDenom &&
+        (token.isNative() || token.isHypNative())
+      ) {
         return true;
       }
     }
