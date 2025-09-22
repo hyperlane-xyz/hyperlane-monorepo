@@ -6,8 +6,10 @@ import { RadixBase } from '../utils/base.js';
 import {
   EntityDetails,
   EntityField,
+  Hooks,
   Isms,
   MultisigIsms,
+  RadixHookTypes,
 } from '../utils/types.js';
 
 export class RadixCoreQuery {
@@ -181,6 +183,13 @@ export class RadixCoreQuery {
     };
   }
 
+  public async getHookType({ hook }: { hook: string }): Promise<Hooks> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(hook);
+
+    return (details.details as EntityDetails).blueprint_name as Hooks;
+  }
+
   public async getIgpHook({ hook }: { hook: string }): Promise<{
     address: string;
     owner: string;
@@ -198,9 +207,8 @@ export class RadixCoreQuery {
       await this.gateway.state.getEntityDetailsVaultAggregated(hook);
 
     assert(
-      (details.details as EntityDetails).blueprint_name ===
-        'InterchainGasPaymaster',
-      `Expected contract at address ${hook} to be "InterchainGasPaymaster" but got ${(details.details as EntityDetails).blueprint_name}`,
+      (details.details as EntityDetails).blueprint_name === RadixHookTypes.IGP,
+      `Expected contract at address ${hook} to be "${RadixHookTypes.IGP}" but got ${(details.details as EntityDetails).blueprint_name}`,
     );
 
     const ownerResource = (details.details as EntityDetails).role_assignments
@@ -292,8 +300,9 @@ export class RadixCoreQuery {
       await this.gateway.state.getEntityDetailsVaultAggregated(hook);
 
     assert(
-      (details.details as EntityDetails).blueprint_name === 'MerkleTreeHook',
-      `Expected contract at address ${hook} to be "MerkleTreeHook" but got ${(details.details as EntityDetails).blueprint_name}`,
+      (details.details as EntityDetails).blueprint_name ===
+        RadixHookTypes.MERKLE_TREE,
+      `Expected contract at address ${hook} to be "${RadixHookTypes.MERKLE_TREE}" but got ${(details.details as EntityDetails).blueprint_name}`,
     );
 
     return {
