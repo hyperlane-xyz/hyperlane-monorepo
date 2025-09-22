@@ -148,4 +148,23 @@ export class HyperlaneE2EWarpTestCommands {
       warpRouteId,
     });
   }
+
+  /**
+   * Updates a Hyperlane warp deployment on the specified chain using the provided config.
+   */
+  public apply(
+    privateKey: string,
+    warpCorePath?: string,
+    warpDeployPath?: string,
+    warpRouteId?: string,
+  ): ProcessPromise {
+    return $`${this.cmdPrefix} hyperlane warp apply \
+        --registry ${this.registryPath} \
+        ${warpDeployPath ? ['--config', warpDeployPath] : []} \
+        ${warpCorePath ? ['--warp', warpCorePath] : []} \
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+        ${this.privateKeyFlag} ${privateKey} \
+        --verbosity debug \
+        --yes`;
+  }
 }
