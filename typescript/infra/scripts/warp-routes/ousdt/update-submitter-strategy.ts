@@ -76,6 +76,26 @@ async function main() {
           },
         },
       };
+    } else if (ownerType === Owner.TIMELOCK) {
+      chainSubmissionStrategy[chain] = {
+        submitter: {
+          chain,
+          type: TxSubmitterType.TIMELOCK_CONTROLLER,
+          timelockAddress: config.owner,
+          proposerSubmitter: {
+            chain: ICA_OWNER_CHAIN,
+            type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+            owner: ICA_OWNER_SAFE,
+            destinationChain: chain,
+            internalSubmitter: {
+              chain: ICA_OWNER_CHAIN,
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
+              version: '1.0',
+              safeAddress: ICA_OWNER_SAFE,
+            },
+          },
+        },
+      };
     } else {
       chainSubmissionStrategy[chain] = {
         submitter: {
