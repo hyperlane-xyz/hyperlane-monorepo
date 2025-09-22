@@ -113,13 +113,12 @@ contract HypERC4626Collateral is TokenRouter {
 
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
         return
-            emitAndDispatch(
+            _emitAndDispatch(
                 _destination,
                 _recipient,
                 _amount,
-                _tokenMessage,
-                feeRecipientFee,
-                externalFee
+                msg.value,
+                _tokenMessage
             );
     }
 

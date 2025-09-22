@@ -99,7 +99,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         });
         quotes[1] = Quote({
             token: token(),
-            amount: _internalFeeAmount(_destination, _recipient, _amount)
+            amount: _amount +
+                _feeRecipientAmount(_destination, _recipient, _amount)
         });
         quotes[2] = Quote({
             token: token(),
@@ -134,10 +135,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount
     ) public payable virtual returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
-        (uint256 feeRecipientFee, uint256 externalFee) = calculateFeesAndCharge(
+        (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
             _destination,
             _recipient,
-            _amount
+            _amount,
+            msg.value
         );
 
         // 2. Prepare the token message with the recipient and amount
@@ -148,61 +150,47 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
         return
-            emitAndDispatch(
+            _emitAndDispatch(
                 _destination,
                 _recipient,
                 _amount,
-                _tokenMessage,
-                feeRecipientFee,
-                externalFee
+                remainingNativeValue,
+                _tokenMessage
             );
     }
 
     // ===========================
     // ========== Internal convenience functions for readability ==========
     // ==========================
-    function calculateFeesAndCharge(
+    function _calculateFeesAndCharge(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) internal returns (uint256 feeRecipientFee, uint256 externalFee) {
-        // Calculate the fee amount for the fee recipient
-        feeRecipientFee = _feeRecipientAmount(
+        uint256 _amount,
+        uint256 _msgValue
+    ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
+        uint256 internalFee = _feeRecipientAmount(
             _destination,
             _recipient,
             _amount
         );
         externalFee = _externalFeeAmount(_destination, _recipient, _amount);
-        _transferFromSender(_amount + feeRecipientFee + externalFee);
-        if (feeRecipientFee > 0) {
-            _transferTo(feeRecipient(), feeRecipientFee);
+        uint256 charge = _amount + internalFee + externalFee;
+        _transferFromSender(charge);
+        if (internalFee > 0) {
+            _transferTo(feeRecipient(), internalFee);
         }
-    }
-
-    /** @notice Simple helper to calculate the message dispatch value. When transferring native tokens, it subtracts the amount with fees from the original msg.value to avoid the revert.
-     * @param msgValue The original message value.
-     * @param amountWithFeeRecipientAndExternalFee The amount with both the feeRecipient fee and external fees included.
-     * @return The msg.value to be used for the message dispatch.
-     */
-    function messageDispatchValue(
-        uint256 msgValue,
-        uint256 amountWithFeeRecipientAndExternalFee
-    ) internal view returns (uint256) {
-        // TODO: remove branching here
-        if (token() == address(0)) {
-            return msgValue - amountWithFeeRecipientAndExternalFee;
-        }
-        return msgValue;
+        remainingNativeValue = token() != address(0)
+            ? _msgValue
+            : _msgValue - charge;
     }
 
     // Emits the SentTransferRemote event and dispatches the message.
-    function emitAndDispatch(
+    function _emitAndDispatch(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
-        bytes memory _tokenMessage,
-        uint256 feeRecipientFee,
-        uint256 externalFee
+        uint256 _messageDispatchValue,
+        bytes memory _tokenMessage
     ) internal returns (bytes32 messageId) {
         // effects
         emit SentTransferRemote(_destination, _recipient, _amount);
@@ -210,10 +198,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         // interactions
         messageId = _Router_dispatch(
             _destination,
-            messageDispatchValue(
-                msg.value,
-                _amount + feeRecipientFee + externalFee
-            ),
+            _messageDispatchValue,
             _tokenMessage,
             _GasRouter_hookMetadata(_destination),
             address(hook)
@@ -262,14 +247,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 // _amount
     ) internal view virtual returns (uint256 feeAmount) {
         return 0;
-    }
-
-    function _internalFeeAmount(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal view returns (uint256 feeAmount) {
-        return _amount + _feeRecipientAmount(_destination, _recipient, _amount);
     }
 
     /**

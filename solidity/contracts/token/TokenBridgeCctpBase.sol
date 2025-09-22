@@ -120,29 +120,32 @@ abstract contract TokenBridgeCctpBase is
         uint256 _amount
     ) public payable virtual override returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
-        (uint256 feeRecipientFee, uint256 externalFee) = calculateFeesAndCharge(
-            _destination,
-            _recipient,
-            _amount
-        );
+        (
+            uint256 externalFee,
+            uint256 remainingNativeValue
+        ) = _calculateFeesAndCharge(
+                _destination,
+                _recipient,
+                _amount,
+                msg.value
+            );
 
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
         bytes memory _message = _bridgeViaCircle(
             circleDomain,
             _recipient,
-            _amount + feeRecipientFee + externalFee
+            _amount + externalFee
         );
 
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
         return
-            emitAndDispatch(
+            _emitAndDispatch(
                 _destination,
                 _recipient,
                 _amount,
-                _message,
-                feeRecipientFee,
-                externalFee
+                remainingNativeValue,
+                _message
             );
     }
 
