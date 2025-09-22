@@ -263,6 +263,11 @@ export class RadixIsmModule extends HyperlaneModule<
     expected: DomainRoutingIsmConfig;
     logger: Logger;
   }): Promise<AnnotatedRadixTransaction[]> {
+    assert(
+      eqAddress(this.signer.getAddress(), actual.owner),
+      `can not update routing ism since the owner ${actual.owner} is not the signer: ${this.signer.getAddress()}`,
+    );
+
     const updateTxs: AnnotatedRadixTransaction[] = [];
 
     const knownChains = new Set(this.metadataManager.getKnownChainNames());
