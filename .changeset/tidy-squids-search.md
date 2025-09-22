@@ -2,4 +2,4 @@
 "@hyperlane-xyz/sdk": minor
 ---
 
-add radix ism reader
+export RadixIsmTypes enum to consumers
