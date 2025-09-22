@@ -78,8 +78,10 @@ impl ValidatorAnnounce for RadixValidatorAnnounce {
         let address: EthAddress = announcement.value.validator.into();
         let location = announcement.value.storage_location;
         let signature = announcement.signature.to_vec();
-        self.provider
-            .send_tx(
+
+        let tx = self
+            .provider
+            .build_tx(
                 |builder| {
                     builder.call_method(
                         self.address,
@@ -89,7 +91,8 @@ impl ValidatorAnnounce for RadixValidatorAnnounce {
                 },
                 None,
             )
-            .await
+            .await?;
+        self.provider.send_tx(&tx).await
     }
 
     async fn announce_tokens_needed(

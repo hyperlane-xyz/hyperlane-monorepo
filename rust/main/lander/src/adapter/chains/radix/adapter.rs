@@ -1,12 +1,15 @@
 use std::{sync::Arc, time::Duration};
 
 use hyperlane_core::H512;
-use hyperlane_radix::RadixProviderForLander;
+use hyperlane_radix::{RadixProcessCalldata, RadixProviderForLander};
+use uuid::Uuid;
 
 use crate::{
-    adapter::{AdaptsChain, GasLimit, TxBuildingResult},
+    adapter::{
+        chains::radix::precursor::RadixTxPrecursor, AdaptsChain, GasLimit, TxBuildingResult,
+    },
     payload::PayloadDetails,
-    transaction::Transaction,
+    transaction::{Transaction, TransactionUuid, VmSpecificTxData},
     DispatcherMetrics, FullPayload, LanderError, TransactionDropReason, TransactionStatus,
 };
 
@@ -24,8 +27,35 @@ impl AdaptsChain for RadixAdapter {
         todo!()
     }
 
-    async fn build_transactions(&self, _payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
-        todo!()
+    async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
+        let mut build_txs = Vec::new();
+        for full_payload in payloads {
+            let tx_payloads = Vec::new();
+
+            let operation_payload: RadixProcessCalldata =
+                serde_json::from_slice(&full_payload.data).unwrap();
+
+            let precursor = RadixTxPrecursor {
+                raw_tx: operation_payload.raw_tx,
+                tx_hash: operation_payload.tx_hash,
+            };
+            let tx = Transaction {
+                uuid: TransactionUuid::new(Uuid::new_v4()),
+                tx_hashes: vec![],
+                vm_specific_data: VmSpecificTxData::Radix(precursor),
+                payload_details: vec![full_payload.details.clone()],
+                status: TransactionStatus::PendingInclusion,
+                submission_attempts: 0,
+                creation_timestamp: chrono::Utc::now(),
+                last_submission_attempt: None,
+                last_status_check: None,
+            };
+            build_txs.push(TxBuildingResult {
+                payloads: tx_payloads,
+                maybe_tx: Some(tx),
+            });
+        }
+        build_txs
     }
 
     async fn simulate_tx(&self, _tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError> {

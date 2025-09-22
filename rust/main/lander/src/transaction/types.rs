@@ -8,7 +8,9 @@ use chrono::{DateTime, Utc};
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
 use crate::{
-    adapter::{EthereumTxPrecursor, SealevelTxPrecursor},
+    adapter::{
+        chains::radix::precursor::RadixTxPrecursor, EthereumTxPrecursor, SealevelTxPrecursor,
+    },
     payload::PayloadDetails,
     LanderError,
 };
@@ -107,9 +109,10 @@ pub enum DropReason {
 // add nested enum entries as we add VMs
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
-    Evm(EthereumTxPrecursor),
-    Svm(SealevelTxPrecursor),
     CosmWasm,
+    Evm(EthereumTxPrecursor),
+    Radix(RadixTxPrecursor),
+    Svm(SealevelTxPrecursor),
 }
 
 #[cfg(test)]

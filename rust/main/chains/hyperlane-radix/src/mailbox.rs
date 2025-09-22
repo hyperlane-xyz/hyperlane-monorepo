@@ -5,13 +5,17 @@ use core_api_client::models::{FeeSummary, TransactionStatus};
 use radix_common::manifest_args;
 use radix_common::prelude::ManifestArgs;
 use regex::Regex;
-use scrypto::{address::AddressBech32Decoder, network::NetworkDefinition, types::ComponentAddress};
+use scrypto::{
+    address::AddressBech32Decoder, crypto::IsHash, network::NetworkDefinition,
+    types::ComponentAddress,
+};
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
+    Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     address_from_h256, address_to_h256, encode_component_address, Bytes32, ConnectionConf,
@@ -187,8 +191,9 @@ impl Mailbox for RadixMailbox {
         let metadata = metadata.to_vec();
         let (visible_components, fee_summary) =
             self.visible_components(&message, &metadata).await?;
-        self.provider
-            .send_tx(
+        let tx = self
+            .provider
+            .build_tx(
                 |builder| {
                     builder.call_method(
                         self.address,
@@ -198,7 +203,8 @@ impl Mailbox for RadixMailbox {
                 },
                 Some(fee_summary),
             )
-            .await
+            .await?;
+        self.provider.send_tx(&tx).await
     }
 
     /// Estimate transaction costs to process a message.
@@ -232,13 +238,49 @@ impl Mailbox for RadixMailbox {
     /// against the provided signed checkpoint
     async fn process_calldata(
         &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        message: &HyperlaneMessage,
+        metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
-        todo!() // we dont need this for now
+        let message = message.to_vec();
+        let metadata = metadata.to_vec();
+        let (visible_components, fee_summary) =
+            self.visible_components(&message, &metadata).await?;
+        let tx = self
+            .provider
+            .build_tx(
+                |builder| {
+                    builder.call_method(
+                        self.address,
+                        "process",
+                        manifest_args!(&metadata, &message, &visible_components),
+                    )
+                },
+                Some(fee_summary),
+            )
+            .await?;
+
+        let tx_hash: H512 =
+            H256::from_slice(tx.transaction_hashes.transaction_intent_hash.0.as_bytes()).into();
+
+        let data = RadixProcessCalldata {
+            raw_tx: tx.raw.to_vec(),
+            tx_hash,
+        };
+        let json_str = serde_json::to_string(&data)
+            .map_err(|err| ChainCommunicationError::JsonParseError(err))?;
+        Ok(json_str.as_bytes().to_vec())
     }
 
     fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
     }
+}
+
+/// Essentially the data that is needed to create a RadixTxPrecursor
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RadixProcessCalldata {
+    /// Raw bytes representation of the tx to be sent to the network
+    pub raw_tx: Vec<u8>,
+    /// tx hash
+    pub tx_hash: H512,
 }

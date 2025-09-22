@@ -29,6 +29,7 @@ use radix_transactions::{
         ManifestBuilder, TransactionBuilder, TransactionManifestV2Builder, TransactionV2Builder,
     },
     model::{IntentHeaderV2, TransactionHeaderV2, TransactionPayload},
+    prelude::DetailedNotarizedTransactionV2,
     signing::PrivateKey,
 };
 use reqwest::ClientBuilder;
@@ -465,13 +466,12 @@ impl RadixProvider {
         Ok(execution + finaliztaion + royalty + storage_cost)
     }
 
-    /// Sends a tx to the gateway
-    /// NOTE: does not wait for inclusion
-    pub async fn send_tx(
+    /// build a tx
+    pub async fn build_tx(
         &self,
         build_manifest: impl Fn(TransactionManifestV2Builder) -> TransactionManifestV2Builder,
         fee: Option<FeeSummary>,
-    ) -> ChainResult<TxOutcome> {
+    ) -> ChainResult<DetailedNotarizedTransactionV2> {
         let (tx_builder, signer, private_key) = self.get_tx_builder().await?;
 
         let manifest = build_manifest(ManifestBuilder::new_v2()).build();
@@ -497,7 +497,13 @@ impl RadixProvider {
             .notarize(&private_key)
             .build();
 
-        self.submit_transaction(tx.raw.to_vec()).await?;
+        Ok(tx)
+    }
+
+    /// Sends a tx to the gateway
+    /// NOTE: does not wait for inclusion
+    pub async fn send_tx(&self, tx: &DetailedNotarizedTransactionV2) -> ChainResult<TxOutcome> {
+        self.submit_transaction(tx.raw.clone().to_vec()).await?;
 
         let tx_hash: H512 =
             H256::from_slice(tx.transaction_hashes.transaction_intent_hash.0.as_bytes()).into();

@@ -6539,6 +6539,7 @@ dependencies = [
  "itertools 0.12.1",
  "mockall",
  "prometheus",
+ "radix-transactions",
  "serde",
  "serde_json",
  "solana-client",
