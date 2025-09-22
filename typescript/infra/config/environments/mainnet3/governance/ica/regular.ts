@@ -137,4 +137,10 @@ export const regularIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   plasma: '0xd7e64bA7BB6beE321D5E0C42a966FDc97f70a92f',
   electroneum: '0xd7e64bA7BB6beE321D5E0C42a966FDc97f70a92f',
+
+  // Sept 22, 2025
+  // ----------------------------------------------------------
+  // zerogravity: '0x53FEEdcF42C1aACFeC3FA6Da573a3470FcD5C658',
+  // sova: '0x759E0dBC1DE631db48Eb10ED011D3B86a1556DEb',
+  // mantra: '0x6b3353A453689a92aE3138c4d26e4eaD894b39D8',
 } as const;
