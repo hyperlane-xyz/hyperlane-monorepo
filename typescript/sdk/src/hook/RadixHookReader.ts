@@ -1,6 +1,7 @@
 import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
+import { RadixHookTypes } from '../../../radix-sdk/dist/utils/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 
 import {
@@ -21,13 +22,13 @@ export class RadixHookReader {
   ) {}
 
   async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
-    const hookType = await this.deriveHookType(address);
+    const hookType = await this.sdk.query.core.getHookType({ hook: address });
 
     switch (hookType) {
-      case HookType.INTERCHAIN_GAS_PAYMASTER: {
+      case RadixHookTypes.IGP: {
         return this.deriveIgpConfig(address);
       }
-      case HookType.MERKLE_TREE: {
+      case RadixHookTypes.MERKLE_TREE: {
         return this.deriveMerkleTreeConfig(address);
       }
       default: {
@@ -84,33 +85,5 @@ export class RadixHookReader {
       type: HookType.MERKLE_TREE,
       address: merkleTreeHook.address,
     };
-  }
-
-  private async deriveHookType(address: Address): Promise<HookType> {
-    try {
-      const hook = await this.sdk.query.core.getIgpHook({ hook: address });
-      if (hook) {
-        return HookType.INTERCHAIN_GAS_PAYMASTER;
-      }
-    } catch (err) {
-      this.logger.debug(
-        `Hook with address ${address} is not of type ${HookType.INTERCHAIN_GAS_PAYMASTER}: ${err}`,
-      );
-    }
-
-    try {
-      const hook = await this.sdk.query.core.getMerkleTreeHook({
-        hook: address,
-      });
-      if (hook) {
-        return HookType.MERKLE_TREE;
-      }
-    } catch (err) {
-      this.logger.debug(
-        `Hook with address ${address} is not of type ${HookType.MERKLE_TREE}: ${err}`,
-      );
-    }
-
-    throw new Error(`Unsupported hook type for address: ${address}`);
   }
 }

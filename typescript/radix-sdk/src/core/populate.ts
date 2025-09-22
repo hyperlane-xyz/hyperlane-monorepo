@@ -12,7 +12,7 @@ import {
 import { strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
-import { EntityDetails, INSTRUCTIONS } from '../utils/types.js';
+import { EntityDetails, INSTRUCTIONS, RadixHookTypes } from '../utils/types.js';
 import { bytes } from '../utils/utils.js';
 
 export class RadixCorePopulate {
@@ -56,7 +56,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'MerkleTreeHook',
+      RadixHookTypes.MERKLE_TREE,
       INSTRUCTIONS.INSTANTIATE,
       [address(mailbox)],
     );
@@ -168,7 +168,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'InterchainGasPaymaster',
+      RadixHookTypes.IGP,
       INSTRUCTIONS.INSTANTIATE,
       [address(denom)],
     );
