@@ -9427,9 +9427,8 @@
         "from": 5797421
       },
       "transactionOverrides": {
-        "minPriorityFeePerGas": 2000000000,
-        "maxFeePerGas": 50000000000,
-        "maxPriorityFeePerGas": 10000000000
+        "minFeePerGas": 2000000000,
+        "minPriorityFeePerGas": 2000000000
       }
     },
     "mantra": {
