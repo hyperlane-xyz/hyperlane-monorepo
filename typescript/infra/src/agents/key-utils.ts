@@ -304,11 +304,19 @@ export function getKathyKeyForChain(
   return new AgentGCPKey(agentConfig.runEnv, agentConfig.context, Role.Kathy);
 }
 
-// Returns the deployer key. This is always a GCP key, not chain specific,
-// and in the Hyperlane context.
-export function getDeployerKey(agentConfig: AgentContextConfig): CloudAgentKey {
+// Returns the deployer key for the specified chain or EVM by default in the provided context.
+export function getDeployerKey(
+  agentConfig: AgentContextConfig,
+  chainName?: ChainName,
+): CloudAgentKey {
   logger.debug('Retrieving deployer key');
-  return new AgentGCPKey(agentConfig.runEnv, Contexts.Hyperlane, Role.Deployer);
+
+  return new AgentGCPKey(
+    agentConfig.runEnv,
+    Contexts.Hyperlane,
+    Role.Deployer,
+    chainName,
+  );
 }
 
 // Returns the rebalancer key. This is always a GCP key, not chain specific

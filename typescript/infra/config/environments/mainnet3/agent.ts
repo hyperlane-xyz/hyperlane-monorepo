@@ -69,7 +69,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
-    alephzeroevmmainnet: true,
+    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arbitrum: true,
@@ -209,7 +209,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
-    alephzeroevmmainnet: true,
+    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arcadia: true,
@@ -349,7 +349,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
-    alephzeroevmmainnet: true,
+    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arbitrum: true,
@@ -800,6 +800,11 @@ const blacklist: MatchingList = [
       '0x867c1fd9341DEC12e4B779C35D7b7C475316b334',
     ],
   },
+  // StarkNet<>StarkNet messages
+  {
+    originDomain: getDomainId('starknet'),
+    destinationDomain: getDomainId('starknet'),
+  },
 ];
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [
@@ -830,7 +835,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e8b16e1-20250914-163558',
+      tag: 'a62b4a4-20250918-104420',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -876,7 +881,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e8b16e1-20250914-163558',
+      tag: 'a62b4a4-20250918-104420',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
