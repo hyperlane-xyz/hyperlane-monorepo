@@ -1,3 +1,5 @@
+import { objMap } from '@hyperlane-xyz/utils';
+
 import { KeyFunderConfig } from '../../../src/config/funding.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
@@ -16,11 +18,9 @@ const desiredRelayerBalancePerChain = Object.fromEntries(
 ) as Record<DesiredRelayerBalanceChains, string>;
 
 type DesiredRebalancerBalanceChains = keyof typeof desiredRebalancerBalances;
-const desiredRebalancerBalancePerChain = Object.fromEntries(
-  Object.entries(desiredRebalancerBalances).map(([chain, balance]) => [
-    chain,
-    balance.toString(),
-  ]),
+const desiredRebalancerBalancePerChain = objMap(
+  desiredRebalancerBalances,
+  (_, balance) => balance.toString(),
 ) as Record<DesiredRebalancerBalanceChains, string>;
 
 export const keyFunderConfig: KeyFunderConfig<
