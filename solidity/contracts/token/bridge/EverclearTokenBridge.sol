@@ -206,7 +206,6 @@ contract EverclearTokenBridge is HypERC20Collateral {
         destinations[0] = _destination;
 
         // Create intent
-        // We always send the funds to the remote router, which will then send them to the recipient in _handle
         (, IEverclear.Intent memory intent) = everclearAdapter.newIntent({
             _destinations: destinations,
             _receiver: _getReceiver(_destination, _recipient),
@@ -215,7 +214,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _amount: _amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: _getIntentCalldata(_recipient, _amount),
+            _data: "",
             _feeParams: feeParams
         });
 
@@ -234,20 +233,6 @@ contract EverclearTokenBridge is HypERC20Collateral {
         bytes32 _recipient
     ) internal view virtual returns (bytes32) {
         return _recipient;
-    }
-
-    /**
-     * @notice Gets the calldata for the intent execution on the destination chain
-     * @dev Virtual function that can be overridden by derived contracts. Base implementation returns empty bytes
-     * @param _recipient The recipient address on the destination chain
-     * @param _amount The amount of tokens being transferred
-     * @return calldata The encoded calldata for intent execution (empty for base token bridge)
-     */
-    function _getIntentCalldata(
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal view virtual returns (bytes memory) {
-        return "";
     }
 
     /**
@@ -308,6 +293,18 @@ contract EverclearTokenBridge is HypERC20Collateral {
     }
 
     /**
+     * @dev No-op, the funds are transferred directly to `_recipient` via Everclear
+     * @param _recipient The address to receive the tokens
+     * @param _amount The amount of tokens to transfer
+     */
+    function _transferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal virtual override {
+        // No-op, the funds are transferred directly to `_recipient` via Everclear
+    }
+
+    /**
      * @notice Handles incoming messages from remote chains
      * @dev For the base token bridge, this is a no-op since funds are transferred via Everclear
      * @param _origin The origin domain ID where the message was sent from
@@ -315,9 +312,22 @@ contract EverclearTokenBridge is HypERC20Collateral {
      */
     function _handle(
         uint32 _origin,
-        bytes32 /* sender */,
+        bytes32 _sender,
         bytes calldata _message
     ) internal virtual override {
-        // No-op, funds were already transferred to the recipient
+        // Get intent from hyperlane message
+        bytes memory metadata = _message.metadata();
+        bytes32 intentId = keccak256(metadata);
+
+        // Check Everclear intent status
+        require(
+            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
+            "ETB: Intent Status != SETTLED"
+        );
+        // Check that we have not processed this intent before
+        require(!intentSettled[intentId], "ETB: Intent already processed");
+
+        intentSettled[intentId] = true;
+        super._handle(_origin, _sender, _message);
     }
 }

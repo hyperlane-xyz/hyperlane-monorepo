@@ -58,20 +58,6 @@ contract EverclearEthBridge is EverclearTokenBridge {
     }
 
     /**
-     * @notice Gets the calldata for ETH transfer intent execution on destination chain
-     * @dev Overrides parent to encode recipient and amount for ETH unwrapping and transfer
-     * @param _recipient The recipient address on the destination chain
-     * @param _amount The amount of ETH to transfer
-     * @return calldata The encoded calldata containing recipient and amount for ETH transfer
-     */
-    function _getIntentCalldata(
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal view override returns (bytes memory) {
-        return abi.encode(_recipient, _amount);
-    }
-
-    /**
      * @notice Provides a quote for transferring ETH to a remote chain
      * @dev Overrides parent to return a single quote for ETH (including transfer amount, fees, and gas)
      * @param _destination The destination domain ID
@@ -148,48 +134,13 @@ contract EverclearEthBridge is EverclearTokenBridge {
     }
 
     /**
-     * @notice Handles incoming messages for ETH transfers from remote chains
-     * @dev Processes Everclear intent settlement and transfers ETH to the final recipient
-     * @param _origin The origin domain ID where the message was sent from
-     * @param _message The message payload containing intent data and transfer details
-     */
-    function _handle(
-        uint32 _origin,
-        bytes32 /* sender */,
-        bytes calldata _message
-    ) internal virtual override {
-        // Get intent from hyperlane message
-        bytes memory metadata = _message.metadata();
-        bytes32 intentId = keccak256(metadata);
-        IEverclear.Intent memory intent = abi.decode(
-            metadata,
-            (IEverclear.Intent)
-        );
-
-        /* CHECKS */
-        // Check that intent is settled
-        require(
-            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
-            "ETB: Intent Status != SETTLED"
-        );
-        // Check that we have not processed this intent before
-        require(!intentSettled[intentId], "ETB: Intent already processed");
-        (bytes32 _recipient, uint256 _amount) = abi.decode(
-            intent.data,
-            (bytes32, uint256)
-        );
-
-        /* EFFECTS */
-        intentSettled[intentId] = true;
-        emit ReceivedTransferRemote(_origin, _recipient, _amount);
-
-        /* INTERACTIONS */
-        _transferTo(_recipient.bytes32ToAddress(), _amount);
-    }
-
-    /**
      * @notice Allows the contract to receive ETH
      * @dev Required for WETH unwrapping functionality
      */
-    receive() external payable {}
+    receive() external payable {
+        require(
+            msg.sender == address(wrappedToken),
+            "EEB: Only WETH can send ETH"
+        );
+    }
 }
