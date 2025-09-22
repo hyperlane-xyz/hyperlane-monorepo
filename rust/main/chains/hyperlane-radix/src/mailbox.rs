@@ -7,7 +7,7 @@ use radix_common::prelude::ManifestArgs;
 use regex::Regex;
 use scrypto::{
     address::AddressBech32Decoder, crypto::IsHash, network::NetworkDefinition,
-    types::ComponentAddress,
+    prelude::manifest_encode, types::ComponentAddress,
 };
 
 use hyperlane_core::{
@@ -271,8 +271,20 @@ impl Mailbox for RadixMailbox {
         Ok(json_str.as_bytes().to_vec())
     }
 
-    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
-        todo!()
+    /// Data required to make a TransactionCallPreviewRequest to
+    /// check if a message was delivered or not on-chain.
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        let id: Bytes32 = message_id.into();
+        let encoded_arguments = manifest_encode(&id).map_err(HyperlaneRadixError::from)?;
+
+        let calldata = DeliveredCalldata {
+            component_address: self.encoded_address.clone(),
+            method_name: "delivered".into(),
+            encoded_arguments,
+        };
+        let json_val =
+            serde_json::to_vec(&calldata).map_err(ChainCommunicationError::JsonParseError)?;
+        Ok(Some(json_val))
     }
 }
 
@@ -283,4 +295,15 @@ pub struct RadixProcessCalldata {
     pub raw_tx: Vec<u8>,
     /// tx hash
     pub tx_hash: H512,
+}
+
+/// Data required to check if a message was delivered on-chain for Radix chain
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DeliveredCalldata {
+    /// Address of mailbox (already encoded)
+    pub component_address: String,
+    /// Method to call on mailbox
+    pub method_name: String,
+    /// parameters required to call method
+    pub encoded_arguments: Vec<u8>,
 }
