@@ -169,3 +169,9 @@ export {
   getChainsForProtocol,
 } from './walletIntegrations/utils.js';
 export { WalletLogo } from './walletIntegrations/WalletLogo.js';
+export {
+  RdtProvider,
+  GatewayApiProvider,
+  PopupProvider,
+} from './walletIntegrations/radix/RadixProviders.js';
+export { AccountProvider } from './walletIntegrations/radix/AccountContext.js';

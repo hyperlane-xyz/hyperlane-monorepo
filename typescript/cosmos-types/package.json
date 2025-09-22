@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cosmos-types",
-  "version": "17.0.0",
+  "version": "18.2.0",
   "description": "Hyperlane TypeScript SDK types for the Cosmos Hyperlane SDK module",
   "type": "module",
   "exports": {

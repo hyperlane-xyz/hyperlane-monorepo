@@ -1,5 +1,15 @@
 # @hyperlane-xyz/utils
 
+## 18.2.0
+
+## 18.1.0
+
+## 18.0.0
+
+### Minor Changes
+
+- cfc0eb2a7: Add radix explorer type
+
 ## 17.0.0
 
 ### Major Changes

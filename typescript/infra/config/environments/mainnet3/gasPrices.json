@@ -127,12 +127,16 @@
     "amount": "0.0000001",
     "decimals": 1
   },
+  "electroneum": {
+    "amount": "57.349384849",
+    "decimals": 9
+  },
   "endurance": {
     "amount": "1.500000007",
     "decimals": 9
   },
   "ethereum": {
-    "amount": "10.0",
+    "amount": "2.5",
     "decimals": 9
   },
   "everclear": {
@@ -243,10 +247,6 @@
     "amount": "1.0",
     "decimals": 9
   },
-  "lumia": {
-    "amount": "9.28",
-    "decimals": 9
-  },
   "lumiaprism": {
     "amount": "9.28",
     "decimals": 9
@@ -349,6 +349,10 @@
   },
   "peaq": {
     "amount": "100.0",
+    "decimals": 9
+  },
+  "plasma": {
+    "amount": "1.000000007",
     "decimals": 9
   },
   "plume": {

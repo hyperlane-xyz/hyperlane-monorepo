@@ -1,16 +1,4 @@
 {
-  "abstracttestnet": {
-    "amount": "0.025",
-    "decimals": 9
-  },
-  "alephzeroevmtestnet": {
-    "amount": "40.0",
-    "decimals": 9
-  },
-  "alfajores": {
-    "amount": "25.001",
-    "decimals": 9
-  },
   "arbitrumsepolia": {
     "amount": "0.1",
     "decimals": 9
@@ -31,10 +19,6 @@
     "amount": "0.001000068",
     "decimals": 9
   },
-  "bepolia": {
-    "amount": "40.000000007",
-    "decimals": 9
-  },
   "bsctestnet": {
     "amount": "1.0",
     "decimals": 9
@@ -51,36 +35,16 @@
     "amount": "25.001",
     "decimals": 9
   },
-  "chronicleyellowstone": {
-    "amount": "0.01",
-    "decimals": 9
-  },
   "citreatestnet": {
     "amount": "0.0100001",
-    "decimals": 9
-  },
-  "connextsepolia": {
-    "amount": "0.1",
     "decimals": 9
   },
   "cotitestnet": {
     "amount": "1.2",
     "decimals": 9
   },
-  "ecotestnet": {
-    "amount": "0.001000252",
-    "decimals": 9
-  },
   "eclipsetestnet": {
     "amount": "0.001",
-    "decimals": 9
-  },
-  "flametestnet": {
-    "amount": "2.0",
-    "decimals": 9
-  },
-  "formtestnet": {
-    "amount": "0.00100005",
     "decimals": 9
   },
   "fuji": {
@@ -101,10 +65,6 @@
   },
   "infinityvmmonza": {
     "amount": "1.000000007",
-    "decimals": 9
-  },
-  "inksepolia": {
-    "amount": "0.001000252",
     "decimals": 9
   },
   "kyvetestnet": {
@@ -135,19 +95,11 @@
     "amount": "0.001",
     "decimals": 1
   },
-  "odysseytestnet": {
-    "amount": "1.000000252",
-    "decimals": 9
-  },
   "optimismsepolia": {
     "amount": "0.001000251",
     "decimals": 9
   },
   "paradexsepolia": {
-    "amount": "0.01",
-    "decimals": 9
-  },
-  "plumetestnet2": {
     "amount": "0.01",
     "decimals": 9
   },
@@ -175,14 +127,6 @@
     "amount": "10.0",
     "decimals": 9
   },
-  "soneiumtestnet": {
-    "amount": "0.001000252",
-    "decimals": 9
-  },
-  "sonicblaze": {
-    "amount": "1.1",
-    "decimals": 9
-  },
   "sonicsvmtestnet": {
     "amount": "0.01",
     "decimals": 1
@@ -193,18 +137,6 @@
   },
   "subtensortestnet": {
     "amount": "20.134283587",
-    "decimals": 9
-  },
-  "superpositiontestnet": {
-    "amount": "0.01",
-    "decimals": 9
-  },
-  "unichaintestnet": {
-    "amount": "0.001000254",
-    "decimals": 9
-  },
-  "weavevmtestnet": {
-    "amount": "1.2",
     "decimals": 9
   }
 }

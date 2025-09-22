@@ -56,19 +56,22 @@ export class RadixBase {
   public async estimateTransactionFee({
     transactionManifest,
   }: {
-    transactionManifest: TransactionManifest;
+    transactionManifest: TransactionManifest | string;
   }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
     const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
 
-    const manifest = (
-      await RadixEngineToolkit.Instructions.convert(
-        transactionManifest.instructions,
-        this.networkId,
-        'String',
-      )
-    ).value as string;
+    const manifest =
+      typeof transactionManifest === 'string'
+        ? transactionManifest
+        : ((
+            await RadixEngineToolkit.Instructions.convert(
+              transactionManifest.instructions,
+              this.networkId,
+              'String',
+            )
+          ).value as string);
 
     const response =
       await this.gateway.transaction.innerClient.transactionPreview({

@@ -91,10 +91,6 @@ const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
 
-// Need to ensure we don't fund non-vanguard chains in the vanguard contexts
-const VANGUARD_CHAINS = ['base', 'arbitrum', 'optimism', 'ethereum', 'bsc'];
-const VANGUARD_CONTEXTS: Contexts[] = [Contexts.Vanguard0];
-
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
 // The --contexts-and-roles flag is used to specify the contexts and the key roles
@@ -263,18 +259,6 @@ class ContextFunder {
     roleKeysPerChain = objFilter(
       roleKeysPerChain,
       (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
-        // Skip funding for vanguard contexts on non-vanguard chains
-        if (
-          VANGUARD_CONTEXTS.includes(this.context) &&
-          !VANGUARD_CHAINS.includes(chain)
-        ) {
-          logger.warn(
-            { chain, context: this.context },
-            'Skipping funding for vanguard context on non-vanguard chain',
-          );
-          return false;
-        }
-
         const valid =
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
@@ -289,12 +273,7 @@ class ContextFunder {
     );
 
     this.igp = HyperlaneIgp.fromAddressesMap(
-      {
-        ...getEnvAddresses(this.environment),
-        lumia: {
-          interchainGasPaymaster: '0x9024A3902B542C87a5C4A2b3e15d60B2f087Dc3E',
-        },
-      },
+      getEnvAddresses(this.environment),
       multiProvider,
     );
     this.keysToFundPerChain = objMap(roleKeysPerChain, (_chain, roleKeys) => {

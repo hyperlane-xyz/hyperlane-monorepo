@@ -60,14 +60,12 @@ impl HyperlaneContract for RadixMerkleTreeIndexer {
 impl MerkleTreeHook for RadixMerkleTreeIndexer {
     /// Return the incremental merkle tree in storage
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
-        let state_version = self.provider.get_state_version(Some(reorg_period)).await?;
-
-        let tree: MerkleTree = self
+        let (tree, state_version) = self
             .provider
-            .call_method(
+            .call_method::<MerkleTree>(
                 &self.encoded_address,
                 "tree",
-                Some(state_version),
+                Some(reorg_period),
                 Vec::new(),
             )
             .await?;
@@ -87,13 +85,12 @@ impl MerkleTreeHook for RadixMerkleTreeIndexer {
 
     /// Gets the current leaf count of the merkle tree
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        let state_version = self.provider.get_state_version(Some(reorg_period)).await?;
-        let count: u32 = self
+        let (count, _) = self
             .provider
-            .call_method(
+            .call_method::<u32>(
                 &self.encoded_address,
                 "count",
-                Some(state_version),
+                Some(reorg_period),
                 Vec::new(),
             )
             .await?;
@@ -112,9 +109,9 @@ impl MerkleTreeHook for RadixMerkleTreeIndexer {
         &self,
         state_version: u64,
     ) -> ChainResult<CheckpointAtBlock> {
-        let (root, index): (crate::Hash, u32) = self
+        let ((root, index), _) = self
             .provider
-            .call_method(
+            .call_method_at_state::<(crate::Hash, u32)>(
                 &self.encoded_address,
                 "latest_checkpoint",
                 Some(state_version),
@@ -122,9 +119,9 @@ impl MerkleTreeHook for RadixMerkleTreeIndexer {
             )
             .await?;
 
-        let domain: u32 = self
+        let (domain, _): (u32, u64) = self
             .provider
-            .call_method(
+            .call_method_at_state(
                 &self.encoded_address,
                 "local_domain",
                 Some(state_version),
@@ -199,18 +196,9 @@ impl Indexer<MerkleTreeInsertion> for RadixMerkleTreeIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<MerkleTreeInsertion> for RadixMerkleTreeIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let state_version = self
+        let (sequence, state_version): (u32, u64) = self
             .provider
-            .get_state_version(Some(&ReorgPeriod::None))
-            .await?;
-        let sequence: u32 = self
-            .provider
-            .call_method(
-                &self.encoded_address,
-                "count",
-                Some(state_version),
-                Vec::new(),
-            )
+            .call_method(&self.encoded_address, "count", None, Vec::new())
             .await?;
         Ok((Some(sequence), state_version.try_into()?))
     }
