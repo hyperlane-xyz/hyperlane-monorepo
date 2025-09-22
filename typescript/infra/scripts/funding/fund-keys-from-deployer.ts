@@ -132,6 +132,7 @@ async function main() {
       'Array indicating target balance to fund for each chain. Each element is expected as <chainName>=<balance>',
     )
     .coerce('desired-balance-per-chain', parseBalancePerChain)
+    .demandOption('desired-balance-per-chain')
 
     .string('desired-kathy-balance-per-chain')
     .array('desired-kathy-balance-per-chain')
@@ -165,17 +166,6 @@ async function main() {
     .describe('chain-skip-override', 'Array of chains to skip funding for')
     .default('chain-skip-override', []).argv;
 
-  // Validate that at least one balance configuration is provided
-  if (
-    !argv.desiredBalancePerChain &&
-    !argv.desiredKathyBalancePerChain &&
-    !argv.desiredRebalancerBalancePerChain
-  ) {
-    throw new Error(
-      'At least one balance configuration must be provided: --desired-balance-per-chain, --desired-kathy-balance-per-chain, or --desired-rebalancer-balance-per-chain',
-    );
-  }
-
   constMetricLabels.hyperlane_deployment = environment;
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider(
@@ -193,7 +183,7 @@ async function main() {
         argv.contextsAndRoles,
         argv.skipIgpClaim,
         argv.chainSkipOverride,
-        argv.desiredBalancePerChain ?? {},
+        argv.desiredBalancePerChain,
         argv.desiredKathyBalancePerChain ?? {},
         argv.desiredRebalancerBalancePerChain ?? {},
         argv.igpClaimThresholdPerChain ?? {},
@@ -211,7 +201,7 @@ async function main() {
           argv.contextsAndRoles[context]!,
           argv.skipIgpClaim,
           argv.chainSkipOverride,
-          argv.desiredBalancePerChain ?? {},
+          argv.desiredBalancePerChain,
           argv.desiredKathyBalancePerChain ?? {},
           argv.desiredRebalancerBalancePerChain ?? {},
           argv.igpClaimThresholdPerChain ?? {},
