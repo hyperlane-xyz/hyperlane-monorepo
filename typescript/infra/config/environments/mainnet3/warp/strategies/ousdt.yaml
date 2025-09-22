@@ -78,14 +78,9 @@ ethereum:
     chain: ethereum
     proposerSubmitter:
       chain: ethereum
-      destinationChain: ethereum
-      internalSubmitter:
-        chain: ethereum
-        safeAddress: "0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6"
-        type: gnosisSafeTxBuilder
-        version: "1.0"
-      owner: "0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6"
-      type: interchainAccount
+      safeAddress: "0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6"
+      type: gnosisSafeTxBuilder
+      version: "1.0"
     timelockAddress: "0x469f45d05F8C3B3cE40d1640ffE66b795B1d2d22"
     type: timelockController
 fraxtal:
