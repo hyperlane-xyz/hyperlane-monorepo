@@ -13,12 +13,6 @@ export const ethereumChainNames = supportedChainNames.filter(
 );
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
-  zerogravity: {
-    transactionOverrides: {
-      minFeePerGas: 2 * 10 ** 9, // 2 gwei
-      minPriorityFeePerGas: 2 * 10 ** 9, // 2 gwei
-    },
-  },
   bsc: {
     transactionOverrides: {
       gasPrice: 3 * 10 ** 9, // 3 gwei
