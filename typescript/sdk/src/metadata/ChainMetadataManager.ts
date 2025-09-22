@@ -22,6 +22,7 @@ import {
 import {
   ChainMetadata,
   ChainMetadataSchema,
+  ChainStatus,
   ExplorerFamily,
   getDomainId,
 } from './chainMetadataTypes.js';
@@ -89,12 +90,27 @@ export class ChainMetadataManager<MetaExt = {}> {
     chainNameOrId: ChainNameOrId,
   ): ChainMetadata<MetaExt> | null {
     // First check if it's a chain name
-    if (this.metadata[chainNameOrId]) return this.metadata[chainNameOrId];
-    // Otherwise search by domain id
-    const chainMetadata = Object.values(this.metadata).find(
-      (m) => m.domainId == chainNameOrId,
+    let chainMetadata: ChainMetadata<MetaExt>[];
+    if (this.metadata[chainNameOrId]) {
+      chainMetadata = [this.metadata[chainNameOrId]];
+    } else {
+      // Otherwise search by domain id or chain id
+      chainMetadata = Object.values(this.metadata).filter(
+        (m) => m.domainId == chainNameOrId || m.chainId === chainNameOrId,
+      );
+    }
+
+    // Remove deprecated chains from the results and
+    // return only the first result
+    const targetChainMetadata = chainMetadata.find(
+      (m) =>
+        // The old way of deprecating chains was by prefixing them
+        // with deprecated in their name
+        !m.name.startsWith('deprecated') &&
+        m.availability?.status !== ChainStatus.Disabled,
     );
-    return chainMetadata || null;
+
+    return targetChainMetadata || null;
   }
 
   /**
