@@ -1,5 +1,56 @@
 # @hyperlane-xyz/core
 
+## 9.0.9
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@18.2.0
+
+## 9.0.8
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@18.1.0
+
+## 9.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfc0eb2a7]
+  - @hyperlane-xyz/utils@18.0.0
+
+## 9.0.6
+
+### Patch Changes
+
+- Updated dependencies [8c15edc67]
+- Updated dependencies [e0bda316a]
+  - @hyperlane-xyz/utils@17.0.0
+
+## 9.0.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.2.0
+
+## 9.0.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.1.1
+
+## 9.0.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.1.0
+
+## 9.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.0.0
+
 ## 9.0.1
 
 ### Patch Changes

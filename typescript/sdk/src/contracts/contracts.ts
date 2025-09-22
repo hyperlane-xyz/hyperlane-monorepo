@@ -6,6 +6,8 @@ import {
   EvmChainId,
   ProtocolType,
   ValueOf,
+  addressToByteHexString,
+  assert,
   eqAddress,
   hexOrBase58ToHex,
   objFilter,
@@ -18,7 +20,12 @@ import { EthersLikeProvider } from '../deploy/proxy.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainMap, Connection, OwnableConfig } from '../types.js';
+import {
+  ChainMap,
+  ChainNameOrId,
+  Connection,
+  OwnableConfig,
+} from '../types.js';
 
 import {
   HyperlaneAddresses,
@@ -190,7 +197,11 @@ export function attachContractsMapAndGetForeignDeployments<
 
         case ProtocolType.Cosmos:
         case ProtocolType.CosmosNative:
+        case ProtocolType.Starknet:
           return router;
+
+        case ProtocolType.Radix:
+          return addressToByteHexString(router, ProtocolType.Radix);
 
         case ProtocolType.Sealevel:
           return hexOrBase58ToHex(router);
@@ -317,4 +328,33 @@ export async function isAddressActive(
   ]);
 
   return code !== '0x' || txnCount > 0;
+}
+
+/**
+ * Checks if the provided address is a contract
+ */
+export async function isContractAddress(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  address: string,
+  blockNumber?: number,
+) {
+  const provider = multiProvider.getProvider(chain);
+  const code = await provider.getCode(address, blockNumber);
+
+  return code !== '0x';
+}
+
+/**
+ * Checks if the provided address is a contract and throws if it isn't
+ */
+export async function assertIsContractAddress(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  address: string,
+) {
+  assert(
+    await isContractAddress(multiProvider, chain, address),
+    `Address "${address}" on chain "${chain}" is not a contract`,
+  );
 }

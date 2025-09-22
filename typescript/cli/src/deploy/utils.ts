@@ -11,13 +11,14 @@ import {
   IsmConfig,
   IsmType,
   MultisigConfig,
+  TypedSigner,
   WarpRouteDeployConfig,
-  getLocalProvider,
   isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
+import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
 import {
   log,
@@ -28,10 +29,6 @@ import {
   logTable,
 } from '../logger.js';
 import { nativeBalancesAreSufficient } from '../utils/balances.js';
-import { ENV } from '../utils/env.js';
-import { assertSigner } from '../utils/keys.js';
-
-import { completeDryRun } from './dry-run.js';
 
 export async function runPreflightChecksForChains({
   context,
@@ -41,28 +38,40 @@ export async function runPreflightChecksForChains({
 }: {
   context: WriteCommandContext;
   chains: ChainName[];
-  minGas: string;
+  minGas: typeof MINIMUM_WARP_DEPLOY_GAS;
   // Chains for which to assert a native balance
   // Defaults to all chains if not specified
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
-  const { multiProvider, skipConfirmation } = context;
+  const {
+    multiProvider,
+    skipConfirmation,
+    multiProtocolProvider,
+    multiProtocolSigner,
+  } = context;
+
+  assert(multiProtocolSigner, 'multiProtocolSigner not defined');
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
-    if (metadata.protocol !== ProtocolType.Ethereum)
-      throw new Error('Only Ethereum chains are supported for now');
-    const signer = multiProvider.getSigner(chain);
-    assertSigner(signer);
+
+    const signer = multiProtocolSigner.getSpecificSigner<TypedSigner>(chain);
+
+    if (!signer) {
+      throw new Error('signer is invalid');
+    }
+
     logGreen(`✅ ${metadata.displayName ?? chain} signer is valid`);
   }
   logGreen('✅ Chains are valid');
 
   await nativeBalancesAreSufficient(
     multiProvider,
+    multiProtocolProvider,
+    multiProtocolSigner,
     chainsToGasCheck ?? chains,
     minGas,
     skipConfirmation,
@@ -138,22 +147,20 @@ export async function prepareDeploy(
   userAddress: Address | null,
   chains: ChainName[],
 ): Promise<Record<string, BigNumber>> {
-  const { multiProvider, isDryRun } = context;
+  const { multiProvider, multiProtocolSigner } = context;
   const initialBalances: Record<string, BigNumber> = {};
-  await Promise.all(
-    chains.map(async (chain: ChainName) => {
-      const provider = isDryRun
-        ? getLocalProvider({
-            anvilIPAddr: ENV.ANVIL_IP_ADDR,
-            anvilPort: ENV.ANVIL_PORT,
-          })
-        : multiProvider.getProvider(chain);
-      const address =
-        userAddress ?? (await multiProvider.getSigner(chain).getAddress());
-      const currentBalance = await provider.getBalance(address);
-      initialBalances[chain] = currentBalance;
-    }),
-  );
+
+  for (const chain of chains) {
+    const { nativeToken } = multiProvider.getChainMetadata(chain);
+    const address =
+      userAddress ?? (await multiProtocolSigner!.getSignerAddress(chain));
+    initialBalances[chain] = await multiProtocolSigner!.getBalance({
+      address,
+      chain,
+      denom: nativeToken?.denom,
+    });
+  }
+
   return initialBalances;
 }
 
@@ -164,30 +171,28 @@ export async function completeDeploy(
   userAddress: Address | null,
   chains: ChainName[],
 ) {
-  const { multiProvider, isDryRun } = context;
+  const { multiProvider, multiProtocolSigner } = context;
+  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
+
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
-    const provider = isDryRun
-      ? getLocalProvider({
-          anvilIPAddr: ENV.ANVIL_IP_ADDR,
-          anvilPort: ENV.ANVIL_PORT,
-        })
-      : multiProvider.getProvider(chain);
-    const address =
-      userAddress ?? (await multiProvider.getSigner(chain).getAddress());
-    const currentBalance = await provider.getBalance(address);
+    const { nativeToken } = multiProvider.getChainMetadata(chain);
+    const address = userAddress
+      ? userAddress
+      : await multiProtocolSigner.getSignerAddress(chain);
+    const currentBalance = await multiProtocolSigner!.getBalance({
+      address,
+      chain,
+      denom: nativeToken?.denom,
+    });
     const balanceDelta = initialBalances[chain].sub(currentBalance);
-    if (isDryRun && balanceDelta.lt(0)) break;
+
     logPink(
-      `\t- Gas required for ${command} ${
-        isDryRun ? 'dry-run' : 'deploy'
-      } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
-        multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'
+      `\t- Gas required for ${command} deploy on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
+        nativeToken?.symbol ?? 'UNKNOWN SYMBOL'
       }`,
     );
   }
-
-  if (isDryRun) await completeDryRun(command);
 }
 
 function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {

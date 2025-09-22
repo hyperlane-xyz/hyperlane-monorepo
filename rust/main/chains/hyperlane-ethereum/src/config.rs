@@ -3,8 +3,8 @@ use ethers_core::types::{BlockId, BlockNumber};
 use url::Url;
 
 use hyperlane_core::{
-    config::OpSubmissionConfig, utils::hex_or_base58_to_h256, ChainCommunicationError, ChainResult,
-    ReorgPeriod, H256, U256,
+    config::OpSubmissionConfig, utils::hex_or_base58_or_bech32_to_h256, ChainCommunicationError,
+    ChainResult, ReorgPeriod, H256, U256,
 };
 
 static BATCH_CONTRACT_ADDRESS_DEFAULT: &str = "0xcA11bde05977b3631167028862bE2a173976CA11";
@@ -53,13 +53,14 @@ pub struct ConnectionConf {
 
 impl ConnectionConf {
     /// Returns the RPC urls for this connection configuration
+    #[allow(clippy::panic)]
     pub fn rpc_urls(&self) -> Vec<Url> {
         use RpcConnectionConf::{Http, HttpFallback, HttpQuorum, Ws};
 
         match &self.rpc_connection {
             HttpQuorum { urls } | HttpFallback { urls } => urls.clone(),
             Http { url } => vec![url.clone()],
-            Ws { url: _ } => panic!("Websocket connection is not supported"),
+            Ws { .. } => panic!("Websocket connection is not supported"),
         }
     }
 
@@ -67,7 +68,10 @@ impl ConnectionConf {
     pub fn batch_contract_address(&self) -> H256 {
         self.op_submission_config
             .batch_contract_address
-            .unwrap_or(hex_or_base58_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT).unwrap())
+            .unwrap_or_else(|| {
+                hex_or_base58_or_bech32_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT)
+                    .expect("Invalid default batch contract address")
+            })
     }
 }
 
@@ -93,18 +97,18 @@ pub struct TransactionOverrides {
     /// Min priority fee per gas to use for EIP-1559 transactions.
     pub min_priority_fee_per_gas: Option<U256>,
 
-    /// Gas limit multiplier denominator to use for transactions, eg 110
-    pub gas_limit_multiplier_denominator: Option<U256>,
-    /// Gas limit multiplier numerator to use for transactions, eg 100
-    pub gas_limit_multiplier_numerator: Option<U256>,
-
     /// Gas price multiplier denominator to use for transactions, eg 110
     pub gas_price_multiplier_denominator: Option<U256>,
     /// Gas price multiplier numerator to use for transactions, eg 100
     pub gas_price_multiplier_numerator: Option<U256>,
+    /// Gas price cap multiplier to bound escalated prices by newly estimated prices.
+    /// Default value is 3 if not specified.
+    pub gas_price_cap_multiplier: Option<U256>,
 
     /// Gas price cap, in wei.
     pub gas_price_cap: Option<U256>,
+    /// Gas limit cap, in wei.
+    pub gas_limit_cap: Option<U256>,
 }
 
 /// Ethereum reorg period

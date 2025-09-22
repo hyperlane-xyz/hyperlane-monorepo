@@ -76,7 +76,7 @@ impl MerkleTreeBuilder {
         }
     }
 
-    #[instrument(err, skip(self), level="debug", fields(prover_latest_index=self.count()-1))]
+    #[instrument(err, skip(self), level="debug", fields(prover_latest_index=self.count().saturating_sub(1)))]
     pub fn get_proof(
         &self,
         leaf_index: u32,

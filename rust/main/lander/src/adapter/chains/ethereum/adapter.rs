@@ -1,3 +1,4 @@
+use std::ops::Sub;
 use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
@@ -23,7 +24,10 @@ use hyperlane_base::{
     },
     CoreMetrics,
 };
-use hyperlane_core::{config::OpSubmissionConfig, ContractLocator, HyperlaneDomain, H256, U256};
+use hyperlane_core::{
+    config::OpSubmissionConfig, ChainCommunicationError, ContractLocator, HyperlaneDomain, H256,
+    U256,
+};
 use hyperlane_ethereum::multicall::BatchCache;
 use hyperlane_ethereum::{
     multicall, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
@@ -49,6 +53,7 @@ mod gas_price;
 mod tx_status_checker;
 
 const NONCE_TOO_LOW_ERROR: &str = "nonce too low";
+const DEFAULT_MINIMUM_TIME_BETWEEN_RESUBMISSIONS: Duration = Duration::from_secs(1);
 
 pub struct EthereumAdapter {
     pub estimated_block_time: Duration,
@@ -62,6 +67,7 @@ pub struct EthereumAdapter {
     pub batch_contract_address: H256,
     pub payload_db: Arc<dyn PayloadDb>,
     pub signer: H160,
+    pub minimum_time_between_resubmissions: Duration,
 }
 
 impl EthereumAdapter {
@@ -114,12 +120,13 @@ impl EthereumAdapter {
             batch_contract_address: connection_conf.batch_contract_address(),
             payload_db,
             signer,
+            minimum_time_between_resubmissions: DEFAULT_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
         };
 
         Ok(adapter)
     }
 
-    async fn calculate_nonce(&self, tx: &Transaction) -> Result<Option<U256>, LanderError> {
+    async fn calculate_nonce(&self, tx: &Transaction) -> Result<U256, LanderError> {
         self.nonce_manager.calculate_next_nonce(tx).await
     }
 
@@ -140,8 +147,11 @@ impl EthereumAdapter {
         .await;
 
         // then, compare the estimated gas price with `current * escalation_multiplier`
-        let escalated_gas_price =
-            gas_price::escalate_gas_price_if_needed(&old_gas_price, &estimated_gas_price);
+        let escalated_gas_price = gas_price::escalate_gas_price_if_needed(
+            &old_gas_price,
+            &estimated_gas_price,
+            &self.transaction_overrides,
+        );
 
         let new_gas_price = match escalated_gas_price {
             GasPrice::None => estimated_gas_price,
@@ -152,7 +162,7 @@ impl EthereumAdapter {
         Ok(new_gas_price)
     }
 
-    fn update_tx(&self, tx: &mut Transaction, nonce: Option<U256>, gas_price: GasPrice) {
+    fn update_tx(&self, tx: &mut Transaction, nonce: U256, gas_price: GasPrice) {
         let precursor = tx.precursor_mut();
 
         if let GasPrice::Eip1559 {
@@ -200,13 +210,7 @@ impl EthereumAdapter {
             }
             GasPrice::Eip1559 { .. } => {}
         }
-
-        match nonce {
-            None => {}
-            Some(nonce) => {
-                precursor.tx.set_nonce(nonce);
-            }
-        }
+        precursor.tx.set_nonce(nonce);
 
         info!(?tx, "updated transaction with nonce and gas price");
     }
@@ -317,9 +321,12 @@ impl EthereumAdapter {
             .await
             .map(|(tx, f)| EthereumTxPrecursor::new(tx, f));
 
-        let Ok(multi_precursor) = multi_precursor else {
-            error!("Failed to batch payloads");
-            return vec![];
+        let multi_precursor = match multi_precursor {
+            Ok(precursor) => precursor,
+            Err(e) => {
+                error!(error = ?e, "Failed to batch payloads");
+                return vec![];
+            }
         };
 
         let transaction = TransactionFactory::build(multi_precursor, payload_details.clone());
@@ -344,11 +351,13 @@ impl AdaptsChain for EthereumAdapter {
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
         let estimated_block_time = self.estimated_block_time();
+        let ready_time = estimated_block_time.max(&self.minimum_time_between_resubmissions);
+
         let Some(last_submission_time) = tx.last_submission_attempt else {
             // If the transaction has never been submitted, it is ready for resubmission
             return true;
         };
-        let elapsed = chrono::Utc::now() - last_submission_time;
+        let elapsed = chrono::Utc::now().sub(last_submission_time);
         let elapsed = match elapsed.to_std() {
             Ok(duration) => duration,
             Err(err) => {
@@ -360,7 +369,7 @@ impl AdaptsChain for EthereumAdapter {
                 return true;
             }
         };
-        elapsed > *estimated_block_time
+        elapsed > *ready_time
     }
 
     /// Builds a transaction for the given payloads.
@@ -644,7 +653,7 @@ impl AdaptsChain for EthereumAdapter {
 }
 
 #[cfg(test)]
-pub use gas_limit_estimator::apply_estimate_buffer_to_ethers;
+pub use gas_limit_estimator::tests::apply_estimate_buffer_to_ethers;
 
 #[cfg(test)]
 mod tests;

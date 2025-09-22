@@ -7,9 +7,9 @@ members = [
   "applications/hyperlane-operation-verifier",
   "applications/hyperlane-warp-route",
   "chains/hyperlane-cosmos",
-  "chains/hyperlane-cosmos-native",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
+  "chains/hyperlane-radix",
   "chains/hyperlane-sealevel",
   "chains/hyperlane-starknet",
   "ethers-prometheus",
@@ -184,6 +184,20 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 ya-gcp = { version = "0.11.3", features = ["storage"] }
+radix-common = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+radix-transactions = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+radix-engine-interface = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+scrypto = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
+  "serde",
+] }
+core-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
+gateway-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
+scrypto-derive = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
+  "serde",
+] }
+hyperlane-cosmos-rs = "0.1.4"
+
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
@@ -221,6 +235,13 @@ overflow-checks = true
 [profile.release.package.hyperlane-sealevel-validator-announce]
 overflow-checks = true
 
+[workspace.dependencies.cometbft]
+git = "https://github.com/hyperlane-xyz/cometbft-rs"
+tag = "2025-08-07"
+
+[workspace.dependencies.cometbft-rpc]
+git = "https://github.com/hyperlane-xyz/cometbft-rs"
+tag = "2025-08-07"
 
 [workspace.dependencies.ethers]
 features = []

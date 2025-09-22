@@ -101,14 +101,15 @@ function getChainConnections(
   if (environment === 'mainnet3') {
     // All the mainnet3 warp route chains
     connectedChains = [
-      // For the Rivalz team building out their own warp route
-      ['solanamainnet', 'rivalz'],
       ['solanamainnet', 'everclear'],
       ['solanamainnet', 'infinityvmmainnet'],
       ['solanamainnet', 'sophon'],
       ['solanamainnet', 'abstract'],
       ['solanamainnet', 'apechain'],
       ['solanamainnet', 'subtensor'],
+      ['solanamainnet', 'pulsechain'],
+      ['solanamainnet', 'electroneum'],
+      ['solanamainnet', 'galactica'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
@@ -126,6 +127,9 @@ function getChainConnections(
       // for solaxy routes
       ['solaxy', 'solanamainnet'],
       ['solaxy', 'ethereum'],
+      // for celestia svm routes
+      ['celestia', 'solanamainnet'],
+      ['celestia', 'eclipsemainnet'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];

@@ -116,7 +116,7 @@ const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
  * @param multiProvider - The MultiProvider instance
  * @param submitterMetadata - The metadata defining the type and configuration of the submitter.
  * @param coreAddressesByChain - The address of the core Hyperlane deployments by chain. Used for filling some default values for the submission strategies.
- * @param additionalSubmitterFactories optional extension to extend the default registry. Can override if specifying the the same key.
+ * @param additionalSubmitterFactories optional extension to extend the default registry. Can override if specifying the same key.
  * @returns A promise that resolves to an instance of a TxSubmitterInterface.
  * @throws If no submitter factory is registered for the type specified in the metadata.
  */

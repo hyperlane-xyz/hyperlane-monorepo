@@ -13,7 +13,7 @@ import { mustGet, objKeys, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { environments } from '../../config/environments/index.js';
-import { awIcas } from '../../config/environments/mainnet3/governance/ica/aw.js';
+import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_awLegacy.js';
 import { awSafes } from '../../config/environments/mainnet3/governance/safe/aw.js';
 import {
   DEPLOYER,
@@ -95,7 +95,7 @@ export async function getRouterConfigsForAllVms(
   const ownerConfigs: ChainMap<OwnableConfig> = objMap(
     envConfig.owners,
     (chain, _) => {
-      const owner = awIcas[chain] ?? awSafes[chain] ?? DEPLOYER;
+      const owner = awIcasLegacy[chain] ?? awSafes[chain] ?? DEPLOYER;
       return {
         owner,
         ownerOverrides: {
@@ -104,7 +104,7 @@ export async function getRouterConfigsForAllVms(
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,
           ...(awSafes[chain] && { _safeAddress: awSafes[chain] }),
-          ...(awIcas[chain] && { _icaAddress: awIcas[chain] }),
+          ...(awIcasLegacy[chain] && { _icaAddress: awIcasLegacy[chain] }),
         },
       };
     },

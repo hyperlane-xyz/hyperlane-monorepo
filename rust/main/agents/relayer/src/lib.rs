@@ -1,3 +1,6 @@
+#![deny(clippy::unwrap_used, clippy::panic)]
+#![deny(clippy::arithmetic_side_effects)]
+
 pub mod msg;
 
 mod db_loader;

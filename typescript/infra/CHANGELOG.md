@@ -1,5 +1,108 @@
 # @hyperlane-xyz/infra
 
+## 18.2.0
+
+### Minor Changes
+
+- ca64e73cd: Update the oXAUT bridge limits for avax, celo, ethereum, worldchain and base config. Export XERC20LimitsTokenConfig.
+
+### Patch Changes
+
+- Updated dependencies [fed6906e4]
+- Updated dependencies [ca64e73cd]
+- Updated dependencies [dfa9d368c]
+  - @hyperlane-xyz/sdk@18.2.0
+  - @hyperlane-xyz/helloworld@18.2.0
+  - @hyperlane-xyz/utils@18.2.0
+
+## 18.1.0
+
+### Minor Changes
+
+- d7c5f30df: Add radix USDC warp route getter
+
+### Patch Changes
+
+- Updated dependencies [73be9b8d2]
+  - @hyperlane-xyz/sdk@18.1.0
+  - @hyperlane-xyz/helloworld@18.1.0
+  - @hyperlane-xyz/utils@18.1.0
+
+## 18.0.0
+
+### Patch Changes
+
+- 0bcb90abc: set token decimals in more warp config getters to satisfy warp checker rules
+- cb908b8aa: set token decimals in warp config getters to satisfy stricter warp checker rules
+- Updated dependencies [552b253b9]
+- Updated dependencies [ba832828f]
+- Updated dependencies [cfc0eb2a7]
+  - @hyperlane-xyz/sdk@18.0.0
+  - @hyperlane-xyz/utils@18.0.0
+  - @hyperlane-xyz/helloworld@18.0.0
+
+## 17.0.0
+
+### Patch Changes
+
+- b23bcd111: Fix: Corrected logger usage by avoiding destructured debug method calls
+- Updated dependencies [400c02460]
+- Updated dependencies [8c15edc67]
+- Updated dependencies [76a5db49a]
+- Updated dependencies [6583df016]
+- Updated dependencies [e0bda316a]
+- Updated dependencies [7f542b288]
+  - @hyperlane-xyz/sdk@17.0.0
+  - @hyperlane-xyz/utils@17.0.0
+  - @hyperlane-xyz/helloworld@17.0.0
+
+## 16.2.0
+
+### Patch Changes
+
+- Updated dependencies [22ceaa109]
+- Updated dependencies [ce4974214]
+- Updated dependencies [a89018a3f]
+  - @hyperlane-xyz/sdk@16.2.0
+  - @hyperlane-xyz/helloworld@16.2.0
+  - @hyperlane-xyz/utils@16.2.0
+
+## 16.1.1
+
+### Patch Changes
+
+- Updated dependencies [ea77b6ae4]
+  - @hyperlane-xyz/sdk@16.1.1
+  - @hyperlane-xyz/helloworld@16.1.1
+  - @hyperlane-xyz/utils@16.1.1
+
+## 16.1.0
+
+### Patch Changes
+
+- Updated dependencies [2a2c29c39]
+- Updated dependencies [e69ac9f62]
+- Updated dependencies [d9b8a7551]
+  - @hyperlane-xyz/sdk@16.1.0
+  - @hyperlane-xyz/helloworld@16.1.0
+  - @hyperlane-xyz/utils@16.1.0
+
+## 16.0.0
+
+### Patch Changes
+
+- 8e7656628: fix: skip EDGEN
+- Updated dependencies [9f3222962]
+- Updated dependencies [d200acfa8]
+- Updated dependencies [966ad8440]
+- Updated dependencies [fabb4a5af]
+- Updated dependencies [a71193486]
+- Updated dependencies [1f4412909]
+- Updated dependencies [af783be54]
+  - @hyperlane-xyz/sdk@16.0.0
+  - @hyperlane-xyz/helloworld@16.0.0
+  - @hyperlane-xyz/utils@16.0.0
+
 ## 15.0.0
 
 ### Patch Changes

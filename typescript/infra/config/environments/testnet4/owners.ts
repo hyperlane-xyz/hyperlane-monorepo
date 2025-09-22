@@ -41,6 +41,9 @@ export const owners: ChainMap<OwnableConfig> = {
   celestiatestnet: {
     owner: 'n/a - CSDK not supported here',
   },
+  radixtestnet: {
+    owner: 'n/a - Radix not supported here',
+  },
 };
 
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(

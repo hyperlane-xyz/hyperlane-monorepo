@@ -1,19 +1,40 @@
+import { Wallet } from 'ethers';
 import { $, ProcessPromise } from 'zx';
 
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainName,
   HypTokenRouterConfig,
+  MultiProtocolProvider,
   TokenType,
+  WarpCoreConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../../utils/files.js';
-import { ANVIL_KEY, REGISTRY_PATH } from '../consts.js';
+import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
+import { getContext } from '../../../context/context.js';
+import { MultiProtocolSignerManager } from '../../../context/strategies/signer/MultiProtocolSignerManager.js';
+import { CommandContext } from '../../../context/types.js';
+import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  ANVIL_KEY,
+  CHAIN_NAME_2,
+  CHAIN_NAME_3,
+  REGISTRY_PATH,
+  TEMP_PATH,
+  WARP_CORE_CONFIG_PATH_2,
+  getCombinedWarpRoutePath,
+} from '../consts.js';
 
-import { getDeployedWarpAddress, localTestRunCmdPrefix } from './helpers.js';
+import {
+  getDeployedWarpAddress,
+  getDomainId,
+  localTestRunCmdPrefix,
+} from './helpers.js';
 
 $.verbose = true;
 
@@ -420,4 +441,205 @@ export function generateWarpConfigs(
     );
 
   return configs;
+}
+
+/**
+ * Updates the owner of the Warp route deployment config, and then output to a file
+ */
+export async function updateWarpOwnerConfig(
+  chain: string,
+  owner: Address,
+  warpCorePath: string,
+  warpDeployPath: string,
+): Promise<string> {
+  const warpDeployConfig = await readWarpConfig(
+    chain,
+    warpCorePath,
+    warpDeployPath,
+  );
+  warpDeployConfig[chain].owner = owner;
+  await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+
+  return warpDeployPath;
+}
+
+/**
+ * Updates the Warp route deployment configuration with a new owner, and then applies the changes.
+ */
+export async function updateOwner(
+  owner: Address,
+  chain: string,
+  warpConfigPath: string,
+  warpCoreConfigPath: string,
+) {
+  await updateWarpOwnerConfig(chain, owner, warpCoreConfigPath, warpConfigPath);
+  return hyperlaneWarpApply(warpConfigPath, warpCoreConfigPath);
+}
+
+/**
+ * Extends the Warp route deployment with a new warp config
+ */
+export async function extendWarpConfig(params: {
+  chain: string;
+  chainToExtend: string;
+  extendedConfig: HypTokenRouterConfig;
+  warpCorePath: string;
+  warpDeployPath: string;
+  strategyUrl?: string;
+  warpRouteId?: string;
+}): Promise<string> {
+  const {
+    chain,
+    chainToExtend,
+    extendedConfig,
+    warpCorePath,
+    warpDeployPath,
+    strategyUrl,
+    warpRouteId,
+  } = params;
+  const warpDeployConfig = await readWarpConfig(
+    chain,
+    warpCorePath,
+    warpDeployPath,
+  );
+  warpDeployConfig[chainToExtend] = extendedConfig;
+  // Remove remoteRouters and destinationGas as they are written in readWarpConfig
+  delete warpDeployConfig[chain].remoteRouters;
+  delete warpDeployConfig[chain].destinationGas;
+
+  writeYamlOrJson(warpDeployPath, warpDeployConfig);
+  await hyperlaneWarpApplyRaw({
+    warpDeployPath,
+    warpCorePath,
+    strategyUrl,
+    warpRouteId,
+  });
+
+  return warpDeployPath;
+}
+
+/**
+ * Sets up an incomplete warp route extension for testing purposes.
+ *
+ * This function creates a new warp route configuration for the second chain.
+ */
+export async function setupIncompleteWarpRouteExtension(
+  chain2Addresses: ChainAddresses,
+): Promise<{
+  chain2DomainId: string;
+  chain3DomainId: string;
+  warpConfigPath: string;
+  configToExtend: HypTokenRouterConfig;
+  context: CommandContext;
+  combinedWarpCorePath: string;
+}> {
+  const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+  const chain2DomainId = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
+  const chain3DomainId = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+
+  const configToExtend: HypTokenRouterConfig = {
+    decimals: 18,
+    mailbox: chain2Addresses!.mailbox,
+    name: 'Ether',
+    owner: new Wallet(ANVIL_KEY).address,
+    symbol: 'ETH',
+    type: TokenType.native,
+  };
+
+  const context = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: ANVIL_KEY,
+  });
+
+  const warpCoreConfig = readYamlOrJson(
+    WARP_CORE_CONFIG_PATH_2,
+  ) as WarpCoreConfig;
+  const warpDeployConfig = await readWarpConfig(
+    CHAIN_NAME_2,
+    WARP_CORE_CONFIG_PATH_2,
+    warpConfigPath,
+  );
+
+  warpDeployConfig[CHAIN_NAME_3] = configToExtend;
+
+  const signer2 = new Wallet(
+    ANVIL_KEY,
+    context.multiProvider.getProvider(CHAIN_NAME_2),
+  );
+  const signer3 = new Wallet(
+    ANVIL_KEY,
+    context.multiProvider.getProvider(CHAIN_NAME_3),
+  );
+  context.multiProvider.setSigner(CHAIN_NAME_2, signer2);
+  context.multiProvider.setSigner(CHAIN_NAME_3, signer3);
+
+  const strategyConfig = context.strategyPath
+    ? await readChainSubmissionStrategyConfig(context.strategyPath)
+    : {};
+
+  const multiProtocolProvider = new MultiProtocolProvider(
+    context.chainMetadata,
+  );
+  const multiProtocolSigner = await MultiProtocolSignerManager.init(
+    strategyConfig,
+    [CHAIN_NAME_2, CHAIN_NAME_3],
+    multiProtocolProvider,
+    {
+      key: {
+        [ProtocolType.Ethereum]: ANVIL_KEY,
+      },
+    },
+  );
+
+  context.multiProvider = await multiProtocolSigner.getMultiProvider();
+
+  await extendWarpRouteWithoutApplyTransactions(
+    {
+      context: {
+        ...context,
+        signer: signer3,
+        key: {
+          [ProtocolType.Ethereum]: ANVIL_KEY,
+        },
+        multiProtocolSigner,
+      },
+      warpCoreConfig,
+      warpDeployConfig,
+      receiptsDir: TEMP_PATH,
+    },
+    {},
+    warpCoreConfig,
+  );
+
+  const combinedWarpCorePath = getCombinedWarpRoutePath('ETH', [
+    CHAIN_NAME_2,
+    CHAIN_NAME_3,
+  ]);
+
+  return {
+    chain2DomainId,
+    chain3DomainId,
+    warpConfigPath,
+    configToExtend,
+    context,
+    combinedWarpCorePath,
+  };
+}
+
+/**
+ * Performs a round-trip warp relay between two chains using the specified warp core config.
+ *
+ * @param chain1 - The first chain to send the warp relay from.
+ * @param chain2 - The second chain to send the warp relay to and back from.
+ * @param warpCoreConfigPath - The path to the warp core config file.
+ * @returns A promise that resolves when the round-trip warp relay is complete.
+ */
+export async function sendWarpRouteMessageRoundTrip(
+  chain1: string,
+  chain2: string,
+  warpCoreConfigPath: string,
+) {
+  await hyperlaneWarpSendRelay(chain1, chain2, warpCoreConfigPath);
+  return hyperlaneWarpSendRelay(chain2, chain1, warpCoreConfigPath);
 }

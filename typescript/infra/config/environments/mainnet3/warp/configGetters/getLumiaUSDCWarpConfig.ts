@@ -49,8 +49,6 @@ const submitterConfig = objMap(
   },
 );
 
-console.log(JSON.stringify(submitterConfig, null, 2));
-
 export const getLumiaUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {

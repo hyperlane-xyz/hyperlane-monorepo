@@ -15,13 +15,9 @@ import {
   ChainMap,
   ChainName,
   ContractVerifier,
-  EVM_TOKEN_TYPE_TO_STANDARD,
   EvmERC20WarpModule,
   ExplorerLicenseType,
   HypERC20Deployer,
-  HypERC20Factories,
-  HypERC721Factories,
-  HyperlaneContractsMap,
   IsmType,
   MultiProvider,
   MultisigIsmConfig,
@@ -29,7 +25,6 @@ import {
   PausableIsmConfig,
   RoutingIsmConfig,
   SubmissionStrategy,
-  TokenFactories,
   TokenMetadataMap,
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
@@ -38,20 +33,20 @@ import {
   WarpCoreConfigSchema,
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
-  attachContractsMap,
-  connectContractsMap,
+  enrollCrossChainRouters,
   executeWarpDeploy,
   expandWarpDeployConfig,
   extractIsmAndHookFactoryAddresses,
   getRouterAddressesFromWarpCoreConfig,
   getSubmitterBuilder,
   getTokenConnectionId,
-  hypERC20factories,
   isCollateralTokenConfig,
   isXERC20TokenConfig,
   splitWarpCoreAndExtendedConfigs,
+  tokenTypeToStandard,
 } from '@hyperlane-xyz/sdk';
 import {
+  Address,
   ProtocolType,
   assert,
   objFilter,
@@ -117,7 +112,15 @@ export async function runWarpRouteDeploy({
   warpRouteId?: string;
   warpDeployConfigFileName?: string;
 }) {
-  const { skipConfirmation, chainMetadata, registry } = context;
+  const {
+    skipConfirmation,
+    chainMetadata,
+    registry,
+    multiProvider,
+    multiProtocolSigner,
+  } = context;
+
+  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
 
   // Validate ISM compatibility for all chains
   validateWarpIsmCompatibility(warpDeployConfig, context);
@@ -134,20 +137,30 @@ export async function runWarpRouteDeploy({
   };
 
   await runDeployPlanStep(deploymentParams);
-  // Some of the below functions throw if passed non-EVM chains
-  const ethereumChains = chains.filter(
-    (chain) => chainMetadata[chain].protocol === ProtocolType.Ethereum,
+
+  // Some of the below functions throw if passed non-EVM or Cosmos Native chains
+  const deploymentChains = chains.filter(
+    (chain) =>
+      chainMetadata[chain].protocol === ProtocolType.Ethereum ||
+      chainMetadata[chain].protocol === ProtocolType.CosmosNative,
   );
 
   await runPreflightChecksForChains({
     context,
-    chains: ethereumChains,
+    chains: deploymentChains,
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
-  const initialBalances = await prepareDeploy(context, null, ethereumChains);
+  const initialBalances = await prepareDeploy(context, null, deploymentChains);
 
-  const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
+  const { deployedContracts } = await executeDeploy(deploymentParams, apiKeys);
+
+  const registryAddresses = await registry.getAddresses();
+
+  await enrollCrossChainRouters(
+    { multiProvider, multiProtocolSigner, registryAddresses, warpDeployConfig },
+    deployedContracts,
+  );
 
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
     deploymentParams,
@@ -187,7 +200,13 @@ export async function runWarpRouteDeploy({
 
   await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
 
-  await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
+  await completeDeploy(
+    context,
+    'warp',
+    initialBalances,
+    null,
+    deploymentChains,
+  );
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -195,7 +214,7 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
 
   displayWarpDeployPlan(warpDeployConfig);
 
-  if (skipConfirmation || context.isDryRun) return;
+  if (skipConfirmation) return;
 
   const isConfirmed = await confirm({
     message: 'Is this deployment plan correct?',
@@ -206,29 +225,36 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
 async function executeDeploy(
   params: DeployParams,
   apiKeys: ChainMap<string>,
-): Promise<HyperlaneContractsMap<HypERC20Factories | HypERC721Factories>> {
+): Promise<{
+  deployedContracts: ChainMap<Address>;
+  deployments: WarpCoreConfig;
+}> {
   logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
   const {
     warpDeployConfig,
-    context: { multiProvider, isDryRun, dryRunChain, registry },
+    context: { multiProvider, multiProtocolSigner, registry },
   } = params;
 
-  const config: WarpRouteDeployConfigMailboxRequired =
-    isDryRun && dryRunChain
-      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
-      : warpDeployConfig;
+  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
+
   const registryAddresses = await registry.getAddresses();
 
   const deployedContracts = await executeWarpDeploy(
+    warpDeployConfig,
     multiProvider,
-    config,
+    multiProtocolSigner,
     registryAddresses,
     apiKeys,
   );
 
+  const { warpCoreConfig: deployments } = await getWarpCoreConfig(
+    { context: params.context, warpDeployConfig },
+    deployedContracts,
+  );
+
   logGreen('✅ Warp contract deployments complete');
-  return deployedContracts;
+  return { deployedContracts, deployments };
 }
 
 async function writeDeploymentArtifacts(
@@ -236,16 +262,15 @@ async function writeDeploymentArtifacts(
   context: WriteCommandContext,
   addWarpRouteOptions?: AddWarpRouteConfigOptions,
 ) {
-  if (!context.isDryRun) {
-    log('Writing deployment artifacts...');
-    await context.registry.addWarpRoute(warpCoreConfig, addWarpRouteOptions);
-  }
+  log('Writing deployment artifacts...');
+  await context.registry.addWarpRoute(warpCoreConfig, addWarpRouteOptions);
+
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
 
 async function getWarpCoreConfig(
   params: DeployParams,
-  contracts: HyperlaneContractsMap<TokenFactories>,
+  contracts: ChainMap<Address>,
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
   addWarpRouteOptions: AddWarpRouteConfigOptions;
@@ -260,13 +285,14 @@ async function getWarpCoreConfig(
     );
 
   generateTokenConfigs(
+    params.context.multiProvider,
     warpCoreConfig,
     params.warpDeployConfig,
     contracts,
     tokenMetadataMap,
   );
 
-  fullyConnectTokens(warpCoreConfig);
+  fullyConnectTokens(warpCoreConfig, params.context.multiProvider);
 
   const symbol = tokenMetadataMap.getDefaultSymbol();
 
@@ -277,34 +303,28 @@ async function getWarpCoreConfig(
  * Creates token configs.
  */
 function generateTokenConfigs(
+  multiProvider: MultiProvider,
   warpCoreConfig: WarpCoreConfig,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
-  contracts: HyperlaneContractsMap<TokenFactories>,
+  contracts: ChainMap<Address>,
   tokenMetadataMap: TokenMetadataMap,
 ): void {
-  for (const [chainName, contract] of Object.entries(contracts)) {
+  for (const chainName of Object.keys(contracts)) {
     const config = warpDeployConfig[chainName];
     const collateralAddressOrDenom =
       isCollateralTokenConfig(config) || isXERC20TokenConfig(config)
         ? config.token // gets set in the above deriveTokenMetadata()
         : undefined;
 
-    const decimals: number | undefined =
-      tokenMetadataMap.getDecimals(chainName);
-    const name: any = tokenMetadataMap.getName(chainName);
-    const symbol: any = tokenMetadataMap.getSymbol(chainName);
-
-    assert(decimals, `Decimals for ${chainName} doesn't exist`);
+    const protocol = multiProvider.getProtocol(chainName);
 
     warpCoreConfig.tokens.push({
       chainName,
-      standard: EVM_TOKEN_TYPE_TO_STANDARD[config.type],
-      decimals,
-      symbol: config.symbol || symbol,
-      name,
-      addressOrDenom:
-        contract[warpDeployConfig[chainName].type as keyof TokenFactories]
-          .address,
+      standard: tokenTypeToStandard(protocol as ProtocolType, config.type),
+      decimals: tokenMetadataMap.getDecimals(chainName)!,
+      symbol: config.symbol || tokenMetadataMap.getSymbol(chainName)!,
+      name: tokenMetadataMap.getName(chainName)!,
+      addressOrDenom: contracts[chainName],
       collateralAddressOrDenom,
     });
   }
@@ -316,7 +336,10 @@ function generateTokenConfigs(
  * Assumes full interconnectivity between all tokens for now b.c. that's
  * what the deployers do by default.
  */
-function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
+function fullyConnectTokens(
+  warpCoreConfig: WarpCoreConfig,
+  multiProvider: MultiProvider,
+): void {
   for (const token1 of warpCoreConfig.tokens) {
     for (const token2 of warpCoreConfig.tokens) {
       if (
@@ -327,7 +350,7 @@ function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
       token1.connections ||= [];
       token1.connections.push({
         token: getTokenConnectionId(
-          ProtocolType.Ethereum,
+          multiProvider.getProtocol(token2.chainName),
           token2.chainName,
           token2.addressOrDenom!,
         ),
@@ -415,7 +438,7 @@ async function deployWarpExtensionContracts(
     initialExtendedConfigs,
   );
 
-  const newDeployedContracts = await executeDeploy(
+  const { deployedContracts: newDeployedContracts } = await executeDeploy(
     {
       context: params.context,
       warpDeployConfig: extendedConfigs,
@@ -425,7 +448,6 @@ async function deployWarpExtensionContracts(
 
   // Merge existing and new routers
   const mergedRouters = mergeAllRouters(
-    params.context.multiProvider,
     existingConfigs,
     newDeployedContracts,
     warpCoreConfigByChain,
@@ -667,26 +689,23 @@ async function deriveMetadataFromExisting(
  * Merges existing router configs with newly deployed router contracts.
  */
 function mergeAllRouters(
-  multiProvider: MultiProvider,
   existingConfigs: WarpRouteDeployConfigMailboxRequired,
-  deployedContractsMap: HyperlaneContractsMap<
-    HypERC20Factories | HypERC721Factories
-  >,
+  deployedContractsMap: ChainMap<Address>,
   warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
-) {
-  const existingContractAddresses = objMap(
-    existingConfigs,
-    (chain, config) => ({
-      [config.type]: warpCoreConfigByChain[chain].addressOrDenom!,
-    }),
-  );
+): ChainMap<Address> {
+  let result: ChainMap<Address> = {};
+
+  for (const chain of Object.keys(existingConfigs)) {
+    result = {
+      ...result,
+      [chain]: warpCoreConfigByChain[chain].addressOrDenom!,
+    };
+  }
+
   return {
-    ...connectContractsMap(
-      attachContractsMap(existingContractAddresses, hypERC20factories),
-      multiProvider,
-    ),
+    ...result,
     ...deployedContractsMap,
-  } as HyperlaneContractsMap<HypERC20Factories>;
+  };
 }
 
 function displayWarpDeployPlan(

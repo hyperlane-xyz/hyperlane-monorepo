@@ -81,9 +81,8 @@ impl LatestCheckpointReorgReporter {
 
         let mut merkle_tree_hooks = HashMap::new();
         for (url, settings) in Self::settings_with_single_rpc(settings, origin) {
-            let merkle_tree_hook = settings
-                .build_merkle_tree_hook(&settings.origin_chain, metrics)
-                .await?;
+            let chain_setup = settings.chain_setup(&settings.origin_chain)?;
+            let merkle_tree_hook = chain_setup.build_merkle_tree_hook(metrics).await?;
 
             merkle_tree_hooks.insert(url, merkle_tree_hook.into());
         }
@@ -97,7 +96,9 @@ impl LatestCheckpointReorgReporter {
         settings: &ValidatorSettings,
         origin: &HyperlaneDomain,
     ) -> Vec<(Url, ValidatorSettings)> {
-        use ChainConnectionConf::{Cosmos, CosmosNative, Ethereum, Fuel, Sealevel, Starknet};
+        use ChainConnectionConf::{
+            Cosmos, CosmosNative, Ethereum, Fuel, Radix, Sealevel, Starknet,
+        };
 
         let chain_conf = settings
             .chains
@@ -139,6 +140,13 @@ impl LatestCheckpointReorgReporter {
                     let mut updated_conn = conn.clone();
                     updated_conn.urls = vec![url];
                     Starknet(updated_conn)
+                })
+            }
+            Radix(conn) => {
+                Self::map_urls_to_connections(conn.gateway.clone(), conn, |conn, url| {
+                    let mut updated_conn = conn.clone();
+                    updated_conn.gateway = vec![url];
+                    Radix(updated_conn)
                 })
             }
         };

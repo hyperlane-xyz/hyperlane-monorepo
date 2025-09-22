@@ -1,4 +1,8 @@
-export { isAddressActive } from './contracts/contracts.js';
+export {
+  isAddressActive,
+  isContractAddress,
+  assertIsContractAddress,
+} from './contracts/contracts.js';
 export { MUTABLE_HOOK_TYPE } from './hook/types.js';
 export { MUTABLE_ISM_TYPE } from './ism/types.js';
 
@@ -122,7 +126,7 @@ export {
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
-export { executeWarpDeploy } from './deploy/warp.js';
+export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
   SealevelOverheadIgpAdapter,
@@ -186,6 +190,7 @@ export {
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
 export { CosmosNativeIsmReader } from './ism/CosmosNativeIsmReader.js';
+export { CosmosNativeWarpModule } from './token/CosmosNativeWarpModule.js';
 export { CosmosNativeWarpRouteReader } from './token/CosmosNativeWarpRouteReader.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
@@ -380,7 +385,11 @@ export {
   ViemProvider,
   ViemTransaction,
   ViemTransactionReceipt,
+  GroupedTransactions,
   ProtocolTypedTransaction,
+  RadixSDKTransaction,
+  RadixTransaction,
+  RadixTransactionReceipt,
 } from './providers/ProviderType.js';
 export {
   isCosmJsProviderHealthy,
@@ -421,6 +430,8 @@ export {
   EV5GnosisSafeTxSubmitterPropsSchema,
   EV5ImpersonatedAccountTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
+  EvmIcaTxSubmitterProps,
+  isJsonRpcSubmitterConfig,
 } from './providers/transactions/submitter/ethersV5/types.js';
 
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
@@ -566,6 +577,8 @@ export {
   resolveRouterMapConfig,
   RouterAddress,
   RouterConfig,
+  MissingRouterViolation,
+  MissingEnrolledRouterViolation,
   RouterViolation,
   RouterViolationType,
 } from './router/types.js';
@@ -593,6 +606,7 @@ export {
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
   EvmXERC20VSAdapter,
+  EvmXERC20Adapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
@@ -655,8 +669,10 @@ export {
 export { TokenMetadataMap } from './token/TokenMetadataMap.js';
 export {
   EVM_TOKEN_TYPE_TO_STANDARD,
+  LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
   PROTOCOL_TO_NATIVE_STANDARD,
+  PROTOCOL_TO_HYP_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_COSMWASM_STANDARDS,
   TOKEN_HYP_STANDARDS,
@@ -669,6 +685,7 @@ export {
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
 export {
+  XERC20LimitsTokenConfig,
   CctpTokenConfig,
   CctpTokenConfigSchema,
   CollateralRebaseTokenConfigSchema,
@@ -707,7 +724,8 @@ export {
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
-  XERC20LimitConfig,
+  XERC20VSLimitConfig,
+  XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
 } from './token/types.js';
@@ -726,6 +744,8 @@ export {
   PausableConfig,
   PausableSchema,
   ProtocolMap,
+  TypedSigner,
+  IMultiProtocolSignerManager,
 } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { verifyScale } from './utils/decimals.js';
@@ -780,6 +800,7 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export { EvmTimelockReader } from './timelock/evm/EvmTimelockReader.js';
 export { EvmTimelockDeployer } from './timelock/evm/EvmTimelockDeployer.js';
 export {
   TimelockConfig,
@@ -792,3 +813,11 @@ export {
   EXECUTOR_ROLE,
   PROPOSER_ROLE,
 } from './timelock/evm/constants.js';
+export { EvmEventLogsReader } from './rpc/evm/EvmEventLogsReader.js';
+export { getTimelockExecutableTransactionFromBatch } from './timelock/evm/utils.js';
+export { RadixHookReader } from './hook/RadixHookReader.js';
+export { RadixIsmReader } from './ism/RadixIsmReader.js';
+export {
+  getSignerForChain,
+  MultiProtocolSignerSignerAccountInfo,
+} from './signers/signers.js';

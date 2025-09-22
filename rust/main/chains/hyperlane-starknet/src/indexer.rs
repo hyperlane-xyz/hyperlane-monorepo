@@ -111,8 +111,7 @@ impl Indexer<H256> for StarknetMailboxIndexer {
                 }
                 let message_id: HyH256 = (event.data[0], event.data[1])
                     .try_into()
-                    .map_err(Into::<HyperlaneStarknetError>::into)
-                    .unwrap();
+                    .map_err(Into::<HyperlaneStarknetError>::into)?;
                 let message_id: Indexed<H256> = message_id.0.into();
                 Ok(message_id)
             },
@@ -213,8 +212,8 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer
     }
 }
 
-/// TODO: This is a placeholder for the Interchain Gas Paymaster indexer.
-/// Interchain Gas Paymaster
+// TODO: This is a placeholder for the Interchain Gas Paymaster indexer.
+// Interchain Gas Paymaster
 
 /// A reference to a InterchainGasPaymasterIndexer contract on some Starknet chain
 #[derive(Debug, Clone)]

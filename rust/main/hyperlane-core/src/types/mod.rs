@@ -42,6 +42,7 @@ mod transaction;
 /// Unified 32-byte identifier with convenience tooling for handling
 /// 20-byte ids (e.g ethereum addresses)
 pub mod identifiers;
+#[allow(clippy::arithmetic_side_effects)]
 mod primitive_types;
 
 // Copied from https://github.com/hyperlane-xyz/ethers-rs/blob/hyperlane/ethers-core/src/types/signature.rs#L54
@@ -190,8 +191,8 @@ impl Add for InterchainGasPayment {
         Self {
             message_id: self.message_id,
             destination: self.destination,
-            payment: self.payment + rhs.payment,
-            gas_amount: self.gas_amount + rhs.gas_amount,
+            payment: self.payment.saturating_add(rhs.payment),
+            gas_amount: self.gas_amount.saturating_add(rhs.gas_amount),
         }
     }
 }
@@ -206,8 +207,8 @@ impl Add for InterchainGasExpenditure {
         );
         Self {
             message_id: self.message_id,
-            tokens_used: self.tokens_used + rhs.tokens_used,
-            gas_used: self.gas_used + rhs.gas_used,
+            tokens_used: self.tokens_used.saturating_add(rhs.tokens_used),
+            gas_used: self.gas_used.saturating_add(rhs.gas_used),
         }
     }
 }
@@ -226,9 +227,9 @@ impl Encode for InterchainGasPaymentMeta {
     where
         W: Write,
     {
-        let mut written = 0;
-        written += self.transaction_id.write_to(writer)?;
-        written += self.log_index.write_to(writer)?;
+        let mut written: usize = 0;
+        written = written.saturating_add(self.transaction_id.write_to(writer)?);
+        written = written.saturating_add(self.log_index.write_to(writer)?);
         Ok(written)
     }
 }

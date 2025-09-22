@@ -23,7 +23,8 @@ import { Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { WarpSendLogs } from '../../../send/transfer.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { deployOrUseExistingCore, deployToken } from '../commands/helpers.js';
+import { deployOrUseExistingCore } from '../commands/core.js';
+import { deployToken } from '../commands/helpers.js';
 import {
   hyperlaneWarpDeploy,
   hyperlaneWarpSendRelay,
