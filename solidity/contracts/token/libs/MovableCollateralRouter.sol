@@ -131,30 +131,29 @@ abstract contract MovableCollateralRouter is TokenRouter {
             amount
         );
 
-        if (quotes.length > 0) {
-            require(
-                quotes[quotes.length - 1].token == token(),
-                "MCR: collateral token mismatch"
-            );
-            uint256 collateralFee = quotes[quotes.length - 1].amount;
-
-            // charge the rebalancer any bridging fees denominated in the collateral
-            // token to avoid undercollateralization
-            if (collateralFee > amount) {
-                _transferFromSender(collateralFee - amount);
+        uint256 nativeValue = 0;
+        // charge the rebalancer any bridging fees denominated in the collateral
+        // token to avoid undercollateralization
+        uint256 collateralFee = 0;
+        for (uint256 i = 0; i < quotes.length; i++) {
+            if (quotes[i].token == token()) {
+                collateralFee += quotes[i].amount;
+            }
+            if (quotes[i].token == address(0)) {
+                nativeValue += quotes[i].amount;
             }
         }
 
-        uint256 nativeValue = _nativeRebalanceValue(amount);
+        if (collateralFee > amount) {
+            _transferFromSender(collateralFee - amount);
+        }
+
+        if (nativeValue > address(this).balance) {
+            revert("Rebalance amount exceeds balance");
+        }
+
         bridge.transferRemote{value: nativeValue}(domain, recipient, amount);
         emit CollateralMoved(domain, recipient, amount, msg.sender);
-    }
-
-    // TODO: Add documentation of why it exists
-    function _nativeRebalanceValue(
-        uint256 /*amount*/
-    ) internal virtual returns (uint256 nativeValue) {
-        return msg.value;
     }
 
     function _recipient(

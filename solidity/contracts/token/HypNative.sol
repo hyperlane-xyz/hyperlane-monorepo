@@ -52,17 +52,6 @@ contract HypNative is LpCollateralRouter {
         NativeCollateral._transferTo(_recipient, _amount);
     }
 
-    // ============ TokenRouter overrides ============
-    function _nativeRebalanceValue(
-        uint256 collateralAmount
-    ) internal override returns (uint256 nativeValue) {
-        nativeValue = msg.value + collateralAmount;
-        require(
-            address(this).balance >= nativeValue,
-            "Native: rebalance amount exceeds balance"
-        );
-    }
-
     receive() external payable {
         donate(msg.value);
     }
