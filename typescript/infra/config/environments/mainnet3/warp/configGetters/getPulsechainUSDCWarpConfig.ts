@@ -19,10 +19,6 @@ type DeploymentChains<T> = {
   ethereum: T;
 };
 
-type SyntheticChain = Extract<keyof DeploymentChains<unknown>, 'pulsechain'>;
-
-type CollateralChain = Exclude<keyof DeploymentChains<unknown>, 'pulsechain'>;
-
 // SAFE wallets from the team
 const ownersByChain: DeploymentChains<Address> = {
   arbitrum: '0x9adBd244557F59eE8F5633D2d2e2c0abec8FCCC2',
@@ -32,13 +28,10 @@ const ownersByChain: DeploymentChains<Address> = {
   pulsechain: '0x703cf58975B14142eD0Ba272555789610c85520c',
 };
 
-const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
-  Object.keys(ownersByChain),
-);
-
-const getRebalanceableCollateralTokenConfigForChain = (
-  currentChain: CollateralChain,
+export const getRebalanceableCollateralTokenConfigForChain = (
+  currentChain: keyof typeof usdcTokenAddresses,
   routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
+  ownersByChain: ChainMap<Address>,
 ): HypTokenRouterConfig => {
   const owner = ownersByChain[currentChain];
   assert(owner, `Owner not found for chain ${currentChain}`);
@@ -49,7 +42,9 @@ const getRebalanceableCollateralTokenConfigForChain = (
     `USDC token address not found for chain ${currentChain}`,
   );
 
-  const currentRebalancingConfig = rebalancingConfigByChain[currentChain];
+  const currentRebalancingConfig = getUSDCRebalancingBridgesConfigFor(
+    Object.keys(ownersByChain),
+  )[currentChain];
   assert(
     currentRebalancingConfig,
     `Rebalancing config not found for chain ${currentChain}`,
@@ -68,9 +63,12 @@ const getRebalanceableCollateralTokenConfigForChain = (
   };
 };
 
-const getSyntheticTokenConfigForChain = (
-  currentChain: SyntheticChain,
+export const getSyntheticTokenConfigForChain = <
+  TOwnerAddress extends ChainMap<Address>,
+>(
+  currentChain: Extract<keyof TOwnerAddress, ChainName>,
   routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
+  ownersByChain: TOwnerAddress,
 ): HypTokenRouterConfig => {
   const owner = ownersByChain[currentChain];
   assert(owner, `Owner not found for chain ${currentChain}`);
@@ -89,17 +87,28 @@ export const getPulsechainUSDCWarpConfig = async (
     arbitrum: getRebalanceableCollateralTokenConfigForChain(
       'arbitrum',
       routerConfig,
+      ownersByChain,
     ),
-    base: getRebalanceableCollateralTokenConfigForChain('base', routerConfig),
+    base: getRebalanceableCollateralTokenConfigForChain(
+      'base',
+      routerConfig,
+      ownersByChain,
+    ),
     ethereum: getRebalanceableCollateralTokenConfigForChain(
       'ethereum',
       routerConfig,
+      ownersByChain,
     ),
     polygon: getRebalanceableCollateralTokenConfigForChain(
       'polygon',
       routerConfig,
+      ownersByChain,
     ),
-    pulsechain: getSyntheticTokenConfigForChain('pulsechain', routerConfig),
+    pulsechain: getSyntheticTokenConfigForChain(
+      'pulsechain',
+      routerConfig,
+      ownersByChain,
+    ),
   };
 
   return deployConfig;
