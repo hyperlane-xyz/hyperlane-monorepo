@@ -1,5 +1,6 @@
 ---
+"@hyperlane-xyz/radix-sdk": minor
 "@hyperlane-xyz/sdk": minor
 ---
 
-add radix hook reader
+export radix hook reader
