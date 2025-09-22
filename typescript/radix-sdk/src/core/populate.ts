@@ -125,6 +125,40 @@ export class RadixCorePopulate {
     );
   }
 
+  public async setRoutingIsmRoute({
+    from_address,
+    ism,
+    route,
+  }: {
+    from_address: string;
+    ism: string;
+    route: { domain: number; ism_address: string };
+  }) {
+    return this.base.createCallMethodManifestWithOwner(
+      from_address,
+      ism,
+      'set_route',
+      [u32(route.domain), address(route.ism_address)],
+    );
+  }
+
+  public async removeRoutingIsmRoute({
+    from_address,
+    ism,
+    domain,
+  }: {
+    from_address: string;
+    ism: string;
+    domain: number;
+  }) {
+    return this.base.createCallMethodManifestWithOwner(
+      from_address,
+      ism,
+      'remove_route',
+      [u32(domain)],
+    );
+  }
+
   public async setRoutingIsmOwner({
     from_address,
     ism,

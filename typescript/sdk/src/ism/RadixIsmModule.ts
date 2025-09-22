@@ -1,3 +1,5 @@
+import { Logger } from 'pino';
+
 import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   Address,
@@ -7,6 +9,7 @@ import {
   assert,
   deepEquals,
   eqAddress,
+  intersection,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -29,6 +32,7 @@ import {
   MultisigIsmConfig,
   STATIC_ISM_TYPES,
 } from './types.js';
+import { calculateDomainRoutingDelta } from './utils.js';
 
 type IsmModuleAddresses = {
   deployedIsm: Address;
@@ -112,7 +116,22 @@ export class RadixIsmModule extends HyperlaneModule<
       return [];
     }
 
-    return [];
+    let updateTxs: AnnotatedRadixTransaction[] = [];
+    if (expectedConfig.type === IsmType.ROUTING) {
+      const logger = this.logger.child({
+        destination: this.chain,
+        ismType: expectedConfig.type,
+      });
+      logger.debug(`Updating ${expectedConfig.type} on ${this.chain}`);
+
+      updateTxs = await this.updateRoutingIsm({
+        actual: actualConfig,
+        expected: expectedConfig,
+        logger,
+      });
+    }
+
+    return updateTxs;
   }
 
   // manually write static create function
@@ -233,6 +252,87 @@ export class RadixIsmModule extends HyperlaneModule<
     }
 
     return ism;
+  }
+
+  protected async updateRoutingIsm({
+    actual,
+    expected,
+    logger,
+  }: {
+    actual: DomainRoutingIsmConfig;
+    expected: DomainRoutingIsmConfig;
+    logger: Logger;
+  }): Promise<AnnotatedRadixTransaction[]> {
+    const updateTxs: AnnotatedRadixTransaction[] = [];
+
+    const knownChains = new Set(this.metadataManager.getKnownChainNames());
+
+    const { domainsToEnroll, domainsToUnenroll } = calculateDomainRoutingDelta(
+      actual,
+      expected,
+    );
+
+    const knownEnrolls = intersection(knownChains, new Set(domainsToEnroll));
+
+    // Enroll domains
+    for (const origin of knownEnrolls) {
+      logger.debug(
+        `Reconfiguring preexisting routing ISM for origin ${origin}...`,
+      );
+      const ism = await this.deploy({
+        config: expected.domains[origin],
+      });
+
+      const domain = this.metadataManager.getDomainId(origin);
+      updateTxs.push({
+        annotation: `Setting new ISM for origin ${origin}...`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.core.setRoutingIsmRoute({
+          from_address: this.signer.getAddress(),
+          ism: this.args.addresses.deployedIsm,
+          route: {
+            ism_address: ism,
+            domain,
+          },
+        }),
+      });
+    }
+
+    const knownUnenrolls = intersection(
+      knownChains,
+      new Set(domainsToUnenroll),
+    );
+
+    // Unenroll domains
+    for (const origin of knownUnenrolls) {
+      const domain = this.metadataManager.getDomainId(origin);
+      updateTxs.push({
+        annotation: `Unenrolling originDomain ${domain} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.core.removeRoutingIsmRoute({
+          from_address: this.signer.getAddress(),
+          ism: this.args.addresses.deployedIsm,
+          domain,
+        }),
+      });
+    }
+
+    // Update ownership
+    if (!eqAddress(actual.owner, expected.owner)) {
+      updateTxs.push({
+        annotation: `Transferring ownership of ISM from ${
+          actual.owner
+        } to ${expected.owner}`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.core.setRoutingIsmOwner({
+          from_address: this.signer.getAddress(),
+          ism: this.args.addresses.deployedIsm,
+          new_owner: expected.owner,
+        }),
+      });
+    }
+
+    return updateTxs;
   }
 
   protected async deployNoopIsm(): Promise<Address> {
