@@ -12,7 +12,12 @@ import {
 import { strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
-import { EntityDetails, INSTRUCTIONS, RadixHookTypes } from '../utils/types.js';
+import {
+  EntityDetails,
+  INSTRUCTIONS,
+  RadixHookTypes,
+  RadixIsmTypes,
+} from '../utils/types.js';
 import { bytes } from '../utils/utils.js';
 
 export class RadixCorePopulate {
@@ -74,7 +79,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'MerkleRootMultisigIsm',
+      RadixIsmTypes.MERKLE_ROOT_MULTISIG,
       INSTRUCTIONS.INSTANTIATE,
       [
         array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
@@ -95,7 +100,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'MessageIdMultisigIsm',
+      RadixIsmTypes.MESSAGE_ID_MULTISIG,
       INSTRUCTIONS.INSTANTIATE,
       [
         array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
@@ -114,7 +119,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'RoutingIsm',
+      RadixIsmTypes.ROUTING_ISM,
       INSTRUCTIONS.INSTANTIATE,
       [
         array(
@@ -152,7 +157,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'NoopIsm',
+      RadixIsmTypes.NOOP_ISM,
       INSTRUCTIONS.INSTANTIATE,
       [],
     );
