@@ -182,11 +182,12 @@ export class RebalancerContextFactory {
     }
 
     this.logger.debug(
-      'Using txSender:',
-      txSender,
-      this.context.signerAddress
-        ? '(from CLI key)'
-        : '(from REBALANCER env var)',
+      {
+        warpRouteId: this.config.warpRouteId,
+        txSender,
+        txSenderSource: this.context.signerAddress ? 'cli' : 'env',
+      },
+      'Using txSender',
     );
 
     const explorer = new ExplorerClient(explorerUrl);
