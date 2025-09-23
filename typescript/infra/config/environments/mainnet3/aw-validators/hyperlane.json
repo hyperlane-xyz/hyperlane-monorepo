@@ -2,8 +2,8 @@
   "abstract": {
     "validators": ["0x2ef8ece5b51562e65970c7d36007baa43a1de685"]
   },
-  "zoramainnet": {
-    "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  "forma": {
+    "validators": []
   },
   "ancient8": {
     "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
@@ -397,5 +397,8 @@
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+  },
+  "zoramainnet": {
+    "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
   }
 }
