@@ -251,7 +251,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flowmainnet: true,
     fluence: true,
     form: true,
-    forma: true,
+    forma: false, // disable relaying while RPC issues are resolved
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
