@@ -162,7 +162,7 @@ contract EverclearTokenBridgeTest is Test {
     bytes internal feeSignature = hex"1234567890abcdef";
 
     // Events to test
-    event FeeParamsUpdated(uint256 fee, uint256 deadline);
+    event FeeParamsUpdated(uint32 destination, uint256 fee, uint256 deadline);
     event OutputAssetSet(uint32 destination, bytes32 outputAsset);
 
     function setUp() public {
@@ -195,7 +195,7 @@ contract EverclearTokenBridgeTest is Test {
         bridge = EverclearTokenBridge(address(proxy));
         // Setup initial state
         vm.startPrank(OWNER);
-        bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
+        bridge.setFeeParams(DESTINATION, FEE_AMOUNT, feeDeadline, feeSignature);
         bridge.setOutputAsset(
             OutputAssetInfo({
                 destination: DESTINATION,
@@ -255,12 +255,14 @@ contract EverclearTokenBridgeTest is Test {
         bytes memory newSig = hex"abcdef";
 
         vm.expectEmit(true, true, false, true);
-        emit FeeParamsUpdated(newFee, newDeadline);
+        emit FeeParamsUpdated(DESTINATION, newFee, newDeadline);
 
         vm.prank(OWNER);
-        bridge.setFeeParams(newFee, newDeadline, newSig);
+        bridge.setFeeParams(DESTINATION, newFee, newDeadline, newSig);
 
-        (uint256 fee, uint256 deadline, bytes memory sig) = bridge.feeParams();
+        (uint256 fee, uint256 deadline, bytes memory sig) = bridge.feeParams(
+            DESTINATION
+        );
         assertEq(fee, newFee);
         assertEq(deadline, newDeadline);
         assertEq(sig, newSig);
@@ -269,7 +271,7 @@ contract EverclearTokenBridgeTest is Test {
     function testSetFeeParamsOnlyOwner() public {
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(ALICE);
-        bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
+        bridge.setFeeParams(DESTINATION, FEE_AMOUNT, feeDeadline, feeSignature);
     }
 
     // ============ setOutputAsset Tests ============
@@ -474,9 +476,11 @@ contract EverclearTokenBridgeTest is Test {
         );
 
         vm.prank(OWNER);
-        bridge.setFeeParams(fee, deadline, feeSignature);
+        bridge.setFeeParams(DESTINATION, fee, deadline, feeSignature);
 
-        (uint256 storedFee, uint256 storedDeadline, ) = bridge.feeParams();
+        (uint256 storedFee, uint256 storedDeadline, ) = bridge.feeParams(
+            DESTINATION
+        );
         assertEq(storedFee, fee);
         assertEq(storedDeadline, deadline);
     }
@@ -687,7 +691,12 @@ contract EverclearTokenBridgeForkTest is Test {
 
         // Configure the bridge
         vm.startPrank(OWNER);
-        bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
+        bridge.setFeeParams(
+            OPTIMISM_DOMAIN,
+            FEE_AMOUNT,
+            feeDeadline,
+            feeSignature
+        );
         bridge.setOutputAsset(
             OutputAssetInfo({
                 destination: OPTIMISM_DOMAIN,
@@ -817,7 +826,12 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
 
         // Configure the ETH bridge using existing fee params and signature
         vm.startPrank(OWNER);
-        ethBridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
+        ethBridge.setFeeParams(
+            OPTIMISM_DOMAIN,
+            FEE_AMOUNT,
+            feeDeadline,
+            feeSignature
+        );
         ethBridge.setOutputAsset(
             OutputAssetInfo({
                 destination: OPTIMISM_DOMAIN,
@@ -827,6 +841,12 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         ethBridge.enrollRemoteRouter(OPTIMISM_DOMAIN, RECIPIENT);
 
         // Handle ARB-ARB transfers as well
+        ethBridge.setFeeParams(
+            ARBITRUM_DOMAIN,
+            FEE_AMOUNT,
+            feeDeadline,
+            feeSignature
+        );
         ethBridge.setOutputAsset(
             OutputAssetInfo({
                 destination: ARBITRUM_DOMAIN,
