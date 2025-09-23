@@ -821,12 +821,36 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  fractal: {
-    threshold: 1,
+  forma: {
+    threshold: 4,
     validators: [
       {
-        address: '0x3476c9652d3371bb01bbb4962516fffee5e73754',
-        alias: AW_VALIDATOR_ALIAS,
+        address: '0x5B19F64F04f495D3958804Ec416c165F00f74898',
+        alias: 'Cosmostation',
+      },
+      {
+        address: '0x3f869C36110F00D10dC74cca3ac1FB133cf019ad',
+        alias: 'Polkachu',
+      },
+      {
+        address: '0xE74c7632aF1De54D208f1b9e18B22988dDc8C4CE',
+        alias: 'Imperator',
+      },
+      {
+        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
+        alias: 'Everstake',
+      },
+      {
+        address: '0x1734abc14f0e68cdaf64f072831f6a6c8f622c37',
+        alias: 'DSRV',
+      },
+      {
+        address: '0xb6536d1b52969d6c66bb85533b9ab04d886b3401',
+        alias: 'Engima',
+      },
+      {
+        address: '0x184Fc4899a8271783C962e4841BeE74F8526bC2c',
+        alias: 'Stakecito',
       },
     ],
   },

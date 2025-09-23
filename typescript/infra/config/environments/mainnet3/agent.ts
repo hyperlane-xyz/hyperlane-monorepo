@@ -108,7 +108,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flowmainnet: true,
     fluence: true,
     form: true,
-    // fractal: false,
+    forma: false, // relayer + scraper only
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
@@ -251,7 +251,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flowmainnet: true,
     fluence: true,
     form: true,
-    // fractal: false,
+    forma: true,
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
@@ -394,7 +394,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flowmainnet: true,
     fluence: true,
     form: true,
-    // fractal: false,
+    forma: true,
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
@@ -499,7 +499,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 
 // Chains not in our core set of supported chains, and supported ONLY by the scraper
 export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
-  forma: true,
   edgenchain: true,
 };
 
@@ -604,6 +603,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { originDomain: getDomainId('noble') },
       { originDomain: getDomainId('starknet') },
       { originDomain: getDomainId('paradex') },
+      // Not a core chain
+      { originDomain: getDomainId('forma') },
     ],
   },
   {
@@ -614,6 +615,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('mantle') },
       // Temporary workaround due to funky Torus gas amounts.
       { destinationDomain: getDomainId('torus') },
+      // Not a core chain
+      { destinationDomain: getDomainId('forma') },
       // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
       // outside of Solana are ignored.
       { originDomain: getDomainId('infinityvmmainnet') },
