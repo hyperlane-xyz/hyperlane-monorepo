@@ -22,7 +22,6 @@ import {
 import {
   ChainMetadata,
   ChainMetadataSchema,
-  ChainStatus,
   ExplorerFamily,
   getDomainId,
 } from './chainMetadataTypes.js';

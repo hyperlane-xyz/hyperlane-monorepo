@@ -2,4 +2,4 @@
 "@hyperlane-xyz/sdk": minor
 ---
 
-Fix a bug in the `ChainMetadataManager.tryGetChainMetadata` method which returned deprecated chains metadata if they had the same chain id as an existing chain
+Fix a bug in the `EvmIcaTxSubmitter.submit` method which failed when the evm chain id and the hyperlane domain id are different
