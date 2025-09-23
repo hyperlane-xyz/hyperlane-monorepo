@@ -1,5 +1,15 @@
-import { Address, HexString } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  isNullish,
+  pick,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
+import {
+  ExplorerLicenseType,
+  SolidityStandardJsonInput,
+} from '../deploy/verify/types.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 
 export enum EtherscanLikeExplorerApiModule {
@@ -226,4 +236,143 @@ export async function getContractSourceCode(
     );
 
   return sourceCodeResults;
+}
+
+type VerifyImplementationContractViaSolidityStandardJsonOptions = {
+  sourceCode: SolidityStandardJsonInput;
+  contractName: string;
+  contractAddress: Address;
+  compilerVersion: string;
+  zkCompilerVersion?: string;
+  licenseType?: ExplorerLicenseType;
+  constructorArguments?: HexString;
+};
+
+interface RawVerifyImplementationContractViaSolidityStandardJsonOptions
+  extends BaseEtherscanLikeAPIParams<
+    EtherscanLikeExplorerApiModule.CONTRACT,
+    EtherscanLikeExplorerApiAction.VERIFY_IMPLEMENTATION
+  > {
+  codeformat: 'solidity-standard-json-input';
+  compilerversion: string; // see https://etherscan.io/solcversions for list of support versions
+  licenseType?: ExplorerLicenseType;
+  zksolcversion?: string; //only for zksync chains
+  contractaddress: string;
+  sourceCode: string;
+  contractname: string;
+  /* TYPO IS ENFORCED BY API */
+  constructorArguements?: string;
+}
+
+/**
+ * Wrapper function for the `https://api.etherscan.io/v2/api?chainid=1&module=contract&action=verifysourcecode&apikey=...`
+ * endpoint request with the `codeformat` option set to `solidity-standard-json-input`
+ */
+export async function verifyContractSourceCodeViaStandardJsonInput(
+  explorerOptions: EtherscanLikeAPIOptions,
+  verificationOptions: VerifyImplementationContractViaSolidityStandardJsonOptions,
+): Promise<string> {
+  const input: RawVerifyImplementationContractViaSolidityStandardJsonOptions = {
+    module: EtherscanLikeExplorerApiModule.CONTRACT,
+    action: EtherscanLikeExplorerApiAction.VERIFY_IMPLEMENTATION,
+    codeformat: 'solidity-standard-json-input',
+    compilerversion: verificationOptions.compilerVersion,
+    contractaddress: verificationOptions.contractAddress,
+    contractname: verificationOptions.contractName,
+    sourceCode: JSON.stringify(verificationOptions.sourceCode),
+    constructorArguements: strip0x(
+      verificationOptions.constructorArguments ?? '',
+    ),
+    licenseType: verificationOptions.licenseType,
+  };
+
+  if (!isNullish(verificationOptions.zkCompilerVersion)) {
+    input.zksolcversion = verificationOptions.zkCompilerVersion;
+  }
+
+  const params = pick(input, ['action', 'module']);
+  const formParams = new URLSearchParams(Object.entries(input));
+
+  const requestUrl = formatExplorerUrl(explorerOptions, params);
+  const response = await fetch(requestUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: formParams,
+  });
+
+  return handleEtherscanResponse(response);
+}
+
+type VerifyProxyContractOptions = {
+  contractAddress: Address;
+  implementationAddress: Address;
+};
+
+interface RawVerifyProxyContractOptions
+  extends BaseEtherscanLikeAPIParams<
+    EtherscanLikeExplorerApiModule.CONTRACT,
+    EtherscanLikeExplorerApiAction.VERIFY_PROXY
+  > {
+  address: Address;
+  expectedimplementation: Address;
+}
+
+/**
+ * Wrapper function for the `https://api.etherscan.io/v2/api?chainid=...&module=contract&action=verifyproxycontract&apikey=...`
+ */
+export async function verifyProxyContract(
+  explorerOptions: EtherscanLikeAPIOptions,
+  { contractAddress, implementationAddress }: VerifyProxyContractOptions,
+): Promise<string> {
+  const input: RawVerifyProxyContractOptions = {
+    action: EtherscanLikeExplorerApiAction.VERIFY_PROXY,
+    module: EtherscanLikeExplorerApiModule.CONTRACT,
+    address: contractAddress,
+    expectedimplementation: implementationAddress,
+  };
+
+  const params = pick(input, ['action', 'module']);
+  const formParams = new URLSearchParams(Object.entries(input));
+
+  const requestUrl = formatExplorerUrl(explorerOptions, params);
+  const response = await fetch(requestUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: formParams,
+  });
+
+  return handleEtherscanResponse(response);
+}
+
+interface RawGetContractVerificationStatus
+  extends BaseEtherscanLikeAPIParams<
+    EtherscanLikeExplorerApiModule.CONTRACT,
+    | EtherscanLikeExplorerApiAction.CHECK_IMPLEMENTATION_STATUS
+    | EtherscanLikeExplorerApiAction.CHECK_PROXY_STATUS
+  > {
+  guid: string;
+}
+
+/**
+ * Wrapper function for the
+ * `https://api.etherscan.io/v2/api?chainid=...&module=contract&action=...&guid=...&apikey=...`
+ * endpoint request with the `action` option set to `checkverifystatus` if `isProxy` is false
+ * or set to `checkproxyverification` if set to true.
+ */
+export async function checkContractVerificationStatus(
+  explorerOptions: EtherscanLikeAPIOptions,
+  { isProxy, verificationId }: { verificationId: string; isProxy: boolean },
+): Promise<void> {
+  const input: RawGetContractVerificationStatus = {
+    action: isProxy
+      ? EtherscanLikeExplorerApiAction.CHECK_PROXY_STATUS
+      : EtherscanLikeExplorerApiAction.CHECK_IMPLEMENTATION_STATUS,
+    guid: verificationId,
+    module: EtherscanLikeExplorerApiModule.CONTRACT,
+  };
+
+  const requestUrl = formatExplorerUrl(explorerOptions, input);
+  const response = await fetch(requestUrl);
+
+  await handleEtherscanResponse(response);
 }
