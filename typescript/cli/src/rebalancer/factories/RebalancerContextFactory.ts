@@ -170,25 +170,10 @@ export class RebalancerContextFactory {
     const explorerUrl =
       process.env.EXPLORER_API_URL || 'https://api.hyperlane.xyz/v1/graphql';
 
-    // Prefer CLI signer address over environment variable
-    const txSender = this.context.signerAddress ?? process.env.REBALANCER ?? '';
-    if (!txSender) {
-      throw new Error(
-        'Transaction sender address is required. Please provide either:\n' +
-          '  1. A private key via --key flag (preferred), or\n' +
-          '  2. Set the REBALANCER environment variable to your wallet address\n' +
-          'Example: hyperlane warp rebalancer --config config.yaml --key 0x123...',
-      );
+    const rebalancerAddress = this.context.signerAddress;
+    if (!rebalancerAddress) {
+      throw new Error('rebalancer address is required');
     }
-
-    this.logger.debug(
-      {
-        warpRouteId: this.config.warpRouteId,
-        txSender,
-        txSenderSource: this.context.signerAddress ? 'cli' : 'env',
-      },
-      'Using txSender',
-    );
 
     const explorer = new ExplorerClient(explorerUrl);
     // Compose decorators: Inflight guard first, then semaphore, then core rebalancer
@@ -201,7 +186,7 @@ export class RebalancerContextFactory {
       this.config,
       withSemaphore,
       explorer,
-      txSender,
+      rebalancerAddress,
       new ChainMetadataManager(this.context.chainMetadata),
       this.logger,
     );
