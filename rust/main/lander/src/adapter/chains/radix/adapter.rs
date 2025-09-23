@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use hyperlane_core::H512;
-use hyperlane_radix::{DeliveredCalldata, RadixProcessCalldata, RadixProviderForLander};
+use hyperlane_radix::{RadixDeliveredCalldata, RadixProcessCalldata, RadixProviderForLander};
 use uuid::Uuid;
 
 use crate::{
@@ -104,7 +104,7 @@ impl AdaptsChain for RadixAdapter {
         &self,
         tx: &Transaction,
     ) -> Result<Vec<PayloadDetails>, LanderError> {
-        let delivered_calldata_list: Vec<(DeliveredCalldata, &PayloadDetails)> = tx
+        let delivered_calldata_list: Vec<(RadixDeliveredCalldata, &PayloadDetails)> = tx
             .payload_details
             .iter()
             .filter_map(|d| {
@@ -166,7 +166,7 @@ mod tests {
         #[async_trait::async_trait]
         impl RadixProviderForLander for MockRadixProviderForLander {
             async fn get_tx_hash_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse>;
-            async fn check_preview(&self, params: &DeliveredCalldata) -> ChainResult<bool>;
+            async fn check_preview(&self, params: &RadixDeliveredCalldata) -> ChainResult<bool>;
         }
     }
 

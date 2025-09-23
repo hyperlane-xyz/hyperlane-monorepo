@@ -277,7 +277,7 @@ impl Mailbox for RadixMailbox {
         let id: Bytes32 = message_id.into();
         let encoded_arguments = manifest_encode(&id).map_err(HyperlaneRadixError::from)?;
 
-        let calldata = DeliveredCalldata {
+        let calldata = RadixDeliveredCalldata {
             component_address: self.encoded_address.clone(),
             method_name: "delivered".into(),
             encoded_arguments,
@@ -299,7 +299,7 @@ pub struct RadixProcessCalldata {
 
 /// Data required to check if a message was delivered on-chain for Radix chain
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct DeliveredCalldata {
+pub struct RadixDeliveredCalldata {
     /// Address of mailbox (already encoded)
     pub component_address: String,
     /// Method to call on mailbox
