@@ -109,10 +109,10 @@ pub enum DropReason {
 // add nested enum entries as we add VMs
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
-    CosmWasm,
     Evm(EthereumTxPrecursor),
-    Radix(RadixTxPrecursor),
     Svm(SealevelTxPrecursor),
+    CosmWasm,
+    Radix(RadixTxPrecursor),
 }
 
 #[cfg(test)]
