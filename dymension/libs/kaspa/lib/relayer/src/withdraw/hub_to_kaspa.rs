@@ -278,7 +278,7 @@ fn create_withdrawal_pskt(
     Ok(pskt
         .no_more_inputs()
         .no_more_outputs()
-        .payload(payload)
+        .payload(Some(payload))?
         .signer())
 }
 
@@ -640,15 +640,17 @@ pub fn finalize_pskt(
         })
         .unwrap();
 
-    let mass = 10_000; // TODO: why? is it okay to keep this value?
-    let finalize_fn = finalized_pskt
+    // TODO: Get network ID from configuration instead of hardcoding
+    let network_id = NetworkId::new(kaspa_consensus_core::network::NetworkType::Mainnet);
+    let params = Params::from(network_id);
+
+    let tx = finalized_pskt
         .extractor()
         .unwrap()
-        .extract_tx()
+        .extract_tx(&params)
         .map_err(|e: ExtractError| eyre::eyre!("Extract kaspa tx: {:?}", e))?;
-    let (tx, _) = finalize_fn(mass);
 
-    let rpc_tx = (&tx).into();
+    let rpc_tx: RpcTransaction = (&tx.tx).into();
     Ok(rpc_tx)
 }
 

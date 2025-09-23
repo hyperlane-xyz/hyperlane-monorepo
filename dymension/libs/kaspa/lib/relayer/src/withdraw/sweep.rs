@@ -52,9 +52,13 @@ pub async fn create_sweeping_bundle(
         escrow.m() as u16,
         // One payment output – escrow account which receives the entire sweeping amount
         PaymentDestination::from(PaymentOutput::new(escrow.addr.clone(), sweep_balance)),
-        // No priority fee required
-        Fees::SenderPays(RELAYER_SWEEPING_PRIORITY_FEE),
+        // Mass calculation safety factor
         None,
+        // Fees
+        Fees::SenderPays(RELAYER_SWEEPING_PRIORITY_FEE),
+        // Payload (not used for sweeping)
+        None,
+        // No multiplexer channel
         None,
     )
     .map_err(|e| eyre::eyre!("Create sweeping generator settings: {}", e))?;

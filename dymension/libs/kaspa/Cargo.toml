@@ -50,3 +50,4 @@ eyre = "=0.6.8"
 
 # HYPERLANE
 hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", rev = "4cde36b" }
+
