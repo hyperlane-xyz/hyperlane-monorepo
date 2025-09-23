@@ -17,7 +17,6 @@ export const testnet4SupportedChainNames = [
   'holesky',
   'hyperliquidevmtestnet',
   'incentivtestnet',
-  'infinityvmmonza',
   'kyvetestnet',
   'megaethtestnet',
   'milkywaytestnet',

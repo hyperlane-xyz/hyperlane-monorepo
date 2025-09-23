@@ -67,10 +67,6 @@
     "amount": "1.500000007",
     "decimals": 9
   },
-  "infinityvmmonza": {
-    "amount": "1.000000007",
-    "decimals": 9
-  },
   "kyvetestnet": {
     "amount": "0.001",
     "decimals": 1

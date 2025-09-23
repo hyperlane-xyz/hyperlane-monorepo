@@ -281,16 +281,6 @@ export const validatorChainConfig = (
         'somniatestnet',
       ),
     },
-    infinityvmmonza: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('infinityvmmonza'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb'],
-        },
-        'infinityvmmonza',
-      ),
-    },
 
     cotitestnet: {
       interval: 5,

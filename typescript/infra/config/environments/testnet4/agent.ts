@@ -63,7 +63,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     hyperliquidevmtestnet: true,
     incentivtestnet: true,
-    infinityvmmonza: false,
     kyvetestnet: false,
     megaethtestnet: false,
     milkywaytestnet: true,
@@ -101,7 +100,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     hyperliquidevmtestnet: true,
     incentivtestnet: true,
-    infinityvmmonza: false,
     kyvetestnet: false,
     megaethtestnet: false,
     milkywaytestnet: true,
@@ -139,7 +137,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     hyperliquidevmtestnet: true,
     incentivtestnet: true,
-    infinityvmmonza: false,
     kyvetestnet: false,
     megaethtestnet: false,
     milkywaytestnet: true,
@@ -217,15 +214,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       {
         destinationDomain: getDomainId('somniatestnet'),
       },
-    ],
-  },
-  {
-    type: GasPaymentEnforcementPolicyType.None,
-    matchingList: [
-      // Temporary workaround due to InfinityVM Monza whitelisting.
-      { originDomain: getDomainId('infinityvmmonza') },
-      // Temporary workaround due to InfinityVM Monza whitelisting.
-      { destinationDomain: getDomainId('infinityvmmonza') },
     ],
   },
   // Default policy is OnChainFeeQuoting
@@ -455,7 +443,6 @@ export const kesselRunnerNetworks = [
 // Relayer Neutron Testnet is not running at the moment, but we keep the config
 // If you would like to run it for testing purposes, you should configure it
 // only for chains you would like to run it.
-// Relayer Neutron Testnet should not relay messages for `infinityvmmonza`.
 const neutron: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Neutron,

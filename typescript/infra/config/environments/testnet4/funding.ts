@@ -24,7 +24,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['hyperliquidevmtestnet', 'infinityvmmonza', 'megaethtestnet'],
+  chainsToSkip: ['hyperliquidevmtestnet', 'megaethtestnet'],
   // desired balance config
   desiredBalancePerChain: {
     arbitrumsepolia: '0.1',
@@ -45,7 +45,6 @@ export const keyFunderConfig: KeyFunderConfig<
     holesky: '5',
     hyperliquidevmtestnet: '0.1',
     incentivtestnet: '1',
-    infinityvmmonza: '0',
     kyvetestnet: '0',
     megaethtestnet: '0.01',
     milkywaytestnet: '0',

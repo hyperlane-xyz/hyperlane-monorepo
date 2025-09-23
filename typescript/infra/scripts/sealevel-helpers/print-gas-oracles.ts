@@ -139,7 +139,6 @@ function getChainConnections(
       // For SOL/solanatestnet-sonicsvmtestnet
       ['solanatestnet', 'sonicsvmtestnet'],
       ['solanatestnet', 'connextsepolia'],
-      ['solanatestnet', 'infinityvmmonza'],
       ['solanatestnet', 'basesepolia'],
     ];
   } else {
