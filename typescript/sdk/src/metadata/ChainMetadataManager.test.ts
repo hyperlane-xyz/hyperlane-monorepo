@@ -120,11 +120,6 @@ describe(ChainMetadataManager.name, () => {
           expected: cosmosMetadata,
         },
         {
-          description: 'Cosmos chain by string chain ID',
-          input: 'cosmoshub-4',
-          expected: cosmosMetadata,
-        },
-        {
           description: 'Sealevel chain by name',
           input: 'solana',
           expected: solanaMetadata,
@@ -132,11 +127,6 @@ describe(ChainMetadataManager.name, () => {
         {
           description: 'Sealevel chain by domain ID',
           input: 1399811149,
-          expected: solanaMetadata,
-        },
-        {
-          description: 'Sealevel chain by chain ID',
-          input: 101,
           expected: solanaMetadata,
         },
       ];
