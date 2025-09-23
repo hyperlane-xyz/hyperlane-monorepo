@@ -10,7 +10,7 @@ use eyre::Result;
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::GrpcProvider as CosmosGrpcClient;
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Prefix as KaspaAddrPrefix;
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint};

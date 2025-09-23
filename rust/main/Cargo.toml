@@ -7,10 +7,10 @@ members = [
   "applications/hyperlane-operation-verifier",
   "applications/hyperlane-warp-route",
   "chains/hyperlane-cosmos",
-  "chains/hyperlane-cosmos-native",
   "chains/dymension-kaspa",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
+  "chains/hyperlane-radix",
   "chains/hyperlane-sealevel",
   "chains/hyperlane-starknet",
   "ethers-prometheus",
@@ -185,7 +185,24 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 ya-gcp = { version = "0.11.3", features = ["storage"] }
+<<<<<<< HEAD
 downcast-rs = { version = "2.0.1", features = ["sync"] }
+||||||| 11c1b188f
+=======
+radix-common = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+radix-transactions = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+radix-engine-interface = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+scrypto = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
+  "serde",
+] }
+core-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
+gateway-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
+scrypto-derive = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
+sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
+  "serde",
+] }
+hyperlane-cosmos-rs = "0.1.4"
+>>>>>>> main
 
 
 ## TODO: remove this

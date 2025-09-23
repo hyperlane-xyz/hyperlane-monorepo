@@ -4,7 +4,7 @@ use eyre::Error as EyreError;
 use hex::ToHex;
 use hyperlane_core::Encode;
 use hyperlane_core::HyperlaneMessage;
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
     TransactionOutpoint as ProtoTransactionOutpoint, WithdrawalId, WithdrawalStatus,
 };

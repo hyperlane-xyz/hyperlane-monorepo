@@ -44,8 +44,7 @@ interface ApplyParams extends DeployParams {
 export async function runCoreDeploy(params: DeployParams) {
   const { context, config } = params;
   const chain = params.chain;
-  const { isDryRun, registry, multiProvider, multiProtocolSigner, apiKeys } =
-    context;
+  const { registry, multiProvider, multiProtocolSigner, apiKeys } = context;
 
   // Validate ISM compatibility
   validateCoreIsmCompatibility(chain, config, context);
@@ -121,12 +120,10 @@ export async function runCoreDeploy(params: DeployParams) {
       throw new Error('Chain protocol is not supported yet!');
   }
 
-  if (!isDryRun) {
-    await registry.updateChain({
-      chainName: chain,
-      addresses: deployedAddresses,
-    });
-  }
+  await registry.updateChain({
+    chainName: chain,
+    addresses: deployedAddresses,
+  });
 
   logGreen('✅ Core contract deployments complete:\n');
   log(indentYamlOrJson(yamlStringify(deployedAddresses, null, 2), 4));

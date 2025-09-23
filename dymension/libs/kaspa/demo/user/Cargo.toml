@@ -22,7 +22,7 @@ kaspa-wallet-keys = { workspace = true }
 kaspa-consensus-core = { workspace = true }
 kaspa-addresses = { workspace = true }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
-hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
+hyperlane-cosmos = { path = "../../../../../rust/main/chains/hyperlane-cosmos" }
 hyperlane-metric = { path = "../../../../../rust/main/hyperlane-metric" }
 rand = { version = "0.9" }
 rand_08 = { version = "0.8.5", package = "rand" }

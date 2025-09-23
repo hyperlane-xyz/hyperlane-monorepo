@@ -24,7 +24,7 @@ use hyperlane_core::{
     SignedCheckpointWithMessageId, H256,
 };
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Signature as HLCoreSignature};
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::prost::Message;
 use kaspa_wallet_core::prelude::DynRpcApi;

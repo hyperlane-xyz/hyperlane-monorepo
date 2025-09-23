@@ -97,7 +97,7 @@ impl LatestCheckpointReorgReporter {
         origin: &HyperlaneDomain,
     ) -> Vec<(Url, ValidatorSettings)> {
         use ChainConnectionConf::{
-            Cosmos, CosmosNative, Ethereum, Fuel, Kaspa, Sealevel, Starknet,
+            Cosmos, CosmosNative, Ethereum, Fuel, Kaspa, Radix, Sealevel, Starknet,
         };
 
         let chain_conf = settings
@@ -146,7 +146,14 @@ impl LatestCheckpointReorgReporter {
                 vec![(
                     Url::parse("http://localhost:16200").unwrap(),
                     ChainConnectionConf::Kaspa(conn),
-                )] // TODO:
+                )]
+            }
+            Radix(conn) => {
+                Self::map_urls_to_connections(conn.gateway.clone(), conn, |conn, url| {
+                    let mut updated_conn = conn.clone();
+                    updated_conn.gateway = vec![url];
+                    Radix(updated_conn)
+                })
             }
         };
 

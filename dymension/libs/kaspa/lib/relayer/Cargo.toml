@@ -32,7 +32,7 @@ hex = { workspace = true }
 api-rs = { path = "../api", package = "openapi" }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
-hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
+hyperlane-cosmos = { path = "../../../../../rust/main/chains/hyperlane-cosmos" }
 serde = { version = "^1.0", features = ["derive"] }
 prost = { version = "0.13", default-features = false }
 hyperlane-cosmos-rs = { workspace = true }

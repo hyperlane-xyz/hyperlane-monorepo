@@ -20,10 +20,10 @@ use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256, H512, U256,
 };
-use hyperlane_cosmos_native::ConnectionConf as HubConnectionConf;
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_native::RawCosmosAmount;
-use hyperlane_cosmos_native::Signer as HyperlaneSigner;
+use hyperlane_cosmos::ConnectionConf as HubConnectionConf;
+use hyperlane_cosmos::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::RawCosmosAmount;
+use hyperlane_cosmos::Signer as HyperlaneSigner;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};

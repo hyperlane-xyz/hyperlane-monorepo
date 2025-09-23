@@ -12,7 +12,7 @@ use eyre::Result;
 use hardcode::tx::SWEEPING_THRESHOLD;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::GrpcProvider as CosmosGrpcClient;
 use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, UtxoEntry};
 use kaspa_wallet_pskt::bundle::Bundle;
 use tracing::info;

@@ -11,7 +11,7 @@ pub use dym_kas_core::api::base::{get_config, RateLimitConfig};
 pub use dym_kas_core::api::client::*;
 
 use crate::ConnectionConf;
-use hyperlane_cosmos_native::Signer;
+use hyperlane_cosmos::Signer;
 
 #[derive(Debug)]
 pub struct KaspaHttpClient {

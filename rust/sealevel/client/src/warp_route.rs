@@ -46,6 +46,17 @@ use crate::{
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
 
+const MAX_LOCAL_DECIMALS: u8 = 9;
+
+pub(crate) fn assert_decimals_max(decimals: u8) {
+    assert!(
+        decimals <= MAX_LOCAL_DECIMALS,
+        "Invalid decimals: {}. Decimals must be <= {}. Use remoteDecimals instead.",
+        decimals,
+        MAX_LOCAL_DECIMALS
+    );
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct SplTokenOffchainMetadata {
     name: String,
@@ -230,6 +241,8 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         app_config: &TokenConfig,
         program_id: Pubkey,
     ) {
+        // Enforce decimals limit
+        assert_decimals_max(app_config.decimal_metadata.decimals);
         let try_fund_ata_payer = |ctx: &mut Context, client: &RpcClient| {
             if let Some(ata_payer_funding_amount) = self.ata_payer_funding_amount {
                 if matches!(
@@ -566,26 +579,26 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
     ) {
         // We only have validations for SVM tokens at the moment.
         for (chain, config) in app_configs_to_deploy.iter() {
-            let synthetic = match &config.token_type {
-                TokenType::Synthetic(s) | TokenType::SyntheticMemo(s) => s,
-                _ => continue,
-            };
-            // Verify that the metadata URI provided points to a valid JSON file.
-            let metadata_uri = match synthetic.uri.as_ref() {
-                Some(uri) => uri,
-                None => {
-                    if chain_metadatas
-                        .get(*chain)
-                        .unwrap()
-                        .is_testnet
-                        .unwrap_or(false)
-                    {
-                        // Skip validation for testnet chain
-                        println!(
-                            "Skipping metadata URI validation for testnet chain: {}",
-                            chain
-                        );
-                        continue;
+            assert_decimals_max(config.decimal_metadata.decimals);
+            if let TokenType::Synthetic(synthetic) || TokenType::SyntheticMemo(synthetic) = &config.token_type {
+                // Verify that the metadata URI provided points to a valid JSON file.
+                let metadata_uri = match synthetic.uri.as_ref() {
+                    Some(uri) => uri,
+                    None => {
+                        if chain_metadatas
+                            .get(*chain)
+                            .unwrap()
+                            .is_testnet
+                            .unwrap_or(false)
+                        {
+                            // Skip validation for testnet chain
+                            println!(
+                                "Skipping metadata URI validation for testnet chain: {}",
+                                chain
+                            );
+                            continue;
+                        }
+                        panic!("URI not provided for token: {}", chain);
                     }
                     panic!("URI not provided for token: {}", chain);
                 }

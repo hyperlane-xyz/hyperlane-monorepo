@@ -28,7 +28,7 @@ axum = { workspace = true }
 relayer = { path = "../relayer" }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" , features = ["agent", "async", "test-utils"] }
 hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
-hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
+hyperlane-cosmos = { path = "../../../../../rust/main/chains/hyperlane-cosmos" }
 hyperlane-cosmos-rs = { workspace = true }
 eyre = { workspace = true }
 serde = { version = "^1.0", features = ["derive"] }

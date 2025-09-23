@@ -9,7 +9,7 @@ use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::H256;
 use hyperlane_core::U256;
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::GrpcProvider as CosmosGrpcClient;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::RpcBlock;
 use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};

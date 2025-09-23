@@ -1,0 +1,55 @@
+{
+  "name": "@hyperlane-xyz/radix-sdk",
+  "version": "18.2.0",
+  "description": "Hyperlane TypeScript SDK for the Radix Hyperlane SDK module",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "dist/index.d.ts",
+  "files": [
+    "/dist"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "keywords": [
+    "hyperlane",
+    "radix",
+    "blockchain",
+    "sdk"
+  ],
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "rm -rf ./dist && tsc",
+    "format": "prettier --write .",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "prettier": "prettier --write ./src",
+    "clean": "rm -rf ./dist ./cache",
+    "test": "echo \"no tests in radix-sdk\"",
+    "test:ci": "echo \"no tests in radix-sdk\"",
+    "test:e2e": "echo \"no e2e tests in radix-sdk\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/mocha": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.1.6",
+    "@typescript-eslint/parser": "^8.1.6",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
+    "mocha": "^11.5.0",
+    "mocha-steps": "^1.3.0",
+    "prettier": "^3.5.3",
+    "typescript": "5.3.3",
+    "typescript-eslint": "^8.37.0"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/utils": "18.2.0",
+    "@radixdlt/babylon-core-api-sdk": "^1.3.0",
+    "@radixdlt/babylon-gateway-api-sdk": "^1.10.1",
+    "@radixdlt/radix-engine-toolkit": "^1.0.5",
+    "bignumber.js": "^9.1.1"
+  }
+}

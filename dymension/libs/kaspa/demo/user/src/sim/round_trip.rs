@@ -11,7 +11,7 @@ use cosmrs::Any;
 use eyre::Result;
 use hyperlane_core::H256;
 use hyperlane_core::U256;
-use hyperlane_cosmos_native::CosmosNativeProvider;
+use hyperlane_cosmos::{CosmosProvider, native::ModuleQueryClient};
 use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use kaspa_addresses::Address;
@@ -28,7 +28,7 @@ use tracing::error;
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
-    pub hub: CosmosNativeProvider,
+    pub hub: CosmosProvider<ModuleQueryClient>,
     pub w: EasyKaspaWallet,
     pub args: TaskArgs,
     pub kas_rest: HttpClient,

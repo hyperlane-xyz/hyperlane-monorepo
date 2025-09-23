@@ -1,5 +1,5 @@
 use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
-use hyperlane_cosmos_native::signers::Signer;
+use hyperlane_cosmos::signers::Signer;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use hyperlane_warp_route::TokenMessage;
 use prost::Message as _;

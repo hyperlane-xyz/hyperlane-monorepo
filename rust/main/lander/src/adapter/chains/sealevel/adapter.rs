@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, ops::Sub, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -250,25 +250,47 @@ impl SealevelAdapter {
         // query the tx hash from most to least finalized to learn what level of finality it has
         // the calls below can be parallelized if needed, but for now avoid rate limiting
 
-        if self
+        let tx_resp = self
             .client
             .get_transaction_with_commitment(signature, CommitmentConfig::finalized())
-            .await
-            .is_ok()
-        {
-            info!("transaction finalized");
-            return Ok(TransactionStatus::Finalized);
+            .await;
+
+        if let Ok(tx) = tx_resp {
+            if let Some(meta) = tx.transaction.meta {
+                // It is possible for a failed transaction to be finalized.
+                // In this case, we need to re-submit.
+                if meta.err.is_some() {
+                    warn!(?signature, ?tx_hash, "Transaction finalized, but failed");
+                    return Ok(TransactionStatus::Dropped(
+                        TransactionDropReason::DroppedByChain,
+                    ));
+                } else {
+                    info!(?tx_hash, "transaction finalized");
+                    return Ok(TransactionStatus::Finalized);
+                }
+            }
         }
 
-        // the "confirmed" commitment is equivalent to being "included" in a block on evm
-        if self
+        let tx_resp = self
             .client
             .get_transaction_with_commitment(signature, CommitmentConfig::confirmed())
-            .await
-            .is_ok()
-        {
-            info!("transaction included");
-            return Ok(TransactionStatus::Included);
+            .await;
+
+        // the "confirmed" commitment is equivalent to being "included" in a block on evm
+        if let Ok(tx) = tx_resp {
+            if let Some(meta) = tx.transaction.meta {
+                // It is possible for a failed transaction to be confirmed.
+                // In this case, we need to re-submit.
+                if meta.err.is_some() {
+                    warn!(?signature, ?tx_hash, "Transaction included, but failed");
+                    return Ok(TransactionStatus::Dropped(
+                        TransactionDropReason::DroppedByChain,
+                    ));
+                } else {
+                    info!(?tx_hash, "transaction included");
+                    return Ok(TransactionStatus::Included);
+                }
+            }
         }
 
         match self
@@ -405,7 +427,7 @@ impl AdaptsChain for SealevelAdapter {
         let time_before_resubmission = self.time_before_resubmission();
         if let Some(ref last_submission_time) = tx.last_submission_attempt {
             let seconds_since_last_submission =
-                (Utc::now() - last_submission_time).num_milliseconds() as u64;
+                Utc::now().sub(last_submission_time).num_milliseconds() as u64;
             return seconds_since_last_submission >= time_before_resubmission.as_millis() as u64;
         }
         true

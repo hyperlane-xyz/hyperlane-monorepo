@@ -13,8 +13,7 @@ use hyperlane_core::{
     Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, Signature, SignedCheckpointWithMessageId,
     TxOutcome, H256,
 };
-use hyperlane_cosmos_native::h512_to_cosmos_hash;
-use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
+use hyperlane_cosmos::native::{h512_to_cosmos_hash, CosmosNativeMailbox};
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_core::time::unix_now;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
