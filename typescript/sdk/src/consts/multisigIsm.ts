@@ -932,6 +932,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  giwasepolia: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xc170bef56759e35740ac2d3d0fece33bd9acb90b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   gnosis: {
     threshold: 2,
     validators: [

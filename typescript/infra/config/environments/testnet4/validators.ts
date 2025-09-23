@@ -430,5 +430,16 @@ export const validatorChainConfig = (
         'radixtestnet',
       ),
     },
+
+    giwasepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('giwasepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc170bef56759e35740ac2d3d0fece33bd9acb90b'],
+        },
+        'giwasepolia',
+      ),
+    },
   };
 };

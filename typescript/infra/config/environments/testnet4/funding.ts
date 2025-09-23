@@ -24,7 +24,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['hyperliquidevmtestnet', 'infinityvmmonza'],
+  chainsToSkip: ['hyperliquidevmtestnet', 'infinityvmmonza', 'megaethtestnet'],
   // desired balance config
   desiredBalancePerChain: {
     arbitrumsepolia: '0.1',
@@ -41,6 +41,7 @@ export const keyFunderConfig: KeyFunderConfig<
     // no funding for solana
     eclipsetestnet: '0',
     fuji: '5',
+    giwasepolia: '0.1',
     holesky: '5',
     hyperliquidevmtestnet: '0.1',
     incentivtestnet: '1',
