@@ -45,11 +45,17 @@ contract OpL2NativeTokenBridge is HypNative {
         _MailboxClient_initialize(_hook, address(0), _owner);
     }
 
-    function quoteTransferRemote(
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to quote for two messages: prove and finalize.
+     */
+    function _quoteGasPayment(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
+    ) internal view override returns (uint256) {
         bytes memory message = TokenMessage.format(_recipient, _amount);
         uint256 proveQuote = _Router_quoteDispatch(
             _destination,
@@ -63,11 +69,69 @@ contract OpL2NativeTokenBridge is HypNative {
             _finalizeHookMetadata(),
             address(hook)
         );
-        quotes = new Quote[](1);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: proveQuote + finalizeQuote + _amount
-        });
+        return proveQuote + finalizeQuote;
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to use the L2 bridge for transferring native tokens and trigger two messages:
+     * - Prove message with amount 0 to prove the withdrawal
+     * - Finalize message with the actual amount to finalize the withdrawal
+     * transferRemote typically has the dispatch of the message as the 4th and final step. However, in this case we want the Hyperlane messageId to be passed via the rollup bridge.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public payable virtual override returns (bytes32) {
+        // 1. No external fee calculation necessary
+        require(
+            _amount > 0,
+            "OP L2 token bridge: amount must be greater than 0"
+        );
+
+        // 2. Prepare the "dispatch" of messages by actually dispatching the Hyperlane messages
+
+        // Dispatch proof message (no token amount)
+        bytes32 proveMessageId = _Router_quoteAndDispatch(
+            _destination,
+            TokenMessage.format(_recipient, 0),
+            _proveHookMetadata(),
+            address(hook)
+        );
+
+        // Dispatch withdrawal message (token + fee)
+        bytes32 withdrawMessageId = _Router_quoteAndDispatch(
+            _destination,
+            TokenMessage.format(_recipient, _amount),
+            _finalizeHookMetadata(),
+            address(hook)
+        );
+
+        // include for legible error message
+        HypNative._transferFromSender(_amount);
+
+        // 3. Emit event manually
+        emit SentTransferRemote(_destination, _recipient, _amount);
+
+        // used for mapping withdrawal to hyperlane prove and finalize messages
+        bytes memory extraData = OPL2ToL1Withdrawal.encodeData(
+            proveMessageId,
+            withdrawMessageId
+        );
+
+        // 4. "Dispatch" the message by calling the L2 bridge to transfer native tokens
+        l2Bridge.bridgeETHTo{value: _amount}(
+            _recipient.bytes32ToAddress(),
+            OP_MIN_GAS_LIMIT_ON_L1,
+            extraData
+        );
+
+        if (address(this).balance > 0) {
+            payable(msg.sender).sendValue(address(this).balance);
+        }
+
+        return withdrawMessageId;
     }
 
     function _proveHookMetadata() internal view virtual returns (bytes memory) {
@@ -79,73 +143,13 @@ contract OpL2NativeTokenBridge is HypNative {
             });
     }
 
-    function _finalizeHookMetadata()
-        internal
-        view
-        virtual
-        returns (bytes memory)
-    {
+    function _finalizeHookMetadata() internal view returns (bytes memory) {
         return
             StandardHookMetadata.format({
                 _msgValue: 0,
                 _gasLimit: FINALIZE_WITHDRAWAL_GAS_LIMIT,
                 _refundAddress: address(this)
             });
-    }
-
-    function _transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount,
-        bytes memory _hookMetadata,
-        address _hook
-    ) internal virtual override returns (bytes32) {
-        require(
-            _amount > 0,
-            "OP L2 token bridge: amount must be greater than 0"
-        );
-
-        // refund first message fees to address(this) to cover second message
-        bytes32 proveMessageId = super._transferRemote(
-            _destination,
-            _recipient,
-            0,
-            _proveHookMetadata(),
-            _hook
-        );
-
-        bytes32 withdrawMessageId = super._transferRemote(
-            _destination,
-            _recipient,
-            _amount,
-            _finalizeHookMetadata(),
-            _hook
-        );
-
-        // include for legible error message
-        _transferFromSender(_amount);
-
-        // used for mapping withdrawal to hyperlane prove and finalize messages
-        bytes memory extraData = OPL2ToL1Withdrawal.encodeData(
-            proveMessageId,
-            withdrawMessageId
-        );
-        l2Bridge.bridgeETHTo{value: _amount}(
-            _recipient.bytes32ToAddress(),
-            OP_MIN_GAS_LIMIT_ON_L1,
-            extraData
-        );
-
-        if (address(this).balance > 0) {
-            address refundAddress = _hookMetadata.getRefundAddress(msg.sender);
-            require(
-                refundAddress != address(0),
-                "OP L2 token bridge: refund address is 0"
-            );
-            payable(refundAddress).sendValue(address(this).balance);
-        }
-
-        return withdrawMessageId;
     }
 
     function handle(uint32, bytes32, bytes calldata) external payable override {
@@ -168,13 +172,11 @@ abstract contract OpL1NativeTokenBridge is HypNative, OPL2ToL1CcipReadIsm {
         _MailboxClient_initialize(address(0), address(0), _owner);
     }
 
-    function _transferRemote(
+    function transferRemote(
         uint32,
         bytes32,
-        uint256,
-        bytes memory,
-        address
-    ) internal override returns (bytes32) {
+        uint256
+    ) public payable override returns (bytes32) {
         revert("OP L1 token bridge should not send messages");
     }
 

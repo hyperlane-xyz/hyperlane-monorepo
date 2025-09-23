@@ -41,18 +41,8 @@ contract EverclearEthBridge is EverclearTokenBridge {
         )
     {}
 
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) public view override returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _amount +
-                feeParams.fee +
-                _quoteGasPayment(_destination, _recipient, _amount)
-        });
+    function _transfersNativeTokens() internal pure override returns (bool) {
+        return true;
     }
 
     /**
@@ -75,21 +65,5 @@ contract EverclearEthBridge is EverclearTokenBridge {
 
         // Send ETH to recipient
         payable(_recipient).sendValue(_amount);
-    }
-
-    function _chargeSender(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal virtual override returns (uint256 dispatchValue) {
-        uint256 fee = _feeAmount(_destination, _recipient, _amount);
-
-        uint256 totalAmount = _amount + fee + feeParams.fee;
-        _transferFromSender(totalAmount);
-        dispatchValue = msg.value - totalAmount;
-        if (fee > 0) {
-            _transferTo(feeRecipient(), fee);
-        }
-        return dispatchValue;
     }
 }

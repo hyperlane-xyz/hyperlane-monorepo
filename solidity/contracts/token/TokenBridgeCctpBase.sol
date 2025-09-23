@@ -15,7 +15,7 @@ import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -69,7 +69,7 @@ abstract contract TokenBridgeCctpBase is
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
         ITokenMessenger _tokenMessenger
-    ) FungibleTokenRouter(_SCALE, _mailbox) {
+    ) TokenRouter(_SCALE, _mailbox) {
         require(
             _messageTransmitter.version() == _getCCTPVersion(),
             "Invalid messageTransmitter CCTP version"
@@ -87,10 +87,6 @@ abstract contract TokenBridgeCctpBase is
         _disableInitializers();
     }
 
-    function token() public view virtual override returns (address) {
-        return address(wrappedToken);
-    }
-
     function initialize(
         address _hook,
         address _owner,
@@ -103,6 +99,69 @@ abstract contract TokenBridgeCctpBase is
         setUrls(__urls);
         wrappedToken.approve(address(tokenMessenger), type(uint256).max);
     }
+
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to return the wrapped token address (instead of implementing HypERC20Collateral).
+     */
+    function token() public view virtual override returns (address) {
+        return address(wrappedToken);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to bridge the tokens via Circle.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public payable virtual override returns (bytes32 messageId) {
+        // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
+        (uint256 feeRecipientFee, uint256 externalFee) = calculateFeesAndCharge(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
+        uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
+        bytes memory _message = bridgeViaCircle(
+            circleDomain,
+            _recipient,
+            _amount + feeRecipientFee + externalFee
+        );
+
+        // 3. Emit the SentTransferRemote event and 4. dispatch the message
+        return
+            emitAndDispatch(
+                _destination,
+                _recipient,
+                _amount,
+                _message,
+                feeRecipientFee,
+                externalFee
+            );
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to transfer the tokens from the sender to this contract (like HypERC20Collateral).
+     */
+    function _transferFromSender(uint256 _amount) internal virtual override {
+        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to not transfer the tokens to the recipient, as the CCTP transfer will do it.
+     */
+    function _transferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal override {}
 
     function interchainSecurityModule()
         external
@@ -266,15 +325,9 @@ abstract contract TokenBridgeCctpBase is
         _sendMessageIdToIsm(circleDestination, ism, id);
     }
 
-    // @dev Copied from HypERC20Collateral._transferFromSender
-    function _transferFromSender(uint256 _amount) internal virtual override {
-        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
-    }
-
-    function _transferTo(
-        address _recipient,
+    function bridgeViaCircle(
+        uint32 _destination,
+        bytes32 _recipient,
         uint256 _amount
-    ) internal override {
-        // do not transfer to recipient as the CCTP transfer will do it
-    }
+    ) internal virtual returns (bytes memory message) {}
 }

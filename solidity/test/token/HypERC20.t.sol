@@ -25,7 +25,7 @@ import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGas
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
-import {FungibleTokenRouter} from "../../contracts/token/libs/FungibleTokenRouter.sol";
+import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 
 import {Router} from "../../contracts/client/Router.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
@@ -63,7 +63,7 @@ abstract contract HypTokenTest is Test {
     address internal constant PROXY_ADMIN = address(0x37);
 
     ERC20Test internal primaryToken;
-    FungibleTokenRouter internal localToken;
+    TokenRouter internal localToken;
     HypERC20 internal remoteToken;
     MockMailbox internal localMailbox;
     MockMailbox internal remoteMailbox;
@@ -244,42 +244,6 @@ abstract contract HypTokenTest is Test {
         vm.expectEmit(true, true, false, true);
         emit SentTransferRemote(DESTINATION, BOB.addressToBytes32(), _amount);
         _performRemoteTransferAndGas(_msgValue, _amount, _gasOverhead);
-    }
-
-    function _performRemoteTransferWithHook(
-        uint256 _msgValue,
-        uint256 _amount,
-        address _hook,
-        bytes memory _hookMetadata
-    ) internal returns (bytes32 messageId) {
-        vm.prank(ALICE);
-        messageId = localToken.transferRemote{value: _msgValue}(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            _amount,
-            _hookMetadata,
-            address(_hook)
-        );
-        _processTransfers();
-        assertEq(remoteToken.balanceOf(BOB), _amount);
-    }
-
-    function testTransfer_withHookSpecified(
-        uint256 fee,
-        bytes calldata metadata
-    ) public virtual {
-        TestPostDispatchHook hook = new TestPostDispatchHook();
-        hook.setFee(fee);
-
-        vm.prank(ALICE);
-        primaryToken.approve(address(localToken), TRANSFER_AMT);
-        bytes32 messageId = _performRemoteTransferWithHook(
-            REQUIRED_VALUE,
-            TRANSFER_AMT,
-            address(hook),
-            metadata
-        );
-        assertTrue(hook.messageDispatched(messageId));
     }
 
     function testBenchmark_overheadGasUsage() public virtual {
@@ -775,24 +739,6 @@ contract HypNativeTest is HypTokenTest {
         return _account.balance;
     }
 
-    function testTransfer_withHookSpecified(
-        uint256 fee,
-        bytes calldata metadata
-    ) public override {
-        TestPostDispatchHook hook = new TestPostDispatchHook();
-        hook.setFee(fee);
-
-        uint256 value = REQUIRED_VALUE + TRANSFER_AMT;
-
-        bytes32 messageId = _performRemoteTransferWithHook(
-            value,
-            TRANSFER_AMT,
-            address(hook),
-            metadata
-        );
-        assertTrue(hook.messageDispatched(messageId));
-    }
-
     function testRemoteTransfer() public {
         _performRemoteTransferWithEmit(
             REQUIRED_VALUE,
@@ -842,9 +788,7 @@ contract HypNativeTest is HypTokenTest {
         nativeToken.transferRemote{value: nativeValue}(
             DESTINATION,
             bRecipient,
-            nativeValue + 1,
-            bytes(""),
-            address(0)
+            nativeValue + 1
         );
     }
 }
@@ -924,24 +868,6 @@ contract HypERC20ScaledTest is HypTokenTest {
         emit Transfer(address(0x0), ALICE, TRANSFER_AMT / EFFECTIVE_SCALE);
 
         _handleLocalTransfer(TRANSFER_AMT);
-    }
-
-    function testTransfer_withHookSpecified(
-        uint256 fee,
-        bytes calldata metadata
-    ) public override {
-        TestPostDispatchHook hook = new TestPostDispatchHook();
-        hook.setFee(fee);
-
-        vm.prank(ALICE);
-        bytes32 messageId = localToken.transferRemote{value: REQUIRED_VALUE}(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            TRANSFER_AMT,
-            metadata,
-            address(hook)
-        );
-        assertTrue(hook.messageDispatched(messageId));
     }
 
     function _getBalances(

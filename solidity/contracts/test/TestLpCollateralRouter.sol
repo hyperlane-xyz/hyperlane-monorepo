@@ -2,13 +2,13 @@
 pragma solidity >=0.8.0;
 
 import {LpCollateralRouter} from "../token/libs/LpCollateralRouter.sol";
-import {FungibleTokenRouter} from "../token/libs/FungibleTokenRouter.sol";
+import {TokenRouter} from "../token/libs/TokenRouter.sol";
 
 contract TestLpCollateralRouter is LpCollateralRouter {
     constructor(
         uint256 _scale,
         address _mailbox
-    ) FungibleTokenRouter(_scale, _mailbox) initializer {
+    ) TokenRouter(_scale, _mailbox) initializer {
         _LpCollateralRouter_initialize();
     }
 
