@@ -7,6 +7,7 @@ use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, TxOutcome, H256, U256,
 };
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
 use starknet::core::types::Felt;
 use starknet::core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
@@ -48,6 +49,7 @@ impl StarknetValidatorAnnounce {
         conn: &ConnectionConf,
         locator: &ContractLocator<'_>,
         signer: Option<Signer>,
+        metrics: PrometheusClientMetrics,
     ) -> ChainResult<Self> {
         let account = build_single_owner_account(conn.urls.clone(), signer).await?;
 
@@ -57,7 +59,7 @@ impl StarknetValidatorAnnounce {
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider: StarknetProvider::new(locator.domain.clone(), conn, metrics),
             conn: conn.clone(),
         })
     }
@@ -110,11 +112,19 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
             .collect();
 
         let storage_locations_res = self
-            .contract
-            .get_announced_storage_locations(&validators_calldata)
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .provider
+            .track_metric_call(
+                "validator_announce_get_announced_storage_locations",
+                || async {
+                    self.contract
+                        .get_announced_storage_locations(&validators_calldata)
+                        .call()
+                        .await
+                        .map_err(Into::<HyperlaneStarknetError>::into)
+                        .map_err(Into::into)
+                },
+            )
+            .await?;
 
         // In cairo, long strings are represented as an array of Field elements.
         // Storage locations is an array of long strings, so we just need to parse each
@@ -154,7 +164,16 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
             warn!("Unable to get announce contract call");
             return None;
         };
-        let Ok(estimate) = tx.estimate_fee().await else {
+        let Ok(estimate) = self
+            .provider
+            .track_metric_call("validator_announce_estimate_fee", || async {
+                tx.estimate_fee()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .map_err(Into::into)
+            })
+            .await
+        else {
             warn!("Unable to estimate announce contract call");
             return None;
         };
