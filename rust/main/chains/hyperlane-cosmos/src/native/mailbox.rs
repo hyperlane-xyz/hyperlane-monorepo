@@ -215,8 +215,8 @@ impl CosmosNativeMailbox {
         let gas_price = if response.tx_result.code.is_err() {
             FixedPointNumber::try_from(U256::zero())?
         } else {
-            FixedPointNumber::try_from(response.tx_result.gas_wanted)?
-                .mul(&self.provider.rpc().gas_price())
+            FixedPointNumber::try_from(U256::from(response.tx_result.gas_wanted))?
+                .mul(self.provider.rpc().gas_price())
         };
 
         let executed = response.tx_result.code.is_ok() && response.check_tx.code.is_ok();
