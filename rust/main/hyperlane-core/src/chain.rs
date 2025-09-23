@@ -222,6 +222,7 @@ pub enum KnownHyperlaneDomain {
     PolygonZkEvm = 1101,
     Prom = 227,
     ProofOfPlay = 70700,
+    Radix = 1633970780,
     Rarichain = 1000012617,
     Ronin = 2020,
     Reactive = 1597,
