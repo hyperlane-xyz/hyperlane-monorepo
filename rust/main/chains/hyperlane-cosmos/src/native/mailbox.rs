@@ -1,19 +1,21 @@
 use std::ops::Mul;
 
-use cosmrs::Any;
-use hex::ToHex;
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
-    RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
-};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};
-use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
-use hyperlane_cosmos_rs::prost::{Message, Name};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tonic::async_trait;
 use tracing::info;
+
+use cosmrs::Any;
+use hex::ToHex;
+use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
+use hyperlane_cosmos_rs::prost::{Message, Name};
+
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, RawHyperlaneMessage,
+    ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256, FixedPointNumber, H512,
+};
 
 use crate::{utils, CosmosProvider};
 
@@ -22,8 +24,7 @@ use super::module_query_client::ModuleQueryClient;
 /// Cosmos Native Mailbox
 #[derive(Debug, Clone)]
 pub struct CosmosNativeMailbox {
-    /// CosmosNativeProvider (public for Kaspa bridge usage)
-    pub provider: CosmosProvider<ModuleQueryClient>,
+    provider: CosmosProvider<ModuleQueryClient>,
     domain: HyperlaneDomain,
     address: H256,
 }
@@ -61,11 +62,6 @@ impl CosmosNativeMailbox {
             value: process.encode_to_vec(),
         })
     }
-
-    /// A provider for the chain (keeping this method for compatibility)
-    pub fn provider(&self) -> CosmosProvider<ModuleQueryClient> {
-        self.provider.clone()
-    }
 }
 
 impl HyperlaneChain for CosmosNativeMailbox {
@@ -81,7 +77,7 @@ impl HyperlaneChain for CosmosNativeMailbox {
 }
 
 impl HyperlaneContract for CosmosNativeMailbox {
-    /// Return the original address
+    /// Return the address of this contract
     fn address(&self) -> H256 {
         self.address
     }
@@ -89,39 +85,55 @@ impl HyperlaneContract for CosmosNativeMailbox {
 
 #[async_trait]
 impl Mailbox for CosmosNativeMailbox {
-    /// Return the ISM address
-    async fn default_ism(&self) -> ChainResult<H256> {
-        let data = self
+    /// Gets the current mailbox dispatch count
+    ///
+    /// - `reorg_period` is how far behind the current block to query, if not specified
+    ///   it will query at the latest block.
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let height = self.provider.reorg_to_height(reorg_period).await?;
+        let mailbox = self
             .provider
-            .query_client()
-            .mailbox(self.address.encode_hex(), None)
-            .await?
-            .mailbox;
-
-        let res = data
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("mailbox does not have default ISM")
-            })?
-            .default_ism
-            .parse()?;
-
-        Ok(res)
+            .query()
+            .mailbox(self.address.encode_hex(), Some(height))
+            .await?;
+        Ok(mailbox.mailbox.map(|m| m.message_sent).unwrap_or(0))
     }
 
-    /// Return the recipient ISM of a given recipient
-    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let res = self
+    /// Fetch the status of a message
+    async fn delivered(&self, id: H256) -> ChainResult<bool> {
+        let delivered = self
             .provider
-            .query_client()
+            .query()
+            .delivered(self.address.encode_hex(), id.encode_hex())
+            .await?;
+        Ok(delivered.delivered)
+    }
+
+    /// Fetch the current default interchain security module value
+    async fn default_ism(&self) -> ChainResult<H256> {
+        let mailbox = self
+            .provider
+            .query()
+            .mailbox(self.address.encode_hex(), None)
+            .await?;
+        match mailbox.mailbox {
+            Some(mailbox) => {
+                let ism: H256 = mailbox.default_ism.parse()?;
+                Ok(ism)
+            }
+            None => Err(ChainCommunicationError::from_other_str("no default ism")),
+        }
+    }
+
+    /// Get the recipient ism address
+    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        let recipient = self
+            .provider
+            .query()
             .recipient_ism(recipient.encode_hex())
             .await?;
-
-        if res.ism.is_empty() {
-            return self.default_ism().await;
-        }
-        let res = res.ism.parse()?;
-
-        Ok(res)
+        let recipient: H256 = recipient.ism_id.parse()?;
+        Ok(recipient)
     }
 
     /// Process a message with a proof against the provided signed checkpoint
@@ -129,71 +141,36 @@ impl Mailbox for CosmosNativeMailbox {
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-        _tx_gas_limit: Option<U256>,
+        tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        // we need the mailbox process transaction to be a single transaction and to be
-        // blocking to ensure that the nonce is always monotonic increasing.
-        // Hence the gas estimation and submission are done in the same call.
-        let process_message = self.encode_hyperlane_message(message, metadata)?;
-
-        let gas_limit = self
-            .provider
-            .rpc()
-            .estimate_gas(vec![process_message.clone()])
-            .await;
-
-        let gas_limit = gas_limit
-            .map_err(Into::<ChainCommunicationError>::into)?
-            .base_fee
-            .mul(U256::from_f64_lossy(
-                utils::get_transmitter_gas_overide(&self.domain),
-            ))
-            .div_ceil(U256::one());
+        let any_encoded = self.encode_hyperlane_message(message, metadata)?;
+        let gas_limit: Option<u64> = tx_gas_limit.map(|gas| gas.as_u64());
 
         let response = self
             .provider
             .rpc()
-            .send(vec![process_message], Some(gas_limit))
+            .send(vec![any_encoded], gas_limit)
             .await?;
 
-        let tx_id = H256::from_slice(response.hash.as_bytes());
-
-        // we assume that the underlying cosmos chain does not have gas refunds
-        // in that case the gas paid will always be:
-        // gas_wanted * gas_price
-        // Cosmos does not charge a fee on failed transactions (before the ante handler).
-        let gas_price = if response.tx_result.code.is_err() {
-            FixedPointNumber::from(U256::zero())
-        } else {
-            FixedPointNumber::from(response.tx_result.gas_wanted)
-                .mul(&self.provider.rpc().gas_price())
-        };
-
-        Ok(TxOutcome {
-            transaction_id: tx_id.into(),
-            executed: response.tx_result.code.is_ok() && response.check_tx.code.is_ok(),
-            gas_used: response.tx_result.gas_used.into(),
-            gas_price,
-        })
+        Ok(utils::tx_response_to_outcome(
+            response,
+            self.provider.rpc().gas_price(),
+        ))
     }
 
-    /// Process a message with a proof against the provided signed checkpoint
-    /// submitting the transaction and returning the tx outcome
+    /// Estimate transaction costs to process a message.
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        let gas_limit = self
-            .provider
-            .rpc()
-            .estimate_gas(vec![self.encode_hyperlane_message(message, metadata)?])
-            .await?;
+        let any_encoded = self.encode_hyperlane_message(message, metadata)?;
+        let gas_limit = self.provider.rpc().estimate_gas(vec![any_encoded]).await?;
+
         Ok(TxCostEstimate {
-            // TODO: we are expecting this gas limit to be multiplied by the gas price but then again,
-            // TODO: we are dividing by the gas price in `process` to get the gas limit.
-            gas_limit: gas_limit.base_fee,
+            gas_limit: gas_limit.into(),
             gas_price: self.provider.rpc().gas_price(),
+            l2_gas_limit: None,
         })
     }
 
@@ -211,7 +188,6 @@ impl Mailbox for CosmosNativeMailbox {
         todo!()
     }
 }
-
 /// DYMENSION: required for Kaspa bridge, a special indicate progress TX
 /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L29
 impl CosmosNativeMailbox {
