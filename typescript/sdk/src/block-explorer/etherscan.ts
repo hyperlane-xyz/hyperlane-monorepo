@@ -110,6 +110,23 @@ async function handleEtherscanResponse<T>(response: Response): Promise<T> {
   return body.result;
 }
 
+function getFormPostRequestBody<
+  T extends BaseEtherscanLikeAPIParams<
+    EtherscanLikeExplorerApiModule,
+    EtherscanLikeExplorerApiAction
+  >,
+>(input: T): RequestInit {
+  const formParams = new URLSearchParams(
+    Object.entries(input).filter(([_key, value]) => !isNullish(value)),
+  );
+
+  return {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: formParams,
+  };
+}
+
 interface GetContractDeploymentTransaction
   extends BaseEtherscanLikeAPIParams<
     EtherscanLikeExplorerApiModule.CONTRACT,
@@ -319,14 +336,9 @@ export async function verifyContractSourceCodeViaStandardJsonInput(
   }
 
   const params = pick(input, ['action', 'module']);
-  const formParams = new URLSearchParams(Object.entries(input));
 
   const requestUrl = formatExplorerUrl(explorerOptions, params);
-  const response = await fetch(requestUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: formParams,
-  });
+  const response = await fetch(requestUrl, getFormPostRequestBody(input));
 
   return handleEtherscanResponse(response);
 }
@@ -360,14 +372,9 @@ export async function verifyProxyContract(
   };
 
   const params = pick(input, ['action', 'module']);
-  const formParams = new URLSearchParams(Object.entries(input));
 
   const requestUrl = formatExplorerUrl(explorerOptions, params);
-  const response = await fetch(requestUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: formParams,
-  });
+  const response = await fetch(requestUrl, getFormPostRequestBody(input));
 
   return handleEtherscanResponse(response);
 }
