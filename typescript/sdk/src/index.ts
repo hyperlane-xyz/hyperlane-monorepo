@@ -121,10 +121,10 @@ export {
   BuildArtifact,
   CompilerOptions,
   ContractVerificationInput,
-  ExplorerLicenseType,
   VerificationInput,
 } from './deploy/verify/types.js';
 export * as verificationUtils from './deploy/verify/utils.js';
+export { ExplorerLicenseType } from './block-explorer/etherscan.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
 export {
