@@ -1,4 +1,4 @@
-import { Logger } from 'pino';
+import type { Logger } from 'pino';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';

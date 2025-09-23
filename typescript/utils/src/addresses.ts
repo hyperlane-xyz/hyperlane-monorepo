@@ -221,12 +221,7 @@ export function normalizeAddressStarknet(address: Address) {
 }
 
 export function normalizeAddressRadix(address: Address) {
-  if (isZeroishAddress(address)) return address;
-  try {
-    return validateAndParseAddress(address);
-  } catch {
-    return address;
-  }
+  return address;
 }
 
 export function normalizeAddress(address: Address, protocol?: ProtocolType) {

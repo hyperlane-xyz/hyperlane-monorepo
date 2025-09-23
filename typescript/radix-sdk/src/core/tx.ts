@@ -126,6 +126,41 @@ export class RadixCoreTx {
     return this.base.getNewComponent(intentHashTransactionId);
   }
 
+  public async setRoutingIsmRoute({
+    ism,
+    route,
+  }: {
+    ism: string;
+    route: {
+      domain: number;
+      ism_address: string;
+    };
+  }) {
+    const transactionManifest = await this.populate.setRoutingIsmRoute({
+      from_address: this.account.address,
+      ism,
+      route,
+    });
+
+    await this.signer.signAndBroadcast(transactionManifest);
+  }
+
+  public async removeRoutingIsmRoute({
+    ism,
+    domain,
+  }: {
+    ism: string;
+    domain: number;
+  }) {
+    const transactionManifest = await this.populate.removeRoutingIsmRoute({
+      from_address: this.account.address,
+      ism,
+      domain,
+    });
+
+    await this.signer.signAndBroadcast(transactionManifest);
+  }
+
   public async setRoutingIsmOwner({
     ism,
     new_owner,

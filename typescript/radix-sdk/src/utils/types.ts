@@ -44,6 +44,13 @@ export type Isms =
   | RadixIsmTypes.ROUTING_ISM
   | RadixIsmTypes.NOOP_ISM;
 
+export enum RadixHookTypes {
+  IGP = 'InterchainGasPaymaster',
+  MERKLE_TREE = 'MerkleTreeHook',
+}
+
+export type Hooks = RadixHookTypes.IGP | RadixHookTypes.MERKLE_TREE;
+
 export interface EntityField {
   field_name: string;
   type_name: string;
