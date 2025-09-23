@@ -1,18 +1,23 @@
 import { spawn } from 'child_process';
-import fetch from 'node-fetch';
 import yargs from 'yargs';
 
-import { assertCorrectKubeContext } from '../agent-utils.js';
+import { Contexts } from '../../config/contexts.js';
+import { DeployEnvironment } from '../../src/config/environment.js';
+import {
+  assertCorrectKubeContext,
+  getArgs,
+  withContext,
+} from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
 interface RetryOptions {
-  environment: string;
+  environment: DeployEnvironment;
   messageId?: string;
   originDomain?: number;
   destinationDomain?: number;
   sender?: string;
   recipient?: string;
-  context?: string;
+  context?: Contexts;
   namespace?: string;
   port?: number;
 }
@@ -25,7 +30,7 @@ async function retryMessage(options: RetryOptions) {
     destinationDomain,
     sender,
     recipient,
-    context = 'hyperlane',
+    context = Contexts.Hyperlane,
     namespace,
     port = 9090,
   } = options;
@@ -39,8 +44,14 @@ async function retryMessage(options: RetryOptions) {
   // Determine namespace - use provided or derive from environment
   const ns = namespace || environment;
 
-  // Determine pod name - use omniscient relayer pattern
-  const podName = `omniscient-relayer-hyperlane-agent-relayer-0`;
+  // Construct pod name based on context following actual helm release naming:
+  // Helm release: omniscient-relayer (default) or omniscient-relayer-{context}
+  // Pod name: {helm-release}-hyperlane-agent-relayer-0
+  const helmRelease =
+    context === Contexts.Hyperlane
+      ? 'omniscient-relayer'
+      : `omniscient-relayer-${context}`;
+  const podName = `${helmRelease}-hyperlane-agent-relayer-0`;
 
   console.log(`📡 Setting up port-forward to ${podName} in namespace ${ns}...`);
 
@@ -61,7 +72,9 @@ async function retryMessage(options: RetryOptions) {
   await new Promise<void>((resolve, reject) => {
     const checkConnection = async () => {
       try {
-        await fetch(`http://localhost:${port}/health`, { timeout: 1000 });
+        await fetch(`http://localhost:${port}/health`, {
+          signal: AbortSignal.timeout(1000),
+        });
         isConnected = true;
         console.log(`✅ Port-forward established on port ${port}`);
         resolve();
@@ -148,13 +161,7 @@ async function retryMessage(options: RetryOptions) {
 }
 
 async function main() {
-  const argv = await yargs(process.argv.slice(2))
-    .option('environment', {
-      alias: 'e',
-      describe: 'Deploy environment',
-      type: 'string',
-      default: 'mainnet3',
-    })
+  const argv = await withContext(getArgs())
     .option('message-id', {
       alias: 'm',
       describe: 'Specific message ID to retry',
@@ -180,12 +187,6 @@ async function main() {
       describe: 'Recipient address to filter messages',
       type: 'string',
     })
-    .option('context', {
-      alias: 'c',
-      describe: 'Context',
-      type: 'string',
-      default: 'hyperlane',
-    })
     .option('namespace', {
       alias: 'n',
       describe: 'Kubernetes namespace (auto-detected if not provided)',
@@ -206,14 +207,20 @@ async function main() {
     .help()
     .alias('h', 'help')
     .example([
-      ['$0', 'Retry all eligible messages in mainnet3'],
-      ['$0 -m 0xe202b08d...', 'Retry specific message by ID'],
-      ['$0 -o 56 -d 1', 'Retry messages from BSC (56) to Ethereum (1)'],
+      ['$0 -e mainnet3', 'Retry all eligible messages in mainnet3'],
+      ['$0 -e mainnet3 -m 0xe202b08d...', 'Retry specific message by ID'],
       [
-        '$0 -s 0x1234... -r 0x5678...',
+        '$0 -e mainnet3 -o 56 -d 1',
+        'Retry messages from BSC (56) to Ethereum (1)',
+      ],
+      [
+        '$0 -e mainnet3 -s 0x1234... -r 0x5678...',
         'Retry messages from sender to recipient',
       ],
-      ['$0 -e testnet4 -c testnet', 'Retry messages in testnet4 environment'],
+      [
+        '$0 -e testnet4 -x neutron',
+        'Retry messages in testnet4 with neutron context',
+      ],
     ]).argv;
 
   // Validate that at least one filter method is provided when using whitelist
