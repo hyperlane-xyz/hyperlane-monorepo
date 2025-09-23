@@ -55,7 +55,7 @@ abstract contract LpCollateralRouter is
         address receiver,
         uint256 assets,
         uint256 shares
-    ) internal virtual override {
+    ) internal override {
         // checks
         _transferFromSender(assets);
 
@@ -75,7 +75,7 @@ abstract contract LpCollateralRouter is
         address owner,
         uint256 assets,
         uint256 shares
-    ) internal virtual override {
+    ) internal override {
         // checks
         if (caller != owner) {
             _spendAllowance(owner, caller, shares);

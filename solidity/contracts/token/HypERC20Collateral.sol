@@ -72,14 +72,14 @@ contract HypERC20Collateral is LpCollateralRouter {
         return address(wrappedToken);
     }
 
-    function _transferFromSender(uint256 _amount) internal virtual override {
+    function _transferFromSender(uint256 _amount) internal override {
         wrappedToken._transferFromSender(_amount);
     }
 
     function _transferTo(
         address _recipient,
         uint256 _amount
-    ) internal virtual override {
+    ) internal override {
         wrappedToken._transferTo(_recipient, _amount);
     }
 

@@ -44,7 +44,7 @@ contract HypERC4626OwnerCollateral is HypERC4626Collateral {
      */
     function _depositIntoVault(
         uint256 _amount
-    ) internal virtual override returns (uint256) {
+    ) internal override returns (uint256) {
         assetDeposited += _amount;
         vault.deposit(_amount, address(this));
         return _amount;
@@ -57,7 +57,7 @@ contract HypERC4626OwnerCollateral is HypERC4626Collateral {
     function _transferTo(
         address _recipient,
         uint256 _amount
-    ) internal virtual override {
+    ) internal override {
         assetDeposited -= _amount;
         vault.withdraw(_amount, _recipient, address(this));
     }

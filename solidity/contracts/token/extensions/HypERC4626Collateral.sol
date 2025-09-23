@@ -131,6 +131,7 @@ contract HypERC4626Collateral is TokenRouter {
         return address(wrappedToken);
     }
 
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function _transferTo(
         address _recipient,
         uint256 _shares
