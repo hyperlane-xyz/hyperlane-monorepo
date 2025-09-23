@@ -35,7 +35,9 @@ tracing.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
 
 # Radix dependencies
+core-api-client = { workspace = true }
 gateway-api-client = { workspace = true }
+radix-common = { workspace = true }
 radix-transactions = { workspace = true }
 
 [dev-dependencies]

@@ -6,8 +6,8 @@ use radix_common::manifest_args;
 use radix_common::prelude::ManifestArgs;
 use regex::Regex;
 use scrypto::{
-    address::AddressBech32Decoder, crypto::IsHash, network::NetworkDefinition,
-    prelude::manifest_encode, types::ComponentAddress,
+    address::AddressBech32Decoder, network::NetworkDefinition, prelude::manifest_encode,
+    types::ComponentAddress,
 };
 
 use hyperlane_core::{
@@ -245,26 +245,17 @@ impl Mailbox for RadixMailbox {
         let metadata = metadata.to_vec();
         let (visible_components, fee_summary) =
             self.visible_components(&message, &metadata).await?;
-        let tx = self
-            .provider
-            .build_tx(
-                |builder| {
-                    builder.call_method(
-                        self.address,
-                        "process",
-                        manifest_args!(&metadata, &message, &visible_components),
-                    )
-                },
-                Some(fee_summary),
-            )
-            .await?;
 
-        let tx_hash: H512 =
-            H256::from_slice(tx.transaction_hashes.transaction_intent_hash.0.as_bytes()).into();
+        let args = manifest_args!(&metadata, &message, &visible_components);
+
+        let encoded_arguments = manifest_encode(&args).map_err(HyperlaneRadixError::from)?;
 
         let data = RadixProcessCalldata {
-            raw_tx: tx.raw.to_vec(),
-            tx_hash,
+            component_address: self.encoded_address.clone(),
+            method_name: "process".into(),
+            encoded_arguments,
+            fee_summary,
+            tx_hash: None,
         };
         let json_str = serde_json::to_string(&data)
             .map_err(|err| ChainCommunicationError::JsonParseError(err))?;
@@ -291,10 +282,16 @@ impl Mailbox for RadixMailbox {
 /// Essentially the data that is needed to create a RadixTxPrecursor
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RadixProcessCalldata {
-    /// Raw bytes representation of the tx to be sent to the network
-    pub raw_tx: Vec<u8>,
+    /// Address of mailbox (already encoded)
+    pub component_address: String,
+    /// Method to call on mailbox
+    pub method_name: String,
+    /// parameters required to call method
+    pub encoded_arguments: Vec<u8>,
+    /// fee summary
+    pub fee_summary: FeeSummary,
     /// tx hash
-    pub tx_hash: H512,
+    pub tx_hash: Option<H512>,
 }
 
 /// Data required to check if a message was delivered on-chain for Radix chain
@@ -306,4 +303,57 @@ pub struct RadixDeliveredCalldata {
     pub method_name: String,
     /// parameters required to call method
     pub encoded_arguments: Vec<u8>,
+}
+
+#[cfg(test)]
+mod tests {
+    use scrypto::prelude::{manifest_decode, ManifestValue};
+
+    use hyperlane_core::Encode;
+
+    use super::*;
+
+    /// Test to ensure data produced from manifest_args!
+    /// can be correctly serialized from hyperlane-radix and
+    /// sent to lander.
+    #[test]
+    pub fn test_decode_manifest_args() {
+        let message = HyperlaneMessage::default();
+        let visible_components: Vec<ComponentAddress> = vec![];
+        let metadata: Vec<u8> = vec![1, 2, 3, 4];
+
+        let args = manifest_args!(&metadata, &message.to_vec(), &visible_components);
+
+        let encoded_args = manifest_encode(&args).expect("Failed to encode");
+
+        let manifest_args: ManifestValue =
+            manifest_decode(&encoded_args).expect("Failed to decode");
+
+        let expected = ManifestValue::Tuple {
+            fields: vec![
+                ManifestValue::Array {
+                    element_value_kind: sbor::ValueKind::U8,
+                    elements: metadata
+                        .iter()
+                        .map(|v| sbor::Value::U8 { value: *v })
+                        .collect(),
+                },
+                ManifestValue::Array {
+                    element_value_kind: sbor::ValueKind::U8,
+                    elements: message
+                        .to_vec()
+                        .iter()
+                        .map(|v| sbor::Value::U8 { value: *v })
+                        .collect(),
+                },
+                ManifestValue::Array {
+                    element_value_kind: sbor::ValueKind::Custom(
+                        scrypto::prelude::ManifestCustomValueKind::Address,
+                    ),
+                    elements: vec![],
+                },
+            ],
+        };
+        assert_eq!(manifest_args, expected);
+    }
 }

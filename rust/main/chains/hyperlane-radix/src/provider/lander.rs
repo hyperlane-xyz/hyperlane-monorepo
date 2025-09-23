@@ -1,7 +1,7 @@
-use gateway_api_client::models::TransactionStatusResponse;
+use gateway_api_client::models::{TransactionStatusResponse, TransactionSubmitResponse};
 use hyperlane_core::{ChainResult, H512};
 
-use crate::{RadixDeliveredCalldata, RadixProvider};
+use crate::{RadixDeliveredCalldata, RadixGatewayProvider, RadixProvider};
 
 /// Trait used by lander
 #[async_trait::async_trait]
@@ -10,6 +10,8 @@ pub trait RadixProviderForLander: Send + Sync {
     async fn get_tx_hash_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse>;
     /// Check preview call
     async fn check_preview(&self, params: &RadixDeliveredCalldata) -> ChainResult<bool>;
+    /// Send transaction to network
+    async fn send_transaction(&self, tx: Vec<u8>) -> ChainResult<TransactionSubmitResponse>;
 }
 
 #[async_trait::async_trait]
@@ -27,5 +29,8 @@ impl RadixProviderForLander for RadixProvider {
             )
             .await?;
         Ok(resp.0)
+    }
+    async fn send_transaction(&self, tx: Vec<u8>) -> ChainResult<TransactionSubmitResponse> {
+        self.submit_transaction(tx).await
     }
 }

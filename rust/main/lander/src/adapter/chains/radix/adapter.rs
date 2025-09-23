@@ -1,21 +1,44 @@
-use std::{sync::Arc, time::Duration};
+use std::{str::FromStr, sync::Arc, time::Duration};
 
-use hyperlane_core::H512;
-use hyperlane_radix::{RadixDeliveredCalldata, RadixProcessCalldata, RadixProviderForLander};
+use hyperlane_core::{H256, H512};
+use hyperlane_radix::{
+    RadixDeliveredCalldata, RadixProcessCalldata, RadixProvider, RadixProviderForLander,
+    RadixSigner,
+};
+use radix_common::{
+    crypto::IsHash,
+    math::{CheckedMul, Decimal, SaturatingAdd},
+    prelude::{manifest_decode, ManifestArgs, ManifestValue},
+};
+use radix_transactions::{
+    model::TransactionManifestV2,
+    prelude::{DetailedNotarizedTransactionV2, ManifestBuilder, TransactionBuilder},
+    signing::{PrivateKey, Signer},
+};
 use uuid::Uuid;
 
 use crate::{
     adapter::{
-        chains::radix::precursor::RadixTxPrecursor, AdaptsChain, GasLimit, TxBuildingResult,
+        chains::radix::precursor::{Precursor, RadixTxPrecursor},
+        AdaptsChain, GasLimit, TxBuildingResult,
     },
     payload::PayloadDetails,
     transaction::{Transaction, TransactionUuid, VmSpecificTxData},
     DispatcherMetrics, FullPayload, LanderError, TransactionDropReason, TransactionStatus,
 };
 
-#[derive(Clone)]
 pub struct RadixAdapter {
     pub provider: Arc<dyn RadixProviderForLander>,
+    pub signer: RadixSigner,
+    pub private_key: PrivateKey,
+}
+
+impl RadixAdapter {
+    fn extract_tx_hash(tx: &DetailedNotarizedTransactionV2) -> H512 {
+        let tx_hash: H512 =
+            H256::from_slice(tx.transaction_hashes.transaction_intent_hash.0.as_bytes()).into();
+        tx_hash
+    }
 }
 
 #[async_trait::async_trait]
@@ -35,10 +58,7 @@ impl AdaptsChain for RadixAdapter {
             let operation_payload: RadixProcessCalldata =
                 serde_json::from_slice(&full_payload.data).unwrap();
 
-            let precursor = RadixTxPrecursor {
-                raw_tx: operation_payload.raw_tx,
-                tx_hash: operation_payload.tx_hash.clone(),
-            };
+            let precursor = RadixTxPrecursor::from(operation_payload);
             let tx = Transaction {
                 uuid: TransactionUuid::new(Uuid::new_v4()),
                 tx_hashes: vec![],
@@ -66,8 +86,55 @@ impl AdaptsChain for RadixAdapter {
         todo!()
     }
 
-    async fn submit(&self, _tx: &mut Transaction) -> Result<(), LanderError> {
-        todo!()
+    async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+        tracing::info!(?tx, "submitting transaction");
+
+        let tx_precursor = tx.precursor_mut();
+
+        let fee_summary = tx_precursor.fee_summary.clone();
+        let component_address = tx_precursor.component_address.clone();
+        let method_name = tx_precursor.method_name.clone();
+
+        // decode manifest value from Mailbox::process_calldata()
+        let manifest_args: ManifestValue = manifest_decode(&tx_precursor.encoded_arguments)
+            .map_err(|_| LanderError::PayloadNotFound)?;
+
+        // 1.5x multipler to fee summary
+        let multiplier = Decimal::ONE
+            .saturating_add(Decimal::ONE_TENTH)
+            .saturating_add(Decimal::ONE_TENTH)
+            .saturating_add(Decimal::ONE_TENTH)
+            .saturating_add(Decimal::ONE_TENTH)
+            .saturating_add(Decimal::ONE_TENTH);
+
+        let simulated_xrd = RadixProvider::total_fee(fee_summary)?
+            .checked_mul(multiplier)
+            .ok_or_else(|| LanderError::EstimationFailed)?;
+
+        let radix_tx = TransactionBuilder::new_v2()
+            .manifest_builder(|builder| {
+                builder
+                    .call_method_raw(component_address, method_name, manifest_args)
+                    .lock_fee(self.signer.address, simulated_xrd)
+            })
+            .sign(&self.private_key)
+            .notarize(&self.private_key)
+            .build();
+
+        // once tx is built, we can figure out tx hash
+        let tx_hash = Self::extract_tx_hash(&radix_tx);
+        tx_precursor.tx_hash = Some(tx_hash);
+        if !tx.tx_hashes.contains(&tx_hash) {
+            tx.tx_hashes.push(tx_hash);
+        }
+
+        self.provider
+            .send_transaction(radix_tx.raw.clone().to_vec())
+            .await?;
+
+        tracing::info!(?tx, ?radix_tx, ?tx_hash, "submitted transaction");
+
+        Ok(())
     }
 
     async fn get_tx_hash_status(&self, hash: H512) -> Result<TransactionStatus, LanderError> {
@@ -153,26 +220,20 @@ impl AdaptsChain for RadixAdapter {
 
 #[cfg(test)]
 mod tests {
-    use gateway_api_client::models::TransactionStatusResponse;
+    use ethers::utils::hex;
+    use gateway_api_client::models::{TransactionStatusResponse, TransactionSubmitResponse};
     use hyperlane_core::ChainResult;
+    use radix_common::crypto::Ed25519PrivateKey;
+
+    use crate::adapter::chains::radix::tests::MockRadixProvider;
 
     use super::*;
 
-    mockall::mock! {
-        pub MockRadixProviderForLander {
-
-        }
-
-        #[async_trait::async_trait]
-        impl RadixProviderForLander for MockRadixProviderForLander {
-            async fn get_tx_hash_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse>;
-            async fn check_preview(&self, params: &RadixDeliveredCalldata) -> ChainResult<bool>;
-        }
-    }
+    const PRIVATE_KEY: &str = "E99BC4A79BCE79A990322FBE97E2CEFF85C5DB7B39C495215B6E2C7020FD103D";
 
     #[tokio::test]
     async fn get_tx_hash_status_pending() {
-        let mut provider = MockMockRadixProviderForLander::new();
+        let mut provider = MockRadixProvider::new();
 
         provider.expect_get_tx_hash_status().returning(|_| {
             Ok(TransactionStatusResponse {
@@ -181,8 +242,14 @@ mod tests {
             })
         });
 
+        let priv_key_vec = hex::decode(PRIVATE_KEY).expect("Failed to parse hex");
+        let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
+
+        let private_key = signer.get_signer().expect("Failed to get private key");
         let adapter = RadixAdapter {
             provider: Arc::new(provider),
+            private_key,
+            signer,
         };
 
         let hash = H512::zero();
@@ -196,7 +263,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_tx_hash_status_rejected() {
-        let mut provider = MockMockRadixProviderForLander::new();
+        let mut provider = MockRadixProvider::new();
 
         provider.expect_get_tx_hash_status().returning(|_| {
             Ok(TransactionStatusResponse {
@@ -205,8 +272,14 @@ mod tests {
             })
         });
 
+        let priv_key_vec = hex::decode(PRIVATE_KEY).expect("Failed to parse hex");
+        let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
+
+        let private_key = signer.get_signer().expect("Failed to get private key");
         let adapter = RadixAdapter {
             provider: Arc::new(provider),
+            private_key,
+            signer,
         };
 
         let hash = H512::zero();
@@ -223,7 +296,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_tx_hash_status_unknown() {
-        let mut provider = MockMockRadixProviderForLander::new();
+        let mut provider = MockRadixProvider::new();
 
         provider.expect_get_tx_hash_status().returning(|_| {
             Ok(TransactionStatusResponse {
@@ -232,8 +305,14 @@ mod tests {
             })
         });
 
+        let priv_key_vec = hex::decode(PRIVATE_KEY).expect("Failed to parse hex");
+        let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
+
+        let private_key = signer.get_signer().expect("Failed to get private key");
         let adapter = RadixAdapter {
             provider: Arc::new(provider),
+            private_key,
+            signer,
         };
 
         let hash = H512::zero();
@@ -251,7 +330,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_tx_hash_status_committed_failure() {
-        let mut provider = MockMockRadixProviderForLander::new();
+        let mut provider = MockRadixProvider::new();
 
         provider.expect_get_tx_hash_status().returning(|_| {
             Ok(TransactionStatusResponse {
@@ -260,8 +339,14 @@ mod tests {
             })
         });
 
+        let priv_key_vec = hex::decode(PRIVATE_KEY).expect("Failed to parse hex");
+        let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
+
+        let private_key = signer.get_signer().expect("Failed to get private key");
         let adapter = RadixAdapter {
             provider: Arc::new(provider),
+            private_key,
+            signer,
         };
 
         let hash = H512::zero();
@@ -278,7 +363,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_tx_hash_status_committed_success() {
-        let mut provider = MockMockRadixProviderForLander::new();
+        let mut provider = MockRadixProvider::new();
 
         provider.expect_get_tx_hash_status().returning(|_| {
             Ok(TransactionStatusResponse {
@@ -287,8 +372,14 @@ mod tests {
             })
         });
 
+        let priv_key_vec = hex::decode(PRIVATE_KEY).expect("Failed to parse hex");
+        let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
+
+        let private_key = signer.get_signer().expect("Failed to get private key");
         let adapter = RadixAdapter {
             provider: Arc::new(provider),
+            private_key,
+            signer,
         };
 
         let hash = H512::zero();

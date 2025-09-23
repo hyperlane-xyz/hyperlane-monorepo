@@ -474,17 +474,18 @@ impl RadixProvider {
     ) -> ChainResult<DetailedNotarizedTransactionV2> {
         let (tx_builder, signer, private_key) = self.get_tx_builder().await?;
 
-        let manifest = build_manifest(ManifestBuilder::new_v2()).build();
-        let simulation = tx_builder
-            .clone()
-            .manifest(manifest)
-            .build_preview_transaction(vec![])
-            .to_raw()
-            .map_err(HyperlaneRadixError::from)?;
-
         let simulation = match fee {
             Some(summary) => summary,
-            None => self.simulate_raw_tx(simulation.to_vec()).await?.fee_summary,
+            None => {
+                let manifest = build_manifest(ManifestBuilder::new_v2()).build();
+                let simulation = tx_builder
+                    .clone()
+                    .manifest(manifest)
+                    .build_preview_transaction(vec![])
+                    .to_raw()
+                    .map_err(HyperlaneRadixError::from)?;
+                self.simulate_raw_tx(simulation.to_vec()).await?.fee_summary
+            }
         };
         let simulated_xrd = Self::total_fee(simulation)?
             * Decimal::from_str("1.5").map_err(HyperlaneRadixError::from)?;
