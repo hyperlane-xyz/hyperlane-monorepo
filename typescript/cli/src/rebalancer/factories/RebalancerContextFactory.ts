@@ -169,10 +169,26 @@ export class RebalancerContextFactory {
 
     const explorerUrl =
       process.env.EXPLORER_API_URL || 'https://api.hyperlane.xyz/v1/graphql';
-    const txSender = process.env.REBALANCER || '';
+
+    // Prefer CLI signer address over environment variable
+    const txSender = this.context.signerAddress ?? process.env.REBALANCER ?? '';
     if (!txSender) {
-      throw new Error('REBALANCER env var is not set');
+      throw new Error(
+        'Transaction sender address is required. Please provide either:\n' +
+          '  1. A private key via --key flag (preferred), or\n' +
+          '  2. Set the REBALANCER environment variable to your wallet address\n' +
+          'Example: hyperlane warp rebalancer --config config.yaml --key 0x123...',
+      );
     }
+
+    this.logger.debug(
+      'Using txSender:',
+      txSender,
+      this.context.signerAddress
+        ? '(from CLI key)'
+        : '(from REBALANCER env var)',
+    );
+
     const explorer = new ExplorerClient(explorerUrl);
     // Compose decorators: Inflight guard first, then semaphore, then core rebalancer
     const withSemaphore = new WithSemaphore(
