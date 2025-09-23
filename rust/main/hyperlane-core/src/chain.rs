@@ -321,6 +321,8 @@ pub enum KnownHyperlaneDomain {
     StarknetTest23448594 = 23448594,
     CosmosTestNative1 = 75898670,
     CosmosTestNative2 = 75898671,
+    DangoLocal1 = 88888887,
+    DangoLocal2 = 88888888,
 }
 
 #[derive(Clone, Serialize)]
@@ -391,6 +393,8 @@ pub enum HyperlaneDomainProtocol {
     Starknet,
     /// A Cosmos based chain with uses a module instead of a contract.
     CosmosNative,
+    /// A Grug based chain type
+    Dango,
     /// A Raidx based chain
     Radix,
 }
@@ -521,6 +525,7 @@ impl KnownHyperlaneDomain {
             | Paradex
             | ParadexSepolia
             | PragmaDevnet => HyperlaneDomainProtocol::Starknet,
+            DangoLocal1 | DangoLocal2 => HyperlaneDomainProtocol::Dango,
             _ => HyperlaneDomainProtocol::Ethereum
         }
     }
@@ -739,7 +744,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         match protocol {
-            Ethereum | Cosmos | CosmosNative | Starknet => IndexMode::Block,
+            Ethereum | Cosmos | CosmosNative | Starknet | Dango => IndexMode::Block,
             Fuel | Sealevel | Radix => IndexMode::Sequence,
         }
     }
