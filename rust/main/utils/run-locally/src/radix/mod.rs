@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use hyperlane_core::ReorgPeriod;
 use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain, H256};
 use hyperlane_radix::{ConnectionConf, RadixProvider, RadixSigner};
+
 use macro_rules_attribute::apply;
 use maplit::hashmap;
 use scrypto::network::NetworkDefinition;

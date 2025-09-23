@@ -1,15 +1,12 @@
-use crate::{
-    logging::log,
-    radix::{
-        types::{ComponentCreationResult, Contracts, CoreContracts, TokenContract, WarpContracts},
-        KEY,
-    },
-};
-use core_api_client::models::{self, StateUpdates};
-use ethers_core::rand;
+use std::collections::HashMap;
+use std::{fs, ops::Deref, path::Path, time::Duration};
+
 use hyperlane_core::{H256, H512};
 use hyperlane_radix::RadixGatewayProvider;
 use hyperlane_radix::RadixProvider;
+
+use core_api_client::models::{self, StateUpdates};
+use ethers_core::rand;
 use radix_common::prelude::*;
 use radix_engine_interface::metadata_init;
 use radix_transactions::{
@@ -24,9 +21,15 @@ use scrypto::{
     blueprints::{package::PackageDefinition, resource::OwnerRole},
     prelude::dec,
 };
-use std::collections::HashMap;
-use std::{fs, ops::Deref, path::Path, time::Duration};
 use tokio::time::sleep;
+
+use crate::{
+    logging::log,
+    radix::{
+        types::{ComponentCreationResult, Contracts, CoreContracts, TokenContract, WarpContracts},
+        KEY,
+    },
+};
 
 impl Deref for RadixCli {
     type Target = RadixProvider;
