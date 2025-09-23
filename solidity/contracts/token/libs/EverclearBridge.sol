@@ -12,6 +12,7 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {LpCollateralRouterStorage} from "./LpCollateralRouter.sol";
 
 /**
  * @notice Information about an output asset for a destination domain
@@ -31,6 +32,8 @@ struct OutputAssetInfo {
 abstract contract EverclearBridge is TokenRouter {
     using TokenMessage for bytes;
     using TypeCasts for bytes32;
+
+    LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     /// @notice The output asset for a given destination domain
     /// @dev Everclear needs to know the output asset address to create intents for cross-chain transfers

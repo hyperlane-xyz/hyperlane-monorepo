@@ -19,7 +19,7 @@ import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
 import {ERC20Collateral} from "../libs/TokenCollateral.sol";
-import {MovableCollateralRouterStorage} from "../libs/MovableCollateralRouter.sol";
+import {LpCollateralRouterStorage} from "../libs/LpCollateralRouter.sol";
 
 // ============ External Imports ============
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
@@ -46,7 +46,7 @@ contract HypERC4626Collateral is TokenRouter {
         0x0000000000000000000000000000000000000000000000000000000000000001;
 
     // for backwards compatibility
-    MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
+    LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     // Nonce for the rate update, to ensure sequential updates
     uint32 public rateUpdateNonce;

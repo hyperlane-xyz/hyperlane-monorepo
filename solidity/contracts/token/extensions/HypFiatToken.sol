@@ -5,7 +5,7 @@ import {IFiatToken} from "../interfaces/IFiatToken.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
 import {ERC20Collateral} from "../libs/TokenCollateral.sol";
-import {MovableCollateralRouterStorage} from "../libs/MovableCollateralRouter.sol";
+import {LpCollateralRouterStorage} from "../libs/LpCollateralRouter.sol";
 
 // see https://github.com/circlefin/stablecoin-evm/blob/master/doc/tokendesign.md#issuing-and-destroying-tokens
 contract HypFiatToken is TokenRouter {
@@ -14,7 +14,7 @@ contract HypFiatToken is TokenRouter {
     IFiatToken public immutable wrappedToken;
 
     // for backwards compatibility
-    MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
+    LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     constructor(
         address _fiatToken,

@@ -14,7 +14,7 @@ import {Message} from "../../libs/Message.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {NativeCollateral} from "../../token/libs/TokenCollateral.sol";
-import {MovableCollateralRouterStorage} from "../../token/libs/MovableCollateralRouter.sol";
+import {LpCollateralRouterStorage} from "../../token/libs/LpCollateralRouter.sol";
 
 uint256 constant SCALE = 1;
 
@@ -32,7 +32,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
     IStandardBridge public immutable l2Bridge;
 
     // for backwards compatibility
-    MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
+    LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     constructor(
         address _mailbox,
@@ -189,7 +189,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
 // need intermediate contract to insert slots between TokenRouter and OPL2ToL1CcipReadIsm
 abstract contract OpTokenBridgeStorage is TokenRouter {
     // for backwards compatibility
-    MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
+    LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 }
 
 abstract contract OpL1NativeTokenBridge is

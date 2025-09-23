@@ -14,7 +14,7 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
+import {MovableCollateralRouter, MovableCollateralRouterStorage} from "./libs/MovableCollateralRouter.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -29,8 +29,14 @@ interface CctpService {
         returns (bytes memory cctpMessage, bytes memory attestation);
 }
 
+// // need intermediate contract to insert slots between TokenRouter and AbstractCcipReadIsm
+abstract contract TokenBridgeCctpBaseStorage is TokenRouter {
+    // for backwards compatibility
+    MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
+}
+
 abstract contract TokenBridgeCctpBase is
-    TokenRouter,
+    TokenBridgeCctpBaseStorage,
     AbstractCcipReadIsm,
     IPostDispatchHook
 {
