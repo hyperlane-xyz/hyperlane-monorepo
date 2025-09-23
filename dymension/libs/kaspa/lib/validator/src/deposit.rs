@@ -9,7 +9,7 @@ use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::H256;
 use hyperlane_core::U256;
-use hyperlane_cosmos::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use kaspa_addresses::Address;
 use kaspa_rpc_core::RpcBlock;
 use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
@@ -108,11 +108,12 @@ pub async fn validate_new_deposit(
     deposit: &DepositFXG,
     net: &NetworkInfo,
     escrow_address: &Address,
-    hub_client: &CosmosGrpcClient,
+    hub_client: &CosmosProvider<ModuleQueryClient>,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
     let hub_bootstrapped =
         hub_client
+            .query()
             .hub_bootstrapped()
             .await
             .map_err(|e| ValidationError::HubQueryError {

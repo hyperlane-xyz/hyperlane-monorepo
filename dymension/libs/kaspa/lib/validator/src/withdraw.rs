@@ -10,7 +10,7 @@ use eyre::Result;
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
-use hyperlane_cosmos::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::native::ModuleQueryClient;
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Prefix as KaspaAddrPrefix;
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint};
@@ -99,7 +99,7 @@ impl MustMatch {
 pub async fn validate_sign_withdrawal_fxg(
     fxg: WithdrawFXG,
     validation_enabled: bool,
-    cosmos: &CosmosGrpcClient,
+    cosmos: &ModuleQueryClient,
     escrow_public: EscrowPublic,
     keypair: &SecpKeypair,
     must_match: MustMatch,
@@ -153,7 +153,7 @@ pub async fn validate_sign_withdrawal_fxg(
 pub async fn validate_withdrawal_batch(
     bundle: &Bundle,
     messages: &[Vec<HyperlaneMessage>],
-    cosmos: &CosmosGrpcClient,
+    cosmos: &ModuleQueryClient,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
     let hub_anchor = validate_messages(messages, cosmos, &must_match).await?;
@@ -178,7 +178,7 @@ pub async fn validate_withdrawal_batch(
 
 async fn validate_messages(
     messages: &[Vec<HyperlaneMessage>],
-    cosmos: &CosmosGrpcClient,
+    cosmos: &ModuleQueryClient,
     must_match: &MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
     let messages: Vec<HyperlaneMessage> = messages.iter().flatten().cloned().collect();

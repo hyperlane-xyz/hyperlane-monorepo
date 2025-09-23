@@ -12,7 +12,7 @@ use eyre::Result;
 use hardcode::tx::SWEEPING_THRESHOLD;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
-use hyperlane_cosmos::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, UtxoEntry};
 use kaspa_wallet_pskt::bundle::Bundle;
 use tracing::info;
@@ -25,14 +25,14 @@ pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry, Option<Vec<u8>>);
 pub async fn on_new_withdrawals(
     messages: Vec<HyperlaneMessage>,
     relayer: EasyKaspaWallet,
-    cosmos: CosmosGrpcClient,
+    cosmos: CosmosProvider<ModuleQueryClient>,
     escrow_public: EscrowPublic,
     min_deposit_sompi: U256,
     tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
     info!("Kaspa relayer, getting pending withdrawals");
 
-    let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, &cosmos)
+    let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, cosmos.query())
         .await
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
 

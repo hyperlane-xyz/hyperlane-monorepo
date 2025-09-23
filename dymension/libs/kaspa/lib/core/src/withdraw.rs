@@ -4,7 +4,7 @@ use eyre::Error as EyreError;
 use hex::ToHex;
 use hyperlane_core::Encode;
 use hyperlane_core::HyperlaneMessage;
-use hyperlane_cosmos::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::native::ModuleQueryClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
     TransactionOutpoint as ProtoTransactionOutpoint, WithdrawalId, WithdrawalStatus,
 };
@@ -167,7 +167,7 @@ impl TryFrom<&WithdrawFXG> for ProtoWithdrawFXG {
 
 pub async fn filter_pending_withdrawals(
     withdrawals: Vec<HyperlaneMessage>,
-    cosmos: &CosmosGrpcClient,
+    cosmos: &ModuleQueryClient,
 ) -> eyre::Result<(TransactionOutpoint, Vec<HyperlaneMessage>)> {
     // A list of withdrawal IDs to request their statuses from the Hub
     let withdrawal_ids: Vec<_> = withdrawals

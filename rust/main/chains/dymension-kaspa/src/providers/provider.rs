@@ -21,7 +21,7 @@ use hyperlane_core::{
     HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256, H512, U256,
 };
 use hyperlane_cosmos::ConnectionConf as HubConnectionConf;
-use hyperlane_cosmos::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use hyperlane_cosmos::RawCosmosAmount;
 use hyperlane_cosmos::Signer as HyperlaneSigner;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
@@ -42,7 +42,7 @@ pub struct KaspaProvider {
     easy_wallet: EasyKaspaWallet,
     rest: RestProvider,
     validators: ValidatorsClient,
-    cosmos_rpc: CosmosGrpcClient,
+    cosmos_rpc: CosmosProvider<ModuleQueryClient>,
 
     /*
       TODO: this is just a quick hack to get access to a kaspa escrow private key, we should change to wallet managed
@@ -154,7 +154,7 @@ impl KaspaProvider {
     }
 
     /// dococo
-    pub fn hub_rpc(&self) -> &CosmosGrpcClient {
+    pub fn hub_rpc(&self) -> &CosmosProvider<ModuleQueryClient> {
         &self.cosmos_rpc
     }
 
@@ -414,10 +414,10 @@ async fn get_easy_wallet(
     EasyKaspaWallet::try_new(args).await
 }
 
-fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosGrpcClient {
+fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
     let hub_conf = HubConnectionConf::new(
-        vec![],
-        urls, // ONLY URLS IS NEEDED
+        urls.clone(), // grpc_urls
+        vec![],       // rpc_urls
         "".to_string(),
         "".to_string(),
         "".to_string(),
@@ -425,12 +425,19 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosGrpcClient {
             denom: "".to_string(),
             amount: "".to_string(),
         },
-        1.0,
         32,
         OpSubmissionConfig::default(),
         NativeToken::default(),
-    );
+        1.0,
+        None, // compat_mode
+    ).unwrap(); // TODO: no unwrap for Result
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
-    CosmosGrpcClient::new(hub_conf, metrics, chain).unwrap() // TODO: no unwrap
+    // Create a dummy locator since we only need the query client
+    let dummy_domain = hyperlane_core::HyperlaneDomain::new_test_domain("dummy");
+    let locator = hyperlane_core::ContractLocator {
+        domain: &dummy_domain,
+        address: hyperlane_core::H256::zero(),
+    };
+    CosmosProvider::<ModuleQueryClient>::new(&hub_conf, &locator, None, metrics, chain).unwrap() // TODO: no unwrap
 }
