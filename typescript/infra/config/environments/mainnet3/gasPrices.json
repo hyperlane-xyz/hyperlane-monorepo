@@ -259,6 +259,10 @@
     "amount": "0.02",
     "decimals": 9
   },
+  "mantra": {
+    "amount": "11.25",
+    "decimals": 9
+  },
   "matchain": {
     "amount": "0.001",
     "decimals": 9
@@ -447,6 +451,10 @@
     "amount": "3554.023647439",
     "decimals": 9
   },
+  "sova": {
+    "amount": "0.001000251",
+    "decimals": 9
+  },
   "starknet": {
     "amount": "5000",
     "decimals": 1
@@ -521,6 +529,10 @@
   },
   "xrplevm": {
     "amount": "275.0",
+    "decimals": 9
+  },
+  "zerogravity": {
+    "amount": "2.000000007",
     "decimals": 9
   },
   "zeronetwork": {
