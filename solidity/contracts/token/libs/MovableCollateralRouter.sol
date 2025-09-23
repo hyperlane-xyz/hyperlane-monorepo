@@ -7,6 +7,7 @@ import {TokenRouter} from "./TokenRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Router} from "../../client/Router.sol";
+import {Quotes} from "../../libs/Quotes.sol";
 
 struct MovableCollateralRouterStorage {
     mapping(uint32 routerDomain => bytes32 recipient) allowedRecipient;
@@ -17,6 +18,7 @@ struct MovableCollateralRouterStorage {
 abstract contract MovableCollateralRouter is TokenRouter {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
+    using Quotes for Quote[];
 
     MovableCollateralRouterStorage private $;
 
@@ -136,28 +138,23 @@ abstract contract MovableCollateralRouter is TokenRouter {
             amount
         );
 
-        uint256 nativeValue = 0;
         // charge the rebalancer any bridging fees denominated in the collateral
         // token to avoid undercollateralization
-        uint256 collateralFee = 0;
-        for (uint256 i = 0; i < quotes.length; i++) {
-            if (quotes[i].token == token()) {
-                collateralFee += quotes[i].amount;
-            }
-            if (quotes[i].token == address(0)) {
-                nativeValue += quotes[i].amount;
-            }
+        uint256 collateralBridgeQuote = quotes.extract(token());
+        if (collateralBridgeQuote > amount) {
+            _transferFromSender(collateralBridgeQuote - amount);
         }
 
-        if (collateralFee > amount) {
-            _transferFromSender(collateralFee - amount);
-        }
-
-        if (nativeValue > address(this).balance) {
+        uint256 nativeBridgeQuote = quotes.extract(address(0));
+        if (nativeBridgeQuote > address(this).balance) {
             revert("Rebalance amount exceeds balance");
         }
 
-        bridge.transferRemote{value: nativeValue}(domain, recipient, amount);
+        bridge.transferRemote{value: nativeBridgeQuote}(
+            domain,
+            recipient,
+            amount
+        );
         emit CollateralMoved(domain, recipient, amount, msg.sender);
     }
 
