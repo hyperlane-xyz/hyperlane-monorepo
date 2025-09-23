@@ -785,7 +785,6 @@ fn main() {
         commitment,
         instructions.into(),
         cli.require_tx_approval,
-        None,
         cli.write_instructions,
     );
     match cli.cmd {

@@ -84,7 +84,6 @@ impl Context {
         commitment: CommitmentConfig,
         initial_instructions: RefCell<Vec<InstructionWithDescription>>,
         require_tx_approval: bool,
-        instructions_path: Option<PathBuf>,
         write_instructions_enabled: bool,
     ) -> Self {
         Self {
@@ -94,7 +93,7 @@ impl Context {
             commitment,
             initial_instructions,
             require_tx_approval,
-            instructions_path,
+            instructions_path: None,
             write_instructions_enabled,
         }
     }
