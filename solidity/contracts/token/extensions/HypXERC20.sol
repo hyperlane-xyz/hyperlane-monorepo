@@ -4,9 +4,13 @@ pragma solidity >=0.8.0;
 import {IXERC20} from "../interfaces/IXERC20.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
+import {MovableCollateralRouterStorage} from "../libs/MovableCollateralRouter.sol";
 
 contract HypXERC20 is TokenRouter {
     IXERC20 public immutable wrappedToken;
+
+    // for backwards compatibility
+    MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
 
     constructor(
         address _xerc20,

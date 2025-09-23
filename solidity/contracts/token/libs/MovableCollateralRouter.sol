@@ -8,21 +8,17 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Router} from "../../client/Router.sol";
 
+struct MovableCollateralRouterStorage {
+    mapping(uint32 routerDomain => bytes32 recipient) allowedRecipient;
+    mapping(uint32 routerDomain => EnumerableSet.AddressSet bridges) allowedBridges;
+    EnumerableSet.AddressSet allowedRebalancers;
+}
+
 abstract contract MovableCollateralRouter is TokenRouter {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /// @notice Mapping of domain to allowed rebalance recipient.
-    /// @dev Keys constrained to a subset of Router.domains()
-    mapping(uint32 routerDomain => bytes32 recipient) public allowedRecipient;
-
-    /// @notice Mapping of domain to allowed rebalance bridges.
-    /// @dev Keys constrained to a subset of Router.domains()
-    mapping(uint32 routerDomain => EnumerableSet.AddressSet bridges)
-        internal _allowedBridges;
-
-    /// @notice Set of addresses that are allowed to rebalance.
-    EnumerableSet.AddressSet internal _allowedRebalancers;
+    MovableCollateralRouterStorage private $;
 
     event CollateralMoved(
         uint32 indexed domain,
@@ -33,36 +29,45 @@ abstract contract MovableCollateralRouter is TokenRouter {
 
     modifier onlyRebalancer() {
         require(
-            _allowedRebalancers.contains(_msgSender()),
+            $.allowedRebalancers.contains(_msgSender()),
             "MCR: Only Rebalancer"
         );
         _;
     }
 
     modifier onlyAllowedBridge(uint32 domain, ITokenBridge bridge) {
-        EnumerableSet.AddressSet storage bridges = _allowedBridges[domain];
+        EnumerableSet.AddressSet storage bridges = $.allowedBridges[domain];
         require(bridges.contains(address(bridge)), "MCR: Not allowed bridge");
         _;
     }
 
+    /// @notice Set of addresses that are allowed to rebalance.
     function allowedRebalancers() external view returns (address[] memory) {
-        return _allowedRebalancers.values();
+        return $.allowedRebalancers.values();
     }
 
+    /// @notice Mapping of domain to allowed rebalance recipient.
+    /// @dev Keys constrained to a subset of Router.domains()
+    function allowedRecipient(uint32 domain) external view returns (bytes32) {
+        return $.allowedRecipient[domain];
+    }
+
+    /// @notice Mapping of domain to allowed rebalance bridges.
+    /// @dev Keys constrained to a subset of Router.domains()
     function allowedBridges(
         uint32 domain
     ) external view returns (address[] memory) {
-        return _allowedBridges[domain].values();
+        return $.allowedBridges[domain].values();
     }
 
     function setRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
         // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
-        allowedRecipient[domain] = recipient;
+        $.allowedRecipient[domain] = recipient;
     }
 
     function removeRecipient(uint32 domain) external onlyOwner {
-        delete allowedRecipient[domain];
+        delete $.allowedRecipient[domain];
     }
 
     function addBridge(uint32 domain, ITokenBridge bridge) external onlyOwner {
@@ -72,7 +77,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
     }
 
     function _addBridge(uint32 domain, ITokenBridge bridge) internal virtual {
-        _allowedBridges[domain].add(address(bridge));
+        $.allowedBridges[domain].add(address(bridge));
     }
 
     function removeBridge(
@@ -86,7 +91,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
         uint32 domain,
         ITokenBridge bridge
     ) internal virtual {
-        _allowedBridges[domain].remove(address(bridge));
+        $.allowedBridges[domain].remove(address(bridge));
     }
 
     /**
@@ -103,11 +108,11 @@ abstract contract MovableCollateralRouter is TokenRouter {
     }
 
     function addRebalancer(address rebalancer) external onlyOwner {
-        _allowedRebalancers.add(rebalancer);
+        $.allowedRebalancers.add(rebalancer);
     }
 
     function removeRebalancer(address rebalancer) external onlyOwner {
-        _allowedRebalancers.remove(rebalancer);
+        $.allowedRebalancers.remove(rebalancer);
     }
 
     /**
@@ -159,7 +164,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
     function _recipient(
         uint32 domain
     ) internal view returns (bytes32 recipient) {
-        recipient = allowedRecipient[domain];
+        recipient = $.allowedRecipient[domain];
         if (recipient == bytes32(0)) {
             recipient = _mustHaveRemoteRouter(domain);
         }
@@ -183,8 +188,8 @@ abstract contract MovableCollateralRouter is TokenRouter {
 
     /// @dev Constrains keys of rebalance mappings to Router.domains()
     function _unenrollRemoteRouter(uint32 domain) internal override {
-        delete allowedRecipient[domain];
-        _clear(_allowedBridges[domain]._inner);
+        delete $.allowedRecipient[domain];
+        _clear($.allowedBridges[domain]._inner);
         Router._unenrollRemoteRouter(domain);
     }
 }

@@ -6,6 +6,7 @@ import {IXERC20, IERC20} from "../interfaces/IXERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
 import {ERC20Collateral} from "../libs/TokenCollateral.sol";
+import {MovableCollateralRouterStorage} from "../libs/MovableCollateralRouter.sol";
 
 contract HypXERC20Lockbox is TokenRouter {
     using SafeERC20 for IERC20;
@@ -16,6 +17,9 @@ contract HypXERC20Lockbox is TokenRouter {
     IXERC20Lockbox public immutable lockbox;
     IXERC20 public immutable xERC20;
     IERC20 public immutable wrappedToken;
+
+    // for backwards compatibility
+    MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
 
     constructor(
         address _lockbox,
