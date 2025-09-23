@@ -15,7 +15,7 @@ import { bufferToBase58, setEquality } from '@hyperlane-xyz/utils';
 import { readFileAtPath, writeToFile } from '../src/utils/utils.js';
 
 // DO NOT run this test in the merge queue as gitleaks is not supported there
-if (process.env.GITHUB_EVENT_NAME === 'merge_group') {
+if (process.env.GITHUB_EVENT_NAME !== 'merge_group') {
   describe('GitLeaks CLI Integration Tests', function () {
     let tempDir: string;
     let configPath: string;
