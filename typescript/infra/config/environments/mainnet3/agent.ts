@@ -810,6 +810,14 @@ const blacklist: MatchingList = [
       '0xfcee86f472d0c19fccdd3aedb89aa9cc0a1fb0d1',
     ],
   },
+  // legacy forma routes we are not relaying
+  {
+    originDomain: getDomainId('forma'),
+    senderAddress: [
+      '0x6052c5c075212f013c856bff015872914ed3492a',
+      '0xd5ebc5e5f38c2d8c91c43122a105327c1f0260b4',
+    ],
+  },
   // routes on legacy pulsechain mailbox
   {
     destinationDomain: getDomainId('pulsechain'),
