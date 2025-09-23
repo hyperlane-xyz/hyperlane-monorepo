@@ -251,7 +251,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flowmainnet: true,
     fluence: true,
     form: true,
-    forma: false, // disable relaying while RPC issues are resolved
+    forma: true,
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
@@ -799,6 +799,17 @@ const blacklist: MatchingList = [
   ...blacklistedMessageIds.map((messageId) => ({
     messageId,
   })),
+  // legacy forma routes we are not relaying
+  {
+    destinationDomain: getDomainId('forma'),
+    recipientAddress: [
+      '0x4ca56fbecfe8431996c6b4ec8da140d4201338e8',
+      '0x0a5c7d4ee3d65b2581d5606f8081fc8d8be22319',
+      '0x832d26b6904ba7539248db4d58614251fd63dc05',
+      '0x74a26075fa2eec77936a56b0f9645d32a79b28af',
+      '0xfcee86f472d0c19fccdd3aedb89aa9cc0a1fb0d1',
+    ],
+  },
   // routes on legacy pulsechain mailbox
   {
     destinationDomain: getDomainId('pulsechain'),
