@@ -25,7 +25,22 @@ function readJSONFiles(directory: string): Record<string, TxFile[]> {
   for (const file of files) {
     if (path.extname(file) === '.json') {
       const filePath = path.join(directory, file);
-      const txs: TxFile = readJSONAtPath(filePath);
+
+      let txs: TxFile;
+
+      // If the filename contains 'timelock', expect an array and only parse the first object
+      if (file.includes('timelock')) {
+        const arr = readJSONAtPath(filePath);
+        if (!Array.isArray(arr) || arr.length === 0) {
+          throw new Error(
+            `Expected an array of objects in ${filePath} for TimelockController, but got: ${JSON.stringify(arr)}`,
+          );
+        }
+        txs = arr[0];
+      } else {
+        txs = readJSONAtPath(filePath);
+      }
+
       const chainId = txs.chainId;
       if (!transactionsByChainId[chainId]) {
         transactionsByChainId[chainId] = [];
