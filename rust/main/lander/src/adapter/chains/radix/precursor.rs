@@ -8,10 +8,7 @@ use hyperlane_core::H512;
 use radix_transactions::model::RawNotarizedTransaction;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    adapter::chains::sealevel::SealevelTxPrecursor,
-    transaction::{Transaction, VmSpecificTxData},
-};
+use crate::transaction::{Transaction, VmSpecificTxData};
 use crate::{
     payload::{FullPayload, PayloadDetails},
     LanderError,
