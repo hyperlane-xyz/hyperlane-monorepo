@@ -198,7 +198,7 @@ scrypto-derive = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git"
 sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
   "serde",
 ] }
-hyperlane-cosmos-rs = "0.1.4"
+hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", rev = "4cde36b" }
 
 
 ## TODO: remove this
