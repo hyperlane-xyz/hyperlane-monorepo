@@ -74,9 +74,9 @@ api-rs = { path = "../../../dymension/libs/kaspa/lib/api", package = "openapi" }
 dym_kas_relayer = { path = "../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
 dym_kas_validator = { path = "../../../dymension/libs/kaspa/lib/validator" , package="validator"}
 
-kaspa-consensus-core = { git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
-kaspa-hashes ={ git = "https://github.com/dymensionxyz/rusty-kaspa", rev = "a443c3f" }
-kaspa-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "a443c3f" }
+kaspa-consensus-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-hashes ={ git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
 
 # dependency version is determined by etheres
 rusoto_core = "*"
