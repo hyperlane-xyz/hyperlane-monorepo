@@ -41,7 +41,7 @@ impl AdaptsChain for RadixAdapter {
             };
             let tx = Transaction {
                 uuid: TransactionUuid::new(Uuid::new_v4()),
-                tx_hashes: vec![operation_payload.tx_hash],
+                tx_hashes: vec![],
                 vm_specific_data: VmSpecificTxData::Radix(precursor),
                 payload_details: vec![full_payload.details.clone()],
                 status: TransactionStatus::PendingInclusion,
