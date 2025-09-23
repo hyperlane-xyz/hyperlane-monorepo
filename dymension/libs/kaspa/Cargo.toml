@@ -14,6 +14,9 @@ members = [
 ]
 
 [workspace.dependencies]
+# Fix for cosmwasm-crypto incompatibility with ed25519-zebra v4.1.0
+# See: https://github.com/CosmWasm/cosmwasm/issues/2525
+ed25519-zebra = "=4.0.3"
 
 kaspa-consensus-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
 kaspa-txscript = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
