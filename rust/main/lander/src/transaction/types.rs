@@ -8,9 +8,7 @@ use chrono::{DateTime, Utc};
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
 use crate::{
-    adapter::{
-        chains::radix::precursor::RadixTxPrecursor, EthereumTxPrecursor, SealevelTxPrecursor,
-    },
+    adapter::{EthereumTxPrecursor, RadixTxPrecursor, SealevelTxPrecursor},
     payload::PayloadDetails,
     LanderError,
 };

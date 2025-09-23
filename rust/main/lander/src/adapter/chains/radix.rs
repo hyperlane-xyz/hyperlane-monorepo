@@ -1,2 +1,5 @@
 pub mod adapter;
-pub mod precursor;
+
+mod precursor;
+
+pub use precursor::{Precursor, RadixTxPrecursor};
