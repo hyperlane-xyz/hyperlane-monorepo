@@ -69,7 +69,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
-    nobletestnet: true,
+    nobletestnet: false,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,
@@ -80,7 +80,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
-    subtensortestnet: true,
+    subtensortestnet: false,
   },
   [Role.Relayer]: {
     arbitrumsepolia: true,
@@ -106,7 +106,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
-    nobletestnet: true,
+    nobletestnet: false,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,
@@ -117,7 +117,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
-    subtensortestnet: true,
+    subtensortestnet: false,
   },
   [Role.Scraper]: {
     arbitrumsepolia: true,
@@ -143,7 +143,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
-    nobletestnet: true,
+    nobletestnet: false,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,
@@ -154,7 +154,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
-    subtensortestnet: true,
+    subtensortestnet: false,
   },
 };
 
