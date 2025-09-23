@@ -57,6 +57,8 @@ pub struct ValidatorSettings {
     pub allow_public_rpcs: bool,
     /// Max sign concurrency
     pub max_sign_concurrency: usize,
+    /// Optional scraper database URL for fast historical indexing
+    pub scraper_db_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -172,6 +174,13 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_u64()
             .unwrap_or(50) as usize;
 
+        let scraper_db_url = p
+            .chain(&mut err)
+            .get_opt_key("scraperDbUrl")
+            .parse_string()
+            .end()
+            .map(str::to_owned);
+
         let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
         // this is only relevant for cosmos
         rpcs.extend(get_rpc_urls(&chain, "grpcUrls", "customGrpcUrls", &mut err));
@@ -197,6 +206,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             rpcs,
             allow_public_rpcs,
             max_sign_concurrency,
+            scraper_db_url,
         })
     }
 }
