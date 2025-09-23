@@ -26,16 +26,30 @@ export interface MultisigIsmReq {
   threshold: number;
 }
 
+export enum RadixIsmTypes {
+  MERKLE_ROOT_MULTISIG = 'MerkleRootMultisigIsm',
+  MESSAGE_ID_MULTISIG = 'MessageIdMultisigIsm',
+  ROUTING_ISM = 'RoutingIsm',
+  NOOP_ISM = 'NoopIsm',
+}
+
 export type MultisigIsms =
-  | 'MerkleRootMultisigIsm'
-  | 'MessageIdMultisigIsm'
-  | 'NoopIsm';
+  | RadixIsmTypes.MERKLE_ROOT_MULTISIG
+  | RadixIsmTypes.MESSAGE_ID_MULTISIG
+  | RadixIsmTypes.NOOP_ISM;
 
 export type Isms =
-  | 'MerkleRootMultisigIsm'
-  | 'MessageIdMultisigIsm'
-  | 'RoutingIsm'
-  | 'NoopIsm';
+  | RadixIsmTypes.MERKLE_ROOT_MULTISIG
+  | RadixIsmTypes.MESSAGE_ID_MULTISIG
+  | RadixIsmTypes.ROUTING_ISM
+  | RadixIsmTypes.NOOP_ISM;
+
+export enum RadixHookTypes {
+  IGP = 'InterchainGasPaymaster',
+  MERKLE_TREE = 'MerkleTreeHook',
+}
+
+export type Hooks = RadixHookTypes.IGP | RadixHookTypes.MERKLE_TREE;
 
 export interface EntityField {
   field_name: string;

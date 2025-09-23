@@ -5,13 +5,17 @@ use core_api_client::models::{FeeSummary, TransactionStatus};
 use radix_common::manifest_args;
 use radix_common::prelude::ManifestArgs;
 use regex::Regex;
-use scrypto::{address::AddressBech32Decoder, network::NetworkDefinition, types::ComponentAddress};
+use scrypto::{
+    address::AddressBech32Decoder, network::NetworkDefinition, prelude::manifest_encode,
+    types::ComponentAddress,
+};
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     address_from_h256, address_to_h256, encode_component_address, Bytes32, ConnectionConf,
@@ -238,7 +242,30 @@ impl Mailbox for RadixMailbox {
         todo!() // we dont need this for now
     }
 
-    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
-        todo!()
+    /// Data required to make a TransactionCallPreviewRequest to
+    /// check if a message was delivered or not on-chain.
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        let id: Bytes32 = message_id.into();
+        let encoded_arguments = manifest_encode(&id).map_err(HyperlaneRadixError::from)?;
+
+        let calldata = DeliveredCalldata {
+            component_address: self.encoded_address.clone(),
+            method_name: "delivered".into(),
+            encoded_arguments,
+        };
+        let json_val =
+            serde_json::to_vec(&calldata).map_err(ChainCommunicationError::JsonParseError)?;
+        Ok(Some(json_val))
     }
+}
+
+/// Data required to check if a message was delivered on-chain for Radix chain
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DeliveredCalldata {
+    /// Address of mailbox (already encoded)
+    pub component_address: String,
+    /// Method to call on mailbox
+    pub method_name: String,
+    /// parameters required to call method
+    pub encoded_arguments: Vec<u8>,
 }

@@ -115,4 +115,8 @@ export const awTimelocks: ChainMap<Address> = {
   zetachain: '0x9A291D353Fc52CE3b5F6fC7e9432eB1743d1bBe0',
   zircuit: '0x3f1332D80E390BE30c231BB57efFFAa56546aB27',
   zoramainnet: '0xaB402f227e892Ef37C105bf06619c0fa106a1fB2',
+
+  // Sep 22, 2025 - Timelock for 0G oUSDT extension
+  // ----------------------------------------------------------
+  zerogravity: '0x11EF91d17c5ad3330DbCa709a8841743d3Af6819',
 } as const;

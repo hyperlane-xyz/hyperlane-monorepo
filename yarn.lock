@@ -8515,6 +8515,7 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3.577.0"
     "@chain-registry/types": "npm:^0.50.122"
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
+    "@cosmjs/proto-signing": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@hyperlane-xyz/core": "npm:9.0.9"
     "@hyperlane-xyz/cosmos-sdk": "npm:18.2.0"
