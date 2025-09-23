@@ -213,9 +213,9 @@ impl CosmosNativeMailbox {
         // in that case the gas paid will always be:
         // gas_wanted * gas_price
         let gas_price = if response.tx_result.code.is_err() {
-            FixedPointNumber::from(U256::zero())
+            FixedPointNumber::try_from(U256::zero())?
         } else {
-            FixedPointNumber::from(response.tx_result.gas_wanted)
+            FixedPointNumber::try_from(response.tx_result.gas_wanted)?
                 .mul(&self.provider.rpc().gas_price())
         };
 
