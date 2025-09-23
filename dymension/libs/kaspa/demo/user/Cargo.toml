@@ -34,7 +34,7 @@ tracing-error = "0.2"
 tracing-futures = "0.2"
 chrono = { version = "0.4" }
 hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", rev = "4cde36b" }
-cosmrs = { version = "0.21.0", default-features = false, features = [
+cosmrs = { version = "0.22.0", default-features = false, features = [
     "cosmwasm",
     "rpc",
     "tokio",
