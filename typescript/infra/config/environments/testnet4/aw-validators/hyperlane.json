@@ -46,6 +46,9 @@
       "0x43e915573d9f1383cbf482049e4a012290759e7f"
     ]
   },
+  "giwasepolia": {
+    "validators": ["0xc170bef56759e35740ac2d3d0fece33bd9acb90b"]
+  },
   "holesky": {
     "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
   },
@@ -92,8 +95,5 @@
   },
   "solanatestnet": {
     "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
-  },
-  "giwasepolia": {
-    "validators": ["0xc170bef56759e35740ac2d3d0fece33bd9acb90b"]
   }
 }
