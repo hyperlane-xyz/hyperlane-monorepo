@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use hyperlane_core::NativeToken;
+use radix_common::prelude::ResourceAddress;
 use scrypto::types::ComponentAddress;
 
 use crate::radix::{cli::RadixCli, CHAIN_ID, CORE_API, GATEWAY_API, NETWORK};
@@ -71,6 +72,32 @@ pub struct Deployment {
     pub(crate) domain: u32,
     pub(crate) contracts: Contracts,
     // pub(crate) handle: AgentHandles,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComponentCreationResult {
+    pub address: ComponentAddress,
+    pub badge: Option<ResourceAddress>,
+}
+
+#[derive(Debug, Clone)]
+pub struct WarpContracts {
+    pub collateral: TokenContract,
+    pub synthetic: TokenContract,
+}
+
+#[derive(Debug, Clone)]
+pub struct TokenContract {
+    pub address: ComponentAddress,
+    pub owner: ResourceAddress,
+}
+
+#[derive(Debug, Clone)]
+pub struct CoreContracts {
+    pub mailbox: ComponentAddress,
+    pub merkle_tree_hook: ComponentAddress,
+    pub interchain_gas_paymaster: ComponentAddress,
+    pub validator_announce: ComponentAddress,
 }
 
 impl AgentConfig {

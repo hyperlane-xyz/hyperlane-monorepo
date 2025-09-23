@@ -1,6 +1,9 @@
 use crate::{
     logging::log,
-    radix::{types::Contracts, KEY},
+    radix::{
+        types::{ComponentCreationResult, Contracts, CoreContracts, TokenContract, WarpContracts},
+        KEY,
+    },
 };
 use core_api_client::models::{self, StateUpdates};
 use ethers_core::rand;
@@ -59,7 +62,11 @@ impl RadixCli {
     pub fn new(provider: RadixProvider, network: NetworkDefinition) -> RadixCli {
         let decoder = AddressBech32Decoder::new(&network);
         let encoder = AddressBech32Encoder::new(&network);
-        let private_key = provider.get_signer().unwrap().get_signer().unwrap();
+        let private_key = provider
+            .get_signer()
+            .expect("Failed to get signer from provider")
+            .get_signer()
+            .expect("Failed to get private key from signer");
         let pub_key = private_key.public_key();
         let account = ComponentAddress::preallocated_account_from_public_key(&pub_key);
 
@@ -81,19 +88,24 @@ impl RadixCli {
             .provider
             .gateway_status()
             .await
-            .unwrap()
+            .expect("Failed to get gateway status")
             .ledger_state
             .epoch as u64;
 
-        let private_key = self.provider.get_signer().unwrap();
-        let private_key = private_key.get_signer().unwrap();
+        let private_key = self
+            .provider
+            .get_signer()
+            .expect("Failed to get signer from provider");
+        let private_key = private_key
+            .get_signer()
+            .expect("Failed to get private key from signer");
 
         let tx = TransactionBuilder::new().header(TransactionHeaderV1 {
             notary_public_key: private_key.public_key(),
             notary_is_signatory: true,
             network_id: self.network.id,
             start_epoch_inclusive: Epoch::of(epoch),
-            end_epoch_exclusive: Epoch::of(epoch + 10), // ~5 minutes per epoch -> 10min timeout
+            end_epoch_exclusive: Epoch::of(epoch + 2), // ~5 minutes per epoch -> 10min timeout
             nonce: rand::random::<u32>(),
             tip_percentage: 0,
         });
@@ -102,14 +114,18 @@ impl RadixCli {
             .build();
 
         let tx = tx.manifest(manifest).notarize(&private_key).build();
-        let raw_transaction = tx.to_raw().unwrap();
+        let raw_transaction = tx
+            .to_raw()
+            .expect("Failed to convert transaction to raw format");
         let transaction_intent_hash = raw_transaction
             .prepare(PreparationSettings::latest_ref())
             .expect("Transaction could not be prepared")
             .transaction_intent_hash();
 
         let encoder = TransactionHashBech32Encoder::new(&self.network);
-        let tx_hash_str = encoder.encode(&transaction_intent_hash).unwrap();
+        let tx_hash_str = encoder
+            .encode(&transaction_intent_hash)
+            .expect("Failed to encode transaction hash");
         log!("Transaction hash: {}", tx_hash_str);
 
         log!("Submitting transaction...");
@@ -117,39 +133,38 @@ impl RadixCli {
             .provider
             .submit_transaction(raw_transaction.to_vec())
             .await
-            .unwrap();
+            .expect("Failed to submit transaction");
 
         let tx_hash: H512 = H256::from_slice(transaction_intent_hash.0.as_bytes()).into();
 
         log!("Waiting for transaction confirmation...");
         let mut result = self.get_tx_by_hash(&tx_hash).await;
-        for retry in 1..=120 {
+        for _ in 1..=10 {
             if result.is_ok() {
                 break;
             }
-            if retry % 10 == 0 {
-                log!(
-                    "Still waiting for transaction confirmation... ({} seconds)",
-                    retry
-                );
-            }
             // we resubmit the tx in case it got lost
             sleep(Duration::from_secs(1)).await;
-            // let _ = self.provider.submit_transaction(raw.clone()).await;
             result = self.get_tx_by_hash(&tx_hash).await;
         }
-        let result = result.unwrap();
+        let result = result.expect("Transaction failed to confirm after multiple retries");
         log!("Transaction confirmed");
-        let update: serde_json::Value = result.receipt.unwrap().state_updates.unwrap();
-        let update: StateUpdates = serde_json::from_value(update).unwrap();
+        let update: serde_json::Value = result
+            .receipt
+            .expect("Transaction receipt is missing")
+            .state_updates
+            .expect("State updates are missing from receipt");
+        let update: StateUpdates = serde_json::from_value(update)
+            .expect("Failed to parse state updates from transaction receipt");
         update
     }
 
     pub async fn publish_package(&mut self, code_path: &Path, rpd: &Path) {
         log!("Publishing package from {:?}", code_path);
-        let code = fs::read(code_path).unwrap();
+        let code = fs::read(code_path).expect("Failed to read package code from file");
         let package_definition: PackageDefinition =
-            manifest_decode(&fs::read(&rpd).unwrap()).unwrap();
+            manifest_decode(&fs::read(&rpd).expect("Failed to read package definition file"))
+                .expect("Failed to decode package definition");
         let update = self
             .send_tx(|builder| {
                 builder.publish_package_advanced(
@@ -166,7 +181,7 @@ impl RadixCli {
             .new_global_entities
             .iter()
             .find(|x| x.entity_type == models::EntityType::GlobalPackage)
-            .unwrap();
+            .expect("Published package not found in transaction result");
 
         log!("Package published at address: {}", package.entity_address);
 
@@ -183,11 +198,17 @@ impl RadixCli {
         &self,
         blueprint: &str,
         args: ManifestArgs,
-    ) -> (ComponentAddress, Option<ResourceAddress>) {
+    ) -> ComponentCreationResult {
         log!("Creating component from blueprint: {}", blueprint);
         let update = self
             .send_tx(|builder| {
-                builder.call_function(self.package.unwrap(), blueprint, "instantiate", args)
+                builder.call_function(
+                    self.package
+                        .expect("Package must be published before creating components"),
+                    blueprint,
+                    "instantiate",
+                    args,
+                )
             })
             .await;
 
@@ -195,21 +216,24 @@ impl RadixCli {
             .new_global_entities
             .iter()
             .find(|x| x.entity_type == models::EntityType::GlobalGenericComponent)
-            .unwrap();
+            .expect("Created component not found in transaction result");
 
         let badge = update
             .new_global_entities
             .iter()
             .find(|x| x.entity_type == models::EntityType::GlobalFungibleResource)
-            .map(|x| ResourceAddress::try_from_bech32(&self.decoder, &x.entity_address).unwrap());
+            .map(|x| {
+                ResourceAddress::try_from_bech32(&self.decoder, &x.entity_address)
+                    .expect("Failed to decode badge resource address")
+            });
 
-        let address =
-            ComponentAddress::try_from_bech32(&self.decoder, &package.entity_address).unwrap();
+        let address = ComponentAddress::try_from_bech32(&self.decoder, &package.entity_address)
+            .expect("Failed to decode component address");
         log!("Component created at address: {}", package.entity_address);
         if badge.is_some() {
             log!("Badge resource created");
         }
-        (address, badge)
+        ComponentCreationResult { address, badge }
     }
 
     pub async fn call_method(
@@ -219,7 +243,10 @@ impl RadixCli {
         args: ManifestArgs,
         proof: Option<ResourceAddress>,
     ) -> StateUpdates {
-        let component_str = self.encoder.encode(component.as_bytes()).unwrap();
+        let component_str = self
+            .encoder
+            .encode(component.as_bytes())
+            .expect("Failed to encode component address");
         log!(
             "Calling method '{}' on component: {}",
             method,
@@ -240,7 +267,9 @@ impl RadixCli {
 
     pub async fn remote_transfer(&self, token: ComponentAddress, destination: u32, nonce: u32) {
         let encoder = AddressBech32Encoder::new(&NetworkDefinition::stokenet());
-        let token_str = encoder.encode(token.as_bytes()).unwrap();
+        let token_str = encoder
+            .encode(token.as_bytes())
+            .expect("Failed to encode token address");
         log!(
             "Initiating remote transfer of token {} to domain {}",
             token_str,
@@ -278,7 +307,10 @@ impl RadixCli {
         owner: ResourceAddress,
         routers: &Vec<(u32, ComponentAddress)>,
     ) {
-        let token_str = self.encoder.encode(token.as_bytes()).unwrap();
+        let token_str = self
+            .encoder
+            .encode(token.as_bytes())
+            .expect("Failed to encode token address");
         log!(
             "Enrolling {} remote routers for token {}",
             routers.len(),
@@ -286,7 +318,10 @@ impl RadixCli {
         );
 
         for (domain, router) in routers {
-            let router_str = self.encoder.encode(router.as_bytes()).unwrap();
+            let router_str = self
+                .encoder
+                .encode(router.as_bytes())
+                .expect("Failed to encode router address");
             log!("Enrolling router {} for domain {}", router_str, domain);
 
             let mut hex = [0u8; 32];
@@ -303,14 +338,11 @@ impl RadixCli {
         log!("All remote routers enrolled successfully");
     }
 
-    pub async fn deploy_warp_contracts(
-        &self,
-        mailbox: ComponentAddress,
-    ) -> (
-        (ComponentAddress, ResourceAddress),
-        (ComponentAddress, ResourceAddress),
-    ) {
-        let mailbox_str = self.encoder.encode(mailbox.as_bytes()).unwrap();
+    pub async fn deploy_warp_contracts(&self, mailbox: ComponentAddress) -> WarpContracts {
+        let mailbox_str = self
+            .encoder
+            .encode(mailbox.as_bytes())
+            .expect("Failed to encode mailbox address");
         log!("Deploying warp contracts with mailbox: {}", mailbox_str);
 
         log!("Deploying collateral token...");
@@ -321,7 +353,7 @@ impl RadixCli {
             }],
         );
 
-        let (collateral, collateral_owner) = self
+        let collateral_result = self
             .create_component("HypToken", manifest_args!(args, mailbox))
             .await;
 
@@ -341,47 +373,55 @@ impl RadixCli {
                 ManifestValue::U8 { value: 18 },
             ],
         );
-        let (synthetic, synthetic_owner) = self
+        let synthetic_result = self
             .create_component("HypToken", manifest_args!(args, mailbox))
             .await;
 
         log!("Warp contracts deployed successfully");
-        (
-            (collateral, collateral_owner.unwrap()),
-            (synthetic, synthetic_owner.unwrap()),
-        )
+        WarpContracts {
+            collateral: TokenContract {
+                address: collateral_result.address,
+                owner: collateral_result
+                    .badge
+                    .expect("Collateral token should have an owner badge"),
+            },
+            synthetic: TokenContract {
+                address: synthetic_result.address,
+                owner: synthetic_result
+                    .badge
+                    .expect("Synthetic token should have an owner badge"),
+            },
+        }
     }
 
     pub async fn deploy_core_contracts(
         &self,
         local_domain: u32,
         remote_domains: Vec<u32>,
-    ) -> (
-        ComponentAddress,
-        ComponentAddress,
-        ComponentAddress,
-        ComponentAddress,
-    ) {
+    ) -> CoreContracts {
         log!("Deploying core contracts for domain: {}", local_domain);
 
-        let (mailbox, mailbox_owner) = self
+        let mailbox_result = self
             .create_component("Mailbox", manifest_args!(local_domain))
             .await;
 
-        let (merkle_tree_hook, _) = self
-            .create_component("MerkleTreeHook", manifest_args!(mailbox))
+        let merkle_tree_hook_result = self
+            .create_component("MerkleTreeHook", manifest_args!(mailbox_result.address))
             .await;
 
-        let (igp, igp_owner) = self
+        let igp_result = self
             .create_component("InterchainGasPaymaster", manifest_args!(XRD))
             .await;
 
-        let (validator_announce, _) = self
-            .create_component("ValidatorAnnounce", manifest_args!(mailbox))
+        let validator_announce_result = self
+            .create_component("ValidatorAnnounce", manifest_args!(mailbox_result.address))
             .await;
 
-        let validator: [u8; 20] = hex::decode(KEY.0).unwrap().try_into().unwrap();
-        let (multisig, _) = self
+        let validator: [u8; 20] = hex::decode(KEY.0)
+            .expect("Failed to decode validator key")
+            .try_into()
+            .expect("Validator key should be exactly 20 bytes");
+        let multisig_result = self
             .create_component(
                 "MerkleRootMultisigIsm",
                 manifest_args!(vec![validator], 1usize),
@@ -390,9 +430,9 @@ impl RadixCli {
 
         let args = remote_domains
             .iter()
-            .map(|x| (*x, multisig))
+            .map(|x| (*x, multisig_result.address))
             .collect::<Vec<_>>();
-        let (routing_ism, _) = self
+        let routing_ism_result = self
             .create_component("RoutingIsm", manifest_args!(args))
             .await;
 
@@ -401,34 +441,34 @@ impl RadixCli {
             .map(|domain| (domain, ((10_000_000_000u128, 1u128), 10u128)))
             .collect::<Vec<_>>();
         self.call_method(
-            igp,
+            igp_result.address,
             "set_destination_gas_configs",
             manifest_args!(configs),
-            igp_owner,
+            igp_result.badge,
         )
         .await;
 
         self.call_method(
-            mailbox,
+            mailbox_result.address,
             "set_default_hook",
-            manifest_args!(igp),
-            mailbox_owner,
+            manifest_args!(igp_result.address),
+            mailbox_result.badge,
         )
         .await;
 
         self.call_method(
-            mailbox,
+            mailbox_result.address,
             "set_required_hook",
-            manifest_args!(merkle_tree_hook),
-            mailbox_owner,
+            manifest_args!(merkle_tree_hook_result.address),
+            mailbox_result.badge,
         )
         .await;
 
         self.call_method(
-            mailbox,
+            mailbox_result.address,
             "set_default_ism",
-            manifest_args!(routing_ism),
-            mailbox_owner,
+            manifest_args!(routing_ism_result.address),
+            mailbox_result.badge,
         )
         .await;
 
@@ -436,7 +476,12 @@ impl RadixCli {
             "Core contracts deployed and configured successfully for domain {}",
             local_domain
         );
-        (mailbox, merkle_tree_hook, igp, validator_announce)
+        CoreContracts {
+            mailbox: mailbox_result.address,
+            merkle_tree_hook: merkle_tree_hook_result.address,
+            interchain_gas_paymaster: igp_result.address,
+            validator_announce: validator_announce_result.address,
+        }
     }
 
     pub async fn deploy_contracts(&self, domains: Vec<u32>) -> Vec<Contracts> {
@@ -449,15 +494,7 @@ impl RadixCli {
 
         // 1. Deploy core contracts for each domain (remote domains = all others)
         log!("Step 1: Deploying core contracts for each domain");
-        let mut cores: HashMap<
-            u32,
-            (
-                ComponentAddress,
-                ComponentAddress,
-                ComponentAddress,
-                ComponentAddress,
-            ),
-        > = HashMap::new();
+        let mut cores: HashMap<u32, CoreContracts> = HashMap::new();
         for &domain in &domains {
             let remotes: Vec<u32> = domains.iter().copied().filter(|d| *d != domain).collect();
             let core = self.deploy_core_contracts(domain, remotes).await;
@@ -466,17 +503,13 @@ impl RadixCli {
 
         // 2. Deploy warp contracts (collateral + synthetic) for each domain
         log!("Step 2: Deploying warp contracts for each domain");
-        let mut warps: HashMap<
-            u32,
-            (
-                (ComponentAddress, ResourceAddress),
-                (ComponentAddress, ResourceAddress),
-            ),
-        > = HashMap::new();
+        let mut warps: HashMap<u32, WarpContracts> = HashMap::new();
         for &domain in &domains {
             log!("Deploying warp contracts for domain {}", domain);
-            let core = cores.get(&domain).unwrap();
-            let warp = self.deploy_warp_contracts(core.0).await;
+            let core = cores
+                .get(&domain)
+                .expect("Core contracts should have been deployed for this domain");
+            let warp = self.deploy_warp_contracts(core.mailbox).await;
             warps.insert(domain, warp);
         }
 
@@ -484,24 +517,26 @@ impl RadixCli {
         log!("Step 3: Enrolling remote routers across domains");
         for &local in &domains {
             log!("Setting up routing for domain {}", local);
-            let local_warp = warps.get(&local).unwrap();
+            let local_warp = warps
+                .get(&local)
+                .expect("Warp contracts should have been deployed for this domain");
             let collateral_remote_warp_routes = warps
                 .iter()
                 .filter(|x| *x.0 != local)
-                .map(|warp| (*warp.0, warp.1 .0 .0))
+                .map(|warp| (*warp.0, warp.1.collateral.address))
                 .collect::<Vec<_>>();
             let synthetic_remote_warp_routes = warps
                 .iter()
                 .filter(|x| *x.0 != local)
-                .map(|warp| (*warp.0, warp.1 .1 .0))
+                .map(|warp| (*warp.0, warp.1.synthetic.address))
                 .collect::<Vec<_>>();
             log!(
                 "Enrolling remote routers for collateral token on domain {}",
                 local
             );
             self.enroll_remote_routers(
-                local_warp.0 .0,
-                local_warp.0 .1,
+                local_warp.collateral.address,
+                local_warp.collateral.owner,
                 &synthetic_remote_warp_routes,
             )
             .await;
@@ -510,28 +545,34 @@ impl RadixCli {
                 local
             );
             self.enroll_remote_routers(
-                local_warp.1 .0,
-                local_warp.1 .1,
+                local_warp.synthetic.address,
+                local_warp.synthetic.owner,
                 &collateral_remote_warp_routes,
             )
             .await;
         }
 
         let to_string = |component: ComponentAddress| -> String {
-            self.encoder.encode(component.as_bytes()).unwrap()
+            self.encoder
+                .encode(component.as_bytes())
+                .expect("Failed to encode component address")
         };
 
         log!("Finalizing contract deployments");
         let mut contracts: Vec<Contracts> = Vec::new();
         for &domain in &domains {
-            let core = cores.get(&domain).unwrap();
-            let warp = warps.get(&domain).unwrap();
+            let core = cores
+                .get(&domain)
+                .expect("Core contracts should have been deployed for this domain");
+            let warp = warps
+                .get(&domain)
+                .expect("Warp contracts should have been deployed for this domain");
             contracts.push(Contracts {
-                mailbox: to_string(core.0),
-                merkle_tree_hook: to_string(core.1),
-                igp: to_string(core.2),
-                validator_announce: to_string(core.3),
-                collateral: warp.0 .0,
+                mailbox: to_string(core.mailbox),
+                merkle_tree_hook: to_string(core.merkle_tree_hook),
+                igp: to_string(core.interchain_gas_paymaster),
+                validator_announce: to_string(core.validator_announce),
+                collateral: warp.collateral.address,
             });
         }
 

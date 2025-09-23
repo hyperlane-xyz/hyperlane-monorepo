@@ -67,7 +67,7 @@ mod cosmosnative;
 #[cfg(feature = "starknet")]
 mod starknet;
 
-#[cfg(feature = "radix")]
+// #[cfg(feature = "radix")]
 mod radix;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {

@@ -74,8 +74,12 @@ impl Drop for RadixStack {
 
 #[allow(dead_code)]
 pub fn download_radix_contracts() -> (PathBuf, PathBuf) {
-    let dir_path = tempdir().unwrap().into_path();
-    let dir_path = dir_path.to_str().unwrap();
+    let dir_path = tempdir()
+        .expect("Failed to create temporary directory")
+        .into_path();
+    let dir_path = dir_path
+        .to_str()
+        .expect("Failed to convert temp directory path to string");
 
     log!("Downloading hyperlane-radix v{}", HYPERLANE_RADIX_VERSION);
     let uri = format!(
@@ -127,10 +131,12 @@ async fn dispatch(deployments: &Vec<Deployment>, nonce: u32) -> u32 {
 #[apply(as_task)]
 fn launch_radix_validator(agent_config: AgentConfig, agent_config_path: PathBuf) -> AgentHandles {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
-    let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
+    let validator_base = tempdir()
+        .expect("Failed to create temporary directory for validator")
+        .into_path();
     let validator_base_db = concat_path(&validator_base, "db");
 
-    fs::create_dir_all(&validator_base_db).unwrap();
+    fs::create_dir_all(&validator_base_db).expect("Failed to create validator database directory");
     println!("Validator DB: {:?}", validator_base_db);
 
     let checkpoint_path = concat_path(&validator_base, "checkpoint");
@@ -139,16 +145,33 @@ fn launch_radix_validator(agent_config: AgentConfig, agent_config_path: PathBuf)
     let validator = Program::default()
         .bin(validator_bin)
         .working_dir("../../")
-        .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
+        .env(
+            "CONFIG_FILES",
+            agent_config_path
+                .to_str()
+                .expect("Failed to convert agent config path to string"),
+        )
         .env(
             "MY_VALIDATOR_SIGNATURE_DIRECTORY",
-            signature_path.to_str().unwrap(),
+            signature_path
+                .to_str()
+                .expect("Failed to convert signature path to string"),
         )
         .env("RUST_BACKTRACE", "1")
-        .hyp_env("CHECKPOINTSYNCER_PATH", checkpoint_path.to_str().unwrap())
+        .hyp_env(
+            "CHECKPOINTSYNCER_PATH",
+            checkpoint_path
+                .to_str()
+                .expect("Failed to convert checkpoint path to string"),
+        )
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
-        .hyp_env("DB", validator_base_db.to_str().unwrap())
+        .hyp_env(
+            "DB",
+            validator_base_db
+                .to_str()
+                .expect("Failed to convert validator DB path to string"),
+        )
         .hyp_env("METRICSPORT", agent_config.metrics_port.to_string())
         .hyp_env("VALIDATOR_KEY", KEY.1)
         .hyp_env("DEFAULTSIGNER_KEY", KEY.1)
@@ -166,7 +189,7 @@ fn launch_radix_relayer(
     metrics: u32,
 ) -> AgentHandles {
     let relayer_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer");
-    let relayer_base = tempdir().unwrap();
+    let relayer_base = tempdir().expect("Failed to create temporary directory for relayer");
 
     let relayer = Program::default()
         .bin(relayer_bin)
@@ -175,7 +198,13 @@ fn launch_radix_relayer(
         .env("RUST_BACKTRACE", "1")
         .hyp_env("LOG_LEVEL", "DEBUG")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
-        .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
+        .hyp_env(
+            "DB",
+            relayer_base
+                .as_ref()
+                .to_str()
+                .expect("Failed to convert relayer base path to string"),
+        )
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("DEFAULTSIGNER_KEY", KEY.1)
         .hyp_env("DEFAULTSIGNER_TYPE", "radixKey")
@@ -243,21 +272,28 @@ async fn run_locally() {
     let mut config = ConnectionConf::new(
         vec![core],
         vec![gateway],
-        "stokenet".to_owned(),
+        NETWORK.logical_name.to_string(),
         Vec::new(),
         Vec::new(),
     );
     config.network = NETWORK;
 
-    let relayer_key = hex::decode(KEY.1.strip_prefix("0x").unwrap()).unwrap();
+    let relayer_key = hex::decode(
+        KEY.1
+            .strip_prefix("0x")
+            .expect("Relayer key should have 0x prefix"),
+    )
+    .expect("Failed to decode relayer key as hex");
 
-    let signer = RadixSigner::new(relayer_key, config.network.hrp_suffix.to_string()).unwrap();
+    let signer = RadixSigner::new(relayer_key, config.network.hrp_suffix.to_string())
+        .expect("Failed to create Radix signer");
     let locator = ContractLocator::new(
         &HyperlaneDomain::Known(KnownHyperlaneDomain::Test1),
         H256::zero(),
     );
 
-    let provider = RadixProvider::new(Some(signer), &config, &locator, &ReorgPeriod::None).unwrap();
+    let provider = RadixProvider::new(Some(signer), &config, &locator, &ReorgPeriod::None)
+        .expect("Failed to create Radix provider");
 
     let mut cli = RadixCli::new(provider, NETWORK);
     cli.fund_account().await;
@@ -265,8 +301,12 @@ async fn run_locally() {
     let (code_path, rdp) = download_radix_contracts();
 
     cli.publish_package(
-        Path::new(code_path.to_str().unwrap()),
-        Path::new(rdp.to_str().unwrap()),
+        Path::new(
+            code_path
+                .to_str()
+                .expect("Failed to convert WASM code path to string"),
+        ),
+        Path::new(rdp.to_str().expect("Failed to convert RPD path to string")),
     )
     .await;
 
@@ -292,7 +332,7 @@ async fn run_locally() {
     let mut dispatched_messages = 0;
     // dispatch the first batch of messages (before agents start)
     dispatched_messages += dispatch(&deployments, dispatched_messages).await;
-    let config_dir = tempdir().unwrap();
+    let config_dir = tempdir().expect("Failed to create temporary directory for agent config");
     // export agent config
     let agent_config_out = AgentConfigOut {
         chains: deployments
@@ -304,9 +344,10 @@ async fn run_locally() {
     let agent_config_path = concat_path(&config_dir, "config.json");
     fs::write(
         &agent_config_path,
-        serde_json::to_string_pretty(&agent_config_out).unwrap(),
+        serde_json::to_string_pretty(&agent_config_out)
+            .expect("Failed to serialize agent config to JSON"),
     )
-    .unwrap();
+    .expect("Failed to write agent config file");
 
     log!("Config path: {:#?}", agent_config_path);
     log!("Running postgres db...");
@@ -334,7 +375,9 @@ async fn run_locally() {
         .collect::<Vec<_>>();
 
     let chains = agent_config_out.chains.into_keys().collect::<Vec<_>>();
-    let path = agent_config_path.to_str().unwrap();
+    let path = agent_config_path
+        .to_str()
+        .expect("Failed to convert agent config path to string");
 
     let hpl_rly_metrics_port = metrics_port_start + node_count;
     let hpl_rly = launch_radix_relayer(path.to_owned(), chains.clone(), hpl_rly_metrics_port);
@@ -345,7 +388,8 @@ async fn run_locally() {
     // give things a chance to fully start.
     sleep(Duration::from_secs(20));
 
-    let starting_relayer_balance: f64 = agent_balance_sum(hpl_rly_metrics_port).unwrap();
+    let starting_relayer_balance: f64 =
+        agent_balance_sum(hpl_rly_metrics_port).expect("Failed to get starting relayer balance");
 
     // dispatch the second batch of messages (after agents start)
     dispatched_messages += dispatch(&deployments, dispatched_messages).await;
@@ -429,7 +473,8 @@ fn termination_invariants_met(
         return Ok(false);
     }
 
-    let ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
+    let ending_relayer_balance: f64 =
+        agent_balance_sum(relayer_metrics_port).expect("Failed to get ending relayer balance");
 
     // Make sure the balance was correctly updated in the metrics.
     // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
