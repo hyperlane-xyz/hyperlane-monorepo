@@ -2,7 +2,7 @@ import { TransactionReceipt } from '@ethersproject/providers';
 import { ContractReceipt } from 'ethers';
 import { Logger } from 'pino';
 
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../../MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
@@ -22,6 +22,10 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
     public readonly multiProvider: MultiProvider,
     public readonly props: EV5JsonRpcTxSubmitterProps,
   ) {}
+
+  address(): Promise<Address> {
+    return this.multiProvider.getSignerAddress(this.props.chain);
+  }
 
   public async submit(
     ...txs: AnnotatedEV5Transaction[]

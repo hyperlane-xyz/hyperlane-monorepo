@@ -72,4 +72,11 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType>
 
     return txReceipts;
   }
+
+  /**
+   * Gets the address of the current submitter.
+   */
+  public address() {
+    return this.currentSubmitter.address();
+  }
 }
