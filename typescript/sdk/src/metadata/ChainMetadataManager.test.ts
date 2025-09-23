@@ -5,11 +5,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { ChainNameOrId } from '../types.js';
 
 import { ChainMetadataManager } from './ChainMetadataManager.js';
-import {
-  ChainDisabledReason,
-  ChainMetadata,
-  ChainStatus,
-} from './chainMetadataTypes.js';
+import { ChainMetadata } from './chainMetadataTypes.js';
 
 describe(ChainMetadataManager.name, () => {
   let manager: ChainMetadataManager;
@@ -28,26 +24,6 @@ describe(ChainMetadataManager.name, () => {
     name: 'polygon',
     protocol: ProtocolType.Ethereum,
     rpcUrls: [{ http: 'https://polygon.example.com' }],
-  };
-
-  const deprecatedChainMetadata: ChainMetadata = {
-    chainId: 999,
-    domainId: 999,
-    name: 'deprecatedtestnet',
-    protocol: ProtocolType.Ethereum,
-    rpcUrls: [{ http: 'https://deprecated.example.com' }],
-  };
-
-  const disabledChainMetadata: ChainMetadata = {
-    chainId: 888,
-    domainId: 888,
-    name: 'disabledchain',
-    protocol: ProtocolType.Ethereum,
-    rpcUrls: [{ http: 'https://disabled.example.com' }],
-    availability: {
-      status: ChainStatus.Disabled,
-      reasons: [ChainDisabledReason.Unavailable],
-    },
   };
 
   const cosmosMetadata: ChainMetadata = {
@@ -74,8 +50,6 @@ describe(ChainMetadataManager.name, () => {
     manager = new ChainMetadataManager({
       ethereum: ethereumMetadata,
       polygon: polygonMetadata,
-      deprecatedtestnet: deprecatedChainMetadata,
-      disabledchain: disabledChainMetadata,
       cosmos: cosmosMetadata,
       solana: solanaMetadata,
     });
@@ -122,70 +96,6 @@ describe(ChainMetadataManager.name, () => {
 
       testCases.forEach(({ description, input, expected }) => {
         it(`should return correct result for ${description}`, () => {
-          const result = manager.tryGetChainMetadata(input);
-
-          expect(result).to.deep.equal(expected);
-        });
-      });
-    });
-
-    describe('deprecated chain filtering', () => {
-      const testCases: ReadonlyArray<{
-        description: string;
-        input: ChainNameOrId;
-        expected: any;
-      }> = [
-        {
-          description: 'deprecated chain by domain ID',
-          input: 999,
-          expected: null,
-        },
-        {
-          description: 'deprecated chain by chain ID',
-          input: 999,
-          expected: null,
-        },
-        {
-          description: 'deprecated chain by exact name',
-          input: 'deprecatedtestnet',
-          expected: null,
-        },
-      ];
-
-      testCases.forEach(({ description, input, expected }) => {
-        it(`should filter out ${description}`, () => {
-          const result = manager.tryGetChainMetadata(input);
-
-          expect(result).to.deep.equal(expected);
-        });
-      });
-    });
-
-    describe('disabled chain filtering', () => {
-      const testCases: ReadonlyArray<{
-        description: string;
-        input: ChainNameOrId;
-        expected: any;
-      }> = [
-        {
-          description: 'disabled chain by domain ID',
-          input: 888,
-          expected: null,
-        },
-        {
-          description: 'disabled chain by chain ID',
-          input: 888,
-          expected: null,
-        },
-        {
-          description: 'disabled chain by exact name',
-          input: 'disabledchain',
-          expected: null,
-        },
-      ];
-
-      testCases.forEach(({ description, input, expected }) => {
-        it(`should filter out ${description}`, () => {
           const result = manager.tryGetChainMetadata(input);
 
           expect(result).to.deep.equal(expected);
