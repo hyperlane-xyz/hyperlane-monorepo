@@ -42,6 +42,7 @@ export const mainnet3SupportedChainNames = [
   'flowmainnet',
   'fluence',
   'form',
+  'forma',
   'fraxtal',
   'fusemainnet',
   'galactica',
