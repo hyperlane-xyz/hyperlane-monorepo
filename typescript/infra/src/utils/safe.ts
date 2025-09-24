@@ -48,6 +48,8 @@ const TX_FETCH_RETRY_DELAY = 5000;
 
 const safeApiKeySecretName = 'gnosis-safe-api-key';
 
+const MIN_SAFE_API_VERSION = '5.18.0';
+
 export async function getSafeApiKey(): Promise<string> {
   return (await fetchGCPSecret(safeApiKeySecretName, false)) as string;
 }
@@ -66,6 +68,17 @@ export async function getSafeAndService(
       `Failed to initialize Safe service for chain ${chain}: ${error}`,
     );
   }
+
+  const { version } = await safeService.getServiceInfo();
+  const isLegacy = await isLegacySafeApi(version);
+  if (isLegacy) {
+    throw new Error(
+      `The Safe Transaction Service API for chain "${chain}" is running an outdated (legacy) version. ` +
+        `Please contact the API owner to upgrade to at least version ${MIN_SAFE_API_VERSION} or newer. ` +
+        `This application requires Safe Transaction Service version ${MIN_SAFE_API_VERSION} or higher to function correctly.`,
+    );
+  }
+
   let safeSdk: Safe.default;
   try {
     safeSdk = await retryAsync(
@@ -77,6 +90,23 @@ export async function getSafeAndService(
     throw new Error(`Failed to initialize Safe for chain ${chain}: ${error}`);
   }
   return { safeSdk, safeService };
+}
+
+export async function isLegacySafeApi(version?: string): Promise<boolean> {
+  if (!version) {
+    throw new Error('Version is required');
+  }
+  // Compare semver: legacy if < MIN_SAFE_API_VERSION
+  const legacyVersion = MIN_SAFE_API_VERSION.split('.').map((v: string) =>
+    parseInt(v, 10),
+  );
+  const versionParts = version.split('.').map((v: string) => parseInt(v, 10));
+  for (let i = 0; i < legacyVersion.length; ++i) {
+    const v = versionParts[i] ?? 0;
+    if (v < legacyVersion[i]) return true;
+    if (v > legacyVersion[i]) return false;
+  }
+  return false;
 }
 
 export function createSafeTransactionData(call: CallData): MetaTransactionData {
