@@ -84,9 +84,9 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
      * @return quotes An array of Quote structs representing the fees in different tokens.
      * @dev This function may return multiple quotes with the same denomination. Convention is to return:
-     *  - the native token first
-     *  - then any internal fees (amount + fee recipient)
-     *  - then any external fees (if any)
+     *  - native fees charged by the mailbox dispatch
+     *  - then any internal warp route fees (amount bridged plus fee recipient)
+     *  - then any external bridging fees (if any, else 0)
      */
     function quoteTransferRemote(
         uint32 _destination,
