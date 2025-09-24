@@ -1,6 +1,6 @@
 {
   "arbitrum": 0.6,
-  "avalanche": 0.1,
+  "avalanche": 1,
   "base": 0.2,
   "ethereum": 0.3,
   "optimism": 0.3,
