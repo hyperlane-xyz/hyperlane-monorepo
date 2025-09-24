@@ -15,7 +15,7 @@ use kaspa_wallet_core::prelude::{Fees, PaymentDestination};
 use kaspa_wallet_core::tx::{Generator, GeneratorSettings, PaymentOutput};
 use kaspa_wallet_core::utxo::UtxoEntryReference;
 use kaspa_wallet_pskt::bundle::Bundle;
-use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, PSKT};
+use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, PSKT, Version};
 use kaspa_wallet_pskt::pskt::InputBuilder;
 use std::sync::Arc;
 
@@ -89,7 +89,7 @@ pub async fn create_sweeping_bundle(
 fn format_sweeping_bundle(bundle: Bundle, escrow: &EscrowPublic) -> Result<Bundle> {
     let mut new_bundle = Bundle::new();
     for inner in bundle.iter() {
-        let mut pskt = PSKT::<Creator>::default().constructor();
+        let mut pskt = PSKT::<Creator>::default().set_version(Version::One).constructor();
 
         for input in inner.inputs.iter() {
             let utxo_entry = input
