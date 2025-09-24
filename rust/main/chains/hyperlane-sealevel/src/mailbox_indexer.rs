@@ -161,11 +161,13 @@ impl SealevelMailboxIndexer {
         {
             Ok(log_meta) => Ok(log_meta),
             Err(e) => {
+                let next_slot = message_account_slot.saturating_add(&1u64);
+                debug!(slot = ?message_account_slot, ?next_slot, ?e, "Failed to resolve log, falling back to the next slot");
                 if self.mailbox.domain().name() == "solaxy" {
                     self.dispatch_message_log_meta_with_block_request(
                         log_index,
                         message_storage_pda_pubkey,
-                        &message_account_slot.saturating_add(&1u64),
+                        &next_slot,
                     )
                     .await
                 } else {
@@ -288,11 +290,13 @@ impl SealevelMailboxIndexer {
         {
             Ok(log_meta) => Ok(log_meta),
             Err(e) => {
+                let next_slot = message_account_slot.saturating_add(&1u64);
+                debug!(slot = ?message_account_slot, ?next_slot, ?e, "Failed to resolve log, falling back to the next slot");
                 if self.mailbox.domain().name() == "solaxy" {
                     self.delivered_message_log_meta_with_block_request(
                         log_index,
                         message_storage_pda_pubkey,
-                        &message_account_slot.saturating_add(&1u64),
+                        &next_slot,
                     )
                     .await
                 } else {

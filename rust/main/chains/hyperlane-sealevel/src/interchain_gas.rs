@@ -7,7 +7,7 @@ use hyperlane_sealevel_igp::{
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
 };
 use solana_sdk::{account::Account, clock::Slot, pubkey::Pubkey};
-use tracing::{info, instrument};
+use tracing::{debug, info, instrument};
 
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
@@ -232,13 +232,11 @@ impl SealevelInterchainGasPaymasterIndexer {
         {
             Ok(log_meta) => Ok(log_meta),
             Err(e) => {
+                let next_slot = payment_pda_slot.saturating_add(1);
+                debug!(slot = ?payment_pda_slot, ?next_slot, ?e, "Failed to resolve log, falling back to the next slot");
                 if self.igp.domain.name() == "solaxy" {
-                    self.log_meta_with_request_block(
-                        log_index,
-                        payment_pda_pubkey,
-                        &payment_pda_slot.saturating_add(1),
-                    )
-                    .await
+                    self.log_meta_with_request_block(log_index, payment_pda_pubkey, &next_slot)
+                        .await
                 } else {
                     Err(e)
                 }
