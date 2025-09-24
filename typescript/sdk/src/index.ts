@@ -818,6 +818,7 @@ export { getTimelockExecutableTransactionFromBatch } from './timelock/evm/utils.
 export { RadixHookReader } from './hook/RadixHookReader.js';
 export { RadixHookModule } from './hook/RadixHookModule.js';
 export { RadixIsmReader } from './ism/RadixIsmReader.js';
+export { RadixIsmModule } from './ism/RadixIsmModule.js';
 export {
   getSignerForChain,
   MultiProtocolSignerSignerAccountInfo,
