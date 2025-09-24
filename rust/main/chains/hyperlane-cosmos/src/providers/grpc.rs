@@ -7,12 +7,12 @@ use tonic::transport::{Channel, Endpoint};
 
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
 use hyperlane_core::{ChainCommunicationError, ChainResult, ReorgPeriod};
-use hyperlane_metric::prometheus_metric::{
-    ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
-};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
     query_client::QueryClient as KasQueryClient, QueryOutpointRequest, QueryOutpointResponse,
     QueryWithdrawalStatusRequest, QueryWithdrawalStatusResponse, WithdrawalId,
+};
+use hyperlane_metric::prometheus_metric::{
+    ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
 
 use cosmrs::proto::cosmos::base::tendermint::v1beta1::service_client::ServiceClient;
@@ -102,7 +102,6 @@ impl GrpcProvider {
         })
         .await
     }
-
 }
 
 impl Deref for GrpcProvider {

@@ -1,8 +1,8 @@
 use std::ops::Mul;
 
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};
 use cometbft::hash::Algorithm;
 use cometbft::Hash;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};
 use tonic::async_trait;
 use tracing::info;
 
@@ -12,9 +12,9 @@ use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, RawHyperlaneMessage,
-    ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256, FixedPointNumber, H512,
+    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
+    RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
 use crate::{utils, CosmosProvider};

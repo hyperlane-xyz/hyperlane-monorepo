@@ -21,9 +21,9 @@ use hyperlane_core::{
     HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256, H512, U256,
 };
 use hyperlane_cosmos::ConnectionConf as HubConnectionConf;
-use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use hyperlane_cosmos::RawCosmosAmount;
 use hyperlane_cosmos::Signer as HyperlaneSigner;
+use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
@@ -430,7 +430,8 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
         NativeToken::default(),
         1.0,
         None, // compat_mode
-    ).unwrap(); // TODO: no unwrap for Result
+    )
+    .unwrap(); // TODO: no unwrap for Result
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
     // Create a dummy locator since we only need the query client
@@ -439,5 +440,6 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
         domain: &dummy_domain,
         address: hyperlane_core::H256::zero(),
     };
-    CosmosProvider::<ModuleQueryClient>::new(&hub_conf, &locator, None, metrics, chain).unwrap() // TODO: no unwrap
+    CosmosProvider::<ModuleQueryClient>::new(&hub_conf, &locator, None, metrics, chain).unwrap()
+    // TODO: no unwrap
 }

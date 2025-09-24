@@ -314,7 +314,7 @@ impl RpcProvider {
         Ok(U256::from_dec_str(&balance.amount)?)
     }
 
-   /// Returns the denom balance of that address. Will use the denom specified as the canonical asset in the config
+    /// Returns the denom balance of that address. Will use the denom specified as the canonical asset in the config
     pub async fn get_balance_denom(&self, address: String, denom: String) -> ChainResult<U256> {
         let response: QueryBalanceResponse = self
             .abci_query(
@@ -327,7 +327,7 @@ impl RpcProvider {
             .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?;
 
         Ok(U256::from_dec_str(&balance.amount)?)
-    } 
+    }
 
     /// Gets a signer, or returns an error if one is not available.
     pub fn get_signer(&self) -> ChainResult<&Signer> {
@@ -341,7 +341,7 @@ impl RpcProvider {
         let mut new = self.clone();
         new.signer = Some(signer);
         new
-    } 
+    }
 
     /// Injective uses custom proto type for account info.
     /// Decode the BaseAccount with the injective proto - which is different to the default one

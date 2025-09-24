@@ -111,14 +111,11 @@ pub async fn validate_new_deposit(
     hub_client: &CosmosProvider<ModuleQueryClient>,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
-    let hub_bootstrapped =
-        hub_client
-            .query()
-            .hub_bootstrapped()
-            .await
-            .map_err(|e| ValidationError::HubQueryError {
-                reason: e.to_string(),
-            })?;
+    let hub_bootstrapped = hub_client.query().hub_bootstrapped().await.map_err(|e| {
+        ValidationError::HubQueryError {
+            reason: e.to_string(),
+        }
+    })?;
     validate_new_deposit_inner(
         client_node,
         client_rest,

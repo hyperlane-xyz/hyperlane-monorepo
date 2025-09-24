@@ -13,7 +13,7 @@ use corelib::wallet::{EasyKaspaWalletArgs, Network};
 use eyre::Result;
 use hardcode;
 use hyperlane_cosmos::ConnectionConf as CosmosConnectionConf;
-use hyperlane_cosmos::{CosmosProvider, native::ModuleQueryClient};
+use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use rand_distr::{Distribution, Exp};
 use std::time::SystemTime;
 use std::time::{Duration, Instant};
@@ -63,9 +63,10 @@ async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosProvider<ModuleQu
             decimals: DEFAULT_DECIMALS,
             denom: DEFAULT_DENOM.to_string(),
         },
-       1.0, 
-      None 
-    );
+        1.0,
+        None,
+    )
+    .map_err(|e| eyre::eyre!(e))?;
     let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
     let locator = ContractLocator::new(&d, H256::zero());
     let hub_key = EasyHubKey::from_hex(signer_key_hex);
@@ -73,7 +74,8 @@ async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosProvider<ModuleQu
     debug!("signer: {:?}", signer);
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
-    Ok(CosmosProvider<ModuleQueryClient>::new(&conf, &locator, signer, metrics, chain).map_err(eyre::Report::from)?)
+    CosmosProvider::<ModuleQueryClient>::new(&conf, &locator, signer, metrics, chain)
+        .map_err(eyre::Report::from)
 }
 
 pub struct Params {
