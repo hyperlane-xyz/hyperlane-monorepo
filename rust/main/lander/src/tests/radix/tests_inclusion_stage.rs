@@ -46,7 +46,6 @@ fn mocked_signer() -> RadixSigner {
 }
 
 fn mock_radix_adapter(provider: MockRadixProvider, signer: RadixSigner) -> RadixAdapter {
-    let domain: HyperlaneDomain = TEST_DOMAIN.into();
     let provider = Arc::new(provider);
 
     let private_key = signer.get_signer().expect("Failed to get private key");
@@ -54,6 +53,7 @@ fn mock_radix_adapter(provider: MockRadixProvider, signer: RadixSigner) -> Radix
         provider,
         signer,
         private_key,
+        estimated_block_time: Duration::from_nanos(0),
     }
 }
 pub fn mock_dispatcher_state_with_provider(
@@ -180,6 +180,8 @@ async fn assert_tx_db_state(
         .await
         .unwrap()
         .unwrap();
+
+    eprintln!("{:?}", retrieved_tx);
     let radix_precursor = &retrieved_tx.precursor();
 
     assert_eq!(

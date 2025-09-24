@@ -6,7 +6,7 @@ use ethers::{
     types::{transaction::eip2718::TypedTransaction, H160},
 };
 use hyperlane_core::H512;
-use hyperlane_radix::RadixProcessCalldata;
+use hyperlane_radix::RadixTxCalldata;
 use radix_transactions::model::RawNotarizedTransaction;
 use serde::{Deserialize, Serialize};
 
@@ -24,22 +24,25 @@ pub struct RadixTxPrecursor {
     pub method_name: String,
     /// parameters required to call method
     pub encoded_arguments: Vec<u8>,
+    /// addresses needed to pass to tx
+    pub visible_components: Option<VisibleComponents>,
     /// fee summary
-    pub fee_summary: FeeSummary,
+    pub fee_summary: Option<FeeSummary>,
     /// tx hash
     pub tx_hash: Option<H512>,
 }
 
 impl std::cmp::Eq for RadixTxPrecursor {}
 
-impl From<RadixProcessCalldata> for RadixTxPrecursor {
-    fn from(value: RadixProcessCalldata) -> Self {
+impl From<RadixTxCalldata> for RadixTxPrecursor {
+    fn from(value: RadixTxCalldata) -> Self {
         Self {
             component_address: value.component_address,
             method_name: value.method_name,
             encoded_arguments: value.encoded_arguments,
-            fee_summary: value.fee_summary,
-            tx_hash: value.tx_hash,
+            visible_components: None,
+            fee_summary: None,
+            tx_hash: None,
         }
     }
 }
@@ -63,4 +66,9 @@ impl Precursor for Transaction {
             _ => panic!(),
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct VisibleComponents {
+    pub addresses: Vec<Vec<u8>>,
 }

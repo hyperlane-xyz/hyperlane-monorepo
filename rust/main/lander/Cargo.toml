@@ -23,6 +23,7 @@ eyre.workspace = true
 futures-util.workspace = true
 itertools.workspace = true
 prometheus.workspace = true
+regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 solana-client.workspace = true
@@ -39,6 +40,8 @@ core-api-client = { workspace = true }
 gateway-api-client = { workspace = true }
 radix-common = { workspace = true }
 radix-transactions = { workspace = true }
+sbor = { workspace = true, features = ["serde"] }
+scrypto = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 tracing-subscriber.workspace = true

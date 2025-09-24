@@ -13,7 +13,7 @@ use scrypto::{
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
+    Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 use serde::{Deserialize, Serialize};
 
@@ -243,22 +243,18 @@ impl Mailbox for RadixMailbox {
     ) -> ChainResult<Vec<u8>> {
         let message = message.to_vec();
         let metadata = metadata.to_vec();
-        let (visible_components, fee_summary) =
-            self.visible_components(&message, &metadata).await?;
 
-        let args = manifest_args!(&metadata, &message, &visible_components);
+        let args = manifest_args!(&metadata, &message);
 
         let encoded_arguments = manifest_encode(&args).map_err(HyperlaneRadixError::from)?;
 
-        let data = RadixProcessCalldata {
+        let data = RadixTxCalldata {
             component_address: self.encoded_address.clone(),
             method_name: "process".into(),
             encoded_arguments,
-            fee_summary,
-            tx_hash: None,
         };
-        let json_str = serde_json::to_string(&data)
-            .map_err(|err| ChainCommunicationError::JsonParseError(err))?;
+        let json_str =
+            serde_json::to_string(&data).map_err(ChainCommunicationError::JsonParseError)?;
         Ok(json_str.as_bytes().to_vec())
     }
 
@@ -268,7 +264,7 @@ impl Mailbox for RadixMailbox {
         let id: Bytes32 = message_id.into();
         let encoded_arguments = manifest_encode(&id).map_err(HyperlaneRadixError::from)?;
 
-        let calldata = RadixDeliveredCalldata {
+        let calldata = RadixTxCalldata {
             component_address: self.encoded_address.clone(),
             method_name: "delivered".into(),
             encoded_arguments,
@@ -279,24 +275,9 @@ impl Mailbox for RadixMailbox {
     }
 }
 
-/// Essentially the data that is needed to create a RadixTxPrecursor
+/// Data required to send a tx on radix
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RadixProcessCalldata {
-    /// Address of mailbox (already encoded)
-    pub component_address: String,
-    /// Method to call on mailbox
-    pub method_name: String,
-    /// parameters required to call method
-    pub encoded_arguments: Vec<u8>,
-    /// fee summary
-    pub fee_summary: FeeSummary,
-    /// tx hash
-    pub tx_hash: Option<H512>,
-}
-
-/// Data required to check if a message was delivered on-chain for Radix chain
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct RadixDeliveredCalldata {
+pub struct RadixTxCalldata {
     /// Address of mailbox (already encoded)
     pub component_address: String,
     /// Method to call on mailbox
