@@ -15,35 +15,14 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::prelude::{Bundle, Version};
 use prost::Message;
 
-/// WithdrawFXG resrents is sequence of PSKT transactions for batch processing and transport as
-/// a single serialized payload. Bundle has mulpible PSKT. Each PSKT is associated with
-/// some HL messages.
+/// WithdrawFXG represents a sequence of PSKT transactions for batch processing and transport as
+/// a single serialized payload. A Bundle contains multiple PSKTs, where each PSKT is associated with
+/// some Hyperlane messages.
 ///
-/// PSKT inside the bundle and its HL messages should live on respective indices, i.e.,
-/// Bundle[0] = PSKT1, messages[0] = {M1, M2} <=> PSKT1 covers M1 and M2.
+/// The structure maintains a strict correspondence between PSKTs and their messages: each PSKT at
+/// index N in the bundle corresponds to the messages at index N in the messages array. For example,
+/// if Bundle[0] contains PSKT1 and messages[0] contains {M1, M2}, then PSKT1 covers messages M1 and M2.
 ///
-///      Bundle
-///        /\
-///       /  \
-///      /    \
-///  PSKT1    PSKT2
-///    /\       /\
-///   /  \     /  \
-///  /    \   /    \
-/// M1    M2 M3    M4
-///
-/// Also, PSKT inside the bundle and output anchor should live on respective indices.
-/// Anchor(N) is an input for PSKT(N+1)
-///
-///      Bundle
-///        /\
-///       /  \
-///      /    \
-///  PSKT1    PSKT2
-///    |        |
-///    |        |
-///    |        |
-/// Anchor1  Anchor2
 #[derive(Debug)]
 pub struct WithdrawFXG {
     pub bundle: Bundle,
