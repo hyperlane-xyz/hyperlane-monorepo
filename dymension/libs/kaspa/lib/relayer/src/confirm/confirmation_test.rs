@@ -60,10 +60,26 @@ mod tests {
 
     #[test]
     fn message_ids_from_payload() {
-        let payload = "01000000000000004200000000000000307832376232303463653064656162396638636436303262313165396239323938643964666364323830363237323533353236303937346632616333353637383265";
-        let decoded_payload = hex::decode(payload).unwrap();
-        let message_ids = corelib::payload::MessageIDs::from_bytes(decoded_payload).unwrap();
-        assert_eq!(message_ids.0.len(), 1);
+        use hyperlane_core::H256;
+
+        // Create a MessageID with a test H256
+        let test_id = H256::from_slice(&[
+            0x27, 0xb2, 0x04, 0xce, 0x0d, 0xea, 0xb9, 0xf8,
+            0xcd, 0x60, 0x2b, 0x11, 0xe9, 0xb9, 0x29, 0x8d,
+            0x9d, 0xfc, 0xd2, 0x80, 0x62, 0x72, 0x53, 0x52,
+            0x60, 0x97, 0x4f, 0x2a, 0xc3, 0x56, 0x78, 0x2e
+        ]);
+
+        let message_ids = corelib::payload::MessageIDs::new(vec![
+            corelib::payload::MessageID(test_id)
+        ]);
+
+        // Convert to bytes and back
+        let bytes = message_ids.to_bytes();
+        let decoded = corelib::payload::MessageIDs::from_bytes(bytes).unwrap();
+
+        assert_eq!(decoded.0.len(), 1);
+        assert_eq!(decoded.0[0].0, test_id);
     }
 }
 

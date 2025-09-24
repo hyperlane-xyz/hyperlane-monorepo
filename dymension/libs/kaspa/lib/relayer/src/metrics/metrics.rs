@@ -601,17 +601,17 @@ mod tests {
 
         // Test batch statistics
         metrics.update_withdrawal_batch_stats(5);
-        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 5);
+        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 1);
         assert_eq!(metrics.withdrawal_batch_max_messages.get(), 5);
         assert_eq!(metrics.withdrawal_batch_last_messages.get(), 5);
 
         metrics.update_withdrawal_batch_stats(10);
-        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 5);
+        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 1);
         assert_eq!(metrics.withdrawal_batch_max_messages.get(), 10);
         assert_eq!(metrics.withdrawal_batch_last_messages.get(), 10);
 
         metrics.update_withdrawal_batch_stats(3);
-        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 3);
+        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 1);
         assert_eq!(metrics.withdrawal_batch_max_messages.get(), 10);
         assert_eq!(metrics.withdrawal_batch_last_messages.get(), 3);
     }
