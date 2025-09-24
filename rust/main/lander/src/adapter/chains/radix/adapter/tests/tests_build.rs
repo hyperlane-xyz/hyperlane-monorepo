@@ -10,10 +10,9 @@ use radix_common::manifest_args;
 use scrypto::prelude::{manifest_encode, ManifestArgs};
 
 use crate::adapter::chains::radix::adapter::tests::tests_common::{
-    payload, MAILBOX_ADDRESS, TEST_PRIVATE_KEY,
+    payload, MockRadixProvider, MAILBOX_ADDRESS, TEST_PRIVATE_KEY,
 };
 use crate::adapter::chains::radix::precursor::RadixTxPrecursor;
-use crate::adapter::chains::radix::tests::MockRadixProvider;
 use crate::adapter::{AdaptsChain, TxBuildingResult};
 use crate::payload::PayloadDetails;
 use crate::transaction::VmSpecificTxData;

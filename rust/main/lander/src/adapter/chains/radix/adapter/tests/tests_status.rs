@@ -14,8 +14,8 @@ mod tests {
     use radix_common::crypto::Ed25519PrivateKey;
 
     use crate::{
-        adapter::chains::radix::{
-            adapter::tests::tests_common::TEST_PRIVATE_KEY, tests::MockRadixProvider,
+        adapter::chains::radix::adapter::tests::tests_common::{
+            MockRadixProvider, TEST_PRIVATE_KEY,
         },
         LanderError, TransactionDropReason,
     };

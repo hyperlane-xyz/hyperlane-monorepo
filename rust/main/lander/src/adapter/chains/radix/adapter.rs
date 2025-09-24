@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests;
+pub mod tests;
 
 use std::{sync::Arc, time::Duration};
 

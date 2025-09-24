@@ -9,7 +9,7 @@ use tracing_test::traced_test;
 
 use crate::{
     adapter::{
-        chains::radix::{adapter::RadixAdapter, tests::MockRadixProvider},
+        chains::radix::adapter::{tests::tests_common::MockRadixProvider, RadixAdapter},
         RadixTxPrecursor,
     },
     dispatcher::{DispatcherState, InclusionStage, TransactionDb},
