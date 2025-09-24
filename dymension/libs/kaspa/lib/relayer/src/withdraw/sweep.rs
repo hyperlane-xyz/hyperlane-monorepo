@@ -52,7 +52,6 @@ pub async fn create_sweeping_bundle(
         escrow.m() as u16,
         // One payment output – escrow account which receives the entire sweeping amount
         PaymentDestination::from(PaymentOutput::new(escrow.addr.clone(), sweep_balance)),
-        // Mass calculation safety factor
         None,
         // Fees
         Fees::SenderPays(RELAYER_SWEEPING_PRIORITY_FEE),
