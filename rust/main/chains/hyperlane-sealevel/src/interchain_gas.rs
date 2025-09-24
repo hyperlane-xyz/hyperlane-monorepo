@@ -226,6 +226,32 @@ impl SealevelInterchainGasPaymasterIndexer {
         payment_pda_pubkey: &Pubkey,
         payment_pda_slot: &Slot,
     ) -> ChainResult<LogMeta> {
+        match self
+            .log_meta_with_request_block(log_index, payment_pda_pubkey, payment_pda_slot)
+            .await
+        {
+            Ok(log_meta) => Ok(log_meta),
+            Err(e) => {
+                if self.igp.domain.name() == "solaxy" {
+                    self.log_meta_with_request_block(
+                        log_index,
+                        payment_pda_pubkey,
+                        &payment_pda_slot.saturating_add(1),
+                    )
+                    .await
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    async fn log_meta_with_request_block(
+        &self,
+        log_index: U256,
+        payment_pda_pubkey: &Pubkey,
+        payment_pda_slot: &Slot,
+    ) -> ChainResult<LogMeta> {
         let block = self
             .provider
             .rpc_client()

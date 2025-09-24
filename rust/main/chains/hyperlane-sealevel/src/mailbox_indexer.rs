@@ -11,13 +11,14 @@ use hyperlane_sealevel_mailbox::{
     },
     mailbox_dispatched_message_pda_seeds, mailbox_processed_message_pda_seeds,
 };
+use num_traits::SaturatingAdd;
 use solana_sdk::{account::Account, clock::Slot, pubkey::Pubkey};
 use tracing::{debug, info};
 
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator, Decode as _,
-    HyperlaneMessage, Indexed, Indexer, LogMeta, Mailbox, ReorgPeriod, SequenceAwareIndexer, H256,
-    H512, U256,
+    HyperlaneChain, HyperlaneMessage, Indexed, Indexer, LogMeta, Mailbox, ReorgPeriod,
+    SequenceAwareIndexer, H256, H512, U256,
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
@@ -150,6 +151,36 @@ impl SealevelMailboxIndexer {
         message_storage_pda_pubkey: &Pubkey,
         message_account_slot: &Slot,
     ) -> ChainResult<LogMeta> {
+        match self
+            .dispatch_message_log_meta_with_block_request(
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+            )
+            .await
+        {
+            Ok(log_meta) => Ok(log_meta),
+            Err(e) => {
+                if self.mailbox.domain().name() == "solaxy" {
+                    self.dispatch_message_log_meta_with_block_request(
+                        log_index,
+                        message_storage_pda_pubkey,
+                        &message_account_slot.saturating_add(&1u64),
+                    )
+                    .await
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    async fn dispatch_message_log_meta_with_block_request(
+        &self,
+        log_index: U256,
+        message_storage_pda_pubkey: &Pubkey,
+        message_account_slot: &Slot,
+    ) -> ChainResult<LogMeta> {
         let block = self
             .mailbox
             .provider
@@ -242,6 +273,36 @@ impl SealevelMailboxIndexer {
     }
 
     async fn delivered_message_log_meta(
+        &self,
+        log_index: U256,
+        message_storage_pda_pubkey: &Pubkey,
+        message_account_slot: &Slot,
+    ) -> ChainResult<LogMeta> {
+        match self
+            .delivered_message_log_meta_with_block_request(
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+            )
+            .await
+        {
+            Ok(log_meta) => Ok(log_meta),
+            Err(e) => {
+                if self.mailbox.domain().name() == "solaxy" {
+                    self.delivered_message_log_meta_with_block_request(
+                        log_index,
+                        message_storage_pda_pubkey,
+                        &message_account_slot.saturating_add(&1u64),
+                    )
+                    .await
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    async fn delivered_message_log_meta_with_block_request(
         &self,
         log_index: U256,
         message_storage_pda_pubkey: &Pubkey,
