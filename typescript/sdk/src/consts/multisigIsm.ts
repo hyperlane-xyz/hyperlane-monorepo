@@ -932,6 +932,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  giwasepolia: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xc170bef56759e35740ac2d3d0fece33bd9acb90b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   gnosis: {
     threshold: 2,
     validators: [
@@ -1076,16 +1086,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  infinityvmmonza: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb',
-        alias: AW_VALIDATOR_ALIAS,
-      },
     ],
   },
 
