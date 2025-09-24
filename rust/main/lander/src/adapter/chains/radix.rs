@@ -1,5 +1,8 @@
 pub mod adapter;
-pub mod precursor;
+
+mod precursor;
 
 #[cfg(test)]
 pub mod tests;
+
+pub use precursor::*;

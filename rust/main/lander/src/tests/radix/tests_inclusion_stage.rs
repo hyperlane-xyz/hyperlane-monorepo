@@ -8,8 +8,9 @@ use tokio::sync::mpsc;
 use tracing_test::traced_test;
 
 use crate::{
-    adapter::chains::radix::{
-        adapter::RadixAdapter, precursor::RadixTxPrecursor, tests::MockRadixProvider,
+    adapter::{
+        chains::radix::{adapter::RadixAdapter, tests::MockRadixProvider},
+        RadixTxPrecursor,
     },
     dispatcher::{DispatcherState, InclusionStage, TransactionDb},
     tests::test_utils::tmp_dbs,

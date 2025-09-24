@@ -10,9 +10,7 @@ use scrypto::network::NetworkDefinition;
 use uuid::Uuid;
 
 use crate::{
-    adapter::{
-        chains::radix::precursor::RadixTxPrecursor, AdaptsChain, GasLimit, TxBuildingResult,
-    },
+    adapter::{AdaptsChain, GasLimit, RadixTxPrecursor, TxBuildingResult},
     payload::PayloadDetails,
     transaction::{Transaction, TransactionUuid, VmSpecificTxData},
     DispatcherMetrics, FullPayload, LanderError, TransactionDropReason, TransactionStatus,
