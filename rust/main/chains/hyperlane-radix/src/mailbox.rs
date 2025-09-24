@@ -236,10 +236,24 @@ impl Mailbox for RadixMailbox {
     /// against the provided signed checkpoint
     async fn process_calldata(
         &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        message: &HyperlaneMessage,
+        metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
-        todo!() // we dont need this for now
+        let message = message.to_vec();
+        let metadata = metadata.to_vec();
+
+        let args = manifest_args!(&metadata, &message);
+
+        let encoded_arguments = manifest_encode(&args).map_err(HyperlaneRadixError::from)?;
+
+        let data = RadixTxCalldata {
+            component_address: self.encoded_address.clone(),
+            method_name: "process".into(),
+            encoded_arguments,
+        };
+        let json_str =
+            serde_json::to_string(&data).map_err(ChainCommunicationError::JsonParseError)?;
+        Ok(json_str.as_bytes().to_vec())
     }
 
     /// Data required to make a TransactionCallPreviewRequest to
@@ -248,7 +262,7 @@ impl Mailbox for RadixMailbox {
         let id: Bytes32 = message_id.into();
         let encoded_arguments = manifest_encode(&id).map_err(HyperlaneRadixError::from)?;
 
-        let calldata = DeliveredCalldata {
+        let calldata = RadixTxCalldata {
             component_address: self.encoded_address.clone(),
             method_name: "delivered".into(),
             encoded_arguments,
@@ -259,13 +273,66 @@ impl Mailbox for RadixMailbox {
     }
 }
 
-/// Data required to check if a message was delivered on-chain for Radix chain
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct DeliveredCalldata {
+/// Data required to send a tx on radix
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RadixTxCalldata {
     /// Address of mailbox (already encoded)
     pub component_address: String,
     /// Method to call on mailbox
     pub method_name: String,
     /// parameters required to call method
     pub encoded_arguments: Vec<u8>,
+}
+
+#[cfg(test)]
+mod tests {
+    use scrypto::prelude::{manifest_decode, ManifestValue};
+
+    use hyperlane_core::Encode;
+
+    use super::*;
+
+    /// Test to ensure data produced from manifest_args!
+    /// can be correctly serialized from hyperlane-radix and
+    /// sent to lander.
+    #[test]
+    pub fn test_decode_manifest_args() {
+        let message = HyperlaneMessage::default();
+        let visible_components: Vec<ComponentAddress> = vec![];
+        let metadata: Vec<u8> = vec![1, 2, 3, 4];
+
+        let args = manifest_args!(&metadata, &message.to_vec(), &visible_components);
+
+        let encoded_args = manifest_encode(&args).expect("Failed to encode");
+
+        let manifest_args: ManifestValue =
+            manifest_decode(&encoded_args).expect("Failed to decode");
+
+        let expected = ManifestValue::Tuple {
+            fields: vec![
+                ManifestValue::Array {
+                    element_value_kind: sbor::ValueKind::U8,
+                    elements: metadata
+                        .iter()
+                        .map(|v| sbor::Value::U8 { value: *v })
+                        .collect(),
+                },
+                ManifestValue::Array {
+                    element_value_kind: sbor::ValueKind::U8,
+                    elements: message
+                        .to_vec()
+                        .iter()
+                        .map(|v| sbor::Value::U8 { value: *v })
+                        .collect(),
+                },
+                ManifestValue::Array {
+                    element_value_kind: sbor::ValueKind::Custom(
+                        scrypto::prelude::ManifestCustomValueKind::Address,
+                    ),
+                    elements: vec![],
+                },
+            ],
+        };
+        assert_eq!(manifest_args, expected);
+    }
 }
