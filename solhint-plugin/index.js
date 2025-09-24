@@ -1,3 +1,4 @@
+// https://protofire.github.io/solhint/docs/writing-plugins.html
 class NoVirtualOverrideAllowed {
   constructor(reporter, config) {
     this.ruleId = 'no-virtual-override';
