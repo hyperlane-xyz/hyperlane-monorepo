@@ -38,7 +38,16 @@ async function getGovernanceOwnerFromWarpConfig(
 ) {
   const warpConfig = await registry.getWarpDeployConfig(warpRouteId);
   assert(warpConfig, `Warp config not found for warpRouteID ${warpRouteId}`);
-  return warpConfig[chain].owner;
+  const chainConfig = warpConfig[chain];
+  assert(
+    chainConfig,
+    `Warp config missing chain ${chain} for warpRouteID ${warpRouteId}`,
+  );
+  assert(
+    chainConfig.owner,
+    `Owner not configured for chain ${chain} in warpRouteID ${warpRouteId}`,
+  );
+  return chainConfig.owner;
 }
 
 function getArgs() {
