@@ -51,6 +51,23 @@ abstract contract GasRouter is Router {
         _setDestinationGas(domain, gas);
     }
 
+    /**
+     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
+     * @param _destinationDomain The domain of the router.
+     * @return _gasPayment Payment computed by the registered InterchainGasPaymaster.
+     */
+    function quoteGasPayment(
+        uint32 _destinationDomain
+    ) public view virtual returns (uint256) {
+        return
+            _Router_quoteDispatch(
+                _destinationDomain,
+                "",
+                _GasRouter_hookMetadata(_destinationDomain),
+                address(hook)
+            );
+    }
+
     function _GasRouter_hookMetadata(
         uint32 _destination
     ) internal view returns (bytes memory) {
