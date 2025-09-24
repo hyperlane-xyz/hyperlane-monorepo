@@ -78,7 +78,7 @@ async function main() {
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  // If warpRouteId is provided, get the ownerChain owner from the warp config
+  // If warpRouteId is provided, get the governanceOwner from the warp config and ownerChain
   // or the safe owner for the given governance type
   const governanceOwner = warpRouteId
     ? await getGovernanceOwnerFromWarpConfig(
