@@ -8,7 +8,7 @@ cache_path = 'forge-cache'
 allow_paths = ["../node_modules"]
 solc_version = '0.8.22'
 evm_version= 'paris'
-# optimizer = true
+optimizer = true
 optimizer_runs = 999_999
 fs_permissions = [
     { access = "read", path = "./script/avs/"},
