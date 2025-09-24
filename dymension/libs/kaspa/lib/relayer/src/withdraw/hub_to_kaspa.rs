@@ -480,6 +480,7 @@ pub async fn combine_bundles_with_fee(
         fxg.messages.clone(),
         escrow,
         easy_wallet.pub_key().await?,
+        easy_wallet.net.network_id,
     )?;
     Ok(finalized)
 }
@@ -552,11 +553,12 @@ fn finalize_txs(
     messages: Vec<Vec<HyperlaneMessage>>,
     escrow: &EscrowPublic,
     relayer_pub_key: secp256k1::PublicKey,
+    network_id: NetworkId,
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
         .zip(messages)
-        .map(|(tx, _)| finalize_pskt(tx, escrow, &relayer_pub_key))
+        .map(|(tx, _)| finalize_pskt(tx, escrow, &relayer_pub_key, network_id))
         .collect();
 
     let transactions: Vec<RpcTransaction> = transactions_result?;
@@ -569,6 +571,7 @@ pub fn finalize_pskt(
     c: PSKT<Combiner>,
     escrow: &EscrowPublic,
     relayer_pub_key: &secp256k1::PublicKey,
+    network_id: NetworkId,
 ) -> Result<RpcTransaction> {
     let finalized_pskt = c
         .finalizer()
@@ -640,8 +643,6 @@ pub fn finalize_pskt(
         })
         .unwrap();
 
-    // TODO: Get network ID from configuration instead of hardcoding
-    let network_id = NetworkId::new(kaspa_consensus_core::network::NetworkType::Mainnet);
     let params = Params::from(network_id);
 
     let tx = finalized_pskt
