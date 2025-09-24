@@ -45,6 +45,10 @@ impl AdaptsChain for RadixAdapter {
                     Ok(s) => s,
                     Err(err) => {
                         tracing::error!(?err, "Failed to deserialize RadixTxCalldata");
+                        build_txs.push(TxBuildingResult {
+                            payloads: vec![full_payload.details.clone()],
+                            maybe_tx: None,
+                        });
                         continue;
                     }
                 };
