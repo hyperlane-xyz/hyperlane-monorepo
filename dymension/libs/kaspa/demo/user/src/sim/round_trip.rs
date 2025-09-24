@@ -2,6 +2,8 @@ use super::key_cosmos::EasyHubKey;
 use super::key_kaspa::get_kaspa_keypair;
 use super::stats::RoundTripStats;
 use crate::x;
+use cometbft::abci::Code;
+use cometbft::Hash as TendermintHash;
 use corelib::api::client::HttpClient;
 use corelib::user::deposit::deposit_with_payload;
 use corelib::user::payload::make_deposit_payload_easy;
@@ -11,7 +13,7 @@ use cosmrs::Any;
 use eyre::Result;
 use hyperlane_core::H256;
 use hyperlane_core::U256;
-use hyperlane_cosmos_native::CosmosNativeProvider;
+use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use kaspa_addresses::Address;
@@ -19,8 +21,6 @@ use kaspa_consensus_core::tx::TransactionId;
 use std::str::FromStr;
 use std::time::Duration;
 use std::time::{Instant, SystemTime};
-use tendermint::abci::Code;
-use tendermint::hash::Hash as TendermintHash;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
@@ -28,7 +28,7 @@ use tracing::error;
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
-    pub hub: CosmosNativeProvider,
+    pub hub: CosmosProvider<ModuleQueryClient>,
     pub w: EasyKaspaWallet,
     pub args: TaskArgs,
     pub kas_rest: HttpClient,

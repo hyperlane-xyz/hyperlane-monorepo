@@ -116,7 +116,9 @@ impl PayloadDb for HyperlaneRocksDB {
             .is_none()
         {
             let highest_index = self.retrieve_highest_payload_index().await?;
-            let payload_index = highest_index + 1;
+            let payload_index = highest_index.checked_add(1).ok_or_else(|| {
+                DbError::Other("Highest payload index exhausted (u32::MAX)".into())
+            })?;
             self.store_highest_payload_index(payload_index).await?;
             self.store_payload_index_by_uuid(payload_index, payload.uuid())
                 .await?;

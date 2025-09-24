@@ -1,5 +1,5 @@
 import { confirm } from '@inquirer/prompts';
-import { Signer, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -11,64 +11,42 @@ import {
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { isSignCommand, isValidKey } from '../commands/signCommands.js';
+import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
-import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
-import { logBlue } from '../logger.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
-import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
+import { getSigner } from '../utils/keys.js';
 
 import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandContext,
   ContextSettings,
-  WriteCommandContext,
+  SignerKeyProtocolMap,
+  SignerKeyProtocolMapSchema,
 } from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
-  const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
 
-  // if a key was provided, check if it has a valid format
-  if (argv.key) {
-    assert(
-      isValidKey(argv.key),
-      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time`,
-    );
-  }
-
   const settings: ContextSettings = {
-    registryUris: [
-      ...argv.registry,
-      ...(argv.overrides ? [argv.overrides] : []),
-    ],
+    registryUris: [...argv.registry],
     key: argv.key,
-    fromAddress: argv.fromAddress,
     requiresKey,
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
     strategyPath: argv.strategy,
     authToken: argv.authToken,
   };
-  if (!isDryRun && settings.fromAddress)
-    throw new Error(
-      "'--from-address' or '-f' should only be used for dry-runs",
-    );
-  const context = isDryRun
-    ? await getDryRunContext(settings, argv.dryRun)
-    : await getContext(settings);
-  argv.context = context;
+
+  argv.context = await getContext(settings);
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const { key, requiresKey, multiProvider, strategyPath, chainMetadata } =
+  const { key, requiresKey, strategyPath, multiProtocolProvider } =
     argv.context;
 
-  const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
   if (!requiresKey) return argv;
 
   const strategyConfig = strategyPath
@@ -88,15 +66,12 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * Extracts signer config
    */
-  const multiProtocolSigner = new MultiProtocolSignerManager(
+  const multiProtocolSigner = await MultiProtocolSignerManager.init(
     strategyConfig,
     chains,
-    multiProvider,
     multiProtocolProvider,
     { key },
   );
-
-  await multiProtocolSigner.initAllSigners();
 
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
@@ -127,13 +102,10 @@ export async function getContext({
     authToken,
   });
 
-  //Just for backward compatibility
-  let signerAddress: string | undefined = undefined;
-  if (key && typeof key === 'string') {
-    let signer: Signer;
-    ({ key, signer } = await getSigner({ key, skipConfirmation }));
-    signerAddress = await signer.getAddress();
-  }
+  const { keyMap, ethereumSignerAddress } = await getSignerKeyMap(
+    key,
+    !!skipConfirmation,
+  );
 
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
@@ -144,75 +116,55 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
-    key,
+    key: keyMap,
     skipConfirmation: !!skipConfirmation,
-    signerAddress,
+    signerAddress: ethereumSignerAddress,
     strategyPath,
-  } as CommandContext;
+  };
 }
 
 /**
- * Retrieves dry-run context for the user-selected command
- * @returns dry-run context for the current command
+ * Resolves private keys by protocol type by reading either the key
+ * argument passed to the CLI or falling back to reading from env
  */
-export async function getDryRunContext(
-  {
-    registryUris,
-    key,
-    fromAddress,
-    skipConfirmation,
-    disableProxy = false,
-    authToken,
-  }: ContextSettings,
-  chain?: ChainName,
-): Promise<CommandContext> {
-  const registry = getRegistry({
-    registryUris,
-    enableProxy: !disableProxy,
-    logger: rootLogger,
-    authToken,
+async function getSignerKeyMap(
+  rawKeyMap: ContextSettings['key'],
+  skipConfirmation: boolean,
+): Promise<{ keyMap: SignerKeyProtocolMap; ethereumSignerAddress?: Address }> {
+  const keyMap: SignerKeyProtocolMap = SignerKeyProtocolMapSchema.parse(
+    rawKeyMap ?? {},
+  );
+
+  Object.values(ProtocolType).forEach((protocol) => {
+    if (keyMap[protocol]) {
+      return;
+    }
+
+    if (process.env[`HYP_KEY_${protocol.toUpperCase()}`]) {
+      keyMap[protocol] = process.env[`HYP_KEY_${protocol.toUpperCase()}`];
+      return;
+    }
+
+    if (protocol === ProtocolType.Ethereum && process.env.HYP_KEY) {
+      keyMap[protocol] = process.env.HYP_KEY;
+      return;
+    }
   });
-  const chainMetadata = await registry.getMetadata();
 
-  if (!chain) {
-    if (skipConfirmation) throw new Error('No chains provided');
-    chain = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select chain to dry-run against:',
-    );
+  // Just for backward compatibility
+  let signerAddress: string | undefined = undefined;
+  if (keyMap[ProtocolType.Ethereum]) {
+    const { signer } = await getSigner({
+      key: keyMap[ProtocolType.Ethereum],
+      skipConfirmation,
+    });
+    signerAddress = await signer.getAddress();
   }
 
-  logBlue(`Dry-running against chain: ${chain}`);
-  await verifyAnvil();
-
-  let multiProvider = await getMultiProvider(registry);
-  const multiProtocolProvider = await getMultiProtocolProvider(registry);
-  multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
-
-  if (typeof key === 'string') {
-    const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner(
-      {
-        fromAddress,
-        key: key as string,
-        skipConfirmation,
-      },
-    );
-    multiProvider.setSharedSigner(impersonatedSigner);
-
-    return {
-      registry,
-      chainMetadata: multiProvider.metadata,
-      key: impersonatedKey,
-      signer: impersonatedSigner,
-      multiProvider: multiProvider,
-      multiProtocolProvider: multiProtocolProvider,
-      skipConfirmation: !!skipConfirmation,
-      isDryRun: true,
-      dryRunChain: chain,
-    } as WriteCommandContext;
-  } else {
-    throw new Error(`dry-run needs --key legacy key flag`);
-  }
+  return {
+    keyMap,
+    ethereumSignerAddress: signerAddress,
+  };
 }
 
 /**

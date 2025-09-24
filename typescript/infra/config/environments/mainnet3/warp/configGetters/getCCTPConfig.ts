@@ -30,6 +30,17 @@ export const CCTP_CHAINS = [
   'unichain',
 ] as const;
 
+// TODO: remove this once the route has been updated to be owned by non-legacy ownership
+const owners: Record<(typeof CCTP_CHAINS)[number], string> = {
+  arbitrum: '0xaB547e6cde21a5cC3247b8F80e6CeC3a030FAD4A',
+  avalanche: awIcasLegacy['avalanche'],
+  base: '0xA6D9Aa3878423C266480B5a7cEe74917220a1ad2',
+  ethereum: awSafes['ethereum'],
+  optimism: '0x20E9C1776A9408923546b64D5ea8BfdF0B7319d6',
+  polygon: awIcasLegacy['polygon'],
+  unichain: awIcasLegacy['unichain'],
+};
+
 export const getCCTPWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
@@ -37,7 +48,11 @@ export const getCCTPWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   return Object.fromEntries(
     CCTP_CHAINS.map((chain) => {
-      const owner = awIcasLegacy[chain] ?? awSafes[chain];
+      // TODO: restore after route has been updated
+      // const owner = awIcasLegacy[chain] ?? awSafes[chain];
+
+      const owner = owners[chain];
+
       assert(owner, `Owner not found for ${chain}`);
       const config: HypTokenRouterConfig = {
         owner,
@@ -47,7 +62,6 @@ export const getCCTPWarpConfig = async (
         messageTransmitter: messageTransmitterAddresses[chain],
         tokenMessenger: tokenMessengerAddresses[chain],
         urls: [`${SERVICE_URL}/cctp/getCctpAttestation`],
-        contractVersion: '8.1.0',
       };
       return [chain, config];
     }),

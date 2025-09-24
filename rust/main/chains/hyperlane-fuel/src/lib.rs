@@ -4,6 +4,7 @@
 #![warn(missing_docs)]
 // TODO: Remove once we start filling things in
 #![allow(unused_variables)]
+#![deny(clippy::arithmetic_side_effects)]
 
 pub use self::{
     interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, routing_ism::*, trait_builder::*,

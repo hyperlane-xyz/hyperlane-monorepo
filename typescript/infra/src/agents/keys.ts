@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
@@ -74,6 +74,20 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
       address: this.address,
     };
   }
+
+  privateKeyForProtocol(
+    protocol: Exclude<ProtocolType, ProtocolType.Sealevel>,
+  ): HexString;
+  privateKeyForProtocol(protocol: ProtocolType.Sealevel): Uint8Array;
+  privateKeyForProtocol(protocol: ProtocolType): HexString | Uint8Array {
+    if (protocol === ProtocolType.Ethereum) {
+      return this.privateKey;
+    }
+
+    throw new Error(
+      `Base implementation of CloudAgentKey.privateKeyForProtocol does not support protocol ${protocol}`,
+    );
+  }
 }
 
 export class LocalAgentKey extends BaseAgentKey {
@@ -109,7 +123,7 @@ export class ReadOnlyCloudAgentKey extends BaseCloudAgentKey {
    * flavors, e.g.:
    * alias/hyperlane-testnet2-key-kathy (<-- hyperlane context, not specific to any chain)
    * alias/hyperlane-testnet2-key-optimismkovan-relayer (<-- hyperlane context, chain specific)
-   * alias/hyperlane-testnet2-key-alfajores-validator-0 (<-- hyperlane context, chain specific and has an index)
+   * alias/hyperlane-testnet2-key-sepolia-validator-0 (<-- hyperlane context, chain specific and has an index)
    * hyperlane-dev-key-kathy (<-- same idea as above, but without the `alias/` prefix if it's not AWS-based)
    * alias/flowcarbon-testnet2-key-optimismkovan-relayer (<-- flowcarbon context & chain specific, intended to show that there are non-hyperlane contexts)
    * @param address The address of the key.

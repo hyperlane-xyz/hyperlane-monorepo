@@ -39,5 +39,6 @@ pub fn make_tx(
         submission_attempts: 0,
         creation_timestamp: Default::default(),
         last_submission_attempt: None,
+        last_status_check: None,
     }
 }

@@ -29,7 +29,7 @@ url = { workspace = true }
 eyre = { workspace = true }
 bytes = { workspace = true }
 hyperlane-cosmos-rs = { workspace = true }
-hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
+hyperlane-cosmos = { path = "../../../../../rust/main/chains/hyperlane-cosmos" }
 hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 bincode = "1.3"

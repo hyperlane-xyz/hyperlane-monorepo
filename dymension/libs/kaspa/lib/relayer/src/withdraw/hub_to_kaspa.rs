@@ -278,7 +278,7 @@ fn create_withdrawal_pskt(
     Ok(pskt
         .no_more_inputs()
         .no_more_outputs()
-        .payload(payload)
+        .payload(Some(payload))?
         .signer())
 }
 
@@ -480,6 +480,7 @@ pub async fn combine_bundles_with_fee(
         fxg.messages.clone(),
         escrow,
         easy_wallet.pub_key().await?,
+        easy_wallet.net.network_id,
     )?;
     Ok(finalized)
 }
@@ -552,11 +553,12 @@ fn finalize_txs(
     messages: Vec<Vec<HyperlaneMessage>>,
     escrow: &EscrowPublic,
     relayer_pub_key: secp256k1::PublicKey,
+    network_id: NetworkId,
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
         .zip(messages)
-        .map(|(tx, _)| finalize_pskt(tx, escrow, &relayer_pub_key))
+        .map(|(tx, _)| finalize_pskt(tx, escrow, &relayer_pub_key, network_id))
         .collect();
 
     let transactions: Vec<RpcTransaction> = transactions_result?;
@@ -569,6 +571,7 @@ pub fn finalize_pskt(
     c: PSKT<Combiner>,
     escrow: &EscrowPublic,
     relayer_pub_key: &secp256k1::PublicKey,
+    network_id: NetworkId,
 ) -> Result<RpcTransaction> {
     let finalized_pskt = c
         .finalizer()
@@ -640,15 +643,15 @@ pub fn finalize_pskt(
         })
         .unwrap();
 
-    let mass = 10_000; // TODO: why? is it okay to keep this value?
-    let finalize_fn = finalized_pskt
+    let params = Params::from(network_id);
+
+    let tx = finalized_pskt
         .extractor()
         .unwrap()
-        .extract_tx()
+        .extract_tx(&params)
         .map_err(|e: ExtractError| eyre::eyre!("Extract kaspa tx: {:?}", e))?;
-    let (tx, _) = finalize_fn(mass);
 
-    let rpc_tx = (&tx).into();
+    let rpc_tx: RpcTransaction = (&tx.tx).into();
     Ok(rpc_tx)
 }
 
@@ -756,10 +759,10 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_estimate_fee_with_different_inputs() -> Result<()> {
         // Skip this test.
         // It can be used to play with the TX mass estimation.
-        return Ok(());
 
         const MIN_OUTPUTS: u32 = 2;
         const MIN_INPUTS: u32 = 2;
@@ -798,6 +801,7 @@ mod tests {
                             block_daa_score: 0,
                             is_coinbase: false,
                         },
+                        None,
                     )
                 })
                 .collect();
@@ -811,10 +815,6 @@ mod tests {
                     })
                     .collect();
 
-                let inputs_num = inputs.len();
-                let outputs_num = outputs.len();
-                let payload_len = payload.len();
-
                 // Call the function under test
                 let v = estimate_mass(
                     inputs.clone(),
@@ -823,8 +823,6 @@ mod tests {
                     network_id,
                     8,
                 )?;
-
-                // println!("{inputs_num} inputs, {outputs_num} outputs, {payload_len} bytes payload, estimated mass is {v}");
 
                 res_inner.push(v);
 

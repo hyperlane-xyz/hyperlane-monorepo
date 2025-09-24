@@ -1,5 +1,5 @@
 use hyperlane_core::AccountAddressType;
-use hyperlane_cosmos_native::signers::Signer;
+use hyperlane_cosmos::signers::Signer;
 use k256::ecdsa::SigningKey as K256SigningKey;
 use rand_core::OsRng;
 

@@ -1,4 +1,5 @@
 use crate::sim::util::som_to_kas;
+use cometbft::Hash as TendermintHash;
 use eyre::Error;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
@@ -6,7 +7,6 @@ use serde::Serialize;
 use std::fs::File;
 use std::time::Duration;
 use std::time::{Instant, SystemTime};
-use tendermint::hash::Hash as TendermintHash;
 use tracing::info;
 
 pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {

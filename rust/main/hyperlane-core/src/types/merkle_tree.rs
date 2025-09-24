@@ -27,7 +27,11 @@ impl Encode for MerkleTreeInsertion {
     where
         W: Write,
     {
-        Ok(self.leaf_index.write_to(writer)? + self.message_id.write_to(writer)?)
+        let written: usize = self
+            .leaf_index
+            .write_to(writer)?
+            .saturating_add(self.message_id.write_to(writer)?);
+        Ok(written)
     }
 }
 

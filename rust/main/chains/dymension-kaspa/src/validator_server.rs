@@ -24,7 +24,7 @@ use hyperlane_core::{
     SignedCheckpointWithMessageId, H256,
 };
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Signature as HLCoreSignature};
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::prost::Message;
 use kaspa_wallet_core::prelude::DynRpcApi;
@@ -129,7 +129,7 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
         self.kas_provider.as_ref().unwrap().wallet()
     }
 
-    fn must_hub_rpc(&self) -> &CosmosGrpcClient {
+    fn must_hub_rpc(&self) -> &CosmosProvider<ModuleQueryClient> {
         self.kas_provider.as_ref().unwrap().hub_rpc()
     }
 
@@ -226,7 +226,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     let bundle = validate_sign_withdrawal_fxg(
         fxg,
         val_stuff.toggles.withdrawal_enabled,
-        resources.must_hub_rpc(),
+        resources.must_hub_rpc().query(),
         escrow,
         &resources.must_kas_key(),
         WithdrawMustMatch::new(

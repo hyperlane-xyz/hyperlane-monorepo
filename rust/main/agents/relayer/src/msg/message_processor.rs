@@ -12,6 +12,7 @@ use itertools::Itertools;
 use maplit::hashmap;
 use num_traits::Zero;
 use prometheus::{IntCounterVec, IntGaugeVec};
+use tokio::sync::MutexGuard;
 use tokio::sync::{broadcast::Sender, mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -27,6 +28,7 @@ use hyperlane_core::{
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid,
+    TransactionStatus,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
@@ -430,16 +432,20 @@ async fn confirm_already_submitted_operations(
     batch: Vec<QueueOperation>,
 ) -> Vec<QueueOperation> {
     use ConfirmReason::AlreadySubmitted;
-    use PendingOperationStatus::Confirm;
+    use PendingOperationStatus::{Confirm, Retry};
 
     let mut ops_to_prepare = vec![];
     for op in batch.into_iter() {
-        if has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
-            let status = Some(Confirm(AlreadySubmitted));
-            confirm_queue.push(op, status).await;
-        } else {
+        if let Retry(ReprepareReason::Manual) = op.status() {
             ops_to_prepare.push(op);
+            continue;
         }
+        if !has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
+            ops_to_prepare.push(op);
+            continue;
+        }
+        let status = Some(Confirm(AlreadySubmitted));
+        confirm_queue.push(op, status).await;
     }
     ops_to_prepare
 }
@@ -468,6 +474,7 @@ async fn has_operation_been_submitted(
 
     match status {
         Ok(PayloadStatus::Dropped(_)) => false,
+        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => false,
         Ok(_) => true,
         Err(_) => false,
     }
@@ -904,7 +911,7 @@ async fn confirm_lander_task(
                 let status_results_len = status_results.len();
                 let successes = filter_status_results(status_results);
 
-                if status_results_len - successes.len() > 0 {
+                if status_results_len > successes.len() {
                     warn!(?op, "Error retrieving payload status",);
                     send_back_on_failed_submission(
                         op,
@@ -920,8 +927,8 @@ async fn confirm_lander_task(
 
                 if finalized {
                     {
-                        let mut lock = confirmed_operations.lock().await;
-                        *lock += 1;
+                        let mut lock: MutexGuard<i32> = confirmed_operations.lock().await;
+                        *lock = lock.saturating_add(1);
                     }
                     confirm_operation(
                         op,

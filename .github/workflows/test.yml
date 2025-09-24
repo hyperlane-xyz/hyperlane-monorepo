@@ -64,7 +64,7 @@ jobs:
         run: yarn syncpack list-mismatches
 
   lint-prettier:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -188,6 +188,13 @@ jobs:
 
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
+
+      - name: gitleaks-install
+        if: github.event_name != 'merge_group'
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}}
 
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
