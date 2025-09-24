@@ -127,10 +127,17 @@ contract HypERC4626Collateral is TokenRouter {
             );
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function token() public view override returns (address) {
         return address(wrappedToken);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Withdraws `_shares` of `wrappedToken` from this contract to `_recipient`
+     */
     function _transferTo(
         address _recipient,
         uint256 _shares
@@ -138,6 +145,9 @@ contract HypERC4626Collateral is TokenRouter {
         vault.redeem(_shares, _recipient, address(this));
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function _transferFromSender(uint256 _amount) internal override {
         wrappedToken._transferFromSender(_amount);
     }
