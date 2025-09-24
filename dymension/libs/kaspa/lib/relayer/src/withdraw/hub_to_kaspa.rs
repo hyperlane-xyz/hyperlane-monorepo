@@ -242,7 +242,9 @@ fn create_withdrawal_pskt(
     outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
 ) -> Result<PSKT<Signer>> {
-    let mut pskt = PSKT::<Creator>::default().constructor();
+    let mut pskt = PSKT::<Creator>::default()
+        .set_version(Version::One)
+        .constructor();
 
     // Add inputs
     for (input, entry, redeem_script) in inputs.into_iter() {

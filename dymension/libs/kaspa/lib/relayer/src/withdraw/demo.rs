@@ -72,6 +72,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .map_err(|e| Error::Custom(format!("pskt output r_change: {e}")))?;
 
     let pskt = PSKT::<Creator>::default()
+        .set_version(Version::One)
         .constructor()
         .input(input_e)
         .input(input_r)

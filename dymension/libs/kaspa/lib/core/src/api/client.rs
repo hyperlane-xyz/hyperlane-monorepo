@@ -259,7 +259,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore = "avoid api abuse"]
+    #[ignore = "dont hil real api"]
     async fn test_get_deposits() {
         // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
         let client = HttpClient::new(
