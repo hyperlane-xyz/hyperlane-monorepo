@@ -314,6 +314,21 @@ impl RpcProvider {
         Ok(U256::from_dec_str(&balance.amount)?)
     }
 
+   /// Returns the denom balance of that address. Will use the denom specified as the canonical asset in the config
+    pub async fn get_balance_denom(&self, address: String, denom: String) -> ChainResult<U256> {
+        let response: QueryBalanceResponse = self
+            .abci_query(
+                "/cosmos.bank.v1beta1.Query/Balance",
+                QueryBalanceRequest { address, denom },
+            )
+            .await?;
+        let balance = response
+            .balance
+            .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?;
+
+        Ok(U256::from_dec_str(&balance.amount)?)
+    } 
+
     /// Gets a signer, or returns an error if one is not available.
     pub fn get_signer(&self) -> ChainResult<&Signer> {
         self.signer
