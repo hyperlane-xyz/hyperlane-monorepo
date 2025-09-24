@@ -12,7 +12,7 @@ use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
     HyperlaneMessages as ProtoHyperlaneMessages, WithdrawFxg as ProtoWithdrawFXG, WithdrawalVersion,
 };
 use kaspa_consensus_core::tx::TransactionOutpoint;
-use kaspa_wallet_pskt::prelude::Bundle;
+use kaspa_wallet_pskt::prelude::{Bundle, Version};
 use prost::Message;
 
 /// WithdrawFXG resrents is sequence of PSKT transactions for batch processing and transport as
@@ -229,7 +229,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use kaspa_wallet_pskt::prelude::PSKT;
-    use kaspa_wallet_pskt::wasm::pskt::State::Creator;
+    
 
     #[test]
     fn test_withdrawfxg_bytes_roundtrip() {
@@ -241,12 +241,14 @@ mod tests {
         ];
 
         let pskt = PSKT::<kaspa_wallet_pskt::prelude::Creator>::default()
+            .set_version(Version::One)
             .constructor()
             .no_more_outputs()
             .no_more_inputs()
             .payload(Some(msg.clone().to_vec()))
             .unwrap()
             .signer();
+
 
         let bundle = Bundle::from(pskt);
 

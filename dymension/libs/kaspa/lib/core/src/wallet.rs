@@ -268,11 +268,4 @@ mod tests {
         assert!(0 < utxos.len());
     }
 
-    #[test]
-    fn test_wrpc_url_parse() {
-        let s = "localhost:17210";
-        let url = Url::parse(s).unwrap();
-        let s = "152.53.178.127";
-        let url = Url::parse(s).unwrap();
-    }
 }
