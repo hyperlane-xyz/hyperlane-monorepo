@@ -17,6 +17,8 @@ import {
   Mailbox,
   MailboxClient__factory,
   Mailbox__factory,
+  MockEverclearAdapter,
+  MockEverclearAdapter__factory,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -40,6 +42,7 @@ import {
   deepCopy,
   eqAddress,
   normalizeAddressEvm,
+  objMap,
   randomInt,
 } from '@hyperlane-xyz/utils';
 
@@ -57,6 +60,7 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import {
+  EverclearTokenBridgeTokenType,
   MovableTokenType,
   TokenType,
   isMovableCollateralTokenType,
@@ -66,6 +70,7 @@ import {
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   derivedHookAddress,
+  isEverclearCollateralTokenConfig,
   isMovableCollateralTokenConfig,
 } from './types.js';
 
@@ -97,6 +102,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   let vault: ERC4626Test;
   let token: ERC20Test;
   let feeToken: ERC20Test;
+  let everclearBridgeAdapterMockFactory: MockEverclearAdapter__factory;
+  let everclearBridgeAdapterMock: MockEverclearAdapter;
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
@@ -147,11 +154,22 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
     ismAddress = await mailbox.defaultIsm();
+
+    everclearBridgeAdapterMockFactory = new MockEverclearAdapter__factory(
+      signer,
+    );
+    everclearBridgeAdapterMock =
+      await everclearBridgeAdapterMockFactory.deploy();
   });
 
   const movableCollateralTypes = Object.values(TokenType).filter(
     isMovableCollateralTokenType,
   ) as MovableTokenType[];
+
+  const everclearTokenBridgeTypes = [
+    TokenType.ethEverclear,
+    TokenType.collateralEverclear,
+  ] as EverclearTokenBridgeTokenType[];
 
   const assertAllowedRebalancers = async (
     evmERC20WarpModule: EvmERC20WarpModule,
@@ -203,6 +221,36 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         ...baseConfig,
         type: TokenType.nativeScaled,
         allowedRebalancers,
+      },
+    };
+  };
+
+  const getEverclearTokenBridgeTokenConfig = (): Record<
+    EverclearTokenBridgeTokenType,
+    Extract<HypTokenRouterConfig, { type: EverclearTokenBridgeTokenType }>
+  > => {
+    const everclearFeeParams = {
+      deadline: Date.now(),
+      fee: randomInt(1000),
+      signature: '0x',
+    };
+
+    return {
+      [TokenType.collateralEverclear]: {
+        type: TokenType.collateralEverclear,
+        token: token.address,
+        ...baseConfig,
+        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearFeeParams,
+        outputAssets: {},
+      },
+      [TokenType.ethEverclear]: {
+        type: TokenType.ethEverclear,
+        wethAddress: token.address,
+        ...baseConfig,
+        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearFeeParams,
+        outputAssets: {},
       },
     };
   };
@@ -361,6 +409,33 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       });
 
       await assertAllowedRebalancers(evmERC20WarpModule, expectedRebalancers);
+    });
+  }
+
+  for (const tokenType of everclearTokenBridgeTypes) {
+    it(`should create ${tokenType} token`, async () => {
+      const config = getEverclearTokenBridgeTokenConfig()[tokenType];
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      const currentConfig = await evmERC20WarpModule.read();
+
+      assert(
+        isEverclearCollateralTokenConfig(currentConfig),
+        `Expected token of type ${tokenType}`,
+      );
+      expect(currentConfig.everclearBridgeAddress).to.deep.equal(
+        config.everclearBridgeAddress,
+      );
+      expect(currentConfig.everclearFeeParams).to.deep.equal(
+        config.everclearFeeParams,
+      );
     });
   }
 
@@ -1126,6 +1201,265 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
           testCase++;
         }
+      });
+    }
+
+    for (const tokenType of everclearTokenBridgeTypes) {
+      it(`should add destination outputAssets if the token is of type ${tokenType}`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const domainId = 31337;
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            remoteRouters: {
+              [domainId]: {
+                address: randomAddress(),
+              },
+            },
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const remoteToken = randomAddress();
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+
+          outputAssets: {
+            [domainId]: remoteToken,
+          },
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.outputAssets[domainId]).to.equal(
+          addressToBytes32(remoteToken),
+        );
+      });
+
+      it(`should overwrite a destination outputAssets if the token is of type ${tokenType} and a destination token already exists for the given destination`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const domainId = 31337;
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            remoteRouters: {
+              [domainId]: {
+                address: randomAddress(),
+              },
+            },
+            outputAssets: {
+              [domainId]: randomAddress(),
+            },
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const expectedRemoteOuputToken = randomAddress();
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          outputAssets: {
+            [domainId]: expectedRemoteOuputToken,
+          },
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.outputAssets[domainId]).to.equal(
+          addressToBytes32(expectedRemoteOuputToken),
+        );
+      });
+
+      it(`should remove destination outputAssets if the token is of type ${tokenType} and a config is set`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const domainId = 31337;
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            remoteRouters: {
+              [domainId]: {
+                address: randomAddress(),
+              },
+            },
+            outputAssets: {
+              [domainId]: randomAddress(),
+            },
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          outputAssets: {},
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.outputAssets).to.deep.equal({});
+      });
+
+      it(`should remove 1 outputAsset and leave the others if the token is of type ${tokenType}`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const domainId = 31337;
+        const numOfRouters = randomInt(10, 0);
+        const remoteRoutersToKeep = randomRemoteRouters(numOfRouters);
+        const initialRemoteRouters = {
+          [domainId]: {
+            address: randomAddress(),
+          },
+          ...remoteRoutersToKeep,
+        };
+
+        const outputAssetsToKeep = objMap(remoteRoutersToKeep, (_domainId, _) =>
+          randomAddress(),
+        );
+
+        const expectedOutputAssets = objMap(
+          outputAssetsToKeep,
+          (_domainId, address) => addressToBytes32(address),
+        );
+        const initialOutputAddresses = {
+          [domainId]: randomAddress(),
+          ...outputAssetsToKeep,
+        };
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            remoteRouters: initialRemoteRouters,
+            outputAssets: initialOutputAddresses,
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          remoteRouters: initialRemoteRouters,
+          outputAssets: outputAssetsToKeep,
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.outputAssets).to.deep.equal(expectedOutputAssets);
+      });
+
+      it(`should update the fee params if the token is of type ${tokenType}`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const expectedEverclearFeeParams = {
+          deadline: Date.now(),
+          fee: randomInt(100000000, 100),
+          signature: '0x42',
+        };
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          everclearFeeParams: expectedEverclearFeeParams,
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.everclearFeeParams).to.deep.equal(
+          expectedEverclearFeeParams,
+        );
+      });
+
+      it(`should not generate any update transactions for the fee params if the config did not change and the token is of type ${tokenType}`, async () => {
+        const config = deepCopy(
+          getEverclearTokenBridgeTokenConfig()[tokenType],
+        );
+
+        const expectedEverclearFeeParams = {
+          deadline: Date.now(),
+          fee: randomInt(100000000, 100),
+          signature: '0x42',
+        };
+
+        const formattedConfig = {
+          ...config,
+          everclearFeeParams: expectedEverclearFeeParams,
+        };
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: formattedConfig,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update(formattedConfig);
+
+        expect(txs.length).to.equal(0);
+
+        const currentConfig = await evmERC20WarpModule.read();
+        assert(
+          isEverclearCollateralTokenConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.everclearFeeParams).to.deep.equal(
+          expectedEverclearFeeParams,
+        );
       });
     }
 
