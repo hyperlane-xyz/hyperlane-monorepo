@@ -46,7 +46,9 @@ impl RadixProviderForLander for RadixProvider {
         let response = self.transaction_preview(req).await?;
 
         let Some(receipt) = response.receipt else {
-            return Err(ChainCommunicationError::BatchIsEmpty);
+            return Err(ChainCommunicationError::InvalidRequest {
+                msg: "Transaction receipt missing".into(),
+            });
         };
         let receipt: TransactionReceipt =
             serde_json::from_value(receipt).map_err(ChainCommunicationError::from)?;
