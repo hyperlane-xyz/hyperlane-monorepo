@@ -68,7 +68,7 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
     // ============ Internal Functions ============
 
     /// @inheritdoc AbstractPostDispatchHook
-    // solhint-disable-next-line hyperlane/no-virtual-override DestinationRecipientRoutingHook
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
