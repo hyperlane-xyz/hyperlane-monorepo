@@ -33,7 +33,7 @@ abstract contract LpCollateralRouter is
     MovableCollateralRouter,
     ERC4626Upgradeable
 {
-    uint256 private lpAssets = 0;
+    uint256 private lpAssets;
 
     event Donation(address sender, uint256 amount);
 
