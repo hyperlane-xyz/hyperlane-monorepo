@@ -16,7 +16,6 @@ pragma solidity ^0.8.22;
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {EverclearBridge} from "../../contracts/token/libs/EverclearBridge.sol";
 
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
@@ -24,8 +23,7 @@ import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.so
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 import {Message} from "../../contracts/libs/Message.sol";
-import {EverclearTokenBridge, OutputAssetInfo} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
-import {EverclearEthBridge} from "../../contracts/token/bridge/EverclearEthBridge.sol";
+import {EverclearBridge, EverclearEthBridge, EverclearTokenBridge, OutputAssetInfo} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
 import {IEverclearAdapter, IEverclear, IEverclearSpoke} from "../../contracts/interfaces/IEverclearAdapter.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
