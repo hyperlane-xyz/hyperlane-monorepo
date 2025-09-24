@@ -1,5 +1,4 @@
 import { Result } from '@ethersproject/abi';
-import { decodeMultiSendData } from '@safe-global/protocol-kit/dist/src/utils/index.js';
 import {
   MetaTransactionData,
   OperationType,
@@ -71,7 +70,7 @@ import {
   Owner,
   determineGovernanceType,
 } from '../governance.js';
-import { getSafeTx, parseSafeTx } from '../utils/safe.js';
+import { decodeMultiSendData, getSafeTx, parseSafeTx } from '../utils/safe.js';
 
 export interface GovernTransaction extends Record<string, any> {
   chain: ChainName;
