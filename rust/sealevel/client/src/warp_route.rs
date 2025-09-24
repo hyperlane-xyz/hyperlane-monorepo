@@ -580,7 +580,9 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         // We only have validations for SVM tokens at the moment.
         for (chain, config) in app_configs_to_deploy.iter() {
             assert_decimals_max(config.decimal_metadata.decimals);
-            if let TokenType::Synthetic(synthetic) || TokenType::SyntheticMemo(synthetic) = &config.token_type {
+            if let TokenType::Synthetic(synthetic) | TokenType::SyntheticMemo(synthetic) =
+                &config.token_type
+            {
                 // Verify that the metadata URI provided points to a valid JSON file.
                 let metadata_uri = match synthetic.uri.as_ref() {
                     Some(uri) => uri,
@@ -600,22 +602,21 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                         }
                         panic!("URI not provided for token: {}", chain);
                     }
-                    panic!("URI not provided for token: {}", chain);
-                }
-            };
-            println!("Validating metadata URI: {}", metadata_uri);
-            let metadata_response = reqwest::blocking::get(metadata_uri).unwrap();
-            let metadata_contents: SplTokenOffchainMetadata = metadata_response
-                .json()
-                .expect("Failed to parse metadata JSON");
-            metadata_contents.validate();
+                };
+                println!("Validating metadata URI: {}", metadata_uri);
+                let metadata_response = reqwest::blocking::get(metadata_uri).unwrap();
+                let metadata_contents: SplTokenOffchainMetadata = metadata_response
+                    .json()
+                    .expect("Failed to parse metadata JSON");
+                metadata_contents.validate();
 
-            // Ensure that the metadata contents match the provided token config.
-            assert_eq!(metadata_contents.name, synthetic.name, "Name mismatch");
-            assert_eq!(
-                metadata_contents.symbol, synthetic.symbol,
-                "Symbol mismatch"
-            );
+                // Ensure that the metadata contents match the provided token config.
+                assert_eq!(metadata_contents.name, synthetic.name, "Name mismatch");
+                assert_eq!(
+                    metadata_contents.symbol, synthetic.symbol,
+                    "Symbol mismatch"
+                );
+            }
         }
     }
 
