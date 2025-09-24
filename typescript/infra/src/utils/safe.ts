@@ -5,14 +5,26 @@ import SafeApiKit, {
 import Safe from '@safe-global/protocol-kit';
 import {
   MetaTransactionData,
+  OperationType,
   SafeTransaction,
 } from '@safe-global/safe-core-sdk-types';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
+import {
+  Hex,
+  bytesToHex,
+  decodeFunctionData,
+  encodePacked,
+  getAddress,
+  isHex,
+  parseAbi,
+  toBytes,
+} from 'viem';
 
 import {
   AnnotatedEV5Transaction,
+  ChainName,
   ChainNameOrId,
   MultiProvider,
   getSafe,
@@ -29,20 +41,41 @@ import {
 // eslint-disable-next-line import/no-cycle
 import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 
+import { fetchGCPSecret } from './gcloud.js';
+
 const TX_FETCH_RETRIES = 5;
 const TX_FETCH_RETRY_DELAY = 5000;
 
+const safeApiKeySecretName = 'gnosis-safe-api-key';
+
+export async function getSafeApiKey(): Promise<string> {
+  return (await fetchGCPSecret(safeApiKeySecretName, false)) as string;
+}
+
 export async function getSafeAndService(
-  chain: ChainNameOrId,
+  chain: ChainName,
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
-  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
-  const safeSdk: Safe.default = await retryAsync(
-    () => getSafe(chain, multiProvider, safeAddress),
-    5,
-    1000,
-  );
+  const safeApiKey = await getSafeApiKey();
+  let safeService: SafeApiKit.default;
+  try {
+    safeService = getSafeService(chain, multiProvider, safeApiKey);
+  } catch (error) {
+    throw new Error(
+      `Failed to initialize Safe service for chain ${chain}: ${error}`,
+    );
+  }
+  let safeSdk: Safe.default;
+  try {
+    safeSdk = await retryAsync(
+      () => getSafe(chain, multiProvider, safeAddress, safeApiKey),
+      5,
+      1000,
+    );
+  } catch (error) {
+    throw new Error(`Failed to initialize Safe for chain ${chain}: ${error}`);
+  }
   return { safeSdk, safeService };
 }
 
@@ -55,7 +88,7 @@ export function createSafeTransactionData(call: CallData): MetaTransactionData {
 }
 
 export async function executeTx(
-  chain: ChainNameOrId,
+  chain: ChainName,
   multiProvider: MultiProvider,
   safeAddress: Address,
   safeTxHash: string,
@@ -104,15 +137,15 @@ export async function createSafeTransaction(
   safeSdk: Safe.default,
   safeService: SafeApiKit.default,
   safeAddress: Address,
-  safeTransactionData: MetaTransactionData[],
+  transactions: MetaTransactionData[],
   onlyCalls?: boolean,
   nonce?: number,
 ): Promise<SafeTransaction> {
   const nextNonce = await safeService.getNextNonce(safeAddress);
   return safeSdk.createTransaction({
-    safeTransactionData,
+    transactions,
     onlyCalls,
-    options: { nonce: nonce ?? nextNonce },
+    options: { nonce: Number(nonce ?? nextNonce) },
   });
 }
 
@@ -148,12 +181,16 @@ export async function deleteAllPendingSafeTxs(
 ): Promise<void> {
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
+  const safeApiKey = await getSafeApiKey();
 
   // Fetch all pending transactions
-  const pendingTxsUrl = `${txServiceUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=false&limit=100`;
+  const pendingTxsUrl = `${txServiceUrl}/api/v2/safes/${safeAddress}/multisig-transactions/?executed=false&limit=100`;
   const pendingTxsResponse = await fetch(pendingTxsUrl, {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${safeApiKey}`,
+    },
   });
 
   if (!pendingTxsResponse.ok) {
@@ -182,15 +219,19 @@ export async function getSafeTx(
 ): Promise<any> {
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
+  const safeApiKey = await getSafeApiKey();
 
-  const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
+  const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
 
   try {
     return await retryAsync(
       async () => {
         const txDetailsResponse = await fetch(txDetailsUrl, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${safeApiKey}`,
+          },
         });
 
         if (!txDetailsResponse.ok) {
@@ -222,12 +263,16 @@ export async function deleteSafeTx(
   const chainId = multiProvider.getEvmChainId(chain);
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
+  const safeApiKey = await getSafeApiKey();
 
   // Fetch the transaction details to get the proposer
-  const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
+  const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
   const txDetailsResponse = await fetch(txDetailsUrl, {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${safeApiKey}`,
+    },
   });
 
   if (!txDetailsResponse.ok) {
@@ -295,10 +340,13 @@ export async function deleteSafeTx(
     );
 
     // Make the API call to delete the transaction
-    const deleteUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
+    const deleteUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
     const res = await fetch(deleteUrl, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${safeApiKey}`,
+      },
       body: JSON.stringify({ safeTxHash: safeTxHash, signature: signature }),
     });
 
@@ -524,7 +572,7 @@ export async function getPendingTxsForChains(
 
           txs.push({
             chain,
-            nonce,
+            nonce: Number(nonce),
             submissionDate: new Date(submissionDate).toDateString(),
             shortTxHash: `${safeTxHash.slice(0, 6)}...${safeTxHash.slice(-4)}`,
             fullTxHash: safeTxHash,
@@ -568,4 +616,51 @@ export function parseSafeTx(tx: AnnotatedEV5Transaction) {
   });
 
   return decoded;
+}
+
+// Copied from https://github.com/safe-global/safe-core-sdk/blob/201c50ef97ff5c48661cbe71a013ad7dc2866ada/packages/protocol-kit/src/utils/types.ts#L15-L17
+export function asHex(hex?: string): Hex {
+  return isHex(hex) ? (hex as Hex) : (`0x${hex}` as Hex);
+}
+
+// Copied from https://github.com/safe-global/safe-core-sdk/blob/201c50ef97ff5c48661cbe71a013ad7dc2866ada/packages/protocol-kit/src/utils/transactions/utils.ts#L159-L193
+export function decodeMultiSendData(
+  encodedData: string,
+): MetaTransactionData[] {
+  const decodedData = decodeFunctionData({
+    abi: parseAbi([
+      'function multiSend(bytes memory transactions) public payable',
+    ]),
+    data: asHex(encodedData),
+  });
+
+  const args = decodedData.args;
+  const txs: MetaTransactionData[] = [];
+
+  // Decode after 0x
+  let index = 2;
+
+  if (args) {
+    const [transactionBytes] = args;
+    while (index < transactionBytes.length) {
+      // As we are decoding hex encoded bytes calldata, each byte is represented by 2 chars
+      // uint8 operation, address to, value uint256, dataLength uint256
+
+      const operation = `0x${transactionBytes.slice(index, (index += 2))}`;
+      const to = `0x${transactionBytes.slice(index, (index += 40))}`;
+      const value = `0x${transactionBytes.slice(index, (index += 64))}`;
+      const dataLength =
+        parseInt(`${transactionBytes.slice(index, (index += 64))}`, 16) * 2;
+      const data = `0x${transactionBytes.slice(index, (index += dataLength))}`;
+
+      txs.push({
+        operation: Number(operation) as OperationType,
+        to: getAddress(to),
+        value: BigInt(value).toString(),
+        data,
+      });
+    }
+  }
+
+  return txs;
 }

@@ -1,9 +1,4 @@
-import {
-  EthersAdapter,
-  SafeAccountConfig,
-  SafeFactory,
-} from '@safe-global/protocol-kit';
-import { ethers } from 'ethers';
+import Safe, { SafeAccountConfig } from '@safe-global/protocol-kit';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -34,20 +29,7 @@ async function main() {
   );
 
   const signer = multiProvider.getSigner(chain);
-  const ethAdapter = new EthersAdapter({
-    ethers,
-    signerOrProvider: signer,
-  });
-
-  let safeFactory;
-  try {
-    safeFactory = await SafeFactory.create({
-      ethAdapter,
-    });
-  } catch (e) {
-    rootLogger.error(`Error initializing SafeFactory: ${e}`);
-    process.exit(1);
-  }
+  const signerAddress = await signer.getAddress();
 
   const { signers, threshold: defaultThreshold } =
     getGovernanceSigners(governanceType);
@@ -56,13 +38,16 @@ async function main() {
     threshold: threshold ?? defaultThreshold,
   };
 
-  let safe;
-  try {
-    safe = await safeFactory.deploySafe({ safeAccountConfig });
-  } catch (e) {
-    rootLogger.error(`Error deploying Safe: ${e}`);
-    process.exit(1);
-  }
+  const safe = await Safe.default.init({
+    provider: multiProvider.getChainMetadata(chain).rpcUrls[0].http,
+    signer: signerAddress,
+    predictedSafe: {
+      safeAccountConfig,
+    },
+  });
+
+  const safeInitTx = await safe.createSafeDeploymentTransaction();
+  await signer.sendTransaction(safeInitTx);
 
   const safeAddress = await safe.getAddress();
 
