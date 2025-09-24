@@ -8624,6 +8624,11 @@
       "displayName": "Solaxy",
       "domainId": 1936682104,
       "gasCurrencyCoinGeckoId": "solaxy",
+      "index": {
+        "from": 1,
+        "mode": "sequence",
+        "chunk": 1
+      },
       "name": "solaxy",
       "nativeToken": {
         "decimals": 6,
