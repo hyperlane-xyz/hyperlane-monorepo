@@ -31,6 +31,7 @@ import {IMessageTransmitter} from "../../contracts/interfaces/cctp/IMessageTrans
 import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
 import {ISpecifiesInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
 
 contract TokenBridgeCctpV1Test is Test {
     using TypeCasts for address;
@@ -280,14 +281,16 @@ contract TokenBridgeCctpV1Test is Test {
     }
 
     function test_transferRemoteCctp() public virtual {
-        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
             destination,
             user.addressToBytes32(),
             amount
         );
 
+        uint256 charge = quotes[1].amount + quotes[2].amount;
+
         vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+        tokenOrigin.approve(address(tbOrigin), charge);
 
         uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
 
@@ -296,14 +299,58 @@ contract TokenBridgeCctpV1Test is Test {
             abi.encodeCall(
                 ITokenMessengerV1.depositForBurn,
                 (
-                    amount,
+                    charge,
                     cctpDestination,
                     user.addressToBytes32(),
                     address(tokenOrigin)
                 )
             )
         );
-        tbOrigin.transferRemote{value: quote[0].amount}(
+        tbOrigin.transferRemote{value: quotes[0].amount}(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+    }
+
+    function test_transferRemoteCctp_withFeeRecipient() public virtual {
+        LinearFee feeContract = new LinearFee(
+            address(tokenOrigin),
+            1e6,
+            amount / 2,
+            address(this)
+        );
+        tbOrigin.setFeeRecipient(address(feeContract));
+        uint256 feeRecipientFee = feeContract
+        .quoteTransferRemote(destination, user.addressToBytes32(), amount)[0]
+            .amount;
+
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+
+        uint256 charge = quotes[1].amount + quotes[2].amount;
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), charge);
+
+        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
+
+        vm.expectCall(
+            address(tokenMessengerOrigin),
+            abi.encodeCall(
+                ITokenMessengerV1.depositForBurn,
+                (
+                    charge - feeRecipientFee,
+                    cctpDestination,
+                    user.addressToBytes32(),
+                    address(tokenOrigin)
+                )
+            )
+        );
+        tbOrigin.transferRemote{value: quotes[0].amount}(
             destination,
             user.addressToBytes32(),
             amount
@@ -1221,6 +1268,54 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             )
         );
         tbOrigin.transferRemote{value: quote[0].amount}(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+    }
+
+    function test_transferRemoteCctp_withFeeRecipient() public override {
+        LinearFee feeContract = new LinearFee(
+            address(tokenOrigin),
+            1e6,
+            amount / 2,
+            address(this)
+        );
+        tbOrigin.setFeeRecipient(address(feeContract));
+        uint256 feeRecipientFee = feeContract
+        .quoteTransferRemote(destination, user.addressToBytes32(), amount)[0]
+            .amount;
+
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+
+        uint256 tokenQuote = quotes[1].amount;
+        uint256 fastFee = quotes[2].amount;
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), tokenQuote + fastFee);
+
+        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
+
+        vm.expectCall(
+            address(tokenMessengerOrigin),
+            abi.encodeCall(
+                ITokenMessengerV2.depositForBurn,
+                (
+                    tokenQuote + fastFee - feeRecipientFee,
+                    cctpDestination,
+                    user.addressToBytes32(),
+                    address(tokenOrigin),
+                    bytes32(0),
+                    maxFee,
+                    minFinalityThreshold
+                )
+            )
+        );
+        tbOrigin.transferRemote{value: quotes[0].amount}(
             destination,
             user.addressToBytes32(),
             amount
