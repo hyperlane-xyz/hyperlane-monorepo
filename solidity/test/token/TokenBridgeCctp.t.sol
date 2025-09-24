@@ -386,7 +386,6 @@ contract TokenBridgeCctpV1Test is Test {
         assertEq(tbDestination.verify(metadata, message), true);
     }
 
-    // TODO: this is no longer backwards compatible, replace with new deployment for fork tests
     function _upgrade(TokenBridgeCctpBase bridge) internal virtual {
         TokenBridgeCctpV1 newImplementation = new TokenBridgeCctpV1(
             address(bridge.wrappedToken()),
@@ -407,9 +406,6 @@ contract TokenBridgeCctpV1Test is Test {
     }
 
     function testFork_verify_upgrade() public virtual {
-        // no longer backwards compatible
-        vm.skip(true);
-
         TokenBridgeCctpV1 recipient = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
         );
@@ -678,9 +674,6 @@ contract TokenBridgeCctpV1Test is Test {
         bytes32 recipient,
         bytes calldata body
     ) public virtual {
-        // no longer backwards compatible
-        vm.skip(true);
-
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
         TokenBridgeCctpV1 hook = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
@@ -727,9 +720,6 @@ contract TokenBridgeCctpV1Test is Test {
     }
 
     function testFork_verify() public virtual {
-        // no longer backwards compatible
-        vm.skip(true);
-
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
         TokenBridgeCctpV1 hook = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
