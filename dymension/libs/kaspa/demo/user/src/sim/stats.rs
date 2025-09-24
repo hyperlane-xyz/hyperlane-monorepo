@@ -1,12 +1,11 @@
 use crate::sim::util::som_to_kas;
-use eyre::Error;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use serde::Serialize;
 use std::fs::File;
 use std::time::Duration;
-use std::time::{Instant, SystemTime};
-use tendermint::hash::Hash as TendermintHash;
+use std::time::SystemTime;
+use hyperlane_core::H256;
 use tracing::info;
 
 pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
@@ -37,7 +36,7 @@ pub struct RoundTripStats {
     pub kaspa_deposit_tx_time: Option<SystemTime>,
     pub deposit_credit_time: Option<SystemTime>,
     pub deposit_credit_error: Option<String>,
-    pub hub_withdraw_tx_id: Option<TendermintHash>,
+    pub hub_withdraw_tx_id: Option<H256>,
     pub hub_withdraw_tx_time: Option<SystemTime>,
     pub withdraw_credit_time: Option<SystemTime>,
     pub withdraw_credit_error: Option<String>,
