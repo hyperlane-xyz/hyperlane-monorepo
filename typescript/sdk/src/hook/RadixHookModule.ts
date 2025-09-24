@@ -1,5 +1,3 @@
-import { zeroAddress } from 'viem';
-
 import { RadixSigningSDK } from '@hyperlane-xyz/radix-sdk';
 import {
   Address,
@@ -9,6 +7,7 @@ import {
   assert,
   deepEquals,
   eqAddress,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -28,6 +27,7 @@ import {
   HookConfigSchema,
   HookType,
   IgpHookConfig,
+  MUTABLE_HOOK_TYPE,
 } from './types.js';
 
 type HookModuleAddresses = {
@@ -72,8 +72,8 @@ export class RadixHookModule extends HyperlaneModule<
   public async update(
     targetConfig: HookConfig,
   ): Promise<AnnotatedRadixTransaction[]> {
-    if (targetConfig === zeroAddress) {
-      return Promise.resolve([]);
+    if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
+      return [];
     }
 
     targetConfig = HookConfigSchema.parse(targetConfig);
@@ -95,11 +95,103 @@ export class RadixHookModule extends HyperlaneModule<
       return [];
     }
 
-    this.args.addresses.deployedHook = await this.deploy({
-      config: normalizedTargetConfig,
-    });
+    if (!MUTABLE_HOOK_TYPE.includes(normalizedTargetConfig.target)) {
+      this.args.addresses.deployedHook = await this.deploy({
+        config: normalizedTargetConfig,
+      });
 
-    return [];
+      return [];
+    }
+
+    return this.updateMutableHook({
+      current: normalizedCurrentConfig,
+      target: normalizedTargetConfig,
+    });
+  }
+
+  protected async updateMutableHook(configs: {
+    current: Exclude<HookConfig, string>;
+    target: Exclude<HookConfig, string>;
+  }): Promise<AnnotatedRadixTransaction[]> {
+    const { current, target } = configs;
+    let updateTxs: AnnotatedRadixTransaction[];
+
+    assert(
+      current.type === target.type,
+      `Mutable hook update requires both hook configs to be of the same type. Expected ${current.type}, got ${target.type}`,
+    );
+    assert(
+      MUTABLE_HOOK_TYPE.includes(current.type),
+      'Expected update config to be of mutable hook type',
+    );
+    // Checking both objects type fields to help typescript narrow the type down correctly
+    if (
+      current.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
+      target.type === HookType.INTERCHAIN_GAS_PAYMASTER
+    ) {
+      updateTxs = await this.updateIgpHook({
+        currentConfig: current,
+        targetConfig: target,
+      });
+    } else {
+      throw new Error(`Unsupported hook type: ${target.type}`);
+    }
+
+    // Lastly, check if the resolved owner is different from the current owner
+    if (!eqAddress(this.signer.getAddress(), target.owner)) {
+      updateTxs.push({
+        annotation: 'Transferring ownership of ownable Hook...',
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.core.setIgpOwner({
+          from_address: this.signer.getAddress(),
+          igp: this.args.addresses.deployedHook,
+          new_owner: target.owner,
+        }),
+      });
+    }
+
+    return updateTxs;
+  }
+
+  protected async updateIgpHook({
+    currentConfig,
+    targetConfig,
+  }: {
+    currentConfig: IgpHookConfig;
+    targetConfig: IgpHookConfig;
+  }): Promise<AnnotatedRadixTransaction[]> {
+    const updateTxs: AnnotatedRadixTransaction[] = [];
+
+    for (const [remote, c] of Object.entries(targetConfig.oracleConfig)) {
+      if (currentConfig.oracleConfig[remote] === c) {
+        continue;
+      }
+
+      const remoteDomain = this.metadataManager.tryGetDomainId(remote);
+      if (remoteDomain === null) {
+        this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
+        continue;
+      }
+
+      updateTxs.push({
+        annotation: `Setting gas params for ${this.chain}`,
+        networkId: this.signer.getNetworkId(),
+        manifest: await this.signer.populate.core.setDestinationGasConfig({
+          from_address: this.signer.getAddress(),
+          igp: this.args.addresses.deployedHook,
+          destination_gas_config: {
+            remote_domain: remoteDomain.toString(),
+            gas_oracle: {
+              token_exchange_rate: c.tokenExchangeRate,
+              gas_price: c.gasPrice,
+            },
+            gas_overhead: targetConfig.overhead[remote].toString(),
+          },
+        }),
+      });
+    }
+
+    return updateTxs;
   }
 
   public static async create({
