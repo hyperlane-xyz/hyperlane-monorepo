@@ -18,7 +18,7 @@ contract HypXERC20Lockbox is TokenRouter {
     IXERC20 public immutable xERC20;
     IERC20 public immutable wrappedToken;
 
-    // for backwards compatibility
+    /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
     LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     constructor(

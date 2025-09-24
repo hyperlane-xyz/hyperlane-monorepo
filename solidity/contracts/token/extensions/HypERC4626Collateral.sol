@@ -45,7 +45,7 @@ contract HypERC4626Collateral is TokenRouter {
     bytes32 public constant NULL_RECIPIENT =
         0x0000000000000000000000000000000000000000000000000000000000000001;
 
-    // for backwards compatibility
+    /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
     LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     // Nonce for the rate update, to ensure sequential updates

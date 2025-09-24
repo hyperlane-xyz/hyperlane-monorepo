@@ -31,7 +31,7 @@ interface CctpService {
 
 // // need intermediate contract to insert slots between TokenRouter and AbstractCcipReadIsm
 abstract contract TokenBridgeCctpBaseStorage is TokenRouter {
-    // for backwards compatibility
+    /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
     MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
 }
 

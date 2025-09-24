@@ -31,7 +31,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
     // L2 bridge used to initiate the withdrawal
     IStandardBridge public immutable l2Bridge;
 
-    // for backwards compatibility
+    /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
     LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     constructor(
@@ -188,7 +188,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
 
 // need intermediate contract to insert slots between TokenRouter and OPL2ToL1CcipReadIsm
 abstract contract OpTokenBridgeStorage is TokenRouter {
-    // for backwards compatibility
+    /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
     LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 }
 

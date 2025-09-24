@@ -9,7 +9,7 @@ import {LpCollateralRouterStorage} from "../libs/LpCollateralRouter.sol";
 contract HypXERC20 is TokenRouter {
     IXERC20 public immutable wrappedToken;
 
-    // for backwards compatibility
+    /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
     LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     constructor(
