@@ -229,7 +229,6 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use kaspa_wallet_pskt::prelude::PSKT;
-    
 
     #[test]
     fn test_withdrawfxg_bytes_roundtrip() {
@@ -248,7 +247,6 @@ mod tests {
             .payload(Some(msg.clone().to_vec()))
             .unwrap()
             .signer();
-
 
         let bundle = Bundle::from(pskt);
 

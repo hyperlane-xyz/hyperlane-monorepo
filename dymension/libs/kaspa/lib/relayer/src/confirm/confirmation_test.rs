@@ -8,6 +8,7 @@ mod tests {
     use kaspa_hashes::Hash;
 
     #[tokio::test]
+    #[ignore = "dont hit real api"]
     // tested over https://explorer-tn10.kaspa.org/txs/1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1
     async fn test_trace_transactions() {
         let mut lineage_utxos = Vec::new();

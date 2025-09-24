@@ -267,5 +267,4 @@ mod tests {
         assert!(!utxos.is_empty());
         assert!(0 < utxos.len());
     }
-
 }
