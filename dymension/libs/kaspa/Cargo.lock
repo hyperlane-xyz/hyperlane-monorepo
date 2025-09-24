@@ -2517,7 +2517,7 @@ dependencies = [
  "openapi",
  "pin-project",
  "prometheus",
- "protobuf 3.7.2",
+ "protobuf",
  "relayer",
  "reqwest 0.11.27",
  "ripemd",
@@ -4221,7 +4221,7 @@ dependencies = [
  "itertools 0.14.0",
  "once_cell",
  "pin-project",
- "protobuf 3.7.2",
+ "protobuf",
  "ripemd",
  "serde",
  "serde_json",
@@ -4591,7 +4591,7 @@ dependencies = [
  "cosmwasm-std 1.5.11",
  "ethereum-types 0.5.2",
  "num",
- "protobuf 2.28.0",
+ "protobuf",
  "protobuf-codegen-pure",
  "schemars",
  "serde",
@@ -6875,7 +6875,7 @@ dependencies = [
  "lazy_static",
  "memchr",
  "parking_lot 0.12.4",
- "protobuf 2.28.0",
+ "protobuf",
  "thiserror 1.0.69",
 ]
 
@@ -6957,23 +6957,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "protobuf"
-version = "3.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d65a1d4ddae7d8b5de68153b48f6aa3bba8cb002b243dbdbc55a5afbc98f99f4"
-dependencies = [
- "once_cell",
- "protobuf-support",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "protobuf-codegen"
 version = "2.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "033460afb75cf755fcfc16dfaed20b86468082a2ea24e05ac35ab4a099a017d6"
 dependencies = [
- "protobuf 2.28.0",
+ "protobuf",
 ]
 
 [[package]]
@@ -6982,17 +6971,8 @@ version = "2.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95a29399fc94bcd3eeaa951c715f7bea69409b2445356b00519740bcd6ddd865"
 dependencies = [
- "protobuf 2.28.0",
+ "protobuf",
  "protobuf-codegen",
-]
-
-[[package]]
-name = "protobuf-support"
-version = "3.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e36c2f31e0a47f9280fb347ef5e461ffcd2c52dd520d8e216b52f93b0b0d7d6"
-dependencies = [
- "thiserror 1.0.69",
 ]
 
 [[package]]

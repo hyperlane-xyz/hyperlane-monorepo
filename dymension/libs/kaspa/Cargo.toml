@@ -18,6 +18,10 @@ members = [
 # See: https://github.com/CosmWasm/cosmwasm/issues/2525
 ed25519-zebra = "=4.0.3"
 
+# Match the protobuf version used in rust/main workspace to avoid conflicts
+# rust/main uses v2.28.0, while cargo would pick v3.x without this constraint
+protobuf = "=2.28.0"
+
 kaspa-consensus-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
 kaspa-txscript = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
 kaspa-wallet-pskt = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
