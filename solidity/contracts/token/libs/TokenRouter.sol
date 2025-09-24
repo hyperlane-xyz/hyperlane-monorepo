@@ -78,14 +78,15 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     /**
      * @inheritdoc ITokenFee
      * @notice Implements the standardized fee quoting interface for token transfers based on
-     * overridable internal functions of _quoteGasPayment, _feeRecipientAmount, and
-     * _externalFeeAmount. The implementation assumes that feeRecipient and external
-     * fees are charged in the same token as the transfer. Currently no children override
-     * quoteTransferRemote itself.
+     * overridable internal functions of _quoteGasPayment, _feeRecipientAmount, and _externalFeeAmount.
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
      * @return quotes An array of Quote structs representing the fees in different tokens.
+     * @dev This function may return multiple quotes with the same denomination. Convention is to return:
+     *  - the native token first
+     *  - then any internal fees (amount + fee recipient)
+     *  - then any external fees (if any)
      */
     function quoteTransferRemote(
         uint32 _destination,
@@ -168,16 +169,16 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount,
         uint256 _msgValue
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
-        uint256 internalFee = _feeRecipientAmount(
+        uint256 feeRecipientFee = _feeRecipientAmount(
             _destination,
             _recipient,
             _amount
         );
         externalFee = _externalFeeAmount(_destination, _recipient, _amount);
-        uint256 charge = _amount + internalFee + externalFee;
+        uint256 charge = _amount + feeRecipientFee + externalFee;
         _transferFromSender(charge);
-        if (internalFee > 0) {
-            _transferTo(feeRecipient(), internalFee);
+        if (feeRecipientFee > 0) {
+            _transferTo(feeRecipient(), feeRecipientFee);
         }
         remainingNativeValue = token() != address(0)
             ? _msgValue
