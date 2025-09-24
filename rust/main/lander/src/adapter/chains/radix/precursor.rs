@@ -32,6 +32,19 @@ pub struct RadixTxPrecursor {
     pub tx_hash: Option<H512>,
 }
 
+impl RadixTxPrecursor {
+    pub fn new(component_address: String, method_name: String, encoded_arguments: Vec<u8>) -> Self {
+        Self {
+            component_address,
+            method_name,
+            encoded_arguments,
+            visible_components: None,
+            fee_summary: None,
+            tx_hash: None,
+        }
+    }
+}
+
 impl std::cmp::Eq for RadixTxPrecursor {}
 
 impl From<RadixTxCalldata> for RadixTxPrecursor {

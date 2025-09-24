@@ -295,6 +295,7 @@ mod tests {
     /// Test to ensure data produced from manifest_args!
     /// can be correctly serialized from hyperlane-radix and
     /// sent to lander.
+    /// Then lander can successfully deserialize it
     #[test]
     pub fn test_decode_manifest_args() {
         let message = HyperlaneMessage::default();

@@ -111,7 +111,7 @@ pub enum DropReason {
 pub enum VmSpecificTxData {
     CosmWasm,
     Evm(EthereumTxPrecursor),
-    Radix(RadixTxPrecursor),
+    Radix(Box<RadixTxPrecursor>),
     Svm(SealevelTxPrecursor),
 }
 

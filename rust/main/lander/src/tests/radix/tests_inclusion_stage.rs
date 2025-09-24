@@ -96,14 +96,14 @@ fn dummy_radix_tx(params: DummyRadixTxParams) -> Transaction {
     Transaction {
         uuid: UniqueIdentifier::random(),
         tx_hashes: vec![],
-        vm_specific_data: VmSpecificTxData::Radix(RadixTxPrecursor {
+        vm_specific_data: VmSpecificTxData::Radix(Box::new(RadixTxPrecursor {
             component_address,
             method_name,
             encoded_arguments,
             visible_components: None,
             fee_summary: None,
             tx_hash: None,
-        }),
+        })),
         payload_details: details.clone(),
         status,
         submission_attempts: 0,
