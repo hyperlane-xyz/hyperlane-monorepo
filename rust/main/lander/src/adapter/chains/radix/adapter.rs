@@ -255,7 +255,7 @@ impl AdaptsChain for RadixAdapter {
         let manifest_args =
             Self::combine_args_with_visible_components(manifest_values, &visible_components);
 
-        // 1.5x multipler to fee summary
+        // 1.5x multiplier to fee summary
         let multiplier = Decimal::ONE
             .saturating_add(Decimal::ONE_TENTH)
             .saturating_add(Decimal::ONE_TENTH)
