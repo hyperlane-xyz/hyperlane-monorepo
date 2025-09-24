@@ -336,6 +336,13 @@ impl RpcProvider {
             .ok_or(ChainCommunicationError::SignerUnavailable)
     }
 
+    /// ...
+    pub fn with_signer(&self, signer: Signer) -> Self {
+        let mut new = self.clone();
+        new.signer = Some(signer);
+        new
+    } 
+
     /// Injective uses custom proto type for account info.
     /// Decode the BaseAccount with the injective proto - which is different to the default one
     async fn get_injective_account(

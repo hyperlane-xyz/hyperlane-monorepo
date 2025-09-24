@@ -44,5 +44,6 @@ cosmrs = { version = "0.22.0", default-features = false, features = [
 k256 = { version = "0.13.4", features = ["arithmetic", "std", "ecdsa"] }
 url = "2.3"
 thiserror = "2.0"
-tendermint = "0.40.4"
 cosmos-sdk-proto = { version = "0.26.1" }
+cometbft = { workspace = true, features = ["secp256k1"] }
+cometbft-rpc = { workspace = true, features = ["http-client","secp256k1"] }

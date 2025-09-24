@@ -48,8 +48,8 @@ const DEFAULT_REST_URL: &str = "https://api-tn10.kaspa.org/";
 
 async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosProvider<ModuleQueryClient>> {
     let conf = CosmosConnectionConf::new(
-        vec![Url::parse(DEFAULT_RPC_URL).unwrap()],
         vec![Url::parse(DEFAULT_GRPC_URL).unwrap()],
+        vec![Url::parse(DEFAULT_RPC_URL).unwrap()],
         DEFAULT_CHAIN_ID.to_string(),
         DEFAULT_PREFIX.to_string(),
         DEFAULT_DENOM.to_string(),
@@ -57,13 +57,14 @@ async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosProvider<ModuleQu
             amount: "100000000000.0".to_string(),
             denom: DEFAULT_DENOM.to_string(),
         },
-        1.0,
         32,
         OpSubmissionConfig::default(),
         NativeToken {
             decimals: DEFAULT_DECIMALS,
             denom: DEFAULT_DENOM.to_string(),
         },
+       1.0, 
+      None 
     );
     let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
     let locator = ContractLocator::new(&d, H256::zero());
@@ -72,7 +73,7 @@ async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosProvider<ModuleQu
     debug!("signer: {:?}", signer);
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
-    CosmosProvider<ModuleQueryClient>::new(&conf, &locator, signer, metrics, chain).map_err(eyre::Report::from)
+    Ok(CosmosProvider<ModuleQueryClient>::new(&conf, &locator, signer, metrics, chain).map_err(eyre::Report::from)?)
 }
 
 pub struct Params {

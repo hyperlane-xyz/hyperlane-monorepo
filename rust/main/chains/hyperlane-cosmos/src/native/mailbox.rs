@@ -1,8 +1,8 @@
 use std::ops::Mul;
 
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};
-use tendermint::hash::Algorithm;
-use tendermint::Hash;
+use cometbft::hash::Algorithm;
+use cometbft::Hash;
 use tonic::async_trait;
 use tracing::info;
 

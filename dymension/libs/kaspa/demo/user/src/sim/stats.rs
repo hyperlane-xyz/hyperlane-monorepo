@@ -6,7 +6,7 @@ use serde::Serialize;
 use std::fs::File;
 use std::time::Duration;
 use std::time::{Instant, SystemTime};
-use tendermint::hash::Hash as TendermintHash;
+use cometbft::Hash as TendermintHash;
 use tracing::info;
 
 pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {

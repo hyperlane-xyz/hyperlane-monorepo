@@ -49,8 +49,6 @@ tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
 hyperlane-cosmos-rs = {workspace = true}
-tendermint = { workspace = true, features = ["rust-crypto", "secp256k1"] }
-tendermint-rpc = { workspace = true }
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-cosmwasm-interface.workspace = true
