@@ -68,23 +68,8 @@ impl RadixAdapter {
         // in radix all addresses/node have to visible for a transaction to be valid
         // we simulate the tx first to get the necessary addresses
         for _ in 0..NODE_DEPTH {
-            let mut tuple_args = args.clone();
-
-            let visible_components_sbor: Vec<_> = visible_components
-                .iter()
-                .map(|v| sbor::Value::Custom {
-                    value: ManifestCustomValue::Address(v.clone().into()),
-                })
-                .collect();
-            tuple_args.push(ManifestValue::Array {
-                element_value_kind: sbor::ValueKind::Custom(
-                    scrypto::prelude::ManifestCustomValueKind::Address,
-                ),
-                // expected struct `Vec<SborValue<ManifestCustomValueKind, ManifestCustomValue>>`
-                elements: visible_components_sbor,
-            });
             let manifest_args =
-                ManifestArgs::new_from_tuple_or_panic(ManifestValue::Tuple { fields: tuple_args });
+                Self::combine_args_with_visible_components(args.clone(), &visible_components);
 
             let tx_manifest = ManifestBuilder::new_v2()
                 .call_method(component_address, method_name, manifest_args)
@@ -137,6 +122,28 @@ impl RadixAdapter {
 
         Ok((visible_components, fee_summary))
     }
+
+    fn combine_args_with_visible_components(
+        mut manifest_values: Vec<sbor::Value<ManifestCustomValueKind, ManifestCustomValue>>,
+        visible_components: &[ComponentAddress],
+    ) -> ManifestArgs {
+        let visible_components_sbor: Vec<_> = visible_components
+            .iter()
+            .map(|v| sbor::Value::Custom {
+                value: ManifestCustomValue::Address(v.clone().into()),
+            })
+            .collect();
+        manifest_values.push(ManifestValue::Array {
+            element_value_kind: sbor::ValueKind::Custom(
+                scrypto::prelude::ManifestCustomValueKind::Address,
+            ),
+            // expected struct `Vec<SborValue<ManifestCustomValueKind, ManifestCustomValue>>`
+            elements: visible_components_sbor,
+        });
+        ManifestArgs::new_from_tuple_or_panic(ManifestValue::Tuple {
+            fields: manifest_values,
+        })
+    }
 }
 
 #[async_trait::async_trait]
@@ -177,6 +184,8 @@ impl AdaptsChain for RadixAdapter {
     }
 
     async fn simulate_tx(&self, tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError> {
+        tracing::info!(?tx, "simulating transaction");
+
         let (visible_components, fee_summary) = {
             let tx_precursor = tx.precursor();
             // decode manifest value from Mailbox::process_calldata()
@@ -202,13 +211,14 @@ impl AdaptsChain for RadixAdapter {
 
         precursor.fee_summary = Some(fee_summary);
         precursor.visible_components = Some(VisibleComponents {
-            addresses: visible_components.iter().map(|v| v.to_vec()).collect(),
+            addresses: visible_components.iter().map(|v| v.to_hex()).collect(),
         });
         Ok(Vec::new())
     }
 
-    async fn estimate_tx(&self, _tx: &mut Transaction) -> Result<(), LanderError> {
-        todo!()
+    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
+        self.simulate_tx(tx).await?;
+        Ok(())
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
@@ -223,9 +233,27 @@ impl AdaptsChain for RadixAdapter {
         let component_address = tx_precursor.component_address.clone();
         let method_name = tx_precursor.method_name.clone();
 
+        let visible_components: Vec<ComponentAddress> =
+            match tx_precursor.visible_components.as_ref() {
+                Some(v) => v
+                    .addresses
+                    .iter()
+                    .filter_map(|s| ComponentAddress::try_from_hex(s))
+                    .collect(),
+                None => return Err(LanderError::EstimationFailed),
+            };
+
         // decode manifest value from Mailbox::process_calldata()
-        let manifest_args: ManifestValue = manifest_decode(&tx_precursor.encoded_arguments)
+        let manifest_value: ManifestValue = manifest_decode(&tx_precursor.encoded_arguments)
             .map_err(|_| LanderError::PayloadNotFound)?;
+        let manifest_values = match manifest_value {
+            // Should always be a tuple
+            sbor::Value::Tuple { fields } => fields,
+            sbor::Value::Array { elements, .. } => elements,
+            _ => vec![],
+        };
+        let manifest_args =
+            Self::combine_args_with_visible_components(manifest_values, &visible_components);
 
         // 1.5x multipler to fee summary
         let multiplier = Decimal::ONE
@@ -242,7 +270,7 @@ impl AdaptsChain for RadixAdapter {
         let radix_tx = TransactionBuilder::new_v2()
             .manifest_builder(|builder| {
                 builder
-                    .call_method_raw(component_address, method_name, manifest_args)
+                    .call_method(component_address, method_name, manifest_args)
                     .lock_fee(self.signer.address, simulated_xrd)
             })
             .sign(&self.private_key)

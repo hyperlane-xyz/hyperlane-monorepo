@@ -70,5 +70,5 @@ impl Precursor for Transaction {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct VisibleComponents {
-    pub addresses: Vec<Vec<u8>>,
+    pub addresses: Vec<String>,
 }
