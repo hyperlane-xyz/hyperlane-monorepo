@@ -242,9 +242,10 @@ mod tests {
 
         let pskt = PSKT::<kaspa_wallet_pskt::prelude::Creator>::default()
             .constructor()
-            .payload(msg.clone().to_vec())
             .no_more_outputs()
             .no_more_inputs()
+            .payload(Some(msg.clone().to_vec()))
+            .unwrap()
             .signer();
 
         let bundle = Bundle::from(pskt);

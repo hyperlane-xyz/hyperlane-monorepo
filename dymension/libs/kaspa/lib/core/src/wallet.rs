@@ -226,6 +226,7 @@ mod tests {
     use super::*;
     use std::str::FromStr;
     use std::sync::Arc;
+    use url::Url;
 
     #[test]
     fn test_network_id() {

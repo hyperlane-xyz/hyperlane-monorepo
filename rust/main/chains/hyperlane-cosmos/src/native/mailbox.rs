@@ -247,7 +247,7 @@ pub fn h512_to_cosmos_hash(h: H512) -> Hash {
 #[cfg(test)]
 mod test {
     use super::*;
-    use tendermint::{hash::Algorithm, Hash};
+    use cometbft::{hash::Algorithm, Hash};
 
     #[test]
     fn test_hash() {

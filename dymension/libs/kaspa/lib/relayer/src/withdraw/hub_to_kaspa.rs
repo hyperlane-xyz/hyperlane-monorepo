@@ -759,10 +759,10 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_estimate_fee_with_different_inputs() -> Result<()> {
         // Skip this test.
         // It can be used to play with the TX mass estimation.
-        return Ok(());
 
         const MIN_OUTPUTS: u32 = 2;
         const MIN_INPUTS: u32 = 2;
@@ -801,6 +801,7 @@ mod tests {
                             block_daa_score: 0,
                             is_coinbase: false,
                         },
+                        None,
                     )
                 })
                 .collect();
@@ -814,10 +815,6 @@ mod tests {
                     })
                     .collect();
 
-                let inputs_num = inputs.len();
-                let outputs_num = outputs.len();
-                let payload_len = payload.len();
-
                 // Call the function under test
                 let v = estimate_mass(
                     inputs.clone(),
@@ -826,8 +823,6 @@ mod tests {
                     network_id,
                     8,
                 )?;
-
-                // println!("{inputs_num} inputs, {outputs_num} outputs, {payload_len} bytes payload, estimated mass is {v}");
 
                 res_inner.push(v);
 
