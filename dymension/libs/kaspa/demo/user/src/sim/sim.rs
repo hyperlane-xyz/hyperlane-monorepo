@@ -11,6 +11,7 @@ use corelib::api::client::HttpClient;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::{EasyKaspaWalletArgs, Network};
 use eyre::Result;
+use hardcode;
 use hyperlane_cosmos::ConnectionConf as CosmosConnectionConf;
 use hyperlane_cosmos::{CosmosProvider, native::ModuleQueryClient};
 use rand_distr::{Distribution, Exp};
@@ -47,24 +48,23 @@ const DEFAULT_REST_URL: &str = "https://api-tn10.kaspa.org/";
 
 async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosProvider<ModuleQueryClient>> {
     let conf = CosmosConnectionConf::new(
-        vec![Url::parse(DEFAULT_GRPC_URL).unwrap()],  // grpc_urls first
-        vec![Url::parse(DEFAULT_RPC_URL).unwrap()],   // rpc_urls second
+        vec![Url::parse(DEFAULT_RPC_URL).unwrap()],
+        vec![Url::parse(DEFAULT_GRPC_URL).unwrap()],
         DEFAULT_CHAIN_ID.to_string(),
         DEFAULT_PREFIX.to_string(),
-        DEFAULT_DENOM.to_string(),                    // canonical_asset
+        DEFAULT_DENOM.to_string(),
         RawCosmosAmount {
             amount: "100000000000.0".to_string(),
             denom: DEFAULT_DENOM.to_string(),
-        },                                             // minimum_gas_price
-        32,                                            // contract_address_bytes
-        OpSubmissionConfig::default(),                 // op_submission_config
+        },
+        1.0,
+        32,
+        OpSubmissionConfig::default(),
         NativeToken {
             decimals: DEFAULT_DECIMALS,
             denom: DEFAULT_DENOM.to_string(),
-        },                                             // native_token
-        1.0,                                          // gas_multiplier
-        None,                                         // compat_mode
-    ).map_err(|e| eyre::eyre!("Failed to create connection config: {}", e))?;
+        },
+    );
     let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
     let locator = ContractLocator::new(&d, H256::zero());
     let hub_key = EasyHubKey::from_hex(signer_key_hex);
@@ -72,7 +72,7 @@ async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosProvider<ModuleQu
     debug!("signer: {:?}", signer);
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
-    CosmosProvider::<ModuleQueryClient>::new(&conf, &locator, signer, metrics, chain).map_err(eyre::Report::from)
+    CosmosProvider<ModuleQueryClient>::new(&conf, &locator, signer, metrics, chain).map_err(eyre::Report::from)
 }
 
 pub struct Params {
@@ -171,32 +171,11 @@ impl TrafficSim {
             storage_folder: None,
         })
         .await?;
-        let conf = CosmosConnectionConf::new(
-            vec![Url::parse(DEFAULT_GRPC_URL).unwrap()],
-            vec![Url::parse(DEFAULT_RPC_URL).unwrap()],
-            DEFAULT_CHAIN_ID.to_string(),
-            DEFAULT_PREFIX.to_string(),
-            DEFAULT_DENOM.to_string(),
-            RawCosmosAmount {
-                amount: "100000000000.0".to_string(),
-                denom: DEFAULT_DENOM.to_string(),
-            },
-            32,
-            OpSubmissionConfig::default(),
-            NativeToken {
-                decimals: DEFAULT_DECIMALS,
-                denom: DEFAULT_DENOM.to_string(),
-            },
-            1.0,
-            None,
-        ).map_err(|e| eyre::eyre!("Failed to create connection config: {}", e))?;
-
         let resources = TaskResources {
             w: w.clone(),
             args: args.task_args,
             hub: cosmos_provider(&args.hub_whale_priv_key).await?,
             kas_rest: HttpClient::new(DEFAULT_REST_URL.to_string(), RateLimitConfig::default()),
-            hub_conf: Some(conf),
         };
         Ok(TrafficSim {
             params: args.params,

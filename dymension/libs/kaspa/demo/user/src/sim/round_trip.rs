@@ -11,15 +11,16 @@ use cosmrs::Any;
 use eyre::Result;
 use hyperlane_core::H256;
 use hyperlane_core::U256;
-use hyperlane_cosmos::{CosmosProvider, native::ModuleQueryClient, ConnectionConf as CosmosConnectionConf};
-use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
-use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain, H256 as CoreH256};
+use hyperlane_cosmos::{CosmosProvider, native::ModuleQueryClient};
 use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
+use std::str::FromStr;
 use std::time::Duration;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
+use tendermint::abci::Code;
+use tendermint::hash::Hash as TendermintHash;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
@@ -31,9 +32,7 @@ pub struct TaskResources {
     pub w: EasyKaspaWallet,
     pub args: TaskArgs,
     pub kas_rest: HttpClient,
-    pub hub_conf: Option<CosmosConnectionConf>,  // Store config to recreate provider
 }
-
 
 #[derive(Debug, Clone)]
 pub struct TaskArgs {
@@ -128,30 +127,14 @@ struct RoundTrip {
 
 impl RoundTrip {
     pub fn new(
-        mut res: TaskResources,
+        res: TaskResources,
         value: u64,
         task_id: u64,
         hub_k: EasyHubKey,
         cancel_token: CancellationToken,
     ) -> Self {
-        // Create a new provider with the specific signer for this round trip
-        if let Some(conf) = res.hub_conf.as_ref() {
-            let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
-            let locator = ContractLocator::new(&d, CoreH256::zero());
-            let signer = Some(hub_k.signer());
-            let metrics = PrometheusClientMetrics::default();
-            let chain = None;
-            // Create new provider with the signer for this round trip
-            if let Ok(new_hub) = CosmosProvider::<ModuleQueryClient>::new(
-                conf,
-                &locator,
-                signer,
-                metrics,
-                chain,
-            ) {
-                res.hub = new_hub;
-            }
-        }
+        let mut res = res.clone();
+        res.hub.rpc = res.hub.rpc().with_signer(hub_k.signer());
         Self {
             res,
             value,
@@ -191,14 +174,12 @@ impl RoundTrip {
             self.task_id, a
         );
         loop {
-            // Check for gas token balance (assuming adym is the canonical asset)
             let balance = self
                 .res
                 .hub
                 .rpc()
-                .get_balance(a.clone())
-                .await
-                .map_err(|e| eyre::eyre!("Failed to get balance: {}", e))?;
+                .get_balance_denom(a.clone(), "adym".to_string())
+                .await?;
             if balance == U256::from(0) {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
@@ -209,15 +190,12 @@ impl RoundTrip {
             break;
         }
         loop {
-            // Check for the actual token balance
-            // Note: This assumes the hub_denom is set as canonical asset in the connection config
             let balance = self
                 .res
                 .hub
                 .rpc()
-                .get_balance(a.clone())
-                .await
-                .map_err(|e| eyre::eyre!("Failed to get balance: {}", e))?;
+                .get_balance_denom(a.clone(), self.res.args.hub_denom())
+                .await?;
             if balance == U256::from(0) {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
@@ -238,7 +216,7 @@ impl RoundTrip {
         Ok(())
     }
 
-    async fn withdraw(&self) -> Result<(Address, H256, SystemTime)> {
+    async fn withdraw(&self) -> Result<(Address, TendermintHash, SystemTime)> {
         let kaspa_recipient = get_kaspa_keypair();
         debug!(
             "start withdraw, task_id: {}, kaspa_addr: {}",
@@ -275,7 +253,7 @@ impl RoundTrip {
         match response {
             Ok(response) => {
                 if response.tx_result.code.is_ok() {
-                    let tx_id = H256::from_slice(response.hash.as_bytes());
+                    let tx_id = response.hash.clone();
                     Ok((kaspa_recipient.address, tx_id, SystemTime::now()))
                 } else {
                     Err(RoundTripError::WithdrawalTxFailed.into())
