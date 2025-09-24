@@ -53,7 +53,7 @@ How to work on the typescript CLI (locally):
     The CLI depends on the SDK, so first do yarn build from typescript/sdk, and only then will yarn build from typescript/cli work
     How to rebuild and reinstall?
         # in top level (hyperlane-monorepo)
-        yarn clean; yarn build; # CLEAN IS VERY IMPORTANT!
+        yarn clean; yarn install; yarn build; # CLEAN IS VERY IMPORTANT!
         #in typescript/cli
         npm uninstall -g @hyperlane-xyz/cli;
         yarn install
@@ -62,8 +62,16 @@ How to work on the typescript CLI (locally):
         npm install -g
         hyperlane --version
 
-How to get the typescript CLI (our fork)
-  TODO:
+Publishing our CLI fork:
+    node use 20
+    npm whoami
+    npm config list
+    npm config get registry
+    # visit https://www.npmjs.com/settings/daniel.dymension.xyz/packages
+    # change typescript/cli/package.js name field to @daniel.dymension.xyz/hyperlane-cli
+    yarn clean; yarn install; yarn build; yarn bundle;
+    npm publish --access public
+
 
 How to build rust agents:
     cd rust/main
