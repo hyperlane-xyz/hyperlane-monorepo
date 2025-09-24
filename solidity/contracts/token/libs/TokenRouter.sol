@@ -87,6 +87,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      *  - native fees charged by the mailbox dispatch
      *  - then any internal warp route fees (amount bridged plus fee recipient)
      *  - then any external bridging fees (if any, else 0)
+     * There is a Quotes library with an extract function for onchain quoting in a specific denomination,
+     * but we discourage onchain quoting in favor of offchain quoting and overpaying with refunds.
      */
     function quoteTransferRemote(
         uint32 _destination,
