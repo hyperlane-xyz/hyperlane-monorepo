@@ -76,22 +76,27 @@ abstract contract EverclearBridge is TokenRouter {
 
     /**
      * @notice Constructor to initialize the Everclear token bridge
+     * @param _erc20 The address of the ERC20 token to be bridged
+     * @param _scale The scaling factor for token amounts (typically 1 for 18-decimal tokens)
+     * @param _mailbox The address of the Hyperlane mailbox contract
      * @param _everclearAdapter The address of the Everclear adapter contract
      */
     constructor(
         IEverclearAdapter _everclearAdapter,
-        IERC20 _inputAsset,
+        IERC20 _erc20,
         uint256 _scale,
         address _mailbox
     ) TokenRouter(_scale, _mailbox) {
-        wrappedToken = _inputAsset;
+        wrappedToken = _erc20;
         everclearAdapter = _everclearAdapter;
         everclearSpoke = _everclearAdapter.spoke();
     }
 
     /**
-     * @notice Initializes the proxy contract.
-     * @dev Approves the Everclear adapter to spend tokens
+     * @notice Initializes the proxy contract
+     * @dev Approves the Everclear adapter to spend tokens and calls parent initialization
+     * @param _hook The address of the post-dispatch hook (can be zero address)
+     * @param _owner The address that will own this contract
      */
     function initialize(address _hook, address _owner) public initializer {
         _MailboxClient_initialize(_hook, address(0), _owner);
@@ -99,16 +104,9 @@ abstract contract EverclearBridge is TokenRouter {
     }
 
     function _settleIntent(bytes calldata _message) internal virtual {
-        // Get intent from hyperlane message
-        bytes memory metadata = _message.metadata();
-        IEverclear.Intent memory intent = abi.decode(
-            metadata,
-            (IEverclear.Intent)
-        );
-
         /* CHECKS */
         // Check that intent is settled
-        bytes32 intentId = keccak256(abi.encode(intent));
+        bytes32 intentId = keccak256(_message.metadata());
         require(
             everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
             "ETB: Intent Status != SETTLED"
@@ -140,6 +138,11 @@ abstract contract EverclearBridge is TokenRouter {
         emit FeeParamsUpdated(_fee, _deadline);
     }
 
+    /**
+     * @notice Internal function to set the output asset for a destination domain
+     * @dev Emits OutputAssetSet event when successful
+     * @param _outputAssetInfo The output asset information containing destination and asset address
+     */
     function _setOutputAsset(
         OutputAssetInfo calldata _outputAssetInfo
     ) internal {
@@ -252,6 +255,7 @@ abstract contract EverclearBridge is TokenRouter {
      * @param _destination The destination domain ID
      * @param _recipient The recipient address on the destination chain
      * @param _amount The amount of tokens to transfer
+     * @return The created Everclear intent struct containing all transfer details
      */
     function _createIntent(
         uint32 _destination,
@@ -270,13 +274,13 @@ abstract contract EverclearBridge is TokenRouter {
         // Create intent
         (, IEverclear.Intent memory intent) = everclearAdapter.newIntent({
             _destinations: destinations,
-            _receiver: _recipient,
+            _receiver: _getReceiver(_destination, _recipient),
             _inputAsset: address(wrappedToken),
             _outputAsset: outputAssets[_destination], // We load this from storage again to avoid stack too deep
             _amount: _amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: _getIntentCalldata(_recipient, _amount),
+            _data: "",
             _feeParams: feeParams
         });
 
@@ -284,16 +288,16 @@ abstract contract EverclearBridge is TokenRouter {
     }
 
     /**
-     * @notice Gets the calldata for the intent that will unwrap WETH to ETH on destination
-     * @dev Overrides parent to return calldata for unwrapping WETH to ETH
-     * @return The encoded calldata for the unwrap and send operation
+     * @notice Gets the receiver address for an intent
+     * @dev Virtual function that can be overridden by derived contracts
+     * @param _destination The destination domain ID
+     * @param _recipient The intended recipient address
+     * @return receiver The receiver address to use in the intent (typically the recipient for token bridge)
      */
-    function _getIntentCalldata(
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal pure returns (bytes memory) {
-        return abi.encode(_recipient, _amount);
-    }
+    function _getReceiver(
+        uint32 _destination,
+        bytes32 _recipient
+    ) internal view virtual returns (bytes32 receiver);
 }
 
 /**
@@ -316,15 +320,33 @@ contract EverclearTokenBridge is EverclearBridge {
         IEverclearAdapter _everclearAdapter
     ) EverclearBridge(_everclearAdapter, IERC20(_erc20), _scale, _mailbox) {}
 
-    // ============ TokenRouter overrides ============
+    /**
+     * @inheritdoc EverclearBridge
+     */
+    function _getReceiver(
+        uint32 /* _destination */,
+        bytes32 _recipient
+    ) internal pure override returns (bytes32 receiver) {
+        return _recipient;
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     */
     function token() public view override returns (address) {
         return address(wrappedToken);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function _transferFromSender(uint256 _amount) internal override {
         wrappedToken._transferFromSender(_amount);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function _transferTo(
         address _recipient,
         uint256 _amount
@@ -357,22 +379,49 @@ contract EverclearEthBridge is EverclearBridge {
         IEverclearAdapter _everclearAdapter
     ) EverclearBridge(_everclearAdapter, IERC20(_weth), _scale, _mailbox) {}
 
+    /**
+     * @inheritdoc EverclearBridge
+     */
+    function _getReceiver(
+        uint32 _destination,
+        bytes32 /* _recipient */
+    ) internal view override returns (bytes32 receiver) {
+        return _mustHaveRemoteRouter(_destination);
+    }
+
     // senders and recipients are ETH, so we return address(0)
+    /**
+     * @inheritdoc TokenRouter
+     */
     function token() public pure override returns (address) {
         return address(0);
     }
 
     /**
-     * @notice Transfers ETH from sender, wrapping to WETH
+     * @inheritdoc TokenRouter
      */
     function _transferFromSender(uint256 _amount) internal override {
         IWETH(address(wrappedToken))._transferFromSender(_amount);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function _transferTo(
         address _recipient,
         uint256 _amount
     ) internal override {
         IWETH(address(wrappedToken))._transferTo(_recipient, _amount);
+    }
+
+    /**
+     * @notice Allows the contract to receive ETH
+     * @dev Required for WETH unwrapping functionality
+     */
+    receive() external payable {
+        require(
+            msg.sender == address(wrappedToken),
+            "EEB: Only WETH can send ETH"
+        );
     }
 }
