@@ -86,6 +86,7 @@ export const keyFunderConfig: KeyFunderConfig<
     solanatestnet: '0',
     superpositiontestnet: '0',
   },
+  desiredRebalancerBalancePerChain: {},
   igpClaimThresholdPerChain: {
     arbitrumsepolia: '0.05',
     basesepolia: '0.05',

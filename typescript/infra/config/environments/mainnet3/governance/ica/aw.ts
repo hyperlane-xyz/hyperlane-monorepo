@@ -128,4 +128,8 @@ export const awIcas: ChainMap<Address> = {
   // Aug 18, 2025 - Mitosis
   // ----------------------------------------------------------
   mitosis: '0x8C94C6c26c752fAa33bACD377b9198FE7fae0bF5',
+
+  // Sept 22, 2025
+  // ----------------------------------------------------------
+  // zerogravity: '0x8d8703Ea7E7A129a581DCA59B916Cc4410a61D47',
 } as const;
