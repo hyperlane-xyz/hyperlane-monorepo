@@ -586,16 +586,9 @@ contract MockEverclearTokenBridge is EverclearTokenBridge {
     }
 }
 
-/**
- * @notice Fork test contract for EverclearTokenBridge on Arbitrum
- * @dev Tests the bridge using real Arbitrum state and contracts with WETH transfers to Optimism
- * @dev We're running the cancun evm version, to avoid `NotActivated` errors
- * forge-config: default.evm_version = "cancun"
- */
-contract EverclearTokenBridgeForkTest is Test {
+contract BaseEverclearTokenBridgeForkTest is Test {
     using TypeCasts for *;
     using Message for bytes;
-    using stdStorage for StdStorage;
 
     // Arbitrum mainnet constants
     uint32 internal constant ARBITRUM_DOMAIN = 42161;
@@ -623,7 +616,7 @@ contract EverclearTokenBridgeForkTest is Test {
     // Contracts
     IWETH internal weth;
     IEverclearAdapter internal everclearAdapter;
-    MockEverclearTokenBridge internal bridge;
+    EverclearTokenBridge internal bridge;
 
     // Test data
     bytes32 internal constant OUTPUT_ASSET =
@@ -640,6 +633,23 @@ contract EverclearTokenBridgeForkTest is Test {
         return true;
     }
 
+    function _deployBridge() internal virtual returns (address) {
+        MockEverclearTokenBridge implementation = new MockEverclearTokenBridge(
+            address(weth),
+            1,
+            address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
+            everclearAdapter
+        );
+        // Deploy proxy
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
+        );
+
+        return address(proxy);
+    }
+
     function setUp() public virtual {
         // Fork Arbitrum at the latest block
         vm.createSelectFork("arbitrum");
@@ -651,22 +661,8 @@ contract EverclearTokenBridgeForkTest is Test {
         // Set fee deadline to future
         feeDeadline = block.timestamp + 3600; // 1 hour from now
 
-        // Deploy bridge implementation
-        MockEverclearTokenBridge implementation = new MockEverclearTokenBridge(
-            address(weth),
-            1,
-            address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
-            everclearAdapter
-        );
-
-        // Deploy proxy
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            address(implementation),
-            PROXY_ADMIN,
-            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
-        );
-
-        bridge = MockEverclearTokenBridge(address(proxy));
+        // Deploy bridge
+        bridge = EverclearTokenBridge(_deployBridge());
 
         // It would be great if we could mock the ecrecover function to always return the fee signer for the adapter
         // but we can't do that with forge. So we're going to sign the fee params with the fee signer private key
@@ -689,8 +685,10 @@ contract EverclearTokenBridgeForkTest is Test {
         );
         feeSignature = abi.encodePacked(r, s, v);
 
-        // Configure the bridge
+        // Configure the bridge. We can send to both Optimism and Arbitrum.
         vm.startPrank(OWNER);
+
+        // Optimism
         bridge.setFeeParams(
             OPTIMISM_DOMAIN,
             FEE_AMOUNT,
@@ -708,7 +706,13 @@ contract EverclearTokenBridgeForkTest is Test {
             address(bridge).addressToBytes32()
         );
 
-        // Handle ARB-ARB transfers as well
+        // Arbitrum
+        bridge.setFeeParams(
+            ARBITRUM_DOMAIN,
+            FEE_AMOUNT,
+            feeDeadline,
+            feeSignature
+        );
         bridge.setOutputAsset(
             OutputAssetInfo({
                 destination: ARBITRUM_DOMAIN,
@@ -727,6 +731,16 @@ contract EverclearTokenBridgeForkTest is Test {
         vm.prank(ALICE);
         weth.approve(address(bridge), type(uint256).max);
     }
+}
+
+/**
+ * @notice Fork test contract for EverclearTokenBridge on Arbitrum
+ * @dev Tests the bridge using real Arbitrum state and contracts with WETH transfers to Optimism
+ * @dev We're running the cancun evm version, to avoid `NotActivated` errors
+ * forge-config: default.evm_version = "cancun"
+ */
+contract EverclearTokenBridgeForkTest is BaseEverclearTokenBridgeForkTest {
+    using TypeCasts for *;
 
     function testFuzz_ForkTransferRemote(uint256 amount) public {
         // Fund Alice with WETH by wrapping ETH
@@ -793,17 +807,14 @@ contract MockEverclearEthBridge is EverclearEthBridge {
  * @dev We're running the cancun evm version, to avoid `NotActivated` errors
  * forge-config: default.evm_version = "cancun"
  */
-contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
+contract EverclearEthBridgeForkTest is BaseEverclearTokenBridgeForkTest {
     using TypeCasts for address;
     using stdStorage for StdStorage;
 
     // ETH bridge contract
     MockEverclearEthBridge internal ethBridge;
 
-    function setUp() public override {
-        // Call parent setUp to initialize fork and all base contracts
-        super.setUp();
-
+    function _deployBridge() internal override returns (address) {
         // Deploy ETH bridge implementation
         MockEverclearEthBridge implementation = new MockEverclearEthBridge(
             IWETH(ARBITRUM_WETH),
@@ -821,45 +832,12 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
                 (address(new TestPostDispatchHook()), OWNER)
             )
         );
+        return address(proxy);
+    }
 
-        ethBridge = MockEverclearEthBridge(payable(address(proxy)));
-
-        // Configure the ETH bridge using existing fee params and signature
-        vm.startPrank(OWNER);
-        ethBridge.setFeeParams(
-            OPTIMISM_DOMAIN,
-            FEE_AMOUNT,
-            feeDeadline,
-            feeSignature
-        );
-        ethBridge.setOutputAsset(
-            OutputAssetInfo({
-                destination: OPTIMISM_DOMAIN,
-                outputAsset: OUTPUT_ASSET
-            })
-        );
-        ethBridge.enrollRemoteRouter(OPTIMISM_DOMAIN, RECIPIENT);
-
-        // Handle ARB-ARB transfers as well
-        ethBridge.setFeeParams(
-            ARBITRUM_DOMAIN,
-            FEE_AMOUNT,
-            feeDeadline,
-            feeSignature
-        );
-        ethBridge.setOutputAsset(
-            OutputAssetInfo({
-                destination: ARBITRUM_DOMAIN,
-                outputAsset: bytes32(uint256(uint160(ARBITRUM_WETH)))
-            })
-        );
-        ethBridge.enrollRemoteRouter(
-            ARBITRUM_DOMAIN,
-            address(ethBridge).addressToBytes32()
-        );
-        // We will be the ism for this bridge
-        ethBridge.setInterchainSecurityModule(address(this));
-        vm.stopPrank();
+    function setUp() public override {
+        super.setUp();
+        ethBridge = MockEverclearEthBridge(payable(address(bridge)));
     }
 
     function testFuzz_EthBridgeTransferRemote(uint256 amount) public {
