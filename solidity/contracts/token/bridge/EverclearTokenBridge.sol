@@ -194,6 +194,13 @@ contract EverclearTokenBridge is HypERC20Collateral {
         });
     }
 
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal pure virtual returns (bytes memory) {
+        return "";
+    }
+
     /**
      * @notice Creates an Everclear intent for cross-chain token transfer
      * @dev Internal function to handle intent creation with Everclear adapter
@@ -238,7 +245,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _amount: intentParams.amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: "",
+            _data: _getIntentCalldata(_recipient, _amount),
             _feeParams: intentParams.feeParams
         });
 
@@ -328,6 +335,21 @@ contract EverclearTokenBridge is HypERC20Collateral {
         // No-op, the funds are transferred directly to `_recipient` via Everclear
     }
 
+    function _validateIntent(
+        bytes calldata _message
+    ) internal view virtual returns (bytes32, bytes memory) {
+        bytes memory intentBytes = _message.metadata();
+        bytes32 intentId = keccak256(intentBytes);
+        // Check Everclear intent status
+        require(
+            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
+            "ETB: Intent Status != SETTLED"
+        );
+        // Check that we have not processed this intent before
+        require(!intentSettled[intentId], "ETB: Intent already processed");
+        return (intentId, intentBytes);
+    }
+
     /**
      * @notice Handles incoming messages from remote chains
      * @dev For the base token bridge, this is a no-op since funds are transferred via Everclear
@@ -338,19 +360,8 @@ contract EverclearTokenBridge is HypERC20Collateral {
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    ) internal virtual override {
-        // Get intent from hyperlane message
-        bytes memory metadata = _message.metadata();
-        bytes32 intentId = keccak256(metadata);
-
-        // Check Everclear intent status
-        require(
-            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
-            "ETB: Intent Status != SETTLED"
-        );
-        // Check that we have not processed this intent before
-        require(!intentSettled[intentId], "ETB: Intent already processed");
-
+    ) internal override {
+        (bytes32 intentId, ) = _validateIntent(_message);
         intentSettled[intentId] = true;
         super._handle(_origin, _sender, _message);
     }

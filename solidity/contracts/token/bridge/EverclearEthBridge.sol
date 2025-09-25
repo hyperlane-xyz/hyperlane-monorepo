@@ -57,6 +57,13 @@ contract EverclearEthBridge is EverclearTokenBridge {
         return _mustHaveRemoteRouter(_destination);
     }
 
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal pure override returns (bytes memory) {
+        return abi.encode(_recipient, _amount);
+    }
+
     /**
      * @notice Provides a quote for transferring ETH to a remote chain
      * @dev Overrides parent to return a single quote for ETH (including transfer amount, fees, and gas)
@@ -131,6 +138,33 @@ contract EverclearEthBridge is EverclearTokenBridge {
             _transferTo(feeRecipient(), fee);
         }
         return dispatchValue;
+    }
+
+    function _validateIntent(
+        bytes calldata _message
+    ) internal view override returns (bytes32, bytes memory) {
+        (bytes32 intentId, bytes memory intentBytes) = super._validateIntent(
+            _message
+        );
+        IEverclear.Intent memory intent = abi.decode(
+            intentBytes,
+            (IEverclear.Intent)
+        );
+        (bytes32 _intentRecipient, uint256 _intentAmount) = abi.decode(
+            intent.data,
+            (bytes32, uint256)
+        );
+
+        require(
+            _intentRecipient == _message.recipient(),
+            "EEB: Intent recipient mismatch"
+        );
+        require(
+            _intentAmount == _message.amount(),
+            "EEB: Intent amount mismatch"
+        );
+
+        return (intentId, intentBytes);
     }
 
     /**
