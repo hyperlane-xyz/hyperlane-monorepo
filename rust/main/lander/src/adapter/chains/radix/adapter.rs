@@ -1,14 +1,16 @@
 #[cfg(test)]
 pub mod tests;
 
-use std::{sync::Arc, time::Duration};
+use std::{str::FromStr, sync::Arc, time::Duration};
 
 use core_api_client::models::FeeSummary;
 use ethers::utils::hex;
 use gateway_api_client::models::{CompiledPreviewTransaction, TransactionPreviewV2Request};
 use radix_transactions::{
-    model::TransactionPayload,
-    prelude::{DetailedNotarizedTransactionV2, ManifestBuilder, TransactionBuilder},
+    model::{IntentHeaderV2, TransactionHeaderV2, TransactionPayload},
+    prelude::{
+        DetailedNotarizedTransactionV2, ManifestBuilder, TransactionBuilder, TransactionV2Builder,
+    },
     signing::PrivateKey,
 };
 use scrypto::{
@@ -19,7 +21,7 @@ use scrypto::{
     prelude::{
         manifest_decode, ManifestArgs, ManifestCustomValue, ManifestCustomValueKind, ManifestValue,
     },
-    types::ComponentAddress,
+    types::{ComponentAddress, Epoch},
 };
 use uuid::Uuid;
 
@@ -48,6 +50,12 @@ pub struct RadixAdapter {
     pub estimated_block_time: Duration,
 }
 
+#[derive(Clone)]
+pub struct RadixTxBuilder {
+    pub tx_builder: TransactionV2Builder,
+    pub signer: RadixSigner,
+}
+
 impl RadixAdapter {
     fn extract_tx_hash(tx: &DetailedNotarizedTransactionV2) -> H512 {
         let tx_hash: H512 =
@@ -55,16 +63,38 @@ impl RadixAdapter {
         tx_hash
     }
 
+    async fn tx_builder(&self) -> ChainResult<RadixTxBuilder> {
+        let epoch = self.provider.get_gateway_status().await?.ledger_state.epoch as u64;
+
+        let private_key = self.signer.get_signer()?;
+        let tx_builder = TransactionBuilder::new_v2()
+            .transaction_header(TransactionHeaderV2 {
+                notary_public_key: private_key.public_key(),
+                notary_is_signatory: false,
+                tip_basis_points: 0u32, // TODO: what should we set this to?
+            })
+            .intent_header(IntentHeaderV2 {
+                network_id: self.network.id,
+                start_epoch_inclusive: Epoch::of(epoch),
+                end_epoch_exclusive: Epoch::of(epoch + 2), // ~5 minutes per epoch -> 10min timeout
+                intent_discriminator: 0u64, // TODO: do we want this to happen? This is used like a nonce
+                min_proposer_timestamp_inclusive: None, // TODO: discuss whether or not we want to have a time limit
+                max_proposer_timestamp_exclusive: None,
+            });
+        Ok(RadixTxBuilder {
+            tx_builder,
+            signer: self.signer.clone(),
+        })
+    }
+
     /// gets all addresses associated with a tx
     async fn visible_components(
-        provider: &Arc<dyn RadixProviderForLander>,
-        network: &NetworkDefinition,
-        component_address: &str,
+        &self,
+        component_address: &ComponentAddress,
         method_name: &str,
         args: Vec<sbor::Value<ManifestCustomValueKind, ManifestCustomValue>>,
-        component_regex: &regex::Regex,
     ) -> ChainResult<(Vec<ComponentAddress>, FeeSummary)> {
-        let decoder = AddressBech32Decoder::new(network);
+        let decoder = AddressBech32Decoder::new(&self.network);
         let mut visible_components: Vec<ComponentAddress> = Vec::new();
         let mut fee_summary = FeeSummary::default();
 
@@ -75,10 +105,11 @@ impl RadixAdapter {
                 Self::combine_args_with_visible_components(args.clone(), &visible_components);
 
             let tx_manifest = ManifestBuilder::new_v2()
-                .call_method(component_address, method_name, manifest_args)
+                .call_method(*component_address, method_name, manifest_args)
                 .build();
 
-            let tx = TransactionBuilder::new_v2()
+            let RadixTxBuilder { tx_builder, .. } = self.tx_builder().await?;
+            let tx = tx_builder
                 .manifest(tx_manifest)
                 .build_preview_transaction(vec![])
                 .to_raw()
@@ -86,7 +117,8 @@ impl RadixAdapter {
                     msg: "Failed to build tx".into(),
                 })?;
             // we need to simulate the tx multiple times to get all the necessary addresses
-            let result = provider
+            let result = self
+                .provider
                 .preview_tx(TransactionPreviewV2Request {
                     flags: Some(gateway_api_client::models::PreviewFlags {
                         use_free_credit: Some(true),
@@ -111,7 +143,7 @@ impl RadixAdapter {
             // luckily there is a fixed error message if a node is not visible
             // we match against that error message and extract the invisible component
             let error_message = result.error_message.unwrap_or_default();
-            if let Some(matched) = component_regex.find(&error_message) {
+            if let Some(matched) = self.component_regex.find(&error_message) {
                 if let Some(component_address) =
                     ComponentAddress::try_from_bech32(&decoder, matched.as_str())
                 {
@@ -202,21 +234,30 @@ impl AdaptsChain for RadixAdapter {
             let tx_precursor = tx.precursor();
             // decode manifest value from Mailbox::process_calldata()
             let manifest_value: ManifestValue = manifest_decode(&tx_precursor.encoded_arguments)
-                .map_err(|_| LanderError::PayloadNotFound)?;
+                .map_err(|err| {
+                    let error_msg = "Failed to decode manifest";
+                    tracing::error!(?err, "{error_msg}");
+                    LanderError::PayloadNotFound
+                })?;
 
             let manifest_args = match manifest_value {
                 sbor::Value::Tuple { fields } => fields,
                 _ => vec![],
             };
-            Self::visible_components(
-                &self.provider,
-                &self.network,
-                &tx_precursor.component_address,
-                &tx_precursor.method_name,
-                manifest_args,
-                &self.component_regex,
-            )
-            .await?
+
+            let decoder = AddressBech32Decoder::new(&self.network);
+            let component_address =
+                ComponentAddress::try_from_bech32(&decoder, &tx_precursor.component_address)
+                    .ok_or_else(|| {
+                        let error_msg = "Failed to parse ComponentAddress";
+                        tracing::error!(
+                            component_address = tx_precursor.component_address,
+                            "{error_msg}"
+                        );
+                        LanderError::PayloadNotFound
+                    })?;
+            self.visible_components(&component_address, &tx_precursor.method_name, manifest_args)
+                .await?
         };
 
         let precursor = tx.precursor_mut();
@@ -242,9 +283,20 @@ impl AdaptsChain for RadixAdapter {
             Some(s) => s,
             None => return Err(LanderError::EstimationFailed),
         };
-        let component_address = tx_precursor.component_address.clone();
-        let method_name = tx_precursor.method_name.clone();
 
+        let decoder = AddressBech32Decoder::new(&self.network);
+        let component_address =
+            ComponentAddress::try_from_bech32(&decoder, &tx_precursor.component_address)
+                .ok_or_else(|| {
+                    let error_msg = "Failed to parse ComponentAddress";
+                    tracing::error!(
+                        component_address = tx_precursor.component_address,
+                        "{error_msg}"
+                    );
+                    LanderError::PayloadNotFound
+                })?;
+
+        let method_name = tx_precursor.method_name.clone();
         let visible_components: Vec<ComponentAddress> =
             match tx_precursor.visible_components.as_ref() {
                 Some(v) => v
@@ -279,14 +331,16 @@ impl AdaptsChain for RadixAdapter {
             .checked_mul(multiplier)
             .ok_or_else(|| LanderError::EstimationFailed)?;
 
-        let radix_tx = TransactionBuilder::new_v2()
+        let RadixTxBuilder { tx_builder, signer } = self.tx_builder().await?;
+        let private_key = signer.get_signer()?;
+        let radix_tx = tx_builder
             .manifest_builder(|builder| {
                 builder
                     .call_method(component_address, method_name, manifest_args)
-                    .lock_fee(self.signer.address, simulated_xrd)
+                    .lock_fee(signer.address, simulated_xrd)
             })
-            .sign(&self.private_key)
-            .notarize(&self.private_key)
+            .sign(&private_key)
+            .notarize(&private_key)
             .build();
 
         // once tx is built, we can figure out tx hash
