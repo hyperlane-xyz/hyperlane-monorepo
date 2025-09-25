@@ -9,7 +9,7 @@ use corelib::payload::MessageIDs;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
-use hardcode::tx::SWEEPING_THRESHOLD;
+use hardcode::tx::{MAX_MASS_MARGIN, SWEEPING_THRESHOLD};
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
