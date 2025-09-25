@@ -47,11 +47,9 @@ fn mocked_signer() -> RadixSigner {
 }
 
 fn build_adapter(provider: Arc<MockRadixProvider>, signer: RadixSigner) -> RadixAdapter {
-    let private_key = signer.get_signer().expect("Failed to get private key");
     RadixAdapter {
         provider,
         network: NetworkDefinition::mainnet(),
-        private_key,
         signer,
         estimated_block_time: Duration::from_nanos(0),
         component_regex: regex::Regex::new("").unwrap(),

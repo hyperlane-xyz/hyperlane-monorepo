@@ -21,7 +21,6 @@ pub struct RadixAdapter {
     pub network: NetworkDefinition,
     pub provider: Arc<dyn RadixProviderForLander>,
     pub signer: RadixSigner,
-    pub private_key: PrivateKey,
     pub component_regex: regex::Regex,
     pub estimated_block_time: Duration,
 }
