@@ -57,6 +57,13 @@ contract EverclearEthBridge is EverclearTokenBridge {
         return _mustHaveRemoteRouter(_destination);
     }
 
+    /**
+     * @notice Encodes the intent calldata for ETH transfers
+     * @dev Overrides parent to encode recipient and amount for ETH-specific intent validation
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of ETH to transfer
+     * @return The encoded calldata containing recipient and amount
+     */
     function _getIntentCalldata(
         bytes32 _recipient,
         uint256 _amount
@@ -140,6 +147,13 @@ contract EverclearEthBridge is EverclearTokenBridge {
         return dispatchValue;
     }
 
+    /**
+     * @notice Validates the Everclear intent for ETH transfers
+     * @dev Overrides parent to add ETH-specific validation by checking intent data matches message
+     * @param _message The incoming message containing transfer details
+     * @return intentId The unique identifier for the validated intent
+     * @return intentBytes The encoded intent data
+     */
     function _validateIntent(
         bytes calldata _message
     ) internal view override returns (bytes32, bytes memory) {
