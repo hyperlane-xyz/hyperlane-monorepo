@@ -4,10 +4,10 @@ use core_api_client::models::TransactionReceipt;
 use gateway_api_client::models::{
     TransactionPreviewV2Request, TransactionStatusResponse, TransactionSubmitResponse,
 };
+use scrypto::network::NetworkDefinition;
 
 use hyperlane_core::{ChainResult, H512};
 use hyperlane_radix::{RadixProviderForLander, RadixSigner, RadixTxCalldata};
-use scrypto::network::NetworkDefinition;
 
 use crate::{
     adapter::chains::radix::adapter::RadixAdapter, transaction::VmSpecificTxData, FullPayload,

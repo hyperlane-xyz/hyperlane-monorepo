@@ -5,10 +5,11 @@ use ethers::{
     abi::Function,
     types::{transaction::eip2718::TypedTransaction, H160},
 };
-use hyperlane_core::H512;
-use hyperlane_radix::RadixTxCalldata;
 use radix_transactions::model::RawNotarizedTransaction;
 use serde::{Deserialize, Serialize};
+
+use hyperlane_core::H512;
+use hyperlane_radix::RadixTxCalldata;
 
 use crate::transaction::{Transaction, VmSpecificTxData};
 use crate::{
