@@ -3,7 +3,6 @@
 export const mainnet3SupportedChainNames = [
   'abstract',
   'ancient8',
-  'alephzeroevmmainnet',
   'apechain',
   'appchain',
   'arbitrum',
@@ -46,7 +45,6 @@ export const mainnet3SupportedChainNames = [
   'fraxtal',
   'fusemainnet',
   'galactica',
-  'game7',
   'gnosis',
   'gravity',
   'harmony',
@@ -55,7 +53,6 @@ export const mainnet3SupportedChainNames = [
   'hyperevm',
   'immutablezkevmmainnet',
   'inevm',
-  'infinityvmmainnet',
   'ink',
   'injective',
   'kaia',
