@@ -23,6 +23,25 @@ use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, Version, PSKT};
 use kaspa_wallet_pskt::pskt::InputBuilder;
 use tracing::info;
 
+/// Helper function to create test outputs for mass estimation
+fn create_test_outputs(
+    escrow_balance: u64,
+    relayer_balance: u64,
+    escrow: &EscrowPublic,
+    relayer_address: &kaspa_addresses::Address,
+) -> Vec<TransactionOutput> {
+    vec![
+        TransactionOutput {
+            value: escrow_balance,
+            script_public_key: escrow.p2sh.clone(),
+        },
+        TransactionOutput {
+            value: relayer_balance,
+            script_public_key: pay_to_address_script(relayer_address),
+        },
+    ]
+}
+
 /// Calculate the maximum number of escrow inputs when sweeping that fit within mass limit using binary search
 fn calculate_sweep_size(
     escrow_inputs: &[PopulatedInput],
@@ -40,16 +59,12 @@ fn calculate_sweep_size(
     // First try all escrow inputs
     let total_escrow_balance = escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
 
-    let test_outputs = vec![
-        TransactionOutput {
-            value: total_escrow_balance,
-            script_public_key: escrow.p2sh.clone(),
-        },
-        TransactionOutput {
-            value: total_relayer_balance,
-            script_public_key: pay_to_address_script(relayer_address),
-        },
-    ];
+    let test_outputs = create_test_outputs(
+        total_escrow_balance,
+        total_relayer_balance,
+        escrow,
+        relayer_address,
+    );
 
     let all_inputs: Vec<_> = escrow_inputs
         .iter()
@@ -99,16 +114,12 @@ fn calculate_sweep_size(
             .map(|(_, e, _)| e.amount)
             .sum::<u64>();
 
-        let test_outputs = vec![
-            TransactionOutput {
-                value: test_escrow_balance,
-                script_public_key: escrow.p2sh.clone(),
-            },
-            TransactionOutput {
-                value: total_relayer_balance,
-                script_public_key: pay_to_address_script(relayer_address),
-            },
-        ];
+        let test_outputs = create_test_outputs(
+            test_escrow_balance,
+            total_relayer_balance,
+            escrow,
+            relayer_address,
+        );
 
         let test_inputs: Vec<_> = test_escrow_batch
             .into_iter()
@@ -165,16 +176,12 @@ fn calculate_relayer_fee(
     let total_relayer_balance = relayer_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
 
     // Initial mass calculation with total relayer balance as output
-    let initial_outputs = vec![
-        TransactionOutput {
-            value: batch_escrow_balance,
-            script_public_key: escrow.p2sh.clone(),
-        },
-        TransactionOutput {
-            value: total_relayer_balance,
-            script_public_key: pay_to_address_script(relayer_address),
-        },
-    ];
+    let initial_outputs = create_test_outputs(
+        batch_escrow_balance,
+        total_relayer_balance,
+        escrow,
+        relayer_address,
+    );
 
     let all_inputs: Vec<_> = batch_escrow_inputs
         .iter()
@@ -196,16 +203,12 @@ fn calculate_relayer_fee(
     // Second pass: recalculate mass with more accurate output (balance - fee)
     let estimated_relayer_output = total_relayer_balance.saturating_sub(initial_fee);
 
-    let final_outputs = vec![
-        TransactionOutput {
-            value: batch_escrow_balance,
-            script_public_key: escrow.p2sh.clone(),
-        },
-        TransactionOutput {
-            value: estimated_relayer_output,
-            script_public_key: pay_to_address_script(relayer_address),
-        },
-    ];
+    let final_outputs = create_test_outputs(
+        batch_escrow_balance,
+        estimated_relayer_output,
+        escrow,
+        relayer_address,
+    );
 
     let mass = estimate_mass(
         all_inputs,
