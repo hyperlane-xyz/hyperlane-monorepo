@@ -20,9 +20,9 @@ use std::cell::RefCell;
 use std::error::Error;
 
 const SOLANA_SQUADS_INSTRUCTIONS_DOC: &str =
-    "https://hyperlanexyz.notion.site/Solana-Using-Squads-2016d35200d6802480acfce20350db8d";
+    "https://docs.hyperlane.xyz/docs/guides/production/using-squads/using-squads-solana";
 const ALT_SVM_SQUADS_INSTRUCTIONS_DOC: &str =
-    "https://hyperlanexyz.notion.site/Alt-SVMs-Using-Squads-2016d35200d680d280d1eaa7565b3711";
+    "https://docs.hyperlane.xyz/docs/guides/production/using-squads/alt-svm-using-sqauds";
 
 pub(crate) struct PayerKeypair {
     pub keypair: Keypair,
