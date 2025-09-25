@@ -294,6 +294,7 @@ pub enum KnownHyperlaneDomain {
     Polygonamoy = 80002,
     PolynomialFi = 1000008008,
     PragmaDevnet = 6363709,
+    Radix = 1633970780,
     ScrollSepolia = 534351,
     Sepolia = 11155111,
     SolanaTestnet = 1399811150,

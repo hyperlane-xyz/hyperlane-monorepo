@@ -1,18 +1,28 @@
+#[cfg(test)]
+pub mod tests;
+
 use std::{sync::Arc, time::Duration};
 
+use scrypto::network::NetworkDefinition;
+use uuid::Uuid;
+
 use hyperlane_core::H512;
-use hyperlane_radix::{DeliveredCalldata, RadixProviderForLander};
+use hyperlane_radix::{RadixProviderForLander, RadixSigner, RadixTxCalldata};
 
 use crate::{
-    adapter::{AdaptsChain, GasLimit, TxBuildingResult},
+    adapter::{AdaptsChain, GasLimit, RadixTxPrecursor, TxBuildingResult},
     payload::PayloadDetails,
-    transaction::Transaction,
+    transaction::{Transaction, TransactionUuid, VmSpecificTxData},
     DispatcherMetrics, FullPayload, LanderError, TransactionDropReason, TransactionStatus,
 };
 
-#[derive(Clone)]
+#[allow(dead_code)]
 pub struct RadixAdapter {
+    pub network: NetworkDefinition,
     pub provider: Arc<dyn RadixProviderForLander>,
+    pub signer: RadixSigner,
+    pub component_regex: regex::Regex,
+    pub estimated_block_time: Duration,
 }
 
 #[async_trait::async_trait]
@@ -24,8 +34,41 @@ impl AdaptsChain for RadixAdapter {
         todo!()
     }
 
-    async fn build_transactions(&self, _payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
-        todo!()
+    async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
+        let mut build_txs = Vec::new();
+        for full_payload in payloads {
+            let operation_payload: RadixTxCalldata =
+                match serde_json::from_slice(&full_payload.data) {
+                    Ok(s) => s,
+                    Err(err) => {
+                        tracing::error!(?err, "Failed to deserialize RadixTxCalldata");
+                        build_txs.push(TxBuildingResult {
+                            payloads: vec![full_payload.details.clone()],
+                            maybe_tx: None,
+                        });
+                        continue;
+                    }
+                };
+
+            let precursor = RadixTxPrecursor::from(operation_payload);
+            let tx = Transaction {
+                uuid: TransactionUuid::new(Uuid::new_v4()),
+                tx_hashes: vec![],
+                vm_specific_data: VmSpecificTxData::Radix(Box::new(precursor)),
+                payload_details: vec![full_payload.details.clone()],
+                status: TransactionStatus::PendingInclusion,
+                submission_attempts: 0,
+                creation_timestamp: chrono::Utc::now(),
+                last_submission_attempt: None,
+                last_status_check: None,
+            };
+
+            build_txs.push(TxBuildingResult {
+                payloads: vec![full_payload.details.clone()],
+                maybe_tx: Some(tx),
+            });
+        }
+        build_txs
     }
 
     async fn simulate_tx(&self, _tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError> {
@@ -74,7 +117,7 @@ impl AdaptsChain for RadixAdapter {
         &self,
         tx: &Transaction,
     ) -> Result<Vec<PayloadDetails>, LanderError> {
-        let delivered_calldata_list: Vec<(DeliveredCalldata, &PayloadDetails)> = tx
+        let delivered_calldata_list: Vec<(RadixTxCalldata, &PayloadDetails)> = tx
             .payload_details
             .iter()
             .filter_map(|d| {
@@ -118,155 +161,5 @@ impl AdaptsChain for RadixAdapter {
 
     async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError> {
         todo!()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use gateway_api_client::models::TransactionStatusResponse;
-    use hyperlane_core::ChainResult;
-
-    use super::*;
-
-    mockall::mock! {
-        pub MockRadixProviderForLander {
-
-        }
-
-        #[async_trait::async_trait]
-        impl RadixProviderForLander for MockRadixProviderForLander {
-            async fn get_tx_hash_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse>;
-            async fn check_preview(&self, params: &DeliveredCalldata) -> ChainResult<bool>;
-        }
-    }
-
-    #[tokio::test]
-    async fn get_tx_hash_status_pending() {
-        let mut provider = MockMockRadixProviderForLander::new();
-
-        provider.expect_get_tx_hash_status().returning(|_| {
-            Ok(TransactionStatusResponse {
-                status: gateway_api_client::models::TransactionStatus::Pending,
-                ..Default::default()
-            })
-        });
-
-        let adapter = RadixAdapter {
-            provider: Arc::new(provider),
-        };
-
-        let hash = H512::zero();
-        let tx_status = adapter
-            .get_tx_hash_status(hash)
-            .await
-            .expect("Failed to get tx hash status");
-
-        assert_eq!(tx_status, TransactionStatus::Mempool);
-    }
-
-    #[tokio::test]
-    async fn get_tx_hash_status_rejected() {
-        let mut provider = MockMockRadixProviderForLander::new();
-
-        provider.expect_get_tx_hash_status().returning(|_| {
-            Ok(TransactionStatusResponse {
-                status: gateway_api_client::models::TransactionStatus::Rejected,
-                ..Default::default()
-            })
-        });
-
-        let adapter = RadixAdapter {
-            provider: Arc::new(provider),
-        };
-
-        let hash = H512::zero();
-        let tx_status = adapter
-            .get_tx_hash_status(hash)
-            .await
-            .expect("Failed to get tx hash status");
-
-        assert_eq!(
-            tx_status,
-            TransactionStatus::Dropped(TransactionDropReason::DroppedByChain)
-        );
-    }
-
-    #[tokio::test]
-    async fn get_tx_hash_status_unknown() {
-        let mut provider = MockMockRadixProviderForLander::new();
-
-        provider.expect_get_tx_hash_status().returning(|_| {
-            Ok(TransactionStatusResponse {
-                status: gateway_api_client::models::TransactionStatus::Unknown,
-                ..Default::default()
-            })
-        });
-
-        let adapter = RadixAdapter {
-            provider: Arc::new(provider),
-        };
-
-        let hash = H512::zero();
-        let tx_status = adapter.get_tx_hash_status(hash.clone()).await;
-
-        match tx_status {
-            Err(LanderError::TxHashNotFound(tx_hash)) => {
-                assert_eq!(tx_hash, format!("{:x}", hash));
-            }
-            val => {
-                panic!("Incorrect status {:?}", val);
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn get_tx_hash_status_committed_failure() {
-        let mut provider = MockMockRadixProviderForLander::new();
-
-        provider.expect_get_tx_hash_status().returning(|_| {
-            Ok(TransactionStatusResponse {
-                status: gateway_api_client::models::TransactionStatus::CommittedFailure,
-                ..Default::default()
-            })
-        });
-
-        let adapter = RadixAdapter {
-            provider: Arc::new(provider),
-        };
-
-        let hash = H512::zero();
-        let tx_status = adapter
-            .get_tx_hash_status(hash.clone())
-            .await
-            .expect("Failed to get tx hash status");
-
-        assert_eq!(
-            tx_status,
-            TransactionStatus::Dropped(TransactionDropReason::FailedSimulation)
-        );
-    }
-
-    #[tokio::test]
-    async fn get_tx_hash_status_committed_success() {
-        let mut provider = MockMockRadixProviderForLander::new();
-
-        provider.expect_get_tx_hash_status().returning(|_| {
-            Ok(TransactionStatusResponse {
-                status: gateway_api_client::models::TransactionStatus::CommittedSuccess,
-                ..Default::default()
-            })
-        });
-
-        let adapter = RadixAdapter {
-            provider: Arc::new(provider),
-        };
-
-        let hash = H512::zero();
-        let tx_status = adapter
-            .get_tx_hash_status(hash.clone())
-            .await
-            .expect("Failed to get tx hash status");
-
-        assert_eq!(tx_status, TransactionStatus::Finalized);
     }
 }
