@@ -179,7 +179,7 @@ export class ContractVerifier extends BaseContractVerifier {
           { isProxy, verificationId },
         ),
       undefined,
-      5000,
+      1000,
     );
   }
 
