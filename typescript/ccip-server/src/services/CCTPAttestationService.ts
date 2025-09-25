@@ -40,7 +40,7 @@ class CCTPAttestationService {
   _getCCTPVersionFromMessage(message: string): bigint {
     const versionIndex = 0;
     const versionOffset = 4;
-    return ethers.BigNumber.from(
+    return BigInt(
       this._getFieldFromMessage(message, versionIndex, versionOffset),
     ).toBigInt();
   }
@@ -49,7 +49,7 @@ class CCTPAttestationService {
   _getSourceDomainFromMessage(message: string): number {
     const sourceDomainIndex = 4;
     const sourceDomainOffset = 4;
-    return ethers.BigNumber.from(
+    return BigInt(
       this._getFieldFromMessage(message, sourceDomainIndex, sourceDomainOffset),
     ).toNumber();
   }

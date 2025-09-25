@@ -55,8 +55,8 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
       throw new Error('ISM as object unimplemented');
     }
     return [
-      config.hook ?? ethers.constants.AddressZero,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.hook ?? ethers.ZeroAddress,
+      config.interchainSecurityModule ?? ethers.ZeroAddress,
       owner,
     ];
   }

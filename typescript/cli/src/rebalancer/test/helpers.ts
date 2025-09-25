@@ -20,7 +20,7 @@ export function buildTestConfig(
     (acc, chain) => {
       (acc as any)[chain] = {
         bridgeLockTime: 60 * 1000,
-        bridge: ethers.constants.AddressZero,
+        bridge: ethers.ZeroAddress,
         weighted: {
           weight: BigInt(1),
           tolerance: BigInt(0),

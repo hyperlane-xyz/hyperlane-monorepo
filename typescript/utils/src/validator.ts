@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { Wallet, keccak256, solidityPacked, verifyMessage } from 'ethers';
 
 import { eqAddress } from './addresses.js';
 import { domainHash } from './domains.js';
@@ -50,12 +50,17 @@ export class BaseValidator {
       checkpoint.index,
       messageId,
     ];
-    return ethers.utils.solidityPack(types, values);
+    return solidityPacked(types, values);
   }
 
   static messageHash(checkpoint: Checkpoint, messageId: HexString) {
     const message = this.message(checkpoint, messageId);
-    return ethers.utils.arrayify(ethers.utils.keccak256(message));
+    return new Uint8Array(
+      keccak256(message)
+        .slice(2)
+        .match(/.{1,2}/g)!
+        .map((byte) => parseInt(byte, 16)),
+    );
   }
 
   static recoverAddressFromCheckpoint(
@@ -64,7 +69,7 @@ export class BaseValidator {
     messageId: HexString,
   ): Address {
     const msgHash = this.messageHash(checkpoint, messageId);
-    return ethers.utils.verifyMessage(msgHash, signature);
+    return verifyMessage(msgHash, signature);
   }
 
   static recoverAddressFromCheckpointWithId(
@@ -127,14 +132,14 @@ export const createAnnounce = async (
       Buffer.from('HYPERLANE_ANNOUNCEMENT'),
     ]),
   );
-  const domainHash = ethers.utils.keccak256(domainHashBytes);
+  const domainHash = keccak256(domainHashBytes);
 
   const announcementDigestBytes = toHexString(
     Buffer.concat([fromHexString(domainHash), Buffer.from(storageLocation)]),
   );
-  const announcementDigest = ethers.utils.keccak256(announcementDigestBytes);
+  const announcementDigest = keccak256(announcementDigestBytes);
 
-  return new ethers.Wallet(validatorPrivKey).signMessage(
+  return new Wallet(validatorPrivKey).signMessage(
     fromHexString(announcementDigest),
   );
 };

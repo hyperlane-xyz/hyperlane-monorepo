@@ -46,7 +46,7 @@ export const getAncient8EthereumUSDCWarpConfig = async (
     ...abacusWorksEnvOwnerConfig.ancient8,
     type: TokenType.synthetic,
     // Uses the default ISM
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: ethers.ZeroAddress,
     proxyAdmin: {
       owner: regularIcas.ancient8,
     },

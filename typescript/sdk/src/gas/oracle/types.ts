@@ -56,11 +56,11 @@ export const formatGasOracleConfig = (
   tokenExchangeRate: string;
   gasPrice: string;
 } => ({
-  tokenExchangeRate: ethers.utils.formatUnits(
+  tokenExchangeRate: ethers.formatUnits(
     config.tokenExchangeRate,
     getProtocolExchangeRateDecimals(localChainProtocol),
   ),
-  gasPrice: ethers.utils.formatUnits(config.gasPrice, 'gwei'),
+  gasPrice: ethers.formatUnits(config.gasPrice, 'gwei'),
 });
 
 const percentDifference = (
@@ -83,8 +83,8 @@ const serializePercentDifference = (
 export const oracleConfigToOracleData = (
   config: StorageGasOracleConfig,
 ): OracleData => ({
-  gasPrice: ethers.BigNumber.from(config.gasPrice),
-  tokenExchangeRate: ethers.BigNumber.from(config.tokenExchangeRate),
+  gasPrice: BigInt(config.gasPrice),
+  tokenExchangeRate: BigInt(config.tokenExchangeRate),
 });
 
 export const serializeDifference = (

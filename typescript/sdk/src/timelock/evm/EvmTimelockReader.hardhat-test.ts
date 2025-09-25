@@ -173,7 +173,7 @@ describe(EvmTimelockReader.name, () => {
             data: [
               {
                 to: randomAddress(),
-                value: ethers.BigNumber.from(0),
+                value: BigInt(0),
                 data: '0x',
               },
             ],
@@ -254,7 +254,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x1234',
                 },
               ],
@@ -271,7 +271,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x1234',
                 },
               ],
@@ -283,7 +283,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x5678',
                 },
               ],
@@ -366,7 +366,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x',
                 },
               ],
@@ -383,7 +383,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x',
                 },
               ],
@@ -395,7 +395,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x',
                 },
               ],
@@ -489,7 +489,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x',
                 },
               ],
@@ -507,7 +507,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x',
                 },
               ],
@@ -525,7 +525,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x',
                 },
               ],
@@ -537,7 +537,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x',
                 },
               ],
@@ -617,7 +617,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x1234',
                 },
               ],
@@ -635,7 +635,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x1234',
                 },
               ],
@@ -654,7 +654,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x',
                 },
               ],
@@ -674,7 +674,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x1234',
                 },
               ],
@@ -686,7 +686,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x5678',
                 },
               ],
@@ -698,7 +698,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x',
                 },
               ],
@@ -831,7 +831,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x1234',
                 },
               ],
@@ -849,7 +849,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x1234',
                 },
               ],
@@ -868,7 +868,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x',
                 },
               ],
@@ -888,7 +888,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x1234',
                 },
               ],
@@ -900,7 +900,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x5678',
                 },
               ],
@@ -912,7 +912,7 @@ describe(EvmTimelockReader.name, () => {
               data: [
                 {
                   to: randomAddress(),
-                  value: ethers.BigNumber.from(0),
+                  value: BigInt(0),
                   data: '0x',
                 },
               ],

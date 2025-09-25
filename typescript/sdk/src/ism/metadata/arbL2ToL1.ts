@@ -172,7 +172,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     if (!firstBlock) {
       throw new Error('No first executable block found');
     }
-    const currentBlock = BigNumber.from(await provider.getBlockNumber());
+    const currentBlock = BigInt(await provider.getBlockNumber());
     if (currentBlock.gt(firstBlock)) {
       throw new Error('First executable block is in the past');
     }

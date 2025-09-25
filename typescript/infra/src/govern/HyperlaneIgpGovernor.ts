@@ -49,7 +49,7 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
               'setBeneficiary',
               [beneficiaryViolation.expected],
             ),
-            value: BigNumber.from(0),
+            value: 0n,
             description: `Set IGP beneficiary to ${beneficiaryViolation.expected}`,
           },
         };
@@ -80,7 +80,7 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
               'setDestinationGasConfigs',
               [configs],
             ),
-            value: BigNumber.from(0),
+            value: 0n,
             description: `Setting ${Object.keys(gasOraclesViolation.expected)
               .map((remoteStr) => {
                 const remote = remoteStr as ChainName;
@@ -100,8 +100,8 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
           remoteDomain: this.checker.multiProvider.getDomainId(remote),
           // TODO: fix to use the retrieved gas oracle
           config: {
-            gasOracle: ethers.constants.AddressZero,
-            gasOverhead: BigNumber.from(gasOverhead),
+            gasOracle: ethers.ZeroAddress,
+            gasOverhead: BigInt(gasOverhead),
           },
         }));
 
@@ -113,7 +113,7 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
               'setDestinationGasConfigs',
               [configs],
             ),
-            value: BigNumber.from(0),
+            value: 0n,
             description: `Setting ${Object.keys(violation.expected)
               .map((remoteStr) => {
                 const remote = remoteStr as ChainName;

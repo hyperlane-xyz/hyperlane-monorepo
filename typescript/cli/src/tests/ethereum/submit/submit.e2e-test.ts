@@ -43,7 +43,7 @@ async function expectUserBalances(
     const xerc20 = xerc20Chains[idx];
     const balance = balances[idx];
     const userBalance = await xerc20.balanceOf(user);
-    expect(userBalance).to.eql(ethers.BigNumber.from(balance));
+    expect(userBalance).to.eql(BigInt(balance));
   }
 }
 

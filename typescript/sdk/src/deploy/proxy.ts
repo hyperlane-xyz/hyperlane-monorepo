@@ -30,7 +30,7 @@ export async function proxyImplementation(
     proxy,
     '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc',
   );
-  return ethers.utils.getAddress(storageValue.slice(26));
+  return ethers.getAddress(storageValue.slice(26));
 }
 
 export async function isInitialized(
@@ -38,9 +38,7 @@ export async function isInitialized(
   contract: Address,
 ): Promise<boolean> {
   // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
-  const storageValue = ethers.BigNumber.from(
-    await provider.getStorageAt(contract, '0x0'),
-  );
+  const storageValue = BigInt(await provider.getStorageAt(contract, '0x0'));
   return storageValue.eq(1) || storageValue.eq(255);
 }
 
@@ -56,10 +54,10 @@ export async function proxyAdmin(
 
   // Return zero address if storage value is empty
   if (storageValue === '0x' || storageValue === '0x0') {
-    return ethers.constants.AddressZero;
+    return ethers.ZeroAddress;
   }
 
-  return ethers.utils.getAddress(storageValue.slice(26));
+  return ethers.getAddress(storageValue.slice(26));
 }
 
 export function proxyConstructorArgs<C extends ethers.Contract>(
@@ -82,7 +80,7 @@ export async function isProxy(
   proxy: Address,
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);
-  return !eqAddress(admin, ethers.constants.AddressZero);
+  return !eqAddress(admin, ethers.ZeroAddress);
 }
 
 export function proxyAdminUpdateTxs(

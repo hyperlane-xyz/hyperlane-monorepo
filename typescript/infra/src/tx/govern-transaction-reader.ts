@@ -397,20 +397,20 @@ export class GovernTransactionReader {
     switch (decoded.functionFragment.name) {
       case erc20Interface.functions['transfer(address,uint256)'].name: {
         const [to, amount] = decoded.args;
-        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        const numTokens = ethers.formatUnits(amount, decimals);
         insight = `Transfer ${numTokens} ${symbol} to ${to}`;
         break;
       }
       case erc20Interface.functions['approve(address,uint256)'].name: {
         const [spender, amount] = decoded.args;
-        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        const numTokens = ethers.formatUnits(amount, decimals);
         insight = `Approve ${numTokens} ${symbol} for ${spender}`;
         break;
       }
       case erc20Interface.functions['transferFrom(address,address,uint256)']
         .name: {
         const [from, to, amount] = decoded.args;
-        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        const numTokens = ethers.formatUnits(amount, decimals);
         insight = `Transfer ${numTokens} ${symbol} from ${from} to ${to}`;
         break;
       }
@@ -450,7 +450,7 @@ export class GovernTransactionReader {
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const numTokens = ethers.utils.formatEther(tx.value ?? BigNumber.from(0));
+    const numTokens = ethers.utils.formatEther(tx.value ?? 0n);
     return {
       chain,
       insight: `Send ${numTokens} ${symbol} to ${tx.to}`,
@@ -730,19 +730,19 @@ export class GovernTransactionReader {
       switch (decoded.functionFragment.name) {
         case xerc20Interface.functions['mint(address,uint256)'].name: {
           const [to, amount] = decoded.args;
-          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          const numTokens = ethers.formatUnits(amount, metadata.decimals);
           insight = `Mint ${numTokens} ${metadata.symbol} to ${to}`;
           break;
         }
         case xerc20Interface.functions['approve(address,uint256)'].name: {
           const [spender, amount] = decoded.args;
-          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          const numTokens = ethers.formatUnits(amount, metadata.decimals);
           insight = `Approve ${numTokens} ${metadata.symbol} for ${spender}`;
           break;
         }
         case xerc20Interface.functions['burn(address,uint256)'].name: {
           const [from, amount] = decoded.args;
-          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          const numTokens = ethers.formatUnits(amount, metadata.decimals);
           insight = `Burn ${numTokens} ${metadata.symbol} from ${from}`;
           break;
         }
@@ -1234,7 +1234,7 @@ export class GovernTransactionReader {
     }
 
     let ismInsight = '✅ matches expected ISM';
-    if (ism !== ethers.constants.HashZero) {
+    if (ism !== ethers.ZeroHash) {
       this.errors.push({
         chain: chain,
         remoteDomain: destination,
@@ -1281,7 +1281,7 @@ export class GovernTransactionReader {
       calls.map((call: any) => {
         const icaCallAsTx = {
           to: bytes32ToAddress(call[0]),
-          value: BigNumber.from(call[1]),
+          value: BigInt(call[1]),
           data: call[2],
         };
         return this.read(remoteChainName, icaCallAsTx);
@@ -1528,7 +1528,7 @@ export class GovernTransactionReader {
     const innerTx = await reader.read(chain, {
       to: approvedTx.to,
       data: approvedTx.data,
-      value: BigNumber.from(approvedTx.value),
+      value: BigInt(approvedTx.value),
     });
 
     return {
@@ -1625,7 +1625,7 @@ function metaTransactionDataToEV5Transaction(
 ): AnnotatedEV5Transaction {
   return {
     to: metaTransactionData.to,
-    value: BigNumber.from(metaTransactionData.value),
+    value: BigInt(metaTransactionData.value),
     data: metaTransactionData.data,
   };
 }

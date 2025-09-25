@@ -421,7 +421,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         this.chain,
         {
           to: warpRouteAddress,
-          value: BigNumber.from(0),
+          value: 0n,
         },
         NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
       );

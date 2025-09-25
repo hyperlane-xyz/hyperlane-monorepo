@@ -24,7 +24,7 @@ export const getEthereumVictionUSDCWarpConfig = async (
     symbol: 'USDC',
     decimals: 6,
     gas: 75_000,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: ethers.ZeroAddress,
   };
 
   const ethereum: HypTokenRouterConfig = {
@@ -34,7 +34,7 @@ export const getEthereumVictionUSDCWarpConfig = async (
     token: tokens.ethereum.USDC,
     decimals: 6,
     gas: 65_000,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: ethers.ZeroAddress,
     hook: '0xb87ac8ea4533ae017604e44470f7c1e550ac6f10',
   };
 

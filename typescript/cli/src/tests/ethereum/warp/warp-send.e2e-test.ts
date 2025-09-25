@@ -152,9 +152,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       const protocolFeeBeneficiary = randomAddress();
       // 2 gwei of native token
-      const maxProtocolFee = ethers.utils.parseUnits('2', 'gwei').toString();
+      const maxProtocolFee = ethers.parseUnits('2', 'gwei').toString();
       // 1 gwei of native token
-      const protocolFee = ethers.utils.parseUnits('1', 'gwei').toString();
+      const protocolFee = ethers.parseUnits('1', 'gwei').toString();
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {

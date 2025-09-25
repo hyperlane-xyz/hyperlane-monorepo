@@ -249,7 +249,7 @@ function getUsdQuote(
   gasOracleConfig: ProtocolAgnositicGasOracleConfig,
   remoteGasAmount: number,
 ): number {
-  let quote = BigNumber.from(gasOracleConfig.gasPrice)
+  let quote = BigInt(gasOracleConfig.gasPrice)
     .mul(gasOracleConfig.tokenExchangeRate)
     .mul(remoteGasAmount)
     .div(localExchangeRateScale)

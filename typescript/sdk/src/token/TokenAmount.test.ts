@@ -10,7 +10,7 @@ import { TokenStandard } from './TokenStandard.js';
 const token1 = new Token({
   chainName: TestChainName.test1,
   standard: TokenStandard.ERC20,
-  addressOrDenom: ethers.constants.AddressZero,
+  addressOrDenom: ethers.ZeroAddress,
   decimals: 4,
   symbol: 'FAKE',
   name: 'Fake Token',

@@ -68,7 +68,7 @@ async function main() {
       const provider = multiProvider.getProvider(chain);
       const overrides = multiProvider.getTransactionOverrides(chain);
       const actual = await provider.getBalance(address);
-      const gasPrice = BigNumber.from(
+      const gasPrice = BigInt(
         await (overrides.gasPrice ||
           overrides.maxFeePerGas ||
           provider.getGasPrice()),

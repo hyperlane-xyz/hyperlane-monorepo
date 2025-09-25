@@ -103,8 +103,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       if (!existingOverhead.eq(expectedOverhead)) {
         const remoteChain = remote as ChainName;
         overheadViolation.actual[remoteChain] = existingOverhead;
-        overheadViolation.expected[remoteChain] =
-          BigNumber.from(expectedOverhead);
+        overheadViolation.expected[remoteChain] = BigInt(expectedOverhead);
       }
     }
 

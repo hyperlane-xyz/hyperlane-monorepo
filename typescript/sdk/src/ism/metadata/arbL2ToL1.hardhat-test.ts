@@ -217,7 +217,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
       sinon
         .stub(metadataBuilder, 'getWaitingBlocksUntilReady')
         .callsFake(async (): Promise<BigNumber> => {
-          return BigNumber.from(10); // test waiting period
+          return BigInt(10); // test waiting period
         });
 
       try {
@@ -247,7 +247,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
         calldata.arbBlockNum,
         calldata.ethBlockNum,
         calldata.timestamp,
-        BigNumber.from(0), // msg.value
+        0n, // msg.value
         calldata.data,
       );
       metadata = await metadataBuilder.build(context);

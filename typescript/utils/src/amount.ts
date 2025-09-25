@@ -1,6 +1,5 @@
-import { formatUnits, parseUnits } from '@ethersproject/units';
 import { BigNumber } from 'bignumber.js';
-import { ethers } from 'ethers';
+import { formatUnits, parseUnits } from 'ethers';
 
 const DEFAULT_DISPLAY_DECIMALS = 4;
 const DEFAULT_TOKEN_DECIMALS = 18;
@@ -149,11 +148,11 @@ const DEFAULT_GAS_LIMIT_BUFFER_PERCENT = 10;
  * @returns The calculated gas limit with the buffer added.
  */
 export function addBufferToGasLimit(
-  estimatedGas: ethers.BigNumber,
+  estimatedGas: bigint,
   bufferPercent: number = DEFAULT_GAS_LIMIT_BUFFER_PERCENT,
-): ethers.BigNumber {
-  const bufferMultiplier = 100 + bufferPercent;
-  return estimatedGas.mul(bufferMultiplier).div(100);
+): bigint {
+  const bufferMultiplier = 100n + BigInt(bufferPercent);
+  return (estimatedGas * bufferMultiplier) / 100n;
 }
 
 /**

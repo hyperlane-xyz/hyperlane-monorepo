@@ -97,7 +97,7 @@ describe('HyperlaneHaasGovernor', () => {
       const nonIcaCall: AnnotatedCallData = {
         to: '0x1234567890123456789012345678901234567890' as Address,
         data: '0xabcd',
-        value: BigNumber.from(0),
+        value: 0n,
         description: 'Non-ICA call',
       };
 
@@ -140,7 +140,7 @@ describe('HyperlaneHaasGovernor', () => {
       const call1: AnnotatedCallData = {
         to: '0x1111111111111111111111111111111111111111' as Address,
         data: '0x1111',
-        value: BigNumber.from(100),
+        value: BigInt(100),
         description: 'First ICA call',
         callRemoteArgs: callRemoteArgs1,
       };
@@ -148,7 +148,7 @@ describe('HyperlaneHaasGovernor', () => {
       const call2: AnnotatedCallData = {
         to: '0x2222222222222222222222222222222222222222' as Address,
         data: '0x2222',
-        value: BigNumber.from(200),
+        value: BigInt(200),
         description: 'Second ICA call',
         callRemoteArgs: callRemoteArgs2,
       };
@@ -161,12 +161,12 @@ describe('HyperlaneHaasGovernor', () => {
       const mockCallRemoteResponse1 = {
         to: '0x9999999999999999999999999999999999999999',
         data: '0xcombined1',
-        value: BigNumber.from(100),
+        value: BigInt(100),
       };
       const mockCallRemoteResponse2 = {
         to: '0x8888888888888888888888888888888888888888',
         data: '0xcombined2',
-        value: BigNumber.from(200),
+        value: BigInt(200),
       };
       mockGetCallRemote.onFirstCall().resolves(mockCallRemoteResponse1);
       mockGetCallRemote.onSecondCall().resolves(mockCallRemoteResponse2);
@@ -201,7 +201,7 @@ describe('HyperlaneHaasGovernor', () => {
       const call1: AnnotatedCallData = {
         to: '0x1111111111111111111111111111111111111111' as Address,
         data: '0x1111',
-        value: BigNumber.from(100),
+        value: BigInt(100),
         description: 'First ICA call',
         callRemoteArgs,
       };
@@ -209,7 +209,7 @@ describe('HyperlaneHaasGovernor', () => {
       const call2: AnnotatedCallData = {
         to: '0x2222222222222222222222222222222222222222' as Address,
         data: '0x2222',
-        value: BigNumber.from(200),
+        value: BigInt(200),
         description: 'Second ICA call',
         callRemoteArgs, // Same callRemoteArgs as call1
       };
@@ -217,7 +217,7 @@ describe('HyperlaneHaasGovernor', () => {
       const call3: AnnotatedCallData = {
         to: '0x3333333333333333333333333333333333333333' as Address,
         data: '0x3333',
-        value: BigNumber.from(300),
+        value: BigInt(300),
         description: 'Third ICA call',
         callRemoteArgs, // Same callRemoteArgs as call1 and call2
       };
@@ -230,7 +230,7 @@ describe('HyperlaneHaasGovernor', () => {
       const mockCallRemoteResponse = {
         to: '0x9999999999999999999999999999999999999999',
         data: '0xcombined',
-        value: BigNumber.from(600),
+        value: BigInt(600),
       };
       mockGetCallRemote.resolves(mockCallRemoteResponse);
 
@@ -291,7 +291,7 @@ describe('HyperlaneHaasGovernor', () => {
       const call2: AnnotatedCallData = {
         to: '0x2222222222222222222222222222222222222222' as Address,
         data: '0x2222',
-        value: BigNumber.from(0), // Zero value
+        value: 0n, // Zero value
         description: 'ICA call with zero value',
         callRemoteArgs,
       };
@@ -299,7 +299,7 @@ describe('HyperlaneHaasGovernor', () => {
       const call3: AnnotatedCallData = {
         to: '0x3333333333333333333333333333333333333333' as Address,
         data: '0x3333',
-        value: BigNumber.from(12345), // Non-zero value
+        value: BigInt(12345), // Non-zero value
         description: 'ICA call with non-zero value',
         callRemoteArgs,
       };
@@ -312,7 +312,7 @@ describe('HyperlaneHaasGovernor', () => {
       const mockCallRemoteResponse = {
         to: '0x9999999999999999999999999999999999999999',
         data: '0xcombined',
-        value: BigNumber.from(12345),
+        value: BigInt(12345),
       };
       mockGetCallRemote.resolves(mockCallRemoteResponse);
 
@@ -341,7 +341,7 @@ describe('HyperlaneHaasGovernor', () => {
       const icaCall: AnnotatedCallData = {
         to: '0x1111111111111111111111111111111111111111' as Address,
         data: '0x1111',
-        value: BigNumber.from(100),
+        value: BigInt(100),
         description: 'ICA call',
         callRemoteArgs,
         submissionType: 'MANUAL' as any,
@@ -351,7 +351,7 @@ describe('HyperlaneHaasGovernor', () => {
       const nonIcaCall: AnnotatedCallData = {
         to: '0x2222222222222222222222222222222222222222' as Address,
         data: '0x2222',
-        value: BigNumber.from(200),
+        value: BigInt(200),
         description: 'Non-ICA call',
       };
 
@@ -363,7 +363,7 @@ describe('HyperlaneHaasGovernor', () => {
       const mockCallRemoteResponse = {
         to: '0x9999999999999999999999999999999999999999',
         data: '0xcombined',
-        value: BigNumber.from(100),
+        value: BigInt(100),
       };
       mockGetCallRemote.resolves(mockCallRemoteResponse);
 
@@ -415,7 +415,7 @@ describe('HyperlaneHaasGovernor', () => {
       const callWithInner: AnnotatedCallData = {
         to: '0xshouldnotbeused' as Address,
         data: '0xshouldnotbeused',
-        value: BigNumber.from(123),
+        value: BigInt(123),
         description: 'ICA call with innerCalls',
         callRemoteArgs: callRemoteArgsWithInner,
       };
@@ -432,7 +432,7 @@ describe('HyperlaneHaasGovernor', () => {
       const callNoInner: AnnotatedCallData = {
         to: '0xnoinner' as Address,
         data: '0xnoinner',
-        value: BigNumber.from(555),
+        value: BigInt(555),
         description: 'ICA call without innerCalls',
         callRemoteArgs: callRemoteArgsNoInner,
       };
@@ -442,7 +442,7 @@ describe('HyperlaneHaasGovernor', () => {
       const mockCallRemoteResponse = {
         to: '0x999',
         data: '0xcombined',
-        value: BigNumber.from(1),
+        value: BigInt(1),
       };
       mockGetCallRemote.resolves(mockCallRemoteResponse);
       await governor.batchIcaCalls();

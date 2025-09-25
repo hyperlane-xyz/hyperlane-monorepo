@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 
 import { ethersBigNumberSerializer } from './logging.js';
 
@@ -12,7 +11,7 @@ describe('Logging Utilities', () => {
         hex: '0x1a',
       };
       const result = ethersBigNumberSerializer(key, value);
-      expect(result).to.equal(BigNumber.from(value.hex).toString());
+      expect(result).to.equal(BigInt(value.hex).toString());
     });
 
     it('should return the value unchanged if it is not a BigNumber', () => {

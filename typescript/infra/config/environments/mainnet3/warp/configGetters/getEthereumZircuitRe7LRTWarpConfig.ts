@@ -17,7 +17,7 @@ const Re7Safes = {
   zircuit: '0x7Ac2631B4F87801965Acdad169949D6f865068f7',
 };
 
-const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
+const ISM_CONFIG = ethers.ZeroAddress; // Default ISM
 
 export const getEthereumZircuitRe7LRTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,

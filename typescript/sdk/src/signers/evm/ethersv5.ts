@@ -1,4 +1,4 @@
-import { Wallet, ethers } from 'ethers';
+import { Wallet, isHexString } from 'ethers';
 import { Wallet as ZkSyncWallet } from 'zksync-ethers';
 
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -24,7 +24,7 @@ export class EvmMultiProtocolSignerAdapter
     const { technicalStack } = multiProvider.getChainMetadata(chainName);
 
     assert(
-      ethers.utils.isHexString(privateKey),
+      isHexString(privateKey),
       `Private key for chain ${chainName} should be a hex string`,
     );
 

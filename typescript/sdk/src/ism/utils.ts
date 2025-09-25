@@ -107,9 +107,9 @@ export async function moduleCanCertainlyVerify(
     0,
     0,
     originDomainId,
-    ethers.constants.AddressZero,
+    ethers.ZeroAddress,
     destinationDomainId,
-    ethers.constants.AddressZero,
+    ethers.ZeroAddress,
     '0x',
   );
   const provider = multiProvider.getSignerOrProvider(destination);
@@ -201,7 +201,7 @@ export async function moduleCanCertainlyVerify(
         return verified >= destModule.threshold;
       }
       case IsmType.OP_STACK:
-        return destModule.nativeBridge !== ethers.constants.AddressZero;
+        return destModule.nativeBridge !== ethers.ZeroAddress;
       case IsmType.TEST_ISM: {
         return true;
       }
@@ -225,7 +225,7 @@ export async function moduleMatchesConfig(
 
   // If the module address is zero, it can't match any object-based config.
   // The subsequent check of what moduleType it is will throw, so we fail here.
-  if (eqAddress(moduleAddress, ethers.constants.AddressZero)) {
+  if (eqAddress(moduleAddress, ethers.ZeroAddress)) {
     return false;
   }
 
@@ -245,7 +245,7 @@ export async function moduleMatchesConfig(
         AbstractStorageMultisigIsm__factory.connect(moduleAddress, provider);
       const [validators, threshold] =
         await storageMerkleRootMultisigIsm.validatorsAndThreshold(
-          ethers.constants.AddressZero,
+          ethers.ZeroAddress,
         );
       matches = deepEquals(
         normalizeConfig({ validators, threshold }),

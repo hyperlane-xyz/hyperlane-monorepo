@@ -14,7 +14,7 @@ describe('MultiProtocolRouterApp', () => {
       MultiProtocolProvider.createTestMultiProtocolProvider<RouterAddress>();
     it('creates an app class', async () => {
       const addresses = {
-        test1: { router: ethers.constants.AddressZero },
+        test1: { router: ethers.ZeroAddress },
       };
       const app = new MultiProtocolRouterApp(
         multiProvider.intersect(Object.keys(addresses)).result,

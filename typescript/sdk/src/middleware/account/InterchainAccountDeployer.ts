@@ -53,7 +53,7 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       'interchainAccountRouter',
       [
         config.mailbox,
-        ethers.constants.AddressZero,
+        ethers.ZeroAddress,
         owner,
         50_000,
         config.commitmentIsm.urls,

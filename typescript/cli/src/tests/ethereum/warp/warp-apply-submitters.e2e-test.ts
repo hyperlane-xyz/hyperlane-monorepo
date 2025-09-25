@@ -118,7 +118,7 @@ describe('hyperlane warp apply with submitters', async function () {
     ](
       initialOwnerAddress,
       chain3Addresses.interchainAccountRouter,
-      ethers.constants.AddressZero,
+      ethers.ZeroAddress,
     );
 
     // Deploy the timelock and set both the owner address and the ICA
@@ -129,7 +129,7 @@ describe('hyperlane warp apply with submitters', async function () {
         0,
         [initialOwnerAddress, chain3IcaAddress],
         [initialOwnerAddress, chain3IcaAddress],
-        ethers.constants.AddressZero,
+        ethers.ZeroAddress,
       );
 
     // Configure ICA connections by enrolling the ICAs with each other

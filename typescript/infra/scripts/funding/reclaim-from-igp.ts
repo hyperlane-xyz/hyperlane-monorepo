@@ -8,7 +8,7 @@ import { getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 // Some arbitrary threshold for now
-const RECLAIM_BALANCE_THRESHOLD = BigNumber.from(10).pow(17);
+const RECLAIM_BALANCE_THRESHOLD = BigInt(10).pow(17);
 
 async function main() {
   const { environment } = await getArgs().argv;

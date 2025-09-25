@@ -1,7 +1,13 @@
 import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
 import { PublicKey } from '@solana/web3.js';
 import { bech32m } from 'bech32';
-import { Wallet, utils as ethersUtils } from 'ethers';
+import {
+  Wallet,
+  isAddress as ethersIsAddress,
+  getAddress,
+  stripZerosLeft,
+  zeroPadValue,
+} from 'ethers';
 import {
   addAddressPadding,
   encode,
@@ -119,7 +125,7 @@ function routeAddressUtil<T>(
 export function isValidAddressEvm(address: Address) {
   // Need to catch because ethers' isAddress throws in some cases (bad checksum)
   try {
-    const isValid = address && ethersUtils.isAddress(address);
+    const isValid = address && ethersIsAddress(address);
     return !!isValid;
   } catch {
     return false;
@@ -187,7 +193,7 @@ export function isValidAddress(address: Address, protocol?: ProtocolType) {
 export function normalizeAddressEvm(address: Address) {
   if (isZeroishAddress(address)) return address;
   try {
-    return ethersUtils.getAddress(address);
+    return getAddress(address);
   } catch {
     return address;
   }
@@ -346,14 +352,12 @@ export function capitalizeAddress(address: Address) {
 }
 
 export function addressToBytes32Evm(address: Address): string {
-  return ethersUtils
-    .hexZeroPad(ethersUtils.hexStripZeros(address), 32)
-    .toLowerCase();
+  return zeroPadValue(stripZerosLeft(address), 32).toLowerCase();
 }
 
 // For EVM addresses only, kept for backwards compatibility and convenience
 export function bytes32ToAddress(bytes32: HexString): Address {
-  return ethersUtils.getAddress(bytes32.slice(-40));
+  return getAddress('0x' + bytes32.slice(-40));
 }
 
 export function addressToBytesEvm(address: Address): Uint8Array {
@@ -443,10 +447,7 @@ export function bytesToBytes32(bytes: Uint8Array): string {
     throw new Error('bytes must be 32 bytes or less');
   }
   // This 0x-prefixes the hex string
-  return ethersUtils.hexZeroPad(
-    ensure0x(Buffer.from(bytes).toString('hex')),
-    32,
-  );
+  return zeroPadValue(ensure0x(Buffer.from(bytes).toString('hex')), 32);
 }
 
 // Pad bytes to a certain length, padding with 0s at the start

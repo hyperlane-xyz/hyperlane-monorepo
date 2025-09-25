@@ -138,7 +138,7 @@ describe('Offchain Lookup ISM Integration', () => {
     expect(payload.sender).to.equal(ccipReadIsm.address);
 
     const recovered = ethers.utils.verifyMessage(
-      ethers.utils.arrayify(
+      ethers.getBytes(
         offchainLookupRequestMessageHash(
           payload.sender,
           payload.data,

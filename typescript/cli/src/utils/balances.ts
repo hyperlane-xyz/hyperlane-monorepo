@@ -30,10 +30,10 @@ export async function nativeBalancesAreSufficient(
     assert(symbol, `no symbol found for native token on chain ${chain}`);
 
     let address: Address = '';
-    let requiredMinBalanceNativeDenom = BigNumber.from(0);
+    let requiredMinBalanceNativeDenom = 0n;
     let requiredMinBalance: string = '0';
 
-    let deployerBalanceNativeDenom = BigNumber.from(0);
+    let deployerBalanceNativeDenom = 0n;
     let deployerBalance: string = '0';
 
     switch (protocolType) {
@@ -83,7 +83,7 @@ export async function nativeBalancesAreSufficient(
           nativeToken.decimals,
         );
 
-        deployerBalanceNativeDenom = BigNumber.from(
+        deployerBalanceNativeDenom = BigInt(
           (await provider.getBalance(address, nativeToken.denom)).amount,
         );
         deployerBalance = formatUnits(

@@ -108,7 +108,7 @@ export class EvmNativeTokenAdapter
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
-    const value = BigNumber.from(weiAmountOrId.toString());
+    const value = BigInt(weiAmountOrId.toString());
     return { value, to: recipient };
   }
 

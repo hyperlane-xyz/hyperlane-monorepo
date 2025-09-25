@@ -1,4 +1,4 @@
-import { BytesLike, utils } from 'ethers';
+import { BytesLike, getBytes, hexlify, zeroPadValue } from 'ethers';
 
 /**
  * Converts a 20-byte (or other length) ID to a 32-byte ID.
@@ -9,14 +9,15 @@ import { BytesLike, utils } from 'ethers';
  */
 export function canonizeId(data: BytesLike): Uint8Array {
   if (!data) throw new Error('Bad input. Undefined');
-  const buf = utils.arrayify(data);
+  const buf = getBytes(data);
   if (buf.length > 32) {
     throw new Error('Too long');
   }
   if (buf.length !== 20 && buf.length != 32) {
     throw new Error('bad input, expect address or bytes32');
   }
-  return utils.zeroPad(buf, 32);
+  const padded = zeroPadValue(buf, 32);
+  return getBytes(padded);
 }
 
 /**
@@ -29,12 +30,12 @@ export function canonizeId(data: BytesLike): Uint8Array {
  * @throws if the data is not 20 or 32 bytes
  */
 export function evmId(data: BytesLike): string {
-  const u8a = utils.arrayify(data);
+  const u8a = getBytes(data);
 
   if (u8a.length === 32) {
-    return utils.hexlify(u8a.slice(12, 32));
+    return hexlify(u8a.slice(12, 32));
   } else if (u8a.length === 20) {
-    return utils.hexlify(u8a);
+    return hexlify(u8a);
   } else {
     throw new Error(`Invalid id length. expected 20 or 32. Got ${u8a.length}`);
   }

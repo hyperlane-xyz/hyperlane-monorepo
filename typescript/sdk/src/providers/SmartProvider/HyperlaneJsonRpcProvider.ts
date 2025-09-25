@@ -87,7 +87,7 @@ export class HyperlaneJsonRpcProvider
     if (isNullish(toBlock) || toBlock === 'latest') {
       endBlock = currentBlockNumber;
     } else if (isBigNumberish(toBlock)) {
-      endBlock = BigNumber.from(toBlock).toNumber();
+      endBlock = BigInt(toBlock).toNumber();
     } else {
       return superPerform();
     }
@@ -96,7 +96,7 @@ export class HyperlaneJsonRpcProvider
     if (isNullish(fromBlock) || fromBlock === 'earliest') {
       startBlock = 0;
     } else if (isBigNumberish(fromBlock)) {
-      startBlock = BigNumber.from(fromBlock).toNumber();
+      startBlock = BigInt(fromBlock).toNumber();
     } else {
       return superPerform();
     }
@@ -146,8 +146,8 @@ export class HyperlaneJsonRpcProvider
             filter: {
               address,
               topics,
-              fromBlock: utils.hexValue(BigNumber.from(blockChunk[0])),
-              toBlock: utils.hexValue(BigNumber.from(blockChunk[1])),
+              fromBlock: utils.hexValue(BigInt(blockChunk[0])),
+              toBlock: utils.hexValue(BigInt(blockChunk[1])),
             },
           }) as Promise<Array<providers.Log>>,
       );

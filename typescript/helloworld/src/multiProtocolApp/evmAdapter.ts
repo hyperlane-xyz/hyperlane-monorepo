@@ -39,7 +39,7 @@ export class EvmHelloWorldAdapter
 
     const quote = await contract.callStatic.quoteDispatch(
       toDomain,
-      ethers.utils.toUtf8Bytes(message),
+      ethers.toUtf8Bytes(message),
     );
     // apply gas buffer due to https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/634
     const estimated = await contract.estimateGas.sendHelloWorld(
@@ -51,7 +51,7 @@ export class EvmHelloWorldAdapter
         // with funds to be specified when estimating gas for a transaction
         // that provides non-zero `value`.
         from: sender,
-        value: BigNumber.from(value).add(quote),
+        value: BigInt(value).add(quote),
       },
     );
 
@@ -61,7 +61,7 @@ export class EvmHelloWorldAdapter
       {
         gasLimit: addBufferToGasLimit(estimated),
         ...transactionOverrides,
-        value: BigNumber.from(value).add(quote),
+        value: BigInt(value).add(quote),
       },
     );
     return { transaction: tx, type: ProviderType.EthersV5 };

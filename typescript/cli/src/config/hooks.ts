@@ -43,8 +43,8 @@ export function presetHookConfigs(owner: Address): HooksConfig {
   return {
     required: {
       type: HookType.PROTOCOL_FEE,
-      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(),
-      protocolFee: ethers.utils.parseUnits('0', 'wei').toString(),
+      maxProtocolFee: ethers.parseUnits('1', 'gwei').toString(),
+      protocolFee: ethers.parseUnits('0', 'wei').toString(),
       beneficiary: owner,
       owner: owner,
     },

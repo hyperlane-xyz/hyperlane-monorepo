@@ -45,7 +45,7 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
       [
         config.minimumDelay,
         config.proposers,
-        config.executors ?? [ethers.constants.AddressZero],
+        config.executors ?? [ethers.ZeroAddress],
         deployerAddress,
       ],
     );
@@ -89,7 +89,7 @@ export class EvmTimelockDeployer extends HyperlaneDeployer<
       }
     }
 
-    const expectedFinalAdmin = config.admin ?? ethers.constants.AddressZero;
+    const expectedFinalAdmin = config.admin ?? ethers.ZeroAddress;
     const adminRole = await deployedContract.TIMELOCK_ADMIN_ROLE();
     const isAdminSetCorrectly = await deployedContract.hasRole(
       adminRole,

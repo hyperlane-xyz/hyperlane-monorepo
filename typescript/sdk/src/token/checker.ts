@@ -148,7 +148,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         await this.multiProvider.estimateGas(chain, {
           to: hypToken.address,
           from: NON_ZERO_SENDER_ADDRESS,
-          value: BigNumber.from(1),
+          value: BigInt(1),
         });
       } catch {
         const violation: TokenMismatchViolation = {

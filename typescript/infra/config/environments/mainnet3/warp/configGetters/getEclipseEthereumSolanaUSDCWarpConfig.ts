@@ -23,7 +23,7 @@ export const getEclipseEthereumSolanaUSDCWarpConfig = async (
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     type: TokenType.collateral,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: ethers.ZeroAddress,
     token: tokens.ethereum.USDC,
   };
 

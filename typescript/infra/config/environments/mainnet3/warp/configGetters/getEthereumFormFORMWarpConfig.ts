@@ -12,7 +12,7 @@ const formSafes = {
   form: '0x41B624412B529409A437f08Ef80bCabE81053650',
 };
 
-const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
+const ISM_CONFIG = ethers.ZeroAddress; // Default ISM
 
 export const getEthereumFormFORMWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,

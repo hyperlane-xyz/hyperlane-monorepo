@@ -1,5 +1,5 @@
 import { BigNumber } from 'bignumber.js';
-import { utils } from 'ethers';
+import { concat, getBytes, hexlify, solidityPacked } from 'ethers';
 
 import { addressToBytes32 } from './addresses.js';
 import { ParsedLegacyMultisigIsmMetadata } from './types.js';
@@ -15,24 +15,24 @@ export const parseLegacyMultisigIsmMetadata = (
   const SIGNATURES_OFFSET = 1093;
   const SIGNATURE_LENGTH = 65;
 
-  const buf = Buffer.from(utils.arrayify(metadata));
-  const checkpointRoot = utils.hexlify(
+  const buf = Buffer.from(getBytes(metadata));
+  const checkpointRoot = hexlify(
     buf.slice(MERKLE_ROOT_OFFSET, MERKLE_INDEX_OFFSET),
   );
   const checkpointIndex = BigNumber(
-    utils.hexlify(buf.slice(MERKLE_INDEX_OFFSET, ORIGIN_MAILBOX_OFFSET)),
+    hexlify(buf.slice(MERKLE_INDEX_OFFSET, ORIGIN_MAILBOX_OFFSET)),
   ).toNumber();
-  const originMailbox = utils.hexlify(
+  const originMailbox = hexlify(
     buf.slice(ORIGIN_MAILBOX_OFFSET, MERKLE_PROOF_OFFSET),
   );
   const parseBytesArray = (start: number, count: number, size: number) => {
     return [...Array(count).keys()].map((i) =>
-      utils.hexlify(buf.slice(start + size * i, start + size * (i + 1))),
+      hexlify(buf.slice(start + size * i, start + size * (i + 1))),
     );
   };
   const proof = parseBytesArray(MERKLE_PROOF_OFFSET, 32, 32);
   const threshold = BigNumber(
-    utils.hexlify(buf.slice(THRESHOLD_OFFSET, SIGNATURES_OFFSET)),
+    hexlify(buf.slice(THRESHOLD_OFFSET, SIGNATURES_OFFSET)),
   ).toNumber();
   const signatures = parseBytesArray(
     SIGNATURES_OFFSET,
@@ -55,7 +55,7 @@ export const parseLegacyMultisigIsmMetadata = (
 export const formatLegacyMultisigIsmMetadata = (
   metadata: ParsedLegacyMultisigIsmMetadata,
 ): string => {
-  return utils.solidityPack(
+  return solidityPacked(
     [
       'bytes32',
       'uint32',
@@ -71,7 +71,7 @@ export const formatLegacyMultisigIsmMetadata = (
       addressToBytes32(metadata.originMailbox),
       metadata.proof,
       metadata.signatures.length,
-      utils.hexConcat(metadata.signatures),
+      concat(metadata.signatures),
       metadata.validators,
     ],
   );

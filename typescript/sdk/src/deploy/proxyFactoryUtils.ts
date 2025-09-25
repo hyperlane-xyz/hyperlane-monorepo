@@ -6,11 +6,11 @@ import { proxyFactoryFactories } from './contracts.js';
 import { ProxyFactoryFactoriesAddresses } from './types.js';
 
 /**
- * Creates a default ProxyFactoryFactoriesAddresses object with all values set to ethers.constants.AddressZero.
+ * Creates a default ProxyFactoryFactoriesAddresses object with all values set to ethers.ZeroAddress.
  * @returns {ProxyFactoryFactoriesAddresses} An object with all factory addresses set to AddressZero.
  */
 export function createDefaultProxyFactoryFactories(): ProxyFactoryFactoriesAddresses {
-  const defaultAddress = ethers.constants.AddressZero;
+  const defaultAddress = ethers.ZeroAddress;
   return objMap(
     proxyFactoryFactories,
     () => defaultAddress,

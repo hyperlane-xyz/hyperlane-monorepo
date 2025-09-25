@@ -132,7 +132,7 @@ async function main() {
         const safeTransactionData = createSafeTransactionData({
           to: safeTx.to,
           data: safeTx.data,
-          value: BigNumber.from(safeTx.value),
+          value: BigInt(safeTx.value),
         });
         const safeTransaction = await createSafeTransaction(
           safeSdk,

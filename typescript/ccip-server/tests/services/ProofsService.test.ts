@@ -19,8 +19,8 @@ describe('ProofsService', () => {
   beforeEach(() => {
     proofsService = new ProofsService(
       {
-        lightClientAddress: ethers.constants.AddressZero,
-        stepFunctionId: ethers.constants.HashZero,
+        lightClientAddress: ethers.ZeroAddress,
+        stepFunctionId: ethers.ZeroHash,
         platformUrl: 'http://localhost:8080',
         apiKey: 'apiKey',
       },

@@ -41,9 +41,7 @@ describe('EvmIcaModule', async () => {
       });
 
       const { interchainAccountRouter } = evmIcaModule.serialize();
-      expect(interchainAccountRouter).to.not.equal(
-        ethers.constants.AddressZero,
-      );
+      expect(interchainAccountRouter).to.not.equal(ethers.ZeroAddress);
     });
 
     it('should configure commitment ISM', async () => {

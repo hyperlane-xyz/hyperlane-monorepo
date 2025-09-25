@@ -280,7 +280,7 @@ function getScheduledTimelockOperationIdsFromLogs(
             {
               data,
               to: target,
-              value: BigNumber.from(value),
+              value: BigInt(value),
             },
           ],
           delay: Number(delay),
@@ -297,7 +297,7 @@ function getScheduledTimelockOperationIdsFromLogs(
         operationsById[id].data[Number(index.toString())] = {
           data,
           to: target,
-          value: BigNumber.from(value),
+          value: BigInt(value),
         };
       }
 

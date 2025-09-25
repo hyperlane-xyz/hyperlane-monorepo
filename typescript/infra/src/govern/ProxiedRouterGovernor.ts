@@ -48,7 +48,7 @@ export class ProxiedRouterGovernor<
           'setInterchainSecurityModule',
           [violation.expected],
         ),
-        value: BigNumber.from(0),
+        value: 0n,
         description: `Set ISM of ${violation.contract.address} to ${violation.expected}`,
       },
     };
@@ -74,7 +74,7 @@ export class ProxiedRouterGovernor<
           'enrollRemoteRouters',
           [expectedDomains, expectedAddresses],
         ),
-        value: BigNumber.from(0),
+        value: 0n,
         description: `Updating routers in ${violation.contract.address} for ${expectedDomains.length} remote chains`,
         expandedDescription: `Updating routers for chains ${Object.keys(
           violation.routerDiff,

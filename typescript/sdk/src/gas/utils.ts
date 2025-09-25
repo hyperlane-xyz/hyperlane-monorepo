@@ -47,7 +47,7 @@ export async function getGasPrice(
       const provider = mpp.getProvider(chain);
       const gasPrice = await (provider.provider as Provider).getGasPrice();
       return {
-        amount: ethers.utils.formatUnits(gasPrice, 'gwei'),
+        amount: ethers.formatUnits(gasPrice, 'gwei'),
         decimals: 9,
       };
     }
@@ -169,7 +169,7 @@ function getProtocolExchangeRate(
     .times(multiplier)
     .integerValue(BigNumberJs.ROUND_FLOOR)
     .toString(10);
-  return BigNumber.from(integer);
+  return BigInt(integer);
 }
 
 // Gets the StorageGasOracleConfig for each remote chain for a particular local chain.
@@ -260,7 +260,7 @@ export function getLocalStorageGasOracleConfig({
       // Once again adjust for precision loss after applying the modifier.
       gasOracleConfig = adjustForPrecisionLoss(
         gasPriceModifier(local, remote, gasOracleConfig),
-        BigNumber.from(gasOracleConfig.tokenExchangeRate),
+        BigInt(gasOracleConfig.tokenExchangeRate),
         remoteDecimals,
         remote,
       );

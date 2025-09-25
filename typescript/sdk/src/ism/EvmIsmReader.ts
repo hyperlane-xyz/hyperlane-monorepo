@@ -255,7 +255,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const defaultFallbackIsmInstance =
       DefaultFallbackRoutingIsm__factory.connect(address, this.provider);
     const domainIds = this.messageContext
-      ? [BigNumber.from(this.messageContext.parsed.origin)]
+      ? [BigInt(this.messageContext.parsed.origin)]
       : await defaultFallbackIsmInstance.domains();
 
     const icaRouter = InterchainAccountRouter__factory.connect(
@@ -387,7 +387,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
         isms: {},
         address,
-        owner: ethers.constants.AddressZero,
+        owner: ethers.ZeroAddress,
       };
     }
 
@@ -407,7 +407,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     this.assertModuleType(await ism.moduleType(), ModuleType.AGGREGATION);
 
     const [modules, threshold] = await ism.modulesAndThreshold(
-      ethers.constants.AddressZero,
+      ethers.ZeroAddress,
     );
 
     const ismConfigs = await concurrentMap(
@@ -454,7 +454,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     }
 
     const [validators, threshold] = await ism.validatorsAndThreshold(
-      ethers.constants.AddressZero,
+      ethers.ZeroAddress,
     );
 
     return {

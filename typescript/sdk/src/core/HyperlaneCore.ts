@@ -102,7 +102,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       recipient,
       body,
       metadata || DEFAULT_METADATA,
-      hook || ethers.constants.AddressZero,
+      hook || ethers.ZeroAddress,
     );
   };
 
@@ -167,7 +167,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       recipientBytes32,
       body,
       metadata || DEFAULT_METADATA,
-      hook || ethers.constants.AddressZero,
+      hook || ethers.ZeroAddress,
     ] as const;
 
     const estimateGas = await mailbox.estimateGas[

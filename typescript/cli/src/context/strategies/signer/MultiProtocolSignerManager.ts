@@ -269,7 +269,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
             params.address,
             params.denom,
           );
-          return BigNumber.from(balance.amount);
+          return BigInt(balance.amount);
         } catch (err) {
           throw new Error(
             `failed to get balance of address ${params.address} on Cosmos Native chain ${params.chain}: ${err}`,

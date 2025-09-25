@@ -179,7 +179,7 @@ export async function logXerc20Limits(
       const burn = await xerc20.burningCurrentLimitOf(router);
 
       const formattedLimits = objMap({ mint, burn }, (_, v) =>
-        ethers.utils.formatUnits(v, t.decimals),
+        ethers.formatUnits(v, t.decimals),
       );
 
       return [t.chainName, formattedLimits];

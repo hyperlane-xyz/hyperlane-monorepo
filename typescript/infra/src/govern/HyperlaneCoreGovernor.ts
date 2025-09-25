@@ -59,7 +59,7 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
               'setDefaultIsm',
               [ismAddress],
             ),
-            value: BigNumber.from(0),
+            value: 0n,
             description: `Set ${violation.chain} Mailbox default ISM to ${ismAddress}`,
           },
         };

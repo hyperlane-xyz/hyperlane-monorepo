@@ -97,7 +97,7 @@ export class HyperlaneRouterChecker<
     const matches = await moduleMatchesConfig(
       chain,
       actualIsmAddress,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.interchainSecurityModule ?? ethers.ZeroAddress,
       this.multiProvider,
       this.ismFactory?.chainMap[chain] ?? ({} as any),
       mailboxAddr,
@@ -105,8 +105,7 @@ export class HyperlaneRouterChecker<
 
     if (!matches) {
       const ismReader = new EvmIsmReader(this.multiProvider, chain);
-      let actualConfig: string | DerivedIsmConfig =
-        ethers.constants.AddressZero;
+      let actualConfig: string | DerivedIsmConfig = ethers.ZeroAddress;
       if (!isZeroishAddress(actualIsmAddress)) {
         actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
       }
@@ -121,7 +120,7 @@ export class HyperlaneRouterChecker<
       }
 
       if (expectedConfig === undefined) {
-        expectedConfig = ethers.constants.AddressZero;
+        expectedConfig = ethers.ZeroAddress;
       }
 
       const violation: ClientViolation = {

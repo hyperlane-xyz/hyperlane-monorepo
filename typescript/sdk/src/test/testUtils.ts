@@ -28,7 +28,7 @@ export function randomInt(max: number, min = 0): number {
 }
 
 export function randomAddress(): Address {
-  return ethers.utils.hexlify(ethers.utils.randomBytes(20)).toLowerCase();
+  return ethers.hexlify(ethers.utils.randomBytes(20)).toLowerCase();
 }
 
 export async function randomCosmosAddress(prefix: string): Promise<Address> {
@@ -55,7 +55,7 @@ export function createRouterConfigMap(
   });
 }
 
-const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
+const nonZeroAddress = ethers.ZeroAddress.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ISM
 export function testCoreConfig(
@@ -72,8 +72,8 @@ export function testCoreConfig(
     },
     requiredHook: {
       type: HookType.PROTOCOL_FEE,
-      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
-      protocolFee: BigNumber.from(1).toString(), // 1 wei
+      maxProtocolFee: ethers.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
+      protocolFee: BigInt(1).toString(), // 1 wei
       beneficiary: nonZeroAddress,
       owner,
     },
@@ -83,8 +83,8 @@ export function testCoreConfig(
 }
 
 const TEST_ORACLE_CONFIG = {
-  gasPrice: ethers.utils.parseUnits('1', 'gwei').toString(),
-  tokenExchangeRate: ethers.utils.parseUnits('1', 10).toString(),
+  gasPrice: ethers.parseUnits('1', 'gwei').toString(),
+  tokenExchangeRate: ethers.parseUnits('1', 10).toString(),
   tokenDecimals: 18,
 };
 

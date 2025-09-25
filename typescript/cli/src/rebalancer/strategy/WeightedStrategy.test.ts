@@ -29,7 +29,7 @@ describe('WeightedStrategy', () => {
             {
               [chain1]: {
                 weighted: { weight: 100n, tolerance: 0n },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },
@@ -45,12 +45,12 @@ describe('WeightedStrategy', () => {
             {
               [chain1]: {
                 weighted: { weight: 100n, tolerance: 0n },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
               [chain2]: {
                 weighted: { weight: -1n, tolerance: 0n },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },
@@ -66,12 +66,12 @@ describe('WeightedStrategy', () => {
             {
               [chain1]: {
                 weighted: { weight: 0n, tolerance: 0n },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
               [chain2]: {
                 weighted: { weight: 0n, tolerance: 0n },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },
@@ -87,12 +87,12 @@ describe('WeightedStrategy', () => {
             {
               [chain1]: {
                 weighted: { weight: 100n, tolerance: 0n },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
               [chain2]: {
                 weighted: { weight: 100n, tolerance: -1n },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },
@@ -106,12 +106,12 @@ describe('WeightedStrategy', () => {
             {
               [chain1]: {
                 weighted: { weight: 100n, tolerance: 100n },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
               [chain2]: {
                 weighted: { weight: 100n, tolerance: 101n },
-                bridge: ethers.constants.AddressZero,
+                bridge: ethers.ZeroAddress,
                 bridgeLockTime: 1,
               },
             },
@@ -128,12 +128,12 @@ describe('WeightedStrategy', () => {
           {
             [chain1]: {
               weighted: { weight: 100n, tolerance: 0n },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
             [chain2]: {
               weighted: { weight: 100n, tolerance: 0n },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
           },
@@ -152,12 +152,12 @@ describe('WeightedStrategy', () => {
           {
             [chain1]: {
               weighted: { weight: 100n, tolerance: 0n },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
             [chain2]: {
               weighted: { weight: 100n, tolerance: 0n },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
           },
@@ -175,12 +175,12 @@ describe('WeightedStrategy', () => {
           {
             [chain1]: {
               weighted: { weight: 100n, tolerance: 0n },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
             [chain2]: {
               weighted: { weight: 100n, tolerance: 0n },
-              bridge: ethers.constants.AddressZero,
+              bridge: ethers.ZeroAddress,
               bridgeLockTime: 1,
             },
           },
@@ -197,12 +197,12 @@ describe('WeightedStrategy', () => {
         {
           [chain1]: {
             weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
           [chain2]: {
             weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
         },
@@ -224,12 +224,12 @@ describe('WeightedStrategy', () => {
         {
           [chain1]: {
             weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
           [chain2]: {
             weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
         },
@@ -257,12 +257,12 @@ describe('WeightedStrategy', () => {
         {
           [chain1]: {
             weighted: { weight: 100n, tolerance: 1n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
           [chain2]: {
             weighted: { weight: 100n, tolerance: 1n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
         },
@@ -284,17 +284,17 @@ describe('WeightedStrategy', () => {
         {
           [chain1]: {
             weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
           [chain2]: {
             weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
           [chain3]: {
             weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
         },
@@ -322,17 +322,17 @@ describe('WeightedStrategy', () => {
         {
           [chain1]: {
             weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
           [chain2]: {
             weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
           [chain3]: {
             weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
         },
@@ -366,17 +366,17 @@ describe('WeightedStrategy', () => {
         {
           [chain1]: {
             weighted: { weight: 50n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
           [chain2]: {
             weighted: { weight: 25n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
           [chain3]: {
             weighted: { weight: 25n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
+            bridge: ethers.ZeroAddress,
             bridgeLockTime: 1,
           },
         },

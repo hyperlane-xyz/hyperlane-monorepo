@@ -375,7 +375,7 @@ export async function updateSafeOwner({
     transactions.push({
       to: removeTxData.to,
       data: removeTxData.data,
-      value: BigNumber.from(removeTxData.value),
+      value: BigInt(removeTxData.value),
       description: `Remove safe owner ${ownerToRemove}`,
     });
   }
@@ -388,7 +388,7 @@ export async function updateSafeOwner({
     transactions.push({
       to: addTxData.to,
       data: addTxData.data,
-      value: BigNumber.from(addTxData.value),
+      value: BigInt(addTxData.value),
       description: `Add safe owner ${ownerToAdd}`,
     });
   }
@@ -408,7 +408,7 @@ export async function updateSafeOwner({
     transactions.push({
       to: thresholdTxData.to,
       data: thresholdTxData.data,
-      value: BigNumber.from(thresholdTxData.value),
+      value: BigInt(thresholdTxData.value),
       description: `Change safe threshold to ${newThreshold}`,
     });
   }

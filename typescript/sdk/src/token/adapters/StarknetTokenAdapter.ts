@@ -77,9 +77,7 @@ export class StarknetTokenAdapter
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     const allowance = await this.contract.allowance(owner, spender);
-    return BigNumber.from(allowance.toString()).lt(
-      BigNumber.from(weiAmountOrId),
-    );
+    return BigInt(allowance.toString()).lt(BigInt(weiAmountOrId));
   }
 
   async isRevokeApprovalRequired(
@@ -278,9 +276,7 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     const allowance = await this.nativeContract.allowance(owner, spender);
-    return BigNumber.from(allowance.toString()).lt(
-      BigNumber.from(weiAmountOrId),
-    );
+    return BigInt(allowance.toString()).lt(BigInt(weiAmountOrId));
   }
 
   async populateApproveTx({
@@ -346,9 +342,7 @@ export class StarknetHypFeeAdapter extends StarknetHypSyntheticAdapter {
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     const allowance = await this.feeTokenContract.allowance(owner, spender);
-    return BigNumber.from(allowance.toString()).lt(
-      BigNumber.from(weiAmountOrId),
-    );
+    return BigInt(allowance.toString()).lt(BigInt(weiAmountOrId));
   }
 
   async populateApproveTx({

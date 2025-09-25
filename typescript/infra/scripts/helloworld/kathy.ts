@@ -378,7 +378,7 @@ async function sendMessage(
 ) {
   const startTime = Date.now();
   const msg = 'Hello!';
-  const expectedHandleGas = BigNumber.from(50_000);
+  const expectedHandleGas = BigInt(50_000);
 
   // TODO sealevel igp support here
   let value: string;

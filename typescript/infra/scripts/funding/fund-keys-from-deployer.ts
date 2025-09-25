@@ -81,12 +81,12 @@ const walletBalanceGauge = getWalletBalanceGauge(
 );
 
 // Min delta is 60% of the desired balance
-const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(6);
-const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
+const MIN_DELTA_NUMERATOR = BigInt(6);
+const MIN_DELTA_DENOMINATOR = BigInt(10);
 
 // Don't send the full amount over to RC keys
-const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
-const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
+const RC_FUNDING_DISCOUNT_NUMERATOR = BigInt(2);
+const RC_FUNDING_DISCOUNT_DENOMINATOR = BigInt(10);
 
 const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
@@ -688,7 +688,7 @@ class ContextFunder {
     const minDelta = desiredBalance
       .mul(MIN_DELTA_NUMERATOR)
       .div(MIN_DELTA_DENOMINATOR);
-    return delta.gt(minDelta) ? delta : BigNumber.from(0);
+    return delta.gt(minDelta) ? delta : 0n;
   }
 
   private getDesiredBalanceForRole(chain: ChainName, role: Role): BigNumber {
@@ -879,7 +879,7 @@ class ContextFunder {
       L1ScrollMessenger.abi,
       l1ChainSigner,
     );
-    const l2GasLimit = BigNumber.from('200000'); // l2 gas amount for the transfer and an empty callback calls
+    const l2GasLimit = BigInt('200000'); // l2 gas amount for the transfer and an empty callback calls
     const l1MessageQueueAddress = await l1ScrollMessenger.messageQueue();
     const l1MessageQueue = new ethers.Contract(
       l1MessageQueueAddress,

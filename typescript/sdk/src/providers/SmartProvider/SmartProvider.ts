@@ -125,9 +125,9 @@ export class HyperlaneSmartProvider
 
   async getPriorityFee(): Promise<BigNumber> {
     try {
-      return BigNumber.from(await this.perform('maxPriorityFeePerGas', {}));
+      return BigInt(await this.perform('maxPriorityFeePerGas', {}));
     } catch {
-      return BigNumber.from('1500000000');
+      return BigInt('1500000000');
     }
   }
 

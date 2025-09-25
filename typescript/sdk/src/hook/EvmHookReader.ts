@@ -333,7 +333,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const hook = StaticAggregationHook__factory.connect(address, this.provider);
     this.assertHookType(await hook.hookType(), OnchainHookType.AGGREGATION);
 
-    const hooks = await hook.hooks(ethers.constants.AddressZero);
+    const hooks = await hook.hooks(ethers.ZeroAddress);
     const hookConfigs: DerivedHookConfig[] = await concurrentMap(
       this.concurrency,
       hooks,
@@ -588,7 +588,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         const chainName = this.multiProvider.getChainName(domainId);
         try {
           const domainHook = await hook.hooks(domainId);
-          if (domainHook !== ethers.constants.AddressZero) {
+          if (domainHook !== ethers.ZeroAddress) {
             domainHooks[chainName] = await this.deriveHookConfig(domainHook);
           }
         } catch {

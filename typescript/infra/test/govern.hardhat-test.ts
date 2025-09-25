@@ -183,7 +183,7 @@ describe('ICA governance', async () => {
         'setInterchainSecurityModule',
         [newIsm],
       ),
-      value: BigNumber.from(0),
+      value: 0n,
       description: 'Setting ISM on the test recipient',
     };
     governor.mockPushCall(remoteChain, call);
@@ -208,7 +208,7 @@ describe('ICA governance', async () => {
       data: recipient.interface.encodeFunctionData('transferOwnership', [
         signer.address,
       ]),
-      value: BigNumber.from(0),
+      value: 0n,
       description: 'Transfer ownership',
     };
     governor.mockPushCall(remoteChain, call);

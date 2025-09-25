@@ -21,7 +21,7 @@ export const getEthereumVictionETHWarpConfig = async (
     symbol: 'ETH',
     decimals: 18,
     gas: 50_000,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: ethers.ZeroAddress,
   };
 
   const ethereum: HypTokenRouterConfig = {
@@ -30,7 +30,7 @@ export const getEthereumVictionETHWarpConfig = async (
     type: TokenType.native,
     decimals: 18,
     gas: 65_000,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: ethers.ZeroAddress,
     hook: '0xb87ac8ea4533ae017604e44470f7c1e550ac6f10',
   };
 

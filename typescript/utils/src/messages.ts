@@ -1,4 +1,4 @@
-import { BigNumber, ethers, utils } from 'ethers';
+import { getBytes, hexlify, keccak256, solidityPacked } from 'ethers';
 
 import { addressToBytes32 } from './addresses.js';
 import { fromHexString, toHexString } from './strings.js';
@@ -15,8 +15,8 @@ import {
  * @returns Hex string of the packed message
  */
 export const formatMessage = (
-  version: number | BigNumber,
-  nonce: number | BigNumber,
+  version: number | bigint,
+  nonce: number | bigint,
   originDomain: Domain,
   senderAddr: Address,
   destinationDomain: Domain,
@@ -26,7 +26,7 @@ export const formatMessage = (
   senderAddr = addressToBytes32(senderAddr);
   recipientAddr = addressToBytes32(recipientAddr);
 
-  return ethers.utils.solidityPack(
+  return solidityPacked(
     ['uint8', 'uint32', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
     [
       version,
@@ -46,7 +46,7 @@ export const formatMessage = (
  * @returns Hex string of message id
  */
 export function messageId(message: HexString): HexString {
-  return ethers.utils.solidityKeccak256(['bytes'], [message]);
+  return keccak256(message);
 }
 
 /**
@@ -64,14 +64,14 @@ export function parseMessage(message: string): ParsedMessage {
   const RECIPIENT_OFFSET = 45;
   const BODY_OFFSET = 77;
 
-  const buf = Buffer.from(utils.arrayify(message));
+  const buf = Buffer.from(getBytes(message));
   const version = buf.readUint8(VERSION_OFFSET);
   const nonce = buf.readUInt32BE(NONCE_OFFSET);
   const origin = buf.readUInt32BE(ORIGIN_OFFSET);
-  const sender = utils.hexlify(buf.subarray(SENDER_OFFSET, DESTINATION_OFFSET));
+  const sender = hexlify(buf.subarray(SENDER_OFFSET, DESTINATION_OFFSET));
   const destination = buf.readUInt32BE(DESTINATION_OFFSET);
-  const recipient = utils.hexlify(buf.subarray(RECIPIENT_OFFSET, BODY_OFFSET));
-  const body = utils.hexlify(buf.subarray(BODY_OFFSET));
+  const recipient = hexlify(buf.subarray(RECIPIENT_OFFSET, BODY_OFFSET));
+  const body = hexlify(buf.subarray(BODY_OFFSET));
   return { version, nonce, origin, sender, destination, recipient, body };
 }
 

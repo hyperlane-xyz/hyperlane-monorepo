@@ -195,7 +195,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       remoteIsm,
       innerCalls.map((call) => ({
         to: addressToBytes32(call.to),
-        value: call.value ?? BigNumber.from('0'),
+        value: call.value ?? BigInt('0'),
         data: call.data,
       })),
       hookMetadata ?? '0x',
@@ -327,7 +327,7 @@ export type RawCallData = {
 export function normalizeCalls(calls: RawCallData[]): CallData[] {
   return calls.map((call) => ({
     to: addressToBytes32(call.to),
-    value: BigNumber.from(call.value || 0),
+    value: BigInt(call.value || 0),
     data: call.data,
   }));
 }

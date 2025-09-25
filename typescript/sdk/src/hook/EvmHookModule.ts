@@ -228,7 +228,7 @@ export class EvmHookModule extends HyperlaneModule<
         addresses: {
           ...proxyFactoryFactories,
           ...coreAddresses,
-          deployedHook: ethers.constants.AddressZero,
+          deployedHook: ethers.ZeroAddress,
         },
         chain,
         config,
@@ -539,7 +539,7 @@ export class EvmHookModule extends HyperlaneModule<
 
         // Log an example remote gas cost
         const exampleRemoteGas = (targetOverhead[remote] ?? 200_000) + 50_000;
-        const exampleRemoteGasCost = BigNumber.from(target.tokenExchangeRate)
+        const exampleRemoteGasCost = BigInt(target.tokenExchangeRate)
           .mul(target.gasPrice)
           .mul(exampleRemoteGas)
           .div(TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM);
@@ -941,7 +941,7 @@ export class EvmHookModule extends HyperlaneModule<
         arbL2ToL1Ism.address,
       );
       return hook;
-    } else if (authorizedHook !== ethers.constants.HashZero) {
+    } else if (authorizedHook !== ethers.ZeroHash) {
       this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         arbL2ToL1Ism.address,

@@ -16,9 +16,9 @@ describe('MultiProtocolCore', () => {
     });
     const core = new MultiProtocolCore(multiProvider, {
       test1: {
-        validatorAnnounce: ethers.constants.AddressZero,
-        proxyAdmin: ethers.constants.AddressZero,
-        mailbox: ethers.constants.AddressZero,
+        validatorAnnounce: ethers.ZeroAddress,
+        proxyAdmin: ethers.ZeroAddress,
+        mailbox: ethers.ZeroAddress,
       },
     });
     expect(core).to.be.instanceOf(MultiProtocolCore);

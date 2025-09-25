@@ -124,8 +124,7 @@ async function handleMissingInterchainGasPaymaster(
       );
 
       if (useZeroIgpAddress) {
-        chainAddresses[chain].interchainGasPaymaster =
-          ethers.constants.AddressZero;
+        chainAddresses[chain].interchainGasPaymaster = ethers.ZeroAddress;
       }
     }
   }

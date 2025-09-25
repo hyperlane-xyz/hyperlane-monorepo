@@ -198,8 +198,7 @@ async function main() {
     for (const chain of Object.keys(addresses)) {
       config[chain] = {
         interchainSecurityModule:
-          addresses[chain].interchainSecurityModule ??
-          ethers.constants.AddressZero, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
+          addresses[chain].interchainSecurityModule ?? ethers.ZeroAddress, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
       };
     }
     deployer = new TestRecipientDeployer(

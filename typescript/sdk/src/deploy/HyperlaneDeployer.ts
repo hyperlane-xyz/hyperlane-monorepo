@@ -679,7 +679,7 @@ export abstract class HyperlaneDeployer<
         timelockConfig.delay,
         [timelockConfig.roles.proposer],
         [timelockConfig.roles.executor],
-        ethers.constants.AddressZero,
+        ethers.ZeroAddress,
       ],
       TimelockZkArtifact,
     );

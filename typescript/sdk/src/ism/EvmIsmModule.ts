@@ -208,7 +208,7 @@ export class EvmIsmModule extends HyperlaneModule<
         addresses: {
           ...proxyFactoryFactories,
           mailbox,
-          deployedIsm: ethers.constants.AddressZero,
+          deployedIsm: ethers.ZeroAddress,
         },
         chain,
         config,

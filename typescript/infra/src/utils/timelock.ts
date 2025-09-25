@@ -60,7 +60,7 @@ export async function timelockConfigMatches({
     const expectedExecutors =
       expectedConfig.executors && expectedConfig.executors.length !== 0
         ? expectedConfig.executors
-        : [ethers.constants.AddressZero];
+        : [ethers.ZeroAddress];
     const executorRoles = await Promise.all(
       expectedExecutors.map(async (executor) => {
         return timelock.hasRole(EXECUTOR_ROLE, executor);

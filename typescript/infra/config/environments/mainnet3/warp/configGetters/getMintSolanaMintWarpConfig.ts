@@ -31,7 +31,7 @@ export const getMintSolanaMintWarpConfig = async (
       ...routerConfig.mint,
       type: TokenType.collateral,
       owner: ownersByChain.mint,
-      interchainSecurityModule: ethers.constants.AddressZero,
+      interchainSecurityModule: ethers.ZeroAddress,
       token: tokens.mint.MINT,
     },
   };

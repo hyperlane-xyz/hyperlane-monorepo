@@ -24,7 +24,7 @@
     "compare-versions": "^6.1.1",
     "cosmjs-types": "^0.9.0",
     "cross-fetch": "^3.1.5",
-    "ethers": "^5.8.0",
+    "ethers": "^6.15.0",
     "pino": "^8.19.0",
     "starknet": "^7.4.0",
     "viem": "^2.21.45",

@@ -666,7 +666,7 @@ export abstract class HyperlaneAppGovernor<
           'transferOwnership',
           [violation.expected],
         ),
-        value: BigNumber.from(0),
+        value: 0n,
         description: `Transfer ownership of ${violation.name} at ${violation.contract.address} to ${violation.expected}`,
       },
     };
@@ -688,7 +688,7 @@ export abstract class HyperlaneAppGovernor<
             violation.proxyAddress,
             violation.expected,
           ]),
-          value: BigNumber.from(0),
+          value: 0n,
           description: `Change proxyAdmin of transparent proxy ${violation.proxyAddress} from ${violation.actual} to ${violation.expected}`,
         },
       };

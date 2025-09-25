@@ -41,7 +41,7 @@ describe('AggregationMetadataBuilder', () => {
         AggregationMetadataBuilder.decode(fixture.encoded, {
           ism: {
             type: IsmType.AGGREGATION,
-            modules: new Array(count).fill(ethers.constants.AddressZero),
+            modules: new Array(count).fill(ethers.ZeroAddress),
             threshold: count,
           },
         } as any),

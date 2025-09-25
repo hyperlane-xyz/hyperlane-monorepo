@@ -91,8 +91,8 @@ describe('EvmHookReader', () => {
     const mockContract = {
       hookType: sandbox.stub().resolves(OnchainHookType.PROTOCOL_FEE),
       owner: sandbox.stub().resolves(mockOwner),
-      MAX_PROTOCOL_FEE: sandbox.stub().resolves(ethers.BigNumber.from('1000')),
-      protocolFee: sandbox.stub().resolves(ethers.BigNumber.from('10')),
+      MAX_PROTOCOL_FEE: sandbox.stub().resolves(BigInt('1000')),
+      protocolFee: sandbox.stub().resolves(BigInt('10')),
       beneficiary: sandbox.stub().resolves(mockBeneficiary),
     };
     sandbox

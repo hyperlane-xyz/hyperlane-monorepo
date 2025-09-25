@@ -79,7 +79,7 @@ async function main() {
         const tx: AnnotatedEV5Transaction = {
           to: safeTx.to,
           data: safeTx.data,
-          value: BigNumber.from(safeTx.value),
+          value: BigInt(safeTx.value),
         };
 
         try {

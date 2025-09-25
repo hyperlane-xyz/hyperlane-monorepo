@@ -28,7 +28,7 @@ export const getEthereumInevmUSDTWarpConfig = async (
     ...routerConfig.inevm,
     ...abacusWorksEnvOwnerConfig.inevm,
     type: TokenType.synthetic,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: ethers.ZeroAddress,
   };
 
   return {

@@ -167,9 +167,8 @@ describe('EvmTimelockDeployer', async () => {
     );
 
     // If the 0 address has the executor role anyone can execute
-    expect(
-      await timelock.hasRole(EXECUTOR_ROLE, hre.ethers.constants.AddressZero),
-    ).to.be.true;
+    expect(await timelock.hasRole(EXECUTOR_ROLE, hre.ethers.ZeroAddress)).to.be
+      .true;
 
     // Test that someone who does not have the executor role can execute proposed transactions
     expect(await timelock.hasRole(EXECUTOR_ROLE, otherSignerAddress)).to.be

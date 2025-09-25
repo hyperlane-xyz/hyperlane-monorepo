@@ -40,7 +40,7 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   async deployContracts(chain: ChainName, config: HelloWorldConfig) {
     const router = await this.deployContract(chain, 'router', [
       config.mailbox,
-      ethers.constants.AddressZero,
+      ethers.ZeroAddress,
     ]);
     await super.configureClient(chain, router, config);
     return {

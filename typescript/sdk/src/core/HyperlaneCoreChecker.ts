@@ -163,9 +163,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
           this.ismFactory.multiProvider,
           chain,
         );
-        let actualConfig: string | DerivedIsmConfig =
-          ethers.constants.AddressZero;
-        if (actualIsmAddress !== ethers.constants.AddressZero) {
+        let actualConfig: string | DerivedIsmConfig = ethers.ZeroAddress;
+        if (actualIsmAddress !== ethers.ZeroAddress) {
           actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
         }
 
@@ -194,7 +193,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       mailbox.address,
     );
 
-    if (implementation === ethers.constants.AddressZero) {
+    if (implementation === ethers.ZeroAddress) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
         subType: MailboxViolationType.NotProxied,
