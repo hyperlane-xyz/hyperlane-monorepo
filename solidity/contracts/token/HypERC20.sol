@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {Quote} from "../interfaces/ITokenBridge.sol";
-import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
@@ -12,14 +12,14 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
+contract HypERC20 is ERC20Upgradeable, TokenRouter {
     uint8 private immutable _decimals;
 
     constructor(
         uint8 __decimals,
         uint256 _scale,
         address _mailbox
-    ) FungibleTokenRouter(_scale, _mailbox) {
+    ) TokenRouter(_scale, _mailbox) {
         _decimals = __decimals;
     }
 
@@ -47,21 +47,26 @@ contract HypERC20 is ERC20Upgradeable, FungibleTokenRouter {
         return _decimals;
     }
 
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     */
     function token() public view virtual override returns (address) {
         return address(this);
     }
 
     /**
-     * @dev Burns `_amount` of token from `msg.sender` balance.
      * @inheritdoc TokenRouter
+     * @dev Overrides to burn `_amount` of token from `msg.sender` balance.
      */
     function _transferFromSender(uint256 _amount) internal virtual override {
         _burn(msg.sender, _amount);
     }
 
     /**
-     * @dev Mints `_amount` of token to `_recipient` balance.
      * @inheritdoc TokenRouter
+     * @dev Overrides to mint `_amount` of token to `_recipient` balance.
      */
     function _transferTo(
         address _recipient,

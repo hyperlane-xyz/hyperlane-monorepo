@@ -20,36 +20,13 @@ contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
 
     constructor(address _mailbox) HypERC721(_mailbox) {}
 
-    function _beforeDispatch(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _tokenId
-    ) internal override returns (uint256 dispatchValue, bytes memory message) {
-        string memory _tokenURI = tokenURI(_tokenId); // requires minted
-
-        HypERC721._transferFromSender(_tokenId);
-
-        dispatchValue = msg.value;
-
-        message = TokenMessage.format(
-            _recipient,
-            _tokenId,
-            abi.encodePacked(_tokenURI)
-        );
-    }
-
     function _handle(
         uint32 _origin,
-        bytes32,
+        bytes32 _sender,
         bytes calldata _message
-    ) internal virtual override {
-        bytes32 recipient = _message.recipient();
-        uint256 tokenId = _message.tokenId();
-
-        emit ReceivedTransferRemote(_origin, recipient, tokenId);
-
-        HypERC721._transferTo(recipient.bytes32ToAddress(), tokenId);
-        _setTokenURI(tokenId, string(_message.metadata()));
+    ) internal override {
+        super._handle(_origin, _sender, _message);
+        _setTokenURI(_message.tokenId(), string(_message.metadata()));
     }
 
     function tokenURI(

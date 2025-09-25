@@ -172,6 +172,21 @@ abstract contract Router is MailboxClient, IMessageRecipient {
     function _Router_dispatch(
         uint32 _destinationDomain,
         uint256 _value,
+        bytes memory _messageBody
+    ) internal returns (bytes32) {
+        return
+            _Router_dispatch(
+                _destinationDomain,
+                _value,
+                _messageBody,
+                "",
+                address(hook)
+            );
+    }
+
+    function _Router_dispatch(
+        uint32 _destinationDomain,
+        uint256 _value,
         bytes memory _messageBody,
         bytes memory _hookMetadata,
         address _hook
@@ -187,18 +202,13 @@ abstract contract Router is MailboxClient, IMessageRecipient {
             );
     }
 
-    /**
-     * DEPRECATED: Use `_Router_dispatch` instead
-     * @dev For backward compatibility with v2 client contracts
-     */
-    function _dispatch(
+    function _Router_quoteDispatch(
         uint32 _destinationDomain,
         bytes memory _messageBody
-    ) internal returns (bytes32) {
+    ) internal view returns (uint256) {
         return
-            _Router_dispatch(
+            _Router_quoteDispatch(
                 _destinationDomain,
-                msg.value,
                 _messageBody,
                 "",
                 address(hook)
@@ -219,23 +229,6 @@ abstract contract Router is MailboxClient, IMessageRecipient {
                 _messageBody,
                 _hookMetadata,
                 IPostDispatchHook(_hook)
-            );
-    }
-
-    /**
-     * DEPRECATED: Use `_Router_quoteDispatch` instead
-     * @dev For backward compatibility with v2 client contracts
-     */
-    function _quoteDispatch(
-        uint32 _destinationDomain,
-        bytes memory _messageBody
-    ) internal view returns (uint256) {
-        return
-            _Router_quoteDispatch(
-                _destinationDomain,
-                _messageBody,
-                "",
-                address(hook)
             );
     }
 }

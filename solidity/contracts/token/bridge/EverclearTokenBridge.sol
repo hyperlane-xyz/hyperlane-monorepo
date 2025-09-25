@@ -3,15 +3,20 @@ pragma solidity ^0.8.22;
 
 import {ITokenBridge, Quote} from "../../interfaces/ITokenBridge.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
+import {TokenRouter} from "../libs/TokenRouter.sol";
 import {IEverclearAdapter, IEverclear, IEverclearSpoke} from "../../interfaces/IEverclearAdapter.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
-import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
+import {ERC20Collateral, WETHCollateral} from "../libs/TokenCollateral.sol";
+
+import {LpCollateralRouterStorage} from "../libs/LpCollateralRouter.sol";
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @notice Information about an output asset for a destination domain
@@ -24,15 +29,15 @@ struct OutputAssetInfo {
 }
 
 /**
- * @title EverclearTokenBridge
+ * @title EverclearBridge
  * @author Hyperlane Team
  * @notice A token bridge that integrates with Everclear's intent-based architecture
- * @dev Extends HypERC20Collateral to provide cross-chain token transfers via Everclear's intent system
  */
-contract EverclearTokenBridge is HypERC20Collateral {
+abstract contract EverclearBridge is TokenRouter {
     using TokenMessage for bytes;
     using TypeCasts for bytes32;
-    using SafeERC20 for IERC20;
+
+    LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     /// @notice The output asset for a given destination domain
     /// @dev Everclear needs to know the output asset address to create intents for cross-chain transfers
@@ -45,6 +50,8 @@ contract EverclearTokenBridge is HypERC20Collateral {
     /// @notice Fee parameters for the bridge operations
     /// @dev The signatures are produced by Everclear and stored here for re-use. We use the same fee for all transfers to all destinations
     IEverclearAdapter.FeeParams public feeParams;
+
+    IERC20 public immutable wrappedToken;
 
     /// @notice The Everclear adapter contract interface
     /// @dev Immutable reference to the Everclear adapter used for creating intents
@@ -75,11 +82,12 @@ contract EverclearTokenBridge is HypERC20Collateral {
      * @param _everclearAdapter The address of the Everclear adapter contract
      */
     constructor(
-        address _erc20,
+        IEverclearAdapter _everclearAdapter,
+        IERC20 _erc20,
         uint256 _scale,
-        address _mailbox,
-        IEverclearAdapter _everclearAdapter
-    ) HypERC20Collateral(_erc20, _scale, _mailbox) {
+        address _mailbox
+    ) TokenRouter(_scale, _mailbox) {
+        wrappedToken = _erc20;
         everclearAdapter = _everclearAdapter;
         everclearSpoke = _everclearAdapter.spoke();
     }
@@ -91,8 +99,23 @@ contract EverclearTokenBridge is HypERC20Collateral {
      * @param _owner The address that will own this contract
      */
     function initialize(address _hook, address _owner) public initializer {
-        _HypERC20_initialize(_hook, address(0), _owner);
+        _MailboxClient_initialize(_hook, address(0), _owner);
         wrappedToken.approve(address(everclearAdapter), type(uint256).max);
+    }
+
+    function _settleIntent(bytes calldata _message) internal virtual {
+        /* CHECKS */
+        // Check that intent is settled
+        bytes32 intentId = keccak256(_message.metadata());
+        require(
+            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
+            "ETB: Intent Status != SETTLED"
+        );
+        // Check that we have not processed this intent before
+        require(!intentSettled[intentId], "ETB: Intent already processed");
+
+        /* EFFECTS */
+        intentSettled[intentId] = true;
     }
 
     /**
@@ -157,30 +180,73 @@ contract EverclearTokenBridge is HypERC20Collateral {
     }
 
     /**
-     * @notice Provides a quote for transferring tokens to a remote chain
-     * @dev Returns the gas payment quote and the total token amount needed (including fees)
-     * @param _destination The destination domain ID
-     * @param _recipient The recipient address on the destination chain
-     * @param _amount The amount of tokens to transfer
-     * @return quotes Array of quotes containing gas payment and token amount requirements
+     * @inheritdoc TokenRouter
      */
-    function quoteTransferRemote(
+    function _externalFeeAmount(
+        uint32,
+        bytes32,
+        uint256
+    ) internal view override returns (uint256 feeAmount) {
+        return feeParams.fee;
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to create an Everclear intent for the transfer.
+     */
+    function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public view virtual override returns (Quote[] memory quotes) {
-        _destination; // Keep this to avoid solc's documentation warning (3881)
-        _recipient;
+    ) public payable virtual override returns (bytes32 messageId) {
+        // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
+        (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
+            _destination,
+            _recipient,
+            _amount,
+            msg.value
+        );
 
-        quotes = new Quote[](2);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount)
-        });
-        quotes[1] = Quote({
-            token: address(wrappedToken),
-            amount: _amount + feeParams.fee
-        });
+        // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
+        IEverclear.Intent memory intent = _createIntent(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            _outboundAmount(_amount),
+            abi.encode(intent)
+        );
+
+        // 3. Emit the SentTransferRemote event and 4. dispatch the message
+        return
+            _emitAndDispatch(
+                _destination,
+                _recipient,
+                _amount,
+                remainingNativeValue,
+                _tokenMessage
+            );
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to check for the Everclear intent status and transfer tokens to the recipient.
+     */
+    function _handle(
+        uint32 _origin,
+        bytes32 /* sender */,
+        bytes calldata _message
+    ) internal virtual override {
+        _settleIntent(_message);
+
+        bytes32 _recipient = _message.recipient();
+        uint256 _amount = _message.amount();
+
+        emit ReceivedTransferRemote(_origin, _recipient, _amount);
+        _transferTo(_recipient.bytes32ToAddress(), _amount);
     }
 
     /**
@@ -231,103 +297,131 @@ contract EverclearTokenBridge is HypERC20Collateral {
     function _getReceiver(
         uint32 _destination,
         bytes32 _recipient
-    ) internal view virtual returns (bytes32) {
+    ) internal view virtual returns (bytes32 receiver);
+}
+
+/**
+ * @title EverclearTokenBridge
+ * @author Hyperlane Team
+ * @notice A token bridge that integrates with Everclear's intent-based architecture
+ * @dev Extends HypERC20Collateral to provide cross-chain token transfers via Everclear's intent system
+ */
+contract EverclearTokenBridge is EverclearBridge {
+    using ERC20Collateral for IERC20;
+
+    /**
+     * @notice Constructor to initialize the Everclear token bridge
+     * @param _everclearAdapter The address of the Everclear adapter contract
+     */
+    constructor(
+        address _erc20,
+        uint256 _scale,
+        address _mailbox,
+        IEverclearAdapter _everclearAdapter
+    ) EverclearBridge(_everclearAdapter, IERC20(_erc20), _scale, _mailbox) {}
+
+    /**
+     * @inheritdoc EverclearBridge
+     */
+    function _getReceiver(
+        uint32 /* _destination */,
+        bytes32 _recipient
+    ) internal pure override returns (bytes32 receiver) {
         return _recipient;
     }
 
     /**
-     * @notice Charges the sender for the transfer including Everclear fees
-     * @dev We can't use _feeAmount here because Everclear wants to pull tokens from this contract
-     *      and the amount from _feeAmount is sent to the fee recipient.
-     * @param _destination The destination domain ID
-     * @param _recipient The recipient address on the destination chain
-     * @param _amount The amount of tokens to transfer (excluding fees)
-     * @return dispatchValue The ETH value to include with the Hyperlane message dispatch
+     * @inheritdoc TokenRouter
      */
-    function _chargeSender(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal virtual override returns (uint256 dispatchValue) {
-        return
-            super._chargeSender(
-                _destination,
-                _recipient,
-                _amount + feeParams.fee
-            );
+    function token() public view override returns (address) {
+        return address(wrappedToken);
     }
 
     /**
-     * @notice Handles pre-dispatch logic including charging sender and creating Everclear intent
-     * @dev Overrides parent function to integrate with Everclear's intent system
-     * @param _destination The destination domain ID
-     * @param _recipient The recipient address on the destination chain
-     * @param _amount The amount of tokens to transfer
-     * @return dispatchValue The ETH value to include with the message dispatch
-     * @return message The encoded message containing transfer details and intent
+     * @inheritdoc TokenRouter
      */
-    function _beforeDispatch(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal virtual override returns (uint256, bytes memory) {
-        uint256 dispatchValue = _chargeSender(
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        IEverclear.Intent memory intent = _createIntent(
-            _destination,
-            _recipient,
-            _amount
-        );
-
-        bytes memory message = TokenMessage.format(
-            _recipient,
-            _outboundAmount(_amount),
-            abi.encode(intent)
-        );
-
-        return (dispatchValue, message);
+    function _transferFromSender(uint256 _amount) internal override {
+        wrappedToken._transferFromSender(_amount);
     }
 
     /**
-     * @dev No-op, the funds are transferred directly to `_recipient` via Everclear
-     * @param _recipient The address to receive the tokens
-     * @param _amount The amount of tokens to transfer
+     * @inheritdoc TokenRouter
      */
     function _transferTo(
         address _recipient,
         uint256 _amount
-    ) internal virtual override {
-        // No-op, the funds are transferred directly to `_recipient` via Everclear
+    ) internal override {
+        wrappedToken._transferTo(_recipient, _amount);
+    }
+}
+
+/**
+ * @title EverclearEthBridge
+ * @author Hyperlane Team
+ * @notice A specialized ETH bridge that integrates with Everclear's intent-based architecture
+ * @dev Extends EverclearTokenBridge to handle ETH by wrapping to WETH for transfers and unwrapping on destination
+ */
+contract EverclearEthBridge is EverclearBridge {
+    using WETHCollateral for IWETH;
+    using TokenMessage for bytes;
+    using SafeERC20 for IERC20;
+    using Address for address payable;
+    using TypeCasts for bytes32;
+
+    /**
+     * @notice Constructor to initialize the Everclear ETH bridge
+     * @param _everclearAdapter The address of the Everclear adapter contract
+     */
+    constructor(
+        IWETH _weth,
+        uint256 _scale,
+        address _mailbox,
+        IEverclearAdapter _everclearAdapter
+    ) EverclearBridge(_everclearAdapter, IERC20(_weth), _scale, _mailbox) {}
+
+    /**
+     * @inheritdoc EverclearBridge
+     */
+    function _getReceiver(
+        uint32 _destination,
+        bytes32 /* _recipient */
+    ) internal view override returns (bytes32 receiver) {
+        return _mustHaveRemoteRouter(_destination);
+    }
+
+    // senders and recipients are ETH, so we return address(0)
+    /**
+     * @inheritdoc TokenRouter
+     */
+    function token() public pure override returns (address) {
+        return address(0);
     }
 
     /**
-     * @notice Handles incoming messages from remote chains
-     * @dev For the base token bridge, this is a no-op since funds are transferred via Everclear
-     * @param _origin The origin domain ID where the message was sent from
-     * @param _message The message payload (unused in base implementation)
+     * @inheritdoc TokenRouter
      */
-    function _handle(
-        uint32 _origin,
-        bytes32 _sender,
-        bytes calldata _message
-    ) internal virtual override {
-        // Get intent from hyperlane message
-        bytes memory metadata = _message.metadata();
-        bytes32 intentId = keccak256(metadata);
+    function _transferFromSender(uint256 _amount) internal override {
+        IWETH(address(wrappedToken))._transferFromSender(_amount);
+    }
 
-        // Check Everclear intent status
+    /**
+     * @inheritdoc TokenRouter
+     */
+    function _transferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal override {
+        IWETH(address(wrappedToken))._transferTo(_recipient, _amount);
+    }
+
+    /**
+     * @notice Allows the contract to receive ETH
+     * @dev Required for WETH unwrapping functionality
+     */
+    receive() external payable {
         require(
-            everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
-            "ETB: Intent Status != SETTLED"
+            msg.sender == address(wrappedToken),
+            "EEB: Only WETH can send ETH"
         );
-        // Check that we have not processed this intent before
-        require(!intentSettled[intentId], "ETB: Intent already processed");
-
-        intentSettled[intentId] = true;
-        super._handle(_origin, _sender, _message);
     }
 }
