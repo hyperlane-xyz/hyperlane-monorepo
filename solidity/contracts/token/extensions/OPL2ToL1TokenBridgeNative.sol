@@ -88,7 +88,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public payable virtual override returns (bytes32) {
+    ) public payable override returns (bytes32) {
         // 1. No external fee calculation necessary
         require(
             _amount > 0,
@@ -144,7 +144,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
         return withdrawMessageId;
     }
 
-    function _proveHookMetadata() internal view virtual returns (bytes memory) {
+    function _proveHookMetadata() internal view returns (bytes memory) {
         return
             StandardHookMetadata.format({
                 _msgValue: 0,

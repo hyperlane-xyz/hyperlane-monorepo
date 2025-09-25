@@ -5,7 +5,6 @@ import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
 import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
 import {NativeCollateral} from "./libs/TokenCollateral.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 

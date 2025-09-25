@@ -29,7 +29,7 @@ interface CctpService {
         returns (bytes memory cctpMessage, bytes memory attestation);
 }
 
-// // need intermediate contract to insert slots between TokenRouter and AbstractCcipReadIsm
+// need intermediate contract to insert slots between TokenRouter and AbstractCcipReadIsm
 abstract contract TokenBridgeCctpBaseStorage is TokenRouter {
     /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
     MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
