@@ -110,6 +110,8 @@ export enum WarpRouteIds {
   PulsechainUSDC = 'USDC/pulsechain',
   ElectroneumUSDC = 'USDC/electroneum',
 
+  GalacticaGNET = 'GNET/galactica',
+
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
 
