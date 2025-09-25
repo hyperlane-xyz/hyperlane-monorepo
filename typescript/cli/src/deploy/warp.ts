@@ -405,16 +405,13 @@ export async function runWarpRouteApply(
     updatedWarpCoreConfig,
   );
 
-  console.log('groupedTransactions', JSON.stringify(groupedTransactions));
+  // Check if grouped transactions are empty
+  const hasAnyTx = Object.values(groupedTransactions).some((byChain) =>
+    Object.values(byChain).some((txs) => txs.length > 0),
+  );
 
   // Check if grouped transactions are empty
-  if (
-    !Object.keys(groupedTransactions).some((protocol) =>
-      Object.keys((groupedTransactions as any)[protocol]).some(
-        (chain) => (groupedTransactions as any)[protocol][chain].length,
-      ),
-    )
-  )
+  if (!hasAnyTx)
     return logGreen(`Warp config is the same as target. No updates needed.`);
 
   await submitWarpApplyTransactions(params, groupedTransactions);

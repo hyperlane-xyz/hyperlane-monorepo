@@ -167,17 +167,18 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
     ...defaultSubmitterFactories,
   };
 
-  for (const [p] of Object.entries(additionalSubmitterFactories)) {
+  for (const [p, factories] of Object.entries(additionalSubmitterFactories)) {
+    if (!factories) continue;
     const protocol = p as ProtocolType;
 
     if (mergedSubmitterRegistry[protocol]) {
       mergedSubmitterRegistry[protocol] = {
         ...mergedSubmitterRegistry[protocol],
-        ...additionalSubmitterFactories[protocol],
+        ...factories,
       };
     } else {
       mergedSubmitterRegistry[protocol] = {
-        ...additionalSubmitterFactories[protocol],
+        ...factories,
       };
     }
   }
