@@ -817,9 +817,9 @@ impl HyperlaneProvider for RadixProvider {
 /// Data required to send a tx on radix
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct RadixTxCalldata {
-    /// Address of mailbox (already encoded)
+    /// Address of contract
     pub component_address: String,
-    /// Method to call on mailbox
+    /// Method to call on contract
     pub method_name: String,
     /// parameters required to call method
     pub encoded_arguments: Vec<u8>,
