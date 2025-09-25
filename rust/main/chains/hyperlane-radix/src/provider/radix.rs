@@ -815,7 +815,7 @@ impl HyperlaneProvider for RadixProvider {
 }
 
 /// Data required to send a tx on radix
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct RadixTxCalldata {
     /// Address of mailbox (already encoded)
     pub component_address: String,
