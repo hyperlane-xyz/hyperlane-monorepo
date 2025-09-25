@@ -264,7 +264,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view returns (uint256 feeAmount) {
+    ) internal view virtual returns (uint256 feeAmount) {
         // TODO: This still incurs a SLOAD for fetching feeRecipient, consider allowing children to override this in bytecode
         if (feeRecipient() == address(0)) {
             return 0;
