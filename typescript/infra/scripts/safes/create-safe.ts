@@ -1,4 +1,5 @@
 import Safe, { SafeAccountConfig } from '@safe-global/protocol-kit';
+import { BigNumber } from 'ethers';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -28,9 +29,6 @@ async function main() {
     [chain],
   );
 
-  const signer = multiProvider.getSigner(chain);
-  const signerAddress = await signer.getAddress();
-
   const { signers, threshold: defaultThreshold } =
     getGovernanceSigners(governanceType);
   const safeAccountConfig: SafeAccountConfig = {
@@ -40,14 +38,17 @@ async function main() {
 
   const safe = await Safe.default.init({
     provider: multiProvider.getChainMetadata(chain).rpcUrls[0].http,
-    signer: signerAddress,
     predictedSafe: {
       safeAccountConfig,
     },
   });
 
-  const safeInitTx = await safe.createSafeDeploymentTransaction();
-  await signer.sendTransaction(safeInitTx);
+  const { to, data, value } = await safe.createSafeDeploymentTransaction();
+  await multiProvider.sendTransaction(chain, {
+    to,
+    data,
+    value: BigNumber.from(value),
+  });
 
   const safeAddress = await safe.getAddress();
 
