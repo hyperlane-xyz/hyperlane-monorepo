@@ -1,4 +1,4 @@
-import { ChainMap, HypTokenRouterConfig } from '@hyperlane-xyz/sdk';
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
@@ -10,32 +10,30 @@ import {
 } from './utils.js';
 
 type DeploymentChains<T> = {
-  arbitrum: T;
+  avalanche: T;
   base: T;
-  polygon: T;
-  pulsechain: T;
+  electroneum: T;
   ethereum: T;
 };
 
 // SAFE wallets from the team
 const ownersByChain: DeploymentChains<Address> = {
-  arbitrum: '0x9adBd244557F59eE8F5633D2d2e2c0abec8FCCC2',
-  base: '0x9adBd244557F59eE8F5633D2d2e2c0abec8FCCC2',
-  polygon: '0x9adBd244557F59eE8F5633D2d2e2c0abec8FCCC2',
-  ethereum: '0x9adBd244557F59eE8F5633D2d2e2c0abec8FCCC2',
-  pulsechain: '0x703cf58975B14142eD0Ba272555789610c85520c',
+  avalanche: '0xe0eb6194A56cdb6a51BB5855cddEbd61c03a199d',
+  base: '0xe0eb6194A56cdb6a51BB5855cddEbd61c03a199d',
+  electroneum: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba', // TODO: update this after ICA is deployed
+  ethereum: '0xe0eb6194A56cdb6a51BB5855cddEbd61c03a199d',
 };
 
 const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
   Object.keys(ownersByChain),
 );
 
-export const getPulsechainUSDCWarpConfig = async (
+export const getElectroneumUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const deployConfig: DeploymentChains<HypTokenRouterConfig> = {
-    arbitrum: getRebalancingUSDCConfigForChain(
-      'arbitrum',
+    avalanche: getRebalancingUSDCConfigForChain(
+      'avalanche',
       routerConfig,
       ownersByChain,
       rebalancingConfigByChain,
@@ -52,14 +50,9 @@ export const getPulsechainUSDCWarpConfig = async (
       ownersByChain,
       rebalancingConfigByChain,
     ),
-    polygon: getRebalancingUSDCConfigForChain(
-      'polygon',
-      routerConfig,
-      ownersByChain,
-      rebalancingConfigByChain,
-    ),
-    pulsechain: getSyntheticTokenConfigForChain(
-      'pulsechain',
+
+    electroneum: getSyntheticTokenConfigForChain(
+      'electroneum',
       routerConfig,
       ownersByChain,
     ),
