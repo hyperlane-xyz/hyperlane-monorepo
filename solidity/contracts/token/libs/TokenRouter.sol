@@ -51,6 +51,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
     uint256 public immutable scale;
 
+    // cannot use compiler assigned slot without
+    // breaking backwards compatibility of storage layout
     bytes32 private constant FEE_RECIPIENT_SLOT =
         keccak256("FungibleTokenRouter.feeRecipient");
 
@@ -78,14 +80,18 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     /**
      * @inheritdoc ITokenFee
      * @notice Implements the standardized fee quoting interface for token transfers based on
-     * overridable internal functions of _quoteGasPayment, _feeRecipientAmount, and
-     * _externalFeeAmount. The implementation assumes that feeRecipient and external
-     * fees are charged in the same token as the transfer. Currently no children override
-     * quoteTransferRemote itself.
+     * overridable internal functions of _quoteGasPayment, _feeRecipientAmount, and _externalFeeAmount.
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
      * @return quotes An array of Quote structs representing the fees in different tokens.
+     * @dev This function may return multiple quotes with the same denomination. Convention is to return:
+     *  - native fees charged by the mailbox dispatch
+     *  - then any internal warp route fees (amount bridged plus fee recipient)
+     *  - then any external bridging fees (if any, else 0)
+     * These are surfaced as separate elements to enable clients to interpret/render fees independently.
+     * There is a Quotes library with an extract function for onchain quoting in a specific denomination,
+     * but we discourage onchain quoting in favor of offchain quoting and overpaying with refunds.
      */
     function quoteTransferRemote(
         uint32 _destination,
@@ -108,7 +114,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         });
     }
 
-    // TODO: Ensure overrides are consistent and documented
     /**
      * @notice Transfers `_amount` token to `_recipient` on the `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
@@ -168,16 +173,18 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount,
         uint256 _msgValue
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
-        uint256 internalFee = _feeRecipientAmount(
+        uint256 feeRecipientFee = _feeRecipientAmount(
             _destination,
             _recipient,
             _amount
         );
         externalFee = _externalFeeAmount(_destination, _recipient, _amount);
-        uint256 charge = _amount + internalFee + externalFee;
+        uint256 charge = _amount + feeRecipientFee + externalFee;
         _transferFromSender(charge);
-        if (internalFee > 0) {
-            _transferTo(feeRecipient(), internalFee);
+        if (feeRecipientFee > 0) {
+            // transfer atomically so we don't need to keep track of collateral
+            // and fee balances separately
+            _transferTo(feeRecipient(), feeRecipientFee);
         }
         remainingNativeValue = token() != address(0)
             ? _msgValue
@@ -222,9 +229,10 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     /**
      * @notice Returns the address of the fee recipient.
      * @dev Returns address(0) if no fee recipient is set.
-     * @return The address of the fee recipient.
+     * @dev Can be overriden with address(0) to disable fees entirely.
+     * @return address of the fee recipient.
      */
-    function feeRecipient() public view returns (address) {
+    function feeRecipient() public view virtual returns (address) {
         return FEE_RECIPIENT_SLOT.getAddressSlot().value;
     }
 
@@ -262,7 +270,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) internal view returns (uint256 feeAmount) {
-        // TODO: This still incurs a SLOAD for fetching feeRecipient, consider allowing children to override this in bytecode
         if (feeRecipient() == address(0)) {
             return 0;
         }

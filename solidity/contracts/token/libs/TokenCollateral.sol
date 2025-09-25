@@ -7,11 +7,10 @@ import {IWETH} from "../interfaces/IWETH.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 /**
- * @title Hyperlane Native Token Router that extends ERC20 with remote transfer functionality.
- * @author Abacus Works
- * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
+ * @title Handles deposits and withdrawals of native token collateral.
  */
 library NativeCollateral {
     function _transferFromSender(uint256 _amount) internal {
@@ -23,6 +22,9 @@ library NativeCollateral {
     }
 }
 
+/**
+ * @title Handles deposits and withdrawals of WETH collateral.
+ */
 library WETHCollateral {
     function _transferFromSender(IWETH token, uint256 _amount) internal {
         NativeCollateral._transferFromSender(_amount);
@@ -39,6 +41,9 @@ library WETHCollateral {
     }
 }
 
+/**
+ * @title Handles deposits and withdrawals of ERC20 collateral.
+ */
 library ERC20Collateral {
     using SafeERC20 for IERC20;
 
@@ -52,5 +57,23 @@ library ERC20Collateral {
         uint256 _amount
     ) internal {
         token.safeTransfer(_recipient, _amount);
+    }
+}
+
+/**
+ * @title Handles deposits and withdrawals of ERC721 collateral.
+ */
+library ERC721Collateral {
+    function _transferFromSender(IERC721 token, uint256 _tokenId) internal {
+        // safeTransferFrom not used here because recipient is this contract
+        token.transferFrom(msg.sender, address(this), _tokenId);
+    }
+
+    function _transferTo(
+        IERC721 token,
+        address _recipient,
+        uint256 _tokenId
+    ) internal {
+        token.safeTransferFrom(address(this), _recipient, _tokenId);
     }
 }

@@ -29,9 +29,9 @@ interface CctpService {
         returns (bytes memory cctpMessage, bytes memory attestation);
 }
 
-// // need intermediate contract to insert slots between TokenRouter and AbstractCcipReadIsm
+// need intermediate contract to insert slots between TokenRouter and AbstractCcipReadIsm
 abstract contract TokenBridgeCctpBaseStorage is TokenRouter {
-    // for backwards compatibility
+    /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
     MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
 }
 
@@ -93,6 +93,13 @@ abstract contract TokenBridgeCctpBase is
         _disableInitializers();
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
+    function token() public view virtual override returns (address) {
+        return address(wrappedToken);
+    }
+
     function initialize(
         address _hook,
         address _owner,
@@ -104,16 +111,6 @@ abstract contract TokenBridgeCctpBase is
         // Setup urls for offchain lookup and do token approval
         setUrls(__urls);
         wrappedToken.approve(address(tokenMessenger), type(uint256).max);
-    }
-
-    // ============ TokenRouter overrides ============
-
-    /**
-     * @inheritdoc TokenRouter
-     * @dev Overrides to return the wrapped token address (instead of implementing HypERC20Collateral).
-     */
-    function token() public view override returns (address) {
-        return address(wrappedToken);
     }
 
     /**
@@ -154,23 +151,6 @@ abstract contract TokenBridgeCctpBase is
                 _message
             );
     }
-
-    /**
-     * @inheritdoc TokenRouter
-     * @dev Overrides to transfer the tokens from the sender to this contract (like HypERC20Collateral).
-     */
-    function _transferFromSender(uint256 _amount) internal override {
-        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
-    }
-
-    /**
-     * @inheritdoc TokenRouter
-     * @dev Overrides to not transfer the tokens to the recipient, as the CCTP transfer will do it.
-     */
-    function _transferTo(
-        address _recipient,
-        uint256 _amount
-    ) internal override {}
 
     function interchainSecurityModule()
         external
@@ -332,6 +312,25 @@ abstract contract TokenBridgeCctpBase is
         uint32 circleDestination = hyperlaneDomainToCircleDomain(destination);
 
         _sendMessageIdToIsm(circleDestination, ism, id);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to transfer the tokens from the sender to this contract (like HypERC20Collateral).
+     */
+    function _transferFromSender(uint256 _amount) internal virtual override {
+        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to not transfer the tokens to the recipient, as the CCTP transfer will do it.
+     */
+    function _transferTo(
+        address _recipient,
+        uint256 _amount
+    ) internal override {
+        // do not transfer to recipient as the CCTP transfer will do it
     }
 
     function _bridgeViaCircle(

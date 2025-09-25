@@ -88,6 +88,20 @@ contract HypERC4626 is ERC20Upgradeable, TokenRouter {
         return _shares.mulDiv(exchangeRate, PRECISION);
     }
 
+    // @inheritdoc HypERC20
+    // @dev Amount specified by the user is in assets, but the internal accounting is in shares
+    function _transferFromSender(uint256 _amount) internal virtual override {
+        HypERC20._transferFromSender(assetsToShares(_amount));
+    }
+
+    // @inheritdoc TokenRouter
+    // @dev Amount specified by user is in assets, but the message accounting is in shares
+    function _outboundAmount(
+        uint256 _localAmount
+    ) internal view virtual override returns (uint256) {
+        return TokenRouter._outboundAmount(assetsToShares(_localAmount));
+    }
+
     // @inheritdoc ERC20Upgradeable
     // @dev Amount specified by user is in assets, but the internal accounting is in shares
     function _transfer(
@@ -98,12 +112,11 @@ contract HypERC4626 is ERC20Upgradeable, TokenRouter {
         super._transfer(_from, _to, assetsToShares(_amount));
     }
 
-    // ========== TokenRouter overrides  ============
+    // `_inboundAmount` implementation reused from `TokenRouter` unchanged because message
+    // accounting is in shares
 
-    /**
-     * @inheritdoc TokenRouter
-     * @dev Override to update exchange rate if message is from collateral chain
-     */
+    // ========== TokenRouter extensions ============
+    /// @inheritdoc TokenRouter
     function _handle(
         uint32 _origin,
         bytes32 _sender,

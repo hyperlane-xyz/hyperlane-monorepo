@@ -7,7 +7,7 @@ import {TokenRouter} from "./TokenRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Router} from "../../client/Router.sol";
-import {Quotes} from "../../libs/Quotes.sol";
+import {Quotes} from "./Quotes.sol";
 
 struct MovableCollateralRouterStorage {
     mapping(uint32 routerDomain => bytes32 recipient) recipient;
@@ -145,6 +145,9 @@ abstract contract MovableCollateralRouter is TokenRouter {
             _transferFromSender(collateralBridgeQuote - amount);
         }
 
+        // need to handle native quote separately from collateral quote because
+        // token() may be address(0), in which case we need to use address(this).balance
+        // to move native collateral tokens across chains
         uint256 nativeBridgeQuote = quotes.extract(address(0));
         if (nativeBridgeQuote > address(this).balance) {
             revert("Rebalance amount exceeds balance");

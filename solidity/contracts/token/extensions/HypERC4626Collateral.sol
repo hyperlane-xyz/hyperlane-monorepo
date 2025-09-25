@@ -45,7 +45,7 @@ contract HypERC4626Collateral is TokenRouter {
     bytes32 public constant NULL_RECIPIENT =
         0x0000000000000000000000000000000000000000000000000000000000000001;
 
-    // for backwards compatibility
+    /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
     LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     // Nonce for the rate update, to ensure sequential updates
@@ -127,10 +127,17 @@ contract HypERC4626Collateral is TokenRouter {
             );
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function token() public view override returns (address) {
         return address(wrappedToken);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Withdraws `_shares` of `wrappedToken` from this contract to `_recipient`
+     */
     // solhint-disable-next-line hyperlane/no-virtual-override
     function _transferTo(
         address _recipient,
@@ -139,6 +146,9 @@ contract HypERC4626Collateral is TokenRouter {
         vault.redeem(_shares, _recipient, address(this));
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function _transferFromSender(uint256 _amount) internal override {
         wrappedToken._transferFromSender(_amount);
     }

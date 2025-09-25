@@ -13,7 +13,7 @@ contract HypFiatToken is TokenRouter {
 
     IFiatToken public immutable wrappedToken;
 
-    // for backwards compatibility
+    /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
     LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     constructor(

@@ -5,7 +5,6 @@ import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
 import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
 import {NativeCollateral} from "./libs/TokenCollateral.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
@@ -37,14 +36,23 @@ contract HypNative is LpCollateralRouter {
         _LpCollateralRouter_initialize();
     }
 
-    function token() public view override returns (address) {
+    /**
+     * @inheritdoc TokenRouter
+     */
+    function token() public view virtual override returns (address) {
         return address(0);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function _transferFromSender(uint256 _amount) internal override {
         NativeCollateral._transferFromSender(_amount);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function _transferTo(
         address _recipient,
         uint256 _amount
