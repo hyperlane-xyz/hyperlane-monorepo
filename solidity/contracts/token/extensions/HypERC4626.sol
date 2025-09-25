@@ -33,7 +33,7 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
  * @dev internal ERC20 allowances storage mapping is in asset units
  * @dev public ERC20 interface is in asset units
  */
-contract HypERC4626 is HypERC20 {
+contract HypERC4626 is ERC20Upgradeable, TokenRouter {
     using Math for uint256;
     using Message for bytes;
     using TokenMessage for bytes;
@@ -50,7 +50,7 @@ contract HypERC4626 is HypERC20 {
         uint256 _scale,
         address _mailbox,
         uint32 _collateralDomain
-    ) HypERC20(_decimals, _scale, _mailbox) {
+    ) TokenRouter(_scale, _mailbox) {
         collateralDomain = _collateralDomain;
         exchangeRate = 1e10;
         _disableInitializers();
@@ -60,15 +60,13 @@ contract HypERC4626 is HypERC20 {
 
     /// Override totalSupply to return the total assets instead of shares. This reflects the actual circulating supply in terms of assets, accounting for rebasing
     /// @inheritdoc ERC20Upgradeable
-    function totalSupply() public view virtual override returns (uint256) {
+    function totalSupply() public view override returns (uint256) {
         return sharesToAssets(totalShares());
     }
 
     /// This returns the balance of the account in terms of assets, accounting for rebasing
     /// @inheritdoc ERC20Upgradeable
-    function balanceOf(
-        address account
-    ) public view virtual override returns (uint256) {
+    function balanceOf(address account) public view override returns (uint256) {
         return sharesToAssets(shareBalanceOf(account));
     }
 
@@ -90,27 +88,13 @@ contract HypERC4626 is HypERC20 {
         return _shares.mulDiv(exchangeRate, PRECISION);
     }
 
-    // @inheritdoc HypERC20
-    // @dev Amount specified by the user is in assets, but the internal accounting is in shares
-    function _transferFromSender(uint256 _amount) internal virtual override {
-        HypERC20._transferFromSender(assetsToShares(_amount));
-    }
-
-    // @inheritdoc TokenRouter
-    // @dev Amount specified by user is in assets, but the message accounting is in shares
-    function _outboundAmount(
-        uint256 _localAmount
-    ) internal view virtual override returns (uint256) {
-        return TokenRouter._outboundAmount(assetsToShares(_localAmount));
-    }
-
     // @inheritdoc ERC20Upgradeable
     // @dev Amount specified by user is in assets, but the internal accounting is in shares
     function _transfer(
         address _from,
         address _to,
         uint256 _amount
-    ) internal virtual override {
+    ) internal override {
         super._transfer(_from, _to, assetsToShares(_amount));
     }
 
@@ -123,7 +107,7 @@ contract HypERC4626 is HypERC20 {
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    ) internal virtual override {
+    ) internal override {
         if (_origin == collateralDomain) {
             (uint256 newExchangeRate, uint32 rateUpdateNonce) = abi.decode(
                 _message.metadata(),
@@ -137,5 +121,36 @@ contract HypERC4626 is HypERC20 {
             }
         }
         super._handle(_origin, _sender, _message);
+    }
+
+    function token() public view override returns (address) {
+        return address(this);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Amount specified by the user is in assets, but the internal accounting is in shares
+     */
+    function _transferFromSender(uint256 _amount) internal override {
+        _burn(msg.sender, assetsToShares(_amount));
+    }
+
+    function _transferTo(
+        address _recipient,
+        uint256 _shares
+    ) internal override {
+        _mint(_recipient, _shares);
+    }
+
+    // _transferTo implementation reused from HypERC20 unchanged because internal accounting is in shares
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Amount specified by user is in assets, but the message accounting is in shares
+     */
+    function _outboundAmount(
+        uint256 _localAmount
+    ) internal view override returns (uint256) {
+        return TokenRouter._outboundAmount(assetsToShares(_localAmount));
     }
 }

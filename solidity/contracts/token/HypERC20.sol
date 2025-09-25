@@ -43,7 +43,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
-    function decimals() public view virtual override returns (uint8) {
+    function decimals() public view override returns (uint8) {
         return _decimals;
     }
 
@@ -52,7 +52,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
     /**
      * @inheritdoc TokenRouter
      */
-    function token() public view virtual override returns (address) {
+    function token() public view override returns (address) {
         return address(this);
     }
 
@@ -60,7 +60,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
      * @inheritdoc TokenRouter
      * @dev Overrides to burn `_amount` of token from `msg.sender` balance.
      */
-    function _transferFromSender(uint256 _amount) internal virtual override {
+    function _transferFromSender(uint256 _amount) internal override {
         _burn(msg.sender, _amount);
     }
 
@@ -71,7 +71,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
     function _transferTo(
         address _recipient,
         uint256 _amount
-    ) internal virtual override {
+    ) internal override {
         _mint(_recipient, _amount);
     }
 }

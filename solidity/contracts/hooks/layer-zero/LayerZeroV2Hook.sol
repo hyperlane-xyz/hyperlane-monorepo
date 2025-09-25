@@ -85,7 +85,7 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
     function _quoteDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal view virtual override returns (uint256) {
+    ) internal view override returns (uint256) {
         bytes calldata lZMetadata = metadata.getCustomMetadata();
         (uint32 eid, , bytes memory options) = parseLzMetadata(lZMetadata);
 

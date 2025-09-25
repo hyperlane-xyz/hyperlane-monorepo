@@ -67,6 +67,7 @@ abstract contract AbstractMessageIdAuthHook is
     // ============ Internal functions ============
 
     /// @inheritdoc AbstractPostDispatchHook
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message

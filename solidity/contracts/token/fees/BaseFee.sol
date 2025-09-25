@@ -66,7 +66,7 @@ abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
         uint32 /*_destination*/,
         bytes32 /*_recipient*/,
         uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
+    ) external view virtual returns (Quote[] memory quotes) {
         quotes = new Quote[](1);
         quotes[0] = Quote(address(token), _quoteTransfer(_amount));
     }

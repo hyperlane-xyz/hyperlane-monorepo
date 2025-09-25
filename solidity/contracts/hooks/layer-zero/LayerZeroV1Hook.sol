@@ -57,7 +57,7 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient {
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal virtual override {
+    ) internal override {
         // ensure hook only dispatches messages that are dispatched by the mailbox
         bytes32 id = message.id();
         require(_isLatestDispatched(id), "message not dispatched by mailbox");
@@ -80,7 +80,7 @@ contract LayerZeroV1Hook is AbstractPostDispatchHook, MailboxClient {
     function _quoteDispatch(
         bytes calldata metadata,
         bytes calldata
-    ) internal view virtual override returns (uint256 nativeFee) {
+    ) internal view override returns (uint256 nativeFee) {
         bytes calldata lZMetadata = metadata.getCustomMetadata();
         LayerZeroMetadata memory layerZeroMetadata = parseLzMetadata(
             lZMetadata

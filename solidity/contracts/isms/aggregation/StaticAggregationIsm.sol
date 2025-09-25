@@ -22,7 +22,7 @@ contract StaticAggregationIsm is AbstractAggregationIsm {
      */
     function modulesAndThreshold(
         bytes calldata
-    ) public view virtual override returns (address[] memory, uint8) {
+    ) public view override returns (address[] memory, uint8) {
         return abi.decode(MetaProxy.metadata(), (address[], uint8));
     }
 }

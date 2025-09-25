@@ -18,12 +18,7 @@ import {StaticAggregationHook} from "./StaticAggregationHook.sol";
 import {StaticAddressSetFactory} from "../../libs/StaticAddressSetFactory.sol";
 
 contract StaticAggregationHookFactory is StaticAddressSetFactory {
-    function _deployImplementation()
-        internal
-        virtual
-        override
-        returns (address)
-    {
+    function _deployImplementation() internal override returns (address) {
         return address(new StaticAggregationHook());
     }
 }

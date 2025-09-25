@@ -138,6 +138,7 @@ contract HypERC4626Collateral is TokenRouter {
      * @inheritdoc TokenRouter
      * @dev Withdraws `_shares` of `wrappedToken` from this contract to `_recipient`
      */
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function _transferTo(
         address _recipient,
         uint256 _shares
