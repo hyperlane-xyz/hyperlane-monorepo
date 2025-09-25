@@ -114,12 +114,6 @@ pub async fn build_withdrawal_fxg(
         // Get anchor amount (not swept but available for withdrawals)
         let anchor_amount = anchor_input.1.amount; // anchor_input is (TransactionInput, UtxoEntry, Option<Vec<u8>>)
 
-        // Calculate total withdrawal amount needed
-        let total_withdrawal_amount: u64 = outputs.iter().map(|o| o.value).sum();
-
-        // Get anchor amount (not swept but available for withdrawals)
-        let anchor_amount = anchor_input.1.amount; // anchor_input is (TransactionInput, UtxoEntry, Option<Vec<u8>>)
-
         let sweeping_bundle = create_sweeping_bundle(
             &relayer,
             &escrow_public,
