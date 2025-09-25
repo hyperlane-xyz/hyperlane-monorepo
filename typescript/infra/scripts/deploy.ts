@@ -20,7 +20,6 @@ import {
   InterchainAccount,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
-  LiquidityLayerDeployer,
   TestRecipientDeployer,
 } from '@hyperlane-xyz/sdk';
 import { inCIMode, objFilter, objMap } from '@hyperlane-xyz/utils';
@@ -172,24 +171,6 @@ async function main() {
     const { core } = await getHyperlaneCore(environment, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainQueryDeployer(
-      multiProvider,
-      contractVerifier,
-      concurrentDeploy,
-    );
-  } else if (module === Modules.LIQUIDITY_LAYER) {
-    const { core } = await getHyperlaneCore(environment, multiProvider);
-    const routerConfig = core.getRouterConfig(envConfig.owners);
-    if (!envConfig.liquidityLayerConfig) {
-      throw new Error(`No liquidity layer config for ${environment}`);
-    }
-    config = objMap(
-      envConfig.liquidityLayerConfig.bridgeAdapters,
-      (chain, conf) => ({
-        ...conf,
-        ...routerConfig[chain],
-      }),
-    );
-    deployer = new LiquidityLayerDeployer(
       multiProvider,
       contractVerifier,
       concurrentDeploy,
