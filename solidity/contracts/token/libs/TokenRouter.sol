@@ -89,6 +89,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      *  - native fees charged by the mailbox dispatch
      *  - then any internal warp route fees (amount bridged plus fee recipient)
      *  - then any external bridging fees (if any, else 0)
+     * These are surfaced as separate elements to enable clients to interpret/render fees independently.
      * There is a Quotes library with an extract function for onchain quoting in a specific denomination,
      * but we discourage onchain quoting in favor of offchain quoting and overpaying with refunds.
      */
@@ -228,7 +229,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     /**
      * @notice Returns the address of the fee recipient.
      * @dev Returns address(0) if no fee recipient is set.
-     * @return The address of the fee recipient.
+     * @dev Can be overriden with address(0) to disable fees entirely.
+     * @return address of the fee recipient.
      */
     function feeRecipient() public view virtual returns (address) {
         return FEE_RECIPIENT_SLOT.getAddressSlot().value;
@@ -268,7 +270,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) internal view returns (uint256 feeAmount) {
-        // TODO: This still incurs a SLOAD for fetching feeRecipient, consider allowing children to override this in bytecode
         if (feeRecipient() == address(0)) {
             return 0;
         }
