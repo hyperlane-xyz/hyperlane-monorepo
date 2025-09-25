@@ -13,6 +13,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
  * @title Handles deposits and withdrawals of native token collateral.
  */
 library NativeCollateral {
+    // solhint-disable-next-line hyperlane/no-msg-value-internal
     function _transferFromSender(uint256 _amount) internal {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
     }
