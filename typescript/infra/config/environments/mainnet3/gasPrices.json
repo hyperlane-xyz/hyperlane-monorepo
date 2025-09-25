@@ -7,10 +7,6 @@
     "amount": "0.001000252",
     "decimals": 9
   },
-  "alephzeroevmmainnet": {
-    "amount": "40.0",
-    "decimals": 9
-  },
   "apechain": {
     "amount": "25.42069",
     "decimals": 9
@@ -179,10 +175,6 @@
     "amount": "0.1",
     "decimals": 9
   },
-  "game7": {
-    "amount": "0.01",
-    "decimals": 9
-  },
   "gnosis": {
     "amount": "0.000308849",
     "decimals": 9
@@ -213,10 +205,6 @@
   },
   "inevm": {
     "amount": "0.1",
-    "decimals": 9
-  },
-  "infinityvmmainnet": {
-    "amount": "1.000000007",
     "decimals": 9
   },
   "ink": {
