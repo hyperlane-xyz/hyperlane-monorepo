@@ -38,6 +38,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../../config/contexts.js';
+import { getSecretDeployerKey } from '../agents/index.js';
 // eslint-disable-next-line import/no-cycle
 import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 
@@ -79,10 +81,15 @@ export async function getSafeAndService(
     );
   }
 
+  const deployerKey = await getSecretDeployerKey(
+    'mainnet3',
+    Contexts.Hyperlane,
+    chain,
+  );
   let safeSdk: Safe.default;
   try {
     safeSdk = await retryAsync(
-      () => getSafe(chain, multiProvider, safeAddress, safeApiKey),
+      () => getSafe(chain, multiProvider, safeAddress, safeApiKey, deployerKey),
       5,
       1000,
     );
