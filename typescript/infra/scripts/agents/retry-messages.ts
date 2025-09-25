@@ -100,16 +100,16 @@ async function retryMessage(options: RetryOptions) {
     let requestBody: any[] = [];
 
     if (messageId) {
-      requestBody = [{ message_id: messageId }];
+      requestBody = [{ messageid: messageId }];
       console.log(`🎯 Triggering retry for specific message: ${messageId}`);
     } else if (originDomain || destinationDomain || sender || recipient) {
-      // Use Message whitelist format for domain/sender/recipient filtering
+      // Use correct API field names from relayer implementation
       requestBody = [
         {
-          ...(originDomain && { origin_domain: originDomain }),
-          ...(destinationDomain && { destination_domain: destinationDomain }),
-          ...(sender && { sender }),
-          ...(recipient && { recipient }),
+          ...(originDomain && { origindomain: originDomain }),
+          ...(destinationDomain && { destinationdomain: destinationDomain }),
+          ...(sender && { senderaddress: sender }),
+          ...(recipient && { recipientaddress: recipient }),
         },
       ];
 
@@ -120,6 +120,7 @@ async function retryMessage(options: RetryOptions) {
     }
 
     console.log(`📤 Sending retry request to relayer API...`);
+    console.log(`🔍 Request body:`, JSON.stringify(requestBody, null, 2));
 
     // Make retry request
     const response = await fetch(`http://localhost:${port}/message_retry`, {
