@@ -3,11 +3,12 @@ pub mod tests;
 
 use std::{sync::Arc, time::Duration};
 
-use hyperlane_core::H512;
-use hyperlane_radix::{RadixProviderForLander, RadixSigner, RadixTxCalldata};
 use radix_transactions::signing::PrivateKey;
 use scrypto::network::NetworkDefinition;
 use uuid::Uuid;
+
+use hyperlane_core::H512;
+use hyperlane_radix::{RadixProviderForLander, RadixSigner, RadixTxCalldata};
 
 use crate::{
     adapter::{AdaptsChain, GasLimit, RadixTxPrecursor, TxBuildingResult},

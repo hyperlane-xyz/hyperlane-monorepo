@@ -19,9 +19,9 @@ use crate::{
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct RadixTxPrecursor {
-    /// Address of mailbox (already encoded)
+    /// Address of contract to interact with
     pub component_address: String,
-    /// Method to call on mailbox
+    /// Method to call on contract
     pub method_name: String,
     /// parameters required to call method
     pub encoded_arguments: Vec<u8>,
