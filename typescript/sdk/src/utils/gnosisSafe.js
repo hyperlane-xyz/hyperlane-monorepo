@@ -80,10 +80,13 @@ const chainOverrides = {
   },
 };
 
-export async function getSafe(chain, multiProvider, safeAddress, apiKey) {
-  // Create Ethers Adapter
-  const signer = multiProvider.getSigner(chain);
-
+export async function getSafe(
+  chain,
+  multiProvider,
+  safeAddress,
+  apiKey,
+  signer,
+) {
   // Get the chain id for the given chain
   const chainId = `${multiProvider.getEvmChainId(chain)}`;
 
@@ -121,7 +124,7 @@ export async function getSafe(chain, multiProvider, safeAddress, apiKey) {
 
   return Safe.init({
     provider: multiProvider.getChainMetadata(chain).rpcUrls[0].http,
-    signer: await signer.getAddress(),
+    signer,
     safeAddress,
     contractNetworks: {
       [chainId]: {
