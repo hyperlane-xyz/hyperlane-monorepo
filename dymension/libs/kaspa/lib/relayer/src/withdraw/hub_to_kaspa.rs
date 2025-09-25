@@ -1,5 +1,6 @@
 use super::messages::PopulatedInput;
 use super::minimum::{is_dust, is_small_value};
+use super::populated_input::PopulatedInputBuilder;
 use crate::withdraw::sweep::utxo_reference_from_populated_input;
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
@@ -19,7 +20,7 @@ use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
 use kaspa_consensus_core::tx::UtxoEntry;
 use kaspa_consensus_core::tx::{
-    Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
+    Transaction, TransactionOutpoint, TransactionOutput,
 };
 use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
@@ -46,16 +47,20 @@ pub async fn fetch_input_utxos(
     Ok(utxos
         .into_iter()
         .map(|utxo| {
-            (
-                TransactionInput::new(
-                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    vec![], // signature_script is empty for unsigned transactions
-                    0,      // sequence does not matter
-                    sig_op_count,
-                ),
-                UtxoEntry::from(utxo.utxo_entry),
-                redeem_script.clone(),
+            let outpoint = kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint);
+            let entry = UtxoEntry::from(utxo.utxo_entry);
+
+            PopulatedInputBuilder::new(
+                outpoint.transaction_id,
+                outpoint.index,
+                entry.amount,
+                entry.script_public_key,
             )
+            .sig_op_count(sig_op_count)
+            .block_daa_score(entry.block_daa_score)
+            .is_coinbase(entry.is_coinbase)
+            .redeem_script(redeem_script.clone())
+            .build()
         })
         .collect())
 }
@@ -729,24 +734,17 @@ mod tests {
         for input_count in MIN_INPUTS..=MAX_INPUTS {
             let inputs: Vec<PopulatedInput> = (0..input_count)
                 .map(|_i| {
-                    (
-                        TransactionInput {
-                            previous_outpoint: TransactionOutpoint {
-                                transaction_id: "81b79b11b546e3769e91bebced62fc0ff7ce665258201fd501ea3c60d735ec7d".to_string().parse().unwrap(),
-                                index: 0,
-                            },
-                            signature_script: "41b31e2b858c19baef26cb352664b493cb9f7f3b3f94217a7ca857f740db5eb4cb1004c9a278449477e23fb1b09f141d1a939b7f8435c578af17549cd2ff79b7b4814129ab65d772387cfa300314597b0ab11d9900ffcbe2f072568cbb6cd76bdba057242e365d951d2f87ab98bb332527d6df07cf207164ab1be5a643a6d7edb9fde6814171641e6b8ce10fcf5b41e962cf3665020a5e295ddf35a6a07e791d619aa1580d5f43d37c7dfa3c115b648c25b92ad17868e61bd01ad782b04ead5177ce5f40958141bc5b0b3f6e3bbb468d8710aba0cb0c04e046371f1b0972aacf48121e9d0704233e7596685e9a25464b85857562427f4982ba6e84c3258e356d9bff67478bb4df81415177d6b9b39414dd75374089d98c38b145c332b7a960cf2cabeb9cdd397c090d7e81bc28619f0491b1a57483013adca9badff86df32d31598fee28fd4699ed15814123b9ae551e0201f106291923d294715800ffb47a7dc158f738e341f87f0656805b1d27f931bc1653d366ef7bf55f1a0be7c8c25ed510dbec3297fae0b51c96d4814d0b0156205461e2ab2584bc80435c2a3f51c4cf12285992b5e4fdec57f1f8b506134a90872018a9fcc6059c1995c70b8f31b2256ac3d4aeca5dffa331fb941a8c5d4bffdd7620d7a78be7d152498cfb9fb8a89b60723f011435303499e0de7c1bcbf88f87d1b920f02a8dc60f124b34e9a8800fb25cf25ac01a3bdcf5a6ea21d2e2569a173dd9b2208586f127129710cdac6ca1d86be1869bd8a8746db9a2339fde71278dff7fb4692014d0d6d828c2f3e5ce908978622c5677c1fc53372346a9cff60d1140c54b5e5e209035bddc82d62454b2d425e205533363d09dc5d9c0d0f74c1f937c2d211c15a120e4b95346367e49178c8571e8a649584981d8bd6f920c648e37bbe24f055baf9c58ae".as_bytes().to_vec(),
-                            sequence: u64::MAX,
-                            sig_op_count: 8,
-                        },
-                        UtxoEntry {
-                            amount: 4_000_000_000,
-                            script_public_key: spk.clone(),
-                            block_daa_score: 0,
-                            is_coinbase: false,
-                        },
-                        None,
-                    )
+                    let tx_id = "81b79b11b546e3769e91bebced62fc0ff7ce665258201fd501ea3c60d735ec7d".to_string().parse().unwrap();
+                    let sig_script = "41b31e2b858c19baef26cb352664b493cb9f7f3b3f94217a7ca857f740db5eb4cb1004c9a278449477e23fb1b09f141d1a939b7f8435c578af17549cd2ff79b7b4814129ab65d772387cfa300314597b0ab11d9900ffcbe2f072568cbb6cd76bdba057242e365d951d2f87ab98bb332527d6df07cf207164ab1be5a643a6d7edb9fde6814171641e6b8ce10fcf5b41e962cf3665020a5e295ddf35a6a07e791d619aa1580d5f43d37c7dfa3c115b648c25b92ad17868e61bd01ad782b04ead5177ce5f40958141bc5b0b3f6e3bbb468d8710aba0cb0c04e046371f1b0972aacf48121e9d0704233e7596685e9a25464b85857562427f4982ba6e84c3258e356d9bff67478bb4df81415177d6b9b39414dd75374089d98c38b145c332b7a960cf2cabeb9cdd397c090d7e81bc28619f0491b1a57483013adca9badff86df32d31598fee28fd4699ed15814123b9ae551e0201f106291923d294715800ffb47a7dc158f738e341f87f0656805b1d27f931bc1653d366ef7bf55f1a0be7c8c25ed510dbec3297fae0b51c96d4814d0b0156205461e2ab2584bc80435c2a3f51c4cf12285992b5e4fdec57f1f8b506134a90872018a9fcc6059c1995c70b8f31b2256ac3d4aeca5dffa331fb941a8c5d4bffdd7620d7a78be7d152498cfb9fb8a89b60723f011435303499e0de7c1bcbf88f87d1b920f02a8dc60f124b34e9a8800fb25cf25ac01a3bdcf5a6ea21d2e2569a173dd9b2208586f127129710cdac6ca1d86be1869bd8a8746db9a2339fde71278dff7fb4692014d0d6d828c2f3e5ce908978622c5677c1fc53372346a9cff60d1140c54b5e5e209035bddc82d62454b2d425e205533363d09dc5d9c0d0f74c1f937c2d211c15a120e4b95346367e49178c8571e8a649584981d8bd6f920c648e37bbe24f055baf9c58ae".as_bytes().to_vec();
+
+                    // Create the populated input, then modify the signature script
+                    let mut input = PopulatedInputBuilder::new(tx_id, 0, 4_000_000_000, spk.clone())
+                        .sig_op_count(8)
+                        .build();
+
+                    // Update the signature script in the TransactionInput
+                    input.0.signature_script = sig_script;
+                    input
                 })
                 .collect();
 

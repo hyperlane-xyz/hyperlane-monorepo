@@ -1,4 +1,5 @@
 use crate::withdraw::messages::PopulatedInput;
+use crate::withdraw::populated_input::PopulatedInputBuilder;
 use corelib::consts::RELAYER_SIG_OP_COUNT;
 use corelib::escrow::EscrowPublic;
 use corelib::util::input_sighash_type;
@@ -10,16 +11,13 @@ use kaspa_consensus_client::{
 };
 
 use super::hub_to_kaspa::estimate_mass;
-use kaspa_consensus_core::constants::UNACCEPTED_DAA_SCORE;
 use kaspa_consensus_core::network::NetworkId;
-use kaspa_consensus_core::tx::{
-    TransactionInput, TransactionOutpoint, TransactionOutput, UtxoEntry,
-};
+use kaspa_consensus_core::tx::TransactionOutput;
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS;
 use kaspa_wallet_core::utxo::UtxoEntryReference;
 use kaspa_wallet_pskt::bundle::Bundle;
-use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, Version, PSKT};
+use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, PSKT};
 use kaspa_wallet_pskt::pskt::InputBuilder;
 use tracing::info;
 
@@ -260,37 +258,23 @@ fn prepare_next_iteration_inputs(
     };
 
     // Create relayer input from previous PSKT's relayer output
-    let relayer_input = (
-        TransactionInput::new(
-            TransactionOutpoint::new(tx_id, relayer_idx),
-            vec![],
-            u64::MAX,
-            RELAYER_SIG_OP_COUNT,
-        ),
-        UtxoEntry::new(
-            relayer_output.amount,
-            relayer_output.script_public_key.clone(),
-            UNACCEPTED_DAA_SCORE,
-            false,
-        ),
-        None,
-    );
+    let relayer_input = PopulatedInputBuilder::new(
+        tx_id,
+        relayer_idx,
+        relayer_output.amount,
+        relayer_output.script_public_key.clone(),
+    )
+    .build();
+
     // Create escrow input from previous PSKT's escrow output
-    let escrow_input = (
-        TransactionInput::new(
-            TransactionOutpoint::new(tx_id, escrow_idx),
-            vec![],
-            u64::MAX,
-            escrow.n() as u8,
-        ),
-        UtxoEntry::new(
-            escrow_output.amount,
-            escrow_output.script_public_key.clone(),
-            UNACCEPTED_DAA_SCORE,
-            false,
-        ),
-        Some(escrow.redeem_script.clone()),
-    );
+    let escrow_input = PopulatedInputBuilder::new(
+        tx_id,
+        escrow_idx,
+        escrow_output.amount,
+        escrow_output.script_public_key.clone(),
+    )
+    .for_escrow(escrow)
+    .build();
     // Next iteration will use both outputs as inputs
     let new_relayer_inputs = vec![relayer_input];
     // Add the escrow output from previous PSKT to the beginning of remaining escrow inputs
@@ -493,37 +477,22 @@ pub fn create_inputs_from_sweeping_bundle(
         }
     };
 
-    let relayer_input: PopulatedInput = (
-        TransactionInput::new(
-            TransactionOutpoint::new(tx_id, relayer_idx),
-            vec![], // signature_script is empty for unsigned transactions
-            u64::MAX,
-            RELAYER_SIG_OP_COUNT,
-        ),
-        UtxoEntry::new(
-            relayer_output.amount,
-            relayer_output.script_public_key.clone(),
-            UNACCEPTED_DAA_SCORE,
-            false,
-        ),
-        None, // relayer has no redeem script
-    );
+    let relayer_input = PopulatedInputBuilder::new(
+        tx_id,
+        relayer_idx,
+        relayer_output.amount,
+        relayer_output.script_public_key.clone(),
+    )
+    .build();
 
-    let escrow_input: PopulatedInput = (
-        TransactionInput::new(
-            TransactionOutpoint::new(tx_id, escrow_idx),
-            vec![], // signature_script is empty for unsigned transactions
-            u64::MAX,
-            escrow.n() as u8,
-        ),
-        UtxoEntry::new(
-            escrow_output.amount,
-            escrow.p2sh.clone(),
-            UNACCEPTED_DAA_SCORE,
-            false,
-        ),
-        Some(escrow.redeem_script.clone()), // escrow has redeem script
-    );
+    let escrow_input = PopulatedInputBuilder::new(
+        tx_id,
+        escrow_idx,
+        escrow_output.amount,
+        escrow.p2sh.clone(),
+    )
+    .for_escrow(escrow)
+    .build();
 
     Ok(vec![relayer_input, escrow_input])
 }
