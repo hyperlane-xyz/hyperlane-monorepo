@@ -63,6 +63,10 @@ import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getLumiaUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getLumiaUSDCWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
+import {
+  getMatchainUSDCStrategyConfig,
+  getMatchainUSDCWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getMatchainUSDCWarpConfig.js';
 import { getMintSolanaMintWarpConfig } from './environments/mainnet3/warp/configGetters/getMintSolanaMintWarpConfig.js';
 import { getMitosisMITOWarpConfig } from './environments/mainnet3/warp/configGetters/getMitosisMITOWarpConfig.js';
 import { getParadexUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getParadexUSDCWarpConfig.js';
@@ -164,6 +168,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.TestnetCCTP]: getTestnetCCTPWarpConfig,
   [WarpRouteIds.MainnetCCTP]: getMainnetCCTPWarpConfig,
   [WarpRouteIds.LumiaUSDC]: getLumiaUSDCWarpConfig,
+  [WarpRouteIds.MatchainUSDC]: getMatchainUSDCWarpConfig,
   [WarpRouteIds.MitosisMITO]: getMitosisMITOWarpConfig,
   [WarpRouteIds.ArbitrumBaseEthereumRadixUSDC]:
     getArbitrumBaseEthereumRadixUSDCWarpConfig,
@@ -187,6 +192,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
   [WarpRouteIds.MainnetCCTP]: getCCTPStrategyConfig,
+  [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
 };
 

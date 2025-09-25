@@ -77,7 +77,6 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Nov 8, 2024 batch
   // ----------------------------------------------------------
-  alephzeroevmmainnet: '0xDE91AC081E12107a033728A287b06B1Fc640A637',
   chilizmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
   flowmainnet: '0x65528D447C93CC1A1A7186CB4449d9fE0d5C1928',
   immutablezkevmmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
