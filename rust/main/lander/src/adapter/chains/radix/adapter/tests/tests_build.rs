@@ -76,15 +76,6 @@ async fn test_build_transactions_failed() {
     let provider_arc = Arc::new(provider);
     let adapter = adapter(provider_arc.clone(), signer.clone());
 
-    let message = HyperlaneMessage {
-        origin: 1000,
-        destination: 2000,
-        ..Default::default()
-    };
-    let metadata: Vec<u8> = vec![1, 2, 3, 4];
-    let args: ManifestArgs = manifest_args!(&metadata, &message.to_vec());
-    let encoded_arguments = manifest_encode(&args).expect("Failed to encode manifest");
-
     // invalid json
     let payload = payload(vec![1, 2, 3, 4]);
 
