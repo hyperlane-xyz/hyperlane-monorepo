@@ -2,34 +2,72 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use hyperlane_core::{
-    Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    SignedType, TxOutcome, ValidatorAnnounce, H160, H256, H512, U256,
+    Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
 use hyperlane_sealevel_validator_announce::{
-    accounts::ValidatorStorageLocationsAccount, validator_storage_locations_pda_seeds,
+    accounts::ValidatorStorageLocationsAccount,
+    instruction::{AnnounceInstruction, Instruction as ValidatorAnnounceInstruction},
+    replay_protection_pda_seeds, validator_announce_pda_seeds,
+    validator_storage_locations_pda_seeds,
 };
-use solana_sdk::pubkey::Pubkey;
-use tracing::{info, instrument, warn};
+use solana_sdk::{
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+    signer::Signer as _,
+    system_program,
+};
+use tracing::{info, instrument};
 
-use crate::SealevelProvider;
+use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, TransactionSubmitter};
 
 /// A reference to a ValidatorAnnounce contract on some Sealevel chain
-#[derive(Debug)]
 pub struct SealevelValidatorAnnounce {
     provider: Arc<SealevelProvider>,
+    tx_submitter: Arc<dyn TransactionSubmitter>,
     program_id: Pubkey,
     domain: HyperlaneDomain,
+    conn: ConnectionConf,
+    signer: Option<SealevelKeypair>,
+}
+
+impl std::fmt::Debug for SealevelValidatorAnnounce {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SealevelValidatorAnnounce")
+            .field("provider", &self.provider)
+            .field("tx_submitter", &"Arc<dyn TransactionSubmitter>")
+            .field("program_id", &self.program_id)
+            .field("domain", &self.domain)
+            .field("conn", &self.conn)
+            .field("signer", &self.signer)
+            .finish()
+    }
 }
 
 impl SealevelValidatorAnnounce {
     /// Create a new Sealevel ValidatorAnnounce
-    pub fn new(provider: Arc<SealevelProvider>, locator: &ContractLocator) -> Self {
+    pub fn new(
+        provider: Arc<SealevelProvider>,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
+        conn: ConnectionConf,
+        locator: &ContractLocator,
+        signer: Option<SealevelKeypair>,
+    ) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             program_id,
             domain: locator.domain.clone(),
             provider,
+            tx_submitter,
+            conn,
+            signer,
         }
+    }
+
+    fn get_signer(&self) -> ChainResult<&SealevelKeypair> {
+        self.signer
+            .as_ref()
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)
     }
 }
 
@@ -112,13 +150,77 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
 
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn announce(&self, _announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        warn!(
-            "Announcing validator storage locations within the agents is not supported on Sealevel"
-        );
+    async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
+        let payer = self.get_signer()?;
+
+        let announce_instruction = AnnounceInstruction {
+            validator: announcement.value.validator,
+            storage_location: announcement.value.storage_location.clone(),
+            signature: announcement.signature.to_vec(),
+        };
+
+        let (validator_announce_account, _validator_announce_bump) =
+            Pubkey::find_program_address(validator_announce_pda_seeds!(), &self.program_id);
+
+        let (validator_storage_locations_key, _validator_storage_locations_bump_seed) =
+            Pubkey::find_program_address(
+                validator_storage_locations_pda_seeds!(announce_instruction.validator),
+                &self.program_id,
+            );
+
+        let replay_id = announce_instruction.replay_id();
+        let (replay_protection_pda_key, _replay_protection_bump_seed) =
+            Pubkey::find_program_address(replay_protection_pda_seeds!(replay_id), &self.program_id);
+
+        let ixn = ValidatorAnnounceInstruction::Announce(announce_instruction);
+
+        // Accounts:
+        // 0. [signer] The payer.
+        // 1. [executable] The system program.
+        // 2. [] The ValidatorAnnounce PDA account.
+        // 3. [writeable] The validator-specific ValidatorStorageLocationsAccount PDA account.
+        // 4. [writeable] The ReplayProtection PDA account specific to the announcement being made.
+        let accounts = vec![
+            AccountMeta::new_readonly(payer.pubkey(), true),
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new_readonly(validator_announce_account, false),
+            AccountMeta::new(validator_storage_locations_key, false),
+            AccountMeta::new(replay_protection_pda_key, false),
+        ];
+
+        let instruction = Instruction {
+            program_id: self.program_id,
+            data: ixn.into_instruction_data().unwrap(),
+            accounts,
+        };
+
+        info!(?instruction, "Created validator announce instruction");
+
+        let tx = self
+            .provider
+            .build_estimated_tx_for_instruction(
+                instruction,
+                payer,
+                self.tx_submitter.clone(),
+                self.conn.priority_fee_oracle.create_oracle(),
+            )
+            .await?;
+
+        info!(?tx, "Built transaction for validator announcement");
+
+        let signature = self.tx_submitter.send_transaction(&tx, true).await?;
+
+        info!(?signature, "Sent validator announcement transaction");
+
+        self.tx_submitter
+            .wait_for_transaction_confirmation(&tx)
+            .await?;
+
+        info!(?signature, "Validator announcement transaction confirmed");
+
         Ok(TxOutcome {
-            transaction_id: H512::zero(),
-            executed: false,
+            transaction_id: signature.into(),
+            executed: true,
             gas_used: U256::zero(),
             gas_price: U256::zero().try_into()?,
         })
