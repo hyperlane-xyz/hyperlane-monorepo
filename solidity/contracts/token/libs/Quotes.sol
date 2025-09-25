@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {Quote} from "../interfaces/ITokenBridge.sol";
+import {Quote} from "../../interfaces/ITokenBridge.sol";
 
 library Quotes {
     function extract(

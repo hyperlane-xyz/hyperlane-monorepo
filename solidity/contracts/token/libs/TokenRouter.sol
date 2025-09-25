@@ -113,7 +113,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         });
     }
 
-    // TODO: Ensure overrides are consistent and documented
     /**
      * @notice Transfers `_amount` token to `_recipient` on the `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
@@ -182,6 +181,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 charge = _amount + feeRecipientFee + externalFee;
         _transferFromSender(charge);
         if (feeRecipientFee > 0) {
+            // transfer atomically so we don't need to keep track of collateral
+            // and fee balances separately
             _transferTo(feeRecipient(), feeRecipientFee);
         }
         remainingNativeValue = token() != address(0)
@@ -229,7 +230,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @dev Returns address(0) if no fee recipient is set.
      * @return The address of the fee recipient.
      */
-    function feeRecipient() public view returns (address) {
+    function feeRecipient() public view virtual returns (address) {
         return FEE_RECIPIENT_SLOT.getAddressSlot().value;
     }
 
@@ -266,7 +267,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view virtual returns (uint256 feeAmount) {
+    ) internal view returns (uint256 feeAmount) {
         // TODO: This still incurs a SLOAD for fetching feeRecipient, consider allowing children to override this in bytecode
         if (feeRecipient() == address(0)) {
             return 0;

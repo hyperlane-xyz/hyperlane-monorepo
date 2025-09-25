@@ -39,32 +39,19 @@ contract HypERC721Collateral is TokenRouter {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function token() public view override returns (address) {
         return address(wrappedToken);
     }
 
     /**
      * @inheritdoc TokenRouter
+     * @dev NFTs cannot have a fee recipient
      */
-    function _feeRecipientAmount(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal view override returns (uint256) {
-        // cannot charge fees in token() for NFTs
-        return 0;
-    }
-
-    /**
-     * @inheritdoc TokenRouter
-     */
-    function _externalFeeAmount(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal view override returns (uint256) {
-        // cannot charge fees in token() for NFTs
-        return 0;
+    function feeRecipient() public view override returns (address) {
+        return address(0);
     }
 
     /**

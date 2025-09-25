@@ -38,32 +38,19 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
         }
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function token() public view override returns (address) {
         return address(this);
     }
 
     /**
      * @inheritdoc TokenRouter
+     * @dev NFTs cannot have a fee recipient
      */
-    function _feeRecipientAmount(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _tokenId
-    ) internal view override returns (uint256) {
-        // cannot charge fees in token() for NFTs
-        return 0;
-    }
-
-    /**
-     * @inheritdoc TokenRouter
-     */
-    function _externalFeeAmount(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _tokenId
-    ) internal view override returns (uint256) {
-        // cannot charge fees in token() for NFTs
-        return 0;
+    function feeRecipient() public view override returns (address) {
+        return address(0);
     }
 
     /**
