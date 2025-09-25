@@ -245,13 +245,11 @@ jobs:
 
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
-        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           cache-provider: github
 
       - name: Checkout registry
-        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         uses: ./.github/actions/checkout-registry
 
       - name: GitLeaks Tests
