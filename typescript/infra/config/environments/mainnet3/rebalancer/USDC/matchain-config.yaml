@@ -8,7 +8,7 @@ strategy:
         weight: 100
         tolerance: 5 # 5% deviation tolerance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
-      bridgeMinAcceptedAmount: 1000
+      bridgeMinAcceptedAmount: 3000
       bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
 
     base:
@@ -16,5 +16,5 @@ strategy:
         weight: 100
         tolerance: 5 # 5% deviation tolerance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
-      bridgeMinAcceptedAmount: 1000
+      bridgeMinAcceptedAmount: 3000
       bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
