@@ -21,7 +21,7 @@ use crate::{
 
 pub type GasLimit = U256;
 
-#[derive(new, Debug, Clone)]
+#[derive(new, Debug, Clone, PartialEq)]
 pub struct TxBuildingResult {
     /// payload details for the payloads in this transaction
     /// this is a vector because multiple payloads can be included in a single transaction
