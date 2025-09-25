@@ -20,6 +20,56 @@ use tracing::info;
 // (input, entry, optional_redeem_script)
 pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry, Option<Vec<u8>>);
 
+/// Adjusts outputs and messages to fit within transaction mass limits
+/// Returns (adjusted_outputs, adjusted_messages, final_mass)
+fn adjust_outputs_for_mass_limit(
+    inputs: Vec<PopulatedInput>,
+    mut outputs: Vec<kaspa_consensus_core::tx::TransactionOutput>,
+    mut messages: Vec<HyperlaneMessage>,
+    network_id: kaspa_consensus_core::network::NetworkId,
+    escrow_m: u16,
+) -> Result<(Vec<kaspa_consensus_core::tx::TransactionOutput>, Vec<HyperlaneMessage>, u64)> {
+    // Calculate initial mass
+    let mut tx_mass = super::hub_to_kaspa::estimate_mass(
+        inputs.clone(),
+        outputs.clone(),
+        MessageIDs::from(&messages).to_bytes(),
+        network_id,
+        escrow_m,
+    )
+    .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
+
+    // Use MAX_MASS_MARGIN as safety margin for mass limit
+    // This ensures we stay under the limit even with estimation variance
+    let max_allowed_mass = (kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS as f64 * MAX_MASS_MARGIN) as u64;
+
+    // Remove outputs from the end if mass exceeds maximum (with safety margin)
+    while tx_mass > max_allowed_mass && !outputs.is_empty() {
+        outputs.pop();
+        messages.pop();
+
+        // Recalculate mass with reduced outputs
+        if !outputs.is_empty() {
+            tx_mass = super::hub_to_kaspa::estimate_mass(
+                inputs.clone(),
+                outputs.clone(),
+                MessageIDs::from(&messages).to_bytes(),
+                network_id,
+                escrow_m,
+            )
+            .map_err(|e| eyre::eyre!("Estimate TX mass after output removal: {e}"))?;
+        }
+    }
+
+    if outputs.is_empty() {
+        return Err(eyre::eyre!(
+            "Cannot process any withdrawals - even a single withdrawal exceeds mass limit"
+        ));
+    }
+
+    Ok((outputs, messages, tx_mass))
+}
+
 /// Processes given messages and returns WithdrawFXG and the very first outpoint
 /// (the one preceding all the given transfers; it should be used during process indication).
 pub async fn on_new_withdrawals(
@@ -151,46 +201,13 @@ pub async fn build_withdrawal_fxg(
     };
 
     // Estimate mass and remove outputs if necessary
-    let mut final_outputs = outputs.clone();
-    let mut final_msgs = valid_msgs.clone();
-
-    // Calculate initial mass
-    let mut tx_mass = super::hub_to_kaspa::estimate_mass(
+    let (final_outputs, final_msgs, tx_mass) = adjust_outputs_for_mass_limit(
         inputs.clone(),
-        final_outputs.clone(),
-        MessageIDs::from(&final_msgs).to_bytes(),
+        outputs.clone(),
+        valid_msgs.clone(),
         relayer.net.network_id,
         escrow_public.m() as u16,
-    )
-    .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
-
-    // Use tx_fee_multiplier as safety margin for mass limit too
-    // This ensures we stay under the limit even with estimation variance
-    let max_allowed_mass = (kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS as f64 * MAX_MASS_MARGIN) as u64;
-
-    // Remove outputs from the end if mass exceeds maximum (with safety margin)
-    while tx_mass > max_allowed_mass && !final_outputs.is_empty() {
-        final_outputs.pop();
-        final_msgs.pop();
-
-        // Recalculate mass with reduced outputs
-        if !final_outputs.is_empty() {
-            tx_mass = super::hub_to_kaspa::estimate_mass(
-                inputs.clone(),
-                final_outputs.clone(),
-                MessageIDs::from(&final_msgs).to_bytes(),
-                relayer.net.network_id,
-                escrow_public.m() as u16,
-            )
-            .map_err(|e| eyre::eyre!("Estimate TX mass after output removal: {e}"))?;
-        }
-    }
-
-    if final_outputs.is_empty() {
-        return Err(eyre::eyre!(
-            "Cannot process any withdrawals - even a single withdrawal exceeds mass limit"
-        ));
-    }
+    )?;
 
     let payload = MessageIDs::from(&final_msgs).to_bytes();
 

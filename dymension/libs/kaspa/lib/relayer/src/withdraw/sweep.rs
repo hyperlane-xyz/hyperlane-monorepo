@@ -326,6 +326,9 @@ pub async fn create_sweeping_bundle(
         return Err(eyre!("No escrow inputs to sweep"));
     }
 
+    // Sort escrow inputs by amount (largest first) for more efficient consolidation
+    escrow_inputs.sort_by(|a, b| b.1.amount.cmp(&a.1.amount));
+
     let relayer_address = relayer_wallet.account().change_address()?;
     let feerate = relayer_wallet
         .api()
@@ -343,31 +346,25 @@ pub async fn create_sweeping_bundle(
         escrow_inputs.len(), relayer_inputs.len(), total_withdrawal_amount, anchor_amount
     );
 
-    // Track total swept amount and number of inputs processed
     let mut total_swept_amount = 0u64;
     let mut total_inputs_swept = 0usize;
 
     // Calculate how much more we need to sweep considering the anchor amount
-    let effective_withdrawal_amount = if anchor_amount >= total_withdrawal_amount {
-        0 // Anchor already covers all withdrawals, no need to sweep for withdrawal amount
-    } else {
-        total_withdrawal_amount - anchor_amount
-    };
+    let withdrawal_amount_without_anchor = total_withdrawal_amount.saturating_sub(anchor_amount);
     info!(
         "Kaspa sweeping: need to sweep {} sompi (total withdrawals {} sompi - anchor {} sompi)",
-        effective_withdrawal_amount, total_withdrawal_amount, anchor_amount
+        withdrawal_amount_without_anchor, total_withdrawal_amount, anchor_amount
     );
     // Process escrow inputs recursively until:
     // 1. All are consumed, OR
     // 2. We have enough for withdrawals AND reached the maximum number of inputs (1000)
     while !escrow_inputs.is_empty() {
         // Check if we've swept enough to cover withdrawals AND reached the maximum inputs
-        if total_swept_amount >= effective_withdrawal_amount
-            && total_inputs_swept >= MAX_SWEEP_INPUTS
+        if total_swept_amount >= withdrawal_amount_without_anchor && total_inputs_swept >= MAX_SWEEP_INPUTS
         {
             info!(
                 "Kaspa sweeping: stopping - swept {} sompi (covers effective withdrawal amount of {} sompi) and reached maximum of {} inputs",
-                total_swept_amount, effective_withdrawal_amount, MAX_SWEEP_INPUTS
+                total_swept_amount, withdrawal_amount_without_anchor, MAX_SWEEP_INPUTS
             );
             break;
         }
