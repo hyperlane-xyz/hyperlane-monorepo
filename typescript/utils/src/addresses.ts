@@ -221,12 +221,7 @@ export function normalizeAddressStarknet(address: Address) {
 }
 
 export function normalizeAddressRadix(address: Address) {
-  if (isZeroishAddress(address)) return address;
-  try {
-    return validateAndParseAddress(address);
-  } catch {
-    return address;
-  }
+  return address;
 }
 
 export function normalizeAddress(address: Address, protocol?: ProtocolType) {
@@ -478,8 +473,26 @@ export function bytesToAddressCosmos(
   return toBech32(prefix, bytes);
 }
 
-export function bytesToAddressCosmosNative(bytes: Uint8Array): Address {
-  return ensure0x(Buffer.from(bytes).toString('hex'));
+export function bytesToAddressCosmosNative(
+  bytes: Uint8Array,
+  prefix: string,
+): Address {
+  if (!prefix) throw new Error('Prefix required for Cosmos Native address');
+
+  // if the bytes are of length 32 we have to check if the bytes are a cosmos
+  // native account address or an ID from the hyperlane cosmos module. A cosmos
+  // native account address is padded with 12 bytes in front.
+  if (bytes.length === 32) {
+    if (bytes.slice(0, 12).every((b) => !b)) {
+      // since the first 12 bytes are empty we know it is an account address
+      return toBech32(prefix, bytes.slice(12));
+    }
+    // else it is an ID from the hyperlane cosmos module and we just need
+    // to represent the bytes in hex
+    return ensure0x(Buffer.from(bytes).toString('hex'));
+  }
+
+  return toBech32(prefix, bytes);
 }
 
 export function bytesToAddressStarknet(bytes: Uint8Array): Address {
@@ -521,7 +534,7 @@ export function bytesToProtocolAddress(
   } else if (toProtocol === ProtocolType.Cosmos) {
     return bytesToAddressCosmos(bytes, prefix!);
   } else if (toProtocol === ProtocolType.CosmosNative) {
-    return bytesToAddressCosmosNative(bytes);
+    return bytesToAddressCosmosNative(bytes, prefix!);
   } else if (toProtocol === ProtocolType.Starknet) {
     return bytesToAddressStarknet(bytes);
   } else if (toProtocol === ProtocolType.Radix) {

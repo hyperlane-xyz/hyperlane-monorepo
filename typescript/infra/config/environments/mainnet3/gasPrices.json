@@ -7,10 +7,6 @@
     "amount": "0.001000252",
     "decimals": 9
   },
-  "alephzeroevmmainnet": {
-    "amount": "40.0",
-    "decimals": 9
-  },
   "apechain": {
     "amount": "25.42069",
     "decimals": 9
@@ -163,6 +159,10 @@
     "amount": "0.001000252",
     "decimals": 9
   },
+  "forma": {
+    "amount": "19.0",
+    "decimals": 9
+  },
   "fraxtal": {
     "amount": "0.00100041",
     "decimals": 9
@@ -173,10 +173,6 @@
   },
   "galactica": {
     "amount": "0.1",
-    "decimals": 9
-  },
-  "game7": {
-    "amount": "0.01",
     "decimals": 9
   },
   "gnosis": {
@@ -209,10 +205,6 @@
   },
   "inevm": {
     "amount": "0.1",
-    "decimals": 9
-  },
-  "infinityvmmainnet": {
-    "amount": "1.000000007",
     "decimals": 9
   },
   "ink": {
@@ -257,6 +249,10 @@
   },
   "mantle": {
     "amount": "0.02",
+    "decimals": 9
+  },
+  "mantra": {
+    "amount": "11.25",
     "decimals": 9
   },
   "matchain": {
@@ -447,6 +443,10 @@
     "amount": "3554.023647439",
     "decimals": 9
   },
+  "sova": {
+    "amount": "0.001000251",
+    "decimals": 9
+  },
   "starknet": {
     "amount": "5000",
     "decimals": 1
@@ -521,6 +521,10 @@
   },
   "xrplevm": {
     "amount": "275.0",
+    "decimals": 9
+  },
+  "zerogravity": {
+    "amount": "2.000000007",
     "decimals": 9
   },
   "zeronetwork": {

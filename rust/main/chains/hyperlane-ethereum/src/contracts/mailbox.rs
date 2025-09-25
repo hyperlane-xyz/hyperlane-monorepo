@@ -773,13 +773,13 @@ mod test {
         // order, so we start with the final RPCs and work toward the first
         // RPCs
 
-        // RPC 4: eth_gasPrice by process_estimate_costs
+        // RPC 9: eth_gasPrice by process_estimate_costs
         // Return 15 gwei
         let gas_price: U256 =
             EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
         mock_provider.push(gas_price).unwrap();
 
-        // RPC 6: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket function by process_estimate_costs
+        // RPC 8: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket function by process_estimate_costs
         let l2_gas_limit = U256::from(200000); // 200k gas
         mock_provider.push(l2_gas_limit).unwrap();
 
@@ -790,18 +790,23 @@ mod test {
             reward: vec![vec![]],
         };
 
-        // RPC 5: eth_feeHistory from the estimate_eip1559_fees_default
-        mock_provider.push(fee_history).unwrap();
+        // RPC 5-7: eth_feeHistory from the estimate_eip1559_fees_default with different percentiles
+        mock_provider.push(fee_history.clone()).unwrap();
+        mock_provider.push(fee_history.clone()).unwrap();
+        mock_provider.push(fee_history.clone()).unwrap();
+
+        // RPC 4: eth_feeHistory from the estimate_eip1559_fees_default
+        mock_provider.push(fee_history.clone()).unwrap();
 
         let latest_block: Block<Transaction> = Block {
             gas_limit: ethers::types::U256::MAX,
             ..Block::<Transaction>::default()
         };
 
-        // RPC 4: eth_getBlockByNumber from the estimate_eip1559_fees_default
+        // RPC 3: eth_getBlockByNumber from the estimate_eip1559_fees_default
         mock_provider.push(latest_block.clone()).unwrap();
 
-        // RPC 3: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
+        // RPC 2: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
         // to get the latest block gas limit and for eip 1559 fee estimation
         mock_provider.push(latest_block).unwrap();
 
@@ -837,7 +842,7 @@ mod test {
         // order, so we start with the final RPCs and work toward the first
         // RPCs
 
-        // RPC 6: eth_gasPrice by process_estimate_costs
+        // RPC 8: eth_gasPrice by process_estimate_costs
         // Return 15 gwei
         let gas_price: U256 =
             EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
@@ -850,7 +855,12 @@ mod test {
             reward: vec![vec![]],
         };
 
-        // RPC 5: eth_feeHistory from the estimate_eip1559_fees_default
+        // RPC 5-7: eth_feeHistory from the estimate_eip1559_fees_default with different percentiles
+        mock_provider.push(fee_history.clone()).unwrap();
+        mock_provider.push(fee_history.clone()).unwrap();
+        mock_provider.push(fee_history.clone()).unwrap();
+
+        // RPC 4: eth_feeHistory from the estimate_eip1559_fees_default
         mock_provider.push(fee_history).unwrap();
 
         let latest_block_gas_limit = U256::from(12345u32);
@@ -859,10 +869,10 @@ mod test {
             ..Block::<Transaction>::default()
         };
 
-        // RPC 4: eth_getBlockByNumber from the estimate_eip1559_fees_default
+        // RPC 3: eth_getBlockByNumber from the estimate_eip1559_fees_default
         mock_provider.push(latest_block.clone()).unwrap();
 
-        // RPC 3: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
+        // RPC 2: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
         // to get the latest block gas limit and for eip 1559 fee estimation
         mock_provider.push(latest_block).unwrap();
 

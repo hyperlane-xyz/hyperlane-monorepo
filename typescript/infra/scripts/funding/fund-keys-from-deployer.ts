@@ -45,9 +45,9 @@ import {
 import { getAgentConfig, getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-import L1ETHGateway from './utils/L1ETHGateway.json';
-import L1MessageQueue from './utils/L1MessageQueue.json';
-import L1ScrollMessenger from './utils/L1ScrollMessenger.json';
+import L1ETHGateway from './utils/L1ETHGateway.json' with { type: 'json' };
+import L1MessageQueue from './utils/L1MessageQueue.json' with { type: 'json' };
+import L1ScrollMessenger from './utils/L1ScrollMessenger.json' with { type: 'json' };
 
 const logger = rootLogger.child({ module: 'fund-keys' });
 
@@ -142,6 +142,14 @@ async function main() {
     )
     .coerce('desired-kathy-balance-per-chain', parseBalancePerChain)
 
+    .string('desired-rebalancer-balance-per-chain')
+    .array('desired-rebalancer-balance-per-chain')
+    .describe(
+      'desired-rebalancer-balance-per-chain',
+      'Array indicating target balance to fund Rebalancer for each chain. Each element is expected as <chainName>=<balance>',
+    )
+    .coerce('desired-rebalancer-balance-per-chain', parseBalancePerChain)
+
     .string('igp-claim-threshold-per-chain')
     .array('igp-claim-threshold-per-chain')
     .describe(
@@ -177,6 +185,7 @@ async function main() {
         argv.chainSkipOverride,
         argv.desiredBalancePerChain,
         argv.desiredKathyBalancePerChain ?? {},
+        argv.desiredRebalancerBalancePerChain ?? {},
         argv.igpClaimThresholdPerChain ?? {},
         path,
       ),
@@ -194,6 +203,7 @@ async function main() {
           argv.chainSkipOverride,
           argv.desiredBalancePerChain,
           argv.desiredKathyBalancePerChain ?? {},
+          argv.desiredRebalancerBalancePerChain ?? {},
           argv.igpClaimThresholdPerChain ?? {},
         ),
       ),
@@ -251,6 +261,9 @@ class ContextFunder {
     public readonly desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    public readonly desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     public readonly igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
@@ -299,6 +312,9 @@ class ContextFunder {
     desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
@@ -374,6 +390,7 @@ class ContextFunder {
       chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
+      desiredRebalancerBalancePerChain,
       igpClaimThresholdPerChain,
     );
   }
@@ -392,6 +409,9 @@ class ContextFunder {
     desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
@@ -443,6 +463,7 @@ class ContextFunder {
       chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
+      desiredRebalancerBalancePerChain,
       igpClaimThresholdPerChain,
     );
   }
@@ -679,6 +700,18 @@ class ContextFunder {
         desiredBalanceEther = '0';
       } else {
         desiredBalanceEther = this.desiredKathyBalancePerChain[chain];
+      }
+    } else if (role === Role.Rebalancer) {
+      const desiredRebalancerBalance =
+        this.desiredRebalancerBalancePerChain[chain];
+      if (desiredRebalancerBalance === undefined) {
+        logger.warn(
+          { chain },
+          'No desired balance for Rebalancer, not funding',
+        );
+        desiredBalanceEther = '0';
+      } else {
+        desiredBalanceEther = this.desiredRebalancerBalancePerChain[chain];
       }
     } else {
       desiredBalanceEther = this.desiredBalancePerChain[chain];
