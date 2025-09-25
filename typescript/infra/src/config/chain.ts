@@ -55,6 +55,9 @@ export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 export const chainsToSkip: ChainName[] = [
   'infinityvmmainnet',
 
+  // not AW owned
+  'forma',
+
   // TODO: remove once zksync PR is merged into main
   // mainnets
   'zksync',
@@ -75,7 +78,6 @@ export const chainsToSkip: ChainName[] = [
 
   // legacy icas
   'carrchaintestnet',
-  'infinityvmmonza',
   'rometestnet',
 ];
 
