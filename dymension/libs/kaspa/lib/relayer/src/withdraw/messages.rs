@@ -258,7 +258,6 @@ pub async fn build_withdrawal_fxg(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     use hyperlane_core::Decode;
     use hyperlane_warp_route::TokenMessage;
