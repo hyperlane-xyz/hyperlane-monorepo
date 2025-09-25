@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import {HypNative} from "../../token/HypNative.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {TokenRouter} from "../../token/libs/TokenRouter.sol";
+import {Router} from "../../client/Router.sol";
 import {IStandardBridge} from "../../interfaces/optimism/IStandardBridge.sol";
 import {Quote, ITokenBridge} from "../../interfaces/ITokenBridge.sol";
 import {StandardHookMetadata} from "../../hooks/libs/StandardHookMetadata.sol";
@@ -48,33 +49,6 @@ contract OpL2NativeTokenBridge is TokenRouter {
     ) public virtual initializer {
         // ISM should not be set (contract does not receive messages currently)
         _MailboxClient_initialize(_hook, address(0), _owner);
-    }
-
-    // ============ TokenRouter overrides ============
-
-    /**
-     * @inheritdoc TokenRouter
-     * @dev Overrides to quote for two messages: prove and finalize.
-     */
-    function _quoteGasPayment(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal view override returns (uint256) {
-        bytes memory message = TokenMessage.format(_recipient, _amount);
-        uint256 proveQuote = _Router_quoteDispatch(
-            _destination,
-            message,
-            _proveHookMetadata(),
-            address(hook)
-        );
-        uint256 finalizeQuote = _Router_quoteDispatch(
-            _destination,
-            message,
-            _finalizeHookMetadata(),
-            address(hook)
-        );
-        return proveQuote + finalizeQuote;
     }
 
     /**
@@ -144,6 +118,23 @@ contract OpL2NativeTokenBridge is TokenRouter {
         return withdrawMessageId;
     }
 
+    // needed for hook refunds
+    receive() external payable {}
+
+    /**
+     * @inheritdoc Router
+     */
+    function handle(uint32, bytes32, bytes calldata) external payable override {
+        revert("OP L2 token bridge should not receive messages");
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     */
+    function token() public view override returns (address) {
+        return address(0);
+    }
+
     function _proveHookMetadata() internal view returns (bytes memory) {
         return
             StandardHookMetadata.format({
@@ -162,27 +153,47 @@ contract OpL2NativeTokenBridge is TokenRouter {
             });
     }
 
-    // needed for hook refunds
-    receive() external payable {}
-
-    function token() public view override returns (address) {
-        return address(0);
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to quote for two messages: prove and finalize.
+     */
+    function _quoteGasPayment(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view override returns (uint256) {
+        bytes memory message = TokenMessage.format(_recipient, _amount);
+        uint256 proveQuote = _Router_quoteDispatch(
+            _destination,
+            message,
+            _proveHookMetadata(),
+            address(hook)
+        );
+        uint256 finalizeQuote = _Router_quoteDispatch(
+            _destination,
+            message,
+            _finalizeHookMetadata(),
+            address(hook)
+        );
+        return proveQuote + finalizeQuote;
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function _transferFromSender(uint256 _amount) internal override {
         NativeCollateral._transferFromSender(_amount);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     */
     function _transferTo(
         address _recipient,
         uint256 _amount
     ) internal override {
         // should never be called
         assert(false);
-    }
-
-    function handle(uint32, bytes32, bytes calldata) external payable override {
-        revert("OP L2 token bridge should not receive messages");
     }
 }
 
