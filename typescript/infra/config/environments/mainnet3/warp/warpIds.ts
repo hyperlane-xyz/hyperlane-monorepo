@@ -101,6 +101,7 @@ export enum WarpRouteIds {
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
   LumiaUSDC = 'USDC/lumia',
+  MatchainUSDC = 'USDC/matchain',
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
 
