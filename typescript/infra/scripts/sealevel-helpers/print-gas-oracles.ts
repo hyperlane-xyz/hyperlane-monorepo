@@ -102,7 +102,6 @@ function getChainConnections(
     // All the mainnet3 warp route chains
     connectedChains = [
       ['solanamainnet', 'everclear'],
-      ['solanamainnet', 'infinityvmmainnet'],
       ['solanamainnet', 'sophon'],
       ['solanamainnet', 'abstract'],
       ['solanamainnet', 'apechain'],
@@ -139,7 +138,6 @@ function getChainConnections(
       // For SOL/solanatestnet-sonicsvmtestnet
       ['solanatestnet', 'sonicsvmtestnet'],
       ['solanatestnet', 'connextsepolia'],
-      ['solanatestnet', 'infinityvmmonza'],
       ['solanatestnet', 'basesepolia'],
     ];
   } else {
