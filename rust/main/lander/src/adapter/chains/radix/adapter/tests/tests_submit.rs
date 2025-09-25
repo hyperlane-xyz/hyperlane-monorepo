@@ -5,7 +5,7 @@ use ethers::utils::hex;
 use eyre::Result;
 
 use gateway_api_client::models::{GatewayStatusResponse, TransactionSubmitResponse};
-use hyperlane_core::{Encode, HyperlaneMessage};
+use hyperlane_core::{Encode, HyperlaneMessage, H512};
 use hyperlane_radix::{RadixSigner, RadixTxCalldata};
 use hyperlane_sealevel::SealevelTxCostEstimate;
 use radix_common::manifest_args;
@@ -20,7 +20,7 @@ use crate::adapter::chains::radix::adapter::tests::tests_common::{
 };
 use crate::adapter::chains::radix::adapter::NODE_DEPTH;
 use crate::adapter::chains::radix::precursor::RadixTxPrecursor;
-use crate::adapter::chains::radix::VisibleComponents;
+use crate::adapter::chains::radix::{Precursor, VisibleComponents};
 use crate::adapter::{AdaptsChain, TxBuildingResult};
 use crate::payload::PayloadDetails;
 use crate::transaction::{Transaction, TransactionUuid, VmSpecificTxData};
@@ -135,6 +135,13 @@ async fn test_submit_tx() {
         .await
         .expect("Failed to submit tx");
 
-    eprintln!("{:?}", transaction);
     // then
+    let hash_hex = hex::decode("000000000000000000000000000000000000000000000000000000000000000020923df5e12294b4b3942ca3278c32c1641d868f4bcb683dd43e0d5d1e20dda2")
+        .expect("Failed to decode hex");
+    let expected_hash = H512::from_slice(&hash_hex);
+
+    assert_eq!(transaction.tx_hashes, vec![expected_hash]);
+
+    let precursor = transaction.precursor();
+    assert_eq!(precursor.tx_hash, Some(expected_hash));
 }
