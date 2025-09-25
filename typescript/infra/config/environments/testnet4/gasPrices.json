@@ -40,7 +40,7 @@
     "decimals": 9
   },
   "cotitestnet": {
-    "amount": "7.400249936",
+    "amount": "1.2",
     "decimals": 9
   },
   "eclipsetestnet": {
@@ -51,12 +51,8 @@
     "amount": "0.000000002",
     "decimals": 9
   },
-  "giwasepolia": {
-    "amount": "0.001000251",
-    "decimals": 9
-  },
   "holesky": {
-    "amount": "0.05",
+    "amount": "36.043273011",
     "decimals": 9
   },
   "hyperliquidevmtestnet": {
@@ -64,7 +60,11 @@
     "decimals": 9
   },
   "incentivtestnet": {
-    "amount": "1.500000007",
+    "amount": "1.000000007",
+    "decimals": 9
+  },
+  "infinityvmmonza": {
+    "amount": "1.000000007",
     "decimals": 9
   },
   "kyvetestnet": {
@@ -116,7 +116,7 @@
     "decimals": 9
   },
   "sepolia": {
-    "amount": "0.05",
+    "amount": "0.003089873",
     "decimals": 9
   },
   "solanatestnet": {

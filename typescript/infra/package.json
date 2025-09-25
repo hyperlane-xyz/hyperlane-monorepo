@@ -55,7 +55,6 @@
     "hardhat": "^2.22.2",
     "mocha": "^11.5.0",
     "prettier": "^3.5.3",
-    "smol-toml": "1.4.2",
     "tsx": "^4.19.1",
     "typescript": "5.3.3"
   },
@@ -84,9 +83,8 @@
     "kathy": "yarn tsx ./scripts/send-test-messages.ts",
     "prettier": "prettier --write ./src ./config ./scripts ./test",
     "test:warp": "mocha --config ../sdk/.mocharc.json test/warp-configs.test.ts",
-    "test:gitleaks": "mocha --config ../sdk/.mocharc.json test/gitleaks.test.ts",
     "test:balance": "mocha --config ../sdk/.mocharc.json test/balance-alerts.test.ts",
-    "test:unit": "mocha --config ../sdk/.mocharc.json \"test/**/*.test.ts\" --ignore \"test/{warp-configs,balance-alerts,gitleaks}.test.ts\"",
+    "test:unit": "mocha --config ../sdk/.mocharc.json \"test/**/*.test.ts\" --ignore \"test/{warp-configs,balance-alerts}.test.ts\"",
     "test:hardhat": "yarn hardhat-esm test test/govern.hardhat-test.ts",
     "test": "yarn test:unit && yarn test:hardhat && yarn test:warp && yarn test:balance",
     "test:ci": "yarn test:unit && yarn test:hardhat",

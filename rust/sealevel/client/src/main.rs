@@ -109,8 +109,6 @@ struct Cli {
     config: Option<String>,
     #[arg(long, default_value_t = false)]
     require_tx_approval: bool,
-    #[arg(long, default_value_t = false)]
-    write_instructions: bool,
 }
 
 #[derive(Subcommand)]
@@ -785,7 +783,6 @@ fn main() {
         commitment,
         instructions.into(),
         cli.require_tx_approval,
-        cli.write_instructions,
     );
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
@@ -1244,7 +1241,6 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     Some(&unique_message_account_keypair),
                 ],
                 &ctx.payer_pubkey,
-                None,
             );
             // Print the output so it can be used in e2e tests
             println!("{:?}", tx_result);

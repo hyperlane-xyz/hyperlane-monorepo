@@ -8435,7 +8435,6 @@ __metadata:
     prettier: "npm:^3.5.3"
     prom-client: "npm:^14.0.1"
     prompts: "npm:^2.4.2"
-    smol-toml: "npm:1.4.2"
     tmp: "npm:^0.2.3"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
@@ -37184,13 +37183,6 @@ __metadata:
   bin:
     smartwrap: src/terminal-adapter.js
   checksum: 10/dcc7b9082b74a0ce0f391fce8a4be72f56d1b6e78fbfed9b4191da89d66d82f62a7b44c727d7e68714f0faf1ed1fce0be498563b0d4ef8aad80e2433983b0603
-  languageName: node
-  linkType: hard
-
-"smol-toml@npm:1.4.2":
-  version: 1.4.2
-  resolution: "smol-toml@npm:1.4.2"
-  checksum: 10/00c3c45859b44a8a9624cd15d4210c1b85dfa27cf432ade832d7c8a4ee96a79c415594cafe42a6708299de57d3b56e74e645396a0e0e1076f8f7b6302a5520b3
   languageName: node
   linkType: hard
 

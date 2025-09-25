@@ -69,6 +69,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
+    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arbitrum: true,
@@ -111,6 +112,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
+    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -119,6 +121,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvmmainnet: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -209,6 +212,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
+    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arcadia: true,
@@ -251,6 +255,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
+    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -259,6 +264,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvmmainnet: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -349,6 +355,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
+    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arbitrum: true,
@@ -391,6 +398,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
+    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -399,6 +407,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
+    infinityvmmainnet: false,
     ink: true,
     injective: true,
     kaia: true,
@@ -586,6 +595,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
     matchingList: [
+      // Infinity VM is gasless, so ignore outbound txs from InfinityVM to Solana.
+      {
+        originDomain: getDomainId('infinityvmmainnet'),
+        destinationDomain: getDomainId('solanamainnet'),
+      },
       { originDomain: getDomainId('noble') },
       { originDomain: getDomainId('starknet') },
       { originDomain: getDomainId('paradex') },
@@ -603,6 +617,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('torus') },
       // Not a core chain
       { destinationDomain: getDomainId('forma') },
+      // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
+      // outside of Solana are ignored.
+      { originDomain: getDomainId('infinityvmmainnet') },
       // Temporary workaround due to funky Zeronetwork gas amounts.
       { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround during testing of MilkyWay.
@@ -880,7 +897,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '31d0611-20250924-150435',
+      tag: '4359931-20250921-174119',
     },
     resources: scraperResources,
   },

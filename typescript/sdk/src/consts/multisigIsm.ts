@@ -46,6 +46,32 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  // acala: {
+  //   threshold: 1,
+  //   validators: [
+  //     {
+  //       address: '0x3229bbeeab163c102d0b1fa15119b9ae0ed37cfa',
+  //       alias: AW_VALIDATOR_ALIAS,
+  //     },
+  //   ],
+  // },
+
+  alephzeroevmmainnet: {
+    threshold: 3,
+    validators: [
+      {
+        address: '0x33f20e6e775747d60301c6ea1c50e51f0389740c',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0xCbf382214825F8c2f347dd4f23F0aDFaFad55dAa',
+        alias: 'Aleph Zero',
+      },
+    ],
+  },
+
   ancient8: {
     threshold: 2,
     validators: [
@@ -894,13 +920,15 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  giwasepolia: {
-    threshold: 1,
+  game7: {
+    threshold: 2,
     validators: [
       {
-        address: '0xc170bef56759e35740ac2d3d0fece33bd9acb90b',
+        address: '0x691dc4e763514df883155df0952f847b539454c0',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1035,6 +1063,28 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x9ab11f38a609940153850df611c9a2175dcffe0f',
         alias: 'Imperator',
+      },
+    ],
+  },
+
+  infinityvmmainnet: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x777c19c87aaa625486dff5aab0a479100f4249ad',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  infinityvmmonza: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb',
+        alias: AW_VALIDATOR_ALIAS,
       },
     ],
   },

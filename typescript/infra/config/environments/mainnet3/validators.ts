@@ -912,6 +912,16 @@ export const validatorChainConfig = (
         'snaxchain',
       ),
     },
+    alephzeroevmmainnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('alephzeroevmmainnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x33f20e6e775747d60301c6ea1c50e51f0389740c'],
+        },
+        'alephzeroevmmainnet',
+      ),
+    },
     chilizmainnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('chilizmainnet'),
@@ -1357,6 +1367,16 @@ export const validatorChainConfig = (
         'hashkey',
       ),
     },
+    infinityvmmainnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('infinityvmmainnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x777c19c87aaa625486dff5aab0a479100f4249ad'],
+        },
+        'infinityvmmainnet',
+      ),
+    },
     ontology: {
       interval: 5,
       reorgPeriod: getReorgPeriod('ontology'),
@@ -1365,6 +1385,16 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x2578b0a330c492e1a1682684e27e6a93649befd5'],
         },
         'ontology',
+      ),
+    },
+    game7: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('game7'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x691dc4e763514df883155df0952f847b539454c0'],
+        },
+        'game7',
       ),
     },
     fluence: {

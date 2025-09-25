@@ -41,6 +41,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     gasLimit: 10000000,
   //   },
   // },
+  // infinityvmmonza: {
+  //   transactionOverrides: {
+  //     gasLimit: 10000000,
+  //   },
+  // },
 };
 
 export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>

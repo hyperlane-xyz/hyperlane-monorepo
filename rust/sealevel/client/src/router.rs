@@ -305,10 +305,6 @@ pub(crate) fn deploy_routers<
 
     let existing_program_ids = read_router_program_ids(&deploy_dir);
 
-    if ctx.write_instructions_enabled {
-        ctx.instructions_path = Some(deploy_dir.join("instructions.yaml"));
-    }
-
     // Builds a HashMap of all the foreign deployments from the app config.
     // These domains with foreign deployments will not have any txs / deployments
     // made directly to them, but the routers will be enrolled on the other chains.
@@ -458,7 +454,7 @@ fn configure_connection_client(
                     ),
                 )
                 .with_client(&client)
-                .send_with_pubkey_signer(&owner, Some(chain_metadata.clone().name));
+                .send_with_pubkey_signer(&owner);
         } else {
             println!(
                 "WARNING: Cannot set ISM for chain: {} ({}) to {:?}, the existing owner is None",
@@ -489,7 +485,7 @@ fn configure_connection_client(
                         ),
                     )
                     .with_client(&client)
-                    .send_with_pubkey_signer(&owner, Option::from(chain_metadata.clone().name));
+                    .send_with_pubkey_signer(&owner);
             } else {
                 println!(
                     "WARNING: Cannot set IGP for chain: {} ({}) to {:?}, the existing owner is None",
@@ -518,8 +514,7 @@ fn configure_owner(
 
     if actual_owner != expected_owner {
         if let Some(actual_owner) = actual_owner {
-            let tx_result = ctx
-                .new_txn()
+            ctx.new_txn()
                 .add_with_description(
                     deployer.set_owner_instruction(&client, program_id, expected_owner),
                     format!(
@@ -528,13 +523,7 @@ fn configure_owner(
                     ),
                 )
                 .with_client(&client)
-                .send_with_pubkey_signer(&actual_owner, Option::from(chain_metadata.clone().name));
-
-            // If the transaction was not submitted (e.g. multisig flow writing YAML),
-            // skip post-change verification.
-            if tx_result.is_none() {
-                return;
-            }
+                .send_with_pubkey_signer(&actual_owner);
         } else {
             // Flag if we can't change the owner
             println!(
@@ -575,8 +564,7 @@ fn configure_upgrade_authority(
     {
         if let Some(actual_upgrade_authority) = actual_upgrade_authority {
             // Then set the upgrade authority to what we expect.
-            let tx_result = ctx
-                .new_txn()
+            ctx.new_txn()
                 .add_with_description(
                     bpf_loader_upgradeable::set_upgrade_authority(
                         program_id,
@@ -589,16 +577,7 @@ fn configure_upgrade_authority(
                     ),
                 )
                 .with_client(&client)
-                .send_with_pubkey_signer(
-                    &actual_upgrade_authority,
-                    Option::from(chain_metadata.clone().name),
-                );
-
-            // If the transaction was not submitted (e.g. multisig flow writing YAML),
-            // skip post-change verification.
-            if tx_result.is_none() {
-                return;
-            }
+                .send_with_pubkey_signer(&actual_upgrade_authority);
         } else {
             // Flag if we can't change the upgrade authority
             println!(
@@ -735,7 +714,7 @@ fn enroll_all_remote_routers<
                         ),
                     )
                     .with_client(&chain_metadata.client())
-                    .send_with_pubkey_signer(&owner, Option::from(chain_metadata.clone().name));
+                    .send_with_pubkey_signer(&owner);
             } else {
                 println!(
                     "WARNING: Cannot enroll routers for chain: {} ({}) with program_id {}, the existing owner is None",

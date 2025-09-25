@@ -1,14 +1,8 @@
-import { IRegistry } from '@hyperlane-xyz/registry';
-import {
-  AccountConfig,
-  ChainName,
-  InterchainAccount,
-} from '@hyperlane-xyz/sdk';
+import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
 import {
   Address,
   LogFormat,
   LogLevel,
-  assert,
   configureRootLogger,
   eqAddress,
   isZeroishAddress,
@@ -24,34 +18,11 @@ import {
 } from '../../src/config/chain.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
-import {
-  getArgs as getEnvArgs,
-  withChains,
-  withWarpRouteId,
-} from '../agent-utils.js';
+import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
-async function getGovernanceOwnerFromWarpConfig(
-  registry: IRegistry,
-  warpRouteId: string,
-  chain: ChainName,
-) {
-  const warpConfig = await registry.getWarpDeployConfig(warpRouteId);
-  assert(warpConfig, `Warp config not found for warpRouteID ${warpRouteId}`);
-  const chainConfig = warpConfig[chain];
-  assert(
-    chainConfig,
-    `Warp config missing chain ${chain} for warpRouteID ${warpRouteId}`,
-  );
-  assert(
-    chainConfig.owner,
-    `Owner not configured for chain ${chain} in warpRouteID ${warpRouteId}`,
-  );
-  return chainConfig.owner;
-}
-
 function getArgs() {
-  return withGovernanceType(withChains(withWarpRouteId(getEnvArgs())))
+  return withGovernanceType(withChains(getEnvArgs()))
     .option('ownerChain', {
       type: 'string',
       description: 'Origin chain where the governing owner lives',
@@ -82,20 +53,12 @@ async function main() {
     deploy,
     owner: ownerOverride,
     governanceType,
-    warpRouteId,
   } = await getArgs();
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  // If warpRouteId is provided, get the governanceOwner from the warp config and ownerChain
-  // or the safe owner for the given governance type
-  const governanceOwner = warpRouteId
-    ? await getGovernanceOwnerFromWarpConfig(
-        await config.getRegistry(),
-        warpRouteId,
-        ownerChain,
-      )
-    : getGovernanceSafes(governanceType)[ownerChain];
+  // Get the safe owner for the given governance type
+  const governanceOwner = getGovernanceSafes(governanceType)[ownerChain];
   const originOwner = ownerOverride ?? governanceOwner;
   if (!originOwner) {
     throw new Error(`No owner found for ${ownerChain}`);

@@ -169,12 +169,10 @@ export class RebalancerContextFactory {
 
     const explorerUrl =
       process.env.EXPLORER_API_URL || 'https://api.hyperlane.xyz/v1/graphql';
-
-    const rebalancerAddress = this.context.signerAddress;
-    if (!rebalancerAddress) {
-      throw new Error('rebalancer address is required');
+    const txSender = process.env.REBALANCER || '';
+    if (!txSender) {
+      throw new Error('REBALANCER env var is not set');
     }
-
     const explorer = new ExplorerClient(explorerUrl);
     // Compose decorators: Inflight guard first, then semaphore, then core rebalancer
     const withSemaphore = new WithSemaphore(
@@ -186,7 +184,7 @@ export class RebalancerContextFactory {
       this.config,
       withSemaphore,
       explorer,
-      rebalancerAddress,
+      txSender,
       new ChainMetadataManager(this.context.chainMetadata),
       this.logger,
     );

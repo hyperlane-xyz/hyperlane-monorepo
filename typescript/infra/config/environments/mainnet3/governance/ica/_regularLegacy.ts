@@ -5,6 +5,7 @@ export const regularIcasLegacy: ChainMap<Address> = {
   // Apr 19, 2025 batch
   // ----------------------------------------------------------
   ancient8: '0xf789D8a609247c448E28d3af5b8EFC6Cb786C4ee',
+  alephzeroevmmainnet: '0xA3dfBa2447F0A50706F22e38f2785e0Bf30BC069',
   apechain: '0x9422838f6fA763354756a3Aba18f34015cB4bF74',
   appchain: '0x8A4E9b5B445504727D7a9377eA329Bb38700F8FA',
   arbitrumnova: '0x83be90021870A93ff794E00E8CFe454547877E3E',
@@ -91,6 +92,8 @@ export const regularIcasLegacy: ChainMap<Address> = {
   // May 18, 2025 batch
   // ----------------------------------------------------------
   hashkey: '0x51e43Fe2Db5B950e115a9f5ad7603E07c656fBe9',
+  infinityvmmainnet: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
+  game7: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
   fluence: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
   peaq: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
   ontology: '0xA59Eb6F5C4C365f533407E978321531E9F610b02',

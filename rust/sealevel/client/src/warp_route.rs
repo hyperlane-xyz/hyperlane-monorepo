@@ -3,14 +3,15 @@ use hyperlane_core::H256;
 use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
 use hyperlane_sealevel_token_native::plugin::NativePlugin;
 use serde::{Deserialize, Serialize};
-use solana_client::{
-    client_error::{reqwest, ClientError},
-    rpc_client::RpcClient,
-};
 use std::{
     collections::HashMap,
     fmt::Debug,
     process::{Command, Stdio},
+};
+
+use solana_client::{
+    client_error::{reqwest, ClientError},
+    rpc_client::RpcClient,
 };
 
 use solana_sdk::{instruction::Instruction, program_error::ProgramError, pubkey::Pubkey};
@@ -573,7 +574,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                             description,
                         )
                         .with_client(&chain_metadata.client())
-                        .send_with_pubkey_signer(&owner, Option::from(chain_metadata.clone().name));
+                        .send_with_pubkey_signer(&owner);
                 } else {
                     println!(
                         "No destination gas amount changes for chain: {}, program_id {}",

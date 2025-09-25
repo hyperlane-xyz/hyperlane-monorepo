@@ -1,5 +1,6 @@
 {
   "abstract": 0.0342,
+  "alephzeroevmmainnet": 968,
   "ancient8": 0.0202,
   "apechain": 56.3,
   "appchain": 0.124,
@@ -43,6 +44,7 @@
   "fraxtal": 0.2,
   "fusemainnet": 2520,
   "galactica": 1,
+  "game7": 1000,
   "gnosis": 25,
   "gravity": 2220,
   "harmony": 2500,
@@ -51,6 +53,7 @@
   "hyperevm": 2.35,
   "immutablezkevmmainnet": 53.9,
   "inevm": 3.03,
+  "infinityvmmainnet": 0,
   "injective": 3.03,
   "ink": 0.186,
   "kaia": 250,
