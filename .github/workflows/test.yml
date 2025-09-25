@@ -189,13 +189,6 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: gitleaks-install
-        if: github.event_name != 'merge_group'
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}}
-
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
         with:
@@ -233,6 +226,14 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Install gitleaks
+        id: gitleaks-install
+        if: github.event_name != 'merge_group'
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}}
+
       - name: Check for balance/config changes
         run: |
           if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
@@ -244,14 +245,16 @@ jobs:
 
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
-        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           cache-provider: github
 
       - name: Checkout registry
-        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         uses: ./.github/actions/checkout-registry
+
+      - name: GitLeaks Tests
+        if: steps.gitleaks-install.outcome != 'skipped'
+        run: yarn --cwd typescript/infra test:gitleaks
 
       - name: Balance Tests
         if: env.BALANCE_CHANGES == 'true'

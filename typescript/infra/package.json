@@ -86,7 +86,7 @@
     "test:warp": "mocha --config ../sdk/.mocharc.json test/warp-configs.test.ts",
     "test:gitleaks": "mocha --config ../sdk/.mocharc.json test/gitleaks.test.ts",
     "test:balance": "mocha --config ../sdk/.mocharc.json test/balance-alerts.test.ts",
-    "test:unit": "mocha --config ../sdk/.mocharc.json \"test/**/*.test.ts\" --ignore \"test/{warp-configs,balance-alerts}.test.ts\"",
+    "test:unit": "mocha --config ../sdk/.mocharc.json \"test/**/*.test.ts\" --ignore \"test/{warp-configs,balance-alerts,gitleaks}.test.ts\"",
     "test:hardhat": "yarn hardhat-esm test test/govern.hardhat-test.ts",
     "test": "yarn test:unit && yarn test:hardhat && yarn test:warp && yarn test:balance",
     "test:ci": "yarn test:unit && yarn test:hardhat",
