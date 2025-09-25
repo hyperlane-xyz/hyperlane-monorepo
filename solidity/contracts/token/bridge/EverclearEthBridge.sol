@@ -58,6 +58,20 @@ contract EverclearEthBridge is EverclearTokenBridge {
     }
 
     /**
+     * @notice Encodes the intent calldata for ETH transfers
+     * @dev Overrides parent to encode recipient and amount for ETH-specific intent validation
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of ETH to transfer
+     * @return The encoded calldata containing recipient and amount
+     */
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal pure override returns (bytes memory) {
+        return abi.encode(_recipient, _amount);
+    }
+
+    /**
      * @notice Provides a quote for transferring ETH to a remote chain
      * @dev Overrides parent to return a single quote for ETH (including transfer amount, fees, and gas)
      * @param _destination The destination domain ID
@@ -74,7 +88,7 @@ contract EverclearEthBridge is EverclearTokenBridge {
         quotes[0] = Quote({
             token: address(0),
             amount: _amount +
-                feeParams.fee +
+                feeParams[_destination].fee +
                 _quoteGasPayment(_destination, _recipient, _amount)
         });
     }
@@ -124,13 +138,47 @@ contract EverclearEthBridge is EverclearTokenBridge {
     ) internal virtual override returns (uint256 dispatchValue) {
         uint256 fee = _feeAmount(_destination, _recipient, _amount);
 
-        uint256 totalAmount = _amount + fee + feeParams.fee;
+        uint256 totalAmount = _amount + fee + feeParams[_destination].fee;
         _transferFromSender(totalAmount);
         dispatchValue = msg.value - totalAmount;
         if (fee > 0) {
             _transferTo(feeRecipient(), fee);
         }
         return dispatchValue;
+    }
+
+    /**
+     * @notice Validates the Everclear intent for ETH transfers
+     * @dev Overrides parent to add ETH-specific validation by checking intent data matches message
+     * @param _message The incoming message containing transfer details
+     * @return intentId The unique identifier for the validated intent
+     * @return intentBytes The encoded intent data
+     */
+    function _validateIntent(
+        bytes calldata _message
+    ) internal view override returns (bytes32, bytes memory) {
+        (bytes32 intentId, bytes memory intentBytes) = super._validateIntent(
+            _message
+        );
+        IEverclear.Intent memory intent = abi.decode(
+            intentBytes,
+            (IEverclear.Intent)
+        );
+        (bytes32 _intentRecipient, uint256 _intentAmount) = abi.decode(
+            intent.data,
+            (bytes32, uint256)
+        );
+
+        require(
+            _intentRecipient == _message.recipient(),
+            "EEB: Intent recipient mismatch"
+        );
+        require(
+            _intentAmount == _message.amount(),
+            "EEB: Intent amount mismatch"
+        );
+
+        return (intentId, intentBytes);
     }
 
     /**
