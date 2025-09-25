@@ -96,7 +96,7 @@ abstract contract TokenBridgeCctpBase is
     /**
      * @inheritdoc TokenRouter
      */
-    function token() public view virtual override returns (address) {
+    function token() public view override returns (address) {
         return address(wrappedToken);
     }
 
@@ -318,7 +318,7 @@ abstract contract TokenBridgeCctpBase is
      * @inheritdoc TokenRouter
      * @dev Overrides to transfer the tokens from the sender to this contract (like HypERC20Collateral).
      */
-    function _transferFromSender(uint256 _amount) internal virtual override {
+    function _transferFromSender(uint256 _amount) internal override {
         wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
     }
 
