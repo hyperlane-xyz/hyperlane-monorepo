@@ -188,16 +188,6 @@ pub async fn build_withdrawal_fxg(
         }
     }
 
-    if final_outputs.len() < original_count {
-        info!(
-            "Kaspa relayer, reduced withdrawals from {} to {} due to mass limit. Final mass: {} (limit with margin: {})",
-            original_count,
-            final_outputs.len(),
-            tx_mass,
-            max_allowed_mass
-        );
-    }
-
     if final_outputs.is_empty() {
         return Err(eyre::eyre!(
             "Cannot process any withdrawals - even a single withdrawal exceeds mass limit"
