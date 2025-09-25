@@ -34,13 +34,19 @@ mockall::mock! {
     }
 }
 
-pub fn adapter(provider: Arc<MockRadixProvider>, signer: RadixSigner) -> RadixAdapter {
+pub fn adapter(
+    network: &NetworkDefinition,
+    provider: Arc<MockRadixProvider>,
+    signer: RadixSigner,
+) -> RadixAdapter {
+    let component_regex = regex::Regex::new(&format!(r"\w+_{}([a-zA-Z0-9]+)", network.hrp_suffix))
+        .expect("Invalid regex");
     RadixAdapter {
         provider,
         network: NetworkDefinition::mainnet(),
         signer,
         estimated_block_time: Duration::from_nanos(0),
-        component_regex: regex::Regex::new("").unwrap(),
+        component_regex,
     }
 }
 

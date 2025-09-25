@@ -6,6 +6,7 @@ use eyre::Result;
 use hyperlane_core::{Encode, HyperlaneMessage};
 use hyperlane_radix::{RadixSigner, RadixTxCalldata};
 use radix_common::manifest_args;
+use scrypto::network::NetworkDefinition;
 use scrypto::prelude::{manifest_encode, ManifestArgs};
 
 use crate::adapter::chains::radix::adapter::tests::tests_common::{
@@ -29,7 +30,8 @@ async fn test_build_transactions() {
     let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
 
     let provider_arc = Arc::new(provider);
-    let adapter = adapter(provider_arc.clone(), signer.clone());
+    let network = NetworkDefinition::mainnet();
+    let adapter = adapter(&network, provider_arc.clone(), signer.clone());
 
     let message = HyperlaneMessage {
         origin: 1000,
@@ -74,7 +76,8 @@ async fn test_build_transactions_failed() {
     let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
 
     let provider_arc = Arc::new(provider);
-    let adapter = adapter(provider_arc.clone(), signer.clone());
+    let network = NetworkDefinition::mainnet();
+    let adapter = adapter(&network, provider_arc.clone(), signer.clone());
 
     // invalid json
     let payload = payload(vec![1, 2, 3, 4]);

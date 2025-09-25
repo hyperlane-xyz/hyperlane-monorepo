@@ -277,7 +277,7 @@ impl AdaptsChain for RadixAdapter {
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         tracing::info!(?tx, "submitting transaction");
 
-        let tx_precursor = tx.precursor_mut();
+        let tx_precursor = tx.precursor();
 
         let fee_summary = match tx_precursor.fee_summary.clone() {
             Some(s) => s,
@@ -320,12 +320,7 @@ impl AdaptsChain for RadixAdapter {
             Self::combine_args_with_visible_components(manifest_values, &visible_components);
 
         // 1.5x multiplier to fee summary
-        let multiplier = Decimal::ONE
-            .saturating_add(Decimal::ONE_TENTH)
-            .saturating_add(Decimal::ONE_TENTH)
-            .saturating_add(Decimal::ONE_TENTH)
-            .saturating_add(Decimal::ONE_TENTH)
-            .saturating_add(Decimal::ONE_TENTH);
+        let multiplier = Decimal::from_str("1.5").unwrap();
 
         let simulated_xrd = RadixProvider::total_fee(fee_summary)?
             .checked_mul(multiplier)
@@ -343,17 +338,17 @@ impl AdaptsChain for RadixAdapter {
             .notarize(&private_key)
             .build();
 
-        // once tx is built, we can figure out tx hash
-        let tx_hash = Self::extract_tx_hash(&radix_tx);
-
-        tx_precursor.tx_hash = Some(tx_hash);
-        if !tx.tx_hashes.contains(&tx_hash) {
-            tx.tx_hashes.push(tx_hash);
-        }
-
         self.provider
             .send_transaction(radix_tx.raw.clone().to_vec())
             .await?;
+
+        // once tx is built, we can figure out tx hash
+        let tx_hash = Self::extract_tx_hash(&radix_tx);
+        if !tx.tx_hashes.contains(&tx_hash) {
+            tx.tx_hashes.push(tx_hash);
+        }
+        let tx_precursor = tx.precursor_mut();
+        tx_precursor.tx_hash = Some(tx_hash);
 
         tracing::info!(?tx, ?radix_tx, ?tx_hash, "submitted transaction");
 

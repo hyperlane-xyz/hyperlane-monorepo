@@ -9,6 +9,7 @@ use hyperlane_core::{Encode, HyperlaneMessage};
 use hyperlane_radix::{RadixSigner, RadixTxCalldata};
 use hyperlane_sealevel::SealevelTxCostEstimate;
 use radix_common::manifest_args;
+use scrypto::network::NetworkDefinition;
 use scrypto::prelude::{manifest_encode, ManifestArgs};
 use uuid::Uuid;
 
@@ -26,6 +27,12 @@ use super::tests_common::adapter;
 
 const MAILBOX_METHOD_NAME_RPOCESS: &str = "process";
 
+const ADDRESSES: &[&str] = &[
+    "component_rdx1cznxpn5m3kutzr6jrhgnvv0x7uhcs0rf8fl2w59hkclm6m7axzlqgu",
+    "component_rdx1crzkj7lujcdazgc4hpuvzlkmaddwnzh6d39ln5hrpxk6wllehqcdcf",
+    "component_rdx1cz4c0upfeezhr7nxft5x3dg7w4gmhddy62d5a730lurazwkk830r4g",
+];
+
 #[tracing_test::traced_test]
 #[tokio::test]
 async fn test_simulate_tx() {
@@ -39,22 +46,27 @@ async fn test_simulate_tx() {
             ..Default::default()
         })
     });
+
     let mut counter = 0;
     provider.expect_preview_tx().returning(move |_ops| {
         counter += 1;
-        let status = if counter < 5 {
-            core_api_client::models::TransactionStatus::Failed
+        if counter <= ADDRESSES.len() {
+            Ok(TransactionReceipt {
+                status: core_api_client::models::TransactionStatus::Failed,
+                error_message: Some(ADDRESSES[counter - 1].to_string()),
+                ..Default::default()
+            })
         } else {
-            core_api_client::models::TransactionStatus::Succeeded
-        };
-        Ok(TransactionReceipt {
-            status,
-            ..Default::default()
-        })
+            Ok(TransactionReceipt {
+                status: core_api_client::models::TransactionStatus::Succeeded,
+                ..Default::default()
+            })
+        }
     });
 
     let provider_arc = Arc::new(provider);
-    let adapter = adapter(provider_arc.clone(), signer.clone());
+    let network = NetworkDefinition::mainnet();
+    let adapter = adapter(&network, provider_arc.clone(), signer.clone());
 
     let message = HyperlaneMessage {
         origin: 1000,

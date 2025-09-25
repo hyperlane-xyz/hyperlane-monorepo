@@ -6,6 +6,7 @@ use radix_common::crypto::Ed25519PrivateKey;
 
 use hyperlane_core::{ChainResult, H512};
 use hyperlane_radix::RadixSigner;
+use scrypto::network::NetworkDefinition;
 
 use super::tests_common::adapter;
 use crate::adapter::AdaptsChain;
@@ -30,7 +31,8 @@ async fn get_tx_hash_status_pending() {
     let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
 
     let provider_arc = Arc::new(provider);
-    let adapter = adapter(provider_arc.clone(), signer.clone());
+    let network = NetworkDefinition::mainnet();
+    let adapter = adapter(&network, provider_arc.clone(), signer.clone());
 
     let hash = H512::zero();
     let tx_status = adapter
@@ -56,7 +58,8 @@ async fn get_tx_hash_status_rejected() {
     let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
 
     let provider_arc = Arc::new(provider);
-    let adapter = adapter(provider_arc.clone(), signer.clone());
+    let network = NetworkDefinition::mainnet();
+    let adapter = adapter(&network, provider_arc.clone(), signer.clone());
 
     let hash = H512::zero();
     let tx_status = adapter
@@ -85,7 +88,8 @@ async fn get_tx_hash_status_unknown() {
     let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
 
     let provider_arc = Arc::new(provider);
-    let adapter = adapter(provider_arc.clone(), signer.clone());
+    let network = NetworkDefinition::mainnet();
+    let adapter = adapter(&network, provider_arc.clone(), signer.clone());
 
     let hash = H512::zero();
     let tx_status = adapter.get_tx_hash_status(hash.clone()).await;
@@ -115,7 +119,8 @@ async fn get_tx_hash_status_committed_failure() {
     let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
 
     let provider_arc = Arc::new(provider);
-    let adapter = adapter(provider_arc.clone(), signer.clone());
+    let network = NetworkDefinition::mainnet();
+    let adapter = adapter(&network, provider_arc.clone(), signer.clone());
 
     let hash = H512::zero();
     let tx_status = adapter
@@ -144,7 +149,8 @@ async fn get_tx_hash_status_committed_success() {
     let signer = RadixSigner::new(priv_key_vec, "rdx".into()).expect("Failed to create signer");
 
     let provider_arc = Arc::new(provider);
-    let adapter = adapter(provider_arc.clone(), signer.clone());
+    let network = NetworkDefinition::mainnet();
+    let adapter = adapter(&network, provider_arc.clone(), signer.clone());
 
     let hash = H512::zero();
     let tx_status = adapter
