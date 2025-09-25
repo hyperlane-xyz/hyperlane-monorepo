@@ -411,7 +411,7 @@ export async function runWarpRouteApply(
   if (
     !Object.keys(groupedTransactions).some((protocol) =>
       Object.keys((groupedTransactions as any)[protocol]).some(
-        (chain) => (groupedTransactions as any)[protocol][chain].length!!,
+        (chain) => (groupedTransactions as any)[protocol][chain].length,
       ),
     )
   )
