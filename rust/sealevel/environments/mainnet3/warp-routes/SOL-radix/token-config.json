@@ -1,0 +1,14 @@
+{
+  "radix": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Hyperlane SOL",
+    "symbol": "hSOL",
+    "foreignDeployment": "component_rdx1cqlc3mwss6dc42zfl8sx2rje68aj0spfczkj5srrnl4z252557mydx"
+  },
+  "solanamainnet": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+  }
+}
