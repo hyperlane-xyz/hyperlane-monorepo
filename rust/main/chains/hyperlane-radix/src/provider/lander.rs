@@ -1,6 +1,7 @@
 use core_api_client::models::TransactionReceipt;
 use gateway_api_client::models::{
-    TransactionPreviewV2Request, TransactionStatusResponse, TransactionSubmitResponse,
+    GatewayStatusResponse, TransactionPreviewV2Request, TransactionStatusResponse,
+    TransactionSubmitResponse,
 };
 use hyperlane_core::{ChainCommunicationError, ChainResult, H512};
 
@@ -9,6 +10,8 @@ use crate::{RadixGatewayProvider, RadixProvider, RadixTxCalldata};
 /// Trait used by lander
 #[async_trait::async_trait]
 pub trait RadixProviderForLander: Send + Sync {
+    /// Get gateway status
+    async fn get_gateway_status(&self) -> ChainResult<GatewayStatusResponse>;
     /// Get the status of a radix transaction
     async fn get_tx_hash_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse>;
     /// Check preview call
@@ -22,13 +25,17 @@ pub trait RadixProviderForLander: Send + Sync {
 
 #[async_trait::async_trait]
 impl RadixProviderForLander for RadixProvider {
+    async fn get_gateway_status(&self) -> ChainResult<GatewayStatusResponse> {
+        self.gateway_status().await
+    }
     async fn get_tx_hash_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse> {
         self.get_tx_status(hash).await
     }
     async fn check_preview(&self, params: &RadixTxCalldata) -> ChainResult<bool> {
+        let hex_address = hex::encode(&params.component_address);
         let resp = self
             .call_method::<bool>(
-                &params.component_address,
+                &hex_address,
                 &params.method_name,
                 None,
                 vec![params.encoded_arguments.clone()],
