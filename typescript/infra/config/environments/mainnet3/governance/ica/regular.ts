@@ -19,7 +19,6 @@ export const regularIcas: ChainMap<Address> = {
   // Jul 2, 2025 - ICA 2.0 Migration
   // ----------------------------------------------------------
   ancient8: '0x72Ba22a1a8B8c2b7B1795a35a1E05c058217E9a7',
-  alephzeroevmmainnet: '0xa1352242B0508b211F5b1d6408488207754497B6',
   apechain: '0x0880453D948E4D2a06F40c6Cf4eF33E4e938411f',
   appchain: '0x863226b1F78f40a3Ab63D89910B2CC5e899CC94D',
   arbitrumnova: '0x2A20bb14cA28A189Bb7faE65072E05c1226C0D77',
@@ -54,7 +53,6 @@ export const regularIcas: ChainMap<Address> = {
   fraxtal: '0xc96634cdc475FfC7702f123EFD77cB43c861956b',
   fusemainnet: '0x66148C55906967F4F55dCD6E45e74b43b8624444',
   galactica: '0x6C8210C82B17bE639CeDB3349A5aeDFF1471f72A',
-  game7: '0x7F30B7724040fC3384864ef3812f7a437Bc80166',
   gnosis: '0xf38bb17117000b560ecdeaA5b736f3aFCc39C3b5',
   gravity: '0x9603D1409150F1895349E71c4267CeE4B59635fF',
   harmony: '0xA5544aeadb395Ce08A49871CF0EA0a16B2fE444B',
@@ -63,7 +61,6 @@ export const regularIcas: ChainMap<Address> = {
   hyperevm: '0xD50d4E42F41392d5c7E9526423D3dc38a8d1f875',
   immutablezkevmmainnet: '0x71c47adC3270EA319705626b8769E0ee54D1EA41',
   inevm: '0xCf0F066B8D5F14f264EA99D67CFa389D6c1De20E',
-  infinityvmmainnet: '0x8cf2Ec273D7C82614640dB1d5F6AF0f27F5071cd',
   ink: '0x20b3D70fA3d7B69Aba42b0bA9D8F25Ee0C656e78',
   kaia: '0x47bd809B484DB532F9E2Cf540cCE24af79341deA',
   katana: '0x53dE35b799fD29B129E683E43ef31cEEB3b88D22',
