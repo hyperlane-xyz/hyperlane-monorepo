@@ -48,3 +48,5 @@ pub const REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS: i64 = 1000;
 
 // Maximum number of inputs to include in a sweeping bundle.
 pub const MAX_SWEEP_INPUTS: usize = 1000;
+
+pub const MAX_MASS_MARGIN: f64 = 0.9; // 90% of the max mass

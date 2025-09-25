@@ -166,11 +166,9 @@ pub async fn build_withdrawal_fxg(
 
     // Use tx_fee_multiplier as safety margin for mass limit too
     // This ensures we stay under the limit even with estimation variance
-    let max_allowed_mass = (kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS as f64
-        / tx_fee_multiplier) as u64;
+    let max_allowed_mass = (kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS as f64 * MAX_MASS_MARGIN) as u64;
 
     // Remove outputs from the end if mass exceeds maximum (with safety margin)
-    let original_count = final_outputs.len();
     while tx_mass > max_allowed_mass && !final_outputs.is_empty() {
         final_outputs.pop();
         final_msgs.pop();
