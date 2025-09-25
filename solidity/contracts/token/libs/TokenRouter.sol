@@ -51,6 +51,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
     uint256 public immutable scale;
 
+    // cannot use compiler assigned slot without
+    // breaking backwards compatibility of storage layout
     bytes32 private constant FEE_RECIPIENT_SLOT =
         keccak256("FungibleTokenRouter.feeRecipient");
 
