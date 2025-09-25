@@ -127,7 +127,6 @@ impl<'de> Deserialize<'de> for ReorgPeriod {
 )]
 pub enum KnownHyperlaneDomain {
     Abstract = 2741,
-    AlephZeroEvmMainnet = 1000041455,
     AppChain = 466,
     Ancient8 = 888888888,
     ApeChain = 33139,
@@ -173,7 +172,6 @@ pub enum KnownHyperlaneDomain {
     Fuji = 43113,
     FuseMainnet = 122,
     Galactica = 613419,
-    Game7 = 2187,
     Glue = 1300,
     Gnosis = 100,
     Gravity = 1625,
@@ -184,7 +182,6 @@ pub enum KnownHyperlaneDomain {
     HyperEvm = 999,
     ImmutableZkEvmMainnet = 1000013371,
     InEvm = 2525,
-    InfinityVmMainnet = 1001032009,
     Ink = 57073,
     Injective = 6909546,
     Kaia = 8217,
@@ -281,7 +278,6 @@ pub enum KnownHyperlaneDomain {
     EclipseTestnet = 239092742,
     Holesky = 17000,
     HyperLiquidEvmTestnet = 998,
-    InfinityVmMonza = 96025,
     KyveTestnet = 1262571342,
     Matchain = 698,
     MegaEthTestnet = 6342,
@@ -451,7 +447,6 @@ impl KnownHyperlaneDomain {
             | EclipseTestnet
             | Holesky
             | HyperLiquidEvmTestnet
-            | InfinityVmMonza
             | KyveTestnet
             | MegaEthTestnet
             | MilkywayTestnet
@@ -529,12 +524,10 @@ impl KnownHyperlaneDomain {
     pub const fn domain_technical_stack(self) -> HyperlaneDomainTechnicalStack {
         use KnownHyperlaneDomain::*;
         match self {
-            AlephZeroEvmMainnet | ApeChain | AppChain | Arbitrum | ArbitrumNova
-            | ArbitrumSepolia | CarrchainTestnet | Cheesechain | Corn | Everclear | Fluence
-            | DegenChain | Galactica | Game7 | Gravity | InEvm | MiracleChain | Molten | Plume
-            | PlumeTestnet | ProofOfPlay | Rarichain | SuperpositionMainnet | Xai => {
-                HyperlaneDomainTechnicalStack::ArbitrumNitro
-            }
+            ApeChain | AppChain | Arbitrum | ArbitrumNova | ArbitrumSepolia | CarrchainTestnet
+            | Cheesechain | Corn | Everclear | Fluence | DegenChain | Galactica | Gravity
+            | InEvm | MiracleChain | Molten | Plume | PlumeTestnet | ProofOfPlay | Rarichain
+            | SuperpositionMainnet | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
             Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Form | Fraxtal | Guru
             | Ink | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint | Mode
             | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone | SnaxChain
