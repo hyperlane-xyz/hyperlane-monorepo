@@ -78,7 +78,6 @@ export const chainsToSkip: ChainName[] = [
 
   // legacy icas
   'carrchaintestnet',
-  'infinityvmmonza',
   'rometestnet',
 ];
 

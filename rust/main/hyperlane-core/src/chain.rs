@@ -281,7 +281,6 @@ pub enum KnownHyperlaneDomain {
     EclipseTestnet = 239092742,
     Holesky = 17000,
     HyperLiquidEvmTestnet = 998,
-    InfinityVmMonza = 96025,
     KyveTestnet = 1262571342,
     Matchain = 698,
     MegaEthTestnet = 6342,
@@ -450,7 +449,6 @@ impl KnownHyperlaneDomain {
             | EclipseTestnet
             | Holesky
             | HyperLiquidEvmTestnet
-            | InfinityVmMonza
             | KyveTestnet
             | MegaEthTestnet
             | MilkywayTestnet
