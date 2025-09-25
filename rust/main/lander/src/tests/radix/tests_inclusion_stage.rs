@@ -1,11 +1,12 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use ethers::utils::hex;
-use hyperlane_core::{identifiers::UniqueIdentifier, KnownHyperlaneDomain};
-use hyperlane_radix::RadixSigner;
 use scrypto::network::NetworkDefinition;
 use tokio::sync::mpsc;
 use tracing_test::traced_test;
+
+use hyperlane_core::{identifiers::UniqueIdentifier, KnownHyperlaneDomain};
+use hyperlane_radix::RadixSigner;
 
 use crate::{
     adapter::{
