@@ -15,11 +15,10 @@ use hyperlane_core::{
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::{
     address_from_h256, address_to_h256, encode_component_address, Bytes32, ConnectionConf,
-    HyperlaneRadixError, RadixProvider,
+    HyperlaneRadixError, RadixProvider, RadixTxCalldata,
 };
 
 // the number of simulate calls we do to get the necessary addresses
@@ -270,70 +269,5 @@ impl Mailbox for RadixMailbox {
         let json_val =
             serde_json::to_vec(&calldata).map_err(ChainCommunicationError::JsonParseError)?;
         Ok(Some(json_val))
-    }
-}
-
-/// Data required to send a tx on radix
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RadixTxCalldata {
-    /// Address of mailbox (already encoded)
-    pub component_address: String,
-    /// Method to call on mailbox
-    pub method_name: String,
-    /// parameters required to call method
-    pub encoded_arguments: Vec<u8>,
-}
-
-#[cfg(test)]
-mod tests {
-    use scrypto::prelude::{manifest_decode, ManifestValue};
-
-    use hyperlane_core::Encode;
-
-    use super::*;
-
-    /// Test to ensure data produced from manifest_args!
-    /// can be correctly serialized from hyperlane-radix and
-    /// sent to lander.
-    /// Then lander can successfully deserialize it
-    #[test]
-    pub fn test_decode_manifest_args() {
-        let message = HyperlaneMessage::default();
-        let visible_components: Vec<ComponentAddress> = vec![];
-        let metadata: Vec<u8> = vec![1, 2, 3, 4];
-
-        let args = manifest_args!(&metadata, &message.to_vec(), &visible_components);
-
-        let encoded_args = manifest_encode(&args).expect("Failed to encode");
-
-        let manifest_args: ManifestValue =
-            manifest_decode(&encoded_args).expect("Failed to decode");
-
-        let expected = ManifestValue::Tuple {
-            fields: vec![
-                ManifestValue::Array {
-                    element_value_kind: sbor::ValueKind::U8,
-                    elements: metadata
-                        .iter()
-                        .map(|v| sbor::Value::U8 { value: *v })
-                        .collect(),
-                },
-                ManifestValue::Array {
-                    element_value_kind: sbor::ValueKind::U8,
-                    elements: message
-                        .to_vec()
-                        .iter()
-                        .map(|v| sbor::Value::U8 { value: *v })
-                        .collect(),
-                },
-                ManifestValue::Array {
-                    element_value_kind: sbor::ValueKind::Custom(
-                        scrypto::prelude::ManifestCustomValueKind::Address,
-                    ),
-                    elements: vec![],
-                },
-            ],
-        };
-        assert_eq!(manifest_args, expected);
     }
 }
