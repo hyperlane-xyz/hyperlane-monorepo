@@ -8,7 +8,7 @@ mod tests {
     use kaspa_hashes::Hash;
 
     #[tokio::test]
-    #[ignore = "avoid using api"]
+    #[ignore = "dont hit real api"]
     // tested over https://explorer-tn10.kaspa.org/txs/1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1
     async fn test_trace_transactions() {
         let mut lineage_utxos = Vec::new();
@@ -60,18 +60,26 @@ mod tests {
 
     #[test]
     fn message_ids_from_payload() {
-        // 32-byte (64 hex chars) message ID
-        let payload = "27b204ce0deab9f8cd602b11e9b9298d9dfcd28062725352609744f2ac356782";
-        let decoded_payload = hex::decode(payload).unwrap();
-
-        // Create a MessageIDs with this single ID
         use hyperlane_core::H256;
-        let h256_id = H256::from_slice(&decoded_payload);
-        let message_ids =
-            corelib::payload::MessageIDs::new(vec![corelib::payload::MessageID(h256_id)]);
 
-        assert_eq!(message_ids.0.len(), 1);
-        assert_eq!(message_ids.0[0].0, h256_id);
+        // Create a MessageID with a test H256
+        let test_id = H256::from_slice(&[
+            0x27, 0xb2, 0x04, 0xce, 0x0d, 0xea, 0xb9, 0xf8,
+            0xcd, 0x60, 0x2b, 0x11, 0xe9, 0xb9, 0x29, 0x8d,
+            0x9d, 0xfc, 0xd2, 0x80, 0x62, 0x72, 0x53, 0x52,
+            0x60, 0x97, 0x4f, 0x2a, 0xc3, 0x56, 0x78, 0x2e
+        ]);
+
+        let message_ids = corelib::payload::MessageIDs::new(vec![
+            corelib::payload::MessageID(test_id)
+        ]);
+
+        // Convert to bytes and back
+        let bytes = message_ids.to_bytes();
+        let decoded = corelib::payload::MessageIDs::from_bytes(bytes).unwrap();
+
+        assert_eq!(decoded.0.len(), 1);
+        assert_eq!(decoded.0[0].0, test_id);
     }
 }
 

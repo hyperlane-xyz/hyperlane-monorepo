@@ -8,12 +8,11 @@ use dymension_kaspa::{Deposit, KaspaProvider};
 use ethers::utils::hex::ToHex;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneLogStore,
-    Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, Signature, SignedCheckpointWithMessageId,
-    TxOutcome, H256,
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneChain,
+    HyperlaneLogStore, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, Signature,
+    SignedCheckpointWithMessageId, TxOutcome, H256,
 };
-use hyperlane_cosmos_native::h512_to_cosmos_hash;
-use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
+use hyperlane_cosmos::native::{h512_to_cosmos_hash, CosmosNativeMailbox};
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_core::time::unix_now;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
@@ -512,7 +511,14 @@ where
     pub async fn sync_hub_if_needed(&self) -> Result<()> {
         info!("Checking if hub is out of sync with Kaspa escrow account.");
         // get anchor utxo from hub
-        let resp = self.hub_mailbox.provider().grpc().outpoint(None).await?;
+        // Cast the provider to CosmosProvider to access query()
+        use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
+        let provider = self.hub_mailbox.provider();
+        let cosmos_provider = provider
+            .as_any()
+            .downcast_ref::<CosmosProvider<ModuleQueryClient>>()
+            .expect("Hub mailbox provider must be CosmosProvider");
+        let resp = cosmos_provider.query().outpoint(None).await?;
         let old_anchor = resp
             .outpoint
             .map(|o| TransactionOutpoint {
@@ -600,7 +606,14 @@ where
     /// Update hub anchor point metric by querying the current hub state
     async fn update_hub_anchor_point_metric(&self) -> Result<()> {
         // Query current anchor point from hub
-        let resp = self.hub_mailbox.provider().grpc().outpoint(None).await?;
+        // Cast the provider to CosmosProvider to access query()
+        use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
+        let provider = self.hub_mailbox.provider();
+        let cosmos_provider = provider
+            .as_any()
+            .downcast_ref::<CosmosProvider<ModuleQueryClient>>()
+            .expect("Hub mailbox provider must be CosmosProvider");
+        let resp = cosmos_provider.query().outpoint(None).await?;
 
         if let Some(outpoint) = resp.outpoint {
             let tx_id = kaspa_hashes::Hash::from_bytes(

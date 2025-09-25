@@ -19,7 +19,7 @@ use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS;
 use kaspa_wallet_core::utxo::UtxoEntryReference;
 use kaspa_wallet_pskt::bundle::Bundle;
-use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, PSKT};
+use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, Version, PSKT};
 use kaspa_wallet_pskt::pskt::InputBuilder;
 use tracing::info;
 

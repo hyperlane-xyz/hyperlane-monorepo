@@ -599,25 +599,21 @@ mod tests {
         assert_eq!(metrics.withdrawal_max_latency_ms.get(), 400);
         assert_eq!(metrics.withdrawal_last_latency_ms.get(), 400); // Last latency is updated to 400
 
-        // Test batch statistics - create fresh metrics to avoid interference from previous withdrawal processing
-        let batch_registry = Registry::new();
-        let batch_metrics =
-            KaspaBridgeMetrics::new(&batch_registry).expect("Failed to create batch metrics");
+        // Test batch statistics
+        metrics.update_withdrawal_batch_stats(5);
+        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 1);
+        assert_eq!(metrics.withdrawal_batch_max_messages.get(), 5);
+        assert_eq!(metrics.withdrawal_batch_last_messages.get(), 5);
 
-        batch_metrics.update_withdrawal_batch_stats(5);
-        assert_eq!(batch_metrics.withdrawal_batch_min_messages.get(), 5);
-        assert_eq!(batch_metrics.withdrawal_batch_max_messages.get(), 5);
-        assert_eq!(batch_metrics.withdrawal_batch_last_messages.get(), 5);
+        metrics.update_withdrawal_batch_stats(10);
+        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 1);
+        assert_eq!(metrics.withdrawal_batch_max_messages.get(), 10);
+        assert_eq!(metrics.withdrawal_batch_last_messages.get(), 10);
 
-        batch_metrics.update_withdrawal_batch_stats(10);
-        assert_eq!(batch_metrics.withdrawal_batch_min_messages.get(), 5);
-        assert_eq!(batch_metrics.withdrawal_batch_max_messages.get(), 10);
-        assert_eq!(batch_metrics.withdrawal_batch_last_messages.get(), 10);
-
-        batch_metrics.update_withdrawal_batch_stats(3);
-        assert_eq!(batch_metrics.withdrawal_batch_min_messages.get(), 3);
-        assert_eq!(batch_metrics.withdrawal_batch_max_messages.get(), 10);
-        assert_eq!(batch_metrics.withdrawal_batch_last_messages.get(), 3);
+        metrics.update_withdrawal_batch_stats(3);
+        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 1);
+        assert_eq!(metrics.withdrawal_batch_max_messages.get(), 10);
+        assert_eq!(metrics.withdrawal_batch_last_messages.get(), 3);
     }
 
     #[test]

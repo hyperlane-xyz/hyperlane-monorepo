@@ -15,6 +15,13 @@ export class TokenMetadataMap {
     this.tokenMetadataMap.set(chain, metadata);
   }
 
+  update(chain: string, metadata: TokenMetadata): void {
+    this.tokenMetadataMap.set(
+      chain,
+      Object.assign(this.tokenMetadataMap.get(chain) ?? {}, metadata),
+    );
+  }
+
   getDecimals(chain: string): number | undefined {
     const config = this.tokenMetadataMap.get(chain);
     if (config) return config.decimals!;

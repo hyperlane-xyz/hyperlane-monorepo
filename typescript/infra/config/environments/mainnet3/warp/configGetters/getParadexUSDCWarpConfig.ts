@@ -1,9 +1,7 @@
-import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { DEPLOYER } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import {
   SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
@@ -49,14 +47,14 @@ const syntheticChain: DeploymentChain = 'mode';
 
 // Waiting on the addresses for the final ownership config
 const ownersByChain: Record<DeploymentChain, string> = {
-  arbitrum: DEPLOYER,
-  base: DEPLOYER,
-  ethereum: DEPLOYER,
-  mode: DEPLOYER,
-  paradex: '0x041e326bf455461926b9c334d02039cb0d4f09698c5158ef8d939b33b240a0e0',
-  solanamainnet: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+  arbitrum: '0xFF57A3bB6465501c993acF8f3b29125a862661C0',
+  base: '0xFF57A3bB6465501c993acF8f3b29125a862661C0',
+  ethereum: '0xFF57A3bB6465501c993acF8f3b29125a862661C0',
+  mode: '0xFF57A3bB6465501c993acF8f3b29125a862661C0',
+  paradex: '0x00395a1eebf43d06be83684da623c4c2ab8e1ea4a89dfa71ee04677b6e19a428',
+  solanamainnet: 'HBPwc1dSuaJCEwWkJvfeWUqJguFqPTVaggfDGssc3LVt',
   starknet:
-    '0x06ae465e0c05735820a75500c40cb4dabbe46ebf1f1665f9ba3f9a7dcc78a6d1',
+    '0x00af66284c430cc46fd5048312ef134e35141d4499f9450f2e9eff170c7dde08',
 };
 
 export const getParadexUSDCWarpConfig = async (

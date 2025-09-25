@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![deny(clippy::unwrap_used, clippy::panic)]
+#![deny(clippy::arithmetic_side_effects)]
 
 use std::collections::HashMap;
 
@@ -21,7 +22,7 @@ mod rpc_clients;
 mod signer;
 mod tx;
 
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::arithmetic_side_effects, clippy::unwrap_used)]
 mod contracts;
 #[allow(clippy::unwrap_used)]
 mod interfaces;

@@ -44,7 +44,7 @@
     "decimals": 9
   },
   "botanix": {
-    "amount": "0.000000021",
+    "amount": "0.000822245",
     "decimals": 9
   },
   "avalanche": {
@@ -108,7 +108,7 @@
     "decimals": 9
   },
   "coti": {
-    "amount": "1.500000007",
+    "amount": "2.000000007",
     "decimals": 9
   },
   "cyber": {
@@ -127,12 +127,16 @@
     "amount": "0.0000001",
     "decimals": 1
   },
+  "electroneum": {
+    "amount": "57.349384849",
+    "decimals": 9
+  },
   "endurance": {
     "amount": "1.500000007",
     "decimals": 9
   },
   "ethereum": {
-    "amount": "4.0",
+    "amount": "2.5",
     "decimals": 9
   },
   "everclear": {
@@ -159,8 +163,12 @@
     "amount": "0.001000252",
     "decimals": 9
   },
+  "forma": {
+    "amount": "19.0",
+    "decimals": 9
+  },
   "fraxtal": {
-    "amount": "0.001000253",
+    "amount": "0.00100041",
     "decimals": 9
   },
   "fusemainnet": {
@@ -176,7 +184,7 @@
     "decimals": 9
   },
   "gnosis": {
-    "amount": "0.000000103",
+    "amount": "0.000308849",
     "decimals": 9
   },
   "gravity": {
@@ -232,7 +240,7 @@
     "decimals": 1
   },
   "linea": {
-    "amount": "0.076937668",
+    "amount": "0.098465617",
     "decimals": 9
   },
   "lisk": {
@@ -240,15 +248,11 @@
     "decimals": 9
   },
   "lukso": {
-    "amount": "0.180084749",
-    "decimals": 9
-  },
-  "lumia": {
-    "amount": "3.77",
+    "amount": "1.0",
     "decimals": 9
   },
   "lumiaprism": {
-    "amount": "3.77",
+    "amount": "9.28",
     "decimals": 9
   },
   "mantapacific": {
@@ -257,6 +261,10 @@
   },
   "mantle": {
     "amount": "0.02",
+    "decimals": 9
+  },
+  "mantra": {
+    "amount": "11.25",
     "decimals": 9
   },
   "matchain": {
@@ -272,7 +280,7 @@
     "decimals": 9
   },
   "metis": {
-    "amount": "2.879267811",
+    "amount": "3.214164502",
     "decimals": 9
   },
   "milkyway": {
@@ -285,6 +293,10 @@
   },
   "miraclechain": {
     "amount": "0.01",
+    "decimals": 9
+  },
+  "mitosis": {
+    "amount": "0.1",
     "decimals": 9
   },
   "mode": {
@@ -347,6 +359,10 @@
     "amount": "100.0",
     "decimals": 9
   },
+  "plasma": {
+    "amount": "1.000000007",
+    "decimals": 9
+  },
   "plume": {
     "amount": "1000.0",
     "decimals": 9
@@ -371,12 +387,20 @@
     "amount": "0.01",
     "decimals": 9
   },
+  "pulsechain": {
+    "amount": "955251.886808412",
+    "decimals": 9
+  },
+  "radix": {
+    "amount": "50.0",
+    "decimals": 9
+  },
   "rarichain": {
     "amount": "0.15",
     "decimals": 9
   },
   "reactive": {
-    "amount": "1.001",
+    "amount": "100.001",
     "decimals": 9
   },
   "redstone": {
@@ -396,7 +420,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "1.910994042",
+    "amount": "3.011075299",
     "decimals": 9
   },
   "snaxchain": {
@@ -429,6 +453,10 @@
   },
   "sophon": {
     "amount": "3554.023647439",
+    "decimals": 9
+  },
+  "sova": {
+    "amount": "0.001000251",
     "decimals": 9
   },
   "starknet": {
@@ -464,11 +492,11 @@
     "decimals": 9
   },
   "tac": {
-    "amount": "28.125",
+    "amount": "450.0",
     "decimals": 9
   },
   "taiko": {
-    "amount": "0.011",
+    "amount": "0.0495",
     "decimals": 9
   },
   "tangle": {
@@ -484,7 +512,7 @@
     "decimals": 9
   },
   "vana": {
-    "amount": "0.002108205",
+    "amount": "0.005",
     "decimals": 9
   },
   "viction": {
@@ -505,6 +533,10 @@
   },
   "xrplevm": {
     "amount": "275.0",
+    "decimals": 9
+  },
+  "zerogravity": {
+    "amount": "2.000000007",
     "decimals": 9
   },
   "zeronetwork": {

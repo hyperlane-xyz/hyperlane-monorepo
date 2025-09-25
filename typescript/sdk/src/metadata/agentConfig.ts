@@ -51,6 +51,7 @@ export enum AgentSignerKeyType {
   Node = 'node',
   Cosmos = 'cosmosKey',
   Starknet = 'starkKey',
+  Radix = 'radixKey',
 }
 
 export enum AgentSealevelPriorityFeeOracleType {
@@ -95,6 +96,13 @@ const AgentSignerCosmosKeySchema = z
     key: ZHash,
   })
   .describe('Cosmos key');
+const AgentSignerRadixKeySchema = z
+  .object({
+    type: z.literal(AgentSignerKeyType.Radix),
+    suffix: z.string().describe('The network suffix for the signer'),
+    key: ZHash,
+  })
+  .describe('Radix key');
 const AgentSignerNodeSchema = z
   .object({
     type: z.literal(AgentSignerKeyType.Node),
@@ -106,6 +114,7 @@ const AgentSignerSchema = z.union([
   AgentSignerAwsKeySchema,
   AgentSignerCosmosKeySchema,
   AgentSignerNodeSchema,
+  AgentSignerRadixKeySchema,
 ]);
 
 export type AgentSignerHexKey = z.infer<typeof AgentSignerHexKeySchema>;

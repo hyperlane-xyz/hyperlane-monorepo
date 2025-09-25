@@ -45,9 +45,9 @@ import {
 import { getAgentConfig, getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-import L1ETHGateway from './utils/L1ETHGateway.json';
-import L1MessageQueue from './utils/L1MessageQueue.json';
-import L1ScrollMessenger from './utils/L1ScrollMessenger.json';
+import L1ETHGateway from './utils/L1ETHGateway.json' with { type: 'json' };
+import L1MessageQueue from './utils/L1MessageQueue.json' with { type: 'json' };
+import L1ScrollMessenger from './utils/L1ScrollMessenger.json' with { type: 'json' };
 
 const logger = rootLogger.child({ module: 'fund-keys' });
 
@@ -90,10 +90,6 @@ const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
 const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
-
-// Need to ensure we don't fund non-vanguard chains in the vanguard contexts
-const VANGUARD_CHAINS = ['base', 'arbitrum', 'optimism', 'ethereum', 'bsc'];
-const VANGUARD_CONTEXTS: Contexts[] = [Contexts.Vanguard0];
 
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
@@ -146,6 +142,14 @@ async function main() {
     )
     .coerce('desired-kathy-balance-per-chain', parseBalancePerChain)
 
+    .string('desired-rebalancer-balance-per-chain')
+    .array('desired-rebalancer-balance-per-chain')
+    .describe(
+      'desired-rebalancer-balance-per-chain',
+      'Array indicating target balance to fund Rebalancer for each chain. Each element is expected as <chainName>=<balance>',
+    )
+    .coerce('desired-rebalancer-balance-per-chain', parseBalancePerChain)
+
     .string('igp-claim-threshold-per-chain')
     .array('igp-claim-threshold-per-chain')
     .describe(
@@ -181,6 +185,7 @@ async function main() {
         argv.chainSkipOverride,
         argv.desiredBalancePerChain,
         argv.desiredKathyBalancePerChain ?? {},
+        argv.desiredRebalancerBalancePerChain ?? {},
         argv.igpClaimThresholdPerChain ?? {},
         path,
       ),
@@ -198,6 +203,7 @@ async function main() {
           argv.chainSkipOverride,
           argv.desiredBalancePerChain,
           argv.desiredKathyBalancePerChain ?? {},
+          argv.desiredRebalancerBalancePerChain ?? {},
           argv.igpClaimThresholdPerChain ?? {},
         ),
       ),
@@ -255,6 +261,9 @@ class ContextFunder {
     public readonly desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    public readonly desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     public readonly igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
@@ -263,18 +272,6 @@ class ContextFunder {
     roleKeysPerChain = objFilter(
       roleKeysPerChain,
       (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
-        // Skip funding for vanguard contexts on non-vanguard chains
-        if (
-          VANGUARD_CONTEXTS.includes(this.context) &&
-          !VANGUARD_CHAINS.includes(chain)
-        ) {
-          logger.warn(
-            { chain, context: this.context },
-            'Skipping funding for vanguard context on non-vanguard chain',
-          );
-          return false;
-        }
-
         const valid =
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
@@ -289,12 +286,7 @@ class ContextFunder {
     );
 
     this.igp = HyperlaneIgp.fromAddressesMap(
-      {
-        ...getEnvAddresses(this.environment),
-        lumia: {
-          interchainGasPaymaster: '0x9024A3902B542C87a5C4A2b3e15d60B2f087Dc3E',
-        },
-      },
+      getEnvAddresses(this.environment),
       multiProvider,
     );
     this.keysToFundPerChain = objMap(roleKeysPerChain, (_chain, roleKeys) => {
@@ -320,6 +312,9 @@ class ContextFunder {
     desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
@@ -395,6 +390,7 @@ class ContextFunder {
       chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
+      desiredRebalancerBalancePerChain,
       igpClaimThresholdPerChain,
     );
   }
@@ -413,6 +409,9 @@ class ContextFunder {
     desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
@@ -464,6 +463,7 @@ class ContextFunder {
       chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
+      desiredRebalancerBalancePerChain,
       igpClaimThresholdPerChain,
     );
   }
@@ -700,6 +700,18 @@ class ContextFunder {
         desiredBalanceEther = '0';
       } else {
         desiredBalanceEther = this.desiredKathyBalancePerChain[chain];
+      }
+    } else if (role === Role.Rebalancer) {
+      const desiredRebalancerBalance =
+        this.desiredRebalancerBalancePerChain[chain];
+      if (desiredRebalancerBalance === undefined) {
+        logger.warn(
+          { chain },
+          'No desired balance for Rebalancer, not funding',
+        );
+        desiredBalanceEther = '0';
+      } else {
+        desiredBalanceEther = this.desiredRebalancerBalancePerChain[chain];
       }
     } else {
       desiredBalanceEther = this.desiredBalancePerChain[chain];

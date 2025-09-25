@@ -30,8 +30,6 @@ import {
 } from '../logger.js';
 import { nativeBalancesAreSufficient } from '../utils/balances.js';
 
-import { completeDryRun } from './dry-run.js';
-
 export async function runPreflightChecksForChains({
   context,
   chains,
@@ -149,7 +147,7 @@ export async function prepareDeploy(
   userAddress: Address | null,
   chains: ChainName[],
 ): Promise<Record<string, BigNumber>> {
-  const { multiProvider, multiProtocolSigner, isDryRun } = context;
+  const { multiProvider, multiProtocolSigner } = context;
   const initialBalances: Record<string, BigNumber> = {};
 
   for (const chain of chains) {
@@ -157,7 +155,6 @@ export async function prepareDeploy(
     const address =
       userAddress ?? (await multiProtocolSigner!.getSignerAddress(chain));
     initialBalances[chain] = await multiProtocolSigner!.getBalance({
-      isDryRun: isDryRun || false,
       address,
       chain,
       denom: nativeToken?.denom,
@@ -174,7 +171,7 @@ export async function completeDeploy(
   userAddress: Address | null,
   chains: ChainName[],
 ) {
-  const { multiProvider, isDryRun, multiProtocolSigner } = context;
+  const { multiProvider, multiProtocolSigner } = context;
   assert(multiProtocolSigner, `multiProtocolSigner not defined`);
 
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
@@ -184,23 +181,18 @@ export async function completeDeploy(
       ? userAddress
       : await multiProtocolSigner.getSignerAddress(chain);
     const currentBalance = await multiProtocolSigner!.getBalance({
-      isDryRun: isDryRun || false,
       address,
       chain,
       denom: nativeToken?.denom,
     });
     const balanceDelta = initialBalances[chain].sub(currentBalance);
-    if (isDryRun && balanceDelta.lt(0)) break;
+
     logPink(
-      `\t- Gas required for ${command} ${
-        isDryRun ? 'dry-run' : 'deploy'
-      } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
+      `\t- Gas required for ${command} deploy on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
         nativeToken?.symbol ?? 'UNKNOWN SYMBOL'
       }`,
     );
   }
-
-  if (isDryRun) await completeDryRun(command);
 }
 
 function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {

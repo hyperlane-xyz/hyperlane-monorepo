@@ -11,7 +11,8 @@ use std::{
 use derive_new::new;
 use ethers::utils::hex;
 use hyperlane_core::{
-    config::StrOrInt, utils::hex_or_base58_to_h256, HyperlaneMessage, QueueOperation, H256,
+    config::StrOrInt, utils::hex_or_base58_or_bech32_to_h256, HyperlaneMessage, QueueOperation,
+    H256,
 };
 use regex::Regex;
 use serde::{
@@ -198,7 +199,7 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
     }
 }
 
-impl<'de> Visitor<'de> for FilterVisitor<RegexWrapper> {
+impl Visitor<'_> for FilterVisitor<RegexWrapper> {
     type Value = RegexWrapper;
 
     fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
@@ -408,7 +409,7 @@ fn to_serde_err<IE: ToString, OE: Error>(e: IE) -> OE {
 }
 
 fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
-    hex_or_base58_to_h256(addr_str).map_err(to_serde_err)
+    hex_or_base58_or_bech32_to_h256(addr_str).map_err(to_serde_err)
 }
 
 #[cfg(test)]

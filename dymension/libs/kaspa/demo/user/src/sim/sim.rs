@@ -12,8 +12,8 @@ use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::{EasyKaspaWalletArgs, Network};
 use eyre::Result;
 use hardcode;
-use hyperlane_cosmos_native::ConnectionConf as CosmosConnectionConf;
-use hyperlane_cosmos_native::CosmosNativeProvider;
+use hyperlane_cosmos::ConnectionConf as CosmosConnectionConf;
+use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use rand_distr::{Distribution, Exp};
 use std::time::SystemTime;
 use std::time::{Duration, Instant};
@@ -32,7 +32,7 @@ use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::KnownHyperlaneDomain;
 use hyperlane_core::NativeToken;
 use hyperlane_core::H256;
-use hyperlane_cosmos_native::RawCosmosAmount;
+use hyperlane_cosmos::RawCosmosAmount;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
@@ -46,10 +46,10 @@ const DEFAULT_DECIMALS: u32 = 18;
 const DEFAULT_WRPC_URL: &str = "localhost:17210";
 const DEFAULT_REST_URL: &str = "https://api-tn10.kaspa.org/";
 
-async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosNativeProvider> {
+async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosProvider<ModuleQueryClient>> {
     let conf = CosmosConnectionConf::new(
-        vec![Url::parse(DEFAULT_RPC_URL).unwrap()],
         vec![Url::parse(DEFAULT_GRPC_URL).unwrap()],
+        vec![Url::parse(DEFAULT_RPC_URL).unwrap()],
         DEFAULT_CHAIN_ID.to_string(),
         DEFAULT_PREFIX.to_string(),
         DEFAULT_DENOM.to_string(),
@@ -57,14 +57,16 @@ async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosNativeProvider> {
             amount: "100000000000.0".to_string(),
             denom: DEFAULT_DENOM.to_string(),
         },
-        1.0,
         32,
         OpSubmissionConfig::default(),
         NativeToken {
             decimals: DEFAULT_DECIMALS,
             denom: DEFAULT_DENOM.to_string(),
         },
-    );
+        1.0,
+        None,
+    )
+    .map_err(|e| eyre::eyre!(e))?;
     let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
     let locator = ContractLocator::new(&d, H256::zero());
     let hub_key = EasyHubKey::from_hex(signer_key_hex);
@@ -72,7 +74,8 @@ async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosNativeProvider> {
     debug!("signer: {:?}", signer);
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
-    CosmosNativeProvider::new(&conf, &locator, signer, metrics, chain).map_err(eyre::Report::from)
+    CosmosProvider::<ModuleQueryClient>::new(&conf, &locator, signer, metrics, chain)
+        .map_err(eyre::Report::from)
 }
 
 pub struct Params {
@@ -263,7 +266,7 @@ impl TrafficSim {
 
 async fn fund_hub_addr(
     hub_key: &EasyHubKey,
-    hub: &CosmosNativeProvider,
+    hub: &CosmosProvider<ModuleQueryClient>,
     amount: u64,
 ) -> Result<()> {
     let hub_addr = hub_key.signer().address_string.clone();

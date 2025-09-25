@@ -26,12 +26,12 @@ export const DefaultChainSearch = {
 
 export const WithCustomField = {
   args: {
-    chainMetadata: pick(chainMetadata, ['alfajores', 'arbitrum', 'ethereum']),
+    chainMetadata: pick(chainMetadata, ['sepolia', 'arbitrum', 'ethereum']),
     onChangeOverrideMetadata: () => {},
     customListItemField: {
       header: 'Warp Routes',
       data: {
-        alfajores: { display: '1 token', sortValue: 1 },
+        sepolia: { display: '1 token', sortValue: 1 },
         arbitrum: { display: '2 tokens', sortValue: 2 },
         ethereum: { display: '1 token', sortValue: 1 },
       },
@@ -42,7 +42,7 @@ export const WithCustomField = {
 
 export const WithCustomFieldAsNull = {
   args: {
-    chainMetadata: pick(chainMetadata, ['alfajores', 'arbitrum', 'ethereum']),
+    chainMetadata: pick(chainMetadata, ['sepolia', 'arbitrum', 'ethereum']),
     onChangeOverrideMetadata: () => {},
     customListItemField: null,
     showAddChainButton: true,
@@ -60,13 +60,13 @@ export const WithDefaultSortField = {
 
 export const WithDefaultSortFieldAsCustom = {
   args: {
-    chainMetadata: pick(chainMetadata, ['alfajores', 'arbitrum', 'ethereum']),
+    chainMetadata: pick(chainMetadata, ['sepolia', 'arbitrum', 'ethereum']),
     onChangeOverrideMetadata: () => {},
     showAddChainButton: true,
     customListItemField: {
       header: 'Warp Routes',
       data: {
-        alfajores: { display: '1 token', sortValue: 1 },
+        sepolia: { display: '1 token', sortValue: 1 },
         arbitrum: { display: '2 tokens', sortValue: 2 },
         ethereum: { display: '1 token', sortValue: 1 },
       },
@@ -77,7 +77,7 @@ export const WithDefaultSortFieldAsCustom = {
 
 export const WithOverrideChain = {
   args: {
-    chainMetadata: pick(chainMetadata, ['alfajores']),
+    chainMetadata: pick(chainMetadata, ['sepolia']),
     overrideChainMetadata: {
       arbitrum: { ...chainMetadata['arbitrum'], displayName: 'Fake Arb' },
     },
@@ -88,7 +88,7 @@ export const WithOverrideChain = {
 
 export const WithDisabledChains = {
   args: {
-    chainMetadata: pick(chainMetadata, ['alfajores', 'base']),
+    chainMetadata: pick(chainMetadata, ['sepolia', 'base']),
     overrideChainMetadata: {
       arbitrum: {
         ...chainMetadata['arbitrum'],
@@ -111,7 +111,7 @@ export const WithDisabledChains = {
     customListItemField: {
       header: 'Warp Routes',
       data: {
-        alfajores: { display: '1 token', sortValue: 1 },
+        sepolia: { display: '1 token', sortValue: 1 },
         arbitrum: { display: '2 tokens', sortValue: 2 },
         ethereum: { display: '1 token', sortValue: 1 },
         base: { display: '2 tokens', sortValue: 2 },

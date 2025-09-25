@@ -83,6 +83,7 @@ impl Mailbox for KaspaMailbox {
         let res = self
             .provider
             .hub_rpc()
+            .query()
             .withdrawal_status(vec![wid], None)
             .await?;
         match res

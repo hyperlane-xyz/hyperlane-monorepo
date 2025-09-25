@@ -1,5 +1,5 @@
 use eyre::Result;
-use hyperlane_core::{Decode, Encode, HyperlaneMessage, RawHyperlaneMessage};
+use hyperlane_core::{Decode, Encode, HyperlaneMessage, RawHyperlaneMessage, U256};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint;
 use hyperlane_warp_route::TokenMessage;
@@ -47,6 +47,42 @@ pub fn parse_hyperlane_metadata(m: &HyperlaneMessage) -> Result<TokenMessage> {
         .map_err(|e| eyre::eyre!("Failed to parse token message: {}", e))?;
 
     Ok(token_message)
+}
+
+/// Parse withdrawal amount from HyperlaneMessage
+pub fn parse_withdrawal_amount(msg: &HyperlaneMessage) -> Option<u64> {
+    match parse_hyperlane_metadata(msg) {
+        Ok(token_message) => {
+            let amount_u256 = token_message.amount();
+            // Convert U256 to u64, handling overflow
+            if amount_u256 > U256::from(u64::MAX) {
+                tracing::warn!("Withdrawal amount exceeds u64::MAX, using u64::MAX");
+                Some(u64::MAX)
+            } else {
+                Some(amount_u256.as_u64())
+            }
+        }
+        Err(e) => {
+            tracing::error!(
+                "Failed to parse token message for withdrawal amount: {:?}",
+                e
+            );
+            None
+        }
+    }
+}
+
+/// Create withdrawal batch ID from messages
+pub fn create_withdrawal_batch_id(msgs: &[HyperlaneMessage]) -> String {
+    msgs.iter()
+        .next()
+        .map(|msg| format!("{:?}", msg.id()))
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// Calculate total withdrawal amount from messages
+pub fn calculate_total_withdrawal_amount(msgs: &[HyperlaneMessage]) -> u64 {
+    msgs.iter().filter_map(parse_withdrawal_amount).sum()
 }
 
 pub fn add_kaspa_metadata_hl_messsage(

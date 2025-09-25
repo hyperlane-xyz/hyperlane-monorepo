@@ -7,6 +7,7 @@ use crate::RelayerStuff;
 use crate::ValidatorStuff;
 use dym_kas_core::confirmation::ConfirmationFXG;
 use dym_kas_core::escrow::EscrowPublic;
+use dym_kas_core::message::{calculate_total_withdrawal_amount, create_withdrawal_batch_id};
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
 use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
 use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
@@ -19,10 +20,10 @@ use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256, H512, U256,
 };
-use hyperlane_cosmos_native::ConnectionConf as HubConnectionConf;
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_native::RawCosmosAmount;
-use hyperlane_cosmos_native::Signer as HyperlaneSigner;
+use hyperlane_cosmos::ConnectionConf as HubConnectionConf;
+use hyperlane_cosmos::RawCosmosAmount;
+use hyperlane_cosmos::Signer as HyperlaneSigner;
+use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
@@ -41,7 +42,7 @@ pub struct KaspaProvider {
     easy_wallet: EasyKaspaWallet,
     rest: RestProvider,
     validators: ValidatorsClient,
-    cosmos_rpc: CosmosGrpcClient,
+    cosmos_rpc: CosmosProvider<ModuleQueryClient>,
 
     /*
       TODO: this is just a quick hack to get access to a kaspa escrow private key, we should change to wallet managed
@@ -153,7 +154,7 @@ impl KaspaProvider {
     }
 
     /// dococo
-    pub fn hub_rpc(&self) -> &CosmosGrpcClient {
+    pub fn hub_rpc(&self) -> &CosmosProvider<ModuleQueryClient> {
         &self.cosmos_rpc
     }
 
@@ -198,45 +199,10 @@ impl KaspaProvider {
                 info!("Kaspa provider, constructed withdrawal TXs");
                 info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
 
-                // Create withdrawal batch ID from first message ID in batch
-                let withdrawal_batch_id = fxg
-                    .messages
-                    .iter()
-                    .flatten()
-                    .next()
-                    .map(|msg| format!("{:?}", msg.id()))
-                    .unwrap_or_else(|| "unknown".to_string());
-
-                // Calculate total withdrawal amount for metrics (do this early in case of failures)
-                let total_amount = fxg
-                    .messages
-                    .iter()
-                    .flatten()
-                    .filter_map(|msg| {
-                        // Parse the TokenMessage from the HyperlaneMessage body
-                        match dym_kas_core::message::parse_hyperlane_metadata(msg) {
-                            Ok(token_message) => {
-                                let amount_u256 = token_message.amount();
-                                // Convert U256 to u64, handling overflow
-                                if amount_u256 > U256::from(u64::MAX) {
-                                    tracing::warn!(
-                                        "Withdrawal amount exceeds u64::MAX, using u64::MAX"
-                                    );
-                                    Some(u64::MAX)
-                                } else {
-                                    Some(amount_u256.as_u64())
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    "Failed to parse token message for withdrawal amount: {:?}",
-                                    e
-                                );
-                                None
-                            }
-                        }
-                    })
-                    .sum::<u64>();
+                // Create withdrawal batch ID and calculate total amount
+                let all_msgs: Vec<_> = fxg.messages.iter().flatten().cloned().collect();
+                let withdrawal_batch_id = create_withdrawal_batch_id(&all_msgs);
+                let total_amount = calculate_total_withdrawal_amount(&all_msgs);
 
                 let bundles_validators = match self.validators().get_withdraw_sigs(&fxg).await {
                     Ok(bundles) => bundles,
@@ -293,7 +259,7 @@ impl KaspaProvider {
                             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
                         info!("Kaspa provider, added to progress indication work queue");
 
-                        Ok(fxg.messages.iter().flatten().cloned().collect())
+                        Ok(all_msgs)
                     }
                     Err(e) => {
                         // Record withdrawal failure with deduplication
@@ -308,41 +274,9 @@ impl KaspaProvider {
                 Ok(msgs)
             }
             Err(e) => {
-                // Create withdrawal batch ID from message IDs
-                let withdrawal_batch_id = msgs
-                    .iter()
-                    .next()
-                    .map(|msg| format!("{:?}", msg.id()))
-                    .unwrap_or_else(|| "unknown".to_string());
-
-                // Record withdrawal failure with deduplication - calculate amount from original messages
-                let failed_amount = msgs
-                    .iter()
-                    .filter_map(|msg| {
-                        // Parse the TokenMessage from the HyperlaneMessage body
-                        match dym_kas_core::message::parse_hyperlane_metadata(msg) {
-                            Ok(token_message) => {
-                                let amount_u256 = token_message.amount();
-                                // Convert U256 to u64, handling overflow
-                                if amount_u256 > U256::from(u64::MAX) {
-                                    tracing::warn!(
-                                        "Withdrawal amount exceeds u64::MAX, using u64::MAX"
-                                    );
-                                    Some(u64::MAX)
-                                } else {
-                                    Some(amount_u256.as_u64())
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    "Failed to parse token message for withdrawal amount: {:?}",
-                                    e
-                                );
-                                None
-                            }
-                        }
-                    })
-                    .sum::<u64>();
+                // Create withdrawal batch ID and calculate failed amount
+                let withdrawal_batch_id = create_withdrawal_batch_id(&msgs);
+                let failed_amount = calculate_total_withdrawal_amount(&msgs);
                 self.metrics
                     .record_withdrawal_failed(&withdrawal_batch_id, failed_amount);
                 Err(e)
@@ -480,10 +414,10 @@ async fn get_easy_wallet(
     EasyKaspaWallet::try_new(args).await
 }
 
-fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosGrpcClient {
+fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
     let hub_conf = HubConnectionConf::new(
-        vec![],
-        urls, // ONLY URLS IS NEEDED
+        urls.clone(), // grpc_urls
+        vec![],       // rpc_urls
         "".to_string(),
         "".to_string(),
         "".to_string(),
@@ -491,12 +425,21 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosGrpcClient {
             denom: "".to_string(),
             amount: "".to_string(),
         },
-        1.0,
         32,
         OpSubmissionConfig::default(),
         NativeToken::default(),
-    );
+        1.0,
+        None, // compat_mode
+    )
+    .unwrap(); // TODO: no unwrap for Result
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
-    CosmosGrpcClient::new(hub_conf, metrics, chain).unwrap() // TODO: no unwrap
+    // Create a dummy locator since we only need the query client
+    let dummy_domain = hyperlane_core::HyperlaneDomain::new_test_domain("dummy");
+    let locator = hyperlane_core::ContractLocator {
+        domain: &dummy_domain,
+        address: hyperlane_core::H256::zero(),
+    };
+    CosmosProvider::<ModuleQueryClient>::new(&hub_conf, &locator, None, metrics, chain).unwrap()
+    // TODO: no unwrap
 }

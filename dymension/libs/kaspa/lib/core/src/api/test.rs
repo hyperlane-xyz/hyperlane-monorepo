@@ -26,7 +26,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "dont hit real api"]
     async fn test_balance() {
         let client = t_client();
         let config = client.get_config();
@@ -43,7 +43,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "dont hit real api"]
     async fn test_txs() {
         let client = t_client();
         let config = client.get_config();
@@ -110,7 +110,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "dont hit real api"]
     async fn test_tx_by_id() {
         let client = t_client();
         let config = client.get_config();
@@ -131,7 +131,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "avoid api abuse"]
+    #[ignore = "dont hit real api"]
     async fn test_get_deposits() {
         // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
         let client = t_client();
@@ -155,7 +155,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "avoid api abuse"]
+    #[ignore = "dont hit real api"]
     async fn test_get_tx_by_id() -> Result<()> {
         let client = t_client();
 
