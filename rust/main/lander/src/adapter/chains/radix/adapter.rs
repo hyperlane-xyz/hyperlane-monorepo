@@ -3,7 +3,6 @@ pub mod tests;
 
 use std::{sync::Arc, time::Duration};
 
-use radix_transactions::signing::PrivateKey;
 use scrypto::network::NetworkDefinition;
 use uuid::Uuid;
 
