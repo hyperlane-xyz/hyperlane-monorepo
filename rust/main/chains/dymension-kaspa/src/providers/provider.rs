@@ -423,7 +423,7 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
         "".to_string(),
         RawCosmosAmount {
             denom: "".to_string(),
-            amount: "".to_string(),
+            amount: "0".to_string(),
         },
         32,
         OpSubmissionConfig::default(),
