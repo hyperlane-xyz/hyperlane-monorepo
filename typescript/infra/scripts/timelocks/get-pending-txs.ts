@@ -13,6 +13,7 @@ import { Contexts } from '../../config/contexts.js';
 import { getGovernanceTimelocks } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
+import { executePendingTransactions } from '../../src/tx/utils.js';
 import { logTable } from '../../src/utils/log.js';
 import {
   TimelockOperationStatus,
@@ -101,27 +102,16 @@ async function main() {
   }
 
   rootLogger.info(chalk.blueBright('Executing transactions...'));
-  for (const tx of executableTxs) {
-    const confirmExecuteTx = await confirm({
-      message: `Execute transaction ${tx.id} on chain ${tx.chain}?`,
-      default: false,
-    });
-
-    if (!confirmExecuteTx) {
-      continue;
-    }
-
-    rootLogger.info(`Executing transaction ${tx.id} on chain ${tx.chain}`);
-    try {
-      await multiProvider.sendTransaction(tx.chain, {
+  await executePendingTransactions(
+    executableTxs,
+    (tx) => tx.id,
+    (tx) => tx.chain,
+    (tx) =>
+      multiProvider.sendTransaction(tx.chain, {
         to: tx.timelockAddress,
         data: tx.executeTransactionData,
-      });
-    } catch (error) {
-      rootLogger.error(chalk.red(`Error executing transaction: ${error}`));
-      return;
-    }
-  }
+      }),
+  );
 
   process.exit(0);
 }
