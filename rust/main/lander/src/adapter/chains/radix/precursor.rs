@@ -61,7 +61,6 @@ impl From<RadixTxCalldata> for RadixTxPrecursor {
     }
 }
 
-#[allow(dead_code)]
 pub trait Precursor {
     fn precursor(&self) -> &RadixTxPrecursor;
     fn precursor_mut(&mut self) -> &mut RadixTxPrecursor;

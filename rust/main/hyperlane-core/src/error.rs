@@ -163,6 +163,9 @@ pub enum ChainCommunicationError {
     /// Convert Integer Error
     #[error("{0}")]
     TryFromIntError(#[from] TryFromIntError),
+    /// Simulation failed
+    #[error("Simulation failed: {0}")]
+    SimulationFailed(String),
 }
 
 impl ChainCommunicationError {
