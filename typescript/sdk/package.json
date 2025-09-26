@@ -77,8 +77,7 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "tsc && yarn copy-js",
-    "copy-js": "cp ./src/utils/*.js ./dist/utils",
+    "build": "tsc",
     "dev": "tsc --watch",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
