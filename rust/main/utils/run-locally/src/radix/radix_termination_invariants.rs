@@ -34,7 +34,7 @@ pub fn radix_termination_invariants_met(
         submitter_queue_length_expected: 0, // Radix doesn't have zero merkle insertion messages
         non_matching_igp_message_count: 0,
         double_insertion_message_count: 0,
-        sealevel_tx_id_indexing: false,
+        skip_tx_id_indexing: true,
         submitter_type: SubmitterType::Classic,
     };
 
