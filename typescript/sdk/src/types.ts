@@ -12,7 +12,7 @@ export type ChainName = string;
 // A map of chain names to a value type
 export type ChainMap<Value> = Record<ChainName, Value>;
 // A map of protocol types to a value type
-export type ProtocolMap<Value> = Record<ProtocolType, Value>;
+export type ProtocolMap<Value> = Partial<Record<ProtocolType, Value>>;
 
 export type ChainNameOrId = ChainName | Domain;
 
