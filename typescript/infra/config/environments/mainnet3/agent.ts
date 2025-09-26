@@ -69,7 +69,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
-    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arbitrum: true,
@@ -108,11 +107,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flowmainnet: true,
     fluence: true,
     form: true,
-    // fractal: false,
+    forma: false, // relayer + scraper only
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
-    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -121,7 +119,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvmmainnet: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -133,6 +130,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
+    mantra: true,
     matchain: true,
     merlin: true,
     metal: true,
@@ -180,6 +178,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    sova: true,
     starknet: true,
     story: true,
     stride: false,
@@ -199,6 +198,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xai: true,
     xlayer: true,
     xrplevm: true,
+    zerogravity: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
@@ -209,7 +209,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
-    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arcadia: true,
@@ -248,11 +247,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flowmainnet: true,
     fluence: true,
     form: true,
-    // fractal: false,
+    forma: true,
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
-    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -261,7 +259,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvmmainnet: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -273,6 +270,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
+    mantra: true,
     matchain: true,
     merlin: true,
     metal: true,
@@ -320,6 +318,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    sova: true,
     starknet: true,
     story: true,
     stride: true,
@@ -339,6 +338,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xai: true,
     xlayer: true,
     xrplevm: true,
+    zerogravity: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
@@ -349,7 +349,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     ancient8: true,
-    alephzeroevmmainnet: false,
     apechain: true,
     appchain: true,
     arbitrum: true,
@@ -388,11 +387,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flowmainnet: true,
     fluence: true,
     form: true,
-    // fractal: false,
+    forma: true,
     fraxtal: true,
     fusemainnet: true,
     galactica: true,
-    game7: false,
     gnosis: true,
     gravity: true,
     harmony: true,
@@ -401,7 +399,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     inevm: true,
-    infinityvmmainnet: false,
     ink: true,
     injective: true,
     kaia: true,
@@ -413,6 +410,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
+    mantra: true,
     matchain: true,
     merlin: true,
     metal: true,
@@ -460,6 +458,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    sova: true,
     starknet: true,
     story: true,
     stride: true,
@@ -480,6 +479,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xai: true,
     xlayer: true,
     xrplevm: true,
+    zerogravity: true,
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
@@ -490,7 +490,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 
 // Chains not in our core set of supported chains, and supported ONLY by the scraper
 export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
-  forma: true,
   edgenchain: true,
 };
 
@@ -587,14 +586,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
     matchingList: [
-      // Infinity VM is gasless, so ignore outbound txs from InfinityVM to Solana.
-      {
-        originDomain: getDomainId('infinityvmmainnet'),
-        destinationDomain: getDomainId('solanamainnet'),
-      },
       { originDomain: getDomainId('noble') },
       { originDomain: getDomainId('starknet') },
       { originDomain: getDomainId('paradex') },
+      // Not a core chain
+      { originDomain: getDomainId('forma') },
     ],
   },
   {
@@ -605,9 +601,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('mantle') },
       // Temporary workaround due to funky Torus gas amounts.
       { destinationDomain: getDomainId('torus') },
-      // Infinity VM is gasless, so enforcing min 1 wei here ensures outbound txs
-      // outside of Solana are ignored.
-      { originDomain: getDomainId('infinityvmmainnet') },
+      // Not a core chain
+      { destinationDomain: getDomainId('forma') },
       // Temporary workaround due to funky Zeronetwork gas amounts.
       { destinationDomain: getDomainId('zeronetwork') },
       // Temporary workaround during testing of MilkyWay.
@@ -787,6 +782,25 @@ const blacklist: MatchingList = [
   ...blacklistedMessageIds.map((messageId) => ({
     messageId,
   })),
+  // legacy forma routes we are not relaying
+  {
+    destinationDomain: getDomainId('forma'),
+    recipientAddress: [
+      '0x4ca56fbecfe8431996c6b4ec8da140d4201338e8',
+      '0x0a5c7d4ee3d65b2581d5606f8081fc8d8be22319',
+      '0x832d26b6904ba7539248db4d58614251fd63dc05',
+      '0x74a26075fa2eec77936a56b0f9645d32a79b28af',
+      '0xfcee86f472d0c19fccdd3aedb89aa9cc0a1fb0d1',
+    ],
+  },
+  // legacy forma routes we are not relaying
+  {
+    originDomain: getDomainId('forma'),
+    senderAddress: [
+      '0x6052c5c075212f013c856bff015872914ed3492a',
+      '0xd5ebc5e5f38c2d8c91c43122a105327c1f0260b4',
+    ],
+  },
   // routes on legacy pulsechain mailbox
   {
     destinationDomain: getDomainId('pulsechain'),
@@ -835,7 +849,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a62b4a4-20250918-104420',
+      tag: '34424c5-20250922-102920',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -855,7 +869,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '093e0be-20250904-212216',
+      tag: '4359931-20250921-174119',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -866,7 +880,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e8b16e1-20250914-163558',
+      tag: '31d0611-20250924-150435',
     },
     resources: scraperResources,
   },
@@ -881,7 +895,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a62b4a4-20250918-104420',
+      tag: '34424c5-20250922-102920',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

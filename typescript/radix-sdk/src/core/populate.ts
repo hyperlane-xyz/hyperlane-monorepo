@@ -12,7 +12,12 @@ import {
 import { strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
-import { EntityDetails, INSTRUCTIONS } from '../utils/types.js';
+import {
+  EntityDetails,
+  INSTRUCTIONS,
+  RadixHookTypes,
+  RadixIsmTypes,
+} from '../utils/types.js';
 import { bytes } from '../utils/utils.js';
 
 export class RadixCorePopulate {
@@ -56,7 +61,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'MerkleTreeHook',
+      RadixHookTypes.MERKLE_TREE,
       INSTRUCTIONS.INSTANTIATE,
       [address(mailbox)],
     );
@@ -74,7 +79,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'MerkleRootMultisigIsm',
+      RadixIsmTypes.MERKLE_ROOT_MULTISIG,
       INSTRUCTIONS.INSTANTIATE,
       [
         array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
@@ -95,7 +100,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'MessageIdMultisigIsm',
+      RadixIsmTypes.MESSAGE_ID_MULTISIG,
       INSTRUCTIONS.INSTANTIATE,
       [
         array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
@@ -114,7 +119,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'RoutingIsm',
+      RadixIsmTypes.ROUTING_ISM,
       INSTRUCTIONS.INSTANTIATE,
       [
         array(
@@ -122,6 +127,40 @@ export class RadixCorePopulate {
           ...routes.map((r) => tuple(u32(r.domain), address(r.ism))),
         ),
       ],
+    );
+  }
+
+  public async setRoutingIsmRoute({
+    from_address,
+    ism,
+    route,
+  }: {
+    from_address: string;
+    ism: string;
+    route: { domain: number; ism_address: string };
+  }) {
+    return this.base.createCallMethodManifestWithOwner(
+      from_address,
+      ism,
+      'set_route',
+      [u32(route.domain), address(route.ism_address)],
+    );
+  }
+
+  public async removeRoutingIsmRoute({
+    from_address,
+    ism,
+    domain,
+  }: {
+    from_address: string;
+    ism: string;
+    domain: number;
+  }) {
+    return this.base.createCallMethodManifestWithOwner(
+      from_address,
+      ism,
+      'remove_route',
+      [u32(domain)],
     );
   }
 
@@ -152,7 +191,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'NoopIsm',
+      RadixIsmTypes.NOOP_ISM,
       INSTRUCTIONS.INSTANTIATE,
       [],
     );
@@ -168,7 +207,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'InterchainGasPaymaster',
+      RadixHookTypes.IGP,
       INSTRUCTIONS.INSTANTIATE,
       [address(denom)],
     );

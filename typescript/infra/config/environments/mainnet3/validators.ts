@@ -912,16 +912,6 @@ export const validatorChainConfig = (
         'snaxchain',
       ),
     },
-    alephzeroevmmainnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('alephzeroevmmainnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x33f20e6e775747d60301c6ea1c50e51f0389740c'],
-        },
-        'alephzeroevmmainnet',
-      ),
-    },
     chilizmainnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('chilizmainnet'),
@@ -1367,16 +1357,6 @@ export const validatorChainConfig = (
         'hashkey',
       ),
     },
-    infinityvmmainnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('infinityvmmainnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x777c19c87aaa625486dff5aab0a479100f4249ad'],
-        },
-        'infinityvmmainnet',
-      ),
-    },
     ontology: {
       interval: 5,
       reorgPeriod: getReorgPeriod('ontology'),
@@ -1385,16 +1365,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x2578b0a330c492e1a1682684e27e6a93649befd5'],
         },
         'ontology',
-      ),
-    },
-    game7: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('game7'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x691dc4e763514df883155df0952f847b539454c0'],
-        },
-        'game7',
       ),
     },
     fluence: {
@@ -1575,6 +1545,36 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x32917f0a38c60ff5b1c4968cb40bc88b14ef0d83'],
         },
         'electroneum',
+      ),
+    },
+    zerogravity: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('zerogravity'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc37e7dad064c11d7ecfc75813a4d8d649d797275'],
+        },
+        'zerogravity',
+      ),
+    },
+    sova: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sova'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x1763d686c45df79f6d5f63564255546b08cb206c'],
+        },
+        'sova',
+      ),
+    },
+    mantra: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('mantra'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x89b8064e29f125e896f6081ebb77090c46bca9cd'],
+        },
+        'mantra',
       ),
     },
   };

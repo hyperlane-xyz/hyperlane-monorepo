@@ -1,0 +1,17 @@
+{
+  "galactica": {
+    "type": "native",
+    "decimals": 18,
+    "foreignDeployment": "0x8dD4105615773b9e28a83304Ea3739ecA8C45de9"
+  },
+  "solanamainnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "GNET",
+    "symbol": "GNET",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/ccc1a1630585c399e7a652bc1da93d65c6f2d57a/deployments/warp_routes/GNET/metadata.json",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "remoteDecimals": 18,
+    "owner": "E7LDS4HUbz3gcANoav2YMvU4UARDy6pA7YztPsUp7K7U"
+  }
+}

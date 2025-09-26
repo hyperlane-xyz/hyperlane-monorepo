@@ -158,7 +158,7 @@ function ensureDirectoryExists(filepath: string) {
   }
 }
 
-function writeToFile(filepath: string, content: string) {
+export function writeToFile(filepath: string, content: string) {
   ensureDirectoryExists(filepath);
   fs.writeFileSync(filepath, content + '\n');
 }
