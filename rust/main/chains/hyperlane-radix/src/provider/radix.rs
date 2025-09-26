@@ -23,6 +23,7 @@ use gateway_api_client::{
         TransactionStatusResponse,
     },
 };
+use http::{HeaderName, HeaderValue};
 use radix_common::traits::ScryptoEvent;
 use radix_transactions::{
     builder::{
@@ -31,7 +32,7 @@ use radix_transactions::{
     model::{IntentHeaderV2, TransactionHeaderV2, TransactionPayload},
     signing::PrivateKey,
 };
-use reqwest::ClientBuilder;
+use reqwest::Client;
 use scrypto::{
     address::AddressBech32Decoder,
     constants::XRD,
@@ -51,6 +52,7 @@ use hyperlane_core::{
     ReorgPeriod, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::{
     decimal_to_u256, decode_bech32, encode_tx, manifest::find_fee_payer_from_manifest,
@@ -77,18 +79,50 @@ impl Deref for RadixProvider {
     }
 }
 
+/// Builds a new reqwest client with the given URL.
+fn build_new_reqwest_client(url: Url) -> ChainResult<Client> {
+    let mut queries_to_keep = vec![];
+    let mut headers = reqwest::header::HeaderMap::new();
+
+    // A hack to pass custom headers to the provider without
+    // requiring a bunch of changes to our configuration surface area.
+    // Any `custom_rpc_header` query parameter is expected to have the value
+    // format: `header_name:header_value`, will be added to the headers
+    // of the HTTP client, and removed from the URL params.
+    let mut updated_url = url.clone();
+    for (key, value) in url.query_pairs() {
+        if key != "custom_rpc_header" {
+            queries_to_keep.push((key.clone(), value.clone()));
+            continue;
+        }
+        if let Some((header_name, header_value)) = value.split_once(':') {
+            let header_name =
+                HeaderName::from_str(header_name).map_err(ChainCommunicationError::from_other)?;
+            let mut header_value =
+                HeaderValue::from_str(header_value).map_err(ChainCommunicationError::from_other)?;
+            header_value.set_sensitive(true);
+            headers.insert(header_name, header_value);
+        }
+    }
+
+    updated_url
+        .query_pairs_mut()
+        .clear()
+        .extend_pairs(queries_to_keep);
+
+    let client = Client::builder()
+        .default_headers(headers)
+        .build()
+        .map_err(HyperlaneRadixError::from)?;
+
+    Ok(client)
+}
+
 impl RadixProvider {
     fn build_fallback_provider(conf: &ConnectionConf) -> ChainResult<RadixFallbackProvider> {
         let mut gateway_provider = Vec::with_capacity(conf.gateway.len());
-        for (index, url) in conf.gateway.iter().enumerate() {
-            let map = conf.gateway_header.get(index).cloned().unwrap_or_default();
-            let header = reqwest::header::HeaderMap::try_from(&map)
-                .map_err(ChainCommunicationError::from_other)?;
-
-            let client = ClientBuilder::new()
-                .default_headers(header)
-                .build()
-                .map_err(ChainCommunicationError::from_other)?;
+        for url in conf.gateway.iter() {
+            let client = build_new_reqwest_client(url.clone())?;
 
             let provider = RadixBaseGatewayProvider::new(GatewayConfig {
                 client,
@@ -99,16 +133,8 @@ impl RadixProvider {
         }
 
         let mut core_provider = Vec::with_capacity(conf.core.len());
-        for (index, url) in conf.core.iter().enumerate() {
-            let map = conf.core_header.get(index).cloned().unwrap_or_default();
-            let header = reqwest::header::HeaderMap::try_from(&map)
-                .map_err(ChainCommunicationError::from_other)?;
-
-            let client = ClientBuilder::new()
-                .default_headers(header)
-                .build()
-                .map_err(ChainCommunicationError::from_other)?;
-
+        for url in conf.core.iter() {
+            let client = build_new_reqwest_client(url.clone())?;
             let provider = RadixBaseCoreProvider::new(
                 CoreConfig {
                     client,
