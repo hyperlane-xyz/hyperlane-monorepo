@@ -9,7 +9,6 @@ use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain, H25
 use hyperlane_radix::{ConnectionConf, RadixProvider, RadixSigner};
 
 use macro_rules_attribute::apply;
-use maplit::hashmap;
 use scrypto::network::NetworkDefinition;
 use tempfile::tempdir;
 use url::Url;
@@ -28,18 +27,21 @@ const HYPERLANE_RADIX_GIT: &str = "https://github.com/hyperlane-xyz/hyperlane-ra
 const HYPERLANE_RADIX_VERSION: &str = "1.0.0";
 
 use crate::radix::cli::RadixCli;
+use crate::radix::radix_termination_invariants::radix_termination_invariants_met;
 use crate::radix::types::{AgentConfig, AgentConfigOut, Deployment};
 
 use crate::utils::download;
+use crate::AGENT_LOGGING_DIR;
 use crate::{
-    fetch_metric, log,
+    log,
     metrics::agent_balance_sum,
     program::Program,
     utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle},
-    AGENT_BIN_PATH,
+    wait_for_condition, AGENT_BIN_PATH, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
 };
 
 pub mod cli;
+pub mod radix_termination_invariants;
 pub mod types;
 
 pub struct RadixStack {
@@ -70,6 +72,8 @@ impl Drop for RadixStack {
         self.validators
             .iter_mut()
             .for_each(|x| stop_child(&mut x.1));
+
+        fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
     }
 }
 
@@ -184,11 +188,7 @@ fn launch_radix_validator(agent_config: AgentConfig, agent_config_path: PathBuf)
 }
 
 #[apply(as_task)]
-fn launch_radix_relayer(
-    agent_config_path: String,
-    relay_chains: Vec<String>,
-    metrics: u32,
-) -> AgentHandles {
+fn launch_radix_relayer(agent_config_path: String, relay_chains: Vec<String>) -> AgentHandles {
     let relayer_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer");
     let relayer_base = tempdir().expect("Failed to create temporary directory for relayer");
 
@@ -197,7 +197,7 @@ fn launch_radix_relayer(
         .working_dir("../../")
         .env("CONFIG_FILES", agent_config_path)
         .env("RUST_BACKTRACE", "1")
-        .hyp_env("LOG_LEVEL", "DEBUG")
+        .hyp_env("LOG_LEVEL", "debug")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
         .hyp_env(
             "DB",
@@ -217,18 +217,14 @@ fn launch_radix_relayer(
                 "payment": "1"
             }]"#,
         )
-        .hyp_env("METRICSPORT", metrics.to_string())
-        .spawn("RLY", None);
+        .hyp_env("METRICSPORT", RELAYER_METRICS_PORT)
+        .spawn("RLY", Some(&AGENT_LOGGING_DIR));
 
     relayer
 }
 
 #[apply(as_task)]
-fn launch_radix_scraper(
-    agent_config_path: String,
-    chains: Vec<String>,
-    metrics: u32,
-) -> AgentHandles {
+fn launch_radix_scraper(agent_config_path: String, chains: Vec<String>) -> AgentHandles {
     let bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "scraper");
 
     let scraper = Program::default()
@@ -241,14 +237,14 @@ fn launch_radix_scraper(
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         )
-        .hyp_env("METRICSPORT", metrics.to_string())
+        .hyp_env("METRICSPORT", SCRAPER_METRICS_PORT)
         .spawn("SCR", None);
 
     scraper
 }
 
 #[allow(dead_code)]
-async fn run_locally() {
+pub async fn run_locally() {
     log!("Staring local net");
     start_localnet();
     // Give some time for the localnet to startup
@@ -312,8 +308,8 @@ async fn run_locally() {
     .await;
 
     let metrics_port_start = 9090u32;
+    // Localdomains: radixtest0, radixtest1
     let domains = vec![9913374u32, 9913375u32];
-    let node_count = domains.len() as u32;
     let contracts = cli.deploy_contracts(domains.clone()).await;
     let deployments = contracts
         .into_iter()
@@ -380,17 +376,22 @@ async fn run_locally() {
         .to_str()
         .expect("Failed to convert agent config path to string");
 
-    let hpl_rly_metrics_port = metrics_port_start + node_count;
-    let hpl_rly = launch_radix_relayer(path.to_owned(), chains.clone(), hpl_rly_metrics_port);
+    let hpl_rly = launch_radix_relayer(path.to_owned(), chains.clone());
 
-    let hpl_scr_metrics_port = hpl_rly_metrics_port + 1u32;
-    let hpl_scr = launch_radix_scraper(path.to_owned(), chains.clone(), hpl_scr_metrics_port);
+    let hpl_scr = launch_radix_scraper(path.to_owned(), chains.clone());
 
     // give things a chance to fully start.
     sleep(Duration::from_secs(20));
 
+    let relayer_metrics_port: u32 = RELAYER_METRICS_PORT
+        .parse()
+        .expect("Failed to parse relayer metrics port");
+    let scraper_metrics_port: u32 = SCRAPER_METRICS_PORT
+        .parse()
+        .expect("Failed to parse scraper metrics port");
+
     let starting_relayer_balance: f64 =
-        agent_balance_sum(hpl_rly_metrics_port).expect("Failed to get starting relayer balance");
+        agent_balance_sum(relayer_metrics_port).expect("Failed to get starting relayer balance");
 
     // dispatch the second batch of messages (after agents start)
     dispatched_messages += dispatch(&deployments, dispatched_messages).await;
@@ -402,146 +403,31 @@ async fn run_locally() {
         postgres,
     };
 
-    // TODO: refactor to share code
+    // Use the standard wait_for_condition function with config
+    let config = crate::config::Config::load(); // Load the config for invariants
     let loop_start = Instant::now();
-    let mut failure_occurred = false;
-    const TIMEOUT_SECS: u64 = 60 * 10;
-    loop {
-        // look for the end condition.
-        if termination_invariants_met(
-            hpl_rly_metrics_port,
-            hpl_scr_metrics_port,
-            dispatched_messages,
-            starting_relayer_balance,
-        )
-        .unwrap_or(false)
-        {
-            // end condition reached successfully
-            break;
-        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
-            // we ran out of time
-            log!("timeout reached before message submission was confirmed");
-            failure_occurred = true;
-            break;
-        }
+    let test_passed = wait_for_condition(
+        &config,
+        loop_start,
+        || {
+            radix_termination_invariants_met(
+                &config,
+                starting_relayer_balance,
+                scraper_metrics_port,
+                dispatched_messages,
+            )
+        },
+        || true,  // Always continue (no external shutdown signal for radix tests)
+        || false, // No long-running process checks for radix
+    );
 
-        sleep(Duration::from_secs(5));
-    }
-
-    if failure_occurred {
-        panic!("E2E tests failed");
+    if !test_passed {
+        panic!("Radix E2E tests failed");
     } else {
-        log!("E2E tests passed");
+        log!("Radix E2E tests passed");
     }
 }
 
-fn termination_invariants_met(
-    relayer_metrics_port: u32,
-    scraper_metrics_port: u32,
-    messages_expected: u32,
-    starting_relayer_balance: f64,
-) -> eyre::Result<bool> {
-    let expected_gas_payments = messages_expected;
-    let gas_payments_event_count = fetch_metric(
-        &relayer_metrics_port.to_string(),
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "gas_payment"},
-    )?
-    .iter()
-    .sum::<u32>();
-    if gas_payments_event_count != expected_gas_payments {
-        log!(
-            "Relayer has indexed {} gas payments, expected {}",
-            gas_payments_event_count,
-            expected_gas_payments
-        );
-        return Ok(false);
-    }
-
-    let msg_processed_count = fetch_metric(
-        &relayer_metrics_port.to_string(),
-        "hyperlane_operations_processed_count",
-        &hashmap! {"phase" => "confirmed"},
-    )?
-    .iter()
-    .sum::<u32>();
-    if msg_processed_count != messages_expected {
-        log!(
-            "Relayer confirmed {} submitted messages, expected {}",
-            msg_processed_count,
-            messages_expected
-        );
-        return Ok(false);
-    }
-
-    let ending_relayer_balance: f64 =
-        agent_balance_sum(relayer_metrics_port).expect("Failed to get ending relayer balance");
-
-    // Make sure the balance was correctly updated in the metrics.
-    // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
-    // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/c2288eb31734ba1f2f997e2c6ecb30176427bc2c/rust/utils/run-locally/src/cosmos/cli.rs#L55
-    // What's stopping this is that the format returned by the `uosmo` balance query is a surprisingly low number (0.000003999999995184)
-    // but then maybe the gas_per_tx is just very low - how can we check that? (maybe by simulating said tx)
-    if starting_relayer_balance <= ending_relayer_balance {
-        log!(
-            "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
-            starting_relayer_balance,
-            ending_relayer_balance
-        );
-        return Ok(false);
-    }
-
-    let dispatched_messages_scraped = fetch_metric(
-        &scraper_metrics_port.to_string(),
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "message_dispatch"},
-    )?
-    .iter()
-    .sum::<u32>();
-    if dispatched_messages_scraped != messages_expected {
-        log!(
-            "Scraper has scraped {} dispatched messages, expected {}",
-            dispatched_messages_scraped,
-            messages_expected
-        );
-        return Ok(false);
-    }
-
-    let gas_payments_scraped = fetch_metric(
-        &scraper_metrics_port.to_string(),
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "gas_payment"},
-    )?
-    .iter()
-    .sum::<u32>();
-    if gas_payments_scraped != expected_gas_payments {
-        log!(
-            "Scraper has scraped {} gas payments, expected {}",
-            gas_payments_scraped,
-            expected_gas_payments
-        );
-        return Ok(false);
-    }
-
-    let delivered_messages_scraped = fetch_metric(
-        &scraper_metrics_port.to_string(),
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "message_delivery"},
-    )?
-    .iter()
-    .sum::<u32>();
-    if delivered_messages_scraped != messages_expected {
-        log!(
-            "Scraper has scraped {} delivered messages, expected {}",
-            delivered_messages_scraped,
-            messages_expected
-        );
-        return Ok(false);
-    }
-
-    log!("Termination invariants have been meet");
-    Ok(true)
-}
 #[cfg(feature = "radix")]
 #[cfg(test)]
 mod test {
