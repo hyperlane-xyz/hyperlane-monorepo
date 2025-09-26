@@ -816,6 +816,7 @@ export {
 export { EvmEventLogsReader } from './rpc/evm/EvmEventLogsReader.js';
 export { getTimelockExecutableTransactionFromBatch } from './timelock/evm/utils.js';
 export { RadixHookReader } from './hook/RadixHookReader.js';
+export { RadixHookModule } from './hook/RadixHookModule.js';
 export { RadixIsmReader } from './ism/RadixIsmReader.js';
 export { RadixCoreReader } from './core/RadixCoreReader.js';
 export { RadixIsmModule } from './ism/RadixIsmModule.js';
