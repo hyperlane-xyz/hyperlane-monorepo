@@ -77,7 +77,7 @@ impl RadixAdapter {
             .intent_header(IntentHeaderV2 {
                 network_id: self.network.id,
                 start_epoch_inclusive: Epoch::of(epoch),
-                end_epoch_exclusive: Epoch::of(epoch + 2), // ~5 minutes per epoch -> 10min timeout
+                end_epoch_exclusive: Epoch::of(epoch.saturating_add(2)), // ~5 minutes per epoch -> 10min timeout
                 intent_discriminator: 0u64, // TODO: do we want this to happen? This is used like a nonce
                 min_proposer_timestamp_inclusive: None, // TODO: discuss whether or not we want to have a time limit
                 max_proposer_timestamp_exclusive: None,
@@ -175,7 +175,7 @@ impl RadixAdapter {
         let visible_components_sbor: Vec<_> = visible_components
             .iter()
             .map(|v| sbor::Value::Custom {
-                value: ManifestCustomValue::Address(v.clone().into()),
+                value: ManifestCustomValue::Address((*v).into()),
             })
             .collect();
         manifest_values.push(ManifestValue::Array {
@@ -342,7 +342,7 @@ impl AdaptsChain for RadixAdapter {
             Self::combine_args_with_visible_components(manifest_values, &visible_components);
 
         // 1.5x multiplier to fee summary
-        let multiplier = Decimal::from_str(GAS_MULTIPLIER).unwrap();
+        let multiplier = Decimal::from_str(GAS_MULTIPLIER).expect("Failed to parse GAS_MULTIPLIER");
 
         let simulated_xrd = RadixProvider::total_fee(fee_summary)?
             .checked_mul(multiplier)
