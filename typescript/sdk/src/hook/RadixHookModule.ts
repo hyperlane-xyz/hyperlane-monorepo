@@ -7,6 +7,7 @@ import {
   assert,
   deepEquals,
   eqAddress,
+  isNullish,
   isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -163,7 +164,7 @@ export class RadixHookModule extends HyperlaneModule<
     const updateTxs: AnnotatedRadixTransaction[] = [];
 
     for (const [remote, c] of Object.entries(targetConfig.oracleConfig)) {
-      if (currentConfig.oracleConfig[remote] === c) {
+      if (deepEquals(currentConfig.oracleConfig[remote], c)) {
         continue;
       }
 
@@ -261,7 +262,7 @@ export class RadixHookModule extends HyperlaneModule<
 
     for (const [remote, c] of Object.entries(config.oracleConfig)) {
       const remoteDomain = this.metadataManager.tryGetDomainId(remote);
-      if (remoteDomain === null) {
+      if (isNullish(remoteDomain)) {
         this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
         continue;
       }
