@@ -1,5 +1,4 @@
 use corelib::consts::RELAYER_SIG_OP_COUNT;
-use corelib::escrow::EscrowPublic;
 use kaspa_consensus_core::constants::UNACCEPTED_DAA_SCORE;
 use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, TransactionOutput, UtxoEntry};
 use kaspa_hashes::Hash;
