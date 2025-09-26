@@ -423,7 +423,7 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
         "".to_string(),
         RawCosmosAmount {
             denom: "".to_string(),
-            amount: "".to_string(),
+            amount: "0".to_string(),
         },
         32,
         OpSubmissionConfig::default(),
@@ -442,4 +442,16 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
     };
     CosmosProvider::<ModuleQueryClient>::new(&hub_conf, &locator, None, metrics, chain).unwrap()
     // TODO: no unwrap
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_cosmos_grpc_client_playground() {
+        let url = Url::parse("https://grpc-dymension-playground35.mzonder.com")
+            .expect("Failed to parse URL");
+        let _client = cosmos_grpc_client(vec![url]);
+    }
 }
