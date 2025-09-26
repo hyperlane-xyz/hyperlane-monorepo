@@ -63,12 +63,6 @@ impl PopulatedInputBuilder {
         self
     }
 
-    /// Configure for escrow usage
-    pub fn for_escrow(mut self, escrow: &EscrowPublic) -> Self {
-        self.sig_op_count = escrow.n() as u8;
-        self.redeem_script = Some(escrow.redeem_script.clone());
-        self
-    }
 
     /// Build the PopulatedInput
     pub fn build(self) -> PopulatedInput {

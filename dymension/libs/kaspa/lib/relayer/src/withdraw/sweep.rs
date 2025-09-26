@@ -273,7 +273,8 @@ fn prepare_next_iteration_inputs(
         escrow_output.amount,
         escrow_output.script_public_key.clone(),
     )
-    .for_escrow(escrow)
+    .sig_op_count(escrow.n() as u8)
+    .redeem_script(Some(escrow.redeem_script.clone()))
     .build();
     // Next iteration will use both outputs as inputs
     let new_relayer_inputs = vec![relayer_input];
@@ -491,7 +492,8 @@ pub fn create_inputs_from_sweeping_bundle(
         escrow_output.amount,
         escrow.p2sh.clone(),
     )
-    .for_escrow(escrow)
+    .sig_op_count(escrow.n() as u8)
+    .redeem_script(Some(escrow.redeem_script.clone()))
     .build();
 
     Ok(vec![relayer_input, escrow_input])

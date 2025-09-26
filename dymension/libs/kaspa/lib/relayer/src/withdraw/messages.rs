@@ -217,7 +217,6 @@ pub async fn build_withdrawal_fxg(
         payload,
         &escrow_public,
         &relayer_address,
-        relayer.net.network_id,
         min_deposit_sompi,
         feerate * tx_fee_multiplier,
         tx_mass,

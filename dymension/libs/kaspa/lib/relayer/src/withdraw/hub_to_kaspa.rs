@@ -114,7 +114,6 @@ pub fn build_withdrawal_pskt(
     payload: Vec<u8>,
     escrow: &EscrowPublic,
     relayer_addr: &kaspa_addresses::Address,
-    _network_id: NetworkId,
     min_deposit_sompi: U256,
     feerate: f64,
     tx_mass: u64,
