@@ -203,6 +203,10 @@ export async function writeAgentConfig(
     // Remove transactionOverrides from each chain in the agent config
     // To ensure all overrides are configured in infra code or the registry, and not in JSON
     for (const chainConfig of Object.values(currentAgentConfig.chains)) {
+      // special case for 0g as we want some agent specific overrides
+      if (chainConfig.name === 'zerogravity') {
+        continue;
+      }
       delete chainConfig.transactionOverrides;
     }
     writeJsonAtPath(filepath, objMerge(currentAgentConfig, agentConfig));

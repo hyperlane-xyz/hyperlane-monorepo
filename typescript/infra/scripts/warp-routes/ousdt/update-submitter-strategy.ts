@@ -50,39 +50,59 @@ async function main() {
   const chainSubmissionStrategy: ChainSubmissionStrategy = {};
   for (const [chain, config] of Object.entries(parsed.data)) {
     const { ownerType } = await determineGovernanceType(chain, config.owner);
-    if (ownerType === Owner.SAFE) {
-      chainSubmissionStrategy[chain] = {
-        submitter: {
-          chain,
-          type: TxSubmitterType.GNOSIS_TX_BUILDER,
-          version: '1.0',
-          safeAddress: config.owner,
-        },
-      };
-    }
-    // New ICA submitter config from https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/4980
-    else if (ownerType === Owner.ICA) {
-      chainSubmissionStrategy[chain] = {
-        submitter: {
-          chain: ICA_OWNER_CHAIN,
-          type: TxSubmitterType.INTERCHAIN_ACCOUNT,
-          owner: ICA_OWNER_SAFE,
-          destinationChain: chain,
-          internalSubmitter: {
-            chain: ICA_OWNER_CHAIN,
+
+    const ownerChainSubmitter = {
+      chain: ICA_OWNER_CHAIN,
+      type: TxSubmitterType.GNOSIS_TX_BUILDER,
+      version: '1.0',
+      safeAddress: ICA_OWNER_SAFE,
+    } as const;
+
+    const icaSubmitter = {
+      chain: ICA_OWNER_CHAIN,
+      type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+      owner: ICA_OWNER_SAFE,
+      destinationChain: chain,
+      internalSubmitter: ownerChainSubmitter,
+    } as const;
+
+    switch (ownerType) {
+      case Owner.SAFE:
+        chainSubmissionStrategy[chain] = {
+          submitter: {
+            chain,
             type: TxSubmitterType.GNOSIS_TX_BUILDER,
             version: '1.0',
-            safeAddress: ICA_OWNER_SAFE,
+            safeAddress: config.owner,
           },
-        },
-      };
-    } else {
-      chainSubmissionStrategy[chain] = {
-        submitter: {
-          chain,
-          type: TxSubmitterType.JSON_RPC,
-        },
-      };
+        };
+        break;
+      case Owner.ICA:
+        chainSubmissionStrategy[chain] = {
+          submitter: icaSubmitter,
+        };
+        break;
+      case Owner.TIMELOCK:
+        // By default timelock go through ICAs, apart from the owner chain.
+        // On the owner chain, the safe controls the timelock without an ICA wrapper.
+        chainSubmissionStrategy[chain] = {
+          submitter: {
+            chain,
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            timelockAddress: config.owner,
+            proposerSubmitter:
+              chain === ICA_OWNER_CHAIN ? ownerChainSubmitter : icaSubmitter,
+          },
+        };
+        break;
+      default:
+        chainSubmissionStrategy[chain] = {
+          submitter: {
+            chain,
+            type: TxSubmitterType.JSON_RPC,
+          },
+        };
+        break;
     }
   }
 
