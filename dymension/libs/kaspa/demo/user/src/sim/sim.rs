@@ -324,6 +324,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires playground to be up and populated"]
     async fn test_fund_hub_addr() {
         tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)

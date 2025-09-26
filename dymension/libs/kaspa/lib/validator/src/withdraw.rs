@@ -463,6 +463,8 @@ fn safe_pskt(unstrusted_inner: Inner) -> Result<PSKT<Signer>> {
     inner.global.input_count = unstrusted_inner.inputs.len();
     inner.global.output_count = unstrusted_inner.outputs.len();
     inner.global.payload = unstrusted_inner.global.payload;
+    inner.global.version = unstrusted_inner.global.version;
+
     for input in unstrusted_inner.inputs.iter() {
         let mut b = InputBuilder::default();
         if let Some(utxo_entry) = &input.utxo_entry {
