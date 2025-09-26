@@ -21,6 +21,7 @@ impl ConnectionConf {
             "localnet" => NetworkDefinition::localnet(),
             _ => NetworkDefinition::from_str(&network_name).unwrap_or(NetworkDefinition::mainnet()),
         };
+
         Self {
             core,
             gateway,

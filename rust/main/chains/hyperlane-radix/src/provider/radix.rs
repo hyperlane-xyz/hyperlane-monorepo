@@ -18,7 +18,7 @@ use gateway_api_client::{
     apis::configuration::Configuration as GatewayConfig,
     models::{
         self, CommittedTransactionInfo, CompiledPreviewTransaction, LedgerStateSelector,
-        ProgrammaticScryptoSborValue, StateEntityDetailsRequest, StreamTransactionsRequest,
+        ProgrammaticScryptoSborValue, StreamTransactionsRequest,
         TransactionCommittedDetailsRequest, TransactionDetailsOptIns, TransactionPreviewV2Request,
         TransactionStatusResponse,
     },
@@ -167,7 +167,8 @@ impl RadixProvider {
         })
     }
 
-    fn get_signer(&self) -> ChainResult<&RadixSigner> {
+    /// Get the Radix Signer
+    pub fn get_signer(&self) -> ChainResult<&RadixSigner> {
         let signer = self
             .signer
             .as_ref()
@@ -328,7 +329,7 @@ impl RadixProvider {
                         padded_address[32 - len..].copy_from_slice(&address[..len]);
                         let address: H256 = padded_address.into();
 
-                        let height = U256::from(tx.state_version).to_vec();
+                        let height = U256::from(tx.state_version as u64).to_vec();
 
                         let meta = LogMeta {
                             address,
@@ -392,6 +393,7 @@ impl RadixProvider {
                     manifest_instructions: Some(true),
                     receipt_events: Some(true),
                     receipt_fee_summary: Some(true),
+                    receipt_state_changes: Some(true),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -464,14 +466,14 @@ impl RadixProvider {
         let tx = TransactionBuilder::new_v2()
             .transaction_header(TransactionHeaderV2 {
                 notary_public_key: private_key.public_key(),
-                notary_is_signatory: false,
+                notary_is_signatory: true,
                 tip_basis_points: 0u32, // TODO: what should we set this to?
             })
             .intent_header(IntentHeaderV2 {
                 network_id: self.conf.network.id,
                 start_epoch_inclusive: Epoch::of(epoch),
                 end_epoch_exclusive: Epoch::of(epoch + 2), // ~5 minutes per epoch -> 10min timeout
-                intent_discriminator: 0u64, // TODO: do we want this to happen? This is used like a nonce
+                intent_discriminator: rand::random::<u64>(), // Use random discriminator to avoid collisions
                 min_proposer_timestamp_inclusive: None, // TODO: discuss whether or not we want to have a time limit
                 max_proposer_timestamp_exclusive: None,
             });
@@ -520,7 +522,6 @@ impl RadixProvider {
             .manifest_builder(|builder| {
                 build_manifest(builder.lock_fee(signer.address, simulated_xrd))
             })
-            .sign(&private_key)
             .notarize(&private_key)
             .build();
 
@@ -700,9 +701,7 @@ impl HyperlaneProvider for RadixProvider {
         let datetime = DateTime::parse_from_rfc3339(&tx.ledger_state.proposer_round_timestamp)
             .map_err(HyperlaneRadixError::from)?;
         let timestamp = datetime.with_timezone(&Utc).timestamp() as u64;
-
         let height_bytes = U256::from(tx.ledger_state.state_version).to_vec();
-
         Ok(BlockInfo {
             hash: H256::from_slice(&height_bytes),
             timestamp,
@@ -788,50 +787,8 @@ impl HyperlaneProvider for RadixProvider {
 
     /// Fetch the balance of the wallet address associated with the chain provider.
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        let details = self
-            .entity_details(StateEntityDetailsRequest {
-                addresses: vec![address],
-                opt_ins: Some(models::StateEntityDetailsOptIns {
-                    native_resource_details: Some(true),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            })
-            .await?;
-
-        for d in details.items {
-            if let Some(resources) = d.fungible_resources {
-                for i in resources.items {
-                    let (address, amount) = match i {
-                        models::FungibleResourcesCollectionItem::Global(x) => {
-                            let amount =
-                                Decimal::try_from(x.amount).map_err(HyperlaneRadixError::from)?;
-                            (x.resource_address, amount)
-                        }
-                        models::FungibleResourcesCollectionItem::Vault(v) => {
-                            // aggregate all the vaults amounts
-                            let amount = v
-                                .vaults
-                                .items
-                                .into_iter()
-                                .map(|x| Decimal::try_from(x.amount))
-                                .collect::<Result<Vec<_>, _>>()
-                                .map_err(HyperlaneRadixError::from)?
-                                .into_iter()
-                                .reduce(|a, b| a + b)
-                                .unwrap_or_default();
-                            (v.resource_address, amount)
-                        }
-                    };
-                    let address = decode_bech32(&address)?;
-                    if address == XRD.to_vec() {
-                        return Ok(decimal_to_u256(amount));
-                    }
-                }
-            }
-        }
-
-        Ok(U256::zero())
+        let balance: Decimal = self.call_method_with_arg(&address, "balance", &XRD).await?;
+        Ok(decimal_to_u256(balance))
     }
 
     /// Fetch metrics related to this chain
