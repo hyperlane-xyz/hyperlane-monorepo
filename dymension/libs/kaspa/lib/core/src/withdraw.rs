@@ -12,7 +12,7 @@ use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
     HyperlaneMessages as ProtoHyperlaneMessages, WithdrawFxg as ProtoWithdrawFXG, WithdrawalVersion,
 };
 use kaspa_consensus_core::tx::TransactionOutpoint;
-use kaspa_wallet_pskt::prelude::{Bundle, Version};
+use kaspa_wallet_pskt::prelude::Bundle;
 use prost::Message;
 
 /// WithdrawFXG represents a sequence of PSKT transactions for batch processing and transport as
