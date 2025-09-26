@@ -796,7 +796,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   forma: {
-    threshold: 4,
+    threshold: 5,
     validators: [
       {
         address: '0x5B19F64F04f495D3958804Ec416c165F00f74898',
@@ -1249,12 +1249,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mantra: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x89b8064e29f125e896f6081ebb77090c46bca9cd',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -2135,12 +2136,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   sova: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x1763d686c45df79f6d5f63564255546b08cb206c',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -2483,11 +2485,25 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   zerogravity: {
-    threshold: 1,
+    threshold: 4,
     validators: [
       {
         address: '0xc37e7dad064c11d7ecfc75813a4d8d649d797275',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0x25c5fc524ac7ef5e7868644fbe68793e5eb179ea',
+        alias: 'Luganodes',
+      },
+      {
+        address: '0x782ac2b5244b69779bd7214a2d60212fb35c3ae7',
+        alias: 'Enigma',
+      },
+      {
+        address: '0xd3e6a4e61b5d902a63df6dac9db5585d9f319b09',
+        alias: 'Substance Labs',
       },
     ],
   },
