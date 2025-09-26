@@ -810,10 +810,17 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
+                let signer = self.sealevel_signer().await.context(ctx)?;
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let tx_submitter =
+                    build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
                 let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(
-                    provider, &locator,
+                    provider,
+                    tx_submitter,
+                    conf.clone(),
+                    &locator,
+                    signer.map(h_sealevel::SealevelKeypair::new),
                 ));
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
