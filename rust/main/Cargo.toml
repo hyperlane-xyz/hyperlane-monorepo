@@ -7,8 +7,7 @@ members = [
   "applications/hyperlane-operation-verifier",
   "applications/hyperlane-warp-route",
   "chains/hyperlane-cosmos",
-  # Temporarily excluded due to cosmwasm-crypto ed25519-zebra conflict
-  # "chains/dymension-kaspa",
+  "chains/dymension-kaspa",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
   "chains/hyperlane-radix",
