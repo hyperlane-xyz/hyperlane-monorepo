@@ -14,7 +14,7 @@ use radix_transactions::{
     signing::PrivateKey,
 };
 use scrypto::{
-    address::AddressBech32Decoder,
+    address::{AddressBech32Decoder, AddressBech32Encoder},
     crypto::IsHash,
     math::{CheckedMul, Decimal, SaturatingAdd},
     network::NetworkDefinition,
@@ -40,6 +40,7 @@ use crate::{
 
 // the number of simulate calls we do to get the necessary addresses
 const NODE_DEPTH: usize = 5;
+const GAS_MULTIPLIER: &str = "1.5";
 
 #[allow(dead_code)]
 pub struct RadixAdapter {
@@ -95,6 +96,8 @@ impl RadixAdapter {
         args: Vec<sbor::Value<ManifestCustomValueKind, ManifestCustomValue>>,
     ) -> ChainResult<(Vec<ComponentAddress>, FeeSummary)> {
         let decoder = AddressBech32Decoder::new(&self.network);
+
+        let mut last_simulated_status = core_api_client::models::TransactionStatus::Failed;
         let mut visible_components: Vec<ComponentAddress> = Vec::new();
         let mut fee_summary = FeeSummary::default();
 
@@ -135,8 +138,10 @@ impl RadixAdapter {
                     }),
                 })
                 .await?;
+
             fee_summary = result.fee_summary;
-            if result.status == core_api_client::models::TransactionStatus::Succeeded {
+            last_simulated_status = result.status;
+            if last_simulated_status == core_api_client::models::TransactionStatus::Succeeded {
                 break;
             }
 
@@ -151,10 +156,15 @@ impl RadixAdapter {
                 }
             } else {
                 // early return if the error message is caused by something else than an invisible node
-                return Ok((visible_components, fee_summary));
+                return Err(ChainCommunicationError::SimulationFailed(error_message));
             }
         }
 
+        if last_simulated_status != core_api_client::models::TransactionStatus::Succeeded {
+            return Err(ChainCommunicationError::SimulationFailed(
+                "NODE_DEPTH reached".into(),
+            ));
+        }
         Ok((visible_components, fee_summary))
     }
 
@@ -256,15 +266,27 @@ impl AdaptsChain for RadixAdapter {
                         );
                         LanderError::PayloadNotFound
                     })?;
-            self.visible_components(&component_address, &tx_precursor.method_name, manifest_args)
-                .await?
+            match self
+                .visible_components(&component_address, &tx_precursor.method_name, manifest_args)
+                .await
+            {
+                Ok(s) => s,
+                Err(err) => {
+                    tracing::error!(?err, "Failed to get visible components");
+                    return Ok(tx.payload_details.clone());
+                }
+            }
         };
 
+        let encoder = AddressBech32Encoder::new(&self.network);
         let precursor = tx.precursor_mut();
 
         precursor.fee_summary = Some(fee_summary);
         precursor.visible_components = Some(VisibleComponents {
-            addresses: visible_components.iter().map(|v| v.to_hex()).collect(),
+            addresses: visible_components
+                .iter()
+                .filter_map(|v| encoder.encode(v.as_bytes()).ok())
+                .collect(),
         });
         Ok(Vec::new())
     }
@@ -302,7 +324,7 @@ impl AdaptsChain for RadixAdapter {
                 Some(v) => v
                     .addresses
                     .iter()
-                    .filter_map(|s| ComponentAddress::try_from_hex(s))
+                    .filter_map(|s| ComponentAddress::try_from_bech32(&decoder, s))
                     .collect(),
                 None => return Err(LanderError::EstimationFailed),
             };
@@ -320,7 +342,7 @@ impl AdaptsChain for RadixAdapter {
             Self::combine_args_with_visible_components(manifest_values, &visible_components);
 
         // 1.5x multiplier to fee summary
-        let multiplier = Decimal::from_str("1.5").unwrap();
+        let multiplier = Decimal::from_str(GAS_MULTIPLIER).unwrap();
 
         let simulated_xrd = RadixProvider::total_fee(fee_summary)?
             .checked_mul(multiplier)

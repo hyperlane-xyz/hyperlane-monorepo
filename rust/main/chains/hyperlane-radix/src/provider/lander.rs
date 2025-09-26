@@ -33,10 +33,9 @@ impl RadixProviderForLander for RadixProvider {
         self.get_tx_status(hash).await
     }
     async fn check_preview(&self, params: &RadixTxCalldata) -> ChainResult<bool> {
-        let hex_address = hex::encode(&params.component_address);
         let resp = self
             .call_method::<bool>(
-                &hex_address,
+                &params.component_address,
                 &params.method_name,
                 None,
                 vec![params.encoded_arguments.clone()],

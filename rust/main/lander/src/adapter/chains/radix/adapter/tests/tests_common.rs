@@ -43,7 +43,7 @@ pub fn adapter(
         .expect("Invalid regex");
     RadixAdapter {
         provider,
-        network: NetworkDefinition::mainnet(),
+        network: network.clone(),
         signer,
         estimated_block_time: Duration::from_nanos(0),
         component_regex,

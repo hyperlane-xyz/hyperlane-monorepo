@@ -15,9 +15,6 @@ use scrypto::prelude::{manifest_encode, ManifestArgs};
 use scrypto::types::ComponentAddress;
 use uuid::Uuid;
 
-use crate::adapter::chains::radix::adapter::tests::tests_common::{
-    payload, MockRadixProvider, MAILBOX_ADDRESS, TEST_PRIVATE_KEY,
-};
 use crate::adapter::chains::radix::adapter::NODE_DEPTH;
 use crate::adapter::chains::radix::precursor::RadixTxPrecursor;
 use crate::adapter::chains::radix::{Precursor, VisibleComponents};
@@ -26,7 +23,7 @@ use crate::payload::PayloadDetails;
 use crate::transaction::{Transaction, TransactionUuid, VmSpecificTxData};
 use crate::{FullPayload, TransactionStatus};
 
-use super::tests_common::adapter;
+use super::tests_common::{adapter, payload, MockRadixProvider, MAILBOX_ADDRESS, TEST_PRIVATE_KEY};
 
 const MAILBOX_METHOD_NAME_RPOCESS: &str = "process";
 
@@ -84,7 +81,6 @@ async fn test_submit_tx() {
     let encoded_arguments = manifest_encode(&args).expect("Failed to encode manifest");
 
     let visible_components: Vec<_> = ADDRESSES.iter().map(|s| s.to_string()).collect();
-    assert_eq!(visible_components.len(), ADDRESSES.len());
 
     let mut precursor = RadixTxPrecursor::new(
         MAILBOX_ADDRESS.into(),
@@ -100,7 +96,7 @@ async fn test_submit_tx() {
         "6000".into(),
         "7000".into(),
     );
-    eprintln!("{:?}", fee_summary);
+
     precursor.fee_summary = Some(fee_summary);
     precursor.visible_components = Some(VisibleComponents {
         addresses: visible_components,
@@ -136,10 +132,9 @@ async fn test_submit_tx() {
         .expect("Failed to submit tx");
 
     // then
-    let hash_hex = hex::decode("000000000000000000000000000000000000000000000000000000000000000020923df5e12294b4b3942ca3278c32c1641d868f4bcb683dd43e0d5d1e20dda2")
+    let hash_hex = hex::decode("0000000000000000000000000000000000000000000000000000000000000000e038f6e0809d9c11366dbc7a10354ff0304f4ec081c92cf1fea01575cf282247")
         .expect("Failed to decode hex");
     let expected_hash = H512::from_slice(&hash_hex);
-
     assert_eq!(transaction.tx_hashes, vec![expected_hash]);
 
     let precursor = transaction.precursor();
