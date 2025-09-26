@@ -623,6 +623,8 @@ jobs:
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
 
       - name: agent tests (EVM)
         if: ${{ matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
