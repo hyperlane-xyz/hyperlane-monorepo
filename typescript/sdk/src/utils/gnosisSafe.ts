@@ -1,12 +1,19 @@
-// This file is JS because of https://github.com/safe-global/safe-core-sdk/issues/805
 import SafeApiKit from '@safe-global/api-kit';
-import Safe from '@safe-global/protocol-kit';
+import Safe, { SafeProviderConfig } from '@safe-global/protocol-kit';
 import {
   getMultiSendCallOnlyDeployment,
   getMultiSendDeployment,
 } from '@safe-global/safe-deployments';
 
-export function getSafeService(chain, multiProvider, apiKey) {
+import { Address } from '../../../utils/dist/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
+
+export function getSafeService(
+  chain: ChainName,
+  multiProvider: MultiProvider,
+  apiKey?: string,
+) {
   let txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
   if (!txServiceUrl) {
@@ -32,6 +39,7 @@ export function getSafeService(chain, multiProvider, apiKey) {
   // Only provide apiKey if the url contains safe.global or 5afe.dev
   const shouldProvideApiKey = /safe\.global|5afe\.dev/.test(txServiceUrl);
 
+  // @ts-ignore
   return new SafeApiKit({
     chainId: BigInt(chainId),
     txServiceUrl,
@@ -42,7 +50,10 @@ export function getSafeService(chain, multiProvider, apiKey) {
 // This is the version of the Safe contracts that the SDK is compatible with.
 // Copied the MVP fields from https://github.com/safe-global/safe-core-sdk/blob/4d1c0e14630f951c2498e1d4dd521403af91d6e1/packages/protocol-kit/src/contracts/config.ts#L19
 // because the SDK doesn't expose this value.
-const safeDeploymentsVersions = {
+const safeDeploymentsVersions: Record<
+  string,
+  { multiSendVersion: string; multiSendCallOnlyVersion: string }
+> = {
   '1.4.1': {
     multiSendVersion: '1.4.1',
     multiSendCallOnlyVersion: '1.4.1',
@@ -67,7 +78,10 @@ const safeDeploymentsVersions = {
 
 // Override for chains that haven't yet been published in the safe-deployments package.
 // Temporary until PR to safe-deployments package is merged and SDK dependency is updated.
-const chainOverrides = {
+const chainOverrides: Record<
+  string,
+  { multiSend: string; multiSendCallOnly: string }
+> = {
   // zeronetwork
   543210: {
     multiSend: '0x0dFcccB95225ffB03c6FBB2559B530C2B7C8A912',
@@ -81,11 +95,11 @@ const chainOverrides = {
 };
 
 export async function getSafe(
-  chain,
-  multiProvider,
-  safeAddress,
-  apiKey,
-  signer,
+  chain: ChainName,
+  multiProvider: MultiProvider,
+  safeAddress: Address,
+  apiKey?: string,
+  signer?: SafeProviderConfig['signer'],
 ) {
   // Get the chain id for the given chain
   const chainId = `${multiProvider.getEvmChainId(chain)}`;
@@ -122,6 +136,7 @@ export async function getSafe(
     });
   }
 
+  // @ts-ignore
   return Safe.init({
     provider: multiProvider.getChainMetadata(chain).rpcUrls[0].http,
     signer,
@@ -138,18 +153,21 @@ export async function getSafe(
   });
 }
 
-export async function getSafeDelegates(service, safeAddress) {
+export async function getSafeDelegates(
+  service: SafeApiKit.default,
+  safeAddress: Address,
+) {
   const delegateResponse = await service.getSafeDelegates({ safeAddress });
   return delegateResponse.results.map((r) => r.delegate);
 }
 
 export async function canProposeSafeTransactions(
-  proposer,
-  chain,
-  multiProvider,
-  safeAddress,
+  proposer: Address,
+  chain: ChainName,
+  multiProvider: MultiProvider,
+  safeAddress: Address,
 ) {
-  let safeService;
+  let safeService: SafeApiKit.default;
   try {
     safeService = getSafeService(chain, multiProvider);
   } catch {
