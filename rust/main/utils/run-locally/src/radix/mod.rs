@@ -127,6 +127,7 @@ async fn dispatch(deployments: &Vec<Deployment>, nonce: u32) -> u32 {
                 .cli
                 .remote_transfer(local.contracts.collateral, other.domain, nonce + 1)
                 .await;
+            sleep(Duration::from_secs(5));
             transfers += 1;
         }
     }
