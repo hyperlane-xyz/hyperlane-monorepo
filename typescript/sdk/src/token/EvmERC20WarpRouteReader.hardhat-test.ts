@@ -72,6 +72,7 @@ describe('ERC20WarpRouterReader', async () => {
   let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
   let vault: ERC4626;
   let collateralFiatToken: FiatTokenTest;
+
   before(async () => {
     [signer] = await hre.ethers.getSigners();
 
