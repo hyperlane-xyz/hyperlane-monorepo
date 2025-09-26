@@ -115,7 +115,7 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   zerogravity: middleRateLimitPerSecond,
 };
 
-const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = ['zerogravity'];
+const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = [];
 const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
   deploymentChains.reduce((acc, chain) => {
     if (DPL_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
