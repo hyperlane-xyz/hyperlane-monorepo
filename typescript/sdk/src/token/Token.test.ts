@@ -123,6 +123,15 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
+  [TokenStandard.TokenBridgeOft]: {
+    chainName: TestChainName.test1,
+    standard: TokenStandard.TokenBridgeOft,
+    addressOrDenom: '0x8f2a074421098E10ab7083e198E177D4d215a9A5',
+    collateralAddressOrDenom: '0x85A99C9445a95e4E8220B8dAB8d3e5d8e4c34553',
+    decimals: 18,
+    symbol: 'MOFT',
+    name: 'My OFT',
+  },
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
