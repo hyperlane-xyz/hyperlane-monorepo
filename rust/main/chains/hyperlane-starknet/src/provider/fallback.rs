@@ -6,50 +6,30 @@ use std::{ops::Deref, time::Duration};
 /// This file is mostly copied from starknet::providers::jsonrpc::HttpTransport
 /// https://github.com/xJonathanLEI/starknet-rs/blob/master/starknet-providers/src/jsonrpc/transports/http.rs
 use async_trait::async_trait;
-use hyperlane_core::{
-    rpc_clients::{BlockNumberGetter, FallbackProvider},
-    ChainCommunicationError, ChainResult,
+use hyperlane_core::{rpc_clients::FallbackProvider, ChainCommunicationError};
+use hyperlane_metric::prometheus_metric::{
+    ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
 use serde::{de::DeserializeOwned, Serialize};
 
 use starknet::providers::{
-    jsonrpc::{
-        HttpTransport, HttpTransportError, JsonRpcMethod, JsonRpcResponse, JsonRpcTransport,
-    },
-    JsonRpcClient, Provider, ProviderRequestData,
+    jsonrpc::{HttpTransportError, JsonRpcMethod, JsonRpcResponse, JsonRpcTransport},
+    ProviderRequestData,
 };
 use tokio::time::sleep;
 use tracing::warn;
 use url::Url;
 
-use crate::HyperlaneStarknetError;
-
-/// Wrapped HttpTransport
-#[derive(Debug, Clone)]
-pub struct WrappedHttpTrasport(HttpTransport);
-
-impl Deref for WrappedHttpTrasport {
-    type Target = HttpTransport;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl WrappedHttpTrasport {
-    fn new(url: Url) -> WrappedHttpTrasport {
-        Self(HttpTransport::new(url))
-    }
-}
+use crate::{HyperlaneStarknetError, MetricProvider};
 
 /// A [`JsonRpcTransport`] implementation that uses HTTP connections.
 #[derive(Debug, Clone)]
 pub struct FallbackHttpTransport {
-    fallback: FallbackProvider<WrappedHttpTrasport, WrappedHttpTrasport>,
+    fallback: FallbackProvider<MetricProvider, MetricProvider>,
 }
 
 impl Deref for FallbackHttpTransport {
-    type Target = FallbackProvider<WrappedHttpTrasport, WrappedHttpTrasport>;
+    type Target = FallbackProvider<MetricProvider, MetricProvider>;
 
     fn deref(&self) -> &Self::Target {
         &self.fallback
@@ -72,24 +52,20 @@ pub enum FallbackHttpTransportError {
 
 impl FallbackHttpTransport {
     /// Constructs [`FallbackHttpTransport`] from a JSON-RPC server URL, using default HTTP client settings.
-    pub fn new(urls: impl IntoIterator<Item = Url>) -> Self {
-        let providers = urls.into_iter().map(WrappedHttpTrasport::new);
+    pub fn new(
+        urls: impl IntoIterator<Item = Url>,
+        metrics: PrometheusClientMetrics,
+        chain: Option<ChainInfo>,
+    ) -> Self {
+        let providers = urls.into_iter().map(|url| {
+            let metrics_config =
+                PrometheusConfig::from_url(&url, ClientConnectionType::Rpc, chain.clone());
+
+            MetricProvider::new(url, metrics.clone(), metrics_config.clone())
+        });
         Self {
             fallback: FallbackProvider::new(providers),
         }
-    }
-}
-
-#[async_trait]
-impl BlockNumberGetter for WrappedHttpTrasport {
-    /// Latest block number getter
-    async fn get_block_number(&self) -> ChainResult<u64> {
-        let json_rpc = JsonRpcClient::new(self.0.clone());
-        json_rpc
-            .block_number()
-            .await
-            .map_err(HyperlaneStarknetError::from)
-            .map_err(ChainCommunicationError::from)
     }
 }
 
