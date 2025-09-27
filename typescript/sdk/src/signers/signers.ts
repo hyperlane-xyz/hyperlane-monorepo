@@ -5,6 +5,7 @@ import { ChainName } from '../types.js';
 
 import { CosmosNativeMultiProtocolSignerAdapter } from './cosmos/cosmjs.js';
 import { EvmMultiProtocolSignerAdapter } from './evm/ethersv5.js';
+import { RadixMultiProtocolSignerAdapter } from './radix/radix-toolkit.js';
 import { StarknetMultiProtocolSignerAdapter } from './starknet/starknetjs.js';
 import { SvmMultiprotocolSignerAdapter } from './svm/solana-web3js.js';
 import { IMultiProtocolSigner } from './types.js';
@@ -59,6 +60,11 @@ export async function getSignerForChain<TProtocol extends ProtocolType>(
         accountConfig.privateKey,
         accountConfig.address,
         multiProtocolProvider,
+      );
+    case ProtocolType.Radix:
+      return RadixMultiProtocolSignerAdapter.init(
+        chainName,
+        accountConfig.privateKey,
       );
     default:
       throw new Error(`Signer not supported for protocol type ${protocol}`);
