@@ -40,7 +40,7 @@
     "decimals": 9
   },
   "botanix": {
-    "amount": "0.000822245",
+    "amount": "0.00265",
     "decimals": 9
   },
   "avalanche": {
@@ -83,6 +83,10 @@
     "amount": "0.001000252",
     "decimals": 9
   },
+  "carrchain": {
+    "amount": "100000.0",
+    "decimals": 9
+  },
   "celestia": {
     "amount": "0.02",
     "decimals": 1
@@ -100,7 +104,7 @@
     "decimals": 9
   },
   "coredao": {
-    "amount": "30.0",
+    "amount": "60.0",
     "decimals": 9
   },
   "coti": {
@@ -132,7 +136,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "2.5",
+    "amount": "12.5",
     "decimals": 9
   },
   "everclear": {
@@ -144,7 +148,7 @@
     "decimals": 9
   },
   "flare": {
-    "amount": "25.0",
+    "amount": "189.541449419",
     "decimals": 9
   },
   "flowmainnet": {
@@ -176,7 +180,7 @@
     "decimals": 9
   },
   "gnosis": {
-    "amount": "0.000308849",
+    "amount": "0.003290698",
     "decimals": 9
   },
   "gravity": {
@@ -205,6 +209,10 @@
   },
   "inevm": {
     "amount": "0.1",
+    "decimals": 9
+  },
+  "incentiv": {
+    "amount": "1",
     "decimals": 9
   },
   "ink": {
@@ -240,7 +248,7 @@
     "decimals": 9
   },
   "lumiaprism": {
-    "amount": "9.28",
+    "amount": "10.4",
     "decimals": 9
   },
   "mantapacific": {
@@ -284,7 +292,7 @@
     "decimals": 9
   },
   "mitosis": {
-    "amount": "1",
+    "amount": "500.000000007",
     "decimals": 9
   },
   "mode": {
@@ -295,12 +303,16 @@
     "amount": "1.0",
     "decimals": 9
   },
+  "monad": {
+    "amount": "52.0",
+    "decimals": 9
+  },
   "moonbeam": {
     "amount": "31.25",
     "decimals": 9
   },
   "morph": {
-    "amount": "0.03",
+    "amount": "0.05",
     "decimals": 9
   },
   "neutron": {
@@ -348,7 +360,7 @@
     "decimals": 9
   },
   "plasma": {
-    "amount": "1.000000007",
+    "amount": "0.0000999",
     "decimals": 9
   },
   "plume": {
@@ -356,7 +368,7 @@
     "decimals": 9
   },
   "polygon": {
-    "amount": "76.216987164",
+    "amount": "104.348697715",
     "decimals": 9
   },
   "polygonzkevm": {
@@ -376,7 +388,7 @@
     "decimals": 9
   },
   "pulsechain": {
-    "amount": "955251.886808412",
+    "amount": "864796.928803394",
     "decimals": 9
   },
   "radix": {
@@ -404,7 +416,7 @@
     "decimals": 9
   },
   "sei": {
-    "amount": "1.1",
+    "amount": "6.605347133",
     "decimals": 9
   },
   "shibarium": {
@@ -420,7 +432,7 @@
     "decimals": 1
   },
   "soneium": {
-    "amount": "0.001000921",
+    "amount": "0.001592499",
     "decimals": 9
   },
   "sonic": {
@@ -520,7 +532,7 @@
     "decimals": 9
   },
   "zerogravity": {
-    "amount": "52.631578947",
+    "amount": "13.200000021",
     "decimals": 9
   },
   "zeronetwork": {

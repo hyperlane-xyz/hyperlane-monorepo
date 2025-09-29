@@ -1567,5 +1567,35 @@ export const validatorChainConfig = (
         'mantra',
       ),
     },
+    carrchain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('carrchain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x7ed0a7582af75dc38ad82e7125b51e3eaa6ec33b'],
+        },
+        'carrchain',
+      ),
+    },
+    incentiv: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('incentiv'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x72669f47b6f119289f1a42641b02a9656cc8fecd'],
+        },
+        'incentiv',
+      ),
+    },
+    monad: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('monad'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xb4654795b2f1b17513ffde7d85c776e4cade366c'],
+        },
+        'monad',
+      ),
+    },
   };
 };
