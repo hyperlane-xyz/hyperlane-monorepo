@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use hyperlane_core::ReorgPeriod;
 use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain, H256};
+use hyperlane_core::{ReorgPeriod, SubmitterType};
 use hyperlane_radix::{ConnectionConf, RadixProvider, RadixSigner};
 
 use macro_rules_attribute::apply;
@@ -22,6 +22,7 @@ pub const KEY: (&str, &str) = (
 pub const CORE_API: &str = "http://localhost:3333/core";
 pub const GATEWAY_API: &str = "http://localhost:5308/";
 pub const NETWORK: NetworkDefinition = NetworkDefinition::localnet();
+pub const SUBMITTER_TYPE: SubmitterType = SubmitterType::Lander;
 
 const HYPERLANE_RADIX_GIT: &str = "https://github.com/hyperlane-xyz/hyperlane-radix";
 const HYPERLANE_RADIX_VERSION: &str = "1.0.0";
@@ -210,6 +211,8 @@ fn launch_radix_relayer(agent_config_path: String, relay_chains: Vec<String>) ->
         .hyp_env("DEFAULTSIGNER_KEY", KEY.1)
         .hyp_env("DEFAULTSIGNER_TYPE", "radixKey")
         .hyp_env("DEFAULTSIGNER_SUFFIX", SUFFIX)
+        .hyp_env("CHAINS_RADIXTEST0_SUBMITTER", SUBMITTER_TYPE.to_string())
+        .hyp_env("CHAINS_RADIXTEST1_SUBMITTER", SUBMITTER_TYPE.to_string())
         .hyp_env(
             "GASPAYMENTENFORCEMENT",
             r#"[{

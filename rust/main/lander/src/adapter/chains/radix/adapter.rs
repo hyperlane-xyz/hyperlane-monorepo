@@ -409,7 +409,7 @@ impl AdaptsChain for RadixAdapter {
         let tx_precursor = tx.precursor_mut();
         tx_precursor.tx_hash = Some(tx_hash);
 
-        tracing::info!(?tx, ?radix_tx, ?tx_hash, "submitted transaction");
+        tracing::info!(tx_uuid=?tx.uuid, ?tx_hash, "submitted transaction");
 
         Ok(())
     }
