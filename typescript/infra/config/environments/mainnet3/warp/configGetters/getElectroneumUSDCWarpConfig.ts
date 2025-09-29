@@ -17,10 +17,10 @@ type DeploymentChains<T> = {
 };
 
 // SAFE wallets from the team
-export const ownersByChain: DeploymentChains<Address> = {
+const ownersByChain: DeploymentChains<Address> = {
   avalanche: '0xe0eb6194A56cdb6a51BB5855cddEbd61c03a199d',
   base: '0xe0eb6194A56cdb6a51BB5855cddEbd61c03a199d',
-  electroneum: '0x75BC257549A48Ee12624645Ad4a5E847A2537E66', // ICA
+  electroneum: '0x75BC257549A48Ee12624645Ad4a5E847A2537E66', // ICA - origin chain is ethereum
   ethereum: '0xe0eb6194A56cdb6a51BB5855cddEbd61c03a199d',
 };
 
