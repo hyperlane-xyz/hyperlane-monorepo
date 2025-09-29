@@ -16,7 +16,7 @@
     "decimals": 9
   },
   "arbitrum": {
-    "amount": "0.010132",
+    "amount": "0.066613",
     "decimals": 9
   },
   "arbitrumnova": {
@@ -52,11 +52,11 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.007305675",
+    "amount": "0.029771807",
     "decimals": 9
   },
   "berachain": {
-    "amount": "0.00000103",
+    "amount": "1.030812584",
     "decimals": 9
   },
   "bitlayer": {
@@ -196,7 +196,7 @@
     "decimals": 9
   },
   "hyperevm": {
-    "amount": "0.15",
+    "amount": "1.782719282",
     "decimals": 9
   },
   "immutablezkevmmainnet": {
@@ -284,7 +284,7 @@
     "decimals": 9
   },
   "mitosis": {
-    "amount": "0.1",
+    "amount": "1",
     "decimals": 9
   },
   "mode": {
@@ -356,7 +356,7 @@
     "decimals": 9
   },
   "polygon": {
-    "amount": "30.637664856",
+    "amount": "76.216987164",
     "decimals": 9
   },
   "polygonzkevm": {
@@ -408,7 +408,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "3.011075299",
+    "amount": "226.686",
     "decimals": 9
   },
   "snaxchain": {
@@ -500,7 +500,7 @@
     "decimals": 9
   },
   "vana": {
-    "amount": "0.005",
+    "amount": "0.009999743",
     "decimals": 9
   },
   "viction": {
@@ -524,7 +524,7 @@
     "decimals": 9
   },
   "zerogravity": {
-    "amount": "2.000000007",
+    "amount": "52.631578947",
     "decimals": 9
   },
   "zeronetwork": {
