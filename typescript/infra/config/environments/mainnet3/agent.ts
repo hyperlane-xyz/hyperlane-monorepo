@@ -180,7 +180,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
-    sova: true,
+    sova: false,
     starknet: true,
     story: true,
     stride: false,
@@ -322,7 +322,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
-    sova: true,
+    sova: false,
     starknet: true,
     story: true,
     stride: true,
@@ -464,7 +464,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
-    sova: true,
+    sova: false,
     starknet: true,
     story: true,
     stride: true,
@@ -855,7 +855,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '34424c5-20250922-102920',
+      tag: 'fad6a77-20250929-173639',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -875,7 +875,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '4359931-20250921-174119',
+      tag: 'fad6a77-20250929-173639',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -886,7 +886,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '31d0611-20250924-150435',
+      tag: 'fad6a77-20250929-173639',
     },
     resources: scraperResources,
   },
@@ -901,7 +901,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '34424c5-20250922-102920',
+      tag: 'fad6a77-20250929-173639',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

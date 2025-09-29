@@ -65,6 +65,9 @@
   "bsquared": {
     "validators": ["0xcadc90933c9fbe843358a4e70e46ad2db78e28aa"]
   },
+  "carrchain": {
+    "validators": ["0x7ed0a7582af75dc38ad82e7125b51e3eaa6ec33b"]
+  },
   "celestia": {
     "validators": ["0x6dbc192c06907784fb0af0c0c2d8809ea50ba675"]
   },
@@ -152,6 +155,9 @@
   "immutablezkevmmainnet": {
     "validators": ["0xbdda85b19a5efbe09e52a32db1a072f043dd66da"]
   },
+  "incentiv": {
+    "validators": ["0x72669f47b6f119289f1a42641b02a9656cc8fecd"]
+  },
   "inevm": {
     "validators": ["0xf9e35ee88e4448a3673b4676a4e153e3584a08eb"]
   },
@@ -220,6 +226,9 @@
   },
   "molten": {
     "validators": ["0xad5aa33f0d67f6fa258abbe75458ea4908f1dc9f"]
+  },
+  "monad": {
+    "validators": ["0xb4654795b2f1b17513ffde7d85c776e4cade366c"]
   },
   "moonbeam": {
     "validators": ["0x2225e2f4e9221049456da93b71d2de41f3b6b2a8"]
@@ -326,9 +335,6 @@
   "sophon": {
     "validators": ["0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b"]
   },
-  "sova": {
-    "validators": ["0x1763d686c45df79f6d5f63564255546b08cb206c"]
-  },
   "story": {
     "validators": ["0x501eda013378c60557d763df98d617b6ba55447a"]
   },
@@ -397,14 +403,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "carrchain": {
-    "validators": ["0x7ed0a7582af75dc38ad82e7125b51e3eaa6ec33b"]
-  },
-  "incentiv": {
-    "validators": ["0x72669f47b6f119289f1a42641b02a9656cc8fecd"]
-  },
-  "monad": {
-    "validators": ["0xb4654795b2f1b17513ffde7d85c776e4cade366c"]
   }
 }
