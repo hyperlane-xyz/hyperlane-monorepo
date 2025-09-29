@@ -226,7 +226,6 @@ pub enum KnownHyperlaneDomain {
     Sei = 1329,
     Scroll = 534352,
     Shibarium = 109,
-    SnaxChain = 2192,
     SolanaMainnet = 1399811149,
     Solaxy = 1936682104,
     Sophon = 50104,
@@ -530,7 +529,7 @@ impl KnownHyperlaneDomain {
             | SuperpositionMainnet | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
             Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Form | Fraxtal | Guru
             | Ink | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint | Mode
-            | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone | SnaxChain
+            | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone
             | Soneium | Superseed | Swell | Unichain | Worldchain | Zircuit | ZoraMainnet => {
                 HyperlaneDomainTechnicalStack::OpStack
             }

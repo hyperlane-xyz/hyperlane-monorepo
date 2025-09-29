@@ -1959,18 +1959,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  snaxchain: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x2c25829ae32a772d2a49f6c4b34f8b01fd03ef9e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   solanadevnet: {
     threshold: 2,
     validators: [

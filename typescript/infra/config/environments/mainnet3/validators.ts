@@ -902,16 +902,6 @@ export const validatorChainConfig = (
         'orderly',
       ),
     },
-    snaxchain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('snaxchain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x2c25829ae32a772d2a49f6c4b34f8b01fd03ef9e'],
-        },
-        'snaxchain',
-      ),
-    },
     chilizmainnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('chilizmainnet'),

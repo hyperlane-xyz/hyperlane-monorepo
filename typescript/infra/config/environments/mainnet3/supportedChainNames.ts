@@ -104,7 +104,6 @@ export const mainnet3SupportedChainNames = [
   'scroll',
   'sei',
   'shibarium',
-  'snaxchain',
   'solanamainnet',
   'solaxy',
   'soneium',
