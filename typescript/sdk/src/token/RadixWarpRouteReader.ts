@@ -70,7 +70,7 @@ export class RadixWarpRouteReader {
         return TokenType.synthetic;
       default:
         throw new Error(
-          `Radix unkown token type on token contract ${warpRouteAddress}: ${token.token_type}`,
+          `Radix unknown token type on token contract ${warpRouteAddress}: ${token.token_type}`,
         );
     }
   }
