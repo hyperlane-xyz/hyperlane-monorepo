@@ -147,6 +147,33 @@ contract EverclearEthBridge is EverclearTokenBridge {
         return dispatchValue;
     }
 
+    function _validateIntent(
+        bytes calldata _message
+    ) internal view override returns (bytes32, bytes memory) {
+        (bytes32 intentId, bytes memory intentBytes) = super._validateIntent(
+            _message
+        );
+        IEverclear.Intent memory intent = abi.decode(
+            intentBytes,
+            (IEverclear.Intent)
+        );
+        (bytes32 _intentRecipient, uint256 _intentAmount) = abi.decode(
+            intent.data,
+            (bytes32, uint256)
+        );
+
+        require(
+            _intentRecipient == _message.recipient(),
+            "EEB: Intent recipient mismatch"
+        );
+        require(
+            _intentAmount == _message.amount(),
+            "EEB: Intent amount mismatch"
+        );
+
+        return (intentId, intentBytes);
+    }
+
     /**
      * @notice Allows the contract to receive ETH
      * @dev Required for WETH unwrapping functionality
