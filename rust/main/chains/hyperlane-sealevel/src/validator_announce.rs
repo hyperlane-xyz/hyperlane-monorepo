@@ -181,16 +181,19 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
         // 3. [writeable] The validator-specific ValidatorStorageLocationsAccount PDA account.
         // 4. [writeable] The ReplayProtection PDA account specific to the announcement being made.
         let accounts = vec![
-            AccountMeta::new_readonly(payer.pubkey(), true),
+            AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(system_program::id(), false),
             AccountMeta::new_readonly(validator_announce_account, false),
             AccountMeta::new(validator_storage_locations_key, false),
             AccountMeta::new(replay_protection_pda_key, false),
         ];
 
+        let data = ixn
+            .into_instruction_data()
+            .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
         let instruction = Instruction {
             program_id: self.program_id,
-            data: ixn.into_instruction_data().unwrap(),
+            data,
             accounts,
         };
 
