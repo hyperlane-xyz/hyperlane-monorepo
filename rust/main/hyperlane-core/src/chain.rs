@@ -529,8 +529,8 @@ impl KnownHyperlaneDomain {
             | SuperpositionMainnet | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
             Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Form | Fraxtal | Guru
             | Ink | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint | Mode
-            | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone
-            | Soneium | Superseed | Swell | Unichain | Worldchain | Zircuit | ZoraMainnet => {
+            | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone | Soneium
+            | Superseed | Swell | Unichain | Worldchain | Zircuit | ZoraMainnet => {
                 HyperlaneDomainTechnicalStack::OpStack
             }
             DogeChain | LumiaPrism | Katana | Merlin | PolygonZkEvm | Prom | Xlayer => {
