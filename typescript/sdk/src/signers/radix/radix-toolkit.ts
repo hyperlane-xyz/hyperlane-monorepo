@@ -2,8 +2,9 @@ import {
   RadixSigningSDK,
   transactionManifestFromString,
 } from '@hyperlane-xyz/radix-sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { RadixTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
@@ -19,8 +20,17 @@ export class RadixMultiProtocolSignerAdapter
   static async init(
     chainName: ChainName,
     privateKey: string,
+    multiProtocolProvider: MultiProtocolProvider,
   ): Promise<RadixMultiProtocolSignerAdapter> {
-    const signer = await RadixSigningSDK.fromPrivateKey(privateKey);
+    const chainId = multiProtocolProvider.getChainId(chainName);
+    assert(
+      isNumeric(chainId),
+      `Expected chain id for chain "${chainName}" to be numeric but got "${chainId}"`,
+    );
+
+    const signer = await RadixSigningSDK.fromPrivateKey(privateKey, {
+      networkId: parseInt(chainId.toString()),
+    });
 
     return new RadixMultiProtocolSignerAdapter(chainName, signer);
   }
