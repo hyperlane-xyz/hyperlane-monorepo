@@ -9262,7 +9262,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 1,
-        "reorgPeriod": 5
+        "reorgPeriod": 0
       },
       "chainId": 7667,
       "deployer": {
