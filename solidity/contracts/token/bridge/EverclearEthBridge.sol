@@ -147,6 +147,13 @@ contract EverclearEthBridge is EverclearTokenBridge {
         return dispatchValue;
     }
 
+    /**
+     * @notice Validates the Everclear intent for ETH transfers
+     * @dev Overrides parent to add ETH-specific validation by checking intent data matches message
+     * @param _message The incoming message containing transfer details
+     * @return intentId The unique identifier for the validated intent
+     * @return intentBytes The encoded intent data
+     */
     function _validateIntent(
         bytes calldata _message
     ) internal view override returns (bytes32, bytes memory) {
