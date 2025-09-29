@@ -1,7 +1,7 @@
 node_modules
 test_deploy.env
 
-**/.env
+**/.env*
 **/tsconfig.tsbuildinfo
 **/tmp.*
 **/*.swp

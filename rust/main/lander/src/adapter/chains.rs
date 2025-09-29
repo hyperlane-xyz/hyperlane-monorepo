@@ -1,5 +1,6 @@
 pub use ethereum::EthereumTxPrecursor;
 pub use factory::AdapterFactory;
+pub use radix::RadixTxPrecursor;
 pub use sealevel::SealevelTxPrecursor;
 
 mod factory;
