@@ -128,5 +128,5 @@ export const awIcas: ChainMap<Address> = {
 
   // Sept 22, 2025
   // ----------------------------------------------------------
-  // zerogravity: '0x8d8703Ea7E7A129a581DCA59B916Cc4410a61D47',
+  zerogravity: '0x8d8703Ea7E7A129a581DCA59B916Cc4410a61D47',
 } as const;
