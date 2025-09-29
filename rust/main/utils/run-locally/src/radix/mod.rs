@@ -109,7 +109,7 @@ fn start_localnet() {
         .arg("profile", "fullnode")
         .arg("profile", "network-gateway-image")
         .cmd("up")
-        .cmd("-d")
+        .raw_arg("--detach")
         .filter_logs(|_| false)
         .run()
         .join();
