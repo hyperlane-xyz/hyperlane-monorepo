@@ -244,7 +244,7 @@ impl AdaptsChain for RadixAdapter {
 
         let (visible_components, fee_summary) = {
             let tx_precursor = tx.precursor();
-            // decode manifest value from Mailbox::process_calldata()
+            // decode arguments
             let manifest_value: ManifestValue = manifest_decode(&tx_precursor.encoded_arguments)
                 .map_err(|err| {
                     let error_msg = "Failed to decode manifest";
@@ -254,7 +254,7 @@ impl AdaptsChain for RadixAdapter {
 
             let manifest_args = match manifest_value {
                 sbor::Value::Tuple { fields } => fields,
-                _ => vec![],
+                s => vec![s],
             };
 
             let decoder = AddressBech32Decoder::new(&self.network);
@@ -331,14 +331,12 @@ impl AdaptsChain for RadixAdapter {
                 None => return Err(LanderError::EstimationFailed),
             };
 
-        // decode manifest value from Mailbox::process_calldata()
+        // decode arguments
         let manifest_value: ManifestValue = manifest_decode(&tx_precursor.encoded_arguments)
             .map_err(|_| LanderError::PayloadNotFound)?;
         let manifest_values = match manifest_value {
-            // Should always be a tuple
             sbor::Value::Tuple { fields } => fields,
-            sbor::Value::Array { elements, .. } => elements,
-            _ => vec![],
+            s => vec![s],
         };
         let manifest_args =
             Self::combine_args_with_visible_components(manifest_values, &visible_components);
