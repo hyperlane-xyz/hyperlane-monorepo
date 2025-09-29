@@ -65,6 +65,7 @@ export async function getSignerForChain<TProtocol extends ProtocolType>(
       return RadixMultiProtocolSignerAdapter.init(
         chainName,
         accountConfig.privateKey,
+        multiProtocolProvider,
       );
     default:
       throw new Error(`Signer not supported for protocol type ${protocol}`);
