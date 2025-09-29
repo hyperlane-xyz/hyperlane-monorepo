@@ -159,6 +159,7 @@ impl DestinationFactory {
         chain_conf: ChainConf,
         dispatcher_metrics: DispatcherMetrics,
     ) -> Result<(Option<DispatcherEntrypoint>, Option<Dispatcher>), FactoryError> {
+        eprintln!("chain_conf: {:?}", chain_conf);
         if chain_conf.submitter != SubmitterType::Lander {
             return Ok((None, None));
         }

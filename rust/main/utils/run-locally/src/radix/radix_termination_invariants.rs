@@ -35,7 +35,7 @@ pub fn radix_termination_invariants_met(
         non_matching_igp_message_count: 0,
         double_insertion_message_count: 0,
         skip_tx_id_indexing: true,
-        submitter_type: SubmitterType::Classic,
+        submitter_type: SubmitterType::Lander,
     };
 
     if !relayer_termination_invariants_met(relayer_params)? {

@@ -5,7 +5,9 @@ use std::{str::FromStr, sync::Arc, time::Duration};
 
 use core_api_client::models::FeeSummary;
 use ethers::utils::hex;
+use futures_util::TryFutureExt;
 use gateway_api_client::models::{CompiledPreviewTransaction, TransactionPreviewV2Request};
+use hyperlane_base::settings::ChainConf;
 use radix_transactions::{
     model::{IntentHeaderV2, TransactionHeaderV2, TransactionPayload},
     prelude::{
@@ -25,12 +27,14 @@ use scrypto::{
 };
 use uuid::Uuid;
 
-use hyperlane_core::{ChainCommunicationError, ChainResult, H256, H512};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, ReorgPeriod, H256, H512,
+};
 use hyperlane_radix::{RadixProvider, RadixProviderForLander, RadixSigner, RadixTxCalldata};
 
 use crate::{
     adapter::{
-        chains::radix::{Precursor, VisibleComponents},
+        chains::radix::{conf::create_signer, Precursor, VisibleComponents},
         AdaptsChain, GasLimit, RadixTxPrecursor, TxBuildingResult,
     },
     payload::PayloadDetails,
@@ -58,6 +62,37 @@ pub struct RadixTxBuilder {
 }
 
 impl RadixAdapter {
+    pub fn from_conf(
+        conf: &ChainConf,
+        connection_conf: &hyperlane_radix::ConnectionConf,
+    ) -> Result<Self, LanderError> {
+        // We must have a signer if we want to land transactions.
+        let signer = create_signer(conf)?;
+
+        let locator = ContractLocator {
+            domain: &conf.domain,
+            address: H256::zero(),
+        };
+        let provider = RadixProvider::new(
+            Some(signer.clone()),
+            connection_conf,
+            &locator,
+            &ReorgPeriod::None,
+        )?;
+
+        let network = connection_conf.network.clone();
+        let component_regex =
+            regex::Regex::new(&format!(r"\w+_{}([a-zA-Z0-9]+)", network.hrp_suffix))
+                .map_err(ChainCommunicationError::from_other)?;
+        Ok(Self {
+            network,
+            provider: Arc::new(provider),
+            signer,
+            component_regex,
+            estimated_block_time: conf.estimated_block_time,
+        })
+    }
+
     fn extract_tx_hash(tx: &DetailedNotarizedTransactionV2) -> H512 {
         let tx_hash: H512 =
             H256::from_slice(tx.transaction_hashes.transaction_intent_hash.0.as_bytes()).into();
