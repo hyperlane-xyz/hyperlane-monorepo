@@ -39,7 +39,7 @@ impl std::fmt::Debug for SealevelValidatorAnnounce {
             .field("program_id", &self.program_id)
             .field("domain", &self.domain)
             .field("conn", &self.conn)
-            .field("signer", &self.signer)
+            .field("signer_pubkey", &self.signer.as_ref().map(|s| s.pubkey()))
             .finish()
     }
 }
