@@ -1,0 +1,11 @@
+{
+  "solanamainnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "remoteDecimals": 18,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "name": "ETN",
+    "symbol": "ETN",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/99ad40dd4836da8f08be01f05c98a15c494c8422/deployments/warp_routes/ETN/metadata.json"
+  }
+}
