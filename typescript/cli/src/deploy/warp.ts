@@ -16,7 +16,6 @@ import {
   CosmosNativeWarpModule,
   EvmERC20WarpModule,
   ExplorerLicenseType,
-  GroupedTransactions,
   HypERC20Deployer,
   IsmType,
   MultiProvider,
@@ -55,6 +54,7 @@ import {
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
+import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -398,23 +398,22 @@ export async function runWarpRouteApply(
   );
 
   // Then create and submit update transactions
-  const groupedTransactions = await updateExistingWarpRoute(
+  const updateTransactions = await updateExistingWarpRoute(
     params,
     apiKeys,
     warpDeployConfig,
     updatedWarpCoreConfig,
   );
 
-  // Check if grouped transactions are empty
-  const hasAnyTx = Object.values(groupedTransactions).some((byChain) =>
-    Object.values(byChain).some((txs) => txs.length > 0),
+  // Check if update transactions are empty
+  const hasAnyTx = Object.values(updateTransactions).some(
+    (txs) => txs.length > 0,
   );
 
-  // Check if grouped transactions are empty
   if (!hasAnyTx)
     return logGreen(`Warp config is the same as target. No updates needed.`);
 
-  await submitWarpApplyTransactions(params, groupedTransactions);
+  await submitWarpApplyTransactions(params, updateTransactions);
 }
 
 /**
@@ -596,7 +595,7 @@ async function updateExistingWarpRoute(
   apiKeys: ChainMap<string>,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,
-): Promise<GroupedTransactions> {
+): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   logBlue('Updating deployed Warp Routes');
   const {
     multiProvider,
@@ -615,11 +614,8 @@ async function updateExistingWarpRoute(
     coreBuildArtifact,
     ExplorerLicenseType.MIT,
   );
-  const groupedTransactions: GroupedTransactions = {
-    [ProtocolType.Ethereum]: {},
-    [ProtocolType.CosmosNative]: {},
-    [ProtocolType.Radix]: {},
-  };
+
+  let updateTransactions = {};
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -661,8 +657,8 @@ async function updateExistingWarpRoute(
             );
             const transactions =
               await evmERC20WarpModule.update(configWithMailbox);
-            groupedTransactions[ProtocolType.Ethereum] = {
-              ...groupedTransactions[ProtocolType.Ethereum],
+            updateTransactions = {
+              ...updateTransactions,
               [chain]: transactions,
             };
             break;
@@ -682,8 +678,8 @@ async function updateExistingWarpRoute(
             );
             const transactions =
               await cosmosNativeWarpModule.update(configWithMailbox);
-            groupedTransactions[ProtocolType.CosmosNative] = {
-              ...groupedTransactions[ProtocolType.CosmosNative],
+            updateTransactions = {
+              ...updateTransactions,
               [chain]: transactions,
             };
             break;
@@ -696,7 +692,7 @@ async function updateExistingWarpRoute(
       });
     }),
   );
-  return groupedTransactions;
+  return updateTransactions;
 }
 
 /**
@@ -899,71 +895,71 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
  */
 async function submitWarpApplyTransactions(
   params: WarpApplyParams,
-  groupedTransactions: GroupedTransactions,
+  updateTransactions: ChainMap<TypedAnnotatedTransaction[]>,
 ): Promise<void> {
   const { extendedChains } = getWarpRouteExtensionDetails(
     params.warpCoreConfig,
     params.warpDeployConfig,
   );
 
-  for (const [protocol, chainTransactions] of Object.entries(
-    groupedTransactions,
-  )) {
-    for (const [chain, transactions] of Object.entries(chainTransactions)) {
-      try {
-        await retryAsync(
-          async () => {
-            const isExtendedChain = extendedChains.includes(chain);
-            const { submitter, config } = await getSubmitterByStrategy({
-              chain,
-              context: params.context,
-              strategyUrl: params.strategyUrl,
-              isExtendedChain,
-            });
-            const transactionReceipts = await submitter.submit(...transactions);
-            if (transactionReceipts) {
-              const receiptPath = `${params.receiptsDir}/${chain}-${
-                submitter.txSubmitterType
-              }-${Date.now()}-receipts.json`;
-              writeYamlOrJson(receiptPath, transactionReceipts);
-              logGreen(
-                `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
-              );
-            }
+  for (const [chain, transactions] of Object.entries(updateTransactions)) {
+    try {
+      const protocol = params.context.multiProvider.getProtocol(chain);
 
-            const canRelay = canSelfRelay(
-              params.selfRelay ?? false,
-              config,
-              transactionReceipts,
+      await retryAsync(
+        async () => {
+          const isExtendedChain = extendedChains.includes(chain);
+          const { submitter, config } = await getSubmitterByStrategy({
+            chain,
+            context: params.context,
+            strategyUrl: params.strategyUrl,
+            isExtendedChain,
+          });
+          const transactionReceipts = await submitter.submit(
+            ...(transactions as any[]),
+          );
+          if (transactionReceipts) {
+            const receiptPath = `${params.receiptsDir}/${chain}-${
+              submitter.txSubmitterType
+            }-${Date.now()}-receipts.json`;
+            writeYamlOrJson(receiptPath, transactionReceipts);
+            logGreen(
+              `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
             );
+          }
 
-            if (!canRelay.relay) {
-              return;
-            }
+          const canRelay = canSelfRelay(
+            params.selfRelay ?? false,
+            config,
+            transactionReceipts,
+          );
 
-            // if self relaying does not work (possibly because metadata cannot be built yet)
-            // we don't want to rerun the complete code block as this will result in
-            // the update transactions being sent multiple times
-            try {
-              await retryAsync(() =>
-                runSelfRelay({
-                  txReceipt: canRelay.txReceipt,
-                  multiProvider: params.context.multiProvider,
-                  registry: params.context.registry,
-                  successMessage: WarpSendLogs.SUCCESS,
-                }),
-              );
-            } catch (error) {
-              warnYellow(`Error when self-relaying Warp transaction`, error);
-            }
-          },
-          5, // attempts
-          100, // baseRetryMs
-        );
-      } catch (e) {
-        logBlue(`Error in submitWarpApplyTransactions`, e);
-        console.dir(transactions);
-      }
+          if (!canRelay.relay) {
+            return;
+          }
+
+          // if self relaying does not work (possibly because metadata cannot be built yet)
+          // we don't want to rerun the complete code block as this will result in
+          // the update transactions being sent multiple times
+          try {
+            await retryAsync(() =>
+              runSelfRelay({
+                txReceipt: canRelay.txReceipt,
+                multiProvider: params.context.multiProvider,
+                registry: params.context.registry,
+                successMessage: WarpSendLogs.SUCCESS,
+              }),
+            );
+          } catch (error) {
+            warnYellow(`Error when self-relaying Warp transaction`, error);
+          }
+        },
+        5, // attempts
+        100, // baseRetryMs
+      );
+    } catch (e) {
+      logBlue(`Error in submitWarpApplyTransactions`, e);
+      console.dir(transactions);
     }
   }
 }

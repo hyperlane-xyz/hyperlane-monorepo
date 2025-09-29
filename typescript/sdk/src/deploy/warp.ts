@@ -23,7 +23,7 @@ import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { GroupedTransactions } from '../providers/ProviderType.js';
+import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
 import { CosmosNativeWarpModule } from '../token/CosmosNativeWarpModule.js';
 import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
@@ -346,7 +346,7 @@ export async function enrollCrossChainRouters(
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },
   deployedContracts: ChainMap<Address>,
-) {
+): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   const resolvedConfigMap = objMap(warpDeployConfig, (_, config) => ({
     gas: 0, // TODO: protocol specific gas?,
     ...config,
@@ -359,14 +359,14 @@ export async function enrollCrossChainRouters(
 
   const allChains = Object.keys(configMapToDeploy);
 
+  let updateTransactions = {};
+
   for (const chain of allChains) {
     const protocol = multiProvider.getProtocol(chain);
 
     const allRemoteChains = multiProvider
       .getRemoteChains(chain)
       .filter((c) => allChains.includes(c));
-
-    const protocolTransactions = {} as GroupedTransactions;
 
     switch (protocol) {
       case ProtocolType.Ethereum: {
@@ -412,7 +412,8 @@ export async function enrollCrossChainRouters(
         const transactions = await evmWarpModule.update(expectedConfig);
 
         if (transactions.length) {
-          protocolTransactions[ProtocolType.Ethereum] = {
+          updateTransactions = {
+            ...updateTransactions,
             [chain]: transactions,
           };
         }
@@ -451,7 +452,8 @@ export async function enrollCrossChainRouters(
           await cosmosNativeWarpModule.update(expectedConfig);
 
         if (transactions.length) {
-          protocolTransactions[ProtocolType.CosmosNative] = {
+          updateTransactions = {
+            ...updateTransactions,
             [chain]: transactions,
           };
         }
@@ -463,6 +465,8 @@ export async function enrollCrossChainRouters(
       }
     }
   }
+
+  return updateTransactions;
 }
 
 function getRouter(contracts: HyperlaneContracts<HypERC20Factories>) {

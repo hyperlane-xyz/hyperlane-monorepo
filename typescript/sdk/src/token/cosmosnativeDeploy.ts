@@ -48,7 +48,7 @@ export class CosmosNativeDeployer {
       assert(this.signersMap[chain], `No signer configured for ${chain}`);
 
       const config = configMapToDeploy[chain];
-      assert(this.signersMap[chain], `No config configured for ${chain}`);
+      assert(config, `No config configured for ${chain}`);
 
       this.logger.info(
         `Deploying ${config.type} token to Cosmos Native chain ${chain}`,
