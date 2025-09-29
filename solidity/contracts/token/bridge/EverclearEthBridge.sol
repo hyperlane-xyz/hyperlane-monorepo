@@ -58,6 +58,20 @@ contract EverclearEthBridge is EverclearTokenBridge {
     }
 
     /**
+     * @notice Encodes the intent calldata for ETH transfers
+     * @dev Overrides parent to encode recipient and amount for ETH-specific intent validation
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of ETH to transfer
+     * @return The encoded calldata containing recipient and amount
+     */
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal pure override returns (bytes memory) {
+        return abi.encode(_recipient, _amount);
+    }
+
+    /**
      * @notice Provides a quote for transferring ETH to a remote chain
      * @dev Overrides parent to return a single quote for ETH (including transfer amount, fees, and gas)
      * @param _destination The destination domain ID

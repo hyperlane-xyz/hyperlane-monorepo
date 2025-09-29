@@ -195,6 +195,20 @@ contract EverclearTokenBridge is HypERC20Collateral {
     }
 
     /**
+     * @notice Encodes the intent calldata for token transfers
+     * @dev Virtual function that can be overridden by derived contracts to include custom data
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of tokens to transfer
+     * @return The encoded calldata (empty in base implementation)
+     */
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal pure virtual returns (bytes memory) {
+        return "";
+    }
+
+    /**
      * @notice Creates an Everclear intent for cross-chain token transfer
      * @dev Internal function to handle intent creation with Everclear adapter
      * @param _destination The destination domain ID
@@ -238,7 +252,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _amount: intentParams.amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: "",
+            _data: _getIntentCalldata(_recipient, _amount),
             _feeParams: intentParams.feeParams
         });
 
