@@ -33,6 +33,11 @@ export enum RadixIsmTypes {
   NOOP_ISM = 'NoopIsm',
 }
 
+export enum RadixTokenTypes {
+  COLLATERAL = 'Collateral',
+  SYNTHETIC = 'Synthetic',
+}
+
 export type MultisigIsms =
   | RadixIsmTypes.MERKLE_ROOT_MULTISIG
   | RadixIsmTypes.MESSAGE_ID_MULTISIG
