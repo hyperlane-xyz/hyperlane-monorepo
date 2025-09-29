@@ -112,6 +112,8 @@ export enum WarpRouteIds {
 
   GalacticaGNET = 'GNET/galactica',
 
+  SolaxyUSDC = 'USDC/solaxy',
+
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
 
