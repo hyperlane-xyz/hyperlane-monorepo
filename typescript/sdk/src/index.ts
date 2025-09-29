@@ -128,6 +128,10 @@ export { ExplorerLicenseType } from './block-explorer/etherscan.js';
 export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
 export {
+  OwnerValidationError,
+  validateWarpDeployOwners,
+} from './deploy/validation.js';
+export {
   SealevelIgpAdapter,
   SealevelOverheadIgpAdapter,
 } from './gas/adapters/SealevelIgpAdapter.js';
