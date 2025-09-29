@@ -59,6 +59,8 @@ pub struct RadixTxBuilder {
 
 impl RadixAdapter {
     fn extract_tx_hash(tx: &DetailedNotarizedTransactionV2) -> H512 {
+        // transaction_intent_hash basically is the TX Hash and
+        // refers to all of the intents that are made in the TX
         let tx_hash: H512 =
             H256::from_slice(tx.transaction_hashes.transaction_intent_hash.0.as_bytes()).into();
         tx_hash
