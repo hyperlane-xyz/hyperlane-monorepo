@@ -3,9 +3,9 @@ import { expect } from 'chai';
 
 import { addressToBytes32, assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { getTransferRemoteManifest } from '../warp/populate';
+import { getTransferRemoteManifest } from '../warp/populate.js';
 
-import { transactionManifestFromString } from './utils';
+import { transactionManifestFromString } from './utils.js';
 
 describe(transactionManifestFromString.name, function () {
   it('should convert a string manifest to an object manifest', async function () {
