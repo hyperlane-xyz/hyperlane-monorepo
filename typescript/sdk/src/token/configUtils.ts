@@ -196,8 +196,8 @@ export async function expandWarpDeployConfig(params: {
 
       chainConfig.destinationGas = formattedDestinationGas;
 
-      const isEVMChain =
-        multiProvider.getProtocol(chain) === ProtocolType.Ethereum;
+      const protocol = multiProvider.getProtocol(chain);
+      const isEVMChain = protocol === ProtocolType.Ethereum;
 
       // Expand EVM warpDeployConfig virtual to the control states (states that we expect)
       // For contractVerificationStatus, all values should be 'verified'
@@ -246,7 +246,7 @@ export async function expandWarpDeployConfig(params: {
       // and the current chain is an EVM one.
       // if we have an address we leave it like that to avoid deriving
       if (chainConfig.hook && typeof chainConfig.hook !== 'string') {
-        switch (multiProvider.getProtocol(chain)) {
+        switch (protocol) {
           case ProtocolType.Ethereum: {
             const reader = new EvmHookReader(multiProvider, chain);
             chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
@@ -260,6 +260,9 @@ export async function expandWarpDeployConfig(params: {
             chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
             break;
           }
+          default: {
+            throw new Error(`Protocol type ${protocol} not supported`);
+          }
         }
       }
 
@@ -269,7 +272,7 @@ export async function expandWarpDeployConfig(params: {
         chainConfig.interchainSecurityModule &&
         typeof chainConfig.interchainSecurityModule !== 'string'
       ) {
-        switch (multiProvider.getProtocol(chain)) {
+        switch (protocol) {
           case ProtocolType.Ethereum: {
             const reader = new EvmIsmReader(multiProvider, chain);
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
@@ -286,6 +289,9 @@ export async function expandWarpDeployConfig(params: {
               chainConfig.interchainSecurityModule,
             );
             break;
+          }
+          default: {
+            throw new Error(`Protocol type ${protocol} not supported`);
           }
         }
       }

@@ -55,6 +55,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
+import { compatibleProtocols } from '../config/protocols.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -511,11 +512,6 @@ export async function extendWarpRoute(
   const { context, warpDeployConfig } = params;
   const { existingConfigs, initialExtendedConfigs, warpCoreConfigByChain } =
     getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
-
-  const compatibleProtocols = [
-    ProtocolType.Ethereum,
-    ProtocolType.CosmosNative,
-  ];
 
   // Remove all the non compatible chains from the extended configuration to avoid
   // having the extension crash

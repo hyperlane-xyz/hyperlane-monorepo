@@ -4,14 +4,7 @@ import {
   SigningHyperlaneModuleClient,
 } from '@hyperlane-xyz/cosmos-sdk';
 import { isTypes } from '@hyperlane-xyz/cosmos-types';
-import {
-  Address,
-  WithAddress,
-  assert,
-  objMap,
-  promiseObjAll,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 
@@ -71,9 +64,9 @@ export class CosmosNativeIsmReader {
     // Extend the inner isms
     switch (config.type) {
       case IsmType.ROUTING:
-        config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, ism) => this.deriveIsmConfig(ism)),
-        );
+        for (const [chain, ism] of Object.entries(config.domains)) {
+          config.domains[chain] = await this.deriveIsmConfig(ism);
+        }
         break;
     }
 
