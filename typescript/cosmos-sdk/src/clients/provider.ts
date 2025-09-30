@@ -18,6 +18,7 @@ import { CoreExtension, setupCoreExtension } from '../hyperlane/core/query.js';
 import {
   MsgCreateMerkleRootMultisigIsmEncodeObject,
   MsgCreateMessageIdMultisigIsmEncodeObject,
+  MsgCreateNoopIsmEncodeObject,
   MsgCreateRoutingIsmEncodeObject,
   MsgRemoveRoutingIsmDomainEncodeObject,
   MsgSetRoutingIsmDomainEncodeObject,
@@ -27,6 +28,12 @@ import {
   IsmTypes,
   setupInterchainSecurityExtension,
 } from '../hyperlane/interchain_security/query.js';
+import {
+  MsgCreateIgpEncodeObject,
+  MsgCreateMerkleTreeHookEncodeObject,
+  MsgSetDestinationGasConfigEncodeObject,
+  MsgSetIgpOwnerEncodeObject,
+} from '../hyperlane/post_dispatch/messages.js';
 import {
   PostDispatchExtension,
   setupPostDispatchExtension,
@@ -487,4 +494,84 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
       }),
     };
   }
+
+  async populateSetRoutingIsmOwner(
+    _req: MultiVM.ResSetRoutingIsmOwner,
+  ): Promise<any> {
+    // TODO: implement
+    return;
+  }
+
+  async populateCreateNoopIsm(
+    req: MultiVM.ReqCreateNoopIsm,
+  ): Promise<MsgCreateNoopIsmEncodeObject> {
+    return {
+      typeUrl: R.MsgCreateNoopIsm.proto.type,
+      value: R.MsgCreateNoopIsm.proto.converter.create({
+        creator: req.signer,
+      }),
+    };
+  }
+
+  async populateCreateMerkleTreeHook(
+    req: MultiVM.ReqCreateMerkleTreeHook,
+  ): Promise<MsgCreateMerkleTreeHookEncodeObject> {
+    return {
+      typeUrl: R.MsgCreateMerkleTreeHook.proto.type,
+      value: R.MsgCreateMerkleTreeHook.proto.converter.create({
+        owner: req.signer,
+        mailbox_id: req.mailbox_id,
+      }),
+    };
+  }
+
+  async populateCreateInterchainGasPaymasterHook(
+    req: MultiVM.ReqCreateInterchainGasPaymasterHook,
+  ): Promise<MsgCreateIgpEncodeObject> {
+    return {
+      typeUrl: R.MsgCreateIgp.proto.type,
+      value: R.MsgCreateIgp.proto.converter.create({
+        owner: req.signer,
+        denom: req.denom,
+      }),
+    };
+  }
+
+  async populateSetInterchainGasPaymasterHookOwner(
+    req: MultiVM.ReqSetInterchainGasPaymasterHookOwner,
+  ): Promise<MsgSetIgpOwnerEncodeObject> {
+    return {
+      typeUrl: R.MsgSetIgpOwner.proto.type,
+      value: R.MsgSetIgpOwner.proto.converter.create({
+        owner: req.signer,
+        new_owner: req.new_owner,
+        renounce_ownership: !req.new_owner,
+      }),
+    };
+  }
+
+  async populateSetDestinationGasConfig(
+    req: MultiVM.ReqSetDestinationGasConfig,
+  ): Promise<MsgSetDestinationGasConfigEncodeObject> {
+    return {
+      typeUrl: R.MsgSetDestinationGasConfig.proto.type,
+      value: R.MsgSetDestinationGasConfig.proto.converter.create({
+        owner: req.signer,
+        igp_id: req.hook_id,
+        destination_gas_config: {
+          remote_domain: req.destination_gas_config.remote_domain_id,
+          gas_overhead: req.destination_gas_config.gas_overhead,
+          gas_oracle: req.destination_gas_config.gas_oracle,
+        },
+      }),
+    };
+  }
+
+  async populateCreateValidatorAnnounce(
+    _req: MultiVM.ReqCreateValidatorAnnounce,
+  ): Promise<any> {
+    return;
+  }
+
+  // ### POPULATE WARP ###
 }
