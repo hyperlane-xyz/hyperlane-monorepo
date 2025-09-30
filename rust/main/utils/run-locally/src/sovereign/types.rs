@@ -1,4 +1,3 @@
-use hyperlane_core::utils::hex_or_base58_to_h256;
 use hyperlane_sovereign::{ConnectionConf, Signer, SovereignClient};
 
 use super::node::SovereignParameters;
@@ -84,7 +83,11 @@ pub async fn get_or_create_client(conf: &ChainConfig) -> SovereignClient {
         }
     }
 
-    let client_key = hex_or_base58_to_h256(&conf.signer.key).expect("failed to parse private key");
+    let client_key = conf
+        .signer
+        .key
+        .parse()
+        .expect("failed to parse private key");
     let signer =
         Signer::new(&client_key, &conf.signer.account_type, None).expect("failed to create signer");
     let connection_conf = ConnectionConf {

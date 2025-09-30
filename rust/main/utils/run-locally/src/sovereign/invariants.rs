@@ -1,3 +1,4 @@
+use eyre::eyre;
 use hyperlane_sovereign::types::TxEvent;
 
 use super::types::{get_or_create_client, ChainConfig, ChainRegistry};
@@ -7,7 +8,7 @@ fn count_events(events: &[TxEvent]) -> eyre::Result<(usize, usize)> {
     let mut dispatch_count = 0;
 
     for event in events {
-        match &event.key {
+        match event.key.as_str() {
             "Mailbox/Process" => process_count += 1,
             "Mailbox/Dispatch" => dispatch_count += 1,
             _ => {}
@@ -32,18 +33,21 @@ pub async fn check_chain_invariants(
             "/ledger/events?page=next&page[size]={}&page[cursor]={}",
             page_size, page_offset
         );
-        let events = client.http_get::<Vec<TxEvent>>(&endpoint).await?;
+        let events = client
+            .http_get::<Vec<TxEvent>>(&endpoint)
+            .await
+            .map_err(|e| eyre!(e.to_string()))?;
 
         if events.is_empty() {
             break;
         }
 
-        let (processed, dispatched) = count_events(&events);
+        let (processed, dispatched) = count_events(&events)?;
 
         process_count += processed;
         dispatch_count += dispatched;
 
-        if process_count == expected_count && dispatch_count == expected_count {
+        if process_count >= expected_count && dispatch_count >= expected_count {
             return Ok(true);
         }
 

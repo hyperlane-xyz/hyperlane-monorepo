@@ -1,5 +1,5 @@
+use core::str::FromStr;
 use hex::ToHex;
-use hyperlane_core::utils::hex_or_base58_to_h256;
 use hyperlane_sovereign::{ethereum, Crypto};
 use serde_json::json;
 
@@ -142,7 +142,7 @@ pub async fn connect_chains(
 
 // Convert the 20 byte eth address to address padded to 32 bytes for hyperlane.
 pub fn address_to_padded(address: &str) -> String {
-    let hash = hex_or_base58_to_h256(address).unwrap();
+    let hash = hyperlane_core::H256::from_str(address).unwrap();
     let signer = ethereum::Signer::new(&hash).unwrap();
     let hash_addr = signer.h256_address();
     hash_addr.encode_hex()
@@ -194,4 +194,16 @@ pub async fn dispatch_transfers(
     }
 
     dispatched_count
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::sovereign::{ops::address_to_padded, RELAYER_ADDRESS};
+
+    #[test]
+    fn test_address_padding() {
+        let padded = address_to_padded(RELAYER_ADDRESS);
+        println!("{}", padded);
+        assert!(false);
+    }
 }

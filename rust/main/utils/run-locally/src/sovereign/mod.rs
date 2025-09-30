@@ -16,6 +16,7 @@ use tempfile::tempdir;
 use types::{get_or_create_client, ChainConfig, ChainRegistry};
 
 use crate::sovereign::agents::RELAYER_METRICS_PORT;
+use crate::sovereign::invariants::termination_invariants_met;
 use crate::sovereign::node::SovereignParameters;
 use crate::sovereign::ops::set_relayer_igp_configs;
 use crate::{
@@ -41,7 +42,7 @@ mod types;
 // https://github.com/Sovereign-Labs/rollup-starter/blob/main/test-data/keys/token_deployer_private_key.json
 const RELAYER_KEY: &str = "0x0187c12ea7c12024b3f70ac5d73587463af17c8bce2bd9e6fe87389310196c64";
 // rollup-starter uses ethereum style accounts
-const RELAYER_ADDRESS: &str = "0xA6edfca3AA985Dd3CC728BFFB700933a986aC085";
+pub const RELAYER_ADDRESS: &str = "0xA6edfca3AA985Dd3CC728BFFB700933a986aC085";
 
 #[allow(dead_code)]
 async fn run_locally() {
@@ -52,6 +53,7 @@ async fn run_locally() {
     })
     .unwrap();
 
+    const TIMEOUT_SECS: u64 = 60 * 10;
     log!("Running simplified Sovereign node startup test...");
 
     let mut state = State::default();
@@ -128,13 +130,9 @@ async fn run_locally() {
     let mut failure_occurred = false;
     loop {
         // look for the end condition.
-        if termination_invariants_met(
-            hpl_rly_metrics_port,
-            hpl_scr_metrics_port,
-            dispatched_messages,
-            starting_relayer_balance,
-        )
-        .unwrap_or(false)
+        if termination_invariants_met(&chain_registry, 3)
+            .await
+            .unwrap_or(false)
         {
             // end condition reached successfully
             break;
@@ -194,13 +192,11 @@ fn wait_until_nodes_healthy(params: &[SovereignParameters]) {
     }
 }
 
-#[cfg(feature = "cosmosnative")]
+// #[cfg(feature = "sovereign")]
 #[cfg(test)]
 mod test {
     #[tokio::test]
     async fn test_run() {
-        use crate::sovereign::run_locally;
-
-        run_locally().await;
+        crate::sovereign::run_locally().await;
     }
 }
