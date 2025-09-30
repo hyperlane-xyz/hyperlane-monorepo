@@ -23,8 +23,7 @@ import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.so
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 import {Message} from "../../contracts/libs/Message.sol";
-import {EverclearTokenBridge, OutputAssetInfo} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
-import {EverclearEthBridge} from "../../contracts/token/bridge/EverclearEthBridge.sol";
+import {EverclearBridge, EverclearEthBridge, EverclearTokenBridge, OutputAssetInfo} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
 import {IEverclearAdapter, IEverclear, IEverclearSpoke} from "../../contracts/interfaces/IEverclearAdapter.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
@@ -189,7 +188,7 @@ contract EverclearTokenBridgeTest is Test {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
-            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
+            abi.encodeCall(EverclearBridge.initialize, (address(0), OWNER))
         );
 
         bridge = EverclearTokenBridge(address(proxy));
@@ -350,11 +349,13 @@ contract EverclearTokenBridgeTest is Test {
             TRANSFER_AMT
         );
 
-        assertEq(quotes.length, 2);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
         assertEq(quotes[0].amount, 0); // Gas payment is 0 for test dispatch hooks
         assertEq(quotes[1].token, address(token));
-        assertEq(quotes[1].amount, TRANSFER_AMT + FEE_AMOUNT);
+        assertEq(quotes[1].amount, TRANSFER_AMT);
+        assertEq(quotes[2].token, address(token));
+        assertEq(quotes[2].amount, FEE_AMOUNT);
     }
 
     // ============ transferRemote Tests ============
@@ -498,7 +499,8 @@ contract EverclearTokenBridgeTest is Test {
             RECIPIENT,
             transferAmount
         );
-        uint256 tokenCost = quotes[1].amount; // Token cost including fee
+        uint256 tokenCost = quotes[1].amount;
+        uint256 fee = quotes[2].amount;
 
         // 2. Execute transfer
         vm.prank(ALICE);
@@ -509,7 +511,7 @@ contract EverclearTokenBridgeTest is Test {
         );
 
         // 3. Verify state changes
-        assertEq(token.balanceOf(ALICE), initialAliceBalance - tokenCost);
+        assertEq(token.balanceOf(ALICE), initialAliceBalance - tokenCost - fee);
 
         // 4. Verify Everclear intent was created correctly
         assertEq(everclearAdapter.newIntentCallCount(), 1);
@@ -644,7 +646,7 @@ contract BaseEverclearTokenBridgeForkTest is Test {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
-            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
+            abi.encodeCall(EverclearBridge.initialize, (address(0), OWNER))
         );
 
         return address(proxy);
@@ -828,7 +830,7 @@ contract EverclearEthBridgeForkTest is BaseEverclearTokenBridgeForkTest {
             address(implementation),
             PROXY_ADMIN,
             abi.encodeCall(
-                EverclearTokenBridge.initialize,
+                EverclearBridge.initialize,
                 (address(new TestPostDispatchHook()), OWNER)
             )
         );
@@ -881,7 +883,7 @@ contract EverclearEthBridgeForkTest is BaseEverclearTokenBridgeForkTest {
         vm.deal(ALICE, totalAmount - 1);
 
         vm.prank(ALICE);
-        vm.expectRevert("EEB: ETH amount mismatch");
+        vm.expectRevert("Native: amount exceeds msg.value");
         ethBridge.transferRemote{value: totalAmount - 1}(
             OPTIMISM_DOMAIN,
             RECIPIENT,
@@ -898,9 +900,13 @@ contract EverclearEthBridgeForkTest is BaseEverclearTokenBridgeForkTest {
             amount
         );
 
-        assertEq(quotes.length, 1);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
-        assertEq(quotes[0].amount, amount + FEE_AMOUNT);
+        assertEq(quotes[0].amount, 0);
+        assertEq(quotes[1].token, address(0));
+        assertEq(quotes[1].amount, amount);
+        assertEq(quotes[2].token, address(0));
+        assertEq(quotes[2].amount, FEE_AMOUNT);
     }
 
     function testEthBridgeConstructor() public {
@@ -916,7 +922,7 @@ contract EverclearEthBridgeForkTest is BaseEverclearTokenBridgeForkTest {
             address(newBridge.everclearAdapter()),
             address(everclearAdapter)
         );
-        assertEq(address(newBridge.token()), address(weth));
+        assertEq(address(newBridge.token()), address(0));
     }
 
     function testFork_receiveMessage(uint256 amount) public {

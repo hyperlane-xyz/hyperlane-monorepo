@@ -12,7 +12,7 @@ import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/t
  * @author Abacus Works
  */
 contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
-    constructor(address _mailbox) TokenRouter(_mailbox) {}
+    constructor(address _mailbox) TokenRouter(1, _mailbox) {}
 
     /**
      * @notice Initializes the Hyperlane router, ERC721 metadata, and mints initial supply to deployer.
@@ -38,15 +38,26 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
         }
     }
 
-    function token() public view virtual override returns (address) {
+    /**
+     * @inheritdoc TokenRouter
+     */
+    function token() public view override returns (address) {
         return address(this);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev NFTs cannot have a fee recipient
+     */
+    function feeRecipient() public view override returns (address) {
+        return address(0);
     }
 
     /**
      * @dev Asserts `msg.sender` is owner and burns `_tokenId`.
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(uint256 _tokenId) internal virtual override {
+    function _transferFromSender(uint256 _tokenId) internal override {
         require(ownerOf(_tokenId) == msg.sender, "!owner");
         _burn(_tokenId);
     }
@@ -58,7 +69,7 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
     function _transferTo(
         address _recipient,
         uint256 _tokenId
-    ) internal virtual override {
+    ) internal override {
         _safeMint(_recipient, _tokenId);
     }
 }

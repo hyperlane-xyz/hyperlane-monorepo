@@ -6,20 +6,28 @@ import {MovableCollateralRouter} from "contracts/token/libs/MovableCollateralRou
 import {ITokenBridge, Quote} from "contracts/interfaces/ITokenBridge.sol";
 import {MockMailbox} from "contracts/mock/MockMailbox.sol";
 import {Router} from "contracts/client/Router.sol";
-import {FungibleTokenRouter} from "contracts/token/libs/FungibleTokenRouter.sol";
+import {TokenRouter} from "contracts/token/libs/TokenRouter.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
+import {Quotes} from "contracts/token/libs/Quotes.sol";
 
 import "forge-std/Test.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract MockMovableCollateralRouter is MovableCollateralRouter {
-    constructor(address _mailbox) FungibleTokenRouter(1, _mailbox) {}
+    uint256 public chargedToRebalancer;
+    address _token;
 
-    function token() public view override returns (address) {
-        return address(0);
+    constructor(address _mailbox, address __token) TokenRouter(1, _mailbox) {
+        _token = __token;
     }
 
-    function _transferFromSender(uint256 _amount) internal override {}
+    function token() public view override returns (address) {
+        return _token;
+    }
+
+    function _transferFromSender(uint256 _amount) internal override {
+        chargedToRebalancer = _amount;
+    }
 
     function _transferTo(address _to, uint256 _amount) internal override {}
 
@@ -31,8 +39,11 @@ contract MockMovableCollateralRouter is MovableCollateralRouter {
 }
 
 contract MockITokenBridge is ITokenBridge {
+    using TypeCasts for bytes32;
+
     ERC20Test token;
-    bytes32 public myRecipient;
+    uint256 collateralFee;
+    uint256 nativeFee;
 
     constructor(ERC20Test _token) {
         token = _token;
@@ -43,9 +54,21 @@ contract MockITokenBridge is ITokenBridge {
         bytes32 recipient,
         uint256 amountOut
     ) external payable override returns (bytes32 transferId) {
-        token.transferFrom(msg.sender, address(this), amountOut);
-        myRecipient = recipient;
+        require(msg.value >= nativeFee);
+        token.transferFrom(
+            msg.sender,
+            address(this),
+            amountOut + collateralFee
+        );
         return recipient;
+    }
+
+    function setCollateralFee(uint256 _fee) public {
+        collateralFee = _fee;
+    }
+
+    function setNativeFee(uint256 _fee) public {
+        nativeFee = _fee;
     }
 
     function quoteTransferRemote(
@@ -53,14 +76,18 @@ contract MockITokenBridge is ITokenBridge {
         bytes32 recipient,
         uint256 amountOut
     ) public view override returns (Quote[] memory) {
-        return new Quote[](0);
+        Quote[] memory quotes = new Quote[](2);
+        quotes[0] = Quote(address(0), nativeFee);
+        quotes[1] = Quote(address(token), amountOut + collateralFee);
+        return quotes;
     }
 }
 
 contract MovableCollateralRouterTest is Test {
     using TypeCasts for address;
+    using Quotes for Quote[];
 
-    MovableCollateralRouter internal router;
+    MockMovableCollateralRouter internal router;
     MockITokenBridge internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
@@ -70,38 +97,55 @@ contract MovableCollateralRouterTest is Test {
 
     function setUp() public {
         mailbox = new MockMailbox(1);
-        router = new MockMovableCollateralRouter(address(mailbox));
-        token = new ERC20Test("Foo Token", "FT", 1_000_000e18, 18);
+        token = new ERC20Test("Foo Token", "FT", 0, 18);
+        router = new MockMovableCollateralRouter(
+            address(mailbox),
+            address(token)
+        );
         vtb = new MockITokenBridge(token);
 
         remote = vm.addr(10);
-
         router.enrollRemoteRouter(destinationDomain, remote.addressToBytes32());
     }
 
-    function testMovingCollateral() public {
+    function test_rebalance(
+        uint256 collateralBalance,
+        uint256 collateralAmount,
+        uint256 collateralFee,
+        uint256 nativeFee
+    ) public {
+        vm.assume(collateralBalance < type(uint256).max / 3);
+        collateralAmount = bound(collateralAmount, 0, collateralBalance);
+        collateralFee = bound(collateralFee, 0, collateralAmount);
+
         router.addRebalancer(address(this));
 
-        // Configuration
-        // Add the destination domain
-        router.setRecipient(
-            destinationDomain,
-            bytes32(uint256(uint160(alice)))
-        );
-
-        // Add the given bridge
-        router.addBridge(destinationDomain, vtb);
-
         // Setup
-        token.mintTo(address(router), 1e18);
+        token.mintTo(address(router), collateralBalance + collateralFee);
+        router.addBridge(destinationDomain, vtb);
         vm.prank(address(router));
-        token.approve(address(vtb), 1e18);
+        token.approve(address(vtb), type(uint256).max);
+
+        vtb.setCollateralFee(collateralFee);
+        vtb.setNativeFee(nativeFee);
+        vm.deal(address(this), nativeFee);
 
         // Execute
-        router.rebalance(destinationDomain, 1e18, vtb);
-        // Assert
-        assertEq(token.balanceOf(address(router)), 0);
-        assertEq(token.balanceOf(address(vtb)), 1e18);
+        vm.expectCall(
+            address(vtb),
+            nativeFee,
+            abi.encodeCall(
+                ITokenBridge.transferRemote,
+                (destinationDomain, remote.addressToBytes32(), collateralAmount)
+            )
+        );
+        router.rebalance{value: nativeFee}(
+            destinationDomain,
+            collateralAmount,
+            vtb
+        );
+
+        assertEq(router.chargedToRebalancer(), collateralFee);
     }
 
     function testBadRebalancer() public {

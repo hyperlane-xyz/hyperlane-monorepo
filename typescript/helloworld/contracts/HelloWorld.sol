@@ -63,7 +63,7 @@ contract HelloWorld is Router {
     ) external payable {
         sent += 1;
         sentTo[_destinationDomain] += 1;
-        _dispatch(_destinationDomain, bytes(_message));
+        _Router_dispatch(_destinationDomain, msg.value, bytes(_message));
         emit SentHelloWorld(
             mailbox.localDomain(),
             _destinationDomain,
@@ -79,7 +79,7 @@ contract HelloWorld is Router {
         uint32 _destinationDomain,
         bytes calldata _message
     ) external view returns (uint256) {
-        return _quoteDispatch(_destinationDomain, _message);
+        return _Router_quoteDispatch(_destinationDomain, _message);
     }
 
     // ============ Internal functions ============

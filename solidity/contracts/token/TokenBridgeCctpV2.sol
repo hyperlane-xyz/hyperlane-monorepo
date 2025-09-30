@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenBridgeCctpBase} from "./TokenBridgeCctpBase.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
 import {TypedMemView} from "./../libs/TypedMemView.sol";
 import {Message} from "./../libs/Message.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
@@ -44,6 +45,20 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     {
         maxFeeBps = _maxFeeBps;
         minFinalityThreshold = _minFinalityThreshold;
+    }
+
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to indicate v2 fees.
+     */
+    function _externalFeeAmount(
+        uint32,
+        bytes32,
+        uint256 amount
+    ) internal view override returns (uint256 feeAmount) {
+        return (amount * maxFeeBps) / 10_000;
     }
 
     function _getCCTPVersion() internal pure override returns (uint32) {
@@ -153,43 +168,24 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         );
     }
 
-    function _feeAmount(
-        uint32 destination,
-        bytes32 recipient,
-        uint256 amount
-    ) internal view override returns (uint256 feeAmount) {
-        return (amount * maxFeeBps) / 10_000;
-    }
-
-    function _beforeDispatch(
-        uint32 destination,
-        bytes32 recipient,
-        uint256 amount
-    )
-        internal
-        virtual
-        override
-        returns (uint256 dispatchValue, bytes memory message)
-    {
-        uint256 burnAmount = amount +
-            _feeAmount(destination, recipient, amount);
-
-        _transferFromSender(burnAmount);
-
-        uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
-
+    function _bridgeViaCircle(
+        uint32 circleDomain,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal override returns (bytes memory message) {
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
-            burnAmount,
+            _amount,
             circleDomain,
-            recipient,
+            _recipient,
             address(wrappedToken),
             bytes32(0), // allow anyone to relay
             maxFeeBps,
             minFinalityThreshold
         );
 
-        dispatchValue = msg.value;
-        message = TokenMessage.format(recipient, burnAmount);
+        message = TokenMessage.format(_recipient, _amount);
         _validateTokenMessageLength(message);
+
+        return message;
     }
 }
