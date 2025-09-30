@@ -53,92 +53,96 @@ export type SubmitterFactory<TProtocol extends ProtocolType = any> = (
   coreAddressesByChain: ChainMap<Record<string, string>>,
 ) => Promise<TxSubmitterInterface<TProtocol>> | TxSubmitterInterface<TProtocol>;
 
+const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
+  [TxSubmitterType.JSON_RPC]: (multiProvider, _, metadata) => {
+    // Used to type narrow metadata
+    assert(
+      metadata.type === TxSubmitterType.JSON_RPC,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
+    );
+    return new EV5JsonRpcTxSubmitter(multiProvider, metadata);
+  },
+  [TxSubmitterType.IMPERSONATED_ACCOUNT]: (multiProvider, _, metadata) => {
+    assert(
+      metadata.type === TxSubmitterType.IMPERSONATED_ACCOUNT,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.IMPERSONATED_ACCOUNT}`,
+    );
+    return new EV5ImpersonatedAccountTxSubmitter(multiProvider, metadata);
+  },
+  [TxSubmitterType.GNOSIS_SAFE]: (multiProvider, _, metadata) => {
+    assert(
+      metadata.type === TxSubmitterType.GNOSIS_SAFE,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.GNOSIS_SAFE}`,
+    );
+    return EV5GnosisSafeTxSubmitter.create(multiProvider, metadata);
+  },
+  [TxSubmitterType.GNOSIS_TX_BUILDER]: (multiProvider, _, metadata) => {
+    assert(
+      metadata.type === TxSubmitterType.GNOSIS_TX_BUILDER,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.GNOSIS_TX_BUILDER}`,
+    );
+    return EV5GnosisSafeTxBuilder.create(multiProvider, metadata);
+  },
+  [TxSubmitterType.INTERCHAIN_ACCOUNT]: (
+    multiProvider,
+    multiProtocolSigner,
+    metadata,
+    coreAddressesByChain,
+  ) => {
+    assert(
+      metadata.type === TxSubmitterType.INTERCHAIN_ACCOUNT,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.INTERCHAIN_ACCOUNT}`,
+    );
+    return EvmIcaTxSubmitter.fromConfig(
+      metadata,
+      multiProvider,
+      multiProtocolSigner,
+      coreAddressesByChain,
+    );
+  },
+  [TxSubmitterType.TIMELOCK_CONTROLLER]: (
+    multiProvider,
+    multiProtocolSigner,
+    metadata,
+    coreAddressesByChain,
+  ) => {
+    assert(
+      metadata.type === TxSubmitterType.TIMELOCK_CONTROLLER,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.TIMELOCK_CONTROLLER}`,
+    );
+
+    return EV5TimelockSubmitter.fromConfig(
+      metadata,
+      multiProvider,
+      multiProtocolSigner,
+      coreAddressesByChain,
+    );
+  },
+};
+
+const COSMOS_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
+  [TxSubmitterType.JSON_RPC]: (
+    multiProvider,
+    multiProtocolSigner,
+    metadata,
+  ) => {
+    // Used to type narrow metadata
+    assert(
+      metadata.type === TxSubmitterType.JSON_RPC,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
+    );
+    return new CosmosNativeRpcTxSubmitter(
+      multiProvider,
+      multiProtocolSigner,
+      metadata,
+    );
+  },
+};
+
 const defaultSubmitterFactories: ProtocolMap<Record<string, SubmitterFactory>> =
   {
-    [ProtocolType.Ethereum]: {
-      [TxSubmitterType.JSON_RPC]: (multiProvider, _, metadata) => {
-        // Used to type narrow metadata
-        assert(
-          metadata.type === TxSubmitterType.JSON_RPC,
-          `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
-        );
-        return new EV5JsonRpcTxSubmitter(multiProvider, metadata);
-      },
-      [TxSubmitterType.IMPERSONATED_ACCOUNT]: (multiProvider, _, metadata) => {
-        assert(
-          metadata.type === TxSubmitterType.IMPERSONATED_ACCOUNT,
-          `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.IMPERSONATED_ACCOUNT}`,
-        );
-        return new EV5ImpersonatedAccountTxSubmitter(multiProvider, metadata);
-      },
-      [TxSubmitterType.GNOSIS_SAFE]: (multiProvider, _, metadata) => {
-        assert(
-          metadata.type === TxSubmitterType.GNOSIS_SAFE,
-          `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.GNOSIS_SAFE}`,
-        );
-        return EV5GnosisSafeTxSubmitter.create(multiProvider, metadata);
-      },
-      [TxSubmitterType.GNOSIS_TX_BUILDER]: (multiProvider, _, metadata) => {
-        assert(
-          metadata.type === TxSubmitterType.GNOSIS_TX_BUILDER,
-          `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.GNOSIS_TX_BUILDER}`,
-        );
-        return EV5GnosisSafeTxBuilder.create(multiProvider, metadata);
-      },
-      [TxSubmitterType.INTERCHAIN_ACCOUNT]: (
-        multiProvider,
-        multiProtocolSigner,
-        metadata,
-        coreAddressesByChain,
-      ) => {
-        assert(
-          metadata.type === TxSubmitterType.INTERCHAIN_ACCOUNT,
-          `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.INTERCHAIN_ACCOUNT}`,
-        );
-        return EvmIcaTxSubmitter.fromConfig(
-          metadata,
-          multiProvider,
-          multiProtocolSigner,
-          coreAddressesByChain,
-        );
-      },
-      [TxSubmitterType.TIMELOCK_CONTROLLER]: (
-        multiProvider,
-        multiProtocolSigner,
-        metadata,
-        coreAddressesByChain,
-      ) => {
-        assert(
-          metadata.type === TxSubmitterType.TIMELOCK_CONTROLLER,
-          `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.TIMELOCK_CONTROLLER}`,
-        );
-
-        return EV5TimelockSubmitter.fromConfig(
-          metadata,
-          multiProvider,
-          multiProtocolSigner,
-          coreAddressesByChain,
-        );
-      },
-    },
-    [ProtocolType.CosmosNative]: {
-      [TxSubmitterType.JSON_RPC]: (
-        multiProvider,
-        multiProtocolSigner,
-        metadata,
-      ) => {
-        // Used to type narrow metadata
-        assert(
-          metadata.type === TxSubmitterType.JSON_RPC,
-          `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
-        );
-        return new CosmosNativeRpcTxSubmitter(
-          multiProvider,
-          multiProtocolSigner,
-          metadata,
-        );
-      },
-    },
+    [ProtocolType.Ethereum]: EVM_SUBMITTERS_FACTORIES,
+    [ProtocolType.CosmosNative]: COSMOS_SUBMITTERS_FACTORIES,
   };
 
 /**

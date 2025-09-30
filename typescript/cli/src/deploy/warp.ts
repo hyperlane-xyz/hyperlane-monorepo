@@ -55,7 +55,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
-import { compatibleProtocols } from '../config/protocols.js';
+import { COMPATIBLE_PROTOCOLS } from '../config/protocols.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -518,7 +518,7 @@ export async function extendWarpRoute(
   const filteredExtendedConfigs = objFilter(
     initialExtendedConfigs,
     (chainName, _): _ is (typeof initialExtendedConfigs)[string] =>
-      compatibleProtocols.includes(
+      COMPATIBLE_PROTOCOLS.includes(
         context.multiProtocolProvider.getProtocol(chainName),
       ),
   );
@@ -526,7 +526,7 @@ export async function extendWarpRoute(
   const filteredExistingConfigs = objFilter(
     existingConfigs,
     (chainName, _): _ is (typeof existingConfigs)[string] =>
-      compatibleProtocols.includes(
+      COMPATIBLE_PROTOCOLS.includes(
         context.multiProtocolProvider.getProtocol(chainName),
       ),
   );
@@ -534,7 +534,7 @@ export async function extendWarpRoute(
   const filteredWarpCoreConfigByChain = objFilter(
     warpCoreConfigByChain,
     (chainName, _): _ is (typeof warpCoreConfigByChain)[string] =>
-      compatibleProtocols.includes(
+      COMPATIBLE_PROTOCOLS.includes(
         context.multiProtocolProvider.getProtocol(chainName),
       ),
   );
@@ -546,7 +546,7 @@ export async function extendWarpRoute(
   )
     .filter(
       ([chainName]) =>
-        !compatibleProtocols.includes(
+        !COMPATIBLE_PROTOCOLS.includes(
           context.multiProtocolProvider.getProtocol(chainName),
         ) && !!warpDeployConfig[chainName],
     )
@@ -611,7 +611,7 @@ async function updateExistingWarpRoute(
     ExplorerLicenseType.MIT,
   );
 
-  let updateTransactions = {};
+  let updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -653,10 +653,7 @@ async function updateExistingWarpRoute(
             );
             const transactions =
               await evmERC20WarpModule.update(configWithMailbox);
-            updateTransactions = {
-              ...updateTransactions,
-              [chain]: transactions,
-            };
+            updateTransactions[chain] = transactions;
             break;
           }
           case ProtocolType.CosmosNative: {
@@ -674,10 +671,7 @@ async function updateExistingWarpRoute(
             );
             const transactions =
               await cosmosNativeWarpModule.update(configWithMailbox);
-            updateTransactions = {
-              ...updateTransactions,
-              [chain]: transactions,
-            };
+            updateTransactions[chain] = transactions;
             break;
           }
           default: {
