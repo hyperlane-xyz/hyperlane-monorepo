@@ -94,6 +94,14 @@ where
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+        // Block 0 cannot be queried in Cosmos SDK
+        let range = if range.start() == &0 {
+            1..=*range.end()
+        } else {
+            range.clone()
+        };
+
+
         let futures: Vec<_> = range
             .map(|block_height| {
                 let clone = self.clone();

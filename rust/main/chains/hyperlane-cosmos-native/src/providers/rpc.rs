@@ -1,6 +1,9 @@
 use std::future::Future;
 use std::time::Instant;
 
+use protobuf::Message as _;
+use cosmrs::tx::SignerPublicKey;
+
 use cosmrs::{
     proto::cosmos::{
         auth::v1beta1::{BaseAccount, QueryAccountRequest, QueryAccountResponse},
@@ -305,17 +308,28 @@ impl RpcProvider {
             .abci_query(
                 "/cosmos.auth.v1beta1.Query/Account",
                 QueryAccountRequest { address },
-            )
-            .await?;
-        let account = BaseAccount::decode(
-            response
-                .account
-                .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
-                .value
-                .as_slice(),
-        )
-        .map_err(HyperlaneCosmosError::from)?;
-        Ok(account)
+            ).await?;
+
+        let any = response
+            .account
+            .ok_or_else(|| ChainCommunicationError::from_other_str(
+                "failed to parse account response",
+            ))?;
+
+        use injective_protobuf::proto::account::EthAccount as inj_account;
+        let base_account = inj_account::parse_from_bytes(
+            any.value.as_slice(),
+        ).map_err(Into::<HyperlaneCosmosError>::into)?.take_base_account();
+
+        Ok(BaseAccount {
+            address: base_account.address,
+            pub_key: base_account.pub_key.into_option().map(|pub_key| Any {
+                type_url: pub_key.type_url,
+                value: pub_key.value,
+            }),
+            account_number: base_account.account_number,
+            sequence: base_account.sequence,
+        })
     }
 
     /// Get the gas price
@@ -337,7 +351,14 @@ impl RpcProvider {
 
         // timeout height of zero means that we do not have a timeout height TODO: double check
         let tx_body = tx::Body::new(msgs, String::default(), 0u32);
-        let signer_info = SignerInfo::single_direct(Some(signer.public_key), account_info.sequence);
+        let mut signer_info = SignerInfo::single_direct(Some(signer.public_key), account_info.sequence);
+
+        // Intentionally override the configured public key with the one obtained in account_info,
+        // because the pub key obtained from signer is actually of type cosmos.crypto.secp256k1.PubKey.
+        // The yet-to-be created SignDoc needs to be generated based on Injective's PubKey implementation,
+        // which is of type injective.crypto.v1beta1.ethsecp256k1.PubKey.
+        // See injective-core/injective-chain/crypto/ethsecp256k1 for more details
+        signer_info.public_key = Some(SignerPublicKey::Any(account_info.pub_key.unwrap()));
 
         let amount: u128 = (FixedPointNumber::from(gas_limit) * self.gas_price())
             .ceil_to_integer()
@@ -414,12 +435,17 @@ impl RpcProvider {
         };
 
         let sign_doc = self.generate_sign_doc(msgs, gas_limit).await?;
+        let sign_bytes = sign_doc.clone().into_bytes()?;
         let signer = self.get_signer()?;
+        let signature = signer.sign_injective(sign_bytes.as_slice());
 
-        let signed_tx = sign_doc
-            .sign(&signer.signing_key()?)
-            .map_err(HyperlaneCosmosError::from)?;
-        let signed_tx = signed_tx.to_bytes()?;
+        let signed_tx = TxRaw {
+            body_bytes: sign_doc.body_bytes,
+            auth_info_bytes: sign_doc.auth_info_bytes,
+            signatures: vec![signature],
+        };
+
+        let signed_tx = signed_tx.to_bytes().unwrap();
 
         // broadcast tx commit blocks until the tx is included in a block
         self.provider
