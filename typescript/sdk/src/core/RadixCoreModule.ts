@@ -114,7 +114,7 @@ export class RadixCoreModule extends HyperlaneModule<
       chain: chainName,
       config: config.defaultIsm,
       addresses: {
-        mailbox: '',
+        mailbox,
       },
       multiProvider,
       signer,
@@ -181,7 +181,7 @@ export class RadixCoreModule extends HyperlaneModule<
       domainRoutingIsmFactory: '',
     };
 
-    if (typeof config.defaultIsm !== 'string') {
+    if (config.defaultIsm && typeof config.defaultIsm !== 'string') {
       switch (config.defaultIsm.type) {
         case IsmType.MERKLE_ROOT_MULTISIG: {
           addresses.staticMerkleRootMultisigIsmFactory = defaultIsm;
@@ -198,7 +198,7 @@ export class RadixCoreModule extends HyperlaneModule<
       }
     }
 
-    if (typeof config.defaultHook !== 'string') {
+    if (config.defaultHook && typeof config.defaultHook !== 'string') {
       switch (config.defaultHook.type) {
         case HookType.INTERCHAIN_GAS_PAYMASTER: {
           addresses.interchainGasPaymaster = defaultHook;
@@ -211,7 +211,7 @@ export class RadixCoreModule extends HyperlaneModule<
       }
     }
 
-    if (typeof config.requiredHook !== 'string') {
+    if (config.requiredHook && typeof config.requiredHook !== 'string') {
       switch (config.requiredHook.type) {
         case HookType.INTERCHAIN_GAS_PAYMASTER: {
           addresses.interchainGasPaymaster = requiredHook;
@@ -262,7 +262,7 @@ export class RadixCoreModule extends HyperlaneModule<
 
     return [
       {
-        annotation: `Transferring ownership of Mailbox from ${actualConfig.owner} to ${expectedConfig.owner}`,
+        annotation: `Transferring ownership of Mailbox from ${actualConfig.owner} to ${expectedConfig.owner} on ${this.chainName}`,
         networkId: this.signer.getNetworkId(),
         manifest: await this.signer.populate.core.setMailboxOwner({
           from_address: this.signer.getAddress(),
@@ -302,7 +302,7 @@ export class RadixCoreModule extends HyperlaneModule<
     if (newIsmDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push({
-        annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm}`,
+        annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm} on ${this.chainName}`,
         networkId: this.signer.getNetworkId(),
         manifest: await this.signer.populate.core.setDefaultIsm({
           from_address: this.signer.getAddress(),
@@ -363,8 +363,7 @@ export class RadixCoreModule extends HyperlaneModule<
   ): Promise<AnnotatedRadixTransaction[]> {
     const updateTransactions: AnnotatedRadixTransaction[] = [];
 
-    const actualDefaultHookConfig =
-      actualConfig.defaultHook as DerivedHookConfig;
+    const actualDefaultHookConfig = actualConfig.defaultHook;
 
     // Try to update (may also deploy) Hook with the expected config
     const { deployedHook, hookUpdateTxs } = await this.deployOrUpdateHook(
@@ -380,7 +379,7 @@ export class RadixCoreModule extends HyperlaneModule<
     if (newHookDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push({
-        annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook}`,
+        annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook} on ${this.chainName}`,
         networkId: this.signer.getNetworkId(),
         manifest: await this.signer.populate.core.setDefaultHook({
           from_address: this.signer.getAddress(),
@@ -406,8 +405,7 @@ export class RadixCoreModule extends HyperlaneModule<
   ): Promise<AnnotatedRadixTransaction[]> {
     const updateTransactions: AnnotatedRadixTransaction[] = [];
 
-    const actualRequiredHookConfig =
-      actualConfig.requiredHook as DerivedHookConfig;
+    const actualRequiredHookConfig = actualConfig.requiredHook;
 
     // Try to update (may also deploy) Hook with the expected config
     const { deployedHook, hookUpdateTxs } = await this.deployOrUpdateHook(
@@ -423,7 +421,7 @@ export class RadixCoreModule extends HyperlaneModule<
     if (newHookDeployed) {
       const { mailbox } = this.serialize();
       updateTransactions.push({
-        annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook}`,
+        annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook} on ${this.chainName}`,
         networkId: this.signer.getNetworkId(),
         manifest: await this.signer.populate.core.setRequiredHook({
           from_address: this.signer.getAddress(),
