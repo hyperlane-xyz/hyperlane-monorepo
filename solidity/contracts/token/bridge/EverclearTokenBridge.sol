@@ -39,9 +39,19 @@ abstract contract EverclearBridge is TokenRouter {
 
     LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
+    /// @notice Parameters for creating an Everclear intent
+    /// @dev This is used to avoid stack too deep errors
+    struct IntentParams {
+        bytes32 receiver;
+        address inputAsset;
+        bytes32 outputAsset;
+        uint256 amount;
+        IEverclearAdapter.FeeParams feeParams;
+    }
+
     /// @notice The output asset for a given destination domain
     /// @dev Everclear needs to know the output asset address to create intents for cross-chain transfers
-    mapping(uint32 destination => bytes32 outputAssets) public outputAssets;
+    mapping(uint32 destination => bytes32 outputAsset) public outputAssets;
 
     /// @notice Whether an intent has been settled
     /// @dev This is used to prevent funds from being sent to a recipient that has already received them
@@ -49,7 +59,8 @@ abstract contract EverclearBridge is TokenRouter {
 
     /// @notice Fee parameters for the bridge operations
     /// @dev The signatures are produced by Everclear and stored here for re-use. We use the same fee for all transfers to all destinations
-    IEverclearAdapter.FeeParams public feeParams;
+    mapping(uint32 destination => IEverclearAdapter.FeeParams feeParams)
+        public feeParams;
 
     IERC20 public immutable wrappedToken;
 
@@ -65,7 +76,7 @@ abstract contract EverclearBridge is TokenRouter {
      * @param fee The new fee amount
      * @param deadline The new deadline timestamp for fee validity
      */
-    event FeeParamsUpdated(uint256 fee, uint256 deadline);
+    event FeeParamsUpdated(uint32 destination, uint256 fee, uint256 deadline);
 
     /**
      * @notice Emitted when an output asset is configured for a destination
@@ -126,16 +137,17 @@ abstract contract EverclearBridge is TokenRouter {
      * @param _sig The signature for fee validation from Everclear
      */
     function setFeeParams(
+        uint32 _destination,
         uint256 _fee,
         uint256 _deadline,
         bytes calldata _sig
     ) external onlyOwner {
-        feeParams = IEverclearAdapter.FeeParams({
+        feeParams[_destination] = IEverclearAdapter.FeeParams({
             fee: _fee,
             deadline: _deadline,
             sig: _sig
         });
-        emit FeeParamsUpdated(_fee, _deadline);
+        emit FeeParamsUpdated(_destination, _fee, _deadline);
     }
 
     /**
@@ -183,11 +195,11 @@ abstract contract EverclearBridge is TokenRouter {
      * @inheritdoc TokenRouter
      */
     function _externalFeeAmount(
-        uint32,
+        uint32 _destination,
         bytes32,
         uint256
     ) internal view override returns (uint256 feeAmount) {
-        return feeParams.fee;
+        return feeParams[_destination].fee;
     }
 
     /**
@@ -266,22 +278,35 @@ abstract contract EverclearBridge is TokenRouter {
             outputAssets[_destination] != bytes32(0),
             "ETB: Output asset not set"
         );
+        require(
+            feeParams[_destination].sig.length > 0,
+            "ETB: Fee params not set"
+        );
 
         // Create everclear intent
         uint32[] memory destinations = new uint32[](1);
         destinations[0] = _destination;
 
         // Create intent
+        // Packing the intent params in a struct to avoid stack too deep errors
+        IntentParams memory intentParams = IntentParams({
+            feeParams: feeParams[_destination],
+            receiver: _getReceiver(_destination, _recipient),
+            inputAsset: address(wrappedToken),
+            outputAsset: outputAssets[_destination],
+            amount: _amount
+        });
+
         (, IEverclear.Intent memory intent) = everclearAdapter.newIntent({
             _destinations: destinations,
-            _receiver: _getReceiver(_destination, _recipient),
-            _inputAsset: address(wrappedToken),
-            _outputAsset: outputAssets[_destination], // We load this from storage again to avoid stack too deep
-            _amount: _amount,
+            _receiver: intentParams.receiver,
+            _inputAsset: intentParams.inputAsset,
+            _outputAsset: intentParams.outputAsset,
+            _amount: intentParams.amount,
             _maxFee: 0,
             _ttl: 0,
             _data: "",
-            _feeParams: feeParams
+            _feeParams: intentParams.feeParams
         });
 
         return intent;
