@@ -39,8 +39,15 @@ abstract contract EverclearBridge is TokenRouter {
 
     LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
-    /// @notice Parameters for creating an Everclear intent
-    /// @dev This is used to avoid stack too deep errors
+    /**
+     * @notice Parameters for creating an Everclear intent
+     * @dev This struct is used to avoid stack too deep errors when creating intents
+     * @param receiver The address that will receive the tokens on the destination chain
+     * @param inputAsset The address of the input token on the source chain
+     * @param outputAsset The address of the output token on the destination chain
+     * @param amount The amount of tokens to transfer
+     * @param feeParams The fee parameters including fee amount, deadline, and signature
+     */
     struct IntentParams {
         bytes32 receiver;
         address inputAsset;
@@ -49,16 +56,22 @@ abstract contract EverclearBridge is TokenRouter {
         IEverclearAdapter.FeeParams feeParams;
     }
 
-    /// @notice The output asset for a given destination domain
-    /// @dev Everclear needs to know the output asset address to create intents for cross-chain transfers
+    /**
+     * @notice The output asset for a given destination domain
+     * @dev Everclear needs to know the output asset address to create intents for cross-chain transfers
+     */
     mapping(uint32 destination => bytes32 outputAsset) public outputAssets;
 
-    /// @notice Whether an intent has been settled
-    /// @dev This is used to prevent funds from being sent to a recipient that has already received them
+    /**
+     * @notice Whether an intent has been settled
+     * @dev This mapping prevents double-spending by tracking which intents have already been processed
+     */
     mapping(bytes32 intentId => bool isSettled) public intentSettled;
 
-    /// @notice Fee parameters for the bridge operations
-    /// @dev The signatures are produced by Everclear and stored here for re-use. We use the same fee for all transfers to all destinations
+    /**
+     * @notice Fee parameters for bridge operations on each destination domain
+     * @dev Contains fee amount, deadline, and signature from Everclear for fee validation
+     */
     mapping(uint32 destination => IEverclearAdapter.FeeParams feeParams)
         public feeParams;
 
@@ -68,7 +81,10 @@ abstract contract EverclearBridge is TokenRouter {
     /// @dev Immutable reference to the Everclear adapter used for creating intents
     IEverclearAdapter public immutable everclearAdapter;
 
-    /// @notice The Everclear spoke contract
+    /**
+     * @notice The Everclear spoke contract interface
+     * @dev Immutable reference used for checking intent status and settlement
+     */
     IEverclearSpoke public immutable everclearSpoke;
 
     /**
@@ -262,6 +278,18 @@ abstract contract EverclearBridge is TokenRouter {
     }
 
     /**
+     * @notice Encodes the intent calldata for token transfers
+     * @dev Virtual function that can be overridden by derived contracts to include custom data
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of tokens to transfer
+     * @return The encoded calldata (empty in base implementation)
+     */
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal pure virtual returns (bytes memory);
+
+    /**
      * @notice Creates an Everclear intent for cross-chain token transfer
      * @dev Internal function to handle intent creation with Everclear adapter
      * @param _destination The destination domain ID
@@ -305,7 +333,7 @@ abstract contract EverclearBridge is TokenRouter {
             _amount: intentParams.amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: "",
+            _data: _getIntentCalldata(_recipient, _amount),
             _feeParams: intentParams.feeParams
         });
 
@@ -378,6 +406,17 @@ contract EverclearTokenBridge is EverclearBridge {
     ) internal override {
         wrappedToken._transferTo(_recipient, _amount);
     }
+
+    /**
+     * @notice Encodes the intent calldata for ETH transfers
+     * @return The encoded calldata for the everclear intent.
+     */
+    function _getIntentCalldata(
+        bytes32 /* _recipient */,
+        uint256 /* _amount */
+    ) internal pure override returns (bytes memory) {
+        return "";
+    }
 }
 
 /**
@@ -447,6 +486,47 @@ contract EverclearEthBridge is EverclearBridge {
         require(
             msg.sender == address(wrappedToken),
             "EEB: Only WETH can send ETH"
+        );
+    }
+
+    /**
+     * @notice Encodes the intent calldata for ETH transfers
+     * @dev Overrides parent to encode recipient and amount for ETH-specific intent validation
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of ETH to transfer
+     * @return The encoded calldata containing recipient and amount
+     */
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal pure override returns (bytes memory) {
+        return abi.encode(_recipient, _amount);
+    }
+
+    /**
+     * @notice Validates the Everclear intent for ETH transfers
+     * @dev Overrides parent to add ETH-specific validation by checking intent data matches message
+     * @param _message The incoming message containing transfer details
+     */
+    function _settleIntent(bytes calldata _message) internal override {
+        super._settleIntent(_message);
+
+        IEverclear.Intent memory intent = abi.decode(
+            _message.metadata(),
+            (IEverclear.Intent)
+        );
+        (bytes32 _intentRecipient, uint256 _intentAmount) = abi.decode(
+            intent.data,
+            (bytes32, uint256)
+        );
+
+        require(
+            _intentRecipient == _message.recipient(),
+            "EEB: Intent recipient mismatch"
+        );
+        require(
+            _intentAmount == _message.amount(),
+            "EEB: Intent amount mismatch"
         );
     }
 }
