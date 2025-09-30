@@ -63,7 +63,7 @@ contract HelloWorld is Router {
     ) external payable {
         sent += 1;
         sentTo[_destinationDomain] += 1;
-        _Router_dispatch(_destinationDomain, bytes(_message));
+        _Router_dispatch(_destinationDomain, msg.value, bytes(_message));
         emit SentHelloWorld(
             mailbox.localDomain(),
             _destinationDomain,
