@@ -1,6 +1,10 @@
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { ChainMap } from '../../../types.js';
+import {
+  ChainMap,
+  IMultiProtocolSignerManager,
+  ProtocolMap,
+} from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 
 import { EvmIcaTxSubmitter } from './IcaTxSubmitter.js';
@@ -8,6 +12,7 @@ import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { TxSubmitterBuilder } from './builder/TxSubmitterBuilder.js';
 import { SubmissionStrategy } from './builder/types.js';
+import { CosmosNativeRpcTxSubmitter } from './cosmosnative/CosmosNativeJsonRpcTxSubmitter.js';
 import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
 import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
@@ -18,18 +23,21 @@ import { SubmitterMetadata } from './types.js';
 export type SubmitterBuilderSettings = {
   submissionStrategy: SubmissionStrategy;
   multiProvider: MultiProvider;
+  multiProtocolSigner: IMultiProtocolSignerManager;
   coreAddressesByChain: ChainMap<Record<string, string>>;
-  additionalSubmitterFactories?: Record<string, SubmitterFactory>;
+  additionalSubmitterFactories?: ProtocolMap<Record<string, SubmitterFactory>>;
 };
 
 export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
   submissionStrategy,
   multiProvider,
+  multiProtocolSigner,
   coreAddressesByChain,
   additionalSubmitterFactories,
 }: SubmitterBuilderSettings): Promise<TxSubmitterBuilder<TProtocol>> {
   const submitter = await getSubmitter<TProtocol>(
     multiProvider,
+    multiProtocolSigner,
     submissionStrategy.submitter,
     coreAddressesByChain,
     additionalSubmitterFactories,
@@ -40,12 +48,13 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
 
 export type SubmitterFactory<TProtocol extends ProtocolType = any> = (
   multiProvider: MultiProvider,
+  multiProtocolSigner: IMultiProtocolSignerManager,
   metadata: SubmitterMetadata,
   coreAddressesByChain: ChainMap<Record<string, string>>,
 ) => Promise<TxSubmitterInterface<TProtocol>> | TxSubmitterInterface<TProtocol>;
 
-const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
-  [TxSubmitterType.JSON_RPC]: (multiProvider, metadata) => {
+const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
+  [TxSubmitterType.JSON_RPC]: (multiProvider, _, metadata) => {
     // Used to type narrow metadata
     assert(
       metadata.type === TxSubmitterType.JSON_RPC,
@@ -53,21 +62,21 @@ const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
     );
     return new EV5JsonRpcTxSubmitter(multiProvider, metadata);
   },
-  [TxSubmitterType.IMPERSONATED_ACCOUNT]: (multiProvider, metadata) => {
+  [TxSubmitterType.IMPERSONATED_ACCOUNT]: (multiProvider, _, metadata) => {
     assert(
       metadata.type === TxSubmitterType.IMPERSONATED_ACCOUNT,
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.IMPERSONATED_ACCOUNT}`,
     );
     return new EV5ImpersonatedAccountTxSubmitter(multiProvider, metadata);
   },
-  [TxSubmitterType.GNOSIS_SAFE]: (multiProvider, metadata) => {
+  [TxSubmitterType.GNOSIS_SAFE]: (multiProvider, _, metadata) => {
     assert(
       metadata.type === TxSubmitterType.GNOSIS_SAFE,
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.GNOSIS_SAFE}`,
     );
     return EV5GnosisSafeTxSubmitter.create(multiProvider, metadata);
   },
-  [TxSubmitterType.GNOSIS_TX_BUILDER]: (multiProvider, metadata) => {
+  [TxSubmitterType.GNOSIS_TX_BUILDER]: (multiProvider, _, metadata) => {
     assert(
       metadata.type === TxSubmitterType.GNOSIS_TX_BUILDER,
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.GNOSIS_TX_BUILDER}`,
@@ -76,6 +85,7 @@ const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
   },
   [TxSubmitterType.INTERCHAIN_ACCOUNT]: (
     multiProvider,
+    multiProtocolSigner,
     metadata,
     coreAddressesByChain,
   ) => {
@@ -86,11 +96,13 @@ const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
     return EvmIcaTxSubmitter.fromConfig(
       metadata,
       multiProvider,
+      multiProtocolSigner,
       coreAddressesByChain,
     );
   },
   [TxSubmitterType.TIMELOCK_CONTROLLER]: (
     multiProvider,
+    multiProtocolSigner,
     metadata,
     coreAddressesByChain,
   ) => {
@@ -102,10 +114,36 @@ const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
     return EV5TimelockSubmitter.fromConfig(
       metadata,
       multiProvider,
+      multiProtocolSigner,
       coreAddressesByChain,
     );
   },
 };
+
+const COSMOS_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
+  [TxSubmitterType.JSON_RPC]: (
+    multiProvider,
+    multiProtocolSigner,
+    metadata,
+  ) => {
+    // Used to type narrow metadata
+    assert(
+      metadata.type === TxSubmitterType.JSON_RPC,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
+    );
+    return new CosmosNativeRpcTxSubmitter(
+      multiProvider,
+      multiProtocolSigner,
+      metadata,
+    );
+  },
+};
+
+const defaultSubmitterFactories: ProtocolMap<Record<string, SubmitterFactory>> =
+  {
+    [ProtocolType.Ethereum]: EVM_SUBMITTERS_FACTORIES,
+    [ProtocolType.CosmosNative]: COSMOS_SUBMITTERS_FACTORIES,
+  };
 
 /**
  * Retrieves a transaction submitter instance based on the provided metadata.
@@ -122,19 +160,53 @@ const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
  */
 export async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
+  multiProtocolSigner: IMultiProtocolSignerManager,
   submitterMetadata: SubmitterMetadata,
   coreAddressesByChain: ChainMap<Record<string, string>>,
-  additionalSubmitterFactories: Record<string, SubmitterFactory> = {},
+  additionalSubmitterFactories: ProtocolMap<
+    Record<string, SubmitterFactory>
+  > = {} as ProtocolMap<{}>,
 ): Promise<TxSubmitterInterface<TProtocol>> {
   const mergedSubmitterRegistry = {
     ...defaultSubmitterFactories,
-    ...additionalSubmitterFactories,
   };
-  const factory = mergedSubmitterRegistry[submitterMetadata.type];
-  if (!factory) {
+
+  for (const [p, factories] of Object.entries(additionalSubmitterFactories)) {
+    if (!factories) continue;
+    const protocol = p as ProtocolType;
+
+    if (mergedSubmitterRegistry[protocol]) {
+      mergedSubmitterRegistry[protocol] = {
+        ...mergedSubmitterRegistry[protocol],
+        ...factories,
+      };
+    } else {
+      mergedSubmitterRegistry[protocol] = {
+        ...factories,
+      };
+    }
+  }
+
+  const protocolType = multiProvider.getProtocol(submitterMetadata.chain);
+
+  if (!mergedSubmitterRegistry[protocolType]) {
     throw new Error(
-      `No submitter factory registered for type ${submitterMetadata.type}`,
+      `No submitter factories registered for protocol ${protocolType}`,
     );
   }
-  return factory(multiProvider, submitterMetadata, coreAddressesByChain);
+
+  const factory =
+    mergedSubmitterRegistry[protocolType]![submitterMetadata.type];
+
+  if (!factory) {
+    throw new Error(
+      `No submitter factory registered for protocol ${protocolType} and type ${submitterMetadata.type}`,
+    );
+  }
+  return factory(
+    multiProvider,
+    multiProtocolSigner,
+    submitterMetadata,
+    coreAddressesByChain,
+  );
 }
