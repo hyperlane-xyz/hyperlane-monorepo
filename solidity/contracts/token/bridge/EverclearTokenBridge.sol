@@ -11,6 +11,7 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 
 /**
  * @notice Information about an output asset for a destination domain
