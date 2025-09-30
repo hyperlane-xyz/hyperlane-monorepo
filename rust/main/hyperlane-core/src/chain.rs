@@ -294,6 +294,7 @@ pub enum KnownHyperlaneDomain {
     PolynomialFi = 1000008008,
     PragmaDevnet = 6363709,
     Radix = 1633970780,
+    RadixTestnet = 1280787160,
     ScrollSepolia = 534351,
     Sepolia = 11155111,
     SolanaTestnet = 1399811150,
@@ -459,6 +460,7 @@ impl KnownHyperlaneDomain {
             | PlumeTestnet
             | Polygonamoy
             | PragmaDevnet
+            | RadixTestnet
             | ScrollSepolia
             | Sepolia
             | SolanaTestnet
@@ -516,6 +518,7 @@ impl KnownHyperlaneDomain {
             | Paradex
             | ParadexSepolia
             | PragmaDevnet => HyperlaneDomainProtocol::Starknet,
+            Radix | RadixTestnet => HyperlaneDomainProtocol::Radix,
             _ => HyperlaneDomainProtocol::Ethereum
         }
     }
