@@ -74,7 +74,7 @@ contract EverclearEthBridge is EverclearTokenBridge {
         quotes[0] = Quote({
             token: address(0),
             amount: _amount +
-                feeParams.fee +
+                feeParams[_destination].fee +
                 _quoteGasPayment(_destination, _recipient, _amount)
         });
     }
@@ -124,7 +124,7 @@ contract EverclearEthBridge is EverclearTokenBridge {
     ) internal virtual override returns (uint256 dispatchValue) {
         uint256 fee = _feeAmount(_destination, _recipient, _amount);
 
-        uint256 totalAmount = _amount + fee + feeParams.fee;
+        uint256 totalAmount = _amount + fee + feeParams[_destination].fee;
         _transferFromSender(totalAmount);
         dispatchValue = msg.value - totalAmount;
         if (fee > 0) {
