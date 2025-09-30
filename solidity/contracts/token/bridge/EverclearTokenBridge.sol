@@ -34,8 +34,15 @@ contract EverclearTokenBridge is HypERC20Collateral {
     using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
 
-    /// @notice Parameters for creating an Everclear intent
-    /// @dev This is used to avoid stack too deep errors
+    /**
+     * @notice Parameters for creating an Everclear intent
+     * @dev This struct is used to avoid stack too deep errors when creating intents
+     * @param receiver The address that will receive the tokens on the destination chain
+     * @param inputAsset The address of the input token on the source chain
+     * @param outputAsset The address of the output token on the destination chain
+     * @param amount The amount of tokens to transfer
+     * @param feeParams The fee parameters including fee amount, deadline, and signature
+     */
     struct IntentParams {
         bytes32 receiver;
         address inputAsset;
@@ -44,24 +51,35 @@ contract EverclearTokenBridge is HypERC20Collateral {
         IEverclearAdapter.FeeParams feeParams;
     }
 
-    /// @notice The output asset for a given destination domain
-    /// @dev Everclear needs to know the output asset address to create intents for cross-chain transfers
+    /**
+     * @notice The output asset for a given destination domain
+     * @dev Everclear needs to know the output asset address to create intents for cross-chain transfers
+     */
     mapping(uint32 destination => bytes32 outputAsset) public outputAssets;
 
-    /// @notice Whether an intent has been settled
-    /// @dev This is used to prevent funds from being sent to a recipient that has already received them
+    /**
+     * @notice Whether an intent has been settled
+     * @dev This mapping prevents double-spending by tracking which intents have already been processed
+     */
     mapping(bytes32 intentId => bool isSettled) public intentSettled;
 
-    /// @notice Fee parameters for the bridge operations
-    /// @dev The signatures are produced by Everclear and stored here for re-use. We use the same fee for all transfers to all destinations
+    /**
+     * @notice Fee parameters for bridge operations on each destination domain
+     * @dev Contains fee amount, deadline, and signature from Everclear for fee validation
+     */
     mapping(uint32 destination => IEverclearAdapter.FeeParams feeParams)
         public feeParams;
 
-    /// @notice The Everclear adapter contract interface
-    /// @dev Immutable reference to the Everclear adapter used for creating intents
+    /**
+     * @notice The Everclear adapter contract interface
+     * @dev Immutable reference to the Everclear adapter used for creating and managing intents
+     */
     IEverclearAdapter public immutable everclearAdapter;
 
-    /// @notice The Everclear spoke contract
+    /**
+     * @notice The Everclear spoke contract interface
+     * @dev Immutable reference used for checking intent status and settlement
+     */
     IEverclearSpoke public immutable everclearSpoke;
 
     /**
@@ -196,6 +214,20 @@ contract EverclearTokenBridge is HypERC20Collateral {
     }
 
     /**
+     * @notice Encodes the intent calldata for token transfers
+     * @dev Virtual function that can be overridden by derived contracts to include custom data
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of tokens to transfer
+     * @return The encoded calldata (empty in base implementation)
+     */
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal pure virtual returns (bytes memory) {
+        return "";
+    }
+
+    /**
      * @notice Creates an Everclear intent for cross-chain token transfer
      * @dev Internal function to handle intent creation with Everclear adapter
      * @param _destination The destination domain ID
@@ -239,7 +271,7 @@ contract EverclearTokenBridge is HypERC20Collateral {
             _amount: intentParams.amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: "",
+            _data: _getIntentCalldata(_recipient, _amount),
             _feeParams: intentParams.feeParams
         });
 
@@ -318,9 +350,10 @@ contract EverclearTokenBridge is HypERC20Collateral {
     }
 
     /**
-     * @dev No-op, the funds are transferred directly to `_recipient` via Everclear
-     * @param _recipient The address to receive the tokens
-     * @param _amount The amount of tokens to transfer
+     * @notice Transfers tokens to the recipient (no-op in Everclear bridge)
+     * @dev No-op implementation since funds are transferred directly to recipient via Everclear's intent system
+     * @param _recipient The address to receive the tokens (unused)
+     * @param _amount The amount of tokens to transfer (unused)
      */
     function _transferTo(
         address _recipient,
@@ -330,20 +363,17 @@ contract EverclearTokenBridge is HypERC20Collateral {
     }
 
     /**
-     * @notice Handles incoming messages from remote chains
-     * @dev For the base token bridge, this is a no-op since funds are transferred via Everclear
-     * @param _origin The origin domain ID where the message was sent from
-     * @param _message The message payload (unused in base implementation)
+     * @notice Validates the Everclear intent associated with an incoming message
+     * @dev Checks that the intent is settled on Everclear and hasn't been processed before
+     * @param _message The incoming message containing intent metadata
+     * @return intentId The unique identifier for the validated intent
+     * @return intentBytes The encoded intent data from the message metadata
      */
-    function _handle(
-        uint32 _origin,
-        bytes32 _sender,
+    function _validateIntent(
         bytes calldata _message
-    ) internal virtual override {
-        // Get intent from hyperlane message
-        bytes memory metadata = _message.metadata();
-        bytes32 intentId = keccak256(metadata);
-
+    ) internal view virtual returns (bytes32, bytes memory) {
+        bytes memory intentBytes = _message.metadata();
+        bytes32 intentId = keccak256(intentBytes);
         // Check Everclear intent status
         require(
             everclearSpoke.status(intentId) == IEverclear.IntentStatus.SETTLED,
@@ -351,7 +381,22 @@ contract EverclearTokenBridge is HypERC20Collateral {
         );
         // Check that we have not processed this intent before
         require(!intentSettled[intentId], "ETB: Intent already processed");
+        return (intentId, intentBytes);
+    }
 
+    /**
+     * @notice Handles incoming messages from remote chains
+     * @dev Validates the Everclear intent, marks it as settled, and delegates to parent handler
+     * @param _origin The origin domain ID where the message was sent from
+     * @param _sender The address of the sender on the origin chain
+     * @param _message The message payload containing transfer details and intent metadata
+     */
+    function _handle(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes calldata _message
+    ) internal override {
+        (bytes32 intentId, ) = _validateIntent(_message);
         intentSettled[intentId] = true;
         super._handle(_origin, _sender, _message);
     }
