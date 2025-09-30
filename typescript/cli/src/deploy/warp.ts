@@ -158,10 +158,19 @@ export async function runWarpRouteDeploy({
 
   const registryAddresses = await registry.getAddresses();
 
-  await enrollCrossChainRouters(
+  const enrollTxs = await enrollCrossChainRouters(
     { multiProvider, multiProtocolSigner, registryAddresses, warpDeployConfig },
     deployedContracts,
   );
+
+  for (const chain of Object.keys(enrollTxs)) {
+    log(`Enrolling routers for chain ${chain}`);
+    const { submitter } = await getSubmitterByStrategy({
+      chain,
+      context: context,
+    });
+    await submitter.submit(...(enrollTxs[chain] as any[]));
+  }
 
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
     deploymentParams,

@@ -26,6 +26,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
 import { CosmosNativeWarpModule } from '../token/CosmosNativeWarpModule.js';
 import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
+import { gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
 import { CosmosNativeDeployer } from '../token/cosmosnativeDeploy.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
@@ -348,7 +349,7 @@ export async function enrollCrossChainRouters(
   deployedContracts: ChainMap<Address>,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   const resolvedConfigMap = objMap(warpDeployConfig, (_, config) => ({
-    gas: 0, // TODO: protocol specific gas?,
+    gas: gasOverhead(config.type).toString(),
     ...config,
   }));
 
@@ -359,7 +360,7 @@ export async function enrollCrossChainRouters(
 
   const allChains = Object.keys(configMapToDeploy);
 
-  let updateTransactions = {};
+  const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
 
   for (const chain of allChains) {
     const protocol = multiProvider.getProtocol(chain);
@@ -407,15 +408,20 @@ export async function enrollCrossChainRouters(
             }
             return routers;
           })(),
+          destinationGas: (() => {
+            const dGas: Record<string, string> = {};
+            for (const c of allRemoteChains) {
+              dGas[multiProvider.getDomainId(c).toString()] =
+                configMapToDeploy[c].gas;
+            }
+            return dGas;
+          })(),
         };
 
         const transactions = await evmWarpModule.update(expectedConfig);
 
         if (transactions.length) {
-          updateTransactions = {
-            ...updateTransactions,
-            [chain]: transactions,
-          };
+          updateTransactions[chain] = transactions;
         }
 
         break;
@@ -446,16 +452,21 @@ export async function enrollCrossChainRouters(
             }
             return routers;
           })(),
+          destinationGas: (() => {
+            const dGas: Record<string, string> = {};
+            for (const c of allRemoteChains) {
+              dGas[multiProvider.getDomainId(c).toString()] =
+                configMapToDeploy[c].gas;
+            }
+            return dGas;
+          })(),
         };
 
         const transactions =
           await cosmosNativeWarpModule.update(expectedConfig);
 
         if (transactions.length) {
-          updateTransactions = {
-            ...updateTransactions,
-            [chain]: transactions,
-          };
+          updateTransactions[chain] = transactions;
         }
 
         break;

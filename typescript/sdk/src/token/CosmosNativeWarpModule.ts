@@ -284,7 +284,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
         }
 
         updateTransactions.push({
-          annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+          annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain} to ${gas}`,
           typeUrl: R.MsgEnrollRemoteRouter.proto.type,
           value: R.MsgEnrollRemoteRouter.proto.converter.create({
             owner: actualConfig.owner,

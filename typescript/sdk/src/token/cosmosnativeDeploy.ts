@@ -5,7 +5,6 @@ import {
   Address,
   ProtocolType,
   assert,
-  eqAddress,
   objFilter,
   objMap,
   rootLogger,
@@ -83,17 +82,6 @@ export class CosmosNativeDeployer {
         await this.signersMap[chain].setToken({
           token_id: result[chain],
           new_owner: '',
-          ism_id: config.interchainSecurityModule,
-          renounce_ownership: false,
-        });
-      }
-
-      if (!eqAddress(this.signersMap[chain].account.address, config.owner)) {
-        this.logger.info(`Set new owner for token`);
-
-        await this.signersMap[chain].setToken({
-          token_id: result[chain],
-          new_owner: config.owner,
           ism_id: config.interchainSecurityModule,
           renounce_ownership: false,
         });
