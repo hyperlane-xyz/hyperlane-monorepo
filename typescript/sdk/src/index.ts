@@ -539,6 +539,7 @@ export {
 } from './token/adapters/CosmWasmTokenAdapter.js';
 export {
   EvmHypCollateralAdapter,
+  EvmMovableCollateralAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
   EvmHypVSXERC20Adapter,
