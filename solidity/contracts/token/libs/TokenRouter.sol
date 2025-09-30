@@ -86,9 +86,9 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
      * @return quotes An array of Quote structs representing the fees in different tokens.
      * @dev This function may return multiple quotes with the same denomination. Convention is to return:
-     *  - native fees charged by the mailbox dispatch
-     *  - then any internal warp route fees (amount bridged plus fee recipient)
-     *  - then any external bridging fees (if any, else 0)
+     *  [index 0] native fees charged by the mailbox dispatch
+     *  [index 1] then any internal warp route fees (amount bridged plus fee recipient)
+     *  [index 2] then any external bridging fees (if any, else 0)
      * These are surfaced as separate elements to enable clients to interpret/render fees independently.
      * There is a Quotes library with an extract function for onchain quoting in a specific denomination,
      * but we discourage onchain quoting in favor of offchain quoting and overpaying with refunds.
