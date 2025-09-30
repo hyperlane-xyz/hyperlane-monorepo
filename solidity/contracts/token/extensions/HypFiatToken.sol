@@ -22,6 +22,15 @@ contract HypFiatToken is TokenRouter {
         address _mailbox
     ) TokenRouter(_scale, _mailbox) {
         wrappedToken = IFiatToken(_fiatToken);
+        _disableInitializers();
+    }
+
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public virtual initializer {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
     // ============ TokenRouter overrides ============
