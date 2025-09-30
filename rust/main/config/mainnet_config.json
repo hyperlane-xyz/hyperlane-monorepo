@@ -9315,10 +9315,10 @@
     "incentiv": {
       "blockExplorers": [
         {
-          "apiUrl": "http://explorer.incentive.io/api",
-          "family": "other",
+          "apiUrl": "http://explorer.incentiv.io/api",
+          "family": "blockscout",
           "name": "Incentiv Explorer",
-          "url": "http://explorer.incentive.io"
+          "url": "http://explorer.incentiv.io"
         }
       ],
       "blocks": {
