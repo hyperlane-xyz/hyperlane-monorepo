@@ -66,6 +66,8 @@ async function announceValidator() {
   const validator = await getValidatorFromStorageLocation(location);
   const { value: announcement, serialized_signature } =
     await validator.getSignedAnnouncement();
+  console.log('Announcement:', announcement);
+  console.log('Serialized signature:', serialized_signature);
 
   // Prepare calldata manually
   const storageChunks = stringToFeltArray(announcement.storage_location);
