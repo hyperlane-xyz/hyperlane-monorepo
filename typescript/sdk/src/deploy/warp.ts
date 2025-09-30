@@ -399,6 +399,7 @@ export async function enrollCrossChainRouters(
         const actualConfig = await evmWarpModule.read();
         const expectedConfig = {
           ...actualConfig,
+          owner: configMapToDeploy[chain].owner,
           remoteRouters: (() => {
             const routers: Record<string, { address: string }> = {};
             for (const c of allRemoteChains) {
@@ -443,6 +444,7 @@ export async function enrollCrossChainRouters(
         const actualConfig = await cosmosNativeWarpModule.read();
         const expectedConfig = {
           ...actualConfig,
+          owner: configMapToDeploy[chain].owner,
           remoteRouters: (() => {
             const routers: Record<string, { address: string }> = {};
             for (const c of allRemoteChains) {

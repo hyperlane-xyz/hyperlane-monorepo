@@ -316,11 +316,19 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedCosmJsNativeTransaction[]> {
     const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
+
+    if (
+      actualConfig.interchainSecurityModule ===
+      expectedConfig.interchainSecurityModule
+    ) {
+      return updateTransactions;
+    }
+
     if (
       !expectedConfig.interchainSecurityModule ||
       expectedConfig.interchainSecurityModule === zeroAddress
     ) {
-      return [];
+      return updateTransactions;
     }
 
     const actualDeployedIsm =

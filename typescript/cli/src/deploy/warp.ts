@@ -917,6 +917,11 @@ async function submitWarpApplyTransactions(
           const transactionReceipts = await submitter.submit(
             ...(transactions as any[]),
           );
+
+          if (protocol !== ProtocolType.Ethereum) {
+            return;
+          }
+
           if (transactionReceipts) {
             const receiptPath = `${params.receiptsDir}/${chain}-${
               submitter.txSubmitterType
