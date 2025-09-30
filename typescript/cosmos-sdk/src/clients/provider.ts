@@ -38,6 +38,14 @@ import {
   PostDispatchExtension,
   setupPostDispatchExtension,
 } from '../hyperlane/post_dispatch/query.js';
+import {
+  MsgCreateCollateralTokenEncodeObject,
+  MsgCreateSyntheticTokenEncodeObject,
+  MsgEnrollRemoteRouterEncodeObject,
+  MsgRemoteTransferEncodeObject,
+  MsgSetTokenEncodeObject,
+  MsgUnrollRemoteRouterEncodeObject,
+} from '../hyperlane/warp/messages.js';
 import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
@@ -574,4 +582,105 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
   }
 
   // ### POPULATE WARP ###
+
+  async populateCreateCollateralToken(
+    req: MultiVM.ReqCreateCollateralToken,
+  ): Promise<MsgCreateCollateralTokenEncodeObject> {
+    return {
+      typeUrl: R.MsgCreateCollateralToken.proto.type,
+      value: R.MsgCreateCollateralToken.proto.converter.create({
+        owner: req.signer,
+        origin_mailbox: req.mailbox_id,
+        origin_denom: req.origin_denom,
+      }),
+    };
+  }
+
+  async populateCreateSyntheticToken(
+    req: MultiVM.ReqCreateSyntheticToken,
+  ): Promise<MsgCreateSyntheticTokenEncodeObject> {
+    return {
+      typeUrl: R.MsgCreateSyntheticToken.proto.type,
+      value: R.MsgCreateSyntheticToken.proto.converter.create({
+        owner: req.signer,
+        origin_mailbox: req.mailbox_id,
+      }),
+    };
+  }
+
+  async populateSetTokenOwner(
+    req: MultiVM.ReqSetTokenOwner,
+  ): Promise<MsgSetTokenEncodeObject> {
+    return {
+      typeUrl: R.MsgSetToken.proto.type,
+      value: R.MsgSetToken.proto.converter.create({
+        owner: req.signer,
+        token_id: req.token_id,
+        new_owner: req.new_owner,
+        renounce_ownership: !req.new_owner,
+      }),
+    };
+  }
+
+  async populateSetTokenIsm(
+    req: MultiVM.ReqSetTokenIsm,
+  ): Promise<MsgSetTokenEncodeObject> {
+    return {
+      typeUrl: R.MsgSetToken.proto.type,
+      value: R.MsgSetToken.proto.converter.create({
+        owner: req.signer,
+        token_id: req.token_id,
+        ism_id: req.ism_id,
+      }),
+    };
+  }
+
+  async populateEnrollRemoteRouter(
+    req: MultiVM.ReqEnrollRemoteRouter,
+  ): Promise<MsgEnrollRemoteRouterEncodeObject> {
+    return {
+      typeUrl: R.MsgEnrollRemoteRouter.proto.type,
+      value: R.MsgEnrollRemoteRouter.proto.converter.create({
+        owner: req.signer,
+        token_id: req.token_id,
+        remote_router: {
+          receiver_domain: req.receiver_domain_id,
+          receiver_contract: req.receiver_address,
+          gas: req.gas,
+        },
+      }),
+    };
+  }
+
+  async populateUnenrollRemoteRouter(
+    req: MultiVM.ReqUnenrollRemoteRouter,
+  ): Promise<MsgUnrollRemoteRouterEncodeObject> {
+    return {
+      typeUrl: R.MsgUnrollRemoteRouter.proto.type,
+      value: R.MsgUnrollRemoteRouter.proto.converter.create({
+        owner: req.signer,
+        token_id: req.token_id,
+        receiver_domain: req.receiver_domain_id,
+      }),
+    };
+  }
+
+  async populateRemoteTransfer(
+    req: MultiVM.ReqRemoteTransfer,
+  ): Promise<MsgRemoteTransferEncodeObject> {
+    return {
+      typeUrl: R.MsgRemoteTransfer.proto.type,
+      value: R.MsgRemoteTransfer.proto.converter.create({
+        sender: req.signer,
+        token_id: req.token_id,
+        destination_domain: req.destination_domain_id,
+        recipient: req.recipient,
+        amount: req.amount,
+        custom_hook_id: req.custom_hook_id,
+        gas_limit: req.gas_limit,
+        max_fee: req.max_fee,
+        custom_hook_metadata: req.custom_hook_metadata,
+      }),
+    };
+  }
 }
