@@ -1,4 +1,4 @@
-import { Account, CallData } from 'starknet';
+import { Account, CallData, ETransactionVersion3 } from 'starknet';
 import yargs from 'yargs';
 
 import { getValidatorFromStorageLocation } from '@hyperlane-xyz/sdk';
@@ -29,12 +29,12 @@ function signatureToBytes(sig: string): any[] {
   // Each u128 chunk contains 16 bytes, padded if necessary
   const size = sigBytes.length;
   const padding = (16 - (size % 16)) % 16;
-  const paddedBytes = Buffer.concat([sigBytes, Buffer.alloc(padding)]);
+  const paddedBytes = new Uint8Array([...sigBytes, ...new Uint8Array(padding)]);
 
   const chunks: string[] = [];
   for (let i = 0; i < paddedBytes.length; i += 16) {
-    const chunk = paddedBytes.slice(i, i + 16);
-    const u128Value = BigInt('0x' + chunk.toString('hex'));
+    const chunk = new Uint8Array(paddedBytes.slice(i, i + 16));
+    const u128Value = BigInt('0x' + Buffer.from(chunk).toString('hex'));
     chunks.push(u128Value.toString());
   }
 
@@ -125,12 +125,30 @@ async function announceValidator() {
       hexOrBase58ToHex(deployer.privateKey),
     );
 
-    // Execute the transaction
-    const result = await account.execute({
-      contractAddress: addresses.validatorAnnounce,
-      entrypoint: 'announce',
-      calldata: calldata,
-    });
+    // Execute the transaction with resource bounds
+    const result = await account.execute(
+      {
+        contractAddress: addresses.validatorAnnounce,
+        entrypoint: 'announce',
+        calldata: calldata,
+      },
+      {
+        resourceBounds: {
+          l1_gas: {
+            max_amount: '0x100000', // 1048576 - much higher for complex computation
+            max_price_per_unit: '0x3b9aca00', // 1 gwei in wei (1000000000)
+          },
+          l2_gas: {
+            max_amount: '0x1000000', // 16777216 - much higher for complex computation
+            max_price_per_unit: '0x3b9aca00', // 1 gwei in wei (1000000000)
+          },
+          l1_data_gas: {
+            max_amount: '0x10000', // 65536 - higher for data processing
+            max_price_per_unit: '0x3b9aca00', // 1 gwei in wei (1000000000)
+          },
+        },
+      },
+    );
 
     console.log('✅ Transaction submitted:', result.transaction_hash);
     console.log('Waiting for confirmation...');
