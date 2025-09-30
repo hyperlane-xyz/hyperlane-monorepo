@@ -19,7 +19,6 @@ export type ResGetMailbox = {
   address: string;
   owner: string;
   local_domain: number;
-  nonce: number;
   default_ism: string;
   default_hook: string;
   required_hook: string;
@@ -54,6 +53,11 @@ export type ResRoutingIsm = {
     domain: number;
     ism: string;
   }[];
+};
+
+export type ReqNoopIsm = { ism_id: string };
+export type ResNoopIsm = {
+  address: string;
 };
 
 export type ReqGetHookType = { hook_id: string };
@@ -99,7 +103,7 @@ export type ReqGetRemoteRouters = { token_id: string };
 export type ResGetRemoteRouters = {
   address: string;
   remote_routers: {
-    receiver_domain: string;
+    receiver_domain_id: number;
     receiver_contract: string;
     gas: string;
   }[];
@@ -110,7 +114,9 @@ export type ResGetBridgedSupply = bigint;
 
 export type ReqQuoteRemoteTransfer = {
   token_id: string;
-  destination_domain: number;
+  destination_domain_id: number;
+  custom_hook_id: string;
+  custom_hook_metadata: string;
 };
 export type ResQuoteRemoteTransfer = { denom: string; amount: bigint };
 
@@ -341,7 +347,7 @@ export type ResRemoteTransfer = {
   token_id: string;
 };
 
-export interface IMultiVM {
+export interface IMultiVMProvider {
   // ### QUERY BASE ###
 
   isHealthy(): Promise<boolean>;
@@ -370,6 +376,8 @@ export interface IMultiVM {
 
   getRoutingIsm(req: ReqRoutingIsm): Promise<ResRoutingIsm>;
 
+  getNoopIsm(req: ReqNoopIsm): Promise<ResNoopIsm>;
+
   getHookType(req: ReqGetHookType): Promise<ResGetHookType>;
 
   getInterchainGasPaymasterHook(
@@ -392,88 +400,70 @@ export interface IMultiVM {
 
   // ### POPULATE CORE ###
 
-  populateCreateMailbox(req: ReqCreateMailbox): Promise<ResCreateMailbox>;
+  populateCreateMailbox(req: ReqCreateMailbox): Promise<any>;
 
-  populateSetDefaultIsm(req: ReqSetDefaultIsm): Promise<ResSetDefaultIsm>;
+  populateSetDefaultIsm(req: ReqSetDefaultIsm): Promise<any>;
 
-  populateSetDefaultHook(req: ReqSetDefaultHook): Promise<ResSetDefaultHook>;
+  populateSetDefaultHook(req: ReqSetDefaultHook): Promise<any>;
 
-  populateSetRequiredHook(req: ReqSetRequiredHook): Promise<ResSetRequiredHook>;
+  populateSetRequiredHook(req: ReqSetRequiredHook): Promise<any>;
 
-  populateSetMailboxOwner(req: ReqSetMailboxOwner): Promise<ResSetMailboxOwner>;
+  populateSetMailboxOwner(req: ReqSetMailboxOwner): Promise<any>;
 
   populateCreateMerkleRootMultisigIsm(
     req: ReqCreateMerkleRootMultisigIsm,
-  ): Promise<ResCreateMerkleRootMultisigIsm>;
+  ): Promise<any>;
 
   populateCreateMessageIdMultisigIsm(
     req: ReqCreateMessageIdMultisigIsm,
-  ): Promise<ResCreateMessageIdMultisigIsm>;
+  ): Promise<any>;
 
-  populateCreateRoutingIsm(
-    req: ReqCreateRoutingIsm,
-  ): Promise<ResCreateRoutingIsm>;
+  populateCreateRoutingIsm(req: ReqCreateRoutingIsm): Promise<any>;
 
-  populateSetRoutingIsmRoute(
-    req: ReqSetRoutingIsmRoute,
-  ): Promise<ResSetRoutingIsmRoute>;
+  populateSetRoutingIsmRoute(req: ReqSetRoutingIsmRoute): Promise<any>;
 
-  populateRemoveRoutingIsmRoute(
-    req: ReqRemoveRoutingIsmRoute,
-  ): Promise<ResRemoveRoutingIsmRoute>;
+  populateRemoveRoutingIsmRoute(req: ReqRemoveRoutingIsmRoute): Promise<any>;
 
-  populateSetRoutingIsmOwner(
-    req: ResSetRoutingIsmOwner,
-  ): Promise<ResSetRoutingIsmOwner>;
+  populateSetRoutingIsmOwner(req: ResSetRoutingIsmOwner): Promise<any>;
 
-  populateCreateNoopIsm(req: ReqCreateNoopIsm): Promise<ResCreateNoopIsm>;
+  populateCreateNoopIsm(req: ReqCreateNoopIsm): Promise<any>;
 
-  populateCreateMerkleTreeHook(
-    req: ReqCreateMerkleTreeHook,
-  ): Promise<ResCreateMerkleTreeHook>;
+  populateCreateMerkleTreeHook(req: ReqCreateMerkleTreeHook): Promise<any>;
 
   populateCreateInterchainGasPaymasterHook(
     req: ReqCreateInterchainGasPaymasterHook,
-  ): Promise<ResCreateInterchainGasPaymasterHook>;
+  ): Promise<any>;
 
   populateSetInterchainGasPaymasterHookOwner(
     req: ReqSetInterchainGasPaymasterHookOwner,
-  ): Promise<ResSetInterchainGasPaymasterHookOwner>;
+  ): Promise<any>;
 
   populateSetDestinationGasConfig(
     req: ReqSetDestinationGasConfig,
-  ): Promise<ResSetDestinationGasConfig>;
+  ): Promise<any>;
 
   populateCreateValidatorAnnounce(
     req: ReqCreateValidatorAnnounce,
-  ): Promise<ResCreateValidatorAnnounce>;
+  ): Promise<any>;
 
   // ### POPULATE WARP ###
 
-  populateCreateCollateralToken(
-    req: ReqCreateCollateralToken,
-  ): Promise<ResCreateCollateralToken>;
+  populateCreateCollateralToken(req: ReqCreateCollateralToken): Promise<any>;
 
-  populateCreateSyntheticToken(
-    req: ReqCreateSyntheticToken,
-  ): Promise<ResCreateSyntheticToken>;
+  populateCreateSyntheticToken(req: ReqCreateSyntheticToken): Promise<any>;
 
-  populateSetTokenOwner(req: ReqSetTokenOwner): Promise<ResSetTokenOwner>;
+  populateSetTokenOwner(req: ReqSetTokenOwner): Promise<any>;
 
-  populateSetTokenIsm(req: ReqSetTokenIsm): Promise<ResSetTokenIsm>;
+  populateSetTokenIsm(req: ReqSetTokenIsm): Promise<any>;
 
-  populateEnrollRemoteRouter(
-    req: ReqEnrollRemoteRouter,
-  ): Promise<ResEnrollRemoteRouter>;
+  populateEnrollRemoteRouter(req: ReqEnrollRemoteRouter): Promise<any>;
 
-  populateUnenrollRemoteRouter(
-    req: ReqUnenrollRemoteRouter,
-  ): Promise<ResUnenrollRemoteRouter>;
+  populateUnenrollRemoteRouter(req: ReqUnenrollRemoteRouter): Promise<any>;
 
-  populateRemoteTransfer(req: ReqRemoteTransfer): Promise<ResRemoteTransfer>;
+  populateRemoteTransfer(req: ReqRemoteTransfer): Promise<any>;
 }
 
-export interface IMultiSigningVM {
+export interface IMultiVMSigner extends IMultiVMProvider {
   // ### TX CORE ###
 
   createMailbox(
@@ -571,4 +561,20 @@ export interface IMultiSigningVM {
   remoteTransfer(
     req: Omit<ReqRemoteTransfer, 'signer'>,
   ): Promise<ResRemoteTransfer>;
+}
+
+export abstract class MultiVmProviderFactory {
+  static async connect(_rpcUrl: string): Promise<IMultiVMProvider> {
+    throw new Error('connect not implemented');
+  }
+}
+
+export abstract class MultiVmSignerFactory {
+  static async fromSignerConfig(_config: {
+    chain: string;
+    privateKey: string;
+    extraParams?: Record<string, any> | undefined;
+  }): Promise<IMultiVMSigner> {
+    throw new Error('fromSignerConfig not implemented');
+  }
 }
