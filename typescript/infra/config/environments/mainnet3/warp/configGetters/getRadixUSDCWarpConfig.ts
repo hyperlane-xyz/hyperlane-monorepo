@@ -13,6 +13,7 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../utils.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
@@ -36,7 +37,7 @@ const owners = {
   radix: 'account_rdx1280taxhhnuek02y59yapsg4kjtux954qkyufpwmy4dlfcxdrjzr7fj',
 };
 
-export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
+export const getRadixUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
@@ -91,3 +92,6 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
     radix,
   };
 };
+
+export const getUSDCRadixSafeBuilderStrategyConfig =
+  getGnosisSafeBuilderStrategyConfigGenerator(owners);
