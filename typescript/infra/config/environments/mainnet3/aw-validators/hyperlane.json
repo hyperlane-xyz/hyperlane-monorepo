@@ -182,6 +182,9 @@
   "lisk": {
     "validators": ["0xc0b282aa5bac43fee83cf71dc3dd1797c1090ea5"]
   },
+  "litchain": {
+    "validators": ["0xde5509be55483aa525e9b5cce6fe64d3e68d068d"]
+  },
   "lukso": {
     "validators": ["0xa5e953701dcddc5b958b5defb677a829d908df6d"]
   },
@@ -403,8 +406,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "litchain": {
-    "validators": ["0xde5509be55483aa525e9b5cce6fe64d3e68d068d"]
   }
 }
