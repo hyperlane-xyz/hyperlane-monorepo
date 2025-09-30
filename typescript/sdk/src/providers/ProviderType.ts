@@ -39,8 +39,6 @@ import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainMap } from '../types.js';
-
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
   Viem = 'viem',
@@ -278,18 +276,6 @@ export interface RadixSDKTransaction {
   manifest: TransactionManifest | string;
 }
 
-export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
-
-export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
-
-export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
-
-export type GroupedTransactions = {
-  [ProtocolType.Ethereum]: ChainMap<AnnotatedEV5Transaction[]>;
-  [ProtocolType.CosmosNative]: ChainMap<AnnotatedCosmJsNativeTransaction[]>;
-  [ProtocolType.Radix]: ChainMap<AnnotatedRadixTransaction[]>;
-};
-
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
   type: ProviderType.Viem;
   transaction: VTransaction;
@@ -347,6 +333,36 @@ export type TypedTransaction =
   | StarknetJsTransaction
   | ZKSyncTransaction
   | RadixTransaction;
+
+export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
+
+export type AnnotatedViemTransaction = Annotated<VTransaction>;
+
+export type AnnotatedSolanaWeb3Transaction = Annotated<SolTransaction>;
+
+export type AnnotatedCosmJsTransaction = Annotated<CmTransaction>;
+
+export type AnnotatedCosmJsWasmTransaction = Annotated<ExecuteInstruction>;
+
+export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
+
+export type AnnotatedStarknetJsTransaction = Annotated<StarknetInvocation>;
+
+export type AnnotatedZKSyncTransaction =
+  Annotated<zkSyncTypes.TransactionRequest>;
+
+export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
+
+export type TypedAnnotatedTransaction =
+  | AnnotatedEV5Transaction
+  | AnnotatedViemTransaction
+  | AnnotatedSolanaWeb3Transaction
+  | AnnotatedCosmJsTransaction
+  | AnnotatedCosmJsWasmTransaction
+  | AnnotatedCosmJsNativeTransaction
+  | AnnotatedStarknetJsTransaction
+  | AnnotatedZKSyncTransaction
+  | AnnotatedRadixTransaction;
 
 /**
  * Transaction receipt/response with discriminated union of provider type
