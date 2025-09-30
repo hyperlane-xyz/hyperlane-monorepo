@@ -243,6 +243,10 @@
     "amount": "0.001001015",
     "decimals": 9
   },
+  "litchain": {
+    "amount": "0.01",
+    "decimals": 9
+  },
   "lukso": {
     "amount": "1.0",
     "decimals": 9

@@ -1597,5 +1597,15 @@ export const validatorChainConfig = (
         'monad',
       ),
     },
+    litchain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('litchain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xde5509be55483aa525e9b5cce6fe64d3e68d068d'],
+        },
+        'litchain',
+      ),
+    },
   };
 };

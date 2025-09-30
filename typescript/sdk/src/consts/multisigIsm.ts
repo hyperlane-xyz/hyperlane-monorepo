@@ -1196,6 +1196,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  litchain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xde5509be55483aa525e9b5cce6fe64d3e68d068d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   lukso: {
     threshold: 2,
     validators: [
