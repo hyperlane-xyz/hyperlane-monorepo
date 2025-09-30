@@ -61,7 +61,10 @@ export class RadixWarpRouteReader {
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
-    const token = await this.findToken(warpRouteAddress);
+    const token = await this.signer.query.warp.getToken({
+      token: warpRouteAddress,
+    });
+    assert(token, `Failed to find token for address ${warpRouteAddress}`);
 
     switch (token.token_type) {
       case RadixTokenTypes.COLLATERAL:
@@ -84,7 +87,10 @@ export class RadixWarpRouteReader {
   async fetchMailboxClientConfig(
     routerAddress: Address,
   ): Promise<MailboxClientConfig> {
-    const token = await this.findToken(routerAddress);
+    const token = await this.signer.query.warp.getToken({
+      token: routerAddress,
+    });
+    assert(token, `Failed to find token for address ${routerAddress}`);
 
     const config: MailboxClientConfig = {
       mailbox: token.mailbox,
@@ -110,7 +116,10 @@ export class RadixWarpRouteReader {
     type: TokenType,
     warpRouteAddress: Address,
   ): Promise<HypTokenConfig> {
-    const token = await this.findToken(warpRouteAddress);
+    const token = await this.signer.query.warp.getToken({
+      token: warpRouteAddress,
+    });
+    assert(token, `Failed to find token for address ${warpRouteAddress}`);
 
     return {
       type,
@@ -149,14 +158,5 @@ export class RadixWarpRouteReader {
         routerConfig.gas,
       ]),
     );
-  }
-
-  private async findToken(warpRouteAddress: string) {
-    const token = await this.signer.query.warp.getToken({
-      token: warpRouteAddress,
-    });
-    assert(token, `Failed to find token for address ${warpRouteAddress}`);
-
-    return token;
   }
 }

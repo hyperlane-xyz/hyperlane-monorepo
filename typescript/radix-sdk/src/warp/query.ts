@@ -9,7 +9,12 @@ import { utils } from 'ethers';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
-import { EntityDetails, EntityField, Receipt } from '../utils/types.js';
+import {
+  EntityDetails,
+  EntityField,
+  RadixTokenTypes,
+  Receipt,
+} from '../utils/types.js';
 
 export class RadixWarpQuery {
   protected networkId: number;
@@ -25,7 +30,7 @@ export class RadixWarpQuery {
   public async getToken({ token }: { token: string }): Promise<{
     address: string;
     owner: string;
-    token_type: 'Collateral' | 'Synthetic';
+    token_type: RadixTokenTypes;
     mailbox: string;
     ism: string;
     origin_denom: string;
@@ -62,7 +67,8 @@ export class RadixWarpQuery {
     const token_type =
       fields.find((f) => f.field_name === 'token_type')?.variant_name ?? '';
     assert(
-      token_type === 'Collateral' || token_type === 'Synthetic',
+      token_type === RadixTokenTypes.COLLATERAL ||
+        token_type === RadixTokenTypes.SYNTHETIC,
       `unknown token type: ${token_type}`,
     );
 
@@ -79,13 +85,13 @@ export class RadixWarpQuery {
       divisibility: 0,
     };
 
-    if (token_type === 'Collateral') {
+    if (token_type === RadixTokenTypes.COLLATERAL) {
       origin_denom =
         tokenTypeFields.find((t) => t.type_name === 'ResourceAddress')?.value ??
         '';
 
       metadata = await this.base.getMetadata({ resource: origin_denom });
-    } else if (token_type === 'Synthetic') {
+    } else if (token_type === RadixTokenTypes.SYNTHETIC) {
       origin_denom =
         (
           fields.find((f) => f.field_name === 'resource_manager')?.fields ?? []
@@ -97,7 +103,7 @@ export class RadixWarpQuery {
     const result = {
       address: token,
       owner: resourceHolders[0],
-      token_type: token_type as 'Collateral' | 'Synthetic',
+      token_type: token_type as RadixTokenTypes,
       mailbox: fields.find((f) => f.field_name === 'mailbox')?.value ?? '',
       ism: ismFields[0]?.value ?? '',
       origin_denom,
