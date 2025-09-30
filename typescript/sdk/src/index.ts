@@ -385,7 +385,7 @@ export {
   ViemProvider,
   ViemTransaction,
   ViemTransactionReceipt,
-  GroupedTransactions,
+  TypedAnnotatedTransaction,
   ProtocolTypedTransaction,
   RadixSDKTransaction,
   RadixTransaction,
