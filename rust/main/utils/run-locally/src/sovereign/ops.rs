@@ -1,6 +1,3 @@
-use core::str::FromStr;
-use hex::ToHex;
-use hyperlane_sovereign::{ethereum, Crypto};
 use serde_json::json;
 
 use super::types::{get_or_create_client, ChainConfig, ChainRegistry};
@@ -126,7 +123,7 @@ pub async fn connect_chains(
         validator_address,
     )
     .await;
-    enroll_remote_router((chain1, &route1), (&chain2, &route2)).await;
+    enroll_remote_router((chain1, &route1), (chain2, &route2)).await;
 
     vec![
         ChainRouter {
@@ -142,10 +139,7 @@ pub async fn connect_chains(
 
 // Convert the 20 byte eth address to address padded to 32 bytes for hyperlane.
 pub fn address_to_padded(address: &str) -> String {
-    let hash = hyperlane_core::H256::from_str(address).unwrap();
-    let signer = ethereum::Signer::new(&hash).unwrap();
-    let hash_addr = signer.h256_address();
-    hash_addr.encode_hex()
+    format!("{}{}", "0".repeat(24), address).to_string()
 }
 
 pub async fn dispatch_transfers(
@@ -176,9 +170,9 @@ pub async fn dispatch_transfers(
                         "amount": "1",
                         "gas_payment_limit": u128::MAX.to_string(),
                         "destination_domain": router.domain_id,
-                        "recipient": recipient,
+                        "recipient": recipient.replace("0x", ""),
                         "warp_route": router.router_id,
-                        "relayer": relayer,
+                        "relayer": relayer.replace("0x", ""),
                     }
                 }
             });
@@ -196,14 +190,14 @@ pub async fn dispatch_transfers(
     dispatched_count
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::sovereign::{ops::address_to_padded, RELAYER_ADDRESS};
-
-    #[test]
-    fn test_address_padding() {
-        let padded = address_to_padded(RELAYER_ADDRESS);
-        println!("{}", padded);
-        assert!(false);
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use crate::sovereign::{ops::address_to_padded, RELAYER_ADDRESS};
+//
+//     #[test]
+//     fn test_address_padding() {
+//         let padded = address_to_padded(RELAYER_ADDRESS);
+//         println!("{}", padded);
+//         assert!(false);
+//     }
+// }

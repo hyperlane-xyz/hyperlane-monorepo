@@ -8,7 +8,6 @@ use crate::{TaskHandle, AGENT_BIN_PATH, AGENT_LOGGING_DIR};
 use super::types::ChainRegistry;
 
 const AGENTS_STARTING_METRICS_PORT: u16 = 9096;
-pub const RELAYER_METRICS_PORT: u16 = AGENTS_STARTING_METRICS_PORT;
 pub const SCRAPER_METRICS_PORT: u16 = AGENTS_STARTING_METRICS_PORT + 1;
 const VALIDATOR_METRICS_PORT: u16 = AGENTS_STARTING_METRICS_PORT + 2;
 pub const VALIDATOR_KEY: &str =
@@ -53,7 +52,6 @@ pub fn start_scraper(conf_path: &Path, conf: &ChainRegistry) -> AgentHandles {
 pub fn start_relayer(conf_path: &Path, conf: &ChainRegistry, base_dir: &Path) -> AgentHandles {
     let bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer");
     let data_dir = base_dir.join("relayer");
-    let debug = false;
 
     Program::default()
         .bin(bin)
@@ -63,9 +61,9 @@ pub fn start_relayer(conf_path: &Path, conf: &ChainRegistry, base_dir: &Path) ->
         .hyp_env("RELAYCHAINS", conf.as_relay_list())
         .hyp_env("DB", data_dir.display().to_string())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
-        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
+        .hyp_env("LOG_LEVEL", "debug")
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]")
-        .hyp_env("METRICSPORT", RELAYER_METRICS_PORT.to_string())
+        .hyp_env("METRICSPORT", crate::RELAYER_METRICS_PORT)
         .spawn("RLY", Some(&AGENT_LOGGING_DIR))
 }
 

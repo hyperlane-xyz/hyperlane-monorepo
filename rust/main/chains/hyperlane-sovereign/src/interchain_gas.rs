@@ -32,20 +32,20 @@ impl SovereignInterchainGasPaymasterIndexer {
 
 #[derive(Deserialize)]
 struct Igp {
-    message_body: MessageBody,
+    gas_payment: MessageBody,
 }
 
 #[derive(Deserialize)]
 struct MessageBody {
     message_id: H256,
     dest_domain: u32,
-    payment: U256,
-    gas_limit: U256,
+    payment: String,
+    gas_limit: String,
 }
 
 #[async_trait]
 impl crate::indexer::SovIndexer<InterchainGasPayment> for SovereignInterchainGasPaymasterIndexer {
-    const EVENT_KEY: &'static str = "IGP/GasPayment";
+    const EVENT_KEY: &'static str = "InterchainGasPaymaster/GasPayment";
 
     fn provider(&self) -> &SovereignProvider {
         &self.provider
@@ -61,10 +61,10 @@ impl crate::indexer::SovIndexer<InterchainGasPayment> for SovereignInterchainGas
         let igp: Igp = serde_json::from_value(event.value.clone())?;
 
         Ok(InterchainGasPayment {
-            message_id: igp.message_body.message_id,
-            destination: igp.message_body.dest_domain,
-            payment: igp.message_body.payment,
-            gas_amount: igp.message_body.gas_limit,
+            message_id: igp.gas_payment.message_id,
+            destination: igp.gas_payment.dest_domain,
+            payment: U256::from_dec_str(&igp.gas_payment.payment)?,
+            gas_amount: U256::from_dec_str(&igp.gas_payment.gas_limit)?,
         })
     }
 }

@@ -91,7 +91,7 @@ impl SovereignClient {
     }
 
     async fn sign_tx(&self, mut utx_json: Value, signer: &impl Crypto) -> ChainResult<Value> {
-        tracing::info!(?utx_json, "Signing transaction");
+        tracing::trace!(?utx_json, "Signing transaction");
         let utx_index = self
             .schema
             .rollup_expected_index(RollupRoots::UnsignedTransaction)
@@ -134,7 +134,7 @@ impl SovereignClient {
                 "V0": tx_json
             }
         });
-        tracing::info!(?tx_json, "Serializing transaction");
+        tracing::trace!(?tx_json, "Serializing transaction");
         let tx_index = self
             .schema
             .rollup_expected_index(RollupRoots::Transaction)

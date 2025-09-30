@@ -2,32 +2,21 @@
 
 use std::{
     fs,
-    path::Path,
     sync::atomic::Ordering,
     thread::sleep,
     time::{Duration, Instant},
 };
 
 use agents::{start_relayer, start_scraper, start_scraper_db, start_validators, VALIDATOR_ADDRESS};
-use maplit::hashmap;
 use ops::{connect_chains, dispatch_transfers, ChainRouter};
-use serde_json::json;
 use tempfile::tempdir;
-use types::{get_or_create_client, ChainConfig, ChainRegistry};
+use types::{ChainConfig, ChainRegistry};
 
-use crate::sovereign::agents::RELAYER_METRICS_PORT;
 use crate::sovereign::invariants::termination_invariants_met;
 use crate::sovereign::node::SovereignParameters;
 use crate::sovereign::ops::set_relayer_igp_configs;
 use crate::{
-    config::Config,
-    fetch_metric,
-    invariants::post_startup_invariants,
-    logging::log,
-    long_running_processes_exited_check,
-    metrics::agent_balance_sum,
-    program::Program,
-    utils::{concat_path, get_workspace_path, make_static},
+    config::Config, logging::log, metrics::agent_balance_sum, utils::concat_path,
     wait_for_condition, AgentHandles, State, TaskHandle, AGENT_BIN_PATH, AGENT_LOGGING_DIR,
     SCRAPER_METRICS_PORT, SHUTDOWN,
 };
@@ -53,7 +42,6 @@ async fn run_locally() {
     })
     .unwrap();
 
-    const TIMEOUT_SECS: u64 = 60 * 10;
     log!("Running simplified Sovereign node startup test...");
 
     let mut state = State::default();
@@ -120,36 +108,44 @@ async fn run_locally() {
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
 
-    let starting_relayer_balance: f64 = agent_balance_sum(RELAYER_METRICS_PORT.into()).unwrap();
+    let relayer_metrics_port: u32 = crate::RELAYER_METRICS_PORT
+        .parse()
+        .expect("Failed to parse relayer metrics port");
+    let starting_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
     log!("relayer starting balance: {}", starting_relayer_balance);
 
-    let amount = dispatch_transfers(&chain_registry, &routers, 5, RELAYER_ADDRESS).await;
+    let dispatches_per_chain = 5;
+    let amount = dispatch_transfers(
+        &chain_registry,
+        &routers,
+        dispatches_per_chain,
+        RELAYER_ADDRESS,
+    )
+    .await;
     log!("dispatched {} messages", amount);
 
+    let config = Config::load();
     let loop_start = Instant::now();
-    let mut failure_occurred = false;
-    loop {
-        // look for the end condition.
-        if termination_invariants_met(&chain_registry, 3)
-            .await
-            .unwrap_or(false)
-        {
-            // end condition reached successfully
-            break;
-        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
-            // we ran out of time
-            log!("timeout reached before message submission was confirmed");
-            failure_occurred = true;
-            break;
-        }
+    let test_passed = wait_for_condition(
+        &config,
+        loop_start,
+        || {
+            termination_invariants_met(
+                &config,
+                starting_relayer_balance,
+                dispatches_per_chain * chain_registry.chains.len(),
+            )
+        },
+        || !SHUTDOWN.load(Ordering::Relaxed),
+        || false,
+    );
 
-        sleep(Duration::from_secs(5));
-    }
+    // std::thread::sleep(std::time::Duration::from_secs(50000));
 
-    if failure_occurred {
-        panic!("E2E tests failed");
+    if !test_passed {
+        panic!("Sovereign E2E tests failed");
     } else {
-        log!("E2E tests passed");
+        log!("Sovereign E2E tests passed");
     }
 }
 
