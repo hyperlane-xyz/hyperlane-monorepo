@@ -611,7 +611,7 @@ async function updateExistingWarpRoute(
     ExplorerLicenseType.MIT,
   );
 
-  let updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
+  const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
