@@ -56,7 +56,7 @@ contract HypNativeMovableTest is Test {
         vtb.enrollRemoteRouter(destinationDomain, bytes32(uint256(uint160(0))));
     }
 
-    function testMovingCollateral() public {
+    function test_rebalance() public {
         // Configuration
         router.addRebalancer(address(this));
 
@@ -86,35 +86,31 @@ contract HypNativeMovableTest is Test {
             bytes32(uint256(uint160(alice)))
         );
         router.addBridge(destinationDomain, vtb);
-        vm.expectRevert("Rebalance amount exceeds balance");
+        vm.expectRevert("Rebalance native fee exceeds balance");
         router.rebalance(destinationDomain, 1 ether, vtb);
     }
 
     function test_rebalance_cannotUndercollateralize(
         uint96 fee,
-        uint96 collateralAmount
+        uint96 amount,
+        uint96 balance
     ) public {
-        vm.assume(fee > 0);
-        vm.assume(collateralAmount > 1);
+        vm.assume(balance > 2);
+        amount = uint96(bound(uint256(amount), 2, uint256(balance)));
+        fee = uint96(bound(uint256(fee), 1, uint256(amount)));
 
         vtb.setFeeRecipient(
-            address(
-                new LinearFee(
-                    address(0),
-                    fee,
-                    collateralAmount / 2,
-                    address(this)
-                )
-            )
+            address(new LinearFee(address(0), fee, amount / 2, address(this)))
         );
 
         router.addRebalancer(address(this));
         router.addBridge(destinationDomain, vtb);
 
-        deal(address(router), collateralAmount);
+        deal(address(router), balance);
         deal(address(this), fee);
 
-        router.rebalance{value: fee}(destinationDomain, collateralAmount, vtb);
-        assertEq(address(vtb).balance, collateralAmount);
+        router.rebalance{value: fee}(destinationDomain, amount, vtb);
+        assertEq(address(router).balance, balance - amount);
+        assertEq(address(vtb).balance, amount);
     }
 }
