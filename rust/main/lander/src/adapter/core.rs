@@ -66,6 +66,12 @@ pub trait AdaptsChain: Send + Sync {
             return Ok(TransactionStatus::PendingInclusion);
         }
 
+        eprintln!(
+            "TX HASHES {:?} {} {:?}",
+            tx.uuid,
+            tx.tx_hashes.len(),
+            tx.tx_hashes
+        );
         let hash_status_futures = tx
             .tx_hashes
             .iter()

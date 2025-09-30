@@ -138,6 +138,8 @@ impl RadixAdapter {
         let mut visible_components: Vec<ComponentAddress> = Vec::new();
         let mut fee_summary = FeeSummary::default();
 
+        let RadixTxBuilder { tx_builder, .. } = self.tx_builder().await?;
+
         // in radix all addresses/node have to visible for a transaction to be valid
         // we simulate the tx first to get the necessary addresses
         for _ in 0..NODE_DEPTH {
@@ -148,8 +150,8 @@ impl RadixAdapter {
                 .call_method(*component_address, method_name, manifest_args)
                 .build();
 
-            let RadixTxBuilder { tx_builder, .. } = self.tx_builder().await?;
             let tx = tx_builder
+                .clone()
                 .manifest(tx_manifest)
                 .build_preview_transaction(vec![])
                 .to_raw()
@@ -328,8 +330,7 @@ impl AdaptsChain for RadixAdapter {
         Ok(Vec::new())
     }
 
-    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        self.simulate_tx(tx).await?;
+    async fn estimate_tx(&self, _tx: &mut Transaction) -> Result<(), LanderError> {
         Ok(())
     }
 
