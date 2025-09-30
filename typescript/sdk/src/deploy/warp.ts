@@ -11,6 +11,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { CCIPContractCache } from '../ccip/utils.js';
 import {
   HyperlaneContracts,
@@ -37,7 +38,6 @@ import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
-import { ExplorerLicenseType } from './verify/types.js';
 
 type ChainAddresses = Record<string, string>;
 

@@ -6818,7 +6818,8 @@
       "index": {
         "from": 16333539,
         "chunk": 999
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://prod.matchain.keypersafe.xyz"
     },
     "sonicsvm": {
       "blockExplorers": [
@@ -8529,10 +8530,10 @@
     "galactica": {
       "blockExplorers": [
         {
-          "apiUrl": "https://galactica-mainnet.explorer.alchemy.com/api",
+          "apiUrl": "https://explorer.galactica.com/api",
           "family": "blockscout",
           "name": "Galactica Explorer",
-          "url": "https://galactica-mainnet.explorer.alchemy.com"
+          "url": "https://explorer.galactica.com"
         }
       ],
       "blocks": {
@@ -8561,7 +8562,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://rpc.galactica.com"
+          "http": "https://galactica-mainnet.g.alchemy.com/public"
         }
       ],
       "technicalStack": "arbitrumnitro",

@@ -24,7 +24,11 @@ mod fallback;
 mod lander;
 mod radix;
 
-pub use {fallback::RadixFallbackProvider, lander::RadixProviderForLander, radix::RadixProvider};
+pub use {
+    fallback::RadixFallbackProvider,
+    lander::RadixProviderForLander,
+    radix::{RadixProvider, RadixTxCalldata},
+};
 
 /// Base Raidx provider
 /// defined the most basic methods the provider has to implement.

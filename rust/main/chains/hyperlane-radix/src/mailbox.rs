@@ -15,11 +15,10 @@ use hyperlane_core::{
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::{
     address_from_h256, address_to_h256, encode_component_address, Bytes32, ConnectionConf,
-    HyperlaneRadixError, RadixProvider,
+    HyperlaneRadixError, RadixProvider, RadixTxCalldata,
 };
 
 // the number of simulate calls we do to get the necessary addresses
@@ -103,6 +102,45 @@ impl RadixMailbox {
         }
 
         Ok((visible_components, fee_summary))
+    }
+
+    async fn build_process_calldata(
+        encoded_address: &str,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
+        let message = message.to_vec();
+        let metadata = metadata.to_vec();
+
+        let args = manifest_args!(&metadata, &message);
+
+        let encoded_arguments = manifest_encode(&args).map_err(HyperlaneRadixError::from)?;
+
+        let data = RadixTxCalldata {
+            component_address: encoded_address.to_string(),
+            method_name: "process".into(),
+            encoded_arguments,
+        };
+        let json_str =
+            serde_json::to_string(&data).map_err(ChainCommunicationError::JsonParseError)?;
+        Ok(json_str.as_bytes().to_vec())
+    }
+
+    fn build_delivered_calldata(
+        encoded_address: &str,
+        message_id: H256,
+    ) -> ChainResult<Option<Vec<u8>>> {
+        let id: Bytes32 = message_id.into();
+        let encoded_arguments = manifest_encode(&id).map_err(HyperlaneRadixError::from)?;
+
+        let calldata = RadixTxCalldata {
+            component_address: encoded_address.to_string(),
+            method_name: "delivered".into(),
+            encoded_arguments,
+        };
+        let json_val =
+            serde_json::to_vec(&calldata).map_err(ChainCommunicationError::JsonParseError)?;
+        Ok(Some(json_val))
     }
 }
 
@@ -236,36 +274,70 @@ impl Mailbox for RadixMailbox {
     /// against the provided signed checkpoint
     async fn process_calldata(
         &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        message: &HyperlaneMessage,
+        metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
-        todo!() // we dont need this for now
+        Self::build_process_calldata(&self.encoded_address, message, metadata).await
     }
 
     /// Data required to make a TransactionCallPreviewRequest to
     /// check if a message was delivered or not on-chain.
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
-        let id: Bytes32 = message_id.into();
-        let encoded_arguments = manifest_encode(&id).map_err(HyperlaneRadixError::from)?;
-
-        let calldata = DeliveredCalldata {
-            component_address: self.encoded_address.clone(),
-            method_name: "delivered".into(),
-            encoded_arguments,
-        };
-        let json_val =
-            serde_json::to_vec(&calldata).map_err(ChainCommunicationError::JsonParseError)?;
-        Ok(Some(json_val))
+        Self::build_delivered_calldata(&self.encoded_address, message_id)
     }
 }
 
-/// Data required to check if a message was delivered on-chain for Radix chain
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct DeliveredCalldata {
-    /// Address of mailbox (already encoded)
-    pub component_address: String,
-    /// Method to call on mailbox
-    pub method_name: String,
-    /// parameters required to call method
-    pub encoded_arguments: Vec<u8>,
+#[cfg(test)]
+mod tests {
+    use hyperlane_core::{Encode, HyperlaneMessage, H256};
+    use radix_common::manifest_args;
+    use scrypto::prelude::{manifest_encode, ManifestArgs};
+
+    use crate::{Bytes32, RadixMailbox, RadixTxCalldata};
+
+    const MAILBOX_ADDRESS: &str =
+        "component_rdx1cpcq2wcs8zmpjanjf5ek76y4wttdxswnyfcuhynz4zmhjfjxqfsg9z";
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_process_calldata() {
+        let message = HyperlaneMessage::default();
+        let metadata = vec![20, 30, 40, 50];
+        let calldata = RadixMailbox::build_process_calldata(MAILBOX_ADDRESS, &message, &metadata)
+            .await
+            .expect("Failed to build process calldata");
+
+        let args: ManifestArgs = manifest_args!(metadata.clone(), message.to_vec());
+        let encoded_arguments = manifest_encode(&args).expect("Failed to encode args");
+        let expected = RadixTxCalldata {
+            component_address: MAILBOX_ADDRESS.to_string(),
+            method_name: "process".into(),
+            encoded_arguments,
+        };
+
+        let actual: RadixTxCalldata =
+            serde_json::from_slice(&calldata).expect("Failed to parse json");
+        assert_eq!(actual, expected);
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_delivered_calldata() {
+        let message_id = H256::random();
+        let calldata = RadixMailbox::build_delivered_calldata(MAILBOX_ADDRESS, message_id)
+            .expect("Failed to build delivered calldata")
+            .expect("Delivered calldata is empty");
+
+        let id: Bytes32 = message_id.into();
+        let encoded_arguments = manifest_encode(&id).expect("Failed to encode args");
+        let expected = RadixTxCalldata {
+            component_address: MAILBOX_ADDRESS.to_string(),
+            method_name: "delivered".into(),
+            encoded_arguments,
+        };
+
+        let actual: RadixTxCalldata =
+            serde_json::from_slice(&calldata).expect("Failed to parse json");
+        assert_eq!(actual, expected);
+    }
 }
