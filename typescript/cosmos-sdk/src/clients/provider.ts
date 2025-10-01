@@ -49,7 +49,7 @@ import {
 import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
-export class CosmosNativeProviderFactore
+export class CosmosNativeProviderFactory
   implements MultiVM.MultiVmProviderFactory
 {
   static async connect(rpcUrl: string): Promise<CosmosNativeProvider> {
@@ -506,8 +506,9 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
   async populateSetRoutingIsmOwner(
     _req: MultiVM.ResSetRoutingIsmOwner,
   ): Promise<any> {
-    // TODO: implement
-    return;
+    throw new Error(
+      'Cosmos Native does not support populateSetRoutingIsmOwner',
+    );
   }
 
   async populateCreateNoopIsm(
@@ -578,7 +579,9 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
   async populateCreateValidatorAnnounce(
     _req: MultiVM.ReqCreateValidatorAnnounce,
   ): Promise<any> {
-    return;
+    throw new Error(
+      'Cosmos Native does not support populateCreateValidatorAnnounce',
+    );
   }
 
   // ### POPULATE WARP ###

@@ -320,7 +320,7 @@ export type ReqEnrollRemoteRouter = {
   gas: string;
 };
 export type ResEnrollRemoteRouter = {
-  receiver_domain_id: string;
+  receiver_domain_id: number;
 };
 
 export type ReqUnenrollRemoteRouter = {
@@ -329,7 +329,7 @@ export type ReqUnenrollRemoteRouter = {
   receiver_domain_id: number;
 };
 export type ResUnenrollRemoteRouter = {
-  receiver_domain_id: string;
+  receiver_domain_id: number;
 };
 
 export type ReqRemoteTransfer = {
@@ -464,6 +464,8 @@ export interface IMultiVMProvider {
 }
 
 export interface IMultiVMSigner extends IMultiVMProvider {
+  signAndBroadcast(transactions: any[]): Promise<any[]>;
+
   // ### TX CORE ###
 
   createMailbox(
