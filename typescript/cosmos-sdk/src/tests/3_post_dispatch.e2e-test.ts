@@ -71,25 +71,27 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
 
   step('set destination gas config', async () => {
     // ARRANGE
-    let igps = await signer.query.postDispatch.Igps({});
-    expect(igps.igps).to.have.lengthOf(1);
+    const denom = 'uhyp';
 
-    const igp = igps.igps[0];
+    const { hook_id } = await signer.createInterchainGasPaymasterHook({
+      denom,
+    });
+
     const remoteDomainId = 1234;
     const gasOverhead = '200000';
     const gasPrice = '1';
     const tokenExchangeRate = '10000000000';
 
-    let gasConfigs = await signer.query.postDispatch.DestinationGasConfigs({
-      id: igp.id,
+    let igp = await signer.getInterchainGasPaymasterHook({
+      hook_id,
     });
-    expect(gasConfigs.destination_gas_configs).to.have.lengthOf(0);
+    expect(Object.keys(igp.destination_gas_configs)).to.have.lengthOf(0);
 
     // ACT
-    const txResponse = await signer.setDestinationGasConfig({
-      igp_id: igp.id,
+    await signer.setDestinationGasConfig({
+      hook_id,
       destination_gas_config: {
-        remote_domain: remoteDomainId,
+        remote_domain_id: remoteDomainId,
         gas_oracle: {
           token_exchange_rate: tokenExchangeRate,
           gas_price: gasPrice,
@@ -99,16 +101,13 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
     });
 
     // ASSERT
-    expect(txResponse.code).to.equal(0);
-
-    gasConfigs = await signer.query.postDispatch.DestinationGasConfigs({
-      id: igp.id,
+    igp = await signer.getInterchainGasPaymasterHook({
+      hook_id,
     });
-    expect(gasConfigs.destination_gas_configs).to.have.lengthOf(1);
+    expect(Object.keys(igp.destination_gas_configs)).to.have.lengthOf(1);
 
-    const gasConfig = gasConfigs.destination_gas_configs[0];
+    const gasConfig = igp.destination_gas_configs[remoteDomainId];
 
-    expect(gasConfig.remote_domain).to.equal(remoteDomainId);
     expect(gasConfig.gas_overhead).to.equal(gasOverhead);
     expect(gasConfig.gas_oracle?.gas_price).to.equal(gasPrice);
     expect(gasConfig.gas_oracle?.token_exchange_rate).to.equal(
@@ -118,31 +117,31 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
 
   step('set igp owner', async () => {
     // ARRANGE
-    const newOwner = (await createSigner('bob')).account.address;
+    const denom = 'uhyp';
 
-    let igps = await signer.query.postDispatch.Igps({});
-    expect(igps.igps).to.have.lengthOf(2);
+    const { hook_id } = await signer.createInterchainGasPaymasterHook({
+      denom,
+    });
 
-    const igpBefore = igps.igps[igps.igps.length - 1];
-    expect(igpBefore.owner).to.equal(signer.account.address);
+    const newOwner = (await createSigner('bob')).getSignerAddress();
+
+    let igp = await signer.getInterchainGasPaymasterHook({
+      hook_id,
+    });
+
+    expect(igp.owner).to.equal(signer.getSignerAddress());
 
     // ACT
-    const txResponse = await signer.setIgpOwner({
-      igp_id: igpBefore.id,
+    await signer.setInterchainGasPaymasterHookOwner({
+      hook_id,
       new_owner: newOwner,
-      renounce_ownership: false,
     });
 
     // ASSERT
-    expect(txResponse.code).to.equal(0);
+    igp = await signer.getInterchainGasPaymasterHook({
+      hook_id,
+    });
 
-    igps = await signer.query.postDispatch.Igps({});
-    expect(igps.igps).to.have.lengthOf(2);
-
-    const igpAfter = igps.igps[igps.igps.length - 1];
-
-    expect(igpAfter.id).to.equal(igpBefore.id);
-    expect(igpAfter.owner).to.equal(newOwner);
-    expect(igpAfter.denom).to.equal(igpBefore.denom);
+    expect(igp.owner).to.equal(newOwner);
   });
 });

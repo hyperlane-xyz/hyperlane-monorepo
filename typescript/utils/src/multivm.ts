@@ -30,6 +30,8 @@ export type ResGetMailbox = {
   default_ism: string;
   default_hook: string;
   required_hook: string;
+  message_sent: number;
+  message_received: number;
 };
 
 export type ReqDelivered = { mailbox_id: string; message_id: string };
@@ -371,7 +373,7 @@ export type ReqRemoteTransfer = {
   max_fee: { denom: string; amount: string };
 };
 export type ResRemoteTransfer = {
-  token_id: string;
+  message_id: string;
 };
 
 export interface IMultiVMProvider {

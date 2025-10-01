@@ -158,6 +158,8 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
       default_ism: mailbox.default_ism,
       default_hook: mailbox.default_hook,
       required_hook: mailbox.required_hook,
+      message_sent: mailbox.message_sent,
+      message_received: mailbox.message_received,
     };
   }
 

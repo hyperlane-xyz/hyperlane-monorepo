@@ -480,9 +480,9 @@ export class CosmosNativeSigner
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const result = await this.submitTx(msg);
     return {
-      token_id: req.token_id,
+      message_id: result.message_id,
     };
   }
 }

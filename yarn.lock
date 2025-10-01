@@ -8243,6 +8243,7 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/cosmos-types": "npm:18.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
+    "@hyperlane-xyz/utils": "npm:18.2.0"
     "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
