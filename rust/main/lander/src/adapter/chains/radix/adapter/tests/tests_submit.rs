@@ -121,8 +121,9 @@ async fn test_radix_submit_tx() {
         serde_json::to_vec(&process_calldata).expect("Failed to serialize to json");
     let payload = payload(process_calldata_vec);
 
+    let uuid = Uuid::from_u64_pair(0, 1);
     let mut transaction = Transaction {
-        uuid: TransactionUuid::new(Uuid::new_v4()),
+        uuid: TransactionUuid::new(uuid),
         tx_hashes: vec![],
         vm_specific_data: data,
         payload_details: vec![payload.details.clone()],
