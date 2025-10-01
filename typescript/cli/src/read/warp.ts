@@ -112,7 +112,8 @@ async function deriveWarpRouteConfigs(
   );
 }
 
-// Validate that all chains are EVM or Cosmos Native compatible
+// TODO: MULTIVM
+// Validate that all chains are EVM or MultiVM compatible
 // by token standard
 function validateCompatibility(
   multiProvider: MultiProvider,

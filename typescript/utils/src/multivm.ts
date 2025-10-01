@@ -602,6 +602,18 @@ export interface IMultiVMSigner extends IMultiVMProvider {
   ): Promise<ResRemoteTransfer>;
 }
 
+export interface IProviderConnect {
+  connect(_rpc: string): Promise<IMultiVMProvider>;
+}
+
+export interface ISignerConnect {
+  connectWithSigner(
+    _rpc: string,
+    _privateKey: string,
+    _extraParams: Record<string, any>,
+  ): Promise<IMultiVMSigner>;
+}
+
 export abstract class IMultiVMProviderFactory {
   abstract getSupportedProtocols(): ProtocolType[];
 
