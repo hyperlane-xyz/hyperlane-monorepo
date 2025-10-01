@@ -27,7 +27,7 @@ import {
   portForwardPrometheusServer,
 } from '../../src/infrastructure/monitoring/prometheus.js';
 import { fetchLatestGCPSecret } from '../../src/utils/gcloud.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { withSkipReview } from '../agent-utils.js';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
@@ -329,7 +329,7 @@ async function getSealevelDomainIds(): Promise<ChainMap<string>> {
 function writeBurnDataToFile(burnData: ChainMap<number>) {
   try {
     rootLogger.info('Writing daily burn data to file..');
-    writeJsonAtPath(DAILY_BURN_PATH, burnData);
+    writeAndFormatJsonAtPath(DAILY_BURN_PATH, burnData);
     rootLogger.info('Daily burn data written to file.');
   } catch (err) {
     rootLogger.error('Error writing daily burn data to file:', err);

@@ -37,7 +37,7 @@ import {
   filterRemoteDomainMetadata,
   isEthereumProtocolChain,
   readJSONAtPath,
-  writeJsonAtPath,
+  writeAndFormatJsonAtPath,
 } from '../../src/utils/utils.js';
 import {
   Modules,
@@ -209,9 +209,12 @@ export async function writeAgentConfig(
       }
       delete chainConfig.transactionOverrides;
     }
-    writeJsonAtPath(filepath, objMerge(currentAgentConfig, agentConfig));
+    writeAndFormatJsonAtPath(
+      filepath,
+      objMerge(currentAgentConfig, agentConfig),
+    );
   } else {
-    writeJsonAtPath(filepath, agentConfig);
+    writeAndFormatJsonAtPath(filepath, agentConfig);
   }
 }
 
