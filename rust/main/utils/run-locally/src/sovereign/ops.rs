@@ -149,7 +149,8 @@ pub async fn dispatch_transfers(
     relayer: &str,
 ) -> usize {
     let mut dispatched_count = 0;
-    let recipient = address_to_padded(relayer);
+    // send to some random address that's not the relayer
+    let recipient = address_to_padded("0x23B6445f524daDee9fb576627740AaD23Afbe8b7");
 
     for conf in config.chains.values() {
         let targets = config
@@ -167,7 +168,7 @@ pub async fn dispatch_transfers(
             let call = json!({
                 "warp": {
                     "transfer_remote": {
-                        "amount": "1",
+                        "amount": "1000",
                         "gas_payment_limit": u128::MAX.to_string(),
                         "destination_domain": router.domain_id,
                         "recipient": recipient.replace("0x", ""),
@@ -189,15 +190,3 @@ pub async fn dispatch_transfers(
 
     dispatched_count
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use crate::sovereign::{ops::address_to_padded, RELAYER_ADDRESS};
-//
-//     #[test]
-//     fn test_address_padding() {
-//         let padded = address_to_padded(RELAYER_ADDRESS);
-//         println!("{}", padded);
-//         assert!(false);
-//     }
-// }

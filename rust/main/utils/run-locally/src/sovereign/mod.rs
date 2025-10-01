@@ -140,8 +140,6 @@ async fn run_locally() {
         || false,
     );
 
-    // std::thread::sleep(std::time::Duration::from_secs(50000));
-
     if !test_passed {
         panic!("Sovereign E2E tests failed");
     } else {
