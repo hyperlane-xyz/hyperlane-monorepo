@@ -46,32 +46,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  // acala: {
-  //   threshold: 1,
-  //   validators: [
-  //     {
-  //       address: '0x3229bbeeab163c102d0b1fa15119b9ae0ed37cfa',
-  //       alias: AW_VALIDATOR_ALIAS,
-  //     },
-  //   ],
-  // },
-
-  alephzeroevmmainnet: {
-    threshold: 3,
-    validators: [
-      {
-        address: '0x33f20e6e775747d60301c6ea1c50e51f0389740c',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-      {
-        address: '0xCbf382214825F8c2f347dd4f23F0aDFaFad55dAa',
-        alias: 'Aleph Zero',
-      },
-    ],
-  },
-
   ancient8: {
     threshold: 2,
     validators: [
@@ -455,6 +429,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  carrchain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x7ed0a7582af75dc38ad82e7125b51e3eaa6ec33b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   carrchaintestnet: {
     threshold: 1,
     validators: [
@@ -822,7 +806,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   forma: {
-    threshold: 4,
+    threshold: 5,
     validators: [
       {
         address: '0x5B19F64F04f495D3958804Ec416c165F00f74898',
@@ -920,15 +904,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  game7: {
-    threshold: 2,
+  giwasepolia: {
+    threshold: 1,
     validators: [
       {
-        address: '0x691dc4e763514df883155df0952f847b539454c0',
+        address: '0xc170bef56759e35740ac2d3d0fece33bd9acb90b',
         alias: AW_VALIDATOR_ALIAS,
       },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1039,6 +1021,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  incentiv: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x72669f47b6f119289f1a42641b02a9656cc8fecd',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   incentivtestnet: {
     threshold: 1,
     validators: [
@@ -1063,28 +1055,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x9ab11f38a609940153850df611c9a2175dcffe0f',
         alias: 'Imperator',
-      },
-    ],
-  },
-
-  infinityvmmainnet: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x777c19c87aaa625486dff5aab0a479100f4249ad',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  infinityvmmonza: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb',
-        alias: AW_VALIDATOR_ALIAS,
       },
     ],
   },
@@ -1226,6 +1196,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  litchain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xde5509be55483aa525e9b5cce6fe64d3e68d068d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   lukso: {
     threshold: 2,
     validators: [
@@ -1299,12 +1279,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mantra: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x89b8064e29f125e896f6081ebb77090c46bca9cd',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1514,6 +1495,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  monad: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xb4654795b2f1b17513ffde7d85c776e4cade366c',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -2008,18 +1999,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  snaxchain: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x2c25829ae32a772d2a49f6c4b34f8b01fd03ef9e',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   solanadevnet: {
     threshold: 2,
     validators: [
@@ -2185,12 +2164,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   sova: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x1763d686c45df79f6d5f63564255546b08cb206c',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -2533,11 +2513,25 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   zerogravity: {
-    threshold: 1,
+    threshold: 4,
     validators: [
       {
         address: '0xc37e7dad064c11d7ecfc75813a4d8d649d797275',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0x25c5fc524ac7ef5e7868644fbe68793e5eb179ea',
+        alias: 'Luganodes',
+      },
+      {
+        address: '0x782ac2b5244b69779bd7214a2d60212fb35c3ae7',
+        alias: 'Enigma',
+      },
+      {
+        address: '0xd3e6a4e61b5d902a63df6dac9db5585d9f319b09',
+        alias: 'Substance Labs',
       },
     ],
   },

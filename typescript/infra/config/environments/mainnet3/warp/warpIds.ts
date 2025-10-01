@@ -101,12 +101,18 @@ export enum WarpRouteIds {
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
   LumiaUSDC = 'USDC/lumia',
+  MatchainUSDC = 'USDC/matchain',
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
 
   SonicSVMMoney = 'MONEY/sonicsvm',
 
   PulsechainUSDC = 'USDC/pulsechain',
+  ElectroneumUSDC = 'USDC/electroneum',
+
+  GalacticaGNET = 'GNET/galactica',
+
+  SolaxyUSDC = 'USDC/solaxy',
 
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',

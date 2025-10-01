@@ -1,0 +1,22 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "name": "USD Coin",
+    "symbol": "USDC",
+    "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/63ae6c0a0415d480c00880e64ec8a9c3724b4e37/deployments/warp_routes/USDC/metadata.json",
+    "owner": "8MnEQtXQvpNkQGW5QHZYS5m621FubwGyK3qDphcZqmay"
+  },
+  "solaxy": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "USD Coin",
+    "symbol": "USDC",
+    "interchainGasPaymaster": "7z1QjgLLxowA9RA9QBuiC72Tc6aC1XjtA5zdH9LJHm1a",
+    "interchainSecurityModule": "DtH5r68xjNQStKZSLPVvRcvavWpnhbaf1nCc67jfmjGy",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/63ae6c0a0415d480c00880e64ec8a9c3724b4e37/deployments/warp_routes/USDC/metadata.json",
+    "owner": "3w48sZF2QTFKqSkKQ68xLayi1adRd9oWAfKCTJ1hV36M"
+  }
+}

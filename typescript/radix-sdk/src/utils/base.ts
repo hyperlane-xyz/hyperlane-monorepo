@@ -393,6 +393,9 @@ export class RadixBase {
     from_address: string;
     to_address: string;
     resource_address: string;
+    /**
+     * The amount MUST be in decimal representation
+     */
     amount: string;
   }) {
     const simulationManifest = new ManifestBuilder()

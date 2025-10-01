@@ -73,11 +73,9 @@ export const awIcasLegacy: ChainMap<Address> = {
   kaia: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
   morph: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
   orderly: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-  snaxchain: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
 
   // Nov 8, 2024 batch
   // ----------------------------------------------------------
-  alephzeroevmmainnet: '0xDE91AC081E12107a033728A287b06B1Fc640A637',
   chilizmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
   flowmainnet: '0x65528D447C93CC1A1A7186CB4449d9fE0d5C1928',
   immutablezkevmmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',

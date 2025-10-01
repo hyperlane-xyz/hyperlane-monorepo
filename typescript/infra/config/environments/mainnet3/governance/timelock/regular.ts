@@ -8,7 +8,6 @@ export const regularTimelocks: ChainMap<Address> = {
 
   // Jul 18, 2025 - Timelocks for v2 "Regular" aka "Multisig A" ICAs
   // ----------------------------------------------------------
-  alephzeroevmmainnet: '0x62eBF2a5E3EAD9Bb05df60DD1b7329B8682e04F2',
   ancient8: '0x5D71b91B92AAE933cbf85065F49bC14f16c55c55',
   apechain: '0x23D26a5Fe6671B0c13E0970c15f595CF1e9a7785',
   appchain: '0x1F45Cd63B363ebD4b1803C81f64C0aB46f3E12Aa',
@@ -46,7 +45,6 @@ export const regularTimelocks: ChainMap<Address> = {
   fraxtal: '0xFeeB86e70e4a640cDd29636CCE19BD6fe8628135',
   fusemainnet: '0x1B2E638E2646a8d0F39a27Ef8AC84d08beBFa3fd',
   galactica: '0xbC8AA096dabDf4A0200BB9f8D4Cbb644C3D86d7B',
-  game7: '0x7279B1e11142078b8dC9e69620200f4C84FB8aaa',
   gnosis: '0x97512AFFf1D80D649D0D3411A7c41C127DC137E3',
   gravity: '0x855B945366cF7c59B1136F8cF1B00f87e96cf7dD',
   harmony: '0x1EFDaEe5DEb8D539AF9D31FDF26e7244C7B98e24',
@@ -55,7 +53,6 @@ export const regularTimelocks: ChainMap<Address> = {
   hyperevm: '0xCe8Daded1447B23D43EdeCbfF22902FE7e9c9324',
   immutablezkevmmainnet: '0x4E602f930a64CcaF3A270Da1c2223A9f5860AEE7',
   inevm: '0x2906a1e20997184a7Bbae771B175239e9D32d4fC',
-  infinityvmmainnet: '0x693A4cE39d99e46B04cb562329e3F0141cA17331',
   ink: '0x5306a5e0fcbC166e74950D72363A6979C99d5A59',
   kaia: '0x89aB6b1c3B1522F8Cf7AD6f8547Da173235e0fAc',
   katana: '0x086A21A16eF1133BF58a09A77E2A9e07d3b95c1c',
@@ -94,7 +91,6 @@ export const regularTimelocks: ChainMap<Address> = {
   scroll: '0x9Fca159607687AE26367d66166e680A930af0780',
   sei: '0xB97d3bF2fC296c2cAC4056bBC8A783ff39408e20',
   shibarium: '0xc0Fb1Fca107061C72d122b72903691435C9976a5',
-  snaxchain: '0xbEB1b837C00E7f14a4aF1755975E240F414417Fc',
   soneium: '0xf99037c7387E1D09Ad0356D1f0a2dfF45913233A',
   sonic: '0x2e760c7c82C956db0A48879E75e2236629F646Da',
   story: '0x68EE6a50Ea37175F39dAC5D85f897cd0fF476929',

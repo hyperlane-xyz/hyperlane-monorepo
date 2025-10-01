@@ -510,8 +510,25 @@ impl SealevelProvider {
                     .map_err(ChainCommunicationError::from_other)?,
             };
 
-            let decoded_data =
-                T::try_from_slice(bytes.as_slice()).map_err(ChainCommunicationError::from_other)?;
+            // Workaround for when the response is missing the trailing byte expected as a workaround in SimulationReturnData
+            // here https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/25c1d1fb4341bbafeaca5a858e357cbf18c57293/rust/sealevel/libraries/serializable-account-meta/src/lib.rs#L32
+            // The return data struct includes a non-zero trailing_byte field to work around Solana's bug where return data ending with zero bytes
+            // gets truncated. However, some programs may return data without this trailing byte,
+            // causing Borsh deserialization to fail with "Unexpected length of input".
+            //
+            // If deserialization fails with this specific error, we retry by adding the missing
+            // trailing byte (255) to match the expected SimulationReturnData format.
+            let decoded_data = match T::try_from_slice(bytes.as_slice()) {
+                Ok(data) => data,
+                Err(e) if e.to_string().contains("Unexpected length of input") => {
+                    // Try adding the expected trailing byte (255) for SimulationReturnData
+                    let mut bytes_with_trailing = bytes.clone();
+                    bytes_with_trailing.push(255u8);
+                    T::try_from_slice(bytes_with_trailing.as_slice())
+                        .map_err(|_| ChainCommunicationError::from_other(e))?
+                }
+                Err(e) => return Err(ChainCommunicationError::from_other(e)),
+            };
 
             return Ok(Some(decoded_data));
         }
