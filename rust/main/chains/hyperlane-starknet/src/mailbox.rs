@@ -155,7 +155,18 @@ impl Mailbox for StarknetMailbox {
     ) -> ChainResult<TxCostEstimate> {
         let contract_call = self.process_contract_call(message, metadata).await?;
         // Get fee estimate from the provider
+        let fee_estimate = contract_call
+            .estimate_fee()
+            .await
+            .map_err(HyperlaneStarknetError::from)?;
+
         let simulation = contract_call
+            .l1_gas(fee_estimate.l1_gas_consumed)
+            .l1_gas_price(fee_estimate.l1_gas_price)
+            .l1_data_gas(fee_estimate.l1_data_gas_consumed)
+            .l1_data_gas_price(fee_estimate.l1_data_gas_price)
+            .l2_gas(fee_estimate.l2_gas_consumed)
+            .l2_gas_price(fee_estimate.l2_gas_price)
             .simulate(false, false)
             .await
             .map_err(HyperlaneStarknetError::from)?;
