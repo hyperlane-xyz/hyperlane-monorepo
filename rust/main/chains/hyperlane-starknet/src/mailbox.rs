@@ -12,7 +12,7 @@ use hyperlane_core::{
 };
 use hyperlane_core::{BatchItem, BatchResult, FixedPointNumber, QueueOperation, ReorgPeriod};
 use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
-use starknet::core::types::{ExecuteInvocation, Felt, TransactionTrace};
+use starknet::core::types::Felt;
 
 use starknet::signers::LocalWallet;
 use tracing::instrument;
