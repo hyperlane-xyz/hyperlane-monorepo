@@ -33,9 +33,11 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tokio-metrics.workspace = true
 tracing.workspace = true
+url = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
 
 # Radix dependencies
+ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
 core-api-client = { workspace = true }
 gateway-api-client = { workspace = true }
 radix-common = { workspace = true }
