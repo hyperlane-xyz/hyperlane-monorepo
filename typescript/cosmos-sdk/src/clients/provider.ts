@@ -504,11 +504,16 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
   }
 
   async populateSetRoutingIsmOwner(
-    _req: MultiVM.ResSetRoutingIsmOwner,
+    req: MultiVM.ReqSetRoutingIsmOwner,
   ): Promise<any> {
-    throw new Error(
-      'Cosmos Native does not support populateSetRoutingIsmOwner',
-    );
+    return {
+      typeUrl: R.MsgUpdateRoutingIsmOwner.proto.type,
+      value: R.MsgUpdateRoutingIsmOwner.proto.converter.create({
+        owner: req.signer,
+        new_owner: req.new_owner,
+        renounce_ownership: !req.new_owner,
+      }),
+    };
   }
 
   async populateCreateNoopIsm(

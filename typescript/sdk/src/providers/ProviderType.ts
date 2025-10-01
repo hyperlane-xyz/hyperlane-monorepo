@@ -364,6 +364,8 @@ export type TypedAnnotatedTransaction =
   | AnnotatedZKSyncTransaction
   | AnnotatedRadixTransaction;
 
+export type MultiVmTransaction = Annotated<{ transaction: any }>;
+
 /**
  * Transaction receipt/response with discriminated union of provider type
  */

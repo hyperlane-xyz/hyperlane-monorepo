@@ -424,7 +424,7 @@ export interface IMultiVMProvider {
 
   populateRemoveRoutingIsmRoute(req: ReqRemoveRoutingIsmRoute): Promise<any>;
 
-  populateSetRoutingIsmOwner(req: ResSetRoutingIsmOwner): Promise<any>;
+  populateSetRoutingIsmOwner(req: ReqSetRoutingIsmOwner): Promise<any>;
 
   populateCreateNoopIsm(req: ReqCreateNoopIsm): Promise<any>;
 
@@ -464,6 +464,8 @@ export interface IMultiVMProvider {
 }
 
 export interface IMultiVMSigner extends IMultiVMProvider {
+  getSignerAddress(): string;
+
   signAndBroadcast(transactions: any[]): Promise<any[]>;
 
   // ### TX CORE ###

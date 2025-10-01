@@ -130,6 +130,10 @@ export class CosmosNativeSigner
     return response;
   }
 
+  getSignerAddress(): string {
+    return this.account.address;
+  }
+
   async signAndBroadcast(transactions: any[]): Promise<any[]> {
     const receipt = await this.signer.signAndBroadcast(
       this.account.address,

@@ -5,14 +5,33 @@ import {
 import { ChainMap, ChainMetadataManager, ChainName } from '@hyperlane-xyz/sdk';
 import { MultiVM, ProtocolType } from '@hyperlane-xyz/utils';
 
-export class MultiVMFactory<T> {
-  // TODO: MULTIVM
-  // make this dynamic
-  public static readonly SUPPORTED_PROTOCOLS = [ProtocolType.CosmosNative];
+export class MultiVMProvider {
+  private readonly metadataManager: ChainMetadataManager;
 
-  private readonly chains: ChainMap<T>;
+  constructor(metadataManager: ChainMetadataManager) {
+    this.metadataManager = metadataManager;
+  }
 
-  private constructor(chains: ChainMap<T>) {
+  public async get(chain: ChainName): Promise<MultiVM.IMultiVMProvider> {
+    const metadata = this.metadataManager.getChainMetadata(chain);
+
+    switch (metadata.protocol) {
+      case ProtocolType.CosmosNative: {
+        return CosmosNativeProviderFactory.connect(metadata.rpcUrls[0].http);
+      }
+      default: {
+        throw new Error(
+          `Chain ${chain} with protocol type ${metadata.protocol} not supported in MultiVM`,
+        );
+      }
+    }
+  }
+}
+
+export class MultiVmSigner {
+  private readonly chains: ChainMap<MultiVM.IMultiVMSigner>;
+
+  private constructor(chains: ChainMap<MultiVM.IMultiVMSigner>) {
     this.chains = chains;
   }
 
@@ -20,35 +39,8 @@ export class MultiVMFactory<T> {
     return !!this.chains[chain];
   }
 
-  public get(chain: ChainName): T {
+  public get(chain: ChainName): MultiVM.IMultiVMSigner {
     return this.chains[chain];
-  }
-
-  public static async createProviders(
-    metadataManager: ChainMetadataManager,
-    chains: ChainName[],
-  ) {
-    const providers: ChainMap<MultiVM.IMultiVMProvider> = {};
-
-    for (const chain of chains) {
-      const metadata = metadataManager.getChainMetadata(chain);
-
-      switch (metadata.protocol) {
-        case ProtocolType.CosmosNative: {
-          providers[chain] = await CosmosNativeProviderFactory.connect(
-            metadata.rpcUrls[0].http,
-          );
-          break;
-        }
-        default: {
-          throw new Error(
-            `Chain ${chain} with protocol type ${metadata.protocol} not supported in MultiVM`,
-          );
-        }
-      }
-    }
-
-    return new MultiVMFactory(providers);
   }
 
   public static async createSigners(
@@ -57,14 +49,14 @@ export class MultiVMFactory<T> {
     privateKey: string,
     extraParams?: Record<string, any>,
   ) {
-    const providers: ChainMap<MultiVM.IMultiVMSigner> = {};
+    const signers: ChainMap<MultiVM.IMultiVMSigner> = {};
 
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
 
       switch (metadata.protocol) {
         case ProtocolType.CosmosNative: {
-          providers[chain] = await CosmosNativeSignerFactory.connectWithSigner(
+          signers[chain] = await CosmosNativeSignerFactory.connectWithSigner(
             metadata.rpcUrls[0].http,
             privateKey,
             extraParams,
@@ -79,6 +71,6 @@ export class MultiVMFactory<T> {
       }
     }
 
-    return new MultiVMFactory(providers);
+    return new MultiVmSigner(signers);
   }
 }

@@ -16,7 +16,7 @@ import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { getContext } from '../../../context/context.js';
-import { MultiVMFactory } from '../../../context/multivm.js';
+import { MultiVMProvider, MultiVmSigner } from '../../../context/multivm.js';
 import { MultiProtocolSignerManager } from '../../../context/strategies/signer/MultiProtocolSignerManager.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
@@ -599,12 +599,9 @@ export async function setupIncompleteWarpRouteExtension(
   );
 
   context.multiProvider = await multiProtocolSigner.getMultiProvider();
-  context.multiVmProviders = await MultiVMFactory.createProviders(
-    context.multiProvider,
-    [],
-  );
+  context.multiVmProviders = new MultiVMProvider(context.multiProvider);
 
-  const multiVmSigners = await MultiVMFactory.createSigners(
+  const multiVmSigners = await MultiVmSigner.createSigners(
     context.multiProvider,
     [],
     ANVIL_KEY,

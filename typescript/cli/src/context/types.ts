@@ -11,9 +11,9 @@ import type {
   WarpCoreConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
-import { MultiVM, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { MultiVMFactory } from './multivm.js';
+import { MultiVMProvider, MultiVmSigner } from './multivm.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 
 export const SignerKeyProtocolMapSchema = z
@@ -49,7 +49,7 @@ export interface CommandContext
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
   multiProtocolProvider: MultiProtocolProvider;
-  multiVmProviders: MultiVMFactory<MultiVM.IMultiVMProvider>;
+  multiVmProviders: MultiVMProvider;
   skipConfirmation: boolean;
   // just for evm chains backward compatibility
   signerAddress?: string;
@@ -59,7 +59,7 @@ export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   key: SignerKeyProtocolMap;
   signer: ethers.Signer;
   multiProtocolSigner?: MultiProtocolSignerManager;
-  multiVmSigners: MultiVMFactory<MultiVM.IMultiVMSigner>;
+  multiVmSigners: MultiVmSigner;
   apiKeys?: ChainMap<string>;
 }
 
