@@ -7,7 +7,7 @@ use gateway_api_client::models::{
 };
 use scrypto::network::NetworkDefinition;
 
-use hyperlane_core::{ChainResult, H512};
+use hyperlane_core::{ChainResult, H512, U256};
 use hyperlane_radix::{RadixProviderForLander, RadixSigner, RadixTxCalldata};
 
 use crate::{
