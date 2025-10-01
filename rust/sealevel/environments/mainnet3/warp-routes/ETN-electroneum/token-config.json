@@ -1,0 +1,31 @@
+{
+  "solanamainnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "remoteDecimals": 18,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "BTG551UkyMSTe7d574Br2DWzn4fGquZLLXjk1Fc1CYYn",
+    "name": "ETN",
+    "symbol": "ETN",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/99ad40dd4836da8f08be01f05c98a15c494c8422/deployments/warp_routes/ETN/metadata.json"
+  },
+  "ethereum": {
+    "type": "synthetic",
+    "decimals": 18,
+    "foreignDeployment": "0xB89371D7d6Fe8Eb98732cECD8fbEEF7dbfC3B0Bb",
+    "name": "ETN",
+    "symbol": "ETN"
+  },
+  "bsc": {
+    "type": "synthetic",
+    "decimals": 18,
+    "foreignDeployment": "0xc8a9E4927301cE381A96Dd639f154f1A539fd939",
+    "name": "ETN",
+    "symbol": "ETN"
+  },
+  "electroneum": {
+    "type": "native",
+    "decimals": 18,
+    "foreignDeployment": "0x3003b36eea03A55d2cAF6048d45420A60Bf40aC5"
+  }
+}
