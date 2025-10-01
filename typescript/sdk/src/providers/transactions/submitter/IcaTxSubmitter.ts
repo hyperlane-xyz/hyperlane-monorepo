@@ -114,7 +114,7 @@ export class EvmIcaTxSubmitter
 
     // On the EVM chains the id and domain id might be different so we match either against the
     // EVM chain id or the Hyperlane domain id
-    if (chainId !== destinationEvmChainId && chainId !== destinationDomainId) {
+    if (chainId !== destinationDomainId && chainId !== destinationEvmChainId) {
       throw new Error(
         `Destination chain mismatch. Expected EVM chain id ${destinationEvmChainId} or Hyperlane domain id ${destinationDomainId} but received ${chainId}.`,
       );
