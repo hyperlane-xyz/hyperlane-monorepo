@@ -430,6 +430,29 @@ impl RadixProvider {
         Ok(txs)
     }
 
+    /// Returns a tx builder with header information already filled in
+    pub fn get_tx_builder(
+        network: &NetworkDefinition,
+        private_key: &PrivateKey,
+        epoch: u64,
+        intent_discriminator: u64,
+    ) -> TransactionV2Builder {
+        TransactionBuilder::new_v2()
+            .transaction_header(TransactionHeaderV2 {
+                notary_public_key: private_key.public_key(),
+                notary_is_signatory: true,
+                tip_basis_points: 0u32, // TODO: what should we set this to?
+            })
+            .intent_header(IntentHeaderV2 {
+                network_id: network.id,
+                start_epoch_inclusive: Epoch::of(epoch),
+                end_epoch_exclusive: Epoch::of(epoch + 2), // ~5 minutes per epoch -> 10min timeout
+                intent_discriminator,
+                min_proposer_timestamp_inclusive: None, // TODO: discuss whether or not we want to have a time limit
+                max_proposer_timestamp_exclusive: None,
+            })
+    }
+
     /// build tx
     pub fn build_tx(
         signer: &RadixSigner,
@@ -453,29 +476,6 @@ impl RadixProvider {
             .notarize(&private_key)
             .build();
         Ok(tx)
-    }
-
-    /// Build a tx builder
-    pub fn get_tx_builder(
-        network: &NetworkDefinition,
-        private_key: &PrivateKey,
-        epoch: u64,
-        intent_discriminator: u64,
-    ) -> TransactionV2Builder {
-        TransactionBuilder::new_v2()
-            .transaction_header(TransactionHeaderV2 {
-                notary_public_key: private_key.public_key(),
-                notary_is_signatory: true,
-                tip_basis_points: 0u32, // TODO: what should we set this to?
-            })
-            .intent_header(IntentHeaderV2 {
-                network_id: network.id,
-                start_epoch_inclusive: Epoch::of(epoch),
-                end_epoch_exclusive: Epoch::of(epoch + 2), // ~5 minutes per epoch -> 10min timeout
-                intent_discriminator,
-                min_proposer_timestamp_inclusive: None, // TODO: discuss whether or not we want to have a time limit
-                max_proposer_timestamp_exclusive: None,
-            })
     }
 
     /// Returns the total Fee that was paid
