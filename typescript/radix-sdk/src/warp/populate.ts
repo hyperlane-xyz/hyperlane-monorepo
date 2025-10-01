@@ -189,47 +189,75 @@ export class RadixWarpPopulate {
       .toFixed(divisibility);
 
     assert(origin_denom, `no origin_denom found on token ${token}`);
-    return `
+    return getTransferRemoteManifest({
+      from_address,
+      token,
+      destination_domain,
+      recipient,
+      tokenAmount,
+      max_fee,
+      origin_denom,
+    });
+  }
+}
+
+export function getTransferRemoteManifest({
+  from_address,
+  token,
+  destination_domain,
+  recipient,
+  tokenAmount,
+  max_fee,
+  origin_denom,
+}: {
+  from_address: string;
+  token: string;
+  origin_denom: string;
+  destination_domain: number;
+  recipient: string;
+  tokenAmount: string;
+  max_fee: { denom: string; amount: string };
+}): string {
+  return `
 CALL_METHOD
-    Address("${from_address}")
-    "withdraw"
-    Address("${origin_denom}")
-    Decimal("${tokenAmount}")
+  Address("${from_address}")
+  "withdraw"
+  Address("${origin_denom}")
+  Decimal("${tokenAmount}")
 ;
 CALL_METHOD
-    Address("${from_address}")
-    "withdraw"
-    Address("${max_fee.denom}")
-    Decimal("${max_fee.amount}")
+  Address("${from_address}")
+  "withdraw"
+  Address("${max_fee.denom}")
+  Decimal("${max_fee.amount}")
 ;
 TAKE_FROM_WORKTOP
-    Address("${origin_denom}")
-    Decimal("${tokenAmount}")
-    Bucket("bucket1")
+  Address("${origin_denom}")
+  Decimal("${tokenAmount}")
+  Bucket("bucket1")
 ;
 TAKE_FROM_WORKTOP
-    Address("${max_fee.denom}")
-    Decimal("${max_fee.amount}")
-    Bucket("bucket2")
+  Address("${max_fee.denom}")
+  Decimal("${max_fee.amount}")
+  Bucket("bucket2")
 ;
 CALL_METHOD
-    Address("${token}")
-    "transfer_remote"
-    ${destination_domain}u32
-    Bytes("${recipient}")
-    Bucket("bucket1")
-    Array<Bucket>(
-        Bucket("bucket2")
-    )
-    Enum<0u8>()
-    Enum<0u8>()
+  Address("${token}")
+  "transfer_remote"
+  ${destination_domain}u32
+  Bytes("${recipient}")
+  Bucket("bucket1")
+  Array<Bucket>(
+      Bucket("bucket2")
+  )
+  Enum<0u8>()
+  Enum<0u8>()
 ;
 CALL_METHOD
-    Address("${from_address}")
-    "try_deposit_batch_or_abort"
-    Expression("ENTIRE_WORKTOP")
-    Enum<0u8>()
+  Address("${from_address}")
+  "try_deposit_batch_or_abort"
+  Expression("ENTIRE_WORKTOP")
+  Enum<0u8>()
 ;
 `;
-  }
 }
