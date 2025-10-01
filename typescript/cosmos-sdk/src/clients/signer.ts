@@ -3,6 +3,7 @@ import {
   DirectSecp256k1HdWallet,
   DirectSecp256k1Wallet,
   EncodeObject,
+  OfflineSigner,
 } from '@cosmjs/proto-signing';
 import {
   AminoTypes,
@@ -34,31 +35,36 @@ export class CosmosNativeSigner
 
   static async connectWithSigner(
     rpcUrl: string,
-    privateKey: string,
+    privateKey: string | OfflineSigner,
     extraParams?: Record<string, any>,
   ): Promise<MultiVM.IMultiVMSigner> {
     assert(extraParams, `extra params not defined`);
-    assert(
-      extraParams.bech32Prefix,
-      `bech32Prefix not defined in extra params`,
-    );
     assert(extraParams.gasPrice, `gasPrice not defined in extra params`);
 
-    let wallet;
+    let wallet: OfflineSigner;
 
-    const isPrivateKey = new RegExp(/(^|\b)(0x)?[0-9a-fA-F]{64}(\b|$)/).test(
-      privateKey,
-    );
-
-    if (isPrivateKey) {
-      wallet = await DirectSecp256k1Wallet.fromKey(
-        new Uint8Array(Buffer.from(privateKey, 'hex')),
+    if (typeof privateKey === 'string') {
+      assert(
         extraParams.bech32Prefix,
+        `bech32Prefix not defined in extra params`,
       );
+
+      const isPrivateKey = new RegExp(/(^|\b)(0x)?[0-9a-fA-F]{64}(\b|$)/).test(
+        privateKey,
+      );
+
+      if (isPrivateKey) {
+        wallet = await DirectSecp256k1Wallet.fromKey(
+          new Uint8Array(Buffer.from(privateKey, 'hex')),
+          extraParams.bech32Prefix,
+        );
+      } else {
+        wallet = await DirectSecp256k1HdWallet.fromMnemonic(privateKey, {
+          prefix: extraParams.bech32Prefix,
+        });
+      }
     } else {
-      wallet = await DirectSecp256k1HdWallet.fromMnemonic(privateKey, {
-        prefix: extraParams.bech32Prefix,
-      });
+      wallet = privateKey;
     }
 
     // register all the custom amino tx types
@@ -143,7 +149,7 @@ export class CosmosNativeSigner
     return this.account.address;
   }
 
-  async signAndBroadcast(transactions: any[]): Promise<any[]> {
+  async signAndBroadcast(transactions: any[]): Promise<any> {
     const receipt = await this.signer.signAndBroadcast(
       this.account.address,
       transactions,
@@ -152,7 +158,7 @@ export class CosmosNativeSigner
     );
     assertIsDeliverTxSuccess(receipt);
 
-    return receipt.msgResponses;
+    return receipt;
   }
 
   // ### TX CORE ###

@@ -499,7 +499,7 @@ export interface IMultiVMProvider {
 export interface IMultiVMSigner extends IMultiVMProvider {
   getSignerAddress(): string;
 
-  signAndBroadcast(transactions: any[]): Promise<any[]>;
+  signAndBroadcast(transactions: any[]): Promise<any>;
 
   // ### TX CORE ###
 
@@ -544,7 +544,7 @@ export interface IMultiVMSigner extends IMultiVMProvider {
   ): Promise<ResRemoveRoutingIsmRoute>;
 
   setRoutingIsmOwner(
-    req: Omit<ResSetRoutingIsmOwner, 'signer'>,
+    req: Omit<ReqSetRoutingIsmOwner, 'signer'>,
   ): Promise<ResSetRoutingIsmOwner>;
 
   createNoopIsm(

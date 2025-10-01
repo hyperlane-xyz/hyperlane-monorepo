@@ -1,7 +1,7 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { GasPrice } from '@cosmjs/stargate';
 
-import { SigningHyperlaneModuleClient } from '../index.js';
+import { CosmosNativeSigner } from '../index.js';
 
 // These private keys are public and contain funds on the Hyperlane Cosmos Simapp chain
 // which are only used for testing and contain no real funds.
@@ -15,11 +15,11 @@ const PKS = {
 
 export const createSigner = async (account: 'alice' | 'bob' | 'charlie') => {
   const wallet = await DirectSecp256k1Wallet.fromKey(
-    Buffer.from(PKS[account], 'hex'),
+    new Uint8Array(Buffer.from(PKS[account], 'hex')),
     'hyp',
   );
 
-  return SigningHyperlaneModuleClient.connectWithSigner(
+  return CosmosNativeSigner.connectWithSigner(
     'http://127.0.0.1:26657',
     wallet,
     {

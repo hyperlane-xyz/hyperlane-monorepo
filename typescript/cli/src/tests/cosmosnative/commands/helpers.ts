@@ -2,7 +2,7 @@ import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { GasPrice } from '@cosmjs/stargate';
 import path from 'path';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
@@ -30,11 +30,11 @@ export async function deployCollateralToken(
   const metadata = multiProvider.getChainMetadata(chain);
 
   const wallet = await DirectSecp256k1Wallet.fromKey(
-    Buffer.from(privateKey, 'hex'),
+    new Uint8Array(Buffer.from(privateKey, 'hex')),
     metadata.bech32Prefix,
   );
 
-  const signer = await SigningHyperlaneModuleClient.connectWithSigner(
+  const signer = await CosmosNativeSigner.connectWithSigner(
     metadata.rpcUrls[0].http,
     wallet,
     {
@@ -44,12 +44,12 @@ export async function deployCollateralToken(
     },
   );
 
-  const { response } = await signer.createCollateralToken({
-    origin_mailbox: mailbox,
+  const { token_id } = await signer.createCollateralToken({
+    mailbox_id: mailbox,
     origin_denom: metadata.nativeToken?.denom ?? '',
   });
 
-  return response.id;
+  return token_id;
 }
 
 export async function deploySyntheticToken(
@@ -65,11 +65,11 @@ export async function deploySyntheticToken(
   const metadata = multiProvider.getChainMetadata(chain);
 
   const wallet = await DirectSecp256k1Wallet.fromKey(
-    Buffer.from(privateKey, 'hex'),
+    new Uint8Array(Buffer.from(privateKey, 'hex')),
     metadata.bech32Prefix,
   );
 
-  const signer = await SigningHyperlaneModuleClient.connectWithSigner(
+  const signer = await CosmosNativeSigner.connectWithSigner(
     metadata.rpcUrls[0].http,
     wallet,
     {
@@ -79,9 +79,9 @@ export async function deploySyntheticToken(
     },
   );
 
-  const { response } = await signer.createSyntheticToken({
-    origin_mailbox: mailbox,
+  const { token_id } = await signer.createSyntheticToken({
+    mailbox_id: mailbox,
   });
 
-  return response.id;
+  return token_id;
 }

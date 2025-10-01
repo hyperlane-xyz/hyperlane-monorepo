@@ -69,7 +69,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   before(async function () {
     const wallet = await DirectSecp256k1Wallet.fromKey(
-      Buffer.from(HYP_KEY, 'hex'),
+      new Uint8Array(Buffer.from(HYP_KEY, 'hex')),
     );
     const accounts = await wallet.getAccounts();
     ownerAddress = accounts[0].address;

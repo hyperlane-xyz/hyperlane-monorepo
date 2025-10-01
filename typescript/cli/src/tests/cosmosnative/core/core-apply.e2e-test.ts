@@ -2,14 +2,14 @@ import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { GasPrice } from '@cosmjs/stargate';
 import { expect } from 'chai';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
 import {
   ChainMetadata,
   CoreConfig,
   IgpConfig,
   randomCosmosAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, MultiVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -34,20 +34,20 @@ describe('hyperlane core apply e2e tests', async function () {
     CORE_READ_CONFIG_PATH_1,
   );
 
-  let signer: SigningHyperlaneModuleClient;
+  let signer: MultiVM.IMultiVMSigner;
   let initialOwnerAddress: Address;
 
   before(async () => {
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_1_METADATA_PATH);
 
     const wallet = await DirectSecp256k1Wallet.fromKey(
-      Buffer.from(HYP_KEY, 'hex'),
+      new Uint8Array(Buffer.from(HYP_KEY, 'hex')),
       'hyp',
     );
 
     assert(chainMetadata.gasPrice, 'gasPrice not defined in chain metadata');
 
-    signer = await SigningHyperlaneModuleClient.connectWithSigner(
+    signer = await CosmosNativeSigner.connectWithSigner(
       chainMetadata.rpcUrls[0].http,
       wallet,
       {
@@ -57,7 +57,7 @@ describe('hyperlane core apply e2e tests', async function () {
       },
     );
 
-    initialOwnerAddress = signer.account.address;
+    initialOwnerAddress = signer.getSignerAddress();
   });
 
   it('should update the mailbox owner', async () => {

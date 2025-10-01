@@ -8,7 +8,7 @@ import { GasPrice } from '@cosmjs/stargate';
 import { useChain, useChains } from '@cosmos-kit/react';
 import { useCallback, useMemo } from 'react';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
@@ -189,7 +189,7 @@ export function useCosmosTransactionFns(
         txDetails = await client.getTx(result.transactionHash);
       } else if (tx.type === ProviderType.CosmJsNative) {
         const signer = getOfflineSigner();
-        const client = await SigningHyperlaneModuleClient.connectWithSigner(
+        const client = await CosmosNativeSigner.connectWithSigner(
           chain.apis!.rpc![0].address,
           signer,
           {
@@ -199,12 +199,17 @@ export function useCosmosTransactionFns(
           },
         );
 
-        result = await client.signAndBroadcast(
-          chainContext.address,
-          [tx.transaction],
-          2,
-        );
-        txDetails = await client.getTx(result.transactionHash);
+        const txResponse: DeliverTxResponse = await client.signAndBroadcast([
+          tx.transaction,
+        ]);
+
+        result = txResponse;
+        txDetails = {
+          ...txResponse,
+          hash: txResponse.transactionHash,
+          tx: new Uint8Array(),
+          rawLog: txResponse.rawLog || '',
+        };
       } else {
         throw new Error(`Invalid cosmos provider type ${tx.type}`);
       }
