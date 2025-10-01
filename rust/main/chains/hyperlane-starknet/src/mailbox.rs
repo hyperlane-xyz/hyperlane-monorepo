@@ -12,7 +12,7 @@ use hyperlane_core::{
 };
 use hyperlane_core::{BatchItem, BatchResult, FixedPointNumber, QueueOperation, ReorgPeriod};
 use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
-use starknet::core::types::Felt;
+use starknet::core::types::{ExecuteInvocation, Felt, TransactionTrace};
 
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -154,12 +154,23 @@ impl Mailbox for StarknetMailbox {
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
         let contract_call = self.process_contract_call(message, metadata).await?;
-
         // Get fee estimate from the provider
-        let fee_estimate = contract_call
-            .estimate_fee()
+        let simulation = contract_call
+            .simulate(false, false)
             .await
             .map_err(HyperlaneStarknetError::from)?;
+
+        if let TransactionTrace::Invoke(invoke) = simulation.transaction_trace {
+            if let ExecuteInvocation::Reverted(reason) = invoke.execute_invocation {
+                return Err(HyperlaneStarknetError::from_other(format!(
+                    "simulation failed with: {}",
+                    reason.revert_reason
+                ))
+                .into());
+            }
+        }
+
+        let fee_estimate = simulation.fee_estimation;
 
         Ok(TxCostEstimate {
             gas_limit: fee_estimate.l2_gas_consumed.into(), // use l2 gas as an approximation, as its the most relevant
