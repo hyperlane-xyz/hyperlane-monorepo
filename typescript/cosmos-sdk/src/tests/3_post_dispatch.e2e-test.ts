@@ -7,7 +7,6 @@ import {
   bytes32ToAddress,
   isValidAddressEvm,
 } from '../../../utils/dist/addresses.js';
-import { formatMessage, messageId } from '../../../utils/src/messages.js';
 
 import { createSigner } from './utils.js';
 

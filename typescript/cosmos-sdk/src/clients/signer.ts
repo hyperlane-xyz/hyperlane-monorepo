@@ -304,9 +304,17 @@ export class CosmosNativeSigner
   }
 
   async setRoutingIsmOwner(
-    _req: Omit<MultiVM.ResSetRoutingIsmOwner, 'signer'>,
+    req: Omit<MultiVM.ReqSetRoutingIsmOwner, 'signer'>,
   ): Promise<MultiVM.ResSetRoutingIsmOwner> {
-    throw new Error('Cosmos Native does not support setRoutingIsmOwner');
+    const msg = await this.populateSetRoutingIsmOwner({
+      ...req,
+      signer: this.account.address,
+    });
+
+    await this.submitTx(msg);
+    return {
+      new_owner: req.new_owner,
+    };
   }
 
   async createNoopIsm(

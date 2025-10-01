@@ -143,26 +143,43 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     });
     const denom = 'uhyp';
 
-    const { hook_id } = await signer.createMerkleTreeHook({
+    const { hook_id: merkle_tree_hook_id } = await signer.createMerkleTreeHook({
       mailbox_id,
+    });
+
+    const { hook_id: igp_id } = await signer.createInterchainGasPaymasterHook({
+      denom,
+    });
+
+    const gas = '10000';
+    const destination_domain_id = 4321;
+
+    await signer.setDestinationGasConfig({
+      hook_id: igp_id,
+      destination_gas_config: {
+        remote_domain_id: destination_domain_id,
+        gas_oracle: {
+          token_exchange_rate: '0',
+          gas_price: '0',
+        },
+        gas_overhead: gas,
+      },
     });
 
     await signer.setRequiredHook({
       mailbox_id,
-      hook_id,
+      hook_id: merkle_tree_hook_id,
     });
 
     await signer.setDefaultHook({
       mailbox_id,
-      hook_id,
+      hook_id: igp_id,
     });
 
     const { token_id } = await signer.createCollateralToken({
       mailbox_id,
       origin_denom: denom,
     });
-
-    const gas = '10000';
 
     await signer.enrollRemoteRouter({
       token_id,

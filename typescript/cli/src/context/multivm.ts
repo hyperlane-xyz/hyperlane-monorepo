@@ -88,6 +88,10 @@ export class MultiVmSignerFactory implements MultiVM.IMultiVMSignerFactory {
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
 
+      if (metadata.protocol === ProtocolType.Ethereum) {
+        continue;
+      }
+
       // TODO: MULTIVM
       // make this cleaner and get from env variables and strategy config
       if (!key[metadata.protocol]) {

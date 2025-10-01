@@ -472,9 +472,10 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
     return {
       typeUrl: R.MsgSetMailbox.proto.type,
       value: R.MsgSetMailbox.proto.converter.create({
+        owner: req.signer,
+        mailbox_id: req.mailbox_id,
         new_owner: req.new_owner,
         renounce_ownership: !req.new_owner,
-        owner: req.signer,
       }),
     };
   }
@@ -553,6 +554,7 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
       typeUrl: R.MsgUpdateRoutingIsmOwner.proto.type,
       value: R.MsgUpdateRoutingIsmOwner.proto.converter.create({
         owner: req.signer,
+        ism_id: req.ism_id,
         new_owner: req.new_owner,
         renounce_ownership: !req.new_owner,
       }),
@@ -601,6 +603,7 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
       typeUrl: R.MsgSetIgpOwner.proto.type,
       value: R.MsgSetIgpOwner.proto.converter.create({
         owner: req.signer,
+        igp_id: req.hook_id,
         new_owner: req.new_owner,
         renounce_ownership: !req.new_owner,
       }),

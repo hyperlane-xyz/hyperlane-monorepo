@@ -7,7 +7,6 @@ import {
   bytes32ToAddress,
   isValidAddressEvm,
 } from '../../../utils/dist/addresses.js';
-import { createAnnounce } from '../../../utils/src/validator.js';
 
 import { createSigner } from './utils.js';
 

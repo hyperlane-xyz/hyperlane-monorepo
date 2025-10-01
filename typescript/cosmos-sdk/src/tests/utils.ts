@@ -1,5 +1,4 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
-import { GasPrice } from '@cosmjs/stargate';
 
 import { CosmosNativeSigner } from '../index.js';
 
@@ -23,7 +22,7 @@ export const createSigner = async (account: 'alice' | 'bob' | 'charlie') => {
     'http://127.0.0.1:26657',
     wallet,
     {
-      gasPrice: GasPrice.fromString('0.2uhyp'),
+      gasPrice: '0.2uhyp',
     },
   );
 };

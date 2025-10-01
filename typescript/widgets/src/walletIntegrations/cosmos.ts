@@ -4,7 +4,6 @@ import type {
   ExecuteResult,
   IndexedTx,
 } from '@cosmjs/cosmwasm-stargate';
-import { GasPrice } from '@cosmjs/stargate';
 import { useChain, useChains } from '@cosmos-kit/react';
 import { useCallback, useMemo } from 'react';
 
@@ -195,7 +194,7 @@ export function useCosmosTransactionFns(
           {
             // set zero gas price here so it does not error. actual gas price
             // will be injected from the wallet registry like Keplr or Leap
-            gasPrice: GasPrice.fromString('0token'),
+            gasPrice: '0token',
           },
         );
 

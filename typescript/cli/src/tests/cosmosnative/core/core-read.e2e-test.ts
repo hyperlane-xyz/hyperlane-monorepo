@@ -1,5 +1,4 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
-import { GasPrice } from '@cosmjs/stargate';
 import { expect } from 'chai';
 
 import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
@@ -46,9 +45,7 @@ describe('hyperlane cosmosnative core read e2e tests', async function () {
       chainMetadata.rpcUrls[0].http,
       wallet,
       {
-        gasPrice: GasPrice.fromString(
-          `${chainMetadata.gasPrice.amount}${chainMetadata.gasPrice.denom}`,
-        ),
+        gasPrice: `${chainMetadata.gasPrice.amount}${chainMetadata.gasPrice.denom}`,
       },
     );
 

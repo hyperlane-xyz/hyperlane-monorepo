@@ -1,5 +1,4 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
-import { GasPrice } from '@cosmjs/stargate';
 import path from 'path';
 
 import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
@@ -38,9 +37,7 @@ export async function deployCollateralToken(
     metadata.rpcUrls[0].http,
     wallet,
     {
-      gasPrice: GasPrice.fromString(
-        `${metadata.gasPrice?.amount}${metadata.gasPrice?.denom}`,
-      ),
+      gasPrice: `${metadata.gasPrice?.amount}${metadata.gasPrice?.denom}`,
     },
   );
 
@@ -73,9 +70,7 @@ export async function deploySyntheticToken(
     metadata.rpcUrls[0].http,
     wallet,
     {
-      gasPrice: GasPrice.fromString(
-        `${metadata.gasPrice?.amount}${metadata.gasPrice?.denom}`,
-      ),
+      gasPrice: `${metadata.gasPrice?.amount}${metadata.gasPrice?.denom}`,
     },
   );
 
