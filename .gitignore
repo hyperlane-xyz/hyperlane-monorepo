@@ -36,6 +36,7 @@ yalc.lock
 .yalc
 
 **/keys
+!typescript/infra/scripts/keys
 **/warp-route-deployer-key.json
 **/key.json
 **/deployer-key.json
