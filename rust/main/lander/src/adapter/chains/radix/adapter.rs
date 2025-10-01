@@ -232,6 +232,7 @@ impl RadixAdapter {
     async fn build_transaction(
         &self,
         tx: &Transaction,
+        intent_discriminator: u64,
     ) -> Result<DetailedNotarizedTransactionV2, LanderError> {
         let tx_precursor = tx.precursor();
 
@@ -266,10 +267,9 @@ impl RadixAdapter {
         let manifest_value: ManifestValue = manifest_decode(&tx_precursor.encoded_arguments)
             .map_err(|_| LanderError::PayloadNotFound)?;
         let manifest_values = match manifest_value {
-            // Should always be a tuple
+            // Should always be a tuple, but mirror simulate_tx for safety
             sbor::Value::Tuple { fields } => fields,
-            sbor::Value::Array { elements, .. } => elements,
-            _ => vec![],
+            s => vec![s],
         };
         let manifest_args =
             Self::combine_args_with_visible_components(manifest_values, &visible_components);
@@ -282,7 +282,6 @@ impl RadixAdapter {
 
         tracing::debug!("simulated_xrd: {:?}", simulated_xrd);
 
-        let intent_discriminator = rand::random::<u64>();
         let RadixTxBuilder { tx_builder, signer } = self.tx_builder(intent_discriminator).await?;
         let private_key = signer.get_signer()?;
         let radix_tx = tx_builder
@@ -407,7 +406,12 @@ impl AdaptsChain for RadixAdapter {
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         tracing::info!(?tx, "submitting transaction");
 
-        let radix_tx = self.build_transaction(tx).await?;
+        // derive a stable discriminator from the tx UUID to keep hashes reproducible
+        let intent_discriminator = {
+            let b = tx.uuid.as_bytes();
+            u64::from_le_bytes(b[0..8].try_into().expect("uuid is 16 bytes"))
+        };
+        let radix_tx = self.build_transaction(tx, intent_discriminator).await?;
         self.provider
             .send_transaction(radix_tx.raw.clone().to_vec())
             .await?;

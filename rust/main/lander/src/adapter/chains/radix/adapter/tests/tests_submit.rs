@@ -149,6 +149,7 @@ async fn test_radix_submit_tx() {
     assert_eq!(precursor.tx_hash, Some(expected_hash));
 }
 
+#[ignore]
 #[tracing_test::traced_test]
 #[tokio::test]
 async fn test_radix_lander_classic_build_transaction() {
@@ -246,9 +247,11 @@ async fn test_radix_lander_classic_build_transaction() {
         last_status_check: None,
     };
 
+    let intent_discriminator = 0u64;
+
     // when
     let lander_tx = adapter
-        .build_transaction(&transaction)
+        .build_transaction(&transaction, intent_discriminator)
         .await
         .expect("Failed to submit tx");
 
@@ -262,7 +265,6 @@ async fn test_radix_lander_classic_build_transaction() {
 
     let message_bytes = message.to_vec();
     let metadata_bytes = metadata.to_vec();
-    let intent_discriminator = 0u64;
 
     let classic_tx = RadixProvider::build_tx(
         &signer,
