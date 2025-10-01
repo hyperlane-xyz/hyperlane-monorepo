@@ -13,7 +13,7 @@ import type {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { MultiVMProvider, MultiVmSigner } from './multivm.js';
+import { MultiVMProviderFactory, MultiVmSignerFactory } from './multivm.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 
 export const SignerKeyProtocolMapSchema = z
@@ -49,7 +49,7 @@ export interface CommandContext
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
   multiProtocolProvider: MultiProtocolProvider;
-  multiVmProviders: MultiVMProvider;
+  multiVmProviders: MultiVMProviderFactory;
   skipConfirmation: boolean;
   // just for evm chains backward compatibility
   signerAddress?: string;
@@ -59,7 +59,7 @@ export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   key: SignerKeyProtocolMap;
   signer: ethers.Signer;
   multiProtocolSigner?: MultiProtocolSignerManager;
-  multiVmSigners: MultiVmSigner;
+  multiVmSigners: MultiVmSignerFactory;
   apiKeys?: ChainMap<string>;
 }
 

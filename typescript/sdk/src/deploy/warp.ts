@@ -2,6 +2,7 @@ import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
+  MultiVM,
   ProtocolType,
   isObjEmpty,
   objFilter,
@@ -11,6 +12,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { IMultiVMSignerFactory } from '../../../utils/dist/multivm.js';
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { CCIPContractCache } from '../ccip/utils.js';
 import {
@@ -19,22 +21,22 @@ import {
 } from '../contracts/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
-import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
+import { MultiVmIsmModule } from '../ism/MultiVmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
-import { CosmosNativeWarpModule } from '../token/CosmosNativeWarpModule.js';
 import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
+import { MultiVmWarpModule } from '../token/MultiVmWarpModule.js';
 import { gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
-import { CosmosNativeDeployer } from '../token/cosmosnativeDeploy.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
+import { MultiVmDeployer } from '../token/multiVmDeploy.js';
 import {
   HypTokenRouterConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
-import { ChainMap, IMultiProtocolSignerManager } from '../types.js';
+import { ChainMap } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
@@ -45,7 +47,7 @@ type ChainAddresses = Record<string, string>;
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  multiProtocolSigner: IMultiProtocolSignerManager,
+  multiVmSigners: IMultiVMSignerFactory,
   registryAddresses: ChainMap<ChainAddresses>,
   apiKeys: ChainMap<string>,
 ): Promise<ChainMap<Address>> {
@@ -66,7 +68,7 @@ export async function executeWarpDeploy(
   const modifiedConfig = await resolveWarpIsmAndHook(
     warpDeployConfig,
     multiProvider,
-    multiProtocolSigner,
+    multiVmSigners,
     registryAddresses,
     ismFactoryDeployer,
     contractVerifier,
@@ -111,22 +113,18 @@ export async function executeWarpDeploy(
 
         break;
       }
-      case ProtocolType.CosmosNative: {
-        const signersMap = objMap(
-          protocolSpecificConfig,
-          (chain, _) => multiProtocolSigner.getCosmosNativeSigner(chain)!,
+      default: {
+        const signersMap = objMap(protocolSpecificConfig, (chain, _) =>
+          multiVmSigners.get(chain),
         );
 
-        const deployer = new CosmosNativeDeployer(multiProvider, signersMap);
+        const deployer = new MultiVmDeployer(multiProvider, signersMap);
         deployedContracts = {
           ...deployedContracts,
           ...(await deployer.deploy(protocolSpecificConfig)),
         };
 
         break;
-      }
-      default: {
-        throw new Error(`Protocol type ${protocol} not supported`);
       }
     }
   }
@@ -137,7 +135,7 @@ export async function executeWarpDeploy(
 async function resolveWarpIsmAndHook(
   warpConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  multiProtocolSigner: IMultiProtocolSignerManager,
+  multiVmSigners: IMultiVMSignerFactory,
   registryAddresses: ChainMap<ChainAddresses>,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier: ContractVerifier,
@@ -156,7 +154,7 @@ async function resolveWarpIsmAndHook(
         chain,
         chainAddresses,
         multiProvider,
-        multiProtocolSigner,
+        multiVmSigners,
         contractVerifier,
         ismFactoryDeployer,
         warpConfig: config,
@@ -186,7 +184,7 @@ async function createWarpIsm({
   chain,
   chainAddresses,
   multiProvider,
-  multiProtocolSigner,
+  multiVmSigners,
   contractVerifier,
   warpConfig,
 }: {
@@ -194,7 +192,7 @@ async function createWarpIsm({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
-  multiProtocolSigner: IMultiProtocolSignerManager;
+  multiVmSigners: IMultiVMSignerFactory;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -239,10 +237,10 @@ async function createWarpIsm({
       const { deployedIsm } = evmIsmModule.serialize();
       return deployedIsm;
     }
-    case ProtocolType.CosmosNative: {
-      const signer = multiProtocolSigner!.getCosmosNativeSigner(chain);
+    default: {
+      const signer = multiVmSigners.get(chain);
 
-      const cosmosIsmModule = await CosmosNativeIsmModule.create({
+      const ismModule = await MultiVmIsmModule.create({
         chain,
         multiProvider: multiProvider,
         addresses: {
@@ -251,11 +249,9 @@ async function createWarpIsm({
         config: interchainSecurityModule,
         signer,
       });
-      const { deployedIsm } = cosmosIsmModule.serialize();
+      const { deployedIsm } = ismModule.serialize();
       return deployedIsm;
     }
-    default:
-      throw new Error(`Protocol type ${protocolType} not supported`);
   }
 }
 
@@ -323,26 +319,23 @@ async function createWarpHook({
       const { deployedHook } = evmHookModule.serialize();
       return deployedHook;
     }
-    case ProtocolType.CosmosNative: {
-      rootLogger.info(
-        `No warp hooks for Cosmos Native chains, skipping deployment.`,
+    default:
+      rootLogger.warn(
+        `Skipping token hooks because they are not supported on protocol type ${protocolType}`,
       );
       return hook;
-    }
-    default:
-      throw new Error(`Protocol type ${protocolType} not supported`);
   }
 }
 
 export async function enrollCrossChainRouters(
   {
     multiProvider,
-    multiProtocolSigner,
+    multiVmSigners,
     registryAddresses,
     warpDeployConfig,
   }: {
     multiProvider: MultiProvider;
-    multiProtocolSigner: IMultiProtocolSignerManager;
+    multiVmSigners: MultiVM.IMultiVMSignerFactory;
     registryAddresses: ChainMap<ChainAddresses>;
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },
@@ -427,10 +420,10 @@ export async function enrollCrossChainRouters(
 
         break;
       }
-      case ProtocolType.CosmosNative: {
-        const signer = multiProtocolSigner.getCosmosNativeSigner(chain);
+      default: {
+        const signer = multiVmSigners.get(chain);
 
-        const cosmosNativeWarpModule = new CosmosNativeWarpModule(
+        const warpModule = new MultiVmWarpModule(
           multiProvider,
           {
             chain,
@@ -441,7 +434,7 @@ export async function enrollCrossChainRouters(
           },
           signer,
         );
-        const actualConfig = await cosmosNativeWarpModule.read();
+        const actualConfig = await warpModule.read();
         const expectedConfig = {
           ...actualConfig,
           owner: configMapToDeploy[chain].owner,
@@ -464,17 +457,11 @@ export async function enrollCrossChainRouters(
           })(),
         };
 
-        const transactions =
-          await cosmosNativeWarpModule.update(expectedConfig);
+        const transactions = await warpModule.update(expectedConfig);
 
         if (transactions.length) {
           updateTransactions[chain] = transactions;
         }
-
-        break;
-      }
-      default: {
-        throw new Error(`Protocol type ${protocol} not supported`);
       }
     }
   }

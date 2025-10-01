@@ -49,15 +49,6 @@ import {
 import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
-export class CosmosNativeProviderFactory
-  implements MultiVM.MultiVmProviderFactory
-{
-  static async connect(rpcUrl: string): Promise<CosmosNativeProvider> {
-    const client = await connectComet(rpcUrl);
-    return new CosmosNativeProvider(client);
-  }
-}
-
 export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
   private readonly query: QueryClient &
     BankExtension &
@@ -68,7 +59,12 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
   private readonly registry: Registry;
   private readonly cometClient: CometClient;
 
-  constructor(cometClient: CometClient) {
+  static async connect(rpcUrl: string): Promise<CosmosNativeProvider> {
+    const client = await connectComet(rpcUrl);
+    return new CosmosNativeProvider(client);
+  }
+
+  protected constructor(cometClient: CometClient) {
     this.query = QueryClient.withExtensions(
       cometClient,
       setupBankExtension,

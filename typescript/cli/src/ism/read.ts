@@ -1,8 +1,8 @@
-import { ChainName, EvmIsmReader } from '@hyperlane-xyz/sdk';
+import { ChainName, EvmIsmReader, MultiVmIsmReader } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { log, logBlue, logRed } from '../logger.js';
+import { log, logBlue } from '../logger.js';
 import { resolveFileFormat, writeFileAtPath } from '../utils/files.js';
 
 /**
@@ -19,19 +19,32 @@ export async function readIsmConfig({
   address: Address;
   out?: string;
 }): Promise<void> {
-  if (context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
-    const ismReader = new EvmIsmReader(context.multiProvider, chain);
-    const config = await ismReader.deriveIsmConfig(address);
-    const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
-    if (!out) {
-      logBlue(`ISM Config at ${address} on ${chain}:`);
-      log(stringConfig);
-    } else {
-      writeFileAtPath(out, stringConfig + '\n');
-      logBlue(`ISM Config written to ${out}.`);
+  switch (context.multiProvider.getProtocol(chain)) {
+    case ProtocolType.Ethereum: {
+      const ismReader = new EvmIsmReader(context.multiProvider, chain);
+      const config = await ismReader.deriveIsmConfig(address);
+      const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
+      if (!out) {
+        logBlue(`ISM Config at ${address} on ${chain}:`);
+        log(stringConfig);
+      } else {
+        writeFileAtPath(out, stringConfig + '\n');
+        logBlue(`ISM Config written to ${out}.`);
+      }
+      break;
     }
-    return;
+    default: {
+      const provider = await context.multiVmProviders.get(chain);
+      const ismReader = new MultiVmIsmReader(context.multiProvider, provider);
+      const config = await ismReader.deriveIsmConfig(address);
+      const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
+      if (!out) {
+        logBlue(`ISM Config at ${address} on ${chain}:`);
+        log(stringConfig);
+      } else {
+        writeFileAtPath(out, stringConfig + '\n');
+        logBlue(`ISM Config written to ${out}.`);
+      }
+    }
   }
-
-  logRed('Unsupported chain. Currently this command supports EVM chains only.');
 }

@@ -19,9 +19,19 @@ import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
 import { CosmosNativeProvider } from './provider.js';
 
-export class CosmosNativeSignerFactory
-  implements MultiVM.MultiVmProviderFactory
+type TxOptions = {
+  fee: StdFee | 'auto' | number;
+  memo?: string;
+};
+
+export class CosmosNativeSigner
+  extends CosmosNativeProvider
+  implements MultiVM.IMultiVMSigner
 {
+  private readonly signer: SigningStargateClient;
+  private readonly account: AccountData;
+  private readonly options: TxOptions;
+
   static async connectWithSigner(
     rpcUrl: string,
     privateKey: string,
@@ -90,22 +100,8 @@ export class CosmosNativeSignerFactory
       memo: '',
     });
   }
-}
 
-type TxOptions = {
-  fee: StdFee | 'auto' | number;
-  memo?: string;
-};
-
-export class CosmosNativeSigner
-  extends CosmosNativeProvider
-  implements MultiVM.IMultiVMSigner
-{
-  private readonly signer: SigningStargateClient;
-  private readonly account: AccountData;
-  private readonly options: TxOptions;
-
-  constructor(
+  protected constructor(
     cometClient: CometClient,
     signer: SigningStargateClient,
     account: AccountData,

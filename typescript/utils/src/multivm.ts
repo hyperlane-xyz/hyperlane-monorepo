@@ -1,3 +1,5 @@
+import { ProtocolType } from './types.js';
+
 // ### QUERY BASE ###
 export type ReqGetBalance = { address: string; denom: string };
 export type ResGetBalance = bigint;
@@ -583,18 +585,18 @@ export interface IMultiVMSigner extends IMultiVMProvider {
   ): Promise<ResRemoteTransfer>;
 }
 
-export abstract class MultiVmProviderFactory {
-  static async connect(_rpcUrl: string): Promise<IMultiVMProvider> {
-    throw new Error('connect not implemented');
+export abstract class IMultiVMProviderFactory {
+  public static supports(_protocol: ProtocolType) {
+    throw new Error('supports not implemented');
   }
+
+  abstract get(chain: string): Promise<IMultiVMProvider>;
 }
 
-export abstract class MultiVmSignerFactory {
-  static async connectWithSigner(
-    _rpcUrl: string,
-    _privateKey: string,
-    _extraParams?: Record<string, any> | undefined,
-  ): Promise<IMultiVMSigner> {
-    throw new Error('connectWithSigner not implemented');
+export abstract class IMultiVMSignerFactory {
+  public static supports(_protocol: ProtocolType) {
+    throw new Error('supports not implemented');
   }
+
+  abstract get(chain: string): IMultiVMSigner;
 }

@@ -13,12 +13,12 @@ import {
   ChainMap,
   ChainName,
   ContractVerifier,
-  CosmosNativeWarpModule,
   EvmERC20WarpModule,
   ExplorerLicenseType,
   HypERC20Deployer,
   IsmType,
   MultiProvider,
+  MultiVmWarpModule,
   MultisigIsmConfig,
   OpStackIsmConfig,
   PausableIsmConfig,
@@ -58,6 +58,7 @@ import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderT
 import { COMPATIBLE_PROTOCOLS } from '../config/protocols.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
+import { MultiVmSignerFactory } from '../context/multivm.js';
 import { WriteCommandContext } from '../context/types.js';
 import {
   log,
@@ -118,10 +119,8 @@ export async function runWarpRouteDeploy({
     chainMetadata,
     registry,
     multiProvider,
-    multiProtocolSigner,
+    multiVmSigners,
   } = context;
-
-  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
 
   // Validate ISM compatibility for all chains
   validateWarpIsmCompatibility(warpDeployConfig, context);
@@ -139,11 +138,11 @@ export async function runWarpRouteDeploy({
 
   await runDeployPlanStep(deploymentParams);
 
-  // Some of the below functions throw if passed non-EVM or Cosmos Native chains
+  // Some of the below functions throw if passed non-EVM or non-supported chains
   const deploymentChains = chains.filter(
     (chain) =>
       chainMetadata[chain].protocol === ProtocolType.Ethereum ||
-      chainMetadata[chain].protocol === ProtocolType.CosmosNative,
+      MultiVmSignerFactory.supports(chainMetadata[chain].protocol),
   );
 
   await runPreflightChecksForChains({
@@ -159,7 +158,7 @@ export async function runWarpRouteDeploy({
   const registryAddresses = await registry.getAddresses();
 
   const enrollTxs = await enrollCrossChainRouters(
-    { multiProvider, multiProtocolSigner, registryAddresses, warpDeployConfig },
+    { multiProvider, multiVmSigners, registryAddresses, warpDeployConfig },
     deployedContracts,
   );
 
@@ -243,17 +242,15 @@ async function executeDeploy(
 
   const {
     warpDeployConfig,
-    context: { multiProvider, multiProtocolSigner, registry },
+    context: { multiProvider, multiVmSigners, registry },
   } = params;
-
-  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
 
   const registryAddresses = await registry.getAddresses();
 
   const deployedContracts = await executeWarpDeploy(
     warpDeployConfig,
     multiProvider,
-    multiProtocolSigner,
+    multiVmSigners,
     registryAddresses,
     apiKeys,
   );
@@ -602,13 +599,8 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   logBlue('Updating deployed Warp Routes');
-  const {
-    multiProvider,
-    multiProtocolProvider,
-    multiProtocolSigner,
-    registry,
-  } = params.context;
-  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
+  const { multiProvider, multiProtocolProvider, multiVmSigners, registry } =
+    params.context;
 
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
@@ -665,9 +657,9 @@ async function updateExistingWarpRoute(
             updateTransactions[chain] = transactions;
             break;
           }
-          case ProtocolType.CosmosNative: {
-            const signer = multiProtocolSigner.getCosmosNativeSigner(chain);
-            const cosmosNativeWarpModule = new CosmosNativeWarpModule(
+          default: {
+            const signer = multiVmSigners.get(chain);
+            const warpModule = new MultiVmWarpModule(
               multiProvider,
               {
                 config: configWithMailbox,
@@ -678,14 +670,11 @@ async function updateExistingWarpRoute(
               },
               signer,
             );
-            const transactions =
-              await cosmosNativeWarpModule.update(configWithMailbox);
+            // TODO: MULTIVM
+            // transaction types??
+            const transactions = await warpModule.update(configWithMailbox);
             updateTransactions[chain] = transactions;
             break;
-          }
-          default: {
-            logBlue(`Skipping non-compatible chain ${chain}`);
-            return;
           }
         }
       });
