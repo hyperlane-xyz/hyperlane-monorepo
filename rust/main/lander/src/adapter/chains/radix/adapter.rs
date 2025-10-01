@@ -46,7 +46,6 @@ use crate::{
 const NODE_DEPTH: usize = 5;
 const GAS_MULTIPLIER: &str = "1.5";
 
-#[allow(dead_code)]
 pub struct RadixAdapter {
     pub network: NetworkDefinition,
     pub provider: Arc<dyn RadixProviderForLander>,

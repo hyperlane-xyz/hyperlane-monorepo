@@ -462,7 +462,7 @@ impl RadixProvider {
         epoch: u64,
         intent_discriminator: u64,
     ) -> TransactionV2Builder {
-        let tx = TransactionBuilder::new_v2()
+        TransactionBuilder::new_v2()
             .transaction_header(TransactionHeaderV2 {
                 notary_public_key: private_key.public_key(),
                 notary_is_signatory: true,
@@ -475,8 +475,7 @@ impl RadixProvider {
                 intent_discriminator,
                 min_proposer_timestamp_inclusive: None, // TODO: discuss whether or not we want to have a time limit
                 max_proposer_timestamp_exclusive: None,
-            });
-        tx
+            })
     }
 
     /// Returns the total Fee that was paid
@@ -527,7 +526,7 @@ impl RadixProvider {
         };
 
         let tx = Self::build_tx(
-            &signer,
+            signer,
             &self.conf.network,
             epoch,
             intent_discriminator,
