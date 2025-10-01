@@ -135,7 +135,11 @@ export type ResQuoteRemoteTransfer = { denom: string; amount: bigint };
 
 // ### POPULATE CORE ###
 
-export type ReqCreateMailbox = { signer: string; domain_id: number };
+export type ReqCreateMailbox = {
+  signer: string;
+  domain_id: number;
+  default_ism_id: string;
+};
 export type ResCreateMailbox = { mailbox_id: string };
 
 export type ReqSetDefaultIsm = {

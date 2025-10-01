@@ -8,7 +8,6 @@ import {
 import {
   ChainMap,
   ChainName,
-  DerivedTokenRouterConfig,
   DerivedWarpRouteDeployConfig,
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
@@ -19,9 +18,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { MultiVMProvider } from '../context/multivm.js';
 import { CommandContext } from '../context/types.js';
-import { logGray, logRed, logTable, warnYellow } from '../logger.js';
+import { logGray, logRed, logTable } from '../logger.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
 export async function runWarpRouteRead({
@@ -94,27 +92,20 @@ async function deriveWarpRouteConfigs(
   // Derive and return warp route config
   return promiseObjAll(
     objMap(addresses, async (chain, address) => {
-      const protocolType = context.multiProvider.getProtocol(chain);
-      switch (true) {
-        case protocolType === ProtocolType.Ethereum: {
+      switch (context.multiProvider.getProtocol(chain)) {
+        case ProtocolType.Ethereum: {
           return new EvmERC20WarpRouteReader(
             multiProvider,
             chain,
           ).deriveWarpRouteConfig(address);
         }
-        case MultiVMProvider.supports(protocolType): {
+        default: {
           const provider = await context.multiVmProviders.get(chain);
           return new MultiVmWarpRouteReader(
             multiProvider,
             chain,
             provider,
           ).deriveWarpRouteConfig(address);
-        }
-        default: {
-          warnYellow(
-            `protocol type ${context.multiProvider.getProtocol(chain)} not supported`,
-          );
-          return {} as DerivedTokenRouterConfig;
         }
       }
     }),

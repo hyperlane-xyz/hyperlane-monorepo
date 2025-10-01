@@ -379,6 +379,7 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
       typeUrl: R.MsgCreateMailbox.proto.type,
       value: R.MsgCreateMailbox.proto.converter.create({
         local_domain: req.domain_id,
+        default_ism: req.default_ism_id,
         owner: req.signer,
       }),
     };

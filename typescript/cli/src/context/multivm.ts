@@ -42,9 +42,14 @@ export class MultiVMProvider {
 }
 
 export class MultiVmSigner {
+  private readonly metadataManager: ChainMetadataManager;
   private readonly chains: ChainMap<MultiVM.IMultiVMSigner>;
 
-  private constructor(chains: ChainMap<MultiVM.IMultiVMSigner>) {
+  private constructor(
+    metadataManager: ChainMetadataManager,
+    chains: ChainMap<MultiVM.IMultiVMSigner>,
+  ) {
+    this.metadataManager = metadataManager;
     this.chains = chains;
   }
 
@@ -57,6 +62,18 @@ export class MultiVmSigner {
   }
 
   public get(chain: ChainName): MultiVM.IMultiVMSigner {
+    const protocol = this.metadataManager.getProtocol(chain);
+
+    if (!MultiVmSigner.supports(protocol)) {
+      throw new Error(
+        `Chain ${chain} with protocol type ${protocol} not supported in MultiVM`,
+      );
+    }
+
+    if (!this.has(chain)) {
+      throw new Error(`MultiVM was not initialized with chain ${chain}`);
+    }
+
     return this.chains[chain];
   }
 
@@ -76,6 +93,8 @@ export class MultiVmSigner {
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
 
+      // TODO: MULTIVM
+      // make this cleaner and get from env variables
       if (!key[metadata.protocol]) {
         throw new Error(
           `No private key provided for protocol ${metadata.protocol}`,
@@ -103,6 +122,6 @@ export class MultiVmSigner {
       }
     }
 
-    return new MultiVmSigner(signers);
+    return new MultiVmSigner(metadataManager, signers);
   }
 }

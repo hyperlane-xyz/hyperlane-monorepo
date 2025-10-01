@@ -6,7 +6,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { MultiVMProvider } from '../context/multivm.js';
 import { CommandContext } from '../context/types.js';
 import { errorRed } from '../logger.js';
 
@@ -31,8 +30,8 @@ export async function executeCoreRead({
 
   const protocolType = context.multiProvider.getProtocol(chain);
 
-  switch (true) {
-    case protocolType === ProtocolType.Ethereum: {
+  switch (protocolType) {
+    case ProtocolType.Ethereum: {
       const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
       try {
         return evmCoreReader.deriveCoreConfig({
@@ -48,7 +47,7 @@ export async function executeCoreRead({
       }
       break;
     }
-    case MultiVMProvider.supports(protocolType): {
+    default: {
       const provider = await context.multiVmProviders.get(chain);
       const coreReader = new MultiVmCoreReader(context.multiProvider, provider);
       try {
@@ -60,11 +59,6 @@ export async function executeCoreRead({
         );
         process.exit(1);
       }
-      break;
-    }
-    default: {
-      errorRed(`❌ Core Read not supported for protocol type ${protocolType}:`);
-      process.exit(1);
     }
   }
 }

@@ -105,12 +105,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
     const chainName = multiProvider.getChainName(chain);
     const domainId = multiProvider.getDomainId(chain);
 
-    // 1. Deploy Mailbox with initial configuration
-    const mailbox = await signer.createMailbox({
-      domain_id: domainId,
-    });
-
-    // 2. Deploy default ISM
+    // 1. Deploy default ISM
     const ismModule = await MultiVmIsmModule.create({
       chain: chainName,
       config: config.defaultIsm,
@@ -122,6 +117,12 @@ export class MultiVmCoreModule extends HyperlaneModule<
     });
 
     const { deployedIsm: defaultIsm } = ismModule.serialize();
+
+    // 2. Deploy Mailbox with initial configuration
+    const mailbox = await signer.createMailbox({
+      domain_id: domainId,
+      default_ism_id: defaultIsm,
+    });
 
     // 3. Deploy default hook
     const defaultHookModule = await MultiVmHookModule.create({

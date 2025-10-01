@@ -117,6 +117,16 @@ export class CosmosNativeSigner
     this.options = options;
   }
 
+  private getProtoConverter(typeUrl: string) {
+    for (const { proto } of Object.values(R)) {
+      if (typeUrl === proto.type) {
+        return proto.converter;
+      }
+    }
+
+    throw new Error(`found no proto converter for type ${typeUrl}`);
+  }
+
   private async submitTx(msg: EncodeObject): Promise<any> {
     const receipt = await this.signer.signAndBroadcast(
       this.account.address,
@@ -126,8 +136,10 @@ export class CosmosNativeSigner
     );
     assertIsDeliverTxSuccess(receipt);
 
-    const { response } = this.signer.registry.decode(receipt.msgResponses[0]);
-    return response;
+    const msgResponse = receipt.msgResponses[0];
+    return this.getProtoConverter(msgResponse.typeUrl).decode(
+      msgResponse.value,
+    );
   }
 
   getSignerAddress(): string {
