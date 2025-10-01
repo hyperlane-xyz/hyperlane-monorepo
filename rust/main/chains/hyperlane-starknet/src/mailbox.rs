@@ -12,7 +12,7 @@ use hyperlane_core::{
 };
 use hyperlane_core::{BatchItem, BatchResult, FixedPointNumber, QueueOperation, ReorgPeriod};
 use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
-use starknet::core::types::Felt;
+use starknet::core::types::{ExecuteInvocation, Felt, TransactionTrace};
 
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -208,11 +208,16 @@ impl Mailbox for StarknetMailbox {
 
         let tx = self.contract.account.execute_v3(calls);
         let outcome = send_and_confirm(self.provider.rpc_client(), tx).await?;
+        let failed_indexes = if outcome.executed {
+            Vec::new()
+        } else {
+            (0..ops.len()).collect()
+        };
 
         // Either all operations are executed successfully, or none of them are
         Ok(BatchResult {
             outcome: Some(outcome),
-            failed_indexes: vec![],
+            failed_indexes,
         })
     }
 }
