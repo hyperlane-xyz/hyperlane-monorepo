@@ -439,7 +439,7 @@ impl RadixProvider {
         build_manifest: impl Fn(TransactionManifestV2Builder) -> TransactionManifestV2Builder,
         fee: FeeSummary,
     ) -> ChainResult<DetailedNotarizedTransactionV2> {
-        let private_key = signer.get_signer().unwrap();
+        let private_key = signer.get_signer()?;
         let tx_builder = Self::get_tx_builder(network, &private_key, epoch, intent_discriminator);
 
         let simulation = fee;
