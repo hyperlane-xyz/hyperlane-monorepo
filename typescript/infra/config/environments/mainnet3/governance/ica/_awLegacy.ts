@@ -73,7 +73,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   kaia: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
   morph: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
   orderly: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-  snaxchain: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
 
   // Nov 8, 2024 batch
   // ----------------------------------------------------------
