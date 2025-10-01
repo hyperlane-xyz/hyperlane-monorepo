@@ -67,7 +67,7 @@ export class CosmosNativeSignerFactory
       );
 
     const signer = await SigningStargateClient.connectWithSigner(
-      extraParams.rpcUrl,
+      rpcUrl,
       wallet,
       {
         aminoTypes: new AminoTypes({

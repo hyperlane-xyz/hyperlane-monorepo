@@ -2,7 +2,12 @@ import {
   CosmosNativeProviderFactory,
   CosmosNativeSignerFactory,
 } from '@hyperlane-xyz/cosmos-sdk';
-import { ChainMap, ChainMetadataManager, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainMetadataManager,
+  ChainName,
+  ProtocolMap,
+} from '@hyperlane-xyz/sdk';
 import { MultiVM, ProtocolType } from '@hyperlane-xyz/utils';
 
 // ADD NEW PROTOCOL HERE
@@ -58,21 +63,35 @@ export class MultiVmSigner {
   public static async createSigners(
     metadataManager: ChainMetadataManager,
     chains: ChainName[],
-    privateKey: string,
-    extraParams?: Record<string, any>,
+    key: ProtocolMap<string> | string,
   ) {
     const signers: ChainMap<MultiVM.IMultiVMSigner> = {};
 
+    if (typeof key === 'string') {
+      throw new Error(
+        `The private key has to be provided with the protocol type: --key.{protocol}`,
+      );
+    }
+
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
+
+      if (!key[metadata.protocol]) {
+        throw new Error(
+          `No private key provided for protocol ${metadata.protocol}`,
+        );
+      }
 
       switch (metadata.protocol) {
         // ADD NEW PROTOCOL HERE
         case ProtocolType.CosmosNative: {
           signers[chain] = await CosmosNativeSignerFactory.connectWithSigner(
             metadata.rpcUrls[0].http,
-            privateKey,
-            extraParams,
+            key[metadata.protocol]!,
+            {
+              bech32Prefix: metadata.bech32Prefix,
+              gasPrice: `${metadata.gasPrice?.amount ?? '0'}${metadata.gasPrice?.denom ?? ''}`,
+            },
           );
           break;
         }
