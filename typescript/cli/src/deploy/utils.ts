@@ -47,7 +47,7 @@ export async function runPreflightChecksForChains({
   const {
     multiProvider,
     skipConfirmation,
-    multiProtocolProvider,
+    multiVmSigners,
     multiProtocolSigner,
   } = context;
 
@@ -70,8 +70,7 @@ export async function runPreflightChecksForChains({
 
   await nativeBalancesAreSufficient(
     multiProvider,
-    multiProtocolProvider,
-    multiProtocolSigner,
+    multiVmSigners,
     chainsToGasCheck ?? chains,
     minGas,
     skipConfirmation,

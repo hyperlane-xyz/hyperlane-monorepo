@@ -1,10 +1,7 @@
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import {
-  ChainMap,
-  IMultiProtocolSignerManager,
-  ProtocolMap,
-} from '../../../types.js';
+import { IMultiVMSignerFactory } from '../../../../../utils/dist/multivm.js';
+import { ChainMap, ProtocolMap } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 
 import { EvmIcaTxSubmitter } from './IcaTxSubmitter.js';
@@ -23,7 +20,7 @@ import { SubmitterMetadata } from './types.js';
 export type SubmitterBuilderSettings = {
   submissionStrategy: SubmissionStrategy;
   multiProvider: MultiProvider;
-  multiProtocolSigner: IMultiProtocolSignerManager;
+  multiVmSigners: IMultiVMSignerFactory;
   coreAddressesByChain: ChainMap<Record<string, string>>;
   additionalSubmitterFactories?: ProtocolMap<Record<string, SubmitterFactory>>;
 };
@@ -31,13 +28,13 @@ export type SubmitterBuilderSettings = {
 export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
   submissionStrategy,
   multiProvider,
-  multiProtocolSigner,
+  multiVmSigners,
   coreAddressesByChain,
   additionalSubmitterFactories,
 }: SubmitterBuilderSettings): Promise<TxSubmitterBuilder<TProtocol>> {
   const submitter = await getSubmitter<TProtocol>(
     multiProvider,
-    multiProtocolSigner,
+    multiVmSigners,
     submissionStrategy.submitter,
     coreAddressesByChain,
     additionalSubmitterFactories,
@@ -48,7 +45,7 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
 
 export type SubmitterFactory<TProtocol extends ProtocolType = any> = (
   multiProvider: MultiProvider,
-  multiProtocolSigner: IMultiProtocolSignerManager,
+  multiVmSigners: IMultiVMSignerFactory,
   metadata: SubmitterMetadata,
   coreAddressesByChain: ChainMap<Record<string, string>>,
 ) => Promise<TxSubmitterInterface<TProtocol>> | TxSubmitterInterface<TProtocol>;
@@ -85,7 +82,7 @@ const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
   },
   [TxSubmitterType.INTERCHAIN_ACCOUNT]: (
     multiProvider,
-    multiProtocolSigner,
+    multiVmSigners,
     metadata,
     coreAddressesByChain,
   ) => {
@@ -96,13 +93,13 @@ const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
     return EvmIcaTxSubmitter.fromConfig(
       metadata,
       multiProvider,
-      multiProtocolSigner,
+      multiVmSigners,
       coreAddressesByChain,
     );
   },
   [TxSubmitterType.TIMELOCK_CONTROLLER]: (
     multiProvider,
-    multiProtocolSigner,
+    multiVmSigners,
     metadata,
     coreAddressesByChain,
   ) => {
@@ -114,18 +111,14 @@ const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
     return EV5TimelockSubmitter.fromConfig(
       metadata,
       multiProvider,
-      multiProtocolSigner,
+      multiVmSigners,
       coreAddressesByChain,
     );
   },
 };
 
 const COSMOS_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
-  [TxSubmitterType.JSON_RPC]: (
-    multiProvider,
-    multiProtocolSigner,
-    metadata,
-  ) => {
+  [TxSubmitterType.JSON_RPC]: (multiProvider, multiVmSigners, metadata) => {
     // Used to type narrow metadata
     assert(
       metadata.type === TxSubmitterType.JSON_RPC,
@@ -133,7 +126,7 @@ const COSMOS_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
     );
     return new CosmosNativeRpcTxSubmitter(
       multiProvider,
-      multiProtocolSigner,
+      multiVmSigners,
       metadata,
     );
   },
@@ -160,7 +153,7 @@ const defaultSubmitterFactories: ProtocolMap<Record<string, SubmitterFactory>> =
  */
 export async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
-  multiProtocolSigner: IMultiProtocolSignerManager,
+  multiVmSigners: IMultiVMSignerFactory,
   submitterMetadata: SubmitterMetadata,
   coreAddressesByChain: ChainMap<Record<string, string>>,
   additionalSubmitterFactories: ProtocolMap<
@@ -205,7 +198,7 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
   }
   return factory(
     multiProvider,
-    multiProtocolSigner,
+    multiVmSigners,
     submitterMetadata,
     coreAddressesByChain,
   );

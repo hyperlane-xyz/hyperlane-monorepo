@@ -1,7 +1,6 @@
 import { BigNumber, Signer } from 'ethers';
 import { Logger } from 'pino';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
   ChainName,
   IMultiProtocolSignerManager,
@@ -12,6 +11,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  MultiVM,
   ProtocolType,
   assert,
   rootLogger,
@@ -204,13 +204,13 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     return this.getSpecificSigner<Signer>(chain);
   }
 
-  getCosmosNativeSigner(chain: ChainName): SigningHyperlaneModuleClient {
+  getCosmosNativeSigner(chain: ChainName): MultiVM.IMultiVMSigner {
     const protocolType = this.multiProtocolProvider.getProtocol(chain);
     assert(
       protocolType === ProtocolType.CosmosNative,
       `Chain ${chain} is not a Cosmos Native chain`,
     );
-    return this.getSpecificSigner<SigningHyperlaneModuleClient>(chain);
+    return this.getSpecificSigner<MultiVM.IMultiVMSigner>(chain);
   }
 
   async getSignerAddress(chain: ChainName): Promise<Address> {
@@ -223,7 +223,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
       }
       case ProtocolType.CosmosNative: {
         const signer = this.getCosmosNativeSigner(chain);
-        return signer.account.address;
+        return signer.getSignerAddress();
       }
       default: {
         throw new Error(

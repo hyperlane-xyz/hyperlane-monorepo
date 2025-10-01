@@ -1,8 +1,12 @@
 import type { BigNumber, Signer, ethers } from 'ethers';
 import { z } from 'zod';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import type { Address, Domain, ProtocolType } from '@hyperlane-xyz/utils';
+import type {
+  Address,
+  Domain,
+  MultiVM,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 import { ZHash } from './metadata/customZodTypes.js';
 import { MultiProvider } from './providers/MultiProvider.js';
@@ -40,13 +44,13 @@ export const PausableSchema = OwnableSchema.extend({
 });
 export type PausableConfig = z.infer<typeof PausableSchema>;
 
-export type TypedSigner = Signer | SigningHyperlaneModuleClient;
+export type TypedSigner = Signer | MultiVM.IMultiVMSigner;
 
 export interface IMultiProtocolSignerManager {
   getMultiProvider(): Promise<MultiProvider>;
 
   getEVMSigner(chain: ChainName): Signer;
-  getCosmosNativeSigner(chain: ChainName): SigningHyperlaneModuleClient;
+  getCosmosNativeSigner(chain: ChainName): MultiVM.IMultiVMSigner;
 
   getSignerAddress(chain: ChainName): Promise<Address>;
   getBalance(params: {

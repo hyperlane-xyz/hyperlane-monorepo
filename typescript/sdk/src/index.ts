@@ -189,9 +189,6 @@ export {
   ProtocolFeeSchema,
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
-export { CosmosNativeIsmReader } from './ism/CosmosNativeIsmReader.js';
-export { CosmosNativeWarpModule } from './token/CosmosNativeWarpModule.js';
-export { CosmosNativeWarpRouteReader } from './token/CosmosNativeWarpRouteReader.js';
 export { MultiVmIsmReader } from './ism/MultiVmIsmReader.js';
 export { MultiVmWarpModule } from './token/MultiVmWarpModule.js';
 export { MultiVmWarpRouteReader } from './token/MultiVmWarpRouteReader.js';
@@ -466,8 +463,6 @@ export {
   getCCIPRouterAddress,
   getChainNameFromCCIPSelector,
 } from './ccip/utils.js';
-export { CosmosNativeCoreModule } from './core/CosmosNativeCoreModule.js';
-export { CosmosNativeCoreReader } from './core/CosmosNativeCoreReader.js';
 export { MultiVmCoreModule } from './core/MultiVmCoreModule.js';
 export { MultiVmCoreReader } from './core/MultiVmCoreReader.js';
 export { EvmCoreModule } from './core/EvmCoreModule.js';
@@ -511,8 +506,6 @@ export {
   NativeTokenPriceConfig,
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
-export { CosmosNativeHookModule } from './hook/CosmosNativeHookModule.js';
-export { CosmosNativeHookReader } from './hook/CosmosNativeHookReader.js';
 export { MultiVmHookModule } from './hook/MultiVmHookModule.js';
 export { MultiVmHookReader } from './hook/MultiVmHookReader.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
@@ -523,7 +516,6 @@ export {
   IcaRouterConfigSchema,
   IcaRouterConfig as InterchainAccountConfig,
 } from './ica/types.js';
-export { CosmosNativeIsmModule } from './ism/CosmosNativeIsmModule.js';
 export { MultiVmIsmModule } from './ism/MultiVmIsmModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { offchainLookupRequestMessageHash } from './ism/metadata/ccipread.js';
@@ -657,7 +649,6 @@ export {
   HypERC721Factories,
   TokenFactories,
 } from './token/contracts.js';
-export { CosmosNativeDeployer } from './token/cosmosnativeDeploy.js';
 export { MultiVmDeployer } from './token/multiVmDeploy.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';

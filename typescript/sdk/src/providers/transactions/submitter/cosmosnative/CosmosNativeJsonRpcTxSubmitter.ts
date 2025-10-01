@@ -1,10 +1,9 @@
 import { DeliverTxResponse } from '@cosmjs/stargate';
 import { Logger } from 'pino';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { MultiVM, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { IMultiProtocolSignerManager } from '../../../../types.js';
+import { IMultiVMSignerFactory } from '../../../../../../utils/dist/multivm.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { AnnotatedCosmJsNativeTransaction } from '../../../ProviderType.js';
 import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
@@ -15,7 +14,7 @@ export class CosmosNativeRpcTxSubmitter
 {
   public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.JSON_RPC;
 
-  private signer: SigningHyperlaneModuleClient;
+  private signer: MultiVM.IMultiVMSigner;
 
   protected readonly logger: Logger = rootLogger.child({
     module: CosmosNativeRpcTxSubmitter.name,
@@ -23,22 +22,16 @@ export class CosmosNativeRpcTxSubmitter
 
   constructor(
     public readonly multiProvider: MultiProvider,
-    public readonly multiProtocolSigner: IMultiProtocolSignerManager,
+    public readonly multiVmSigners: IMultiVMSignerFactory,
     public readonly config: { chain: string },
   ) {
-    this.signer = this.multiProtocolSigner.getCosmosNativeSigner(
-      this.config.chain,
-    );
+    this.signer = this.multiVmSigners.get(this.config.chain);
   }
 
   public async submit(
     ...txs: AnnotatedCosmJsNativeTransaction[]
   ): Promise<DeliverTxResponse[]> {
-    const receipt = await this.signer.signAndBroadcast(
-      this.signer.account.address,
-      txs,
-      2,
-    );
-    return [receipt];
+    const receipt = await this.signer.signAndBroadcast(txs);
+    return receipt;
   }
 }

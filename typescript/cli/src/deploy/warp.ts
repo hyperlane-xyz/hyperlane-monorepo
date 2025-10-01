@@ -976,8 +976,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   submitter: TxSubmitterBuilder<T>;
   config: ExtendedSubmissionStrategy;
 }> {
-  const { multiProvider, multiProtocolSigner, registry } = context;
-  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
+  const { multiProvider, multiVmSigners, registry } = context;
 
   const submissionStrategy: ExtendedSubmissionStrategy =
     strategyUrl && !isExtendedChain
@@ -993,7 +992,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     submitter: await getSubmitterBuilder<T>({
       submissionStrategy: submissionStrategy as SubmissionStrategy, // TODO: fix this
       multiProvider,
-      multiProtocolSigner,
+      multiVmSigners,
       coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories: {
         [ProtocolType.Ethereum]: {

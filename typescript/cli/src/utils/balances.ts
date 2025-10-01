@@ -2,31 +2,26 @@ import { GasPrice } from '@cosmjs/stargate';
 import { BigNumber } from 'ethers';
 import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 
-import {
-  ChainMetadataManager,
-  ChainName,
-  MultiProtocolProvider,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
+import { IMultiVMSignerFactory } from '../../../utils/dist/multivm.js';
 import { autoConfirm } from '../config/prompts.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
-import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
-import { logBlue, logGray, logGreen, logRed, warnYellow } from '../logger.js';
+import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
-  metadataManager: ChainMetadataManager,
-  multiProtocolProvider: MultiProtocolProvider,
-  multiProtocolSigner: MultiProtocolSignerManager,
+  multiProvider: MultiProvider,
+  multiVmSigners: IMultiVMSignerFactory,
   chains: ChainName[],
   minGas: typeof MINIMUM_WARP_DEPLOY_GAS,
   skipConfirmation: boolean,
 ) {
   const sufficientBalances: boolean[] = [];
   for (const chain of chains) {
-    const protocolType = metadataManager.getProtocol(chain);
+    const protocolType = multiProvider.getProtocol(chain);
 
-    const symbol = metadataManager.getChainMetadata(chain).nativeToken?.symbol;
+    const symbol = multiProvider.getChainMetadata(chain).nativeToken?.symbol;
     assert(symbol, `no symbol found for native token on chain ${chain}`);
 
     let address: Address = '';
@@ -38,9 +33,9 @@ export async function nativeBalancesAreSufficient(
 
     switch (protocolType) {
       case ProtocolType.Ethereum: {
-        address = await multiProtocolSigner.getEVMSigner(chain).getAddress();
+        address = await multiProvider.getSignerAddress(chain);
 
-        const provider = multiProtocolProvider.getEthersV5Provider(chain);
+        const provider = multiProvider.getProvider(chain);
         const gasPrice = await provider.getGasPrice();
 
         requiredMinBalanceNativeDenom = gasPrice.mul(
@@ -54,13 +49,12 @@ export async function nativeBalancesAreSufficient(
         deployerBalance = formatUnits(deployerBalanceNativeDenom.toString());
         break;
       }
-      case ProtocolType.CosmosNative: {
-        address =
-          multiProtocolSigner.getCosmosNativeSigner(chain).account.address;
+      default: {
+        const signer = multiVmSigners.get(chain);
 
-        const provider = await multiProtocolProvider.getCosmJsProvider(chain);
-        const { gasPrice, nativeToken } =
-          metadataManager.getChainMetadata(chain);
+        address = signer.getSignerAddress();
+
+        const { gasPrice, nativeToken } = multiProvider.getChainMetadata(chain);
 
         assert(nativeToken, `nativeToken is not defined on chain ${chain}`);
         assert(
@@ -84,16 +78,12 @@ export async function nativeBalancesAreSufficient(
         );
 
         deployerBalanceNativeDenom = BigNumber.from(
-          (await provider.getBalance(address, nativeToken.denom)).amount,
+          await signer.getBalance({ address, denom: nativeToken.denom }),
         );
         deployerBalance = formatUnits(
           deployerBalanceNativeDenom,
           nativeToken.decimals,
         );
-        break;
-      }
-      default: {
-        logGray(`Skipping balance check for unsupported chain: ${chain}`);
       }
     }
 
