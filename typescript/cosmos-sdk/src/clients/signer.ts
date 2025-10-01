@@ -367,7 +367,8 @@ export class CosmosNativeSigner
   async createValidatorAnnounce(
     _req: Omit<MultiVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<MultiVM.ResCreateValidatorAnnounce> {
-    throw new Error('Cosmos Native does not support createValidatorAnnounce');
+    // Cosmos Native has no validator announce
+    return { validator_announce_id: '' };
   }
 
   // ### TX WARP ###
