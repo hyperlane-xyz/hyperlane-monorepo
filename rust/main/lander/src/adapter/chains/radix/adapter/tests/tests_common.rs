@@ -2,7 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use core_api_client::models::TransactionReceipt;
 use gateway_api_client::models::{
-    TransactionPreviewV2Request, TransactionStatusResponse, TransactionSubmitResponse,
+    GatewayStatusResponse, TransactionPreviewV2Request, TransactionStatusResponse,
+    TransactionSubmitResponse,
 };
 use scrypto::network::NetworkDefinition;
 
@@ -24,18 +25,28 @@ mockall::mock! {
 
     #[async_trait::async_trait]
     impl RadixProviderForLander for RadixProvider {
+        async fn get_gateway_status(&self) -> ChainResult<GatewayStatusResponse>;
         async fn get_tx_hash_status(&self, hash: H512) -> ChainResult<TransactionStatusResponse>;
         async fn check_preview(&self, params: &RadixTxCalldata) -> ChainResult<bool>;
+        async fn send_transaction(&self, tx: Vec<u8>) -> ChainResult<TransactionSubmitResponse>;
+        async fn preview_tx(&self, req: TransactionPreviewV2Request)
+            -> ChainResult<TransactionReceipt>;
     }
 }
 
-pub fn adapter(provider: Arc<MockRadixProvider>, signer: RadixSigner) -> RadixAdapter {
+pub fn adapter(
+    network: &NetworkDefinition,
+    provider: Arc<MockRadixProvider>,
+    signer: RadixSigner,
+) -> RadixAdapter {
+    let component_regex = regex::Regex::new(&format!(r"\w+_{}([a-zA-Z0-9]+)", network.hrp_suffix))
+        .expect("Invalid regex");
     RadixAdapter {
         provider,
-        network: NetworkDefinition::mainnet(),
+        network: network.clone(),
         signer,
         estimated_block_time: Duration::from_nanos(0),
-        component_regex: regex::Regex::new("").unwrap(),
+        component_regex,
     }
 }
 

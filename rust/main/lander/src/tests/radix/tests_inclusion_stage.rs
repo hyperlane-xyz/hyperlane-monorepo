@@ -47,16 +47,6 @@ fn mocked_signer() -> RadixSigner {
     signer
 }
 
-fn build_adapter(provider: Arc<MockRadixProvider>, signer: RadixSigner) -> RadixAdapter {
-    RadixAdapter {
-        provider,
-        network: NetworkDefinition::mainnet(),
-        signer,
-        estimated_block_time: Duration::from_nanos(0),
-        component_regex: regex::Regex::new("").unwrap(),
-    }
-}
-
 pub fn mock_dispatcher_state_with_provider(
     provider: Arc<MockRadixProvider>,
     signer: RadixSigner,
