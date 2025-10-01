@@ -166,19 +166,19 @@ impl HyperlaneProvider for StarknetProvider {
 
     #[instrument(err, skip(self))]
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        let call_result = self
-            .rpc_client()
-            .call(
-                FunctionCall {
-                    contract_address: self.fee_token_address,
-                    entry_point_selector: selector!("balanceOf"),
-                    calldata: vec![Felt::from_dec_str(&address)
-                        .map_err(Into::<HyperlaneStarknetError>::into)?],
-                },
-                BlockId::Tag(BlockTag::Latest),
-            )
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+        let call_result =
+            self.rpc_client()
+                .call(
+                    FunctionCall {
+                        contract_address: self.fee_token_address,
+                        entry_point_selector: selector!("balanceOf"),
+                        calldata: vec![Felt::from_hex(&address)
+                            .map_err(Into::<HyperlaneStarknetError>::into)?],
+                    },
+                    BlockId::Tag(BlockTag::Latest),
+                )
+                .await
+                .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         let balance: HyU256 = (call_result[0], call_result[1])
             .try_into()
