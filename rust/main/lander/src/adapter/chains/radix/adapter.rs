@@ -76,7 +76,7 @@ impl RadixAdapter {
             Some(signer.clone()),
             connection_conf,
             &locator,
-            &ReorgPeriod::None,
+            &conf.reorg_period,
         )?;
 
         let network = connection_conf.network.clone();
