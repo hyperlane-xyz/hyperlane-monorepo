@@ -572,11 +572,11 @@ export abstract class MultiVmProviderFactory {
 }
 
 export abstract class MultiVmSignerFactory {
-  static async fromSignerConfig(_config: {
-    chain: string;
-    privateKey: string;
-    extraParams?: Record<string, any> | undefined;
-  }): Promise<IMultiVMSigner> {
-    throw new Error('fromSignerConfig not implemented');
+  static async connectWithSigner(
+    _rpcUrl: string,
+    _privateKey: string,
+    _extraParams?: Record<string, any> | undefined,
+  ): Promise<IMultiVMSigner> {
+    throw new Error('connectWithSigner not implemented');
   }
 }

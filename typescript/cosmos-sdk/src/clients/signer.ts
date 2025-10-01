@@ -17,7 +17,7 @@ import { MultiVM, assert } from '@hyperlane-xyz/utils';
 
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
-import { CosmosNativeProvider } from './provider';
+import { CosmosNativeProvider } from './provider.js';
 
 export class CosmosNativeSignerFactory
   implements MultiVM.MultiVmProviderFactory
@@ -25,7 +25,7 @@ export class CosmosNativeSignerFactory
   static async connectWithSigner(
     rpcUrl: string,
     privateKey: string,
-    extraParams?: Record<string, any> | undefined,
+    extraParams?: Record<string, any>,
   ): Promise<MultiVM.IMultiVMSigner> {
     assert(extraParams, `extra params not defined`);
     assert(
