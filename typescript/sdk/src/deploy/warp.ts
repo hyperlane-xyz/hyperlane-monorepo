@@ -94,6 +94,10 @@ export async function executeWarpDeploy(
       continue;
     }
 
+    if (protocolSpecificConfig.foreignDeployment) {
+      continue;
+    }
+
     switch (protocol) {
       case ProtocolType.Ethereum: {
         const deployer = warpDeployConfig.isNft
