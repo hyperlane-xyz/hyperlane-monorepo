@@ -152,17 +152,16 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     });
 
     const gas = '10000';
-    const destination_domain_id = 4321;
 
     await signer.setDestinationGasConfig({
       hook_id: igp_id,
       destination_gas_config: {
-        remote_domain_id: destination_domain_id,
+        remote_domain_id: domainId,
         gas_oracle: {
-          token_exchange_rate: '0',
-          gas_price: '0',
+          token_exchange_rate: '1',
+          gas_price: '10000000000',
         },
-        gas_overhead: gas,
+        gas_overhead: '200000',
       },
     });
 
@@ -319,7 +318,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     // ASSERT
     token = await signer.getToken({ token_id });
-    expect(token.owner).to.equal(signer.getSignerAddress());
+    expect(token.owner).to.equal(newOwner);
   });
 
   step('set token ism', async () => {
@@ -341,7 +340,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     });
 
     let token = await signer.getToken({ token_id });
-    expect(token.ism_id).to.equal(ism_id);
+    expect(token.ism_id).to.be.empty;
 
     // ACT
     await signer.setTokenIsm({
