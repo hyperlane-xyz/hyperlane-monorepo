@@ -58,7 +58,6 @@ import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderT
 import { COMPATIBLE_PROTOCOLS } from '../config/protocols.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
-import { MultiVmSignerFactory } from '../context/multivm.js';
 import { WriteCommandContext } from '../context/types.js';
 import {
   log,
@@ -142,7 +141,7 @@ export async function runWarpRouteDeploy({
   const deploymentChains = chains.filter(
     (chain) =>
       chainMetadata[chain].protocol === ProtocolType.Ethereum ||
-      MultiVmSignerFactory.supports(chainMetadata[chain].protocol),
+      multiVmSigners.supports(chainMetadata[chain].protocol),
   );
 
   await runPreflightChecksForChains({

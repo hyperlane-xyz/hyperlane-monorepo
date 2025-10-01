@@ -17,7 +17,7 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { MultiVmTransaction } from '../providers/ProviderType.js';
+import { AnnotatedMultiVmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -69,7 +69,9 @@ export class MultiVmHookModule extends HyperlaneModule<
     return this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
-  public async update(targetConfig: HookConfig): Promise<MultiVmTransaction[]> {
+  public async update(
+    targetConfig: HookConfig,
+  ): Promise<AnnotatedMultiVmTransaction[]> {
     if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }
@@ -110,9 +112,9 @@ export class MultiVmHookModule extends HyperlaneModule<
   protected async updateMutableHook(configs: {
     current: Exclude<HookConfig, string>;
     target: Exclude<HookConfig, string>;
-  }): Promise<MultiVmTransaction[]> {
+  }): Promise<AnnotatedMultiVmTransaction[]> {
     const { current, target } = configs;
-    let updateTxs: MultiVmTransaction[];
+    let updateTxs: AnnotatedMultiVmTransaction[];
 
     assert(
       current.type === target.type,
@@ -144,8 +146,8 @@ export class MultiVmHookModule extends HyperlaneModule<
   }: {
     currentConfig: IgpHookConfig;
     targetConfig: IgpHookConfig;
-  }): Promise<MultiVmTransaction[]> {
-    const updateTxs: MultiVmTransaction[] = [];
+  }): Promise<AnnotatedMultiVmTransaction[]> {
+    const updateTxs: AnnotatedMultiVmTransaction[] = [];
 
     for (const [remote, c] of Object.entries(targetConfig.oracleConfig)) {
       if (deepEquals(currentConfig.oracleConfig[remote], c)) {

@@ -9,12 +9,12 @@ import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { TxSubmitterBuilder } from './builder/TxSubmitterBuilder.js';
 import { SubmissionStrategy } from './builder/types.js';
-import { CosmosNativeRpcTxSubmitter } from './cosmosnative/CosmosNativeJsonRpcTxSubmitter.js';
 import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
 import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
 import { EV5TimelockSubmitter } from './ethersV5/EV5TimelockSubmitter.js';
+import { MultiVmJsonRpcTxSubmitter } from './multivm/MultiVmJsonRpcTxSubmitter.js';
 import { SubmitterMetadata } from './types.js';
 
 export type SubmitterBuilderSettings = {
@@ -117,14 +117,14 @@ const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
   },
 };
 
-const COSMOS_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
+const MULTI_VM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
   [TxSubmitterType.JSON_RPC]: (multiProvider, multiVmSigners, metadata) => {
     // Used to type narrow metadata
     assert(
       metadata.type === TxSubmitterType.JSON_RPC,
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
     );
-    return new CosmosNativeRpcTxSubmitter(
+    return new MultiVmJsonRpcTxSubmitter(
       multiProvider,
       multiVmSigners,
       metadata,
@@ -135,7 +135,6 @@ const COSMOS_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
 const defaultSubmitterFactories: ProtocolMap<Record<string, SubmitterFactory>> =
   {
     [ProtocolType.Ethereum]: EVM_SUBMITTERS_FACTORIES,
-    [ProtocolType.CosmosNative]: COSMOS_SUBMITTERS_FACTORIES,
   };
 
 /**
@@ -163,6 +162,10 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
   const mergedSubmitterRegistry = {
     ...defaultSubmitterFactories,
   };
+
+  for (const protocol of multiVmSigners.getSupportedProtocols()) {
+    mergedSubmitterRegistry[protocol] = MULTI_VM_SUBMITTERS_FACTORIES;
+  }
 
   for (const [p, factories] of Object.entries(additionalSubmitterFactories)) {
     if (!factories) continue;

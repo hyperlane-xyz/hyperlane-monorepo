@@ -353,6 +353,8 @@ export type AnnotatedZKSyncTransaction =
 
 export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
+export type AnnotatedMultiVmTransaction = Annotated<{ transaction: any }>;
+
 export type TypedAnnotatedTransaction =
   | AnnotatedEV5Transaction
   | AnnotatedViemTransaction
@@ -363,8 +365,6 @@ export type TypedAnnotatedTransaction =
   | AnnotatedStarknetJsTransaction
   | AnnotatedZKSyncTransaction
   | AnnotatedRadixTransaction;
-
-export type MultiVmTransaction = Annotated<{ transaction: any }>;
 
 /**
  * Transaction receipt/response with discriminated union of provider type

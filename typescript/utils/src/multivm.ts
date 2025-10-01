@@ -603,17 +603,17 @@ export interface IMultiVMSigner extends IMultiVMProvider {
 }
 
 export abstract class IMultiVMProviderFactory {
-  public static supports(_protocol: ProtocolType) {
-    throw new Error('supports not implemented');
-  }
+  abstract getSupportedProtocols(): ProtocolType[];
+
+  abstract supports(_protocol: ProtocolType): boolean;
 
   abstract get(chain: string): Promise<IMultiVMProvider>;
 }
 
 export abstract class IMultiVMSignerFactory {
-  public static supports(_protocol: ProtocolType) {
-    throw new Error('supports not implemented');
-  }
+  abstract getSupportedProtocols(): ProtocolType[];
+
+  abstract supports(_protocol: ProtocolType): boolean;
 
   abstract get(chain: string): IMultiVMSigner;
 }

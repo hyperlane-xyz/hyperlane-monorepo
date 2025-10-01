@@ -13,7 +13,7 @@ import { MultiVmIsmModule } from '../ism/MultiVmIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { MultiVmTransaction } from '../providers/ProviderType.js';
+import { AnnotatedMultiVmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -246,11 +246,11 @@ export class MultiVmCoreModule extends HyperlaneModule<
    */
   public async update(
     expectedConfig: CoreConfig,
-  ): Promise<MultiVmTransaction[]> {
+  ): Promise<AnnotatedMultiVmTransaction[]> {
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions: MultiVmTransaction[] = [];
+    const transactions: AnnotatedMultiVmTransaction[] = [];
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createDefaultHookUpdateTxs(actualConfig, expectedConfig)),
@@ -264,7 +264,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
   private async createMailboxOwnerUpdateTxs(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<MultiVmTransaction[]> {
+  ): Promise<AnnotatedMultiVmTransaction[]> {
     if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
       return [];
     }
@@ -291,8 +291,8 @@ export class MultiVmCoreModule extends HyperlaneModule<
   async createDefaultIsmUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<MultiVmTransaction[]> {
-    const updateTransactions: MultiVmTransaction[] = [];
+  ): Promise<AnnotatedMultiVmTransaction[]> {
+    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
 
     const actualDefaultIsmConfig = actualConfig.defaultIsm as DerivedIsmConfig;
 
@@ -332,7 +332,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
     expectDefaultIsmConfig: IsmConfig,
   ): Promise<{
     deployedIsm: Address;
-    ismUpdateTxs: MultiVmTransaction[];
+    ismUpdateTxs: AnnotatedMultiVmTransaction[];
   }> {
     const { mailbox } = this.serialize();
 
@@ -367,8 +367,8 @@ export class MultiVmCoreModule extends HyperlaneModule<
   async createDefaultHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<MultiVmTransaction[]> {
-    const updateTransactions: MultiVmTransaction[] = [];
+  ): Promise<AnnotatedMultiVmTransaction[]> {
+    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
 
     const actualDefaultHookConfig =
       actualConfig.defaultHook as DerivedHookConfig;
@@ -409,8 +409,8 @@ export class MultiVmCoreModule extends HyperlaneModule<
   async createRequiredHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<MultiVmTransaction[]> {
-    const updateTransactions: MultiVmTransaction[] = [];
+  ): Promise<AnnotatedMultiVmTransaction[]> {
+    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
 
     const actualRequiredHookConfig =
       actualConfig.requiredHook as DerivedHookConfig;
@@ -451,7 +451,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
     expectHookConfig: HookConfig,
   ): Promise<{
     deployedHook: Address;
-    hookUpdateTxs: MultiVmTransaction[];
+    hookUpdateTxs: AnnotatedMultiVmTransaction[];
   }> {
     const { mailbox } = this.serialize();
 

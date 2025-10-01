@@ -17,7 +17,7 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { MultiVmTransaction } from '../providers/ProviderType.js';
+import { AnnotatedMultiVmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -76,7 +76,7 @@ export class MultiVmIsmModule extends HyperlaneModule<
   // whoever calls update() needs to ensure that targetConfig has a valid owner
   public async update(
     expectedConfig: IsmConfig,
-  ): Promise<MultiVmTransaction[]> {
+  ): Promise<AnnotatedMultiVmTransaction[]> {
     expectedConfig = IsmConfigSchema.parse(expectedConfig);
 
     // Do not support updating to a custom ISM address
@@ -123,7 +123,7 @@ export class MultiVmIsmModule extends HyperlaneModule<
       return [];
     }
 
-    let updateTxs: MultiVmTransaction[] = [];
+    let updateTxs: AnnotatedMultiVmTransaction[] = [];
     if (expectedConfig.type === IsmType.ROUTING) {
       const logger = this.logger.child({
         destination: this.chain,
@@ -263,8 +263,8 @@ export class MultiVmIsmModule extends HyperlaneModule<
     actual: DomainRoutingIsmConfig;
     expected: DomainRoutingIsmConfig;
     logger: Logger;
-  }): Promise<MultiVmTransaction[]> {
-    const updateTxs: MultiVmTransaction[] = [];
+  }): Promise<AnnotatedMultiVmTransaction[]> {
+    const updateTxs: AnnotatedMultiVmTransaction[] = [];
 
     const knownChains = new Set(this.metadataManager.getKnownChainNames());
 

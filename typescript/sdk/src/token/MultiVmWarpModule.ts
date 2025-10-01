@@ -21,7 +21,7 @@ import { MultiVmIsmModule } from '../ism/MultiVmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { MultiVmTransaction } from '../providers/ProviderType.js';
+import { AnnotatedMultiVmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import { MultiVmWarpRouteReader } from './MultiVmWarpRouteReader.js';
@@ -85,7 +85,7 @@ export class MultiVmWarpModule extends HyperlaneModule<
    */
   async update(
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<MultiVmTransaction[]> {
+  ): Promise<AnnotatedMultiVmTransaction[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
@@ -127,8 +127,8 @@ export class MultiVmWarpModule extends HyperlaneModule<
   async createEnrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<MultiVmTransaction[]> {
-    const updateTransactions: MultiVmTransaction[] = [];
+  ): Promise<AnnotatedMultiVmTransaction[]> {
+    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -177,8 +177,8 @@ export class MultiVmWarpModule extends HyperlaneModule<
   async createUnenrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<MultiVmTransaction[]> {
-    const updateTransactions: MultiVmTransaction[] = [];
+  ): Promise<AnnotatedMultiVmTransaction[]> {
+    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -224,8 +224,8 @@ export class MultiVmWarpModule extends HyperlaneModule<
   async createSetDestinationGasUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<MultiVmTransaction[]> {
-    const updateTransactions: MultiVmTransaction[] = [];
+  ): Promise<AnnotatedMultiVmTransaction[]> {
+    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
     if (!expectedConfig.destinationGas) {
       return [];
     }
@@ -305,8 +305,8 @@ export class MultiVmWarpModule extends HyperlaneModule<
   async createIsmUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<MultiVmTransaction[]> {
-    const updateTransactions: MultiVmTransaction[] = [];
+  ): Promise<AnnotatedMultiVmTransaction[]> {
+    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
 
     if (
       actualConfig.interchainSecurityModule ===
@@ -360,7 +360,7 @@ export class MultiVmWarpModule extends HyperlaneModule<
   async createOwnershipUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<MultiVmTransaction[]> {
+  ): Promise<AnnotatedMultiVmTransaction[]> {
     if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
       return [];
     }
@@ -387,7 +387,7 @@ export class MultiVmWarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<{
     deployedIsm: Address;
-    updateTransactions: MultiVmTransaction[];
+    updateTransactions: AnnotatedMultiVmTransaction[];
   }> {
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 

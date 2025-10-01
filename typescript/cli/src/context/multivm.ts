@@ -19,7 +19,11 @@ export class MultiVMProviderFactory implements MultiVM.IMultiVMProviderFactory {
     this.metadataManager = metadataManager;
   }
 
-  public static supports(protocol: ProtocolType) {
+  public getSupportedProtocols() {
+    return MULTI_VM_SUPPORTED_PROTOCOLS;
+  }
+
+  public supports(protocol: ProtocolType) {
     return MULTI_VM_SUPPORTED_PROTOCOLS.includes(protocol);
   }
 
@@ -52,14 +56,18 @@ export class MultiVmSignerFactory implements MultiVM.IMultiVMSignerFactory {
     this.chains = chains;
   }
 
-  public static supports(protocol: ProtocolType) {
+  public getSupportedProtocols() {
+    return MULTI_VM_SUPPORTED_PROTOCOLS;
+  }
+
+  public supports(protocol: ProtocolType) {
     return MULTI_VM_SUPPORTED_PROTOCOLS.includes(protocol);
   }
 
   public get(chain: string): MultiVM.IMultiVMSigner {
     const protocol = this.metadataManager.getProtocol(chain);
 
-    if (!MultiVmSignerFactory.supports(protocol)) {
+    if (!this.supports(protocol)) {
       throw new Error(
         `Chain ${chain} with protocol type ${protocol} not supported in MultiVM`,
       );
