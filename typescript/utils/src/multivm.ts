@@ -24,12 +24,15 @@ export type ResGetMailbox = {
   required_hook: string;
 };
 
+export enum IsmType {
+  MESSAGE_ID_MULTISIG_ISM = 'MESSAGE_ID_MULTISIG_ISM',
+  MERKLE_ROOT_MULTISIG_ISM = 'MERKLE_ROOT_MULTISIG_ISM',
+  ROUTING_ISM = 'ROUTING_ISM',
+  NOOP_ISM = 'NOOP_ISM',
+}
+
 export type ReqGetIsmType = { ism_id: string };
-export type ResGetIsmType =
-  | 'MESSAGE_ID_MULTISIG_ISM'
-  | 'MERKLE_ROOT_MULTISIG_ISM'
-  | 'ROUTING_ISM'
-  | 'NOOP_ISM';
+export type ResGetIsmType = IsmType;
 
 export type ReqMessageIdMultisigIsm = { ism_id: string };
 export type ResMessageIdMultisigIsm = {
@@ -60,8 +63,13 @@ export type ResNoopIsm = {
   address: string;
 };
 
+export enum HookType {
+  INTERCHAIN_GAS_PAYMASTER = 'INTERCHAIN_GAS_PAYMASTER',
+  MERKLE_TREE_HOOK = 'MERKLE_TREE_HOOK',
+}
+
 export type ReqGetHookType = { hook_id: string };
-export type ResGetHookType = 'INTERCHAIN_GAS_PAYMASTER' | 'MERKLE_TREE_HOOK';
+export type ResGetHookType = HookType;
 
 export type ReqGetInterchainGasPaymasterHook = { hook_id: string };
 export type ResGetInterchainGasPaymasterHook = {
@@ -85,11 +93,16 @@ export type ResGetMerkleTreeHook = {
 
 // ### QUERY WARP ###
 
+export enum TokenType {
+  COLLATERAL = 'COLLATERAL',
+  SYNTHETIC = 'SYNTHETIC',
+}
+
 export type ReqGetToken = { token_id: string };
 export type ResGetToken = {
   address: string;
   owner: string;
-  token_type: 'COLLATERAL' | 'SYNTHETIC';
+  token_type: TokenType;
   mailbox_id: string;
   ism_id: string;
   origin_denom: string;

@@ -68,9 +68,9 @@ export class MultiVmWarpRouteReader {
     });
 
     switch (token.token_type) {
-      case 'COLLATERAL':
+      case MultiVM.TokenType.COLLATERAL:
         return TokenType.collateral;
-      case 'SYNTHETIC':
+      case MultiVM.TokenType.SYNTHETIC:
         return TokenType.synthetic;
       default:
         throw new Error(

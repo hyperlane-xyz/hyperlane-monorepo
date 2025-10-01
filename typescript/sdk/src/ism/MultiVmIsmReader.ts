@@ -32,13 +32,13 @@ export class MultiVmIsmReader {
       const ism_type = await this.provider.getIsmType({ ism_id: address });
 
       switch (ism_type) {
-        case 'MERKLE_ROOT_MULTISIG_ISM':
+        case MultiVM.IsmType.MERKLE_ROOT_MULTISIG_ISM:
           return this.deriveMerkleRootMultisigConfig(address);
-        case 'MESSAGE_ID_MULTISIG_ISM':
+        case MultiVM.IsmType.MESSAGE_ID_MULTISIG_ISM:
           return this.deriveMessageIdMultisigConfig(address);
-        case 'ROUTING_ISM':
+        case MultiVM.IsmType.ROUTING_ISM:
           return this.deriveRoutingConfig(address);
-        case 'NOOP_ISM':
+        case MultiVM.IsmType.NOOP_ISM:
           return this.deriveTestConfig(address);
         default:
           throw new Error(`Unknown ISM ModuleType: ${ism_type}`);

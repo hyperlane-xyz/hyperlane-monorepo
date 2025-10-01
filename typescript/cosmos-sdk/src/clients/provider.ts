@@ -24,8 +24,8 @@ import {
   MsgSetRoutingIsmDomainEncodeObject,
 } from '../hyperlane/interchain_security/messages.js';
 import {
+  IsmTypes as CosmosNativeIsmTypes,
   InterchainSecurityExtension,
-  IsmTypes,
   setupInterchainSecurityExtension,
 } from '../hyperlane/interchain_security/query.js';
 import {
@@ -134,14 +134,14 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
     assert(ism, `found no ism for id ${req.ism_id}`);
 
     switch (ism.type_url) {
-      case IsmTypes.MerkleRootMultisigISM:
-        return 'MERKLE_ROOT_MULTISIG_ISM';
-      case IsmTypes.MessageIdMultisigISM:
-        return 'MESSAGE_ID_MULTISIG_ISM';
-      case IsmTypes.RoutingISM:
-        return 'ROUTING_ISM';
-      case IsmTypes.NoopISM:
-        return 'NOOP_ISM';
+      case CosmosNativeIsmTypes.MerkleRootMultisigISM:
+        return MultiVM.IsmType.MERKLE_ROOT_MULTISIG_ISM;
+      case CosmosNativeIsmTypes.MessageIdMultisigISM:
+        return MultiVM.IsmType.MESSAGE_ID_MULTISIG_ISM;
+      case CosmosNativeIsmTypes.RoutingISM:
+        return MultiVM.IsmType.ROUTING_ISM;
+      case CosmosNativeIsmTypes.NoopISM:
+        return MultiVM.IsmType.NOOP_ISM;
       default:
         throw new Error(`Unknown ISM ModuleType: ${ism.type_url}`);
     }
@@ -214,7 +214,7 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
       const { igp } = await this.query.postDispatch.Igp({ id: req.hook_id });
 
       if (igp) {
-        return 'INTERCHAIN_GAS_PAYMASTER';
+        return MultiVM.HookType.INTERCHAIN_GAS_PAYMASTER;
       }
     } catch {}
 
@@ -224,7 +224,7 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
       );
 
       if (merkle_tree_hook) {
-        return 'MERKLE_TREE_HOOK';
+        return MultiVM.HookType.MERKLE_TREE_HOOK;
       }
     } catch {}
 
@@ -290,14 +290,14 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
     });
     assert(token, `found no token for id ${req.token_id}`);
 
-    let token_type;
+    let token_type: MultiVM.TokenType;
 
     switch (token.token_type) {
       case warpTypes.HypTokenType.HYP_TOKEN_TYPE_COLLATERAL:
-        token_type = 'COLLATERAL';
+        token_type = MultiVM.TokenType.COLLATERAL;
         break;
       case warpTypes.HypTokenType.HYP_TOKEN_TYPE_SYNTHETIC:
-        token_type = 'SYNTHETIC';
+        token_type = MultiVM.TokenType.SYNTHETIC;
         break;
       default:
         throw new Error(
@@ -308,7 +308,7 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
     return {
       address: token.id,
       owner: token.owner,
-      token_type: token_type as 'COLLATERAL' | 'SYNTHETIC',
+      token_type: token_type,
       mailbox_id: token.origin_mailbox,
       ism_id: token.ism_id,
       origin_denom: token.origin_denom,

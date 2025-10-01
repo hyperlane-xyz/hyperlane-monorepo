@@ -32,9 +32,9 @@ export class MultiVmHookReader {
       const hook_type = await this.provider.getHookType({ hook_id: address });
 
       switch (hook_type) {
-        case 'MERKLE_TREE_HOOK':
+        case MultiVM.HookType.MERKLE_TREE_HOOK:
           return this.deriveMerkleTreeConfig(address);
-        case 'INTERCHAIN_GAS_PAYMASTER':
+        case MultiVM.HookType.INTERCHAIN_GAS_PAYMASTER:
           return this.deriveIgpConfig(address);
         default:
           throw new Error(`Unknown Hook Type: ${hook_type}`);
