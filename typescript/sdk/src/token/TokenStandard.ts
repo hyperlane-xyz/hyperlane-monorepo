@@ -59,6 +59,13 @@ export enum TokenStandard {
   RadixNative = 'RadixNative',
   RadixHypCollateral = 'RadixHypCollateral',
   RadixHypSynthetic = 'RadixHypSynthetic',
+
+  // Sovereign
+  SovBank = 'SovBank',
+  SovBankNative = 'SovBankNative',
+  SovHypNative = 'SovHypNative',
+  SovHypCollateral = 'SovHypCollateral',
+  SovHypSynthetic = 'SovHypSynthetic',
 }
 
 // Allows for omission of protocol field in token args
@@ -114,6 +121,13 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   RadixNative: ProtocolType.Radix,
   RadixHypCollateral: ProtocolType.Radix,
   RadixHypSynthetic: ProtocolType.Radix,
+
+  // Sovereign
+  SovBank: ProtocolType.Sovereign,
+  SovBankNative: ProtocolType.Sovereign,
+  SovHypNative: ProtocolType.Sovereign,
+  SovHypCollateral: ProtocolType.Sovereign,
+  SovHypSynthetic: ProtocolType.Sovereign,
 };
 
 export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
@@ -194,6 +208,9 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.StarknetHypSynthetic,
   TokenStandard.RadixHypCollateral,
   TokenStandard.RadixHypSynthetic,
+  TokenStandard.SovHypNative,
+  TokenStandard.SovHypCollateral,
+  TokenStandard.SovHypSynthetic,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
@@ -335,6 +352,7 @@ export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
     [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
     [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
     [ProtocolType.Radix]: TokenStandard.RadixNative,
+    [ProtocolType.Sovereign]: TokenStandard.SovBankNative,
   };
 
 export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<

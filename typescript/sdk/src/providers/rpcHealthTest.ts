@@ -11,6 +11,7 @@ import {
   ProviderType,
   RadixProvider,
   SolanaWeb3Provider,
+  SovereignProvider,
   StarknetJsProvider,
 } from './ProviderType.js';
 import { protocolToDefaultProviderBuilder } from './providerBuilders.js';
@@ -36,6 +37,8 @@ export async function isRpcHealthy(
     return isStarknetJsProviderHealthy(provider.provider, metadata);
   else if (provider.type === ProviderType.Radix)
     return isRadixProviderHealthy(provider.provider, metadata);
+  else if (provider.type === ProviderType.Sovereign)
+    return isSovereignProviderHealthy(provider.provider, metadata);
   else
     throw new Error(
       `Unsupported provider type ${provider.type}, new health check required`,
@@ -122,4 +125,15 @@ export async function isRadixProviderHealthy(
     );
     return false;
   }
+}
+
+export async function isSovereignProviderHealthy(
+  provider: SovereignProvider['provider'],
+  metadata: ChainMetadata,
+): Promise<boolean> {
+  const client = await provider;
+  const slot = await client.ledger.slots.latest();
+  if (slot.number < 1) return false;
+  rootLogger.debug(`Slot number is okay for ${metadata.name} (${slot.number})`);
+  return true;
 }
