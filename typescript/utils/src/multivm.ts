@@ -90,8 +90,8 @@ export type ResGetToken = {
   address: string;
   owner: string;
   token_type: 'COLLATERAL' | 'SYNTHETIC';
-  mailbox: string;
-  ism: string;
+  mailbox_id: string;
+  ism_id: string;
   origin_denom: string;
   name: string;
   symbol: string;
@@ -288,7 +288,6 @@ export type ResCreateCollateralToken = {
 export type ReqCreateSyntheticToken = {
   signer: string;
   mailbox_id: string;
-  origin_denom: string;
 };
 export type ResCreateSyntheticToken = {
   token_id: string;
