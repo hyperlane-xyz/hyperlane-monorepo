@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain, H256};
+use hyperlane_core::{
+    ContractLocator, HyperlaneDomain, HyperlaneProvider, KnownHyperlaneDomain, H256,
+};
 use hyperlane_core::{ReorgPeriod, SubmitterType};
 use hyperlane_radix::{ConnectionConf, RadixProvider, RadixSigner};
 
@@ -292,11 +294,17 @@ pub async fn run_locally() {
         H256::zero(),
     );
 
+    let encoded_address = signer.encoded_address.clone();
     let provider = RadixProvider::new(Some(signer), &config, &locator, &ReorgPeriod::None)
         .expect("Failed to create Radix provider");
 
-    let mut cli = RadixCli::new(provider, NETWORK);
+    let mut cli = RadixCli::new(provider.clone(), NETWORK);
     cli.fund_account().await;
+    let resp = provider
+        .get_balance(encoded_address.clone())
+        .await
+        .expect("Failed to get balance");
+    log!("Funding balance: {:?}", resp);
 
     let (code_path, rdp) = download_radix_contracts();
 
@@ -380,7 +388,6 @@ pub async fn run_locally() {
         .expect("Failed to convert agent config path to string");
 
     let hpl_rly = launch_radix_relayer(path.to_owned(), chains.clone());
-
     let hpl_scr = launch_radix_scraper(path.to_owned(), chains.clone());
 
     // give things a chance to fully start.

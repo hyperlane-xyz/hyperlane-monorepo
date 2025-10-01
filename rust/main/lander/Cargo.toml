@@ -40,6 +40,7 @@ core-api-client = { workspace = true }
 gateway-api-client = { workspace = true }
 radix-common = { workspace = true }
 radix-transactions = { workspace = true }
+rand = { workspace = true }
 sbor = { workspace = true, features = ["serde"] }
 scrypto = { workspace = true, features = ["serde"] }
 

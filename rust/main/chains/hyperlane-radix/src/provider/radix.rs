@@ -29,6 +29,7 @@ use radix_transactions::{
         ManifestBuilder, TransactionBuilder, TransactionManifestV2Builder, TransactionV2Builder,
     },
     model::{IntentHeaderV2, TransactionHeaderV2, TransactionPayload},
+    prelude::DetailedNotarizedTransactionV2,
     signing::PrivateKey,
 };
 use reqwest::ClientBuilder;
@@ -429,14 +430,38 @@ impl RadixProvider {
         Ok(txs)
     }
 
-    /// Returns a tx builder with header information already filled in
-    pub async fn get_tx_builder(
-        &self,
-    ) -> ChainResult<(TransactionV2Builder, &RadixSigner, PrivateKey)> {
-        let signer = self.get_signer()?;
-        let private_key = signer.get_signer()?;
+    /// build tx
+    pub fn build_tx(
+        signer: &RadixSigner,
+        network: &NetworkDefinition,
+        epoch: u64,
+        intent_discriminator: u64,
+        build_manifest: impl Fn(TransactionManifestV2Builder) -> TransactionManifestV2Builder,
+        fee: FeeSummary,
+    ) -> ChainResult<DetailedNotarizedTransactionV2> {
+        let private_key = signer.get_signer().unwrap();
+        let tx_builder = Self::get_tx_builder(network, &private_key, epoch, intent_discriminator);
 
-        let epoch = self.provider.gateway_status().await?.ledger_state.epoch as u64;
+        let simulation = fee;
+        let simulated_xrd = RadixProvider::total_fee(simulation)?
+            * Decimal::from_str("1.5").map_err(HyperlaneRadixError::from)?;
+
+        let tx = tx_builder
+            .manifest_builder(|builder| {
+                build_manifest(builder.lock_fee(signer.address, simulated_xrd))
+            })
+            .notarize(&private_key)
+            .build();
+        Ok(tx)
+    }
+
+    /// Build a tx builder
+    pub fn get_tx_builder(
+        network: &NetworkDefinition,
+        private_key: &PrivateKey,
+        epoch: u64,
+        intent_discriminator: u64,
+    ) -> TransactionV2Builder {
         let tx = TransactionBuilder::new_v2()
             .transaction_header(TransactionHeaderV2 {
                 notary_public_key: private_key.public_key(),
@@ -444,14 +469,14 @@ impl RadixProvider {
                 tip_basis_points: 0u32, // TODO: what should we set this to?
             })
             .intent_header(IntentHeaderV2 {
-                network_id: self.conf.network.id,
+                network_id: network.id,
                 start_epoch_inclusive: Epoch::of(epoch),
                 end_epoch_exclusive: Epoch::of(epoch + 2), // ~5 minutes per epoch -> 10min timeout
-                intent_discriminator: rand::random::<u64>(), // Use random discriminator to avoid collisions
+                intent_discriminator,
                 min_proposer_timestamp_inclusive: None, // TODO: discuss whether or not we want to have a time limit
                 max_proposer_timestamp_exclusive: None,
             });
-        Ok((tx, signer, private_key))
+        tx
     }
 
     /// Returns the total Fee that was paid
@@ -475,7 +500,18 @@ impl RadixProvider {
         build_manifest: impl Fn(TransactionManifestV2Builder) -> TransactionManifestV2Builder,
         fee: Option<FeeSummary>,
     ) -> ChainResult<TxOutcome> {
-        let (tx_builder, signer, private_key) = self.get_tx_builder().await?;
+        let signer = self.get_signer()?;
+        let private_key = signer.get_signer()?;
+        // Use random discriminator to avoid collisions
+        let intent_discriminator = rand::random::<u64>();
+        let epoch = self.provider.gateway_status().await?.ledger_state.epoch as u64;
+
+        let tx_builder = Self::get_tx_builder(
+            &self.conf.network,
+            &private_key,
+            epoch,
+            intent_discriminator,
+        );
 
         let manifest = build_manifest(ManifestBuilder::new_v2()).build();
         let simulation = tx_builder
@@ -489,15 +525,15 @@ impl RadixProvider {
             Some(summary) => summary,
             None => self.simulate_raw_tx(simulation.to_vec()).await?.fee_summary,
         };
-        let simulated_xrd = Self::total_fee(simulation)?
-            * Decimal::from_str("1.5").map_err(HyperlaneRadixError::from)?;
 
-        let tx = tx_builder
-            .manifest_builder(|builder| {
-                build_manifest(builder.lock_fee(signer.address, simulated_xrd))
-            })
-            .notarize(&private_key)
-            .build();
+        let tx = Self::build_tx(
+            &signer,
+            &self.conf.network,
+            epoch,
+            intent_discriminator,
+            build_manifest,
+            simulation,
+        )?;
 
         self.submit_transaction(tx.raw.to_vec()).await?;
 
@@ -565,7 +601,19 @@ impl RadixProvider {
         &self,
         build_manifest: impl Fn(TransactionManifestV2Builder) -> TransactionManifestV2Builder,
     ) -> ChainResult<TransactionReceipt> {
-        let (tx, _, _) = self.get_tx_builder().await?;
+        let signer = self.get_signer()?;
+        let private_key = signer.get_signer()?;
+        // Use random discriminator to avoid collisions
+        let intent_discriminator = rand::random::<u64>();
+
+        let epoch = self.provider.gateway_status().await?.ledger_state.epoch as u64;
+        let tx = Self::get_tx_builder(
+            &self.conf.network,
+            &private_key,
+            epoch,
+            intent_discriminator,
+        );
+
         let manifest = build_manifest(ManifestBuilder::new_v2()).build();
         let tx = tx
             .manifest(manifest)

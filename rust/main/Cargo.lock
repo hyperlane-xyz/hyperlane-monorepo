@@ -6543,6 +6543,7 @@ dependencies = [
  "prometheus",
  "radix-common",
  "radix-transactions",
+ "rand 0.8.5",
  "regex",
  "sbor",
  "scrypto",
