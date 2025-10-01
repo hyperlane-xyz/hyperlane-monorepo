@@ -16,7 +16,7 @@ import {
   getSafeNumericValue,
   shouldUpdatePrice,
 } from '../src/config/gas-oracle.js';
-import { writeJsonAtPath } from '../src/utils/utils.js';
+import { writeAndFormatJsonAtPath } from '../src/utils/utils.js';
 
 import { getArgs, withWrite } from './agent-utils.js';
 
@@ -106,7 +106,7 @@ async function main() {
   if (write) {
     const outFile = tokenPricesFilePath(environment);
     console.log(`Writing token prices to ${outFile}`);
-    writeJsonAtPath(outFile, prices);
+    writeAndFormatJsonAtPath(outFile, prices);
   } else {
     console.log(JSON.stringify(prices, null, 2));
   }
