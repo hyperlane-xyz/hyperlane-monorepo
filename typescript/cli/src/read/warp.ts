@@ -8,17 +8,18 @@ import {
 import {
   ChainMap,
   ChainName,
-  CosmosNativeWarpRouteReader,
   DerivedTokenRouterConfig,
   DerivedWarpRouteDeployConfig,
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
   MultiProvider,
+  MultiVmWarpRouteReader,
   TokenStandard,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
+import { MultiVMProvider } from '../context/multivm.js';
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable, warnYellow } from '../logger.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
@@ -93,20 +94,20 @@ async function deriveWarpRouteConfigs(
   // Derive and return warp route config
   return promiseObjAll(
     objMap(addresses, async (chain, address) => {
-      switch (context.multiProvider.getProtocol(chain)) {
-        case ProtocolType.Ethereum: {
+      const protocolType = context.multiProvider.getProtocol(chain);
+      switch (true) {
+        case protocolType === ProtocolType.Ethereum: {
           return new EvmERC20WarpRouteReader(
             multiProvider,
             chain,
           ).deriveWarpRouteConfig(address);
         }
-        case ProtocolType.CosmosNative: {
-          const cosmosProvider =
-            await context.multiProtocolProvider!.getCosmJsNativeProvider(chain);
-          return new CosmosNativeWarpRouteReader(
+        case MultiVMProvider.supports(protocolType): {
+          const provider = await context.multiVmProviders.get(chain);
+          return new MultiVmWarpRouteReader(
             multiProvider,
             chain,
-            cosmosProvider,
+            provider,
           ).deriveWarpRouteConfig(address);
         }
         default: {

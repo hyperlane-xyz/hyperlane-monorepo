@@ -5,6 +5,9 @@ import {
 import { ChainMap, ChainMetadataManager, ChainName } from '@hyperlane-xyz/sdk';
 import { MultiVM, ProtocolType } from '@hyperlane-xyz/utils';
 
+// ADD NEW PROTOCOL HERE
+const MULTI_VM_SUPPORTED_PROTOCOLS = [ProtocolType.CosmosNative];
+
 export class MultiVMProvider {
   private readonly metadataManager: ChainMetadataManager;
 
@@ -12,10 +15,15 @@ export class MultiVMProvider {
     this.metadataManager = metadataManager;
   }
 
+  public static supports(protocol: ProtocolType) {
+    return MULTI_VM_SUPPORTED_PROTOCOLS.includes(protocol);
+  }
+
   public async get(chain: ChainName): Promise<MultiVM.IMultiVMProvider> {
     const metadata = this.metadataManager.getChainMetadata(chain);
 
     switch (metadata.protocol) {
+      // ADD NEW PROTOCOL HERE
       case ProtocolType.CosmosNative: {
         return CosmosNativeProviderFactory.connect(metadata.rpcUrls[0].http);
       }
@@ -33,6 +41,10 @@ export class MultiVmSigner {
 
   private constructor(chains: ChainMap<MultiVM.IMultiVMSigner>) {
     this.chains = chains;
+  }
+
+  public static supports(protocol: ProtocolType) {
+    return MULTI_VM_SUPPORTED_PROTOCOLS.includes(protocol);
   }
 
   public has(chain: ChainName): boolean {
@@ -55,6 +67,7 @@ export class MultiVmSigner {
       const metadata = metadataManager.getChainMetadata(chain);
 
       switch (metadata.protocol) {
+        // ADD NEW PROTOCOL HERE
         case ProtocolType.CosmosNative: {
           signers[chain] = await CosmosNativeSignerFactory.connectWithSigner(
             metadata.rpcUrls[0].http,

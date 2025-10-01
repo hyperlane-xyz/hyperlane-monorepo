@@ -1,11 +1,12 @@
 import {
   ChainName,
   CoreConfig,
-  CosmosNativeCoreReader,
   EvmCoreReader,
+  MultiVmCoreReader,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
+import { MultiVMProvider } from '../context/multivm.js';
 import { CommandContext } from '../context/types.js';
 import { errorRed } from '../logger.js';
 
@@ -30,8 +31,8 @@ export async function executeCoreRead({
 
   const protocolType = context.multiProvider.getProtocol(chain);
 
-  switch (protocolType) {
-    case ProtocolType.Ethereum: {
+  switch (true) {
+    case protocolType === ProtocolType.Ethereum: {
       const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
       try {
         return evmCoreReader.deriveCoreConfig({
@@ -47,15 +48,11 @@ export async function executeCoreRead({
       }
       break;
     }
-    case ProtocolType.CosmosNative: {
-      const cosmosProvider =
-        await context.multiProtocolProvider!.getCosmJsNativeProvider(chain);
-      const cosmosCoreReader = new CosmosNativeCoreReader(
-        context.multiProvider,
-        cosmosProvider,
-      );
+    case MultiVMProvider.supports(protocolType): {
+      const provider = await context.multiVmProviders.get(chain);
+      const coreReader = new MultiVmCoreReader(context.multiProvider, provider);
       try {
-        return cosmosCoreReader.deriveCoreConfig(mailbox);
+        return coreReader.deriveCoreConfig(mailbox);
       } catch (e: any) {
         errorRed(
           `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
