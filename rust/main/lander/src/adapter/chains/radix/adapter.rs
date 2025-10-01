@@ -7,7 +7,6 @@ use core_api_client::models::FeeSummary;
 use ethers::utils::hex;
 use futures_util::TryFutureExt;
 use gateway_api_client::models::{CompiledPreviewTransaction, TransactionPreviewV2Request};
-use hyperlane_base::settings::ChainConf;
 use radix_transactions::{
     model::{IntentHeaderV2, TransactionHeaderV2, TransactionPayload},
     prelude::{
@@ -27,6 +26,7 @@ use scrypto::{
 };
 use uuid::Uuid;
 
+use hyperlane_base::settings::ChainConf;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, ReorgPeriod, H256, H512,
 };
@@ -352,7 +352,7 @@ impl AdaptsChain for RadixAdapter {
 
         let (visible_components, fee_summary) = {
             let tx_precursor = tx.precursor();
-            // decode manifest value from Mailbox::process_calldata()
+            // decode arguments
             let manifest_value: ManifestValue = manifest_decode(&tx_precursor.encoded_arguments)
                 .map_err(|err| {
                     let error_msg = "Failed to decode manifest";
@@ -362,7 +362,7 @@ impl AdaptsChain for RadixAdapter {
 
             let manifest_args = match manifest_value {
                 sbor::Value::Tuple { fields } => fields,
-                _ => vec![],
+                s => vec![s],
             };
 
             let decoder = AddressBech32Decoder::new(&self.network);
@@ -422,7 +422,6 @@ impl AdaptsChain for RadixAdapter {
         tx_precursor.tx_hash = Some(tx_hash);
 
         tracing::info!(tx_uuid=?tx.uuid, ?tx_hash, "submitted transaction");
-
         Ok(())
     }
 

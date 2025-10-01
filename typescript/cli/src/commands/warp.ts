@@ -386,6 +386,7 @@ export const check: CommandModuleWithContext<SelectWarpRouteBuilder> = {
 
     let expandedWarpDeployConfig = await expandWarpDeployConfig({
       multiProvider: context.multiProvider,
+      multiProtocolProvider: context.multiProtocolProvider,
       warpDeployConfig,
       deployedRoutersAddresses,
       expandedOnChainWarpConfig,

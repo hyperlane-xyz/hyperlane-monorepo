@@ -30,6 +30,7 @@ const NETWORKS = {
 
 export { NetworkId };
 export { RadixIsmTypes } from './utils/types.js';
+export { transactionManifestFromString } from './utils/utils.js';
 
 export const DEFAULT_GAS_MULTIPLIER = 1.2;
 

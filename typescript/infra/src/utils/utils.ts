@@ -168,6 +168,39 @@ export function writeJsonAtPath(filepath: string, obj: any) {
   writeToFile(filepath, content);
 }
 
+export async function writeAndFormatJsonAtPath(filepath: string, obj: any) {
+  writeJsonAtPath(filepath, obj);
+  await formatFileWithPrettier(filepath);
+}
+
+/**
+ * Gets the monorepo root directory
+ */
+function getMonorepoRoot(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), '../../../../');
+}
+
+/**
+ * Formats a file using prettier
+ * @param filepath - The path to the file to format
+ */
+export async function formatFileWithPrettier(filepath: string): Promise<void> {
+  try {
+    const monorepoRoot = getMonorepoRoot();
+    await execCmd(`npx prettier --write "${filepath}"`, {
+      cwd: monorepoRoot,
+      stdio: 'pipe',
+    });
+  } catch (error) {
+    // Silently fail if prettier is not available or fails
+    // This ensures the deployment process continues even if formatting fails
+    console.warn(
+      `Warning: Failed to format file with prettier: ${filepath}`,
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
+
 export function writeYamlAtPath(filepath: string, obj: any) {
   const content = stringifyObject(obj, 'yaml', 2);
   writeToFile(filepath, content);
