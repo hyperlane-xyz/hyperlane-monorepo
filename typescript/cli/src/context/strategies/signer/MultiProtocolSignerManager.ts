@@ -265,11 +265,11 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
             await this.multiProtocolProvider.getCosmJsNativeProvider(
               params.chain,
             );
-          const balance = await provider.getBalance(
-            params.address,
-            params.denom,
-          );
-          return BigNumber.from(balance.amount);
+          const balance = await provider.getBalance({
+            address: params.address,
+            denom: params.denom,
+          });
+          return BigNumber.from(balance);
         } catch (err) {
           throw new Error(
             `failed to get balance of address ${params.address} on Cosmos Native chain ${params.chain}: ${err}`,

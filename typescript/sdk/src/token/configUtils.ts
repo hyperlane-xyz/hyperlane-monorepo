@@ -17,12 +17,12 @@ import {
   transformObj,
 } from '@hyperlane-xyz/utils';
 
+import { IMultiVMProviderFactory } from '../../../utils/dist/multivm.js';
 import { isProxy } from '../deploy/proxy.js';
-import { CosmosNativeHookReader } from '../hook/CosmosNativeHookReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import { CosmosNativeIsmReader } from '../ism/CosmosNativeIsmReader.js';
+import { MultiVmHookReader } from '../hook/MultiVmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { MultiVmIsmReader } from '../ism/MultiVmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
@@ -113,14 +113,14 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  multiProtocolProvider: MultiProtocolProvider;
+  multiVmProviders: IMultiVMProviderFactory;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
-    multiProtocolProvider,
+    multiVmProviders,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
@@ -252,16 +252,11 @@ export async function expandWarpDeployConfig(params: {
             chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
             break;
           }
-          case ProtocolType.CosmosNative: {
-            const provider =
-              await multiProtocolProvider.getCosmJsNativeProvider(chain);
-
-            const reader = new CosmosNativeHookReader(multiProvider, provider);
-            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
-            break;
-          }
           default: {
-            throw new Error(`Protocol type ${protocol} not supported`);
+            const provider = await multiVmProviders.get(chain);
+
+            const reader = new MultiVmHookReader(multiProvider, provider);
+            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
           }
         }
       }
@@ -280,18 +275,13 @@ export async function expandWarpDeployConfig(params: {
             );
             break;
           }
-          case ProtocolType.CosmosNative: {
-            const provider =
-              await multiProtocolProvider.getCosmJsNativeProvider(chain);
+          default: {
+            const provider = await multiVmProviders.get(chain);
 
-            const reader = new CosmosNativeIsmReader(multiProvider, provider);
+            const reader = new MultiVmIsmReader(multiProvider, provider);
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
               chainConfig.interchainSecurityModule,
             );
-            break;
-          }
-          default: {
-            throw new Error(`Protocol type ${protocol} not supported`);
           }
         }
       }

@@ -244,17 +244,14 @@ export async function estimateTransactionFeeCosmJsNative({
   memo?: string;
 }): Promise<TransactionFeeEstimate> {
   const client = await provider.provider;
-  const message = client.registry.encodeAsAny(transaction.transaction);
-  const pubKey = encodeSecp256k1Pubkey(Buffer.from(senderPubKey, 'hex'));
 
-  const gasUnits = await client.simulate(sender, pubKey, [message], memo);
-  const gasPrice = parseFloat(estimatedGasPrice.toString());
-
-  return {
-    gasUnits,
-    gasPrice,
-    fee: Math.floor(gasUnits * gasPrice),
-  };
+  return client.estimateTransactionFee({
+    transaction: transaction.transaction,
+    estimatedGasPrice,
+    sender,
+    senderPubKey,
+    memo,
+  });
 }
 
 // Starknet does not support gas estimation without starknet account

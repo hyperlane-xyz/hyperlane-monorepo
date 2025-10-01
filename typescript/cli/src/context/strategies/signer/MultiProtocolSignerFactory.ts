@@ -1,14 +1,9 @@
-import {
-  DirectSecp256k1HdWallet,
-  DirectSecp256k1Wallet,
-} from '@cosmjs/proto-signing';
-import { GasPrice } from '@cosmjs/stargate';
-import { Signer, Wallet, ethers } from 'ethers';
+import { Signer, Wallet } from 'ethers';
 import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
 import { ChainTechnicalStack, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, ensure0x } from '@hyperlane-xyz/utils';
+import { MultiVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   BaseMultiProtocolSigner,
@@ -48,7 +43,7 @@ class EvmSignerStrategy extends BaseMultiProtocolSigner {
 }
 
 class CosmosNativeSignerStrategy extends BaseMultiProtocolSigner {
-  async getSigner(config: SignerConfig): Promise<SigningHyperlaneModuleClient> {
+  async getSigner(config: SignerConfig): Promise<MultiVM.IMultiVMSigner> {
     const { privateKey } = await this.getPrivateKey(config);
 
     const provider = await this.multiProtocolProvider.getCosmJsNativeProvider(
@@ -62,28 +57,16 @@ class CosmosNativeSignerStrategy extends BaseMultiProtocolSigner {
       'Missing Cosmos Signer arguments',
     );
 
-    let wallet;
-
-    if (ethers.utils.isHexString(ensure0x(privateKey))) {
-      wallet = await DirectSecp256k1Wallet.fromKey(
-        Buffer.from(privateKey, 'hex'),
-        bech32Prefix,
-      );
-    } else {
-      wallet = await DirectSecp256k1HdWallet.fromMnemonic(privateKey, {
-        prefix: bech32Prefix,
-      });
-    }
-
-    const cometClient = provider.getCometClientOrFail();
-
     // parse gas price so it has the correct format
-    const gasPrice = GasPrice.fromString(
-      `${nativeTokenConfig.amount}${nativeTokenConfig.denom}`,
-    );
+    const gasPrice = `${nativeTokenConfig.amount}${nativeTokenConfig.denom}`;
 
-    return SigningHyperlaneModuleClient.createWithSigner(cometClient, wallet, {
-      gasPrice,
-    });
+    return CosmosNativeSigner.connectWithSigner(
+      provider.getRpcUrl(),
+      privateKey,
+      {
+        bech32Prefix,
+        gasPrice,
+      },
+    );
   }
 }

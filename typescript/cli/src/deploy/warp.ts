@@ -599,7 +599,7 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, multiProtocolProvider, multiVmSigners, registry } =
+  const { multiProvider, multiVmProviders, multiVmSigners, registry } =
     params.context;
 
   const registryAddresses =
@@ -620,7 +620,7 @@ async function updateExistingWarpRoute(
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
-    multiProtocolProvider,
+    multiVmProviders,
     warpDeployConfig,
     deployedRoutersAddresses,
   });

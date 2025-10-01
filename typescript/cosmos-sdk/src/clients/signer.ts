@@ -95,7 +95,7 @@ export class CosmosNativeSigner
     const cometClient = await connectComet(rpcUrl);
     const account = await wallet.getAccounts();
 
-    return new CosmosNativeSigner(cometClient, signer, account[0], {
+    return new CosmosNativeSigner(cometClient, signer, account[0], rpcUrl, {
       fee: 2,
       memo: '',
     });
@@ -105,9 +105,10 @@ export class CosmosNativeSigner
     cometClient: CometClient,
     signer: SigningStargateClient,
     account: AccountData,
+    rpcUrl: string,
     options: TxOptions,
   ) {
-    super(cometClient);
+    super(cometClient, rpcUrl);
     this.signer = signer;
     this.account = account;
     this.options = options;

@@ -1,4 +1,4 @@
-import { ProtocolType } from './types.js';
+import { Address, HexString, Numberish, ProtocolType } from './types.js';
 
 // ### QUERY BASE ###
 export type ReqGetBalance = { address: string; denom: string };
@@ -7,11 +7,17 @@ export type ResGetBalance = bigint;
 export type ReqGetTotalSupply = { denom: string };
 export type ResGetTotalSupply = bigint;
 
-export type ReqEstimateTransactionFee = { transaction: any };
+export type ReqEstimateTransactionFee = {
+  transaction: any;
+  estimatedGasPrice: Numberish;
+  sender: Address;
+  senderPubKey: HexString;
+  memo?: string;
+};
 export type ResEstimateTransactionFee = {
-  gasUnits: bigint;
+  gasUnits: number;
   gasPrice: number;
-  fee: bigint;
+  fee: number;
 };
 
 // ### QUERY CORE ###
@@ -25,6 +31,9 @@ export type ResGetMailbox = {
   default_hook: string;
   required_hook: string;
 };
+
+export type ReqDelivered = { mailbox_id: string; message_id: string };
+export type ResDelivered = boolean;
 
 export enum IsmType {
   MESSAGE_ID_MULTISIG_ISM = 'MESSAGE_ID_MULTISIG_ISM',
@@ -370,6 +379,10 @@ export interface IMultiVMProvider {
 
   isHealthy(): Promise<boolean>;
 
+  getRpcUrl(): string;
+
+  getHeight(): Promise<number>;
+
   getBalance(req: ReqGetBalance): Promise<ResGetBalance>;
 
   getTotalSupply(req: ReqGetTotalSupply): Promise<ResGetTotalSupply>;
@@ -381,6 +394,8 @@ export interface IMultiVMProvider {
   // ### QUERY CORE ###
 
   getMailbox(req: ReqGetMailbox): Promise<ResGetMailbox>;
+
+  delivered(req: ReqDelivered): Promise<ResDelivered>;
 
   getIsmType(req: ReqGetIsmType): Promise<ResGetIsmType>;
 

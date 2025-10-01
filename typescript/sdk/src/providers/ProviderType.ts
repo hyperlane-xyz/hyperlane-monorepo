@@ -35,7 +35,7 @@ import {
   types as zkSyncTypes,
 } from 'zksync-ethers';
 
-import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -165,9 +165,9 @@ export interface CosmJsWasmProvider
 }
 
 export interface CosmJsNativeProvider
-  extends TypedProviderBase<Promise<HyperlaneModuleClient>> {
+  extends TypedProviderBase<Promise<CosmosNativeProvider>> {
   type: ProviderType.CosmJsNative;
-  provider: Promise<HyperlaneModuleClient>;
+  provider: Promise<CosmosNativeProvider>;
 }
 
 export interface StarknetJsProvider

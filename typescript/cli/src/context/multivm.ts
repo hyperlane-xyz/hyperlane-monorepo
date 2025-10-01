@@ -89,7 +89,7 @@ export class MultiVmSignerFactory implements MultiVM.IMultiVMSignerFactory {
       const metadata = metadataManager.getChainMetadata(chain);
 
       // TODO: MULTIVM
-      // make this cleaner and get from env variables
+      // make this cleaner and get from env variables and strategy config
       if (!key[metadata.protocol]) {
         throw new Error(
           `No private key provided for protocol ${metadata.protocol}`,

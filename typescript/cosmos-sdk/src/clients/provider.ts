@@ -1,7 +1,10 @@
+import { encodeSecp256k1Pubkey } from '@cosmjs/amino';
+import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import {
   BankExtension,
   QueryClient,
+  StargateClient,
   defaultRegistryTypes,
   setupBankExtension,
 } from '@cosmjs/stargate';
@@ -58,13 +61,14 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
     PostDispatchExtension;
   private readonly registry: Registry;
   private readonly cometClient: CometClient;
+  private readonly rpcUrl: string;
 
   static async connect(rpcUrl: string): Promise<CosmosNativeProvider> {
     const client = await connectComet(rpcUrl);
-    return new CosmosNativeProvider(client);
+    return new CosmosNativeProvider(client, rpcUrl);
   }
 
-  protected constructor(cometClient: CometClient) {
+  protected constructor(cometClient: CometClient, rpcUrl: string) {
     this.query = QueryClient.withExtensions(
       cometClient,
       setupBankExtension,
@@ -82,6 +86,7 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
     });
 
     this.cometClient = cometClient;
+    this.rpcUrl = rpcUrl;
   }
 
   // ### QUERY BASE ###
@@ -89,6 +94,15 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
   async isHealthy() {
     const status = await this.cometClient.status();
     return status.syncInfo.latestBlockHeight > 0;
+  }
+
+  getRpcUrl(): string {
+    return this.rpcUrl;
+  }
+
+  async getHeight() {
+    const status = await this.cometClient.status();
+    return status.syncInfo.latestBlockHeight;
   }
 
   async getBalance(req: MultiVM.ReqGetBalance): Promise<MultiVM.ResGetBalance> {
@@ -104,9 +118,31 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
   }
 
   async estimateTransactionFee(
-    _req: MultiVM.ReqEstimateTransactionFee,
+    req: MultiVM.ReqEstimateTransactionFee,
   ): Promise<MultiVM.ResEstimateTransactionFee> {
-    return { gasUnits: 0n, gasPrice: 0, fee: 0n };
+    const stargateClient = await StargateClient.connect(this.rpcUrl);
+
+    const message = this.registry.encodeAsAny(req.transaction);
+    const pubKey = encodeSecp256k1Pubkey(
+      new Uint8Array(Buffer.from(req.senderPubKey, 'hex')),
+    );
+
+    const queryClient = stargateClient['getQueryClient']();
+    assert(queryClient, `queryClient could not be found on stargate client`);
+
+    const { sequence } = await stargateClient.getSequence(req.sender);
+    const { gasInfo } = await queryClient.tx.simulate(
+      [message],
+      req.memo,
+      pubKey,
+      sequence,
+    );
+    const gasUnits = Uint53.fromString(
+      gasInfo?.gasUsed.toString() ?? '0',
+    ).toNumber();
+
+    const gasPrice = parseFloat(req.estimatedGasPrice.toString());
+    return { gasUnits, gasPrice, fee: Math.floor(gasUnits * gasPrice) };
   }
 
   // ### QUERY CORE ###
@@ -123,6 +159,14 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
       default_hook: mailbox.default_hook,
       required_hook: mailbox.required_hook,
     };
+  }
+
+  async delivered(req: MultiVM.ReqDelivered): Promise<MultiVM.ResDelivered> {
+    const { delivered } = await this.query.core.Delivered({
+      id: req.mailbox_id,
+      message_id: req.message_id,
+    });
+    return delivered;
   }
 
   async getIsmType(req: MultiVM.ReqGetIsmType): Promise<MultiVM.ResGetIsmType> {
