@@ -1,6 +1,6 @@
 use super::hub_to_kaspa::{
     build_withdrawal_pskt, extract_current_anchor, fetch_input_utxos, get_normal_bucket_feerate,
-    get_outputs_from_msgs_with_mass_limit,
+    get_outputs_from_msgs,
 };
 use crate::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping_bundle};
 use corelib::consts::RELAYER_SIG_OP_COUNT;
@@ -9,7 +9,7 @@ use corelib::payload::MessageIDs;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
-use hardcode::tx::SWEEPING_THRESHOLD;
+use hardcode::tx::{MAX_MASS_MARGIN, SWEEPING_THRESHOLD};
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
@@ -20,6 +20,45 @@ use tracing::info;
 // (input, entry, optional_redeem_script)
 pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry, Option<Vec<u8>>);
 
+/// Adjusts outputs and messages to fit within transaction mass limits
+/// Returns (adjusted_outputs, adjusted_messages, final_mass)
+fn adjust_outputs_for_mass_limit(
+    inputs: Vec<PopulatedInput>,
+    mut outputs: Vec<kaspa_consensus_core::tx::TransactionOutput>,
+    mut messages: Vec<HyperlaneMessage>,
+    network_id: kaspa_consensus_core::network::NetworkId,
+    escrow_m: u16,
+) -> Result<(
+    Vec<kaspa_consensus_core::tx::TransactionOutput>,
+    Vec<HyperlaneMessage>,
+    u64,
+)> {
+    // Use MAX_MASS_MARGIN as safety margin for mass limit
+    // This ensures we stay under the limit even with estimation variance
+    let max_allowed_mass =
+        (kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS as f64 * MAX_MASS_MARGIN) as u64;
+    loop {
+        let tx_mass = super::hub_to_kaspa::estimate_mass(
+            inputs.clone(),
+            outputs.clone(),
+            MessageIDs::from(&messages).to_bytes(),
+            network_id,
+            escrow_m,
+        )
+        .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
+        if tx_mass <= max_allowed_mass {
+            return Ok((outputs, messages, tx_mass));
+        }
+        if outputs.is_empty() {
+            return Err(eyre::eyre!(
+                "Cannot process any withdrawals - even a single withdrawal exceeds mass limit"
+            ));
+        }
+        outputs.pop();
+        messages.pop();
+    }
+}
+
 /// Processes given messages and returns WithdrawFXG and the very first outpoint
 /// (the one preceding all the given transfers; it should be used during process indication).
 pub async fn on_new_withdrawals(
@@ -27,7 +66,7 @@ pub async fn on_new_withdrawals(
     relayer: EasyKaspaWallet,
     cosmos: CosmosProvider<ModuleQueryClient>,
     escrow_public: EscrowPublic,
-    min_deposit_sompi: U256,
+    min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
     info!("Kaspa relayer, getting pending withdrawals");
@@ -43,7 +82,7 @@ pub async fn on_new_withdrawals(
         current_anchor,
         relayer,
         escrow_public,
-        min_deposit_sompi,
+        min_withdrawal_sompi,
         tx_fee_multiplier,
     )
     .await
@@ -54,28 +93,14 @@ pub async fn build_withdrawal_fxg(
     current_anchor: TransactionOutpoint,
     relayer: EasyKaspaWallet,
     escrow_public: EscrowPublic,
-    min_deposit_sompi: U256,
+    min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
-    // Get sample inputs for mass estimation
-    let escrow_inputs = fetch_input_utxos(
-        &relayer.api(),
-        &escrow_public.addr,
-        Some(escrow_public.redeem_script.clone()),
-        escrow_public.n() as u8,
-        relayer.net.network_id,
-    )
-    .await
-    .map_err(|e| eyre::eyre!("Fetch sample escrow UTXOs for mass estimation: {}", e))?;
-
-    // Filter out dust messages and create Kaspa outputs with mass limit
-    let (valid_msgs, outputs) = get_outputs_from_msgs_with_mass_limit(
+    // Filter out dust messages and create Kaspa outputs for the rest
+    let (valid_msgs, outputs) = get_outputs_from_msgs(
         pending_msgs,
         relayer.net.address_prefix,
-        min_deposit_sompi,
-        escrow_inputs.clone(),
-        relayer.net.network_id,
-        escrow_public.m() as u16,
+        min_withdrawal_sompi,
     );
 
     let feerate = get_normal_bucket_feerate(&relayer.api())
@@ -90,6 +115,17 @@ pub async fn build_withdrawal_fxg(
         "Kaspa relayer, got pending withdrawals, building PSKT, withdrawal num: {}",
         outputs.len()
     );
+
+    // Get all the UTXOs for the escrow and the relayer
+    let escrow_inputs = fetch_input_utxos(
+        &relayer.api(),
+        &escrow_public.addr,
+        Some(escrow_public.redeem_script.clone()),
+        escrow_public.n() as u8,
+        relayer.net.network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Fetch escrow UTXOs: {}", e))?;
 
     let relayer_address = relayer.account().change_address()?;
     let relayer_inputs = fetch_input_utxos(
@@ -114,11 +150,19 @@ pub async fn build_withdrawal_fxg(
 
         let to_sweep_num = escrow_inputs_to_sweep.len();
 
+        // Calculate total withdrawal amount needed
+        let total_withdrawal_amount: u64 = outputs.iter().map(|o| o.value).sum();
+
+        // Get anchor amount (not swept but available for withdrawals)
+        let anchor_amount = anchor_input.1.amount; // anchor_input is (TransactionInput, UtxoEntry, Option<Vec<u8>>)
+
         let sweeping_bundle = create_sweeping_bundle(
             &relayer,
             &escrow_public,
             escrow_inputs_to_sweep,
             relayer_inputs,
+            total_withdrawal_amount,
+            anchor_amount,
         )
         .await
         .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;
@@ -129,8 +173,9 @@ pub async fn build_withdrawal_fxg(
             .map_err(|e| eyre::eyre!("Create input from sweeping bundle: {}", e))?;
 
         info!(
-            "Constructed sweeping bundle of {} PSKTs, {to_sweep_num} escrow inputs are swept",
+            "constructed sweeping bundle: pskt_count: {}, escrow_inputs_swept: {}",
             sweeping_bundle.0.len(),
+            to_sweep_num
         );
 
         let mut inputs = Vec::with_capacity(swept_outputs.len() + 1);
@@ -148,30 +193,40 @@ pub async fn build_withdrawal_fxg(
         (None, inputs)
     };
 
-    let payload = MessageIDs::from(&valid_msgs).to_bytes();
+    // Estimate mass and remove outputs if necessary
+    let (final_outputs, final_msgs, tx_mass) = adjust_outputs_for_mass_limit(
+        inputs.clone(),
+        outputs.clone(),
+        valid_msgs.clone(),
+        relayer.net.network_id,
+        escrow_public.m() as u16,
+    )?;
+
+    let payload = MessageIDs::from(&final_msgs).to_bytes();
 
     let pskt = build_withdrawal_pskt(
         inputs,
-        outputs,
+        final_outputs,
         payload,
         &escrow_public,
         &relayer_address,
-        relayer.net.network_id,
-        min_deposit_sompi,
+        min_withdrawal_sompi,
         feerate * tx_fee_multiplier,
+        tx_mass,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
     // Contract: the last output of the withdrawal PSKT is the new anchor
     let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
 
-    // The first N (if any) elements are empty since sweeping PSKTs don't have any HL messages.
-    // The last element is the withdrawal PSKT, so it should have all the HL messages.
     let messages = {
+        // Create a list of (list of) messages for teach TX
+        // The first N (if any) elements are empty since sweeping PSKTs don't have any HL messages.
+        // The last element is the withdrawal PSKT, so it should have all the HL messages.
         let sweep_count = sweeping_bundle.as_ref().map_or(0, |b| b.0.len());
-        let mut messages = Vec::with_capacity(sweep_count + valid_msgs.len());
+        let mut messages = Vec::with_capacity(sweep_count + final_msgs.len());
         messages.extend(vec![Vec::new(); sweep_count]);
-        messages.push(valid_msgs);
+        messages.push(final_msgs);
         messages
     };
 
@@ -195,7 +250,6 @@ pub async fn build_withdrawal_fxg(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     use hyperlane_core::Decode;
     use hyperlane_warp_route::TokenMessage;
@@ -247,12 +301,12 @@ mod tests {
             ],
         ];
 
-        for (i, bytes) in bytes_a.iter().enumerate() {
+        for (_i, bytes) in bytes_a.iter().enumerate() {
             // Create a Cursor around the byte array for the reader
             let mut reader = Cursor::new(bytes);
 
             // Decode the byte array into a TokenMessage
-            let token_message =
+            let _token_message =
                 TokenMessage::read_from(&mut reader).expect("Failed to decode TokenMessage");
         }
     }

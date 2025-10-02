@@ -1,10 +1,10 @@
 use super::messages::PopulatedInput;
 use super::minimum::{is_dust, is_small_value};
+use super::populated_input::PopulatedInputBuilder;
 use crate::withdraw::sweep::utxo_reference_from_populated_input;
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
 use corelib::message::parse_hyperlane_metadata;
-use corelib::payload::MessageIDs;
 use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::SigningResources;
@@ -19,14 +19,12 @@ use kaspa_consensus_core::constants::TX_VERSION;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
 use kaspa_consensus_core::tx::UtxoEntry;
-use kaspa_consensus_core::tx::{
-    Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
-};
+use kaspa_consensus_core::tx::{Transaction, TransactionOutpoint, TransactionOutput};
 use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
 use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_core::tx::{MassCalculator, MAXIMUM_STANDARD_TRANSACTION_MASS};
+use kaspa_wallet_core::tx::MassCalculator;
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
@@ -47,16 +45,19 @@ pub async fn fetch_input_utxos(
     Ok(utxos
         .into_iter()
         .map(|utxo| {
-            (
-                TransactionInput::new(
-                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    vec![], // signature_script is empty for unsigned transactions
-                    0,      // sequence does not matter
-                    sig_op_count,
-                ),
-                UtxoEntry::from(utxo.utxo_entry),
-                redeem_script.clone(),
+            let outpoint = kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint);
+            let entry = UtxoEntry::from(utxo.utxo_entry);
+
+            PopulatedInputBuilder::new(
+                outpoint.transaction_id,
+                outpoint.index,
+                entry.amount,
+                entry.script_public_key,
             )
+            .sig_op_count(sig_op_count)
+            .block_daa_score(entry.block_daa_score)
+            .redeem_script(redeem_script.clone())
+            .build()
         })
         .collect())
 }
@@ -110,9 +111,9 @@ pub fn build_withdrawal_pskt(
     payload: Vec<u8>,
     escrow: &EscrowPublic,
     relayer_addr: &kaspa_addresses::Address,
-    network_id: NetworkId,
     min_deposit_sompi: U256,
     feerate: f64,
+    tx_mass: u64,
 ) -> Result<PSKT<Signer>> {
     //////////////////
     //   Balances   //
@@ -159,15 +160,6 @@ pub fn build_withdrawal_pskt(
     //////////////////
     //     Fee      //
     //////////////////
-
-    let tx_mass = estimate_mass(
-        inputs.clone(),
-        outputs.clone(),
-        payload.clone(),
-        network_id,
-        escrow.m() as u16,
-    )
-    .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
 
     // Apply TX mass multiplier and feerate
     let tx_fee = (tx_mass as f64 * feerate).round() as u64;
@@ -285,18 +277,14 @@ fn create_withdrawal_pskt(
 }
 
 /// Return outputs generated based on the provided messages. Filter out messages
-/// with dust amount. It limits outputs based on transaction mass estimation
-pub fn get_outputs_from_msgs_with_mass_limit(
+/// with dust amount.
+pub fn get_outputs_from_msgs(
     messages: Vec<HyperlaneMessage>,
     prefix: Prefix,
-    min_deposit_sompi: U256,
-    inputs: Vec<PopulatedInput>,
-    network_id: NetworkId,
-    min_signatures: u16,
+    min_withdrawal_sompi: U256,
 ) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();
-
     for m in messages {
         let tm = match parse_hyperlane_metadata(&m) {
             Ok(tm) => tm,
@@ -310,62 +298,17 @@ pub fn get_outputs_from_msgs_with_mass_limit(
         };
 
         let recipient = get_recipient_script_pubkey(tm.recipient(), prefix);
+
         let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
 
-        if is_dust(&o, min_deposit_sompi) {
+        if is_dust(&o, min_withdrawal_sompi) {
             info!("Kaspa relayer, withdrawal amount is less than dust amount, skipping, amount: {}, message id: {:?}", o.value, m.id());
             continue;
         }
 
-        // Check if adding this output would exceed mass limit
-        let mut test_outputs = outputs.clone();
-        test_outputs.push(o.clone());
-
-        // Create test messages list with the current message added
-        let mut test_msgs = hl_msgs.clone();
-        test_msgs.push(m.clone());
-
-        // Calculate actual payload size from current messages
-        let payload = Vec::<u8>::from(&MessageIDs::from(&test_msgs));
-
-        match estimate_mass(
-            inputs.clone(),
-            test_outputs,
-            payload,
-            network_id,
-            min_signatures,
-        ) {
-            Ok(estimated_mass) => {
-                if estimated_mass > MAXIMUM_STANDARD_TRANSACTION_MASS {
-                    info!(
-                        "Kaspa relayer, stopping at {} outputs due to mass limit. Estimated mass: {}, limit: {}, messages: {}",
-                        outputs.len(),
-                        estimated_mass,
-                        MAXIMUM_STANDARD_TRANSACTION_MASS,
-                        test_msgs.len()
-                    );
-                    break;
-                }
-            }
-            Err(e) => {
-                info!(
-                    "Kaspa relayer, failed to estimate mass, continuing without limit: {}",
-                    e
-                );
-            }
-        }
-        // If we are here, it means the output is valid and does not exceed mass limit
-
         outputs.push(o);
         hl_msgs.push(m);
     }
-
-    info!(
-        "Kaspa relayer, selected {} outputs from {} messages",
-        outputs.len(),
-        hl_msgs.len()
-    );
-
     (hl_msgs, outputs)
 }
 
@@ -413,7 +356,7 @@ pub(crate) fn extract_current_anchor(
     Ok((anchor_input, escrow_inputs))
 }
 
-fn estimate_mass(
+pub fn estimate_mass(
     populated_inputs: Vec<PopulatedInput>,
     outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
@@ -786,25 +729,18 @@ mod tests {
 
         for input_count in MIN_INPUTS..=MAX_INPUTS {
             let inputs: Vec<PopulatedInput> = (0..input_count)
-                .map(|i| {
-                    (
-                        TransactionInput {
-                            previous_outpoint: TransactionOutpoint {
-                                transaction_id: "81b79b11b546e3769e91bebced62fc0ff7ce665258201fd501ea3c60d735ec7d".to_string().parse().unwrap(),
-                                index: 0,
-                            },
-                            signature_script: "41b31e2b858c19baef26cb352664b493cb9f7f3b3f94217a7ca857f740db5eb4cb1004c9a278449477e23fb1b09f141d1a939b7f8435c578af17549cd2ff79b7b4814129ab65d772387cfa300314597b0ab11d9900ffcbe2f072568cbb6cd76bdba057242e365d951d2f87ab98bb332527d6df07cf207164ab1be5a643a6d7edb9fde6814171641e6b8ce10fcf5b41e962cf3665020a5e295ddf35a6a07e791d619aa1580d5f43d37c7dfa3c115b648c25b92ad17868e61bd01ad782b04ead5177ce5f40958141bc5b0b3f6e3bbb468d8710aba0cb0c04e046371f1b0972aacf48121e9d0704233e7596685e9a25464b85857562427f4982ba6e84c3258e356d9bff67478bb4df81415177d6b9b39414dd75374089d98c38b145c332b7a960cf2cabeb9cdd397c090d7e81bc28619f0491b1a57483013adca9badff86df32d31598fee28fd4699ed15814123b9ae551e0201f106291923d294715800ffb47a7dc158f738e341f87f0656805b1d27f931bc1653d366ef7bf55f1a0be7c8c25ed510dbec3297fae0b51c96d4814d0b0156205461e2ab2584bc80435c2a3f51c4cf12285992b5e4fdec57f1f8b506134a90872018a9fcc6059c1995c70b8f31b2256ac3d4aeca5dffa331fb941a8c5d4bffdd7620d7a78be7d152498cfb9fb8a89b60723f011435303499e0de7c1bcbf88f87d1b920f02a8dc60f124b34e9a8800fb25cf25ac01a3bdcf5a6ea21d2e2569a173dd9b2208586f127129710cdac6ca1d86be1869bd8a8746db9a2339fde71278dff7fb4692014d0d6d828c2f3e5ce908978622c5677c1fc53372346a9cff60d1140c54b5e5e209035bddc82d62454b2d425e205533363d09dc5d9c0d0f74c1f937c2d211c15a120e4b95346367e49178c8571e8a649584981d8bd6f920c648e37bbe24f055baf9c58ae".as_bytes().to_vec(),
-                            sequence: u64::MAX,
-                            sig_op_count: 8,
-                        },
-                        UtxoEntry {
-                            amount: 4_000_000_000,
-                            script_public_key: spk.clone(),
-                            block_daa_score: 0,
-                            is_coinbase: false,
-                        },
-                        None,
-                    )
+                .map(|_i| {
+                    let tx_id = "81b79b11b546e3769e91bebced62fc0ff7ce665258201fd501ea3c60d735ec7d".to_string().parse().unwrap();
+                    let sig_script = "41b31e2b858c19baef26cb352664b493cb9f7f3b3f94217a7ca857f740db5eb4cb1004c9a278449477e23fb1b09f141d1a939b7f8435c578af17549cd2ff79b7b4814129ab65d772387cfa300314597b0ab11d9900ffcbe2f072568cbb6cd76bdba057242e365d951d2f87ab98bb332527d6df07cf207164ab1be5a643a6d7edb9fde6814171641e6b8ce10fcf5b41e962cf3665020a5e295ddf35a6a07e791d619aa1580d5f43d37c7dfa3c115b648c25b92ad17868e61bd01ad782b04ead5177ce5f40958141bc5b0b3f6e3bbb468d8710aba0cb0c04e046371f1b0972aacf48121e9d0704233e7596685e9a25464b85857562427f4982ba6e84c3258e356d9bff67478bb4df81415177d6b9b39414dd75374089d98c38b145c332b7a960cf2cabeb9cdd397c090d7e81bc28619f0491b1a57483013adca9badff86df32d31598fee28fd4699ed15814123b9ae551e0201f106291923d294715800ffb47a7dc158f738e341f87f0656805b1d27f931bc1653d366ef7bf55f1a0be7c8c25ed510dbec3297fae0b51c96d4814d0b0156205461e2ab2584bc80435c2a3f51c4cf12285992b5e4fdec57f1f8b506134a90872018a9fcc6059c1995c70b8f31b2256ac3d4aeca5dffa331fb941a8c5d4bffdd7620d7a78be7d152498cfb9fb8a89b60723f011435303499e0de7c1bcbf88f87d1b920f02a8dc60f124b34e9a8800fb25cf25ac01a3bdcf5a6ea21d2e2569a173dd9b2208586f127129710cdac6ca1d86be1869bd8a8746db9a2339fde71278dff7fb4692014d0d6d828c2f3e5ce908978622c5677c1fc53372346a9cff60d1140c54b5e5e209035bddc82d62454b2d425e205533363d09dc5d9c0d0f74c1f937c2d211c15a120e4b95346367e49178c8571e8a649584981d8bd6f920c648e37bbe24f055baf9c58ae".as_bytes().to_vec();
+
+                    // Create the populated input, then modify the signature script
+                    let mut input = PopulatedInputBuilder::new(tx_id, 0, 4_000_000_000, spk.clone())
+                        .sig_op_count(8)
+                        .build();
+
+                    // Update the signature script in the TransactionInput
+                    input.0.signature_script = sig_script;
+                    input
                 })
                 .collect();
 

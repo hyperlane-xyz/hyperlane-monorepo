@@ -151,7 +151,7 @@ impl Mailbox for CosmosNativeMailbox {
             .rpc()
             .send(vec![any_encoded], gas_limit)
             .await?;
-
+        info!("Cosmos process response: {response:?}");
         Ok(utils::tx_response_to_outcome(
             response,
             self.provider.rpc().gas_price(),

@@ -2,7 +2,6 @@ use crate::contract_sync::cursors::Indexable;
 use dym_kas_core::{
     confirmation::ConfirmationFXG, deposit::DepositFXG, finality::is_safe_against_reorg,
 };
-use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
 use dym_kas_relayer::confirm::expensive_trace_transactions;
 use dym_kas_relayer::deposit::{on_new_deposit as relayer_on_new_deposit, KaspaTxError};
 use dymension_kaspa::{Deposit, KaspaProvider};

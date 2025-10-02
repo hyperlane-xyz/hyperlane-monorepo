@@ -31,4 +31,8 @@ if git diff --staged --exit-code --name-only | grep -q -E ".*\.rs$"; then
 
     echo "Running cargo fmt pre-commit hook for rust/sealevel"
     cargo fmt --all --check --manifest-path rust/sealevel/Cargo.toml
+
+    echo "Running cargo fmt pre-commit hook for dymension/libs/kaspa"
+    cargo fmt --all --check --manifest-path dymension/libs/kaspa/Cargo.toml
+
 fi
