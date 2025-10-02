@@ -44,6 +44,12 @@ contract MockHyperlaneEnvironment {
         }();
     }
 
+    function processInboundMessage(uint32 _nonce) public payable {
+        mailboxes[destinationDomain].processInboundMessage{value: msg.value}(
+            _nonce
+        );
+    }
+
     function processNextPendingMessageFromDestination() public {
         mailboxes[originDomain].processNextInboundMessage();
     }

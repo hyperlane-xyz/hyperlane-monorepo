@@ -28,6 +28,7 @@ import {Mailbox} from "../Mailbox.sol";
 import {Message} from "../libs/Message.sol";
 import {AbstractRoutingIsm} from "../isms/routing/AbstractRoutingIsm.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
+import {IcaCallCommitmentIsm} from "./IcaCallCommitmentIsm.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -52,6 +53,9 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     bytes32 public immutable bytecodeHash;
     CommitmentReadIsm public immutable CCIP_READ_ISM;
     uint public immutable COMMIT_TX_GAS_USAGE;
+
+    bytes32 public immutable COMMITMENT_ISM_BYTECODE_HASH;
+    IcaCallCommitmentIsm public immutable COMMITMENT_ISM;
 
     // ============ Public Storage ============
     mapping(uint32 destinationDomain => bytes32 ism) public isms;
@@ -126,6 +130,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
 
         CCIP_READ_ISM = new CommitmentReadIsm(_owner, _commitment_urls);
         COMMIT_TX_GAS_USAGE = _commit_tx_gas_usage;
+
+        bytes memory commitmentIsmBytecode = type(IcaCallCommitmentIsm)
+            .creationCode;
+        COMMITMENT_ISM = IcaCallCommitmentIsm(
+            Create2.deploy(0, bytes32(0), commitmentIsmBytecode)
+        );
+        COMMITMENT_ISM_BYTECODE_HASH = keccak256(commitmentIsmBytecode);
     }
 
     function interchainSecurityModule()
@@ -585,6 +596,34 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             );
     }
 
+    function callRemoteUnauthenticated(
+        uint32 _destination,
+        CallLib.Call[] calldata _calls
+    ) public payable returns (bytes32 account) {
+        // derive salt from hash of encoded calls
+        bytes32 router = routers(_destination);
+        bytes32 salt = keccak256(abi.encode(_calls));
+        address ism = Create2.computeAddress(
+            bytes32(0),
+            COMMITMENT_ISM_BYTECODE_HASH,
+            router.bytes32ToAddress()
+        );
+        callRemoteWithOverrides(
+            _destination,
+            router,
+            ism.addressToBytes32(),
+            _calls,
+            salt
+        );
+        return
+            getRemoteInterchainAccount(
+                msg.sender,
+                router.bytes32ToAddress(),
+                ism,
+                salt
+            ).addressToBytes32();
+    }
+
     /**
      * @notice Dispatches a sequence of remote calls to be made by an owner's
      * interchain account on the destination domain
@@ -593,13 +632,14 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
      * @param _router The remote router address
      * @param _ism The remote ISM address
      * @param _calls The sequence of calls to make
+     * @param _userSalt Salt used in account derivation
      * @return The Hyperlane message ID
      */
     function callRemoteWithOverrides(
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls,
+        CallLib.Call[] memory _calls,
         bytes32 _userSalt
     ) public payable returns (bytes32) {
         return
@@ -628,7 +668,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls,
+        CallLib.Call[] memory _calls,
         bytes memory _hookMetadata
     ) public payable returns (bytes32) {
         return
@@ -658,7 +698,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls,
+        CallLib.Call[] memory _calls,
         bytes memory _hookMetadata,
         bytes32 _userSalt
     ) public payable returns (bytes32) {
@@ -691,7 +731,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint32 _destination,
         bytes32 _router,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls,
+        CallLib.Call[] memory _calls,
         bytes memory _hookMetadata,
         bytes32 _salt,
         IPostDispatchHook _hook
