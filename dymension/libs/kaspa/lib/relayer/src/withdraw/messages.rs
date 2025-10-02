@@ -82,7 +82,7 @@ pub async fn on_new_withdrawals(
     relayer: EasyKaspaWallet,
     cosmos: CosmosProvider<ModuleQueryClient>,
     escrow_public: EscrowPublic,
-    min_deposit_sompi: U256,
+    min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
     info!("Kaspa relayer, getting pending withdrawals");
@@ -98,7 +98,7 @@ pub async fn on_new_withdrawals(
         current_anchor,
         relayer,
         escrow_public,
-        min_deposit_sompi,
+        min_withdrawal_sompi,
         tx_fee_multiplier,
     )
     .await
@@ -109,12 +109,15 @@ pub async fn build_withdrawal_fxg(
     current_anchor: TransactionOutpoint,
     relayer: EasyKaspaWallet,
     escrow_public: EscrowPublic,
-    min_deposit_sompi: U256,
+    min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
     // Filter out dust messages and create Kaspa outputs for the rest
-    let (valid_msgs, outputs) =
-        get_outputs_from_msgs(pending_msgs, relayer.net.address_prefix, min_deposit_sompi);
+    let (valid_msgs, outputs) = get_outputs_from_msgs(
+        pending_msgs,
+        relayer.net.address_prefix,
+        min_withdrawal_sompi,
+    );
 
     let feerate = get_normal_bucket_feerate(&relayer.api())
         .await
@@ -222,7 +225,7 @@ pub async fn build_withdrawal_fxg(
         payload,
         &escrow_public,
         &relayer_address,
-        min_deposit_sompi,
+        min_withdrawal_sompi,
         feerate * tx_fee_multiplier,
         tx_mass,
     )

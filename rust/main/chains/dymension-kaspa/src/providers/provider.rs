@@ -184,12 +184,13 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Vec<HyperlaneMessage>> {
+        let min_withdrawal_amount = self.conf.min_deposit_sompi;
         let res = on_new_withdrawals(
             msgs.clone(),
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
-            self.conf.min_deposit_sompi,
+            min_withdrawal_amount,
             self.must_relayer_stuff().tx_fee_multiplier,
         )
         .await;

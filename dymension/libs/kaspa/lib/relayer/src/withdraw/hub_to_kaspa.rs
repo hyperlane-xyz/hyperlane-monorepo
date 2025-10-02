@@ -282,7 +282,7 @@ fn create_withdrawal_pskt(
 pub fn get_outputs_from_msgs(
     messages: Vec<HyperlaneMessage>,
     prefix: Prefix,
-    min_deposit_sompi: U256,
+    min_withdrawal_sompi: U256,
 ) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();
@@ -302,7 +302,7 @@ pub fn get_outputs_from_msgs(
 
         let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
 
-        if is_dust(&o, min_deposit_sompi) {
+        if is_dust(&o, min_withdrawal_sompi) {
             info!("Kaspa relayer, withdrawal amount is less than dust amount, skipping, amount: {}, message id: {:?}", o.value, m.id());
             continue;
         }
