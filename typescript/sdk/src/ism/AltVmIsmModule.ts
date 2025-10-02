@@ -287,7 +287,7 @@ export class AltVmIsmModule extends HyperlaneModule<
       const domain_id = this.metadataManager.getDomainId(origin);
       updateTxs.push({
         annotation: `Setting new ISM for origin ${origin}...`,
-        transaction: await this.signer.populateSetRoutingIsmRoute({
+        altvm_tx: await this.signer.populateSetRoutingIsmRoute({
           signer: this.signer.getSignerAddress(),
           ism_id: this.args.addresses.deployedIsm,
           route: {
@@ -308,7 +308,7 @@ export class AltVmIsmModule extends HyperlaneModule<
       const domain_id = this.metadataManager.getDomainId(origin);
       updateTxs.push({
         annotation: `Unenrolling originDomain ${domain_id} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
-        transaction: await this.signer.populateRemoveRoutingIsmRoute({
+        altvm_tx: await this.signer.populateRemoveRoutingIsmRoute({
           signer: this.signer.getSignerAddress(),
           ism_id: this.args.addresses.deployedIsm,
           domain_id,
@@ -322,7 +322,7 @@ export class AltVmIsmModule extends HyperlaneModule<
         annotation: `Transferring ownership of ISM from ${
           actual.owner
         } to ${expected.owner}`,
-        transaction: await this.signer.populateSetRoutingIsmOwner({
+        altvm_tx: await this.signer.populateSetRoutingIsmOwner({
           signer: this.signer.getSignerAddress(),
           ism_id: this.args.addresses.deployedIsm,
           new_owner: expected.owner,

@@ -155,7 +155,7 @@ export class AltVmWarpModule extends HyperlaneModule<
     for (const domainId of routesToEnroll) {
       updateTransactions.push({
         annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        transaction: await this.signer.populateEnrollRemoteRouter({
+        altvm_tx: await this.signer.populateEnrollRemoteRouter({
           signer: this.signer.getSignerAddress(),
           token_id: this.args.addresses.deployedTokenRoute,
           remote_router: {
@@ -201,7 +201,7 @@ export class AltVmWarpModule extends HyperlaneModule<
     for (const domainId of routesToUnenroll) {
       updateTransactions.push({
         annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        transaction: await this.signer.populateUnenrollRemoteRouter({
+        altvm_tx: await this.signer.populateUnenrollRemoteRouter({
           signer: this.signer.getSignerAddress(),
           token_id: this.args.addresses.deployedTokenRoute,
           receiver_domain_id: parseInt(domainId),
@@ -267,7 +267,7 @@ export class AltVmWarpModule extends HyperlaneModule<
         if (alreadyEnrolledDomains.includes(parseInt(domain))) {
           updateTransactions.push({
             annotation: `Unenrolling ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-            transaction: await this.signer.populateUnenrollRemoteRouter({
+            altvm_tx: await this.signer.populateUnenrollRemoteRouter({
               signer: this.signer.getSignerAddress(),
               token_id: this.args.addresses.deployedTokenRoute,
               receiver_domain_id: parseInt(domain),
@@ -277,7 +277,7 @@ export class AltVmWarpModule extends HyperlaneModule<
 
         updateTransactions.push({
           annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain} to ${gas}`,
-          transaction: await this.signer.populateEnrollRemoteRouter({
+          altvm_tx: await this.signer.populateEnrollRemoteRouter({
             signer: this.signer.getSignerAddress(),
             token_id: this.args.addresses.deployedTokenRoute,
             remote_router: {
@@ -339,7 +339,7 @@ export class AltVmWarpModule extends HyperlaneModule<
     if (actualDeployedIsm !== expectedDeployedIsm) {
       updateTransactions.push({
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
-        transaction: await this.signer.populateSetTokenIsm({
+        altvm_tx: await this.signer.populateSetTokenIsm({
           signer: this.signer.getSignerAddress(),
           token_id: this.args.addresses.deployedTokenRoute,
           ism_id: expectedDeployedIsm,
@@ -368,7 +368,7 @@ export class AltVmWarpModule extends HyperlaneModule<
     return [
       {
         annotation: `Transferring ownership of ${this.args.addresses.deployedTokenRoute} from ${actualConfig.owner} to ${expectedConfig.owner}`,
-        transaction: await this.signer.populateSetTokenOwner({
+        altvm_tx: await this.signer.populateSetTokenOwner({
           signer: this.signer.getSignerAddress(),
           token_id: this.args.addresses.deployedTokenRoute,
           new_owner: expectedConfig.owner,

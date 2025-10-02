@@ -174,7 +174,7 @@ export async function runCoreApply(params: ApplyParams) {
       if (transactions.length) {
         logGray('Updating deployed core contracts');
 
-        await signer.signAndBroadcast(transactions.map((t) => t.transaction));
+        await signer.signAndBroadcast(transactions.map((t) => t.altvm_tx));
 
         logGreen(`Core config updated on ${chain}.`);
       } else {

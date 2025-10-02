@@ -247,7 +247,7 @@ export async function estimateTransactionFeeCosmJsNative({
 
   return client.estimateTransactionFee({
     transaction: transaction.transaction,
-    estimatedGasPrice,
+    estimatedGasPrice: estimatedGasPrice.toString(),
     sender,
     senderPubKey,
     memo,

@@ -120,6 +120,10 @@ export class CosmosNativeProvider implements AltVM.IProvider {
   async estimateTransactionFee(
     req: AltVM.ReqEstimateTransactionFee,
   ): Promise<AltVM.ResEstimateTransactionFee> {
+    assert(
+      req.senderPubKey,
+      `Cosmos Native requires a sender public key to estimate the transaction fee`,
+    );
     const stargateClient = await StargateClient.connect(this.rpcUrl);
 
     const message = this.registry.encodeAsAny(req.transaction);

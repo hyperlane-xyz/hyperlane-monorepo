@@ -1,5 +1,5 @@
 import { MINIMUM_GAS } from './mingas.js';
-import { Address, HexString, Numberish, ProtocolType } from './types.js';
+import { ProtocolType } from './types.js';
 
 // ### QUERY BASE ###
 export type ReqGetBalance = { address: string; denom: string };
@@ -10,9 +10,9 @@ export type ResGetTotalSupply = bigint;
 
 export type ReqEstimateTransactionFee = {
   transaction: any;
-  estimatedGasPrice: Numberish;
-  sender: Address;
-  senderPubKey: HexString;
+  estimatedGasPrice: string;
+  sender: string;
+  senderPubKey?: string;
   memo?: string;
 };
 export type ResEstimateTransactionFee = {

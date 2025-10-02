@@ -353,7 +353,7 @@ export type AnnotatedZKSyncTransaction =
 
 export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
-export type AnnotatedAltVmTransaction = Annotated<{ transaction: any }>;
+export type AnnotatedAltVmTransaction = Annotated<{ altvm_tx: any }>;
 
 export type TypedAnnotatedTransaction =
   | AnnotatedEV5Transaction

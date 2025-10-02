@@ -162,7 +162,7 @@ export class AltVmHookModule extends HyperlaneModule<
 
       updateTxs.push({
         annotation: `Setting gas params for ${this.chain}`,
-        transaction: await this.signer.populateSetDestinationGasConfig({
+        altvm_tx: await this.signer.populateSetDestinationGasConfig({
           signer: this.signer.getSignerAddress(),
           hook_id: this.args.addresses.deployedHook,
           destination_gas_config: {
@@ -181,12 +181,11 @@ export class AltVmHookModule extends HyperlaneModule<
     if (!eqAddress(this.signer.getSignerAddress(), targetConfig.owner)) {
       updateTxs.push({
         annotation: 'Transferring ownership of ownable Hook...',
-        transaction:
-          await this.signer.populateSetInterchainGasPaymasterHookOwner({
-            signer: this.signer.getSignerAddress(),
-            hook_id: this.args.addresses.deployedHook,
-            new_owner: targetConfig.owner,
-          }),
+        altvm_tx: await this.signer.populateSetInterchainGasPaymasterHookOwner({
+          signer: this.signer.getSignerAddress(),
+          hook_id: this.args.addresses.deployedHook,
+          new_owner: targetConfig.owner,
+        }),
       });
     }
 
