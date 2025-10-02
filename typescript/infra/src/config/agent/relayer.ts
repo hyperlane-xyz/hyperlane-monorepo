@@ -145,19 +145,17 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
     const relayerConfig: RelayerConfig = {
       relayChains: this.relayChains.join(','),
-      gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
+      gasPaymentEnforcement: baseConfig.gasPaymentEnforcement,
     };
 
     if (baseConfig.whitelist) {
-      relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
+      relayerConfig.whitelist = baseConfig.whitelist;
     }
     if (baseConfig.blacklist) {
-      relayerConfig.blacklist = JSON.stringify(baseConfig.blacklist);
+      relayerConfig.blacklist = baseConfig.blacklist;
     }
 
-    relayerConfig.addressBlacklist = (await this.getSanctionedAddresses()).join(
-      ',',
-    );
+    relayerConfig.addressBlacklist = await this.getSanctionedAddresses();
 
     if (baseConfig.transactionGasLimit) {
       relayerConfig.transactionGasLimit =
@@ -168,9 +166,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
         baseConfig.skipTransactionGasLimitFor.join(',');
     }
     if (baseConfig.metricAppContextsGetter) {
-      relayerConfig.metricAppContexts = JSON.stringify(
-        baseConfig.metricAppContextsGetter(),
-      );
+      relayerConfig.metricAppContexts = baseConfig.metricAppContextsGetter();
     }
     if (baseConfig.ismCacheConfigs) {
       relayerConfig.ismCacheConfigs = baseConfig.ismCacheConfigs;

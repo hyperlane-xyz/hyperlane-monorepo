@@ -27,6 +27,7 @@ import {
 import { Contexts } from '../../config/contexts.js';
 import mainnet3GasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
 import testnet4GasPrices from '../../config/environments/testnet4/gasPrices.json' with { type: 'json' };
+import { RelayerHelmManager } from '../../src/agents/index.js';
 import { getCombinedChainsToScrape } from '../../src/config/agent/scraper.js';
 import {
   DeployEnvironment,
@@ -44,6 +45,7 @@ import {
   getAddresses,
   getAgentConfig,
   getAgentConfigJsonPath,
+  getAgentConfigMapJsonPath,
   getArgs,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -53,6 +55,7 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
   await writeAgentConfig(multiProvider, environment);
+  await writeAgentConfigMap(multiProvider, environment);
 }
 
 // Keep as a function in case we want to use it in the future
@@ -215,6 +218,32 @@ export async function writeAgentConfig(
     );
   } else {
     writeAndFormatJsonAtPath(filepath, agentConfig);
+  }
+}
+
+export async function writeAgentConfigMap(
+  multiProvider: MultiProvider,
+  environment: DeployEnvironment,
+) {
+  const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
+  const relayerManager = new RelayerHelmManager(envAgentConfig);
+
+  const helmValues = await relayerManager.helmValues();
+
+  const agentConfigMap = {
+    envConfig: helmValues.hyperlane.relayer?.envConfig,
+    configMapConfig: helmValues.hyperlane.relayer?.configMapConfig,
+  };
+
+  const filepath = getAgentConfigMapJsonPath(envNameToAgentEnv[environment]);
+  if (fs.existsSync(filepath)) {
+    const currentAgentConfigMap = readJSONAtPath(filepath);
+    writeAndFormatJsonAtPath(
+      filepath,
+      objMerge(currentAgentConfigMap, agentConfigMap),
+    );
+  } else {
+    writeAndFormatJsonAtPath(filepath, agentConfigMap);
   }
 }
 
