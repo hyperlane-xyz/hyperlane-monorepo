@@ -14,7 +14,8 @@
     "gas-custom-errors": "off",
     "named-parameters-mapping": "error",
     "hyperlane/no-virtual-override": "error",
-    "hyperlane/no-virtual-initializer": "error"
+    "hyperlane/no-virtual-initializer": "error",
+    "hyperlane/no-msg-value-internal": "error"
   },
   "plugins": ["prettier", "hyperlane"]
 }
