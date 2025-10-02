@@ -21,6 +21,14 @@ contract HypXERC20 is TokenRouter {
         _disableInitializers();
     }
 
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public initializer {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+    }
+
     // ============ TokenRouter overrides ============
     function token() public view override returns (address) {
         return address(wrappedToken);

@@ -43,7 +43,6 @@ import {
   CosmNativeTokenAdapter,
 } from './adapters/CosmosTokenAdapter.js';
 import {
-  EvmHypCollateralAdapter,
   EvmHypCollateralFiatAdapter,
   EvmHypNativeAdapter,
   EvmHypRebaseCollateralAdapter,
@@ -51,6 +50,7 @@ import {
   EvmHypSyntheticRebaseAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
+  EvmMovableCollateralAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './adapters/EvmTokenAdapter.js';
@@ -203,7 +203,7 @@ export class Token implements IToken {
       standard === TokenStandard.EvmHypCollateral ||
       standard === TokenStandard.EvmHypOwnerCollateral
     ) {
-      return new EvmHypCollateralAdapter(chainName, multiProvider, {
+      return new EvmMovableCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmHypRebaseCollateral) {

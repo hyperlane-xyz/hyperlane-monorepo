@@ -53,15 +53,7 @@ contract HypERC20Collateral is LpCollateralRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public virtual initializer {
-        _HypERC20_initialize(_hook, _interchainSecurityModule, _owner);
-    }
-
-    function _HypERC20_initialize(
-        address _hook,
-        address _interchainSecurityModule,
-        address _owner
-    ) internal {
+    ) public initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
         _LpCollateralRouter_initialize();
     }

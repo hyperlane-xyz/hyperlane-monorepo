@@ -120,14 +120,14 @@ abstract contract MovableCollateralRouter is TokenRouter {
     /**
      * @notice Rebalances the collateral between router domains.
      * @param domain The domain to rebalance to.
-     * @param amount The amount of collateral to rebalance.
+     * @param collateralAmount The amount of collateral to rebalance.
      * @param bridge The bridge to use for the rebalance.
      * @dev The caller must be an allowed rebalancer and the bridge must be an allowed bridge for the domain.
      * @dev The recipient is the enrolled router if no recipient is set for the domain.
      */
     function rebalance(
         uint32 domain,
-        uint256 amount,
+        uint256 collateralAmount,
         ITokenBridge bridge
     ) external payable onlyRebalancer onlyAllowedBridge(domain, bridge) {
         bytes32 recipient = _recipient(domain);
@@ -135,30 +135,30 @@ abstract contract MovableCollateralRouter is TokenRouter {
         Quote[] memory quotes = bridge.quoteTransferRemote(
             domain,
             recipient,
-            amount
+            collateralAmount
         );
 
         // charge the rebalancer any bridging fees denominated in the collateral
         // token to avoid undercollateralization
-        uint256 collateralBridgeQuote = quotes.extract(token());
-        if (collateralBridgeQuote > amount) {
-            _transferFromSender(collateralBridgeQuote - amount);
+        uint256 collateralFees = quotes.extract(token());
+        if (collateralFees > collateralAmount) {
+            _transferFromSender(collateralFees - collateralAmount);
         }
 
         // need to handle native quote separately from collateral quote because
         // token() may be address(0), in which case we need to use address(this).balance
         // to move native collateral tokens across chains
-        uint256 nativeBridgeQuote = quotes.extract(address(0));
-        if (nativeBridgeQuote > address(this).balance) {
-            revert("Rebalance amount exceeds balance");
+        uint256 nativeFees = quotes.extract(address(0));
+        if (nativeFees > address(this).balance) {
+            revert("Rebalance native fee exceeds balance");
         }
 
-        bridge.transferRemote{value: nativeBridgeQuote}(
+        bridge.transferRemote{value: nativeFees}(
             domain,
             recipient,
-            amount
+            collateralAmount
         );
-        emit CollateralMoved(domain, recipient, amount, msg.sender);
+        emit CollateralMoved(domain, recipient, collateralAmount, msg.sender);
     }
 
     function _recipient(
