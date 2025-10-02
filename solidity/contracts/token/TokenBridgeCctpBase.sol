@@ -104,7 +104,7 @@ abstract contract TokenBridgeCctpBase is
         address _hook,
         address _owner,
         string[] memory __urls
-    ) external virtual initializer {
+    ) external initializer {
         // ISM should not be set
         _MailboxClient_initialize(_hook, address(0), _owner);
 
@@ -337,5 +337,5 @@ abstract contract TokenBridgeCctpBase is
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal virtual returns (bytes memory message) {}
+    ) internal virtual returns (bytes memory message);
 }

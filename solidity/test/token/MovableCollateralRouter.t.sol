@@ -30,12 +30,6 @@ contract MockMovableCollateralRouter is MovableCollateralRouter {
     }
 
     function _transferTo(address _to, uint256 _amount) internal override {}
-
-    function _handle(
-        uint32 _origin,
-        bytes32 _sender,
-        bytes calldata _message
-    ) internal override {}
 }
 
 contract MockITokenBridge is ITokenBridge {

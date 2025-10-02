@@ -265,16 +265,11 @@ abstract contract EverclearBridge is TokenRouter {
      */
     function _handle(
         uint32 _origin,
-        bytes32 /* sender */,
+        bytes32 _sender,
         bytes calldata _message
     ) internal override {
         _settleIntent(_message);
-
-        bytes32 _recipient = _message.recipient();
-        uint256 _amount = _message.amount();
-
-        emit ReceivedTransferRemote(_origin, _recipient, _amount);
-        _transferTo(_recipient.bytes32ToAddress(), _amount);
+        super._handle(_origin, _sender, _message);
     }
 
     /**
@@ -404,7 +399,7 @@ contract EverclearTokenBridge is EverclearBridge {
         address _recipient,
         uint256 _amount
     ) internal override {
-        wrappedToken._transferTo(_recipient, _amount);
+        // Do nothing (tokens transferred to recipient directly)
     }
 
     /**

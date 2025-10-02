@@ -162,8 +162,6 @@ contract HypERC4626 is ERC20Upgradeable, TokenRouter {
         _mint(_recipient, _shares);
     }
 
-    // _transferTo implementation reused from HypERC20 unchanged because internal accounting is in shares
-
     /**
      * @inheritdoc TokenRouter
      * @dev Amount specified by user is in assets, but the message accounting is in shares

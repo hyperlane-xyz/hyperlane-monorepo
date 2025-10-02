@@ -13,7 +13,8 @@
     "prettier/prettier": "error",
     "gas-custom-errors": "off",
     "named-parameters-mapping": "error",
-    "hyperlane/no-virtual-override": "error"
+    "hyperlane/no-virtual-override": "error",
+    "hyperlane/no-virtual-initializer": "error"
   },
   "plugins": ["prettier", "hyperlane"]
 }
