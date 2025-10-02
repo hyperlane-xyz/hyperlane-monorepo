@@ -7,19 +7,26 @@ import {
   ChainMetadataManager,
   ProtocolMap,
 } from '@hyperlane-xyz/sdk';
-import { MultiVM, ProtocolType } from '@hyperlane-xyz/utils';
+import { MINIMUM_GAS, MultiVM, ProtocolType } from '@hyperlane-xyz/utils';
 
-// ADD NEW PROTOCOL HERE
+// ### ADD NEW PROTOCOLS HERE ###
 const MULTI_VM_SUPPORTED_PROTOCOLS: SUPPORTED_PROTOCOL = {
   [ProtocolType.CosmosNative]: {
     provider: CosmosNativeProvider,
     signer: CosmosNativeSigner,
+    gas: {
+      CORE_DEPLOY_GAS: (1e6).toString(),
+      WARP_DEPLOY_GAS: (3e6).toString(),
+      TEST_SEND_GAS: (3e5).toString(),
+      AVS_GAS: (3e6).toString(),
+    },
   },
 };
 
 type SUPPORTED_PROTOCOL = ProtocolMap<{
   provider: MultiVM.IProviderConnect;
   signer: MultiVM.ISignerConnect;
+  gas: MINIMUM_GAS;
 }>;
 
 export class MultiVMProviderFactory implements MultiVM.IMultiVMProviderFactory {
@@ -35,6 +42,15 @@ export class MultiVMProviderFactory implements MultiVM.IMultiVMProviderFactory {
 
   public supports(protocol: ProtocolType) {
     return !!MULTI_VM_SUPPORTED_PROTOCOLS[protocol];
+  }
+
+  public getGas(protocol: ProtocolType) {
+    if (!this.supports(protocol)) {
+      throw new Error(`Protocol type ${protocol} not supported in MultiVM`);
+    }
+
+    const { gas } = MULTI_VM_SUPPORTED_PROTOCOLS[protocol]!;
+    return gas;
   }
 
   public async get(chain: string): Promise<MultiVM.IMultiVMProvider> {
@@ -69,6 +85,15 @@ export class MultiVmSignerFactory implements MultiVM.IMultiVMSignerFactory {
 
   public supports(protocol: ProtocolType) {
     return !!MULTI_VM_SUPPORTED_PROTOCOLS[protocol];
+  }
+
+  public getGas(protocol: ProtocolType) {
+    if (!this.supports(protocol)) {
+      throw new Error(`Protocol type ${protocol} not supported in MultiVM`);
+    }
+
+    const { gas } = MULTI_VM_SUPPORTED_PROTOCOLS[protocol]!;
+    return gas;
   }
 
   public get(chain: string): MultiVM.IMultiVMSigner {

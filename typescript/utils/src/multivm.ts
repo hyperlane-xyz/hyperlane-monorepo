@@ -1,3 +1,4 @@
+import { MINIMUM_GAS } from './mingas.js';
 import { Address, HexString, Numberish, ProtocolType } from './types.js';
 
 // ### QUERY BASE ###
@@ -614,18 +615,18 @@ export interface ISignerConnect {
   ): Promise<IMultiVMSigner>;
 }
 
-export abstract class IMultiVMProviderFactory {
+abstract class IMultiVMFactory {
   abstract getSupportedProtocols(): ProtocolType[];
 
   abstract supports(_protocol: ProtocolType): boolean;
 
+  abstract getGas(_protocol: ProtocolType): MINIMUM_GAS;
+}
+
+export abstract class IMultiVMProviderFactory extends IMultiVMFactory {
   abstract get(chain: string): Promise<IMultiVMProvider>;
 }
 
-export abstract class IMultiVMSignerFactory {
-  abstract getSupportedProtocols(): ProtocolType[];
-
-  abstract supports(_protocol: ProtocolType): boolean;
-
+export abstract class IMultiVMSignerFactory extends IMultiVMFactory {
   abstract get(chain: string): IMultiVMSigner;
 }

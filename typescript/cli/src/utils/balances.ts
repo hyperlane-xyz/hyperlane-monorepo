@@ -3,18 +3,23 @@ import { BigNumber } from 'ethers';
 import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  MINIMUM_GAS_ACTION,
+  ProtocolType,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import { IMultiVMSignerFactory } from '../../../utils/dist/multivm.js';
 import { autoConfirm } from '../config/prompts.js';
-import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
+import { ETHEREUM_MINIMUM_GAS } from '../consts.js';
 import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
   multiVmSigners: IMultiVMSignerFactory,
   chains: ChainName[],
-  minGas: typeof MINIMUM_WARP_DEPLOY_GAS,
+  minGas: MINIMUM_GAS_ACTION,
   skipConfirmation: boolean,
 ) {
   const sufficientBalances: boolean[] = [];
@@ -39,7 +44,7 @@ export async function nativeBalancesAreSufficient(
         const gasPrice = await provider.getGasPrice();
 
         requiredMinBalanceNativeDenom = gasPrice.mul(
-          minGas[ProtocolType.Ethereum],
+          ETHEREUM_MINIMUM_GAS[minGas],
         );
         requiredMinBalance = formatUnits(
           requiredMinBalanceNativeDenom.toString(),
@@ -54,7 +59,8 @@ export async function nativeBalancesAreSufficient(
 
         address = signer.getSignerAddress();
 
-        const { gasPrice, nativeToken } = multiProvider.getChainMetadata(chain);
+        const { gasPrice, nativeToken, protocol } =
+          multiProvider.getChainMetadata(chain);
 
         assert(nativeToken, `nativeToken is not defined on chain ${chain}`);
         assert(
@@ -69,8 +75,9 @@ export async function nativeBalancesAreSufficient(
           ).amount.toString(),
           nativeToken.decimals,
         );
+        const MULTI_VM_GAS = multiVmSigners.getGas(protocol);
         requiredMinBalanceNativeDenom = gasPriceInNativeDenom.mul(
-          minGas[ProtocolType.CosmosNative],
+          MULTI_VM_GAS[minGas],
         );
         requiredMinBalance = formatUnits(
           requiredMinBalanceNativeDenom,

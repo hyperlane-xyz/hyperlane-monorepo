@@ -50,6 +50,7 @@ export interface CommandContext
   multiProvider: MultiProvider;
   multiProtocolProvider: MultiProtocolProvider;
   multiVmProviders: MultiVMProviderFactory;
+  supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
   // just for evm chains backward compatibility
   signerAddress?: string;

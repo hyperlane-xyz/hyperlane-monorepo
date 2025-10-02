@@ -220,11 +220,8 @@ export class MultiChainResolver implements ChainResolver {
             (chainId) => argv.context.multiProvider.getChainName(chainId),
           );
         }
-        case ProtocolType.CosmosNative: {
-          return [argv.chain];
-        }
         default: {
-          throw new Error(`Protocol type ${protocolType} not supported`);
+          return [argv.chain];
         }
       }
     } catch (error) {

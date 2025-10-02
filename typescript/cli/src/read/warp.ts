@@ -82,7 +82,11 @@ async function deriveWarpRouteConfigs(
 ): Promise<DerivedWarpRouteDeployConfig> {
   const { multiProvider } = context;
 
-  validateCompatibility(context.multiProvider, addresses);
+  validateCompatibility(
+    context.multiProvider,
+    context.supportedProtocols,
+    addresses,
+  );
 
   // Get XERC20 limits if warpCoreConfig is available
   if (warpCoreConfig) {
@@ -112,21 +116,17 @@ async function deriveWarpRouteConfigs(
   );
 }
 
-// TODO: MULTIVM
 // Validate that all chains are EVM or MultiVM compatible
 // by token standard
 function validateCompatibility(
   multiProvider: MultiProvider,
+  supportedProtocols: ProtocolType[],
   addresses: ChainMap<string>,
 ): void {
   const nonCompatibleChains = Object.entries(addresses)
-    .filter(([chain]) => {
-      const protocol = multiProvider.getProtocol(chain);
-      return (
-        protocol !== ProtocolType.Ethereum &&
-        protocol !== ProtocolType.CosmosNative
-      );
-    })
+    .filter(([chain]) =>
+      supportedProtocols.includes(multiProvider.getProtocol(chain)),
+    )
     .map(([chain]) => chain);
 
   if (nonCompatibleChains.length > 0) {
@@ -134,7 +134,7 @@ function validateCompatibility(
     logRed(
       `${chainList} ${
         nonCompatibleChains.length > 1 ? 'are' : 'is'
-      } non-EVM/Cosmos and not compatible with the cli`,
+      } non-EVM/non-MultiVM and not compatible with the cli`,
     );
     process.exit(1);
   }

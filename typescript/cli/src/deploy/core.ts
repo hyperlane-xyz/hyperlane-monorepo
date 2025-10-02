@@ -11,9 +11,8 @@ import {
   ExplorerLicenseType,
   MultiVmCoreModule,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { MINIMUM_GAS_ACTION, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
@@ -65,7 +64,7 @@ export async function runCoreDeploy(params: DeployParams) {
         await runPreflightChecksForChains({
           ...deploymentParams,
           chains: [chain],
-          minGas: MINIMUM_CORE_DEPLOY_GAS,
+          minGas: MINIMUM_GAS_ACTION.CORE_DEPLOY_GAS,
         });
 
         const userAddress = await signer.getAddress();

@@ -15,10 +15,9 @@ import {
   WarpRouteDeployConfig,
   isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { Address, MINIMUM_GAS_ACTION, assert } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
-import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
 import {
   log,
@@ -38,7 +37,7 @@ export async function runPreflightChecksForChains({
 }: {
   context: WriteCommandContext;
   chains: ChainName[];
-  minGas: typeof MINIMUM_WARP_DEPLOY_GAS;
+  minGas: MINIMUM_GAS_ACTION;
   // Chains for which to assert a native balance
   // Defaults to all chains if not specified
   chainsToGasCheck?: ChainName[];

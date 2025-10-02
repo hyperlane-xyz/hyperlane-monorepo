@@ -120,6 +120,10 @@ export async function getContext({
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
   const multiVmProviders = new MultiVMProviderFactory(multiProvider);
+  const supportedProtocols = [
+    ProtocolType.Ethereum,
+    ...multiVmProviders.getSupportedProtocols(),
+  ];
 
   return {
     registry,
@@ -128,6 +132,7 @@ export async function getContext({
     multiProvider,
     multiProtocolProvider,
     multiVmProviders,
+    supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,
     signerAddress: ethereumSignerAddress,

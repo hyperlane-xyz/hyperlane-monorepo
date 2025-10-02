@@ -46,6 +46,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  MINIMUM_GAS_ACTION,
   ProtocolType,
   assert,
   objFilter,
@@ -55,8 +56,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
-import { COMPATIBLE_PROTOCOLS } from '../config/protocols.js';
-import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import {
@@ -147,7 +146,7 @@ export async function runWarpRouteDeploy({
   await runPreflightChecksForChains({
     context,
     chains: deploymentChains,
-    minGas: MINIMUM_WARP_DEPLOY_GAS,
+    minGas: MINIMUM_GAS_ACTION.WARP_DEPLOY_GAS,
   });
 
   const initialBalances = await prepareDeploy(context, null, deploymentChains);
@@ -523,7 +522,7 @@ export async function extendWarpRoute(
   const filteredExtendedConfigs = objFilter(
     initialExtendedConfigs,
     (chainName, _): _ is (typeof initialExtendedConfigs)[string] =>
-      COMPATIBLE_PROTOCOLS.includes(
+      context.supportedProtocols.includes(
         context.multiProtocolProvider.getProtocol(chainName),
       ),
   );
@@ -531,7 +530,7 @@ export async function extendWarpRoute(
   const filteredExistingConfigs = objFilter(
     existingConfigs,
     (chainName, _): _ is (typeof existingConfigs)[string] =>
-      COMPATIBLE_PROTOCOLS.includes(
+      context.supportedProtocols.includes(
         context.multiProtocolProvider.getProtocol(chainName),
       ),
   );
@@ -539,7 +538,7 @@ export async function extendWarpRoute(
   const filteredWarpCoreConfigByChain = objFilter(
     warpCoreConfigByChain,
     (chainName, _): _ is (typeof warpCoreConfigByChain)[string] =>
-      COMPATIBLE_PROTOCOLS.includes(
+      context.supportedProtocols.includes(
         context.multiProtocolProvider.getProtocol(chainName),
       ),
   );
@@ -551,7 +550,7 @@ export async function extendWarpRoute(
   )
     .filter(
       ([chainName]) =>
-        !COMPATIBLE_PROTOCOLS.includes(
+        !context.supportedProtocols.includes(
           context.multiProtocolProvider.getProtocol(chainName),
         ) && !!warpDeployConfig[chainName],
     )
@@ -669,8 +668,7 @@ async function updateExistingWarpRoute(
               },
               signer,
             );
-            // TODO: MULTIVM
-            // transaction types??
+
             const transactions = await warpModule.update(configWithMailbox);
             updateTransactions[chain] = transactions;
             break;
