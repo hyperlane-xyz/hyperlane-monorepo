@@ -87,6 +87,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
     argv.context.multiProvider,
     chains,
     key,
+    strategyConfig,
   );
 
   return argv;

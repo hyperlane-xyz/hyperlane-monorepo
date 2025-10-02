@@ -6,11 +6,16 @@ import {
   ChainMap,
   ChainMetadataManager,
   ProtocolMap,
+  isJsonRpcSubmitterConfig,
 } from '@hyperlane-xyz/sdk';
 import { MINIMUM_GAS, MultiVM, ProtocolType } from '@hyperlane-xyz/utils';
 
-// ### ADD NEW PROTOCOLS HERE ###
-const MULTI_VM_SUPPORTED_PROTOCOLS: SUPPORTED_PROTOCOL = {
+import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
+
+import { SignerKeyProtocolMap } from './types.js';
+
+// ### ALL MULTI VM PROTOCOLS ARE REGISTERED HERE ###
+const MULTI_VM_SUPPORTED_PROTOCOLS: MULTI_VM_PROTOCOL = {
   [ProtocolType.CosmosNative]: {
     provider: CosmosNativeProvider,
     signer: CosmosNativeSigner,
@@ -21,9 +26,10 @@ const MULTI_VM_SUPPORTED_PROTOCOLS: SUPPORTED_PROTOCOL = {
       AVS_GAS: (3e6).toString(),
     },
   },
+  // [NEW PROTOCOL]: {...}
 };
 
-type SUPPORTED_PROTOCOL = ProtocolMap<{
+type MULTI_VM_PROTOCOL = ProtocolMap<{
   provider: MultiVM.IProviderConnect;
   signer: MultiVM.ISignerConnect;
   gas: MINIMUM_GAS;
@@ -112,32 +118,49 @@ export class MultiVmSignerFactory implements MultiVM.ISignerFactory {
     return this.chains[chain];
   }
 
+  private static async loadPrivateKey(
+    key: SignerKeyProtocolMap,
+    strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
+    protocol: ProtocolType,
+    chain: string,
+  ): Promise<string> {
+    if (key[protocol]) {
+      return key[protocol]!;
+    }
+
+    if (!strategyConfig[chain]) {
+      throw new Error(`found no strategy in config for chain ${chain}`);
+    }
+
+    const rawConfig = strategyConfig[chain]!.submitter;
+    if (!isJsonRpcSubmitterConfig(rawConfig)) {
+      throw new Error(
+        `found unknown submitter in strategy config for chain ${chain}`,
+      );
+    }
+
+    if (!rawConfig.privateKey) {
+      throw new Error(
+        `found private key in strategy config for chain ${chain}`,
+      );
+    }
+
+    return rawConfig.privateKey;
+  }
+
   public static async createSigners(
     metadataManager: ChainMetadataManager,
     chains: string[],
-    key: ProtocolMap<string> | string,
+    key: SignerKeyProtocolMap,
+    strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   ) {
     const signers: ChainMap<MultiVM.ISigner> = {};
-
-    if (typeof key === 'string') {
-      throw new Error(
-        `The private key has to be provided with the protocol type: --key.{protocol}`,
-      );
-    }
 
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
 
       if (metadata.protocol === ProtocolType.Ethereum) {
         continue;
-      }
-
-      // TODO: MULTIVM
-      // make this cleaner and get from env variables and strategy config
-      if (!key[metadata.protocol]) {
-        throw new Error(
-          `No private key provided for protocol ${metadata.protocol}`,
-        );
       }
 
       const protocol = MULTI_VM_SUPPORTED_PROTOCOLS[metadata.protocol];
@@ -148,9 +171,16 @@ export class MultiVmSignerFactory implements MultiVM.ISignerFactory {
         );
       }
 
+      const privateKey = await MultiVmSignerFactory.loadPrivateKey(
+        key,
+        strategyConfig,
+        metadata.protocol,
+        chain,
+      );
+
       signers[chain] = await protocol.signer.connectWithSigner(
         metadata.rpcUrls[0].http,
-        key[metadata.protocol]!,
+        privateKey,
         {
           bech32Prefix: metadata.bech32Prefix,
           gasPrice: `${metadata.gasPrice?.amount ?? '0'}${metadata.gasPrice?.denom ?? ''}`,

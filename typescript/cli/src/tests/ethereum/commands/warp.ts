@@ -607,7 +607,8 @@ export async function setupIncompleteWarpRouteExtension(
   const multiVmSigners = await MultiVmSignerFactory.createSigners(
     context.multiProvider,
     [],
-    ANVIL_KEY,
+    {},
+    strategyConfig,
   );
 
   await extendWarpRouteWithoutApplyTransactions(
