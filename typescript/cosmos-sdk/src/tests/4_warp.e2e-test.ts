@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { MultiVM } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/utils';
 
 import {
   addressToBytes32,
@@ -16,7 +16,7 @@ import { createSigner } from './utils.js';
 describe('4. cosmos sdk warp e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: MultiVM.ISigner;
+  let signer: AltVM.ISigner;
 
   before(async () => {
     signer = await createSigner('alice');
@@ -53,7 +53,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(token.mailbox_id).to.equal(mailbox_id);
     expect(token.origin_denom).to.equal(denom);
     expect(token.ism_id).to.be.empty;
-    expect(token.token_type).to.equal(MultiVM.TokenType.COLLATERAL);
+    expect(token.token_type).to.equal(AltVM.TokenType.COLLATERAL);
   });
 
   step('create new synthetic token', async () => {
@@ -84,7 +84,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(token.owner).to.equal(signer.getSignerAddress());
     expect(token.mailbox_id).to.equal(mailbox_id);
     expect(token.ism_id).to.be.empty;
-    expect(token.token_type).to.equal(MultiVM.TokenType.SYNTHETIC);
+    expect(token.token_type).to.equal(AltVM.TokenType.SYNTHETIC);
   });
 
   step('enroll remote router', async () => {

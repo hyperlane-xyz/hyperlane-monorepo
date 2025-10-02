@@ -8,7 +8,7 @@ import {
   HookType,
   IgpConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, MultiVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, AltVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -38,7 +38,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
     CORE_READ_CONFIG_PATH_1,
   );
 
-  let signer: MultiVM.ISigner;
+  let signer: AltVM.ISigner;
   let initialOwnerAddress: Address;
   let chainMetadata: ChainMetadata;
 

@@ -14,7 +14,7 @@ import {
 } from '@cosmjs/stargate';
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
-import { MultiVM, assert } from '@hyperlane-xyz/utils';
+import { AltVM, assert } from '@hyperlane-xyz/utils';
 
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
@@ -27,7 +27,7 @@ type TxOptions = {
 
 export class CosmosNativeSigner
   extends CosmosNativeProvider
-  implements MultiVM.ISigner
+  implements AltVM.ISigner
 {
   private readonly signer: SigningStargateClient;
   private readonly account: AccountData;
@@ -37,7 +37,7 @@ export class CosmosNativeSigner
     rpcUrl: string,
     privateKey: string | OfflineSigner,
     extraParams?: Record<string, any>,
-  ): Promise<MultiVM.ISigner> {
+  ): Promise<AltVM.ISigner> {
     assert(extraParams, `extra params not defined`);
     assert(extraParams.gasPrice, `gasPrice not defined in extra params`);
 
@@ -164,8 +164,8 @@ export class CosmosNativeSigner
   // ### TX CORE ###
 
   async createMailbox(
-    req: Omit<MultiVM.ReqCreateMailbox, 'signer'>,
-  ): Promise<MultiVM.ResCreateMailbox> {
+    req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
+  ): Promise<AltVM.ResCreateMailbox> {
     const msg = await this.populateCreateMailbox({
       ...req,
       signer: this.account.address,
@@ -178,8 +178,8 @@ export class CosmosNativeSigner
   }
 
   async setDefaultIsm(
-    req: Omit<MultiVM.ReqSetDefaultIsm, 'signer'>,
-  ): Promise<MultiVM.ResSetDefaultIsm> {
+    req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
+  ): Promise<AltVM.ResSetDefaultIsm> {
     const msg = await this.populateSetDefaultIsm({
       ...req,
       signer: this.account.address,
@@ -192,8 +192,8 @@ export class CosmosNativeSigner
   }
 
   async setDefaultHook(
-    req: Omit<MultiVM.ReqSetDefaultHook, 'signer'>,
-  ): Promise<MultiVM.ResSetDefaultHook> {
+    req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
+  ): Promise<AltVM.ResSetDefaultHook> {
     const msg = await this.populateSetDefaultHook({
       ...req,
       signer: this.account.address,
@@ -206,8 +206,8 @@ export class CosmosNativeSigner
   }
 
   async setRequiredHook(
-    req: Omit<MultiVM.ReqSetRequiredHook, 'signer'>,
-  ): Promise<MultiVM.ResSetRequiredHook> {
+    req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
+  ): Promise<AltVM.ResSetRequiredHook> {
     const msg = await this.populateSetRequiredHook({
       ...req,
       signer: this.account.address,
@@ -220,8 +220,8 @@ export class CosmosNativeSigner
   }
 
   async setMailboxOwner(
-    req: Omit<MultiVM.ReqSetMailboxOwner, 'signer'>,
-  ): Promise<MultiVM.ResSetMailboxOwner> {
+    req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
+  ): Promise<AltVM.ResSetMailboxOwner> {
     const msg = await this.populateSetMailboxOwner({
       ...req,
       signer: this.account.address,
@@ -234,8 +234,8 @@ export class CosmosNativeSigner
   }
 
   async createMerkleRootMultisigIsm(
-    req: Omit<MultiVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
-  ): Promise<MultiVM.ResCreateMerkleRootMultisigIsm> {
+    req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
+  ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
     const msg = await this.populateCreateMerkleRootMultisigIsm({
       ...req,
       signer: this.account.address,
@@ -248,8 +248,8 @@ export class CosmosNativeSigner
   }
 
   async createMessageIdMultisigIsm(
-    req: Omit<MultiVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
-  ): Promise<MultiVM.ResCreateMessageIdMultisigIsm> {
+    req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
+  ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
     const msg = await this.populateCreateMessageIdMultisigIsm({
       ...req,
       signer: this.account.address,
@@ -262,8 +262,8 @@ export class CosmosNativeSigner
   }
 
   async createRoutingIsm(
-    req: Omit<MultiVM.ReqCreateRoutingIsm, 'signer'>,
-  ): Promise<MultiVM.ResCreateRoutingIsm> {
+    req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
+  ): Promise<AltVM.ResCreateRoutingIsm> {
     const msg = await this.populateCreateRoutingIsm({
       ...req,
       signer: this.account.address,
@@ -276,8 +276,8 @@ export class CosmosNativeSigner
   }
 
   async setRoutingIsmRoute(
-    req: Omit<MultiVM.ReqSetRoutingIsmRoute, 'signer'>,
-  ): Promise<MultiVM.ResSetRoutingIsmRoute> {
+    req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
+  ): Promise<AltVM.ResSetRoutingIsmRoute> {
     const msg = await this.populateSetRoutingIsmRoute({
       ...req,
       signer: this.account.address,
@@ -290,8 +290,8 @@ export class CosmosNativeSigner
   }
 
   async removeRoutingIsmRoute(
-    req: Omit<MultiVM.ReqRemoveRoutingIsmRoute, 'signer'>,
-  ): Promise<MultiVM.ResRemoveRoutingIsmRoute> {
+    req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
+  ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
     const msg = await this.populateRemoveRoutingIsmRoute({
       ...req,
       signer: this.account.address,
@@ -304,8 +304,8 @@ export class CosmosNativeSigner
   }
 
   async setRoutingIsmOwner(
-    req: Omit<MultiVM.ReqSetRoutingIsmOwner, 'signer'>,
-  ): Promise<MultiVM.ResSetRoutingIsmOwner> {
+    req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
+  ): Promise<AltVM.ResSetRoutingIsmOwner> {
     const msg = await this.populateSetRoutingIsmOwner({
       ...req,
       signer: this.account.address,
@@ -318,8 +318,8 @@ export class CosmosNativeSigner
   }
 
   async createNoopIsm(
-    req: Omit<MultiVM.ReqCreateNoopIsm, 'signer'>,
-  ): Promise<MultiVM.ResCreateNoopIsm> {
+    req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
+  ): Promise<AltVM.ResCreateNoopIsm> {
     const msg = await this.populateCreateNoopIsm({
       ...req,
       signer: this.account.address,
@@ -332,8 +332,8 @@ export class CosmosNativeSigner
   }
 
   async createMerkleTreeHook(
-    req: Omit<MultiVM.ReqCreateMerkleTreeHook, 'signer'>,
-  ): Promise<MultiVM.ResCreateMerkleTreeHook> {
+    req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
+  ): Promise<AltVM.ResCreateMerkleTreeHook> {
     const msg = await this.populateCreateMerkleTreeHook({
       ...req,
       signer: this.account.address,
@@ -346,8 +346,8 @@ export class CosmosNativeSigner
   }
 
   async createInterchainGasPaymasterHook(
-    req: Omit<MultiVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
-  ): Promise<MultiVM.ResCreateInterchainGasPaymasterHook> {
+    req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
+  ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
     const msg = await this.populateCreateInterchainGasPaymasterHook({
       ...req,
       signer: this.account.address,
@@ -360,8 +360,8 @@ export class CosmosNativeSigner
   }
 
   async setInterchainGasPaymasterHookOwner(
-    req: Omit<MultiVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
-  ): Promise<MultiVM.ResSetInterchainGasPaymasterHookOwner> {
+    req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
+  ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
     const msg = await this.populateSetInterchainGasPaymasterHookOwner({
       ...req,
       signer: this.account.address,
@@ -374,8 +374,8 @@ export class CosmosNativeSigner
   }
 
   async setDestinationGasConfig(
-    req: Omit<MultiVM.ReqSetDestinationGasConfig, 'signer'>,
-  ): Promise<MultiVM.ResSetDestinationGasConfig> {
+    req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
+  ): Promise<AltVM.ResSetDestinationGasConfig> {
     const msg = await this.populateSetDestinationGasConfig({
       ...req,
       signer: this.account.address,
@@ -388,8 +388,8 @@ export class CosmosNativeSigner
   }
 
   async createValidatorAnnounce(
-    _req: Omit<MultiVM.ReqCreateValidatorAnnounce, 'signer'>,
-  ): Promise<MultiVM.ResCreateValidatorAnnounce> {
+    _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
+  ): Promise<AltVM.ResCreateValidatorAnnounce> {
     // Cosmos Native has no validator announce
     return { validator_announce_id: '' };
   }
@@ -397,8 +397,8 @@ export class CosmosNativeSigner
   // ### TX WARP ###
 
   async createCollateralToken(
-    req: Omit<MultiVM.ReqCreateCollateralToken, 'signer'>,
-  ): Promise<MultiVM.ResCreateCollateralToken> {
+    req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
+  ): Promise<AltVM.ResCreateCollateralToken> {
     const msg = await this.populateCreateCollateralToken({
       ...req,
       signer: this.account.address,
@@ -411,8 +411,8 @@ export class CosmosNativeSigner
   }
 
   async createSyntheticToken(
-    req: Omit<MultiVM.ReqCreateSyntheticToken, 'signer'>,
-  ): Promise<MultiVM.ResCreateSyntheticToken> {
+    req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
+  ): Promise<AltVM.ResCreateSyntheticToken> {
     const msg = await this.populateCreateSyntheticToken({
       ...req,
       signer: this.account.address,
@@ -425,8 +425,8 @@ export class CosmosNativeSigner
   }
 
   async setTokenOwner(
-    req: Omit<MultiVM.ReqSetTokenOwner, 'signer'>,
-  ): Promise<MultiVM.ResSetTokenOwner> {
+    req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
+  ): Promise<AltVM.ResSetTokenOwner> {
     const msg = await this.populateSetTokenOwner({
       ...req,
       signer: this.account.address,
@@ -439,8 +439,8 @@ export class CosmosNativeSigner
   }
 
   async setTokenIsm(
-    req: Omit<MultiVM.ReqSetTokenIsm, 'signer'>,
-  ): Promise<MultiVM.ResSetTokenIsm> {
+    req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
+  ): Promise<AltVM.ResSetTokenIsm> {
     const msg = await this.populateSetTokenIsm({
       ...req,
       signer: this.account.address,
@@ -453,8 +453,8 @@ export class CosmosNativeSigner
   }
 
   async enrollRemoteRouter(
-    req: Omit<MultiVM.ReqEnrollRemoteRouter, 'signer'>,
-  ): Promise<MultiVM.ResEnrollRemoteRouter> {
+    req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
+  ): Promise<AltVM.ResEnrollRemoteRouter> {
     const msg = await this.populateEnrollRemoteRouter({
       ...req,
       signer: this.account.address,
@@ -467,8 +467,8 @@ export class CosmosNativeSigner
   }
 
   async unenrollRemoteRouter(
-    req: Omit<MultiVM.ReqUnenrollRemoteRouter, 'signer'>,
-  ): Promise<MultiVM.ResUnenrollRemoteRouter> {
+    req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
+  ): Promise<AltVM.ResUnenrollRemoteRouter> {
     const msg = await this.populateUnenrollRemoteRouter({
       ...req,
       signer: this.account.address,
@@ -481,8 +481,8 @@ export class CosmosNativeSigner
   }
 
   async remoteTransfer(
-    req: Omit<MultiVM.ReqRemoteTransfer, 'signer'>,
-  ): Promise<MultiVM.ResRemoteTransfer> {
+    req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
+  ): Promise<AltVM.ResRemoteTransfer> {
     const msg = await this.populateRemoteTransfer({
       ...req,
       signer: this.account.address,

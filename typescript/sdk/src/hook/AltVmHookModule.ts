@@ -2,9 +2,9 @@ import { zeroAddress } from 'viem';
 
 import {
   Address,
+  AltVM,
   ChainId,
   Domain,
-  MultiVM,
   assert,
   deepEquals,
   eqAddress,
@@ -17,11 +17,11 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedMultiVmTransaction } from '../providers/ProviderType.js';
+import { AnnotatedAltVmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
-import { MultiVmHookReader } from './MultiVmHookReader.js';
+import { AltVmHookReader } from './AltVmHookReader.js';
 import {
   HookConfig,
   HookConfigSchema,
@@ -35,15 +35,15 @@ type HookModuleAddresses = {
   mailbox: Address;
 };
 
-export class MultiVmHookModule extends HyperlaneModule<
+export class AltVmHookModule extends HyperlaneModule<
   any,
   HookConfig,
   HookModuleAddresses
 > {
   protected readonly logger = rootLogger.child({
-    module: 'MultiVmHookModule',
+    module: 'AltVmHookModule',
   });
-  protected readonly reader: MultiVmHookReader;
+  protected readonly reader: AltVmHookReader;
 
   // Adding these to reduce how often we need to grab from ChainMetadataManager.
   public readonly chain: ChainName;
@@ -53,12 +53,12 @@ export class MultiVmHookModule extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
-    protected readonly signer: MultiVM.ISigner,
+    protected readonly signer: AltVM.ISigner,
   ) {
     params.config = HookConfigSchema.parse(params.config);
     super(params);
 
-    this.reader = new MultiVmHookReader(metadataManager, signer);
+    this.reader = new AltVmHookReader(metadataManager, signer);
 
     this.chain = metadataManager.getChainName(this.args.chain);
     this.chainId = metadataManager.getChainId(this.chain);
@@ -71,7 +71,7 @@ export class MultiVmHookModule extends HyperlaneModule<
 
   public async update(
     targetConfig: HookConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
+  ): Promise<AnnotatedAltVmTransaction[]> {
     if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }
@@ -112,9 +112,9 @@ export class MultiVmHookModule extends HyperlaneModule<
   protected async updateMutableHook(configs: {
     current: Exclude<HookConfig, string>;
     target: Exclude<HookConfig, string>;
-  }): Promise<AnnotatedMultiVmTransaction[]> {
+  }): Promise<AnnotatedAltVmTransaction[]> {
     const { current, target } = configs;
-    let updateTxs: AnnotatedMultiVmTransaction[];
+    let updateTxs: AnnotatedAltVmTransaction[];
 
     assert(
       current.type === target.type,
@@ -146,8 +146,8 @@ export class MultiVmHookModule extends HyperlaneModule<
   }: {
     currentConfig: IgpHookConfig;
     targetConfig: IgpHookConfig;
-  }): Promise<AnnotatedMultiVmTransaction[]> {
-    const updateTxs: AnnotatedMultiVmTransaction[] = [];
+  }): Promise<AnnotatedAltVmTransaction[]> {
+    const updateTxs: AnnotatedAltVmTransaction[] = [];
 
     for (const [remote, c] of Object.entries(targetConfig.oracleConfig)) {
       if (deepEquals(currentConfig.oracleConfig[remote], c)) {
@@ -204,9 +204,9 @@ export class MultiVmHookModule extends HyperlaneModule<
     config: HookConfig;
     addresses: HookModuleAddresses;
     multiProvider: MultiProvider;
-    signer: MultiVM.ISigner;
-  }): Promise<MultiVmHookModule> {
-    const module = new MultiVmHookModule(
+    signer: AltVM.ISigner;
+  }): Promise<AltVmHookModule> {
+    const module = new AltVmHookModule(
       multiProvider,
       {
         addresses,
@@ -236,7 +236,7 @@ export class MultiVmHookModule extends HyperlaneModule<
       case HookType.MERKLE_TREE:
         return this.deployMerkleTreeHook();
       default:
-        throw new Error(`Hook type ${hookType} is not supported on MultiVM`);
+        throw new Error(`Hook type ${hookType} is not supported on AltVM`);
     }
   }
 

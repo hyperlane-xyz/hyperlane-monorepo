@@ -5,8 +5,8 @@ import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  AltVM,
   MINIMUM_GAS_ACTION,
-  MultiVM,
   ProtocolType,
   assert,
 } from '@hyperlane-xyz/utils';
@@ -17,7 +17,7 @@ import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  multiVmSigners: MultiVM.ISignerFactory,
+  altVmSigner: AltVM.ISignerFactory,
   chains: ChainName[],
   minGas: MINIMUM_GAS_ACTION,
   skipConfirmation: boolean,
@@ -55,7 +55,7 @@ export async function nativeBalancesAreSufficient(
         break;
       }
       default: {
-        const signer = multiVmSigners.get(chain);
+        const signer = altVmSigner.get(chain);
 
         address = signer.getSignerAddress();
 
@@ -75,7 +75,7 @@ export async function nativeBalancesAreSufficient(
           ).amount.toString(),
           nativeToken.decimals,
         );
-        const MULTI_VM_GAS = multiVmSigners.getGas(protocol);
+        const MULTI_VM_GAS = altVmSigner.getGas(protocol);
         requiredMinBalanceNativeDenom = gasPriceInNativeDenom.mul(
           MULTI_VM_GAS[minGas],
         );

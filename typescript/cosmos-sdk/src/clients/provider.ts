@@ -11,7 +11,7 @@ import {
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
 import { isTypes, warpTypes } from '@hyperlane-xyz/cosmos-types';
-import { MultiVM, assert } from '@hyperlane-xyz/utils';
+import { AltVM, assert } from '@hyperlane-xyz/utils';
 
 import {
   MsgCreateMailboxEncodeObject,
@@ -52,7 +52,7 @@ import {
 import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
-export class CosmosNativeProvider implements MultiVM.IProvider {
+export class CosmosNativeProvider implements AltVM.IProvider {
   private readonly query: QueryClient &
     BankExtension &
     WarpExtension &
@@ -105,21 +105,21 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
     return status.syncInfo.latestBlockHeight;
   }
 
-  async getBalance(req: MultiVM.ReqGetBalance): Promise<MultiVM.ResGetBalance> {
+  async getBalance(req: AltVM.ReqGetBalance): Promise<AltVM.ResGetBalance> {
     const coin = await this.query.bank.balance(req.address, req.denom);
     return BigInt(coin.amount);
   }
 
   async getTotalSupply(
-    req: MultiVM.ReqGetTotalSupply,
-  ): Promise<MultiVM.ResGetTotalSupply> {
+    req: AltVM.ReqGetTotalSupply,
+  ): Promise<AltVM.ResGetTotalSupply> {
     const coin = await this.query.bank.supplyOf(req.denom);
     return BigInt(coin.amount);
   }
 
   async estimateTransactionFee(
-    req: MultiVM.ReqEstimateTransactionFee,
-  ): Promise<MultiVM.ResEstimateTransactionFee> {
+    req: AltVM.ReqEstimateTransactionFee,
+  ): Promise<AltVM.ResEstimateTransactionFee> {
     const stargateClient = await StargateClient.connect(this.rpcUrl);
 
     const message = this.registry.encodeAsAny(req.transaction);
@@ -147,7 +147,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
 
   // ### QUERY CORE ###
 
-  async getMailbox(req: MultiVM.ReqGetMailbox): Promise<MultiVM.ResGetMailbox> {
+  async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
     const { mailbox } = await this.query.core.Mailbox({ id: req.mailbox_id });
     assert(mailbox, `found no mailbox for id ${req.mailbox_id}`);
 
@@ -163,7 +163,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
     };
   }
 
-  async delivered(req: MultiVM.ReqDelivered): Promise<MultiVM.ResDelivered> {
+  async delivered(req: AltVM.ReqDelivered): Promise<AltVM.ResDelivered> {
     const { delivered } = await this.query.core.Delivered({
       id: req.mailbox_id,
       message_id: req.message_id,
@@ -171,27 +171,27 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
     return delivered;
   }
 
-  async getIsmType(req: MultiVM.ReqGetIsmType): Promise<MultiVM.ResGetIsmType> {
+  async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.ResGetIsmType> {
     const { ism } = await this.query.interchainSecurity.Ism({ id: req.ism_id });
     assert(ism, `found no ism for id ${req.ism_id}`);
 
     switch (ism.type_url) {
       case CosmosNativeIsmTypes.MerkleRootMultisigISM:
-        return MultiVM.IsmType.MERKLE_ROOT_MULTISIG_ISM;
+        return AltVM.IsmType.MERKLE_ROOT_MULTISIG_ISM;
       case CosmosNativeIsmTypes.MessageIdMultisigISM:
-        return MultiVM.IsmType.MESSAGE_ID_MULTISIG_ISM;
+        return AltVM.IsmType.MESSAGE_ID_MULTISIG_ISM;
       case CosmosNativeIsmTypes.RoutingISM:
-        return MultiVM.IsmType.ROUTING_ISM;
+        return AltVM.IsmType.ROUTING_ISM;
       case CosmosNativeIsmTypes.NoopISM:
-        return MultiVM.IsmType.NOOP_ISM;
+        return AltVM.IsmType.NOOP_ISM;
       default:
         throw new Error(`Unknown ISM ModuleType: ${ism.type_url}`);
     }
   }
 
   async getMessageIdMultisigIsm(
-    req: MultiVM.ReqMessageIdMultisigIsm,
-  ): Promise<MultiVM.ResMessageIdMultisigIsm> {
+    req: AltVM.ReqMessageIdMultisigIsm,
+  ): Promise<AltVM.ResMessageIdMultisigIsm> {
     const { ism } =
       await this.query.interchainSecurity.DecodedIsm<isTypes.MessageIdMultisigISM>(
         {
@@ -207,8 +207,8 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async getMerkleRootMultisigIsm(
-    req: MultiVM.ReqMerkleRootMultisigIsm,
-  ): Promise<MultiVM.ResMerkleRootMultisigIsm> {
+    req: AltVM.ReqMerkleRootMultisigIsm,
+  ): Promise<AltVM.ResMerkleRootMultisigIsm> {
     const { ism } =
       await this.query.interchainSecurity.DecodedIsm<isTypes.MerkleRootMultisigISM>(
         {
@@ -223,9 +223,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
     };
   }
 
-  async getRoutingIsm(
-    req: MultiVM.ReqRoutingIsm,
-  ): Promise<MultiVM.ResRoutingIsm> {
+  async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
     const { ism } =
       await this.query.interchainSecurity.DecodedIsm<isTypes.RoutingISM>({
         id: req.ism_id,
@@ -238,7 +236,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
     };
   }
 
-  async getNoopIsm(req: MultiVM.ReqNoopIsm): Promise<MultiVM.ResNoopIsm> {
+  async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
     const { ism } =
       await this.query.interchainSecurity.DecodedIsm<isTypes.NoopISM>({
         id: req.ism_id,
@@ -249,14 +247,12 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
     };
   }
 
-  async getHookType(
-    req: MultiVM.ReqGetHookType,
-  ): Promise<MultiVM.ResGetHookType> {
+  async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.ResGetHookType> {
     try {
       const { igp } = await this.query.postDispatch.Igp({ id: req.hook_id });
 
       if (igp) {
-        return MultiVM.HookType.INTERCHAIN_GAS_PAYMASTER;
+        return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
       }
     } catch {
       try {
@@ -264,7 +260,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
           await this.query.postDispatch.MerkleTreeHook({ id: req.hook_id });
 
         if (merkle_tree_hook) {
-          return MultiVM.HookType.MERKLE_TREE_HOOK;
+          return AltVM.HookType.MERKLE_TREE_HOOK;
         }
       } catch {
         throw new Error(`Unknown Hook Type: ${req.hook_id}`);
@@ -275,8 +271,8 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async getInterchainGasPaymasterHook(
-    req: MultiVM.ReqGetInterchainGasPaymasterHook,
-  ): Promise<MultiVM.ResGetInterchainGasPaymasterHook> {
+    req: AltVM.ReqGetInterchainGasPaymasterHook,
+  ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
     const { igp } = await this.query.postDispatch.Igp({ id: req.hook_id });
     assert(igp, `found no igp for id ${req.hook_id}`);
 
@@ -313,8 +309,8 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async getMerkleTreeHook(
-    req: MultiVM.ReqGetMerkleTreeHook,
-  ): Promise<MultiVM.ResGetMerkleTreeHook> {
+    req: AltVM.ReqGetMerkleTreeHook,
+  ): Promise<AltVM.ResGetMerkleTreeHook> {
     const { merkle_tree_hook } = await this.query.postDispatch.MerkleTreeHook({
       id: req.hook_id,
     });
@@ -327,20 +323,20 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
 
   // ### QUERY WARP ###
 
-  async getToken(req: MultiVM.ReqGetToken): Promise<MultiVM.ResGetToken> {
+  async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
     const { token } = await this.query.warp.Token({
       id: req.token_id,
     });
     assert(token, `found no token for id ${req.token_id}`);
 
-    let token_type: MultiVM.TokenType;
+    let token_type: AltVM.TokenType;
 
     switch (token.token_type) {
       case warpTypes.HypTokenType.HYP_TOKEN_TYPE_COLLATERAL:
-        token_type = MultiVM.TokenType.COLLATERAL;
+        token_type = AltVM.TokenType.COLLATERAL;
         break;
       case warpTypes.HypTokenType.HYP_TOKEN_TYPE_SYNTHETIC:
-        token_type = MultiVM.TokenType.SYNTHETIC;
+        token_type = AltVM.TokenType.SYNTHETIC;
         break;
       default:
         throw new Error(
@@ -363,8 +359,8 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async getRemoteRouters(
-    req: MultiVM.ReqGetRemoteRouters,
-  ): Promise<MultiVM.ResGetRemoteRouters> {
+    req: AltVM.ReqGetRemoteRouters,
+  ): Promise<AltVM.ResGetRemoteRouters> {
     const { remote_routers } = await this.query.warp.RemoteRouters({
       id: req.token_id,
     });
@@ -380,8 +376,8 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async getBridgedSupply(
-    req: MultiVM.ReqGetBridgedSupply,
-  ): Promise<MultiVM.ResGetBridgedSupply> {
+    req: AltVM.ReqGetBridgedSupply,
+  ): Promise<AltVM.ResGetBridgedSupply> {
     const { bridged_supply } = await this.query.warp.BridgedSupply({
       id: req.token_id,
     });
@@ -394,8 +390,8 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async quoteRemoteTransfer(
-    req: MultiVM.ReqQuoteRemoteTransfer,
-  ): Promise<MultiVM.ResQuoteRemoteTransfer> {
+    req: AltVM.ReqQuoteRemoteTransfer,
+  ): Promise<AltVM.ResQuoteRemoteTransfer> {
     const { gas_payment } = await this.query.warp.QuoteRemoteTransfer({
       id: req.token_id,
       destination_domain: req.destination_domain_id.toString(),
@@ -416,7 +412,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   // ### POPULATE CORE ###
 
   async populateCreateMailbox(
-    req: MultiVM.ReqCreateMailbox,
+    req: AltVM.ReqCreateMailbox,
   ): Promise<MsgCreateMailboxEncodeObject> {
     return {
       typeUrl: R.MsgCreateMailbox.proto.type,
@@ -429,7 +425,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateSetDefaultIsm(
-    req: MultiVM.ReqSetDefaultIsm,
+    req: AltVM.ReqSetDefaultIsm,
   ): Promise<MsgSetMailboxEncodeObject> {
     return {
       typeUrl: R.MsgSetMailbox.proto.type,
@@ -442,7 +438,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateSetDefaultHook(
-    req: MultiVM.ReqSetDefaultHook,
+    req: AltVM.ReqSetDefaultHook,
   ): Promise<MsgSetMailboxEncodeObject> {
     return {
       typeUrl: R.MsgSetMailbox.proto.type,
@@ -455,7 +451,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateSetRequiredHook(
-    req: MultiVM.ReqSetRequiredHook,
+    req: AltVM.ReqSetRequiredHook,
   ): Promise<MsgSetMailboxEncodeObject> {
     return {
       typeUrl: R.MsgSetMailbox.proto.type,
@@ -468,7 +464,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateSetMailboxOwner(
-    req: MultiVM.ReqSetMailboxOwner,
+    req: AltVM.ReqSetMailboxOwner,
   ): Promise<MsgSetMailboxEncodeObject> {
     return {
       typeUrl: R.MsgSetMailbox.proto.type,
@@ -482,7 +478,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateCreateMerkleRootMultisigIsm(
-    req: MultiVM.ReqCreateMerkleRootMultisigIsm,
+    req: AltVM.ReqCreateMerkleRootMultisigIsm,
   ): Promise<MsgCreateMerkleRootMultisigIsmEncodeObject> {
     return {
       typeUrl: R.MsgCreateMerkleRootMultisigIsm.proto.type,
@@ -495,7 +491,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateCreateMessageIdMultisigIsm(
-    req: MultiVM.ReqCreateMessageIdMultisigIsm,
+    req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<MsgCreateMessageIdMultisigIsmEncodeObject> {
     return {
       typeUrl: R.MsgCreateMessageIdMultisigIsm.proto.type,
@@ -508,7 +504,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateCreateRoutingIsm(
-    req: MultiVM.ReqCreateRoutingIsm,
+    req: AltVM.ReqCreateRoutingIsm,
   ): Promise<MsgCreateRoutingIsmEncodeObject> {
     return {
       typeUrl: R.MsgCreateRoutingIsm.proto.type,
@@ -520,7 +516,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateSetRoutingIsmRoute(
-    req: MultiVM.ReqSetRoutingIsmRoute,
+    req: AltVM.ReqSetRoutingIsmRoute,
   ): Promise<MsgSetRoutingIsmDomainEncodeObject> {
     return {
       typeUrl: R.MsgSetRoutingIsmDomain.proto.type,
@@ -536,7 +532,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateRemoveRoutingIsmRoute(
-    req: MultiVM.ReqRemoveRoutingIsmRoute,
+    req: AltVM.ReqRemoveRoutingIsmRoute,
   ): Promise<MsgRemoveRoutingIsmDomainEncodeObject> {
     return {
       typeUrl: R.MsgRemoveRoutingIsmDomain.proto.type,
@@ -549,7 +545,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateSetRoutingIsmOwner(
-    req: MultiVM.ReqSetRoutingIsmOwner,
+    req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<any> {
     return {
       typeUrl: R.MsgUpdateRoutingIsmOwner.proto.type,
@@ -563,7 +559,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateCreateNoopIsm(
-    req: MultiVM.ReqCreateNoopIsm,
+    req: AltVM.ReqCreateNoopIsm,
   ): Promise<MsgCreateNoopIsmEncodeObject> {
     return {
       typeUrl: R.MsgCreateNoopIsm.proto.type,
@@ -574,7 +570,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateCreateMerkleTreeHook(
-    req: MultiVM.ReqCreateMerkleTreeHook,
+    req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<MsgCreateMerkleTreeHookEncodeObject> {
     return {
       typeUrl: R.MsgCreateMerkleTreeHook.proto.type,
@@ -586,7 +582,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateCreateInterchainGasPaymasterHook(
-    req: MultiVM.ReqCreateInterchainGasPaymasterHook,
+    req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<MsgCreateIgpEncodeObject> {
     return {
       typeUrl: R.MsgCreateIgp.proto.type,
@@ -598,7 +594,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateSetInterchainGasPaymasterHookOwner(
-    req: MultiVM.ReqSetInterchainGasPaymasterHookOwner,
+    req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<MsgSetIgpOwnerEncodeObject> {
     return {
       typeUrl: R.MsgSetIgpOwner.proto.type,
@@ -612,7 +608,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateSetDestinationGasConfig(
-    req: MultiVM.ReqSetDestinationGasConfig,
+    req: AltVM.ReqSetDestinationGasConfig,
   ): Promise<MsgSetDestinationGasConfigEncodeObject> {
     return {
       typeUrl: R.MsgSetDestinationGasConfig.proto.type,
@@ -629,7 +625,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateCreateValidatorAnnounce(
-    _req: MultiVM.ReqCreateValidatorAnnounce,
+    _req: AltVM.ReqCreateValidatorAnnounce,
   ): Promise<any> {
     throw new Error(
       'Cosmos Native does not support populateCreateValidatorAnnounce',
@@ -639,7 +635,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   // ### POPULATE WARP ###
 
   async populateCreateCollateralToken(
-    req: MultiVM.ReqCreateCollateralToken,
+    req: AltVM.ReqCreateCollateralToken,
   ): Promise<MsgCreateCollateralTokenEncodeObject> {
     return {
       typeUrl: R.MsgCreateCollateralToken.proto.type,
@@ -652,7 +648,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateCreateSyntheticToken(
-    req: MultiVM.ReqCreateSyntheticToken,
+    req: AltVM.ReqCreateSyntheticToken,
   ): Promise<MsgCreateSyntheticTokenEncodeObject> {
     return {
       typeUrl: R.MsgCreateSyntheticToken.proto.type,
@@ -664,7 +660,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateSetTokenOwner(
-    req: MultiVM.ReqSetTokenOwner,
+    req: AltVM.ReqSetTokenOwner,
   ): Promise<MsgSetTokenEncodeObject> {
     return {
       typeUrl: R.MsgSetToken.proto.type,
@@ -678,7 +674,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateSetTokenIsm(
-    req: MultiVM.ReqSetTokenIsm,
+    req: AltVM.ReqSetTokenIsm,
   ): Promise<MsgSetTokenEncodeObject> {
     return {
       typeUrl: R.MsgSetToken.proto.type,
@@ -691,7 +687,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateEnrollRemoteRouter(
-    req: MultiVM.ReqEnrollRemoteRouter,
+    req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<MsgEnrollRemoteRouterEncodeObject> {
     return {
       typeUrl: R.MsgEnrollRemoteRouter.proto.type,
@@ -708,7 +704,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateUnenrollRemoteRouter(
-    req: MultiVM.ReqUnenrollRemoteRouter,
+    req: AltVM.ReqUnenrollRemoteRouter,
   ): Promise<MsgUnrollRemoteRouterEncodeObject> {
     return {
       typeUrl: R.MsgUnrollRemoteRouter.proto.type,
@@ -721,7 +717,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
   }
 
   async populateRemoteTransfer(
-    req: MultiVM.ReqRemoteTransfer,
+    req: AltVM.ReqRemoteTransfer,
   ): Promise<MsgRemoteTransferEncodeObject> {
     return {
       typeUrl: R.MsgRemoteTransfer.proto.type,

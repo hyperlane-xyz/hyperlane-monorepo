@@ -2,9 +2,9 @@ import { Logger } from 'pino';
 
 import {
   Address,
+  AltVM,
   ChainId,
   Domain,
-  MultiVM,
   assert,
   deepEquals,
   intersection,
@@ -17,11 +17,11 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedMultiVmTransaction } from '../providers/ProviderType.js';
+import { AnnotatedAltVmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
-import { MultiVmIsmReader } from './MultiVmIsmReader.js';
+import { AltVmIsmReader } from './AltVmIsmReader.js';
 import {
   DomainRoutingIsmConfig,
   IsmConfig,
@@ -37,15 +37,15 @@ type IsmModuleAddresses = {
   mailbox: Address;
 };
 
-export class MultiVmIsmModule extends HyperlaneModule<
+export class AltVmIsmModule extends HyperlaneModule<
   any,
   IsmConfig,
   IsmModuleAddresses
 > {
   protected readonly logger = rootLogger.child({
-    module: 'MultiVmIsmModule',
+    module: 'AltVmIsmModule',
   });
-  protected readonly reader: MultiVmIsmReader;
+  protected readonly reader: AltVmIsmReader;
   protected readonly mailbox: Address;
 
   // Adding these to reduce how often we need to grab from MetadataManager.
@@ -56,7 +56,7 @@ export class MultiVmIsmModule extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
-    protected readonly signer: MultiVM.ISigner,
+    protected readonly signer: AltVM.ISigner,
   ) {
     params.config = IsmConfigSchema.parse(params.config);
     super(params);
@@ -66,7 +66,7 @@ export class MultiVmIsmModule extends HyperlaneModule<
     this.chainId = metadataManager.getChainId(this.chain);
     this.domainId = metadataManager.getDomainId(this.chain);
 
-    this.reader = new MultiVmIsmReader(this.metadataManager, this.signer);
+    this.reader = new AltVmIsmReader(this.metadataManager, this.signer);
   }
 
   public async read(): Promise<IsmConfig> {
@@ -76,7 +76,7 @@ export class MultiVmIsmModule extends HyperlaneModule<
   // whoever calls update() needs to ensure that targetConfig has a valid owner
   public async update(
     expectedConfig: IsmConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
+  ): Promise<AnnotatedAltVmTransaction[]> {
     expectedConfig = IsmConfigSchema.parse(expectedConfig);
 
     // Do not support updating to a custom ISM address
@@ -123,7 +123,7 @@ export class MultiVmIsmModule extends HyperlaneModule<
       return [];
     }
 
-    let updateTxs: AnnotatedMultiVmTransaction[] = [];
+    let updateTxs: AnnotatedAltVmTransaction[] = [];
     if (expectedConfig.type === IsmType.ROUTING) {
       const logger = this.logger.child({
         destination: this.chain,
@@ -155,9 +155,9 @@ export class MultiVmIsmModule extends HyperlaneModule<
       mailbox: string;
     };
     multiProvider: MultiProvider;
-    signer: MultiVM.ISigner;
-  }): Promise<MultiVmIsmModule> {
-    const module = new MultiVmIsmModule(
+    signer: AltVM.ISigner;
+  }): Promise<AltVmIsmModule> {
+    const module = new AltVmIsmModule(
       multiProvider,
       {
         addresses: {
@@ -195,7 +195,7 @@ export class MultiVmIsmModule extends HyperlaneModule<
         return this.deployNoopIsm();
       }
       default:
-        throw new Error(`ISM type ${ismType} is not supported on MultiVM`);
+        throw new Error(`ISM type ${ismType} is not supported on AltVM`);
     }
   }
 
@@ -263,8 +263,8 @@ export class MultiVmIsmModule extends HyperlaneModule<
     actual: DomainRoutingIsmConfig;
     expected: DomainRoutingIsmConfig;
     logger: Logger;
-  }): Promise<AnnotatedMultiVmTransaction[]> {
-    const updateTxs: AnnotatedMultiVmTransaction[] = [];
+  }): Promise<AnnotatedAltVmTransaction[]> {
+    const updateTxs: AnnotatedAltVmTransaction[] = [];
 
     const knownChains = new Set(this.metadataManager.getKnownChainNames());
 

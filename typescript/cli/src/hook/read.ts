@@ -1,8 +1,4 @@
-import {
-  ChainName,
-  EvmHookReader,
-  MultiVmHookReader,
-} from '@hyperlane-xyz/sdk';
+import { AltVmHookReader, ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
@@ -38,8 +34,8 @@ export async function readHookConfig({
       break;
     }
     default: {
-      const provider = await context.multiVmProviders.get(chain);
-      const hookReader = new MultiVmHookReader(context.multiProvider, provider);
+      const provider = await context.altVmProvider.get(chain);
+      const hookReader = new AltVmHookReader(context.multiProvider, provider);
       const config = await hookReader.deriveHookConfig(address);
       const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
       if (!out) {

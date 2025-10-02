@@ -3,13 +3,13 @@ import { stringify as yamlStringify } from 'yaml';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  AltVmCoreModule,
   ChainName,
   ContractVerifier,
   CoreConfig,
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
-  MultiVmCoreModule,
 } from '@hyperlane-xyz/sdk';
 import { MINIMUM_GAS_ACTION, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -98,15 +98,14 @@ export async function runCoreDeploy(params: DeployParams) {
       }
       break;
     default: {
-      const signer = context.multiVmSigners.get(chain);
+      const signer = context.altVmSigner.get(chain);
 
       logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
-      const userAddress = await signer.getSignerAddress();
-
+      const userAddress = signer.getSignerAddress();
       const initialBalances = await getBalances(context, [chain], userAddress);
 
-      const coreModule = await MultiVmCoreModule.create({
+      const coreModule = await AltVmCoreModule.create({
         chain,
         config,
         multiProvider,
@@ -162,9 +161,9 @@ export async function runCoreApply(params: ApplyParams) {
       break;
     }
     default: {
-      const signer = context.multiVmSigners.get(chain);
+      const signer = context.altVmSigner.get(chain);
 
-      const coreModule = new MultiVmCoreModule(multiProvider, signer, {
+      const coreModule = new AltVmCoreModule(multiProvider, signer, {
         chain,
         config,
         addresses: deployedCoreAddresses,

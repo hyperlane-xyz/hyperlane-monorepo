@@ -189,9 +189,9 @@ export {
   ProtocolFeeSchema,
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
-export { MultiVmIsmReader } from './ism/MultiVmIsmReader.js';
-export { MultiVmWarpModule } from './token/MultiVmWarpModule.js';
-export { MultiVmWarpRouteReader } from './token/MultiVmWarpRouteReader.js';
+export { AltVmIsmReader } from './ism/AltVmIsmReader.js';
+export { AltVmWarpModule } from './token/AltVmWarpModule.js';
+export { AltVmWarpRouteReader } from './token/AltVmWarpRouteReader.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export { BaseMetadataBuilder } from './ism/metadata/builder.js';
@@ -463,8 +463,8 @@ export {
   getCCIPRouterAddress,
   getChainNameFromCCIPSelector,
 } from './ccip/utils.js';
-export { MultiVmCoreModule } from './core/MultiVmCoreModule.js';
-export { MultiVmCoreReader } from './core/MultiVmCoreReader.js';
+export { AltVmCoreModule } from './core/AltVmCoreModule.js';
+export { AltVmCoreReader } from './core/AltVmCoreReader.js';
 export { EvmCoreModule } from './core/EvmCoreModule.js';
 export {
   isProxy,
@@ -506,8 +506,8 @@ export {
   NativeTokenPriceConfig,
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
-export { MultiVmHookModule } from './hook/MultiVmHookModule.js';
-export { MultiVmHookReader } from './hook/MultiVmHookReader.js';
+export { AltVmHookModule } from './hook/AltVmHookModule.js';
+export { AltVmHookReader } from './hook/AltVmHookReader.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
 export {
   DerivedIcaRouterConfig,
@@ -516,7 +516,7 @@ export {
   IcaRouterConfigSchema,
   IcaRouterConfig as InterchainAccountConfig,
 } from './ica/types.js';
-export { MultiVmIsmModule } from './ism/MultiVmIsmModule.js';
+export { AltVmIsmModule } from './ism/AltVmIsmModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { offchainLookupRequestMessageHash } from './ism/metadata/ccipread.js';
 export {
@@ -649,7 +649,7 @@ export {
   HypERC721Factories,
   TokenFactories,
 } from './token/contracts.js';
-export { MultiVmDeployer } from './token/multiVmDeploy.js';
+export { AltVmDeployer } from './token/altVmDeploy.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';

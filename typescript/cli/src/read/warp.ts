@@ -6,13 +6,13 @@ import {
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
+  AltVmWarpRouteReader,
   ChainMap,
   ChainName,
   DerivedWarpRouteDeployConfig,
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
   MultiProvider,
-  MultiVmWarpRouteReader,
   TokenStandard,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -104,8 +104,8 @@ async function deriveWarpRouteConfigs(
           ).deriveWarpRouteConfig(address);
         }
         default: {
-          const provider = await context.multiVmProviders.get(chain);
-          return new MultiVmWarpRouteReader(
+          const provider = await context.altVmProvider.get(chain);
+          return new AltVmWarpRouteReader(
             multiProvider,
             chain,
             provider,
@@ -116,7 +116,7 @@ async function deriveWarpRouteConfigs(
   );
 }
 
-// Validate that all chains are EVM or MultiVM compatible
+// Validate that all chains are EVM or AltVM compatible
 // by token standard
 function validateCompatibility(
   multiProvider: MultiProvider,
@@ -135,7 +135,7 @@ function validateCompatibility(
     logRed(
       `${chainList} ${
         nonCompatibleChains.length > 1 ? 'are' : 'is'
-      } non-EVM/non-MultiVM and not compatible with the cli`,
+      } non-EVM/non-AltVM and not compatible with the cli`,
     );
     process.exit(1);
   }

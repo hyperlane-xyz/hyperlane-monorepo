@@ -1,8 +1,8 @@
 import {
+  AltVmCoreReader,
   ChainName,
   CoreConfig,
   EvmCoreReader,
-  MultiVmCoreReader,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -48,8 +48,8 @@ export async function executeCoreRead({
       break;
     }
     default: {
-      const provider = await context.multiVmProviders.get(chain);
-      const coreReader = new MultiVmCoreReader(context.multiProvider, provider);
+      const provider = await context.altVmProvider.get(chain);
+      const coreReader = new AltVmCoreReader(context.multiProvider, provider);
       try {
         return coreReader.deriveCoreConfig(mailbox);
       } catch (e: any) {

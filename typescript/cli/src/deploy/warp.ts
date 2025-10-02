@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
+  AltVmWarpModule,
   CCIPContractCache,
   ChainMap,
   ChainName,
@@ -18,7 +19,6 @@ import {
   HypERC20Deployer,
   IsmType,
   MultiProvider,
-  MultiVmWarpModule,
   MultisigIsmConfig,
   OpStackIsmConfig,
   PausableIsmConfig,
@@ -117,7 +117,7 @@ export async function runWarpRouteDeploy({
     chainMetadata,
     registry,
     multiProvider,
-    multiVmSigners,
+    altVmSigner,
   } = context;
 
   // Validate ISM compatibility for all chains
@@ -140,7 +140,7 @@ export async function runWarpRouteDeploy({
   const deploymentChains = chains.filter(
     (chain) =>
       chainMetadata[chain].protocol === ProtocolType.Ethereum ||
-      multiVmSigners.supports(chainMetadata[chain].protocol),
+      altVmSigner.supports(chainMetadata[chain].protocol),
   );
 
   await runPreflightChecksForChains({
@@ -156,7 +156,7 @@ export async function runWarpRouteDeploy({
   const registryAddresses = await registry.getAddresses();
 
   const enrollTxs = await enrollCrossChainRouters(
-    { multiProvider, multiVmSigners, registryAddresses, warpDeployConfig },
+    { multiProvider, altVmSigner, registryAddresses, warpDeployConfig },
     deployedContracts,
   );
 
@@ -240,7 +240,7 @@ async function executeDeploy(
 
   const {
     warpDeployConfig,
-    context: { multiProvider, multiVmSigners, registry },
+    context: { multiProvider, altVmSigner, registry },
   } = params;
 
   const registryAddresses = await registry.getAddresses();
@@ -248,7 +248,7 @@ async function executeDeploy(
   const deployedContracts = await executeWarpDeploy(
     warpDeployConfig,
     multiProvider,
-    multiVmSigners,
+    altVmSigner,
     registryAddresses,
     apiKeys,
   );
@@ -397,7 +397,7 @@ export async function runWarpRouteApply(
         default: {
           return {
             ...config,
-            owner: context.multiVmSigners.get(chain).getSignerAddress(),
+            owner: context.altVmSigner.get(chain).getSignerAddress(),
           };
         }
       }
@@ -606,7 +606,7 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, multiVmProviders, multiVmSigners, registry } =
+  const { multiProvider, altVmProvider, altVmSigner, registry } =
     params.context;
 
   const registryAddresses =
@@ -627,7 +627,7 @@ async function updateExistingWarpRoute(
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
-    multiVmProviders,
+    altVmProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
   });
@@ -665,8 +665,8 @@ async function updateExistingWarpRoute(
             break;
           }
           default: {
-            const signer = multiVmSigners.get(chain);
-            const warpModule = new MultiVmWarpModule(
+            const signer = altVmSigner.get(chain);
+            const warpModule = new AltVmWarpModule(
               multiProvider,
               {
                 config: configWithMailbox,
@@ -982,7 +982,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   submitter: TxSubmitterBuilder<T>;
   config: ExtendedSubmissionStrategy;
 }> {
-  const { multiProvider, multiVmSigners, registry } = context;
+  const { multiProvider, altVmSigner, registry } = context;
 
   const submissionStrategy: ExtendedSubmissionStrategy =
     strategyUrl && !isExtendedChain
@@ -998,7 +998,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     submitter: await getSubmitterBuilder<T>({
       submissionStrategy: submissionStrategy as SubmissionStrategy, // TODO: fix this
       multiProvider,
-      multiVmSigners,
+      altVmSigner,
       coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories: {
         [ProtocolType.Ethereum]: {

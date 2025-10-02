@@ -2,8 +2,8 @@ import { zeroAddress } from 'viem';
 
 import {
   Address,
+  AltVM,
   Domain,
-  MultiVM,
   addressToBytes32,
   assert,
   deepEquals,
@@ -17,15 +17,15 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { MultiVmIsmModule } from '../ism/MultiVmIsmModule.js';
+import { AltVmIsmModule } from '../ism/AltVmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedMultiVmTransaction } from '../providers/ProviderType.js';
+import { AnnotatedAltVmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
-import { MultiVmWarpRouteReader } from './MultiVmWarpRouteReader.js';
-import { MultiVmDeployer } from './multiVmDeploy.js';
+import { AltVmWarpRouteReader } from './AltVmWarpRouteReader.js';
+import { AltVmDeployer } from './altVmDeploy.js';
 import {
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
@@ -36,15 +36,15 @@ type WarpRouteAddresses = {
   deployedTokenRoute: Address;
 };
 
-export class MultiVmWarpModule extends HyperlaneModule<
+export class AltVmWarpModule extends HyperlaneModule<
   any,
   HypTokenRouterConfig,
   WarpRouteAddresses
 > {
   protected logger = rootLogger.child({
-    module: 'MultiVmWarpModule',
+    module: 'AltVmWarpModule',
   });
-  reader: MultiVmWarpRouteReader;
+  reader: AltVmWarpRouteReader;
   public readonly chainName: ChainName;
   public readonly chainId: string;
   public readonly domainId: Domain;
@@ -52,14 +52,10 @@ export class MultiVmWarpModule extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
-    protected readonly signer: MultiVM.ISigner,
+    protected readonly signer: AltVM.ISigner,
   ) {
     super(args);
-    this.reader = new MultiVmWarpRouteReader(
-      metadataManager,
-      args.chain,
-      signer,
-    );
+    this.reader = new AltVmWarpRouteReader(metadataManager, args.chain, signer);
     this.chainName = this.metadataManager.getChainName(args.chain);
     this.chainId = metadataManager.getChainId(args.chain).toString();
     this.domainId = metadataManager.getDomainId(args.chain);
@@ -85,7 +81,7 @@ export class MultiVmWarpModule extends HyperlaneModule<
    */
   async update(
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
+  ): Promise<AnnotatedAltVmTransaction[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
@@ -127,8 +123,8 @@ export class MultiVmWarpModule extends HyperlaneModule<
   async createEnrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
-    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
+  ): Promise<AnnotatedAltVmTransaction[]> {
+    const updateTransactions: AnnotatedAltVmTransaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -179,8 +175,8 @@ export class MultiVmWarpModule extends HyperlaneModule<
   async createUnenrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
-    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
+  ): Promise<AnnotatedAltVmTransaction[]> {
+    const updateTransactions: AnnotatedAltVmTransaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -226,8 +222,8 @@ export class MultiVmWarpModule extends HyperlaneModule<
   async createSetDestinationGasUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
-    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
+  ): Promise<AnnotatedAltVmTransaction[]> {
+    const updateTransactions: AnnotatedAltVmTransaction[] = [];
     if (!expectedConfig.destinationGas) {
       return [];
     }
@@ -309,8 +305,8 @@ export class MultiVmWarpModule extends HyperlaneModule<
   async createIsmUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
-    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
+  ): Promise<AnnotatedAltVmTransaction[]> {
+    const updateTransactions: AnnotatedAltVmTransaction[] = [];
 
     if (
       actualConfig.interchainSecurityModule ===
@@ -364,7 +360,7 @@ export class MultiVmWarpModule extends HyperlaneModule<
   async createOwnershipUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
+  ): Promise<AnnotatedAltVmTransaction[]> {
     if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
       return [];
     }
@@ -391,11 +387,11 @@ export class MultiVmWarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<{
     deployedIsm: Address;
-    updateTransactions: AnnotatedMultiVmTransaction[];
+    updateTransactions: AnnotatedAltVmTransaction[];
   }> {
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
-    const ismModule = new MultiVmIsmModule(
+    const ismModule = new AltVmIsmModule(
       this.metadataManager,
       {
         chain: this.args.chain,
@@ -427,18 +423,18 @@ export class MultiVmWarpModule extends HyperlaneModule<
    * @param chain - The chain to deploy the module on.
    * @param config - The configuration for the token router.
    * @param multiProvider - The multi-provider instance to use.
-   * @param signer - The MultiVM signing client
-   * @returns A new instance of the MultiVmWarpModule.
+   * @param signer - The AltVM signing client
+   * @returns A new instance of the AltVmWarpModule.
    */
   static async create(params: {
     chain: ChainNameOrId;
     config: HypTokenRouterConfig;
     multiProvider: MultiProvider;
-    signer: MultiVM.ISigner;
-  }): Promise<MultiVmWarpModule> {
+    signer: AltVM.ISigner;
+  }): Promise<AltVmWarpModule> {
     const { chain, config, multiProvider, signer } = params;
 
-    const deployer = new MultiVmDeployer(multiProvider, {
+    const deployer = new AltVmDeployer(multiProvider, {
       [chain]: signer,
     });
 
@@ -446,7 +442,7 @@ export class MultiVmWarpModule extends HyperlaneModule<
       [chain]: config,
     });
 
-    const warpModule = new MultiVmWarpModule(
+    const warpModule = new AltVmWarpModule(
       multiProvider,
       {
         addresses: {

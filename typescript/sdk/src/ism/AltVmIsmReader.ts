@@ -1,9 +1,4 @@
-import {
-  Address,
-  MultiVM,
-  WithAddress,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, AltVM, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 
@@ -15,14 +10,14 @@ import {
   MultisigIsmConfig,
 } from './types.js';
 
-export class MultiVmIsmReader {
+export class AltVmIsmReader {
   protected readonly logger = rootLogger.child({
-    module: 'MultiVmIsmReader',
+    module: 'AltVmIsmReader',
   });
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly provider: MultiVM.IProvider,
+    protected readonly provider: AltVM.IProvider,
   ) {}
 
   async deriveIsmConfigFromAddress(
@@ -32,13 +27,13 @@ export class MultiVmIsmReader {
       const ism_type = await this.provider.getIsmType({ ism_id: address });
 
       switch (ism_type) {
-        case MultiVM.IsmType.MERKLE_ROOT_MULTISIG_ISM:
+        case AltVM.IsmType.MERKLE_ROOT_MULTISIG_ISM:
           return this.deriveMerkleRootMultisigConfig(address);
-        case MultiVM.IsmType.MESSAGE_ID_MULTISIG_ISM:
+        case AltVM.IsmType.MESSAGE_ID_MULTISIG_ISM:
           return this.deriveMessageIdMultisigConfig(address);
-        case MultiVM.IsmType.ROUTING_ISM:
+        case AltVM.IsmType.ROUTING_ISM:
           return this.deriveRoutingConfig(address);
-        case MultiVM.IsmType.NOOP_ISM:
+        case AltVM.IsmType.NOOP_ISM:
           return this.deriveTestConfig(address);
         default:
           throw new Error(`Unknown ISM ModuleType: ${ism_type}`);

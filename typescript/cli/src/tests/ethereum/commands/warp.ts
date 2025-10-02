@@ -14,11 +14,11 @@ import {
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
-import { getContext } from '../../../context/context.js';
 import {
-  MultiVMProviderFactory,
-  MultiVmSignerFactory,
-} from '../../../context/multivm.js';
+  AltVMProviderFactory,
+  AltVmSignerFactory,
+} from '../../../context/altvm.js';
+import { getContext } from '../../../context/context.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -585,9 +585,9 @@ export async function setupIncompleteWarpRouteExtension(
     ? await readChainSubmissionStrategyConfig(context.strategyPath)
     : {};
 
-  context.multiVmProviders = new MultiVMProviderFactory(context.multiProvider);
+  context.altVmProvider = new AltVMProviderFactory(context.multiProvider);
 
-  const multiVmSigners = await MultiVmSignerFactory.createSigners(
+  const altVmSigner = await AltVmSignerFactory.createSigners(
     context.multiProvider,
     [],
     {},
@@ -602,7 +602,7 @@ export async function setupIncompleteWarpRouteExtension(
         key: {
           [ProtocolType.Ethereum]: ANVIL_KEY,
         },
-        multiVmSigners,
+        altVmSigner,
       },
       warpCoreConfig,
       warpDeployConfig,

@@ -1,26 +1,26 @@
 import {
   Address,
+  AltVM,
   ChainId,
   Domain,
-  MultiVM,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { MultiVmHookModule } from '../hook/MultiVmHookModule.js';
+import { AltVmHookModule } from '../hook/AltVmHookModule.js';
 import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
-import { MultiVmIsmModule } from '../ism/MultiVmIsmModule.js';
+import { AltVmIsmModule } from '../ism/AltVmIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedMultiVmTransaction } from '../providers/ProviderType.js';
+import { AnnotatedAltVmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from './AbstractHyperlaneModule.js';
-import { MultiVmCoreReader } from './MultiVmCoreReader.js';
+import { AltVmCoreReader } from './AltVmCoreReader.js';
 import {
   CoreConfig,
   CoreConfigSchema,
@@ -28,13 +28,13 @@ import {
   DerivedCoreConfig,
 } from './types.js';
 
-export class MultiVmCoreModule extends HyperlaneModule<
+export class AltVmCoreModule extends HyperlaneModule<
   any,
   CoreConfig,
   Record<string, string>
 > {
-  protected logger = rootLogger.child({ module: 'MultiVmCoreModule' });
-  protected coreReader: MultiVmCoreReader;
+  protected logger = rootLogger.child({ module: 'AltVmCoreModule' });
+  protected coreReader: AltVmCoreReader;
 
   public readonly chainName: ChainName;
   public readonly chainId: ChainId;
@@ -42,7 +42,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly signer: MultiVM.ISigner,
+    protected readonly signer: AltVM.ISigner,
     args: HyperlaneModuleParams<CoreConfig, Record<string, string>>,
   ) {
     super(args);
@@ -51,7 +51,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
     this.chainId = metadataManager.getChainId(args.chain);
     this.domainId = metadataManager.getDomainId(args.chain);
 
-    this.coreReader = new MultiVmCoreReader(this.metadataManager, signer);
+    this.coreReader = new AltVmCoreReader(this.metadataManager, signer);
   }
 
   /**
@@ -64,16 +64,16 @@ export class MultiVmCoreModule extends HyperlaneModule<
 
   /**
    * Deploys the Core contracts.
-   * @returns The created MultiVmCoreModule instance.
+   * @returns The created AltVmCoreModule instance.
    */
   public static async create(params: {
     chain: ChainNameOrId;
     config: CoreConfig;
     multiProvider: MultiProvider;
-    signer: MultiVM.ISigner;
-  }): Promise<MultiVmCoreModule> {
+    signer: AltVM.ISigner;
+  }): Promise<AltVmCoreModule> {
     const { chain, config, multiProvider, signer } = params;
-    const addresses = await MultiVmCoreModule.deploy({
+    const addresses = await AltVmCoreModule.deploy({
       config,
       multiProvider,
       chain,
@@ -81,7 +81,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
     });
 
     // Create CoreModule and deploy the Core contracts
-    const module = new MultiVmCoreModule(multiProvider, signer, {
+    const module = new AltVmCoreModule(multiProvider, signer, {
       addresses,
       chain,
       config,
@@ -98,7 +98,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
     config: CoreConfig;
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
-    signer: MultiVM.ISigner;
+    signer: AltVM.ISigner;
   }): Promise<DeployedCoreAddresses> {
     const { config, multiProvider, chain, signer } = params;
 
@@ -106,7 +106,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
     const domainId = multiProvider.getDomainId(chain);
 
     // 1. Deploy default ISM
-    const ismModule = await MultiVmIsmModule.create({
+    const ismModule = await AltVmIsmModule.create({
       chain: chainName,
       config: config.defaultIsm,
       addresses: {
@@ -125,7 +125,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
     });
 
     // 3. Deploy default hook
-    const defaultHookModule = await MultiVmHookModule.create({
+    const defaultHookModule = await AltVmHookModule.create({
       chain: chainName,
       config: config.defaultHook,
       addresses: {
@@ -139,7 +139,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
     const { deployedHook: defaultHook } = defaultHookModule.serialize();
 
     // 4. Deploy required hook
-    const requiredHookModule = await MultiVmHookModule.create({
+    const requiredHookModule = await AltVmHookModule.create({
       chain: chainName,
       config: config.requiredHook,
       addresses: {
@@ -246,11 +246,11 @@ export class MultiVmCoreModule extends HyperlaneModule<
    */
   public async update(
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
+  ): Promise<AnnotatedAltVmTransaction[]> {
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions: AnnotatedMultiVmTransaction[] = [];
+    const transactions: AnnotatedAltVmTransaction[] = [];
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createDefaultHookUpdateTxs(actualConfig, expectedConfig)),
@@ -264,7 +264,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
   private async createMailboxOwnerUpdateTxs(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
+  ): Promise<AnnotatedAltVmTransaction[]> {
     if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
       return [];
     }
@@ -291,8 +291,8 @@ export class MultiVmCoreModule extends HyperlaneModule<
   async createDefaultIsmUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
-    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
+  ): Promise<AnnotatedAltVmTransaction[]> {
+    const updateTransactions: AnnotatedAltVmTransaction[] = [];
 
     const actualDefaultIsmConfig = actualConfig.defaultIsm as DerivedIsmConfig;
 
@@ -332,11 +332,11 @@ export class MultiVmCoreModule extends HyperlaneModule<
     expectDefaultIsmConfig: IsmConfig,
   ): Promise<{
     deployedIsm: Address;
-    ismUpdateTxs: AnnotatedMultiVmTransaction[];
+    ismUpdateTxs: AnnotatedAltVmTransaction[];
   }> {
     const { mailbox } = this.serialize();
 
-    const ismModule = new MultiVmIsmModule(
+    const ismModule = new AltVmIsmModule(
       this.metadataManager,
       {
         addresses: {
@@ -367,8 +367,8 @@ export class MultiVmCoreModule extends HyperlaneModule<
   async createDefaultHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
-    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
+  ): Promise<AnnotatedAltVmTransaction[]> {
+    const updateTransactions: AnnotatedAltVmTransaction[] = [];
 
     const actualDefaultHookConfig =
       actualConfig.defaultHook as DerivedHookConfig;
@@ -409,8 +409,8 @@ export class MultiVmCoreModule extends HyperlaneModule<
   async createRequiredHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedMultiVmTransaction[]> {
-    const updateTransactions: AnnotatedMultiVmTransaction[] = [];
+  ): Promise<AnnotatedAltVmTransaction[]> {
+    const updateTransactions: AnnotatedAltVmTransaction[] = [];
 
     const actualRequiredHookConfig =
       actualConfig.requiredHook as DerivedHookConfig;
@@ -451,11 +451,11 @@ export class MultiVmCoreModule extends HyperlaneModule<
     expectHookConfig: HookConfig,
   ): Promise<{
     deployedHook: Address;
-    hookUpdateTxs: AnnotatedMultiVmTransaction[];
+    hookUpdateTxs: AnnotatedAltVmTransaction[];
   }> {
     const { mailbox } = this.serialize();
 
-    const hookModule = new MultiVmHookModule(
+    const hookModule = new AltVmHookModule(
       this.metadataManager,
       {
         addresses: {

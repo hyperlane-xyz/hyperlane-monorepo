@@ -2,7 +2,7 @@ import { Logger } from 'pino';
 
 import {
   Address,
-  MultiVM,
+  AltVM,
   assert,
   objFilter,
   objMap,
@@ -15,14 +15,14 @@ import { ChainMap, ChainName } from '../types.js';
 import { TokenType, gasOverhead } from './config.js';
 import { WarpRouteDeployConfigMailboxRequired } from './types.js';
 
-export class MultiVmDeployer {
+export class AltVmDeployer {
   protected logger: Logger;
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly signersMap: ChainMap<MultiVM.ISigner>,
+    protected readonly signersMap: ChainMap<AltVM.ISigner>,
   ) {
-    this.logger = rootLogger.child({ module: 'MultiVmDeployer' });
+    this.logger = rootLogger.child({ module: 'AltVmDeployer' });
   }
 
   async deploy(

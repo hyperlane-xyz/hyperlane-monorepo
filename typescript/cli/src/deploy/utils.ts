@@ -47,7 +47,7 @@ export async function runPreflightChecksForChains({
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
-  const { multiProvider, skipConfirmation, multiVmSigners } = context;
+  const { multiProvider, skipConfirmation, altVmSigner } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
@@ -62,7 +62,7 @@ export async function runPreflightChecksForChains({
         break;
       }
       default: {
-        signer = multiVmSigners.get(chain);
+        signer = altVmSigner.get(chain);
       }
     }
 
@@ -76,7 +76,7 @@ export async function runPreflightChecksForChains({
 
   await nativeBalancesAreSufficient(
     multiProvider,
-    multiVmSigners,
+    altVmSigner,
     chainsToGasCheck ?? chains,
     minGas,
     skipConfirmation,
@@ -94,7 +94,7 @@ export async function runDeployPlanStep({
     chainMetadata: chainMetadataMap,
     multiProvider,
     skipConfirmation,
-    multiVmSigners,
+    altVmSigner,
   } = context;
 
   let address: Address;
@@ -105,7 +105,7 @@ export async function runDeployPlanStep({
       break;
     }
     default: {
-      address = multiVmSigners.get(chain).getSignerAddress();
+      address = altVmSigner.get(chain).getSignerAddress();
     }
   }
 
@@ -163,7 +163,7 @@ export async function getBalances(
   chains: ChainName[],
   userAddress?: Address,
 ): Promise<Record<string, BigNumber>> {
-  const { multiProvider, multiVmSigners } = context;
+  const { multiProvider, altVmSigner } = context;
   const balances: Record<string, BigNumber> = {};
 
   for (const chain of chains) {
@@ -178,7 +178,7 @@ export async function getBalances(
         break;
       }
       default: {
-        const signer = multiVmSigners.get(chain);
+        const signer = altVmSigner.get(chain);
         const address = userAddress ?? signer.getSignerAddress();
         balances[chain] = BigNumber.from(
           await signer.getBalance({

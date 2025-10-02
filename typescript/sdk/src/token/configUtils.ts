@@ -2,7 +2,7 @@ import { zeroAddress } from 'viem';
 
 import {
   Address,
-  MultiVM,
+  AltVM,
   ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
@@ -19,10 +19,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
+import { AltVmHookReader } from '../hook/AltVmHookReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import { MultiVmHookReader } from '../hook/MultiVmHookReader.js';
+import { AltVmIsmReader } from '../ism/AltVmIsmReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { MultiVmIsmReader } from '../ism/MultiVmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
@@ -113,14 +113,14 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  multiVmProviders: MultiVM.IProviderFactory;
+  altVmProvider: AltVM.IProviderFactory;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
-    multiVmProviders,
+    altVmProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
@@ -253,9 +253,9 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            const provider = await multiVmProviders.get(chain);
+            const provider = await altVmProvider.get(chain);
 
-            const reader = new MultiVmHookReader(multiProvider, provider);
+            const reader = new AltVmHookReader(multiProvider, provider);
             chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
           }
         }
@@ -276,9 +276,9 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            const provider = await multiVmProviders.get(chain);
+            const provider = await altVmProvider.get(chain);
 
-            const reader = new MultiVmIsmReader(multiProvider, provider);
+            const reader = new AltVmIsmReader(multiProvider, provider);
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
               chainConfig.interchainSecurityModule,
             );

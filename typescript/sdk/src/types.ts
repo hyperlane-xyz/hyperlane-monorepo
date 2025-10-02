@@ -3,8 +3,8 @@ import { z } from 'zod';
 
 import type {
   Address,
+  AltVM,
   Domain,
-  MultiVM,
   ProtocolType,
 } from '@hyperlane-xyz/utils';
 
@@ -44,7 +44,7 @@ export const PausableSchema = OwnableSchema.extend({
 });
 export type PausableConfig = z.infer<typeof PausableSchema>;
 
-export type TypedSigner = Signer | MultiVM.ISigner;
+export type TypedSigner = Signer | AltVM.ISigner;
 
 export interface IMultiProtocolSignerManager {
   getMultiProvider(): Promise<MultiProvider>;

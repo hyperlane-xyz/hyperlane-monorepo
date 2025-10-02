@@ -2,7 +2,7 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { MultiVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { AltVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { EMPTY_BYTES_32 } from '../../../../timelock/evm/constants.js';
 import { ChainMap } from '../../../../types.js';
@@ -41,7 +41,7 @@ export class EV5TimelockSubmitter
   static async fromConfig(
     config: EvmTimelockControllerSubmitterProps,
     multiProvider: MultiProvider,
-    multiVmSigners: MultiVM.ISignerFactory,
+    altVmSigner: AltVM.ISignerFactory,
     coreAddressesByChain: ChainMap<Record<string, string>>,
   ): Promise<EV5TimelockSubmitter> {
     const provider = multiProvider.getProvider(config.chain);
@@ -59,7 +59,7 @@ export class EV5TimelockSubmitter
 
     const proposerSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
-      multiVmSigners,
+      altVmSigner,
       config.proposerSubmitter,
       coreAddressesByChain,
     );

@@ -617,7 +617,7 @@ export interface ISignerConnect {
   ): Promise<ISigner>;
 }
 
-abstract class IMultiVMFactory {
+abstract class IAltVMFactory {
   abstract getSupportedProtocols(): ProtocolType[];
 
   abstract supports(_protocol: ProtocolType): boolean;
@@ -625,10 +625,10 @@ abstract class IMultiVMFactory {
   abstract getGas(_protocol: ProtocolType): MINIMUM_GAS;
 }
 
-export abstract class IProviderFactory extends IMultiVMFactory {
+export abstract class IProviderFactory extends IAltVMFactory {
   abstract get(chain: string): Promise<IProvider>;
 }
 
-export abstract class ISignerFactory extends IMultiVMFactory {
+export abstract class ISignerFactory extends IAltVMFactory {
   abstract get(chain: string): ISigner;
 }

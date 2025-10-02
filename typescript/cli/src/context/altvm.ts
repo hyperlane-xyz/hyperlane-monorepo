@@ -8,14 +8,14 @@ import {
   ProtocolMap,
   isJsonRpcSubmitterConfig,
 } from '@hyperlane-xyz/sdk';
-import { MINIMUM_GAS, MultiVM, ProtocolType } from '@hyperlane-xyz/utils';
+import { AltVM, MINIMUM_GAS, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
 import { SignerKeyProtocolMap } from './types.js';
 
-// ### ALL MULTI VM PROTOCOLS ARE REGISTERED HERE ###
-const MULTI_VM_SUPPORTED_PROTOCOLS: MULTI_VM_PROTOCOL = {
+// ### ALL Alt VM PROTOCOLS ARE REGISTERED HERE ###
+const ALT_VM_SUPPORTED_PROTOCOLS: ALT_VM_PROTOCOL = {
   [ProtocolType.CosmosNative]: {
     provider: CosmosNativeProvider,
     signer: CosmosNativeSigner,
@@ -29,13 +29,13 @@ const MULTI_VM_SUPPORTED_PROTOCOLS: MULTI_VM_PROTOCOL = {
   // [NEW PROTOCOL]: {...}
 };
 
-type MULTI_VM_PROTOCOL = ProtocolMap<{
-  provider: MultiVM.IProviderConnect;
-  signer: MultiVM.ISignerConnect;
+type ALT_VM_PROTOCOL = ProtocolMap<{
+  provider: AltVM.IProviderConnect;
+  signer: AltVM.ISignerConnect;
   gas: MINIMUM_GAS;
 }>;
 
-export class MultiVMProviderFactory implements MultiVM.IProviderFactory {
+export class AltVMProviderFactory implements AltVM.IProviderFactory {
   private readonly metadataManager: ChainMetadataManager;
 
   constructor(metadataManager: ChainMetadataManager) {
@@ -43,76 +43,76 @@ export class MultiVMProviderFactory implements MultiVM.IProviderFactory {
   }
 
   public getSupportedProtocols(): ProtocolType[] {
-    return Object.keys(MULTI_VM_SUPPORTED_PROTOCOLS) as ProtocolType[];
+    return Object.keys(ALT_VM_SUPPORTED_PROTOCOLS) as ProtocolType[];
   }
 
   public supports(protocol: ProtocolType) {
-    return !!MULTI_VM_SUPPORTED_PROTOCOLS[protocol];
+    return !!ALT_VM_SUPPORTED_PROTOCOLS[protocol];
   }
 
   public getGas(protocol: ProtocolType) {
     if (!this.supports(protocol)) {
-      throw new Error(`Protocol type ${protocol} not supported in MultiVM`);
+      throw new Error(`Protocol type ${protocol} not supported in AltVM`);
     }
 
-    const { gas } = MULTI_VM_SUPPORTED_PROTOCOLS[protocol]!;
+    const { gas } = ALT_VM_SUPPORTED_PROTOCOLS[protocol]!;
     return gas;
   }
 
-  public async get(chain: string): Promise<MultiVM.IProvider> {
+  public async get(chain: string): Promise<AltVM.IProvider> {
     const metadata = this.metadataManager.getChainMetadata(chain);
 
     if (!this.supports(metadata.protocol)) {
       throw new Error(
-        `Chain ${chain} with protocol type ${metadata.protocol} not supported in MultiVM`,
+        `Chain ${chain} with protocol type ${metadata.protocol} not supported in AltVM`,
       );
     }
 
-    const { provider } = MULTI_VM_SUPPORTED_PROTOCOLS[metadata.protocol]!;
+    const { provider } = ALT_VM_SUPPORTED_PROTOCOLS[metadata.protocol]!;
     return provider.connect(metadata.rpcUrls[0].http);
   }
 }
 
-export class MultiVmSignerFactory implements MultiVM.ISignerFactory {
+export class AltVmSignerFactory implements AltVM.ISignerFactory {
   private readonly metadataManager: ChainMetadataManager;
-  private readonly chains: ChainMap<MultiVM.ISigner>;
+  private readonly chains: ChainMap<AltVM.ISigner>;
 
   private constructor(
     metadataManager: ChainMetadataManager,
-    chains: ChainMap<MultiVM.ISigner>,
+    chains: ChainMap<AltVM.ISigner>,
   ) {
     this.metadataManager = metadataManager;
     this.chains = chains;
   }
 
   public getSupportedProtocols(): ProtocolType[] {
-    return Object.keys(MULTI_VM_SUPPORTED_PROTOCOLS) as ProtocolType[];
+    return Object.keys(ALT_VM_SUPPORTED_PROTOCOLS) as ProtocolType[];
   }
 
   public supports(protocol: ProtocolType) {
-    return !!MULTI_VM_SUPPORTED_PROTOCOLS[protocol];
+    return !!ALT_VM_SUPPORTED_PROTOCOLS[protocol];
   }
 
   public getGas(protocol: ProtocolType) {
     if (!this.supports(protocol)) {
-      throw new Error(`Protocol type ${protocol} not supported in MultiVM`);
+      throw new Error(`Protocol type ${protocol} not supported in AltVM`);
     }
 
-    const { gas } = MULTI_VM_SUPPORTED_PROTOCOLS[protocol]!;
+    const { gas } = ALT_VM_SUPPORTED_PROTOCOLS[protocol]!;
     return gas;
   }
 
-  public get(chain: string): MultiVM.ISigner {
+  public get(chain: string): AltVM.ISigner {
     const protocol = this.metadataManager.getProtocol(chain);
 
     if (!this.supports(protocol)) {
       throw new Error(
-        `Chain ${chain} with protocol type ${protocol} not supported in MultiVM`,
+        `Chain ${chain} with protocol type ${protocol} not supported in AltVM`,
       );
     }
 
     if (!this.chains[chain]) {
-      throw new Error(`MultiVM was not initialized with chain ${chain}`);
+      throw new Error(`AltVM was not initialized with chain ${chain}`);
     }
 
     return this.chains[chain];
@@ -154,7 +154,7 @@ export class MultiVmSignerFactory implements MultiVM.ISignerFactory {
     key: SignerKeyProtocolMap,
     strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   ) {
-    const signers: ChainMap<MultiVM.ISigner> = {};
+    const signers: ChainMap<AltVM.ISigner> = {};
 
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
@@ -163,15 +163,15 @@ export class MultiVmSignerFactory implements MultiVM.ISignerFactory {
         continue;
       }
 
-      const protocol = MULTI_VM_SUPPORTED_PROTOCOLS[metadata.protocol];
+      const protocol = ALT_VM_SUPPORTED_PROTOCOLS[metadata.protocol];
 
       if (!protocol) {
         throw new Error(
-          `Chain ${chain} with protocol type ${metadata.protocol} not supported in MultiVM`,
+          `Chain ${chain} with protocol type ${metadata.protocol} not supported in AltVM`,
         );
       }
 
-      const privateKey = await MultiVmSignerFactory.loadPrivateKey(
+      const privateKey = await AltVmSignerFactory.loadPrivateKey(
         key,
         strategyConfig,
         metadata.protocol,
@@ -188,6 +188,6 @@ export class MultiVmSignerFactory implements MultiVM.ISignerFactory {
       );
     }
 
-    return new MultiVmSignerFactory(metadataManager, signers);
+    return new AltVmSignerFactory(metadataManager, signers);
   }
 }

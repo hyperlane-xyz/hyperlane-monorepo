@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { MultiVM } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/utils';
 
 import {
   bytes32ToAddress,
@@ -13,7 +13,7 @@ import { createSigner } from './utils.js';
 describe('3. cosmos sdk post dispatch e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: MultiVM.ISigner;
+  let signer: AltVM.ISigner;
 
   before(async () => {
     signer = await createSigner('alice');

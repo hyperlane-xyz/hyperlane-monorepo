@@ -1,7 +1,7 @@
-import { Address, MultiVM, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, AltVM, rootLogger } from '@hyperlane-xyz/utils';
 
-import { MultiVmHookReader } from '../hook/MultiVmHookReader.js';
-import { MultiVmIsmReader } from '../ism/MultiVmIsmReader.js';
+import { AltVmHookReader } from '../hook/AltVmHookReader.js';
+import { AltVmIsmReader } from '../ism/AltVmIsmReader.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
   DestinationGas,
@@ -14,20 +14,20 @@ import { ChainNameOrId } from '../types.js';
 import { TokenType } from './config.js';
 import { DerivedTokenRouterConfig, HypTokenConfig } from './types.js';
 
-export class MultiVmWarpRouteReader {
+export class AltVmWarpRouteReader {
   protected readonly logger = rootLogger.child({
-    module: 'MultiVmWarpRouteReader',
+    module: 'AltVmWarpRouteReader',
   });
-  hookReader: MultiVmHookReader;
-  ismReader: MultiVmIsmReader;
+  hookReader: AltVmHookReader;
+  ismReader: AltVmIsmReader;
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     protected readonly chain: ChainNameOrId,
-    protected readonly provider: MultiVM.IProvider,
+    protected readonly provider: AltVM.IProvider,
   ) {
-    this.hookReader = new MultiVmHookReader(metadataManager, provider);
-    this.ismReader = new MultiVmIsmReader(metadataManager, provider);
+    this.hookReader = new AltVmHookReader(metadataManager, provider);
+    this.ismReader = new AltVmIsmReader(metadataManager, provider);
   }
 
   /**
@@ -68,9 +68,9 @@ export class MultiVmWarpRouteReader {
     });
 
     switch (token.token_type) {
-      case MultiVM.TokenType.COLLATERAL:
+      case AltVM.TokenType.COLLATERAL:
         return TokenType.collateral;
-      case MultiVM.TokenType.SYNTHETIC:
+      case AltVM.TokenType.SYNTHETIC:
         return TokenType.synthetic;
       default:
         throw new Error(
