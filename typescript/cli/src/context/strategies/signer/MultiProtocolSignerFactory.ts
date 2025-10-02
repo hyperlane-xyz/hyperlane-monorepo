@@ -43,7 +43,7 @@ class EvmSignerStrategy extends BaseMultiProtocolSigner {
 }
 
 class CosmosNativeSignerStrategy extends BaseMultiProtocolSigner {
-  async getSigner(config: SignerConfig): Promise<MultiVM.IMultiVMSigner> {
+  async getSigner(config: SignerConfig): Promise<MultiVM.ISigner> {
     const { privateKey } = await this.getPrivateKey(config);
 
     const provider = await this.multiProtocolProvider.getCosmJsNativeProvider(

@@ -44,13 +44,13 @@ export const PausableSchema = OwnableSchema.extend({
 });
 export type PausableConfig = z.infer<typeof PausableSchema>;
 
-export type TypedSigner = Signer | MultiVM.IMultiVMSigner;
+export type TypedSigner = Signer | MultiVM.ISigner;
 
 export interface IMultiProtocolSignerManager {
   getMultiProvider(): Promise<MultiProvider>;
 
   getEVMSigner(chain: ChainName): Signer;
-  getCosmosNativeSigner(chain: ChainName): MultiVM.IMultiVMSigner;
+  getCosmosNativeSigner(chain: ChainName): MultiVM.ISigner;
 
   getSignerAddress(chain: ChainName): Promise<Address>;
   getBalance(params: {

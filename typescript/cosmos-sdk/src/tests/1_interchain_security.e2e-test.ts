@@ -13,7 +13,7 @@ import { createSigner } from './utils.js';
 describe('1. cosmos sdk interchain security e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: MultiVM.IMultiVMSigner;
+  let signer: MultiVM.ISigner;
 
   before(async () => {
     signer = await createSigner('alice');

@@ -1,6 +1,5 @@
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { MultiVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { IMultiVMSignerFactory } from '../../../../../utils/dist/multivm.js';
 import { ChainMap, ProtocolMap } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 
@@ -20,7 +19,7 @@ import { SubmitterMetadata } from './types.js';
 export type SubmitterBuilderSettings = {
   submissionStrategy: SubmissionStrategy;
   multiProvider: MultiProvider;
-  multiVmSigners: IMultiVMSignerFactory;
+  multiVmSigners: MultiVM.ISignerFactory;
   coreAddressesByChain: ChainMap<Record<string, string>>;
   additionalSubmitterFactories?: ProtocolMap<Record<string, SubmitterFactory>>;
 };
@@ -45,7 +44,7 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
 
 export type SubmitterFactory<TProtocol extends ProtocolType = any> = (
   multiProvider: MultiProvider,
-  multiVmSigners: IMultiVMSignerFactory,
+  multiVmSigners: MultiVM.ISignerFactory,
   metadata: SubmitterMetadata,
   coreAddressesByChain: ChainMap<Record<string, string>>,
 ) => Promise<TxSubmitterInterface<TProtocol>> | TxSubmitterInterface<TProtocol>;
@@ -152,7 +151,7 @@ const defaultSubmitterFactories: ProtocolMap<Record<string, SubmitterFactory>> =
  */
 export async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
-  multiVmSigners: IMultiVMSignerFactory,
+  multiVmSigners: MultiVM.ISignerFactory,
   submitterMetadata: SubmitterMetadata,
   coreAddressesByChain: ChainMap<Record<string, string>>,
   additionalSubmitterFactories: ProtocolMap<

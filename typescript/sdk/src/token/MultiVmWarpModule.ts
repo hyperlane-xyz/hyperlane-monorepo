@@ -52,7 +52,7 @@ export class MultiVmWarpModule extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
-    protected readonly signer: MultiVM.IMultiVMSigner,
+    protected readonly signer: MultiVM.ISigner,
   ) {
     super(args);
     this.reader = new MultiVmWarpRouteReader(
@@ -162,11 +162,13 @@ export class MultiVmWarpModule extends HyperlaneModule<
         transaction: await this.signer.populateEnrollRemoteRouter({
           signer: this.signer.getSignerAddress(),
           token_id: this.args.addresses.deployedTokenRoute,
-          receiver_domain_id: parseInt(domainId),
-          receiver_address: addressToBytes32(
-            expectedRemoteRouters[domainId].address,
-          ),
-          gas: '0',
+          remote_router: {
+            receiver_domain_id: parseInt(domainId),
+            receiver_address: addressToBytes32(
+              expectedRemoteRouters[domainId].address,
+            ),
+            gas: '0',
+          },
         }),
       });
     }
@@ -282,11 +284,13 @@ export class MultiVmWarpModule extends HyperlaneModule<
           transaction: await this.signer.populateEnrollRemoteRouter({
             signer: this.signer.getSignerAddress(),
             token_id: this.args.addresses.deployedTokenRoute,
-            receiver_domain_id: parseInt(domain),
-            receiver_address: addressToBytes32(
-              expectedRemoteRouters[domain].address,
-            ),
-            gas: '0',
+            remote_router: {
+              receiver_domain_id: parseInt(domain),
+              receiver_address: addressToBytes32(
+                expectedRemoteRouters[domain].address,
+              ),
+              gas: '0',
+            },
           }),
         });
       }
@@ -430,7 +434,7 @@ export class MultiVmWarpModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: HypTokenRouterConfig;
     multiProvider: MultiProvider;
-    signer: MultiVM.IMultiVMSigner;
+    signer: MultiVM.ISigner;
   }): Promise<MultiVmWarpModule> {
     const { chain, config, multiProvider, signer } = params;
 

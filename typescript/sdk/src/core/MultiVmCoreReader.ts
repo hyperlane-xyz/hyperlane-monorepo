@@ -15,7 +15,7 @@ export class MultiVmCoreReader {
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly provider: MultiVM.IMultiVMProvider,
+    protected readonly provider: MultiVM.IProvider,
   ) {
     this.ismReader = new MultiVmIsmReader(this.metadataManager, this.provider);
     this.hookReader = new MultiVmHookReader(

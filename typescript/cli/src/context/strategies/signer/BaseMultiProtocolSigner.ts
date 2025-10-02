@@ -6,7 +6,7 @@ import { Address, MultiVM } from '@hyperlane-xyz/utils';
 
 import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 
-export type TypedSigner = Signer | MultiVM.IMultiVMSigner;
+export type TypedSigner = Signer | MultiVM.ISigner;
 
 export type SignerConfig = Omit<
   Extract<

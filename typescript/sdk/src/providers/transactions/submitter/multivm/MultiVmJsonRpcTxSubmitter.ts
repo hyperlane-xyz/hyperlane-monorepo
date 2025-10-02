@@ -2,7 +2,6 @@ import { Logger } from 'pino';
 
 import { MultiVM, rootLogger } from '@hyperlane-xyz/utils';
 
-import { IMultiVMSignerFactory } from '../../../../../../utils/dist/multivm.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { AnnotatedMultiVmTransaction } from '../../../ProviderType.js';
 import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
@@ -11,7 +10,7 @@ import { TxSubmitterType } from '../TxSubmitterTypes.js';
 export class MultiVmJsonRpcTxSubmitter implements TxSubmitterInterface<any> {
   public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.JSON_RPC;
 
-  private signer: MultiVM.IMultiVMSigner;
+  private signer: MultiVM.ISigner;
 
   protected readonly logger: Logger = rootLogger.child({
     module: MultiVmJsonRpcTxSubmitter.name,
@@ -19,7 +18,7 @@ export class MultiVmJsonRpcTxSubmitter implements TxSubmitterInterface<any> {
 
   constructor(
     public readonly multiProvider: MultiProvider,
-    public readonly multiVmSigners: IMultiVMSignerFactory,
+    public readonly multiVmSigners: MultiVM.ISignerFactory,
     public readonly config: { chain: string },
   ) {
     this.signer = this.multiVmSigners.get(this.config.chain);

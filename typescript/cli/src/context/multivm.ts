@@ -29,7 +29,7 @@ type SUPPORTED_PROTOCOL = ProtocolMap<{
   gas: MINIMUM_GAS;
 }>;
 
-export class MultiVMProviderFactory implements MultiVM.IMultiVMProviderFactory {
+export class MultiVMProviderFactory implements MultiVM.IProviderFactory {
   private readonly metadataManager: ChainMetadataManager;
 
   constructor(metadataManager: ChainMetadataManager) {
@@ -53,7 +53,7 @@ export class MultiVMProviderFactory implements MultiVM.IMultiVMProviderFactory {
     return gas;
   }
 
-  public async get(chain: string): Promise<MultiVM.IMultiVMProvider> {
+  public async get(chain: string): Promise<MultiVM.IProvider> {
     const metadata = this.metadataManager.getChainMetadata(chain);
 
     if (!this.supports(metadata.protocol)) {
@@ -67,13 +67,13 @@ export class MultiVMProviderFactory implements MultiVM.IMultiVMProviderFactory {
   }
 }
 
-export class MultiVmSignerFactory implements MultiVM.IMultiVMSignerFactory {
+export class MultiVmSignerFactory implements MultiVM.ISignerFactory {
   private readonly metadataManager: ChainMetadataManager;
-  private readonly chains: ChainMap<MultiVM.IMultiVMSigner>;
+  private readonly chains: ChainMap<MultiVM.ISigner>;
 
   private constructor(
     metadataManager: ChainMetadataManager,
-    chains: ChainMap<MultiVM.IMultiVMSigner>,
+    chains: ChainMap<MultiVM.ISigner>,
   ) {
     this.metadataManager = metadataManager;
     this.chains = chains;
@@ -96,7 +96,7 @@ export class MultiVmSignerFactory implements MultiVM.IMultiVMSignerFactory {
     return gas;
   }
 
-  public get(chain: string): MultiVM.IMultiVMSigner {
+  public get(chain: string): MultiVM.ISigner {
     const protocol = this.metadataManager.getProtocol(chain);
 
     if (!this.supports(protocol)) {
@@ -117,7 +117,7 @@ export class MultiVmSignerFactory implements MultiVM.IMultiVMSignerFactory {
     chains: string[],
     key: ProtocolMap<string> | string,
   ) {
-    const signers: ChainMap<MultiVM.IMultiVMSigner> = {};
+    const signers: ChainMap<MultiVM.ISigner> = {};
 
     if (typeof key === 'string') {
       throw new Error(

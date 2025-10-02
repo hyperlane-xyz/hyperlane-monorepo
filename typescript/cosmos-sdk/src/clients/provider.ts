@@ -52,7 +52,7 @@ import {
 import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
-export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
+export class CosmosNativeProvider implements MultiVM.IProvider {
   private readonly query: QueryClient &
     BankExtension &
     WarpExtension &
@@ -698,9 +698,9 @@ export class CosmosNativeProvider implements MultiVM.IMultiVMProvider {
         owner: req.signer,
         token_id: req.token_id,
         remote_router: {
-          receiver_domain: req.receiver_domain_id,
-          receiver_contract: req.receiver_address,
-          gas: req.gas,
+          receiver_domain: req.remote_router.receiver_domain_id,
+          receiver_contract: req.remote_router.receiver_address,
+          gas: req.remote_router.gas,
         },
       }),
     };

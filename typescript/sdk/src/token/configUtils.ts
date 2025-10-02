@@ -2,6 +2,7 @@ import { zeroAddress } from 'viem';
 
 import {
   Address,
+  MultiVM,
   ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
@@ -17,7 +18,6 @@ import {
   transformObj,
 } from '@hyperlane-xyz/utils';
 
-import { IMultiVMProviderFactory } from '../../../utils/dist/multivm.js';
 import { isProxy } from '../deploy/proxy.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { MultiVmHookReader } from '../hook/MultiVmHookReader.js';
@@ -113,7 +113,7 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  multiVmProviders: IMultiVMProviderFactory;
+  multiVmProviders: MultiVM.IProviderFactory;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;

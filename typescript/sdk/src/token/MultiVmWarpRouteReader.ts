@@ -24,7 +24,7 @@ export class MultiVmWarpRouteReader {
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     protected readonly chain: ChainNameOrId,
-    protected readonly provider: MultiVM.IMultiVMProvider,
+    protected readonly provider: MultiVM.IProvider,
   ) {
     this.hookReader = new MultiVmHookReader(metadataManager, provider);
     this.ismReader = new MultiVmIsmReader(metadataManager, provider);

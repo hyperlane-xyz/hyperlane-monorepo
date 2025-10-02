@@ -345,9 +345,11 @@ export type ResSetTokenIsm = {
 export type ReqEnrollRemoteRouter = {
   signer: string;
   token_id: string;
-  receiver_domain_id: number;
-  receiver_address: string;
-  gas: string;
+  remote_router: {
+    receiver_domain_id: number;
+    receiver_address: string;
+    gas: string;
+  };
 };
 export type ResEnrollRemoteRouter = {
   receiver_domain_id: number;
@@ -377,7 +379,7 @@ export type ResRemoteTransfer = {
   message_id: string;
 };
 
-export interface IMultiVMProvider {
+export interface IProvider {
   // ### QUERY BASE ###
 
   isHealthy(): Promise<boolean>;
@@ -499,7 +501,7 @@ export interface IMultiVMProvider {
   populateRemoteTransfer(req: ReqRemoteTransfer): Promise<any>;
 }
 
-export interface IMultiVMSigner extends IMultiVMProvider {
+export interface ISigner extends IProvider {
   getSignerAddress(): string;
 
   signAndBroadcast(transactions: any[]): Promise<any>;
@@ -604,7 +606,7 @@ export interface IMultiVMSigner extends IMultiVMProvider {
 }
 
 export interface IProviderConnect {
-  connect(_rpc: string): Promise<IMultiVMProvider>;
+  connect(_rpc: string): Promise<IProvider>;
 }
 
 export interface ISignerConnect {
@@ -612,7 +614,7 @@ export interface ISignerConnect {
     _rpc: string,
     _privateKey: string,
     _extraParams: Record<string, any>,
-  ): Promise<IMultiVMSigner>;
+  ): Promise<ISigner>;
 }
 
 abstract class IMultiVMFactory {
@@ -623,10 +625,10 @@ abstract class IMultiVMFactory {
   abstract getGas(_protocol: ProtocolType): MINIMUM_GAS;
 }
 
-export abstract class IMultiVMProviderFactory extends IMultiVMFactory {
-  abstract get(chain: string): Promise<IMultiVMProvider>;
+export abstract class IProviderFactory extends IMultiVMFactory {
+  abstract get(chain: string): Promise<IProvider>;
 }
 
-export abstract class IMultiVMSignerFactory extends IMultiVMFactory {
-  abstract get(chain: string): IMultiVMSigner;
+export abstract class ISignerFactory extends IMultiVMFactory {
+  abstract get(chain: string): ISigner;
 }

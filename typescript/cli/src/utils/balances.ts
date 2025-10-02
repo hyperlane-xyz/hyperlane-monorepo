@@ -6,18 +6,18 @@ import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   Address,
   MINIMUM_GAS_ACTION,
+  MultiVM,
   ProtocolType,
   assert,
 } from '@hyperlane-xyz/utils';
 
-import { IMultiVMSignerFactory } from '../../../utils/dist/multivm.js';
 import { autoConfirm } from '../config/prompts.js';
 import { ETHEREUM_MINIMUM_GAS } from '../consts.js';
 import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  multiVmSigners: IMultiVMSignerFactory,
+  multiVmSigners: MultiVM.ISignerFactory,
   chains: ChainName[],
   minGas: MINIMUM_GAS_ACTION,
   skipConfirmation: boolean,

@@ -56,7 +56,7 @@ export class MultiVmIsmModule extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
-    protected readonly signer: MultiVM.IMultiVMSigner,
+    protected readonly signer: MultiVM.ISigner,
   ) {
     params.config = IsmConfigSchema.parse(params.config);
     super(params);
@@ -155,7 +155,7 @@ export class MultiVmIsmModule extends HyperlaneModule<
       mailbox: string;
     };
     multiProvider: MultiProvider;
-    signer: MultiVM.IMultiVMSigner;
+    signer: MultiVM.ISigner;
   }): Promise<MultiVmIsmModule> {
     const module = new MultiVmIsmModule(
       multiProvider,

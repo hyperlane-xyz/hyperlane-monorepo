@@ -53,7 +53,7 @@ export class MultiVmHookModule extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
-    protected readonly signer: MultiVM.IMultiVMSigner,
+    protected readonly signer: MultiVM.ISigner,
   ) {
     params.config = HookConfigSchema.parse(params.config);
     super(params);
@@ -204,7 +204,7 @@ export class MultiVmHookModule extends HyperlaneModule<
     config: HookConfig;
     addresses: HookModuleAddresses;
     multiProvider: MultiProvider;
-    signer: MultiVM.IMultiVMSigner;
+    signer: MultiVM.ISigner;
   }): Promise<MultiVmHookModule> {
     const module = new MultiVmHookModule(
       multiProvider,

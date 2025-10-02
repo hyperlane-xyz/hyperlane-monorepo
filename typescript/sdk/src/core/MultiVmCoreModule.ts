@@ -42,7 +42,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly signer: MultiVM.IMultiVMSigner,
+    protected readonly signer: MultiVM.ISigner,
     args: HyperlaneModuleParams<CoreConfig, Record<string, string>>,
   ) {
     super(args);
@@ -70,7 +70,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: CoreConfig;
     multiProvider: MultiProvider;
-    signer: MultiVM.IMultiVMSigner;
+    signer: MultiVM.ISigner;
   }): Promise<MultiVmCoreModule> {
     const { chain, config, multiProvider, signer } = params;
     const addresses = await MultiVmCoreModule.deploy({
@@ -98,7 +98,7 @@ export class MultiVmCoreModule extends HyperlaneModule<
     config: CoreConfig;
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
-    signer: MultiVM.IMultiVMSigner;
+    signer: MultiVM.ISigner;
   }): Promise<DeployedCoreAddresses> {
     const { config, multiProvider, chain, signer } = params;
 

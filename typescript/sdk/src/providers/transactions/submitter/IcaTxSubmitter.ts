@@ -1,6 +1,5 @@
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, MultiVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { IMultiVMSignerFactory } from '../../../../../utils/dist/multivm.js';
 import {
   InterchainAccount,
   buildInterchainAccountApp,
@@ -41,7 +40,7 @@ export class EvmIcaTxSubmitter
   static async fromConfig(
     config: EvmIcaTxSubmitterProps,
     multiProvider: MultiProvider,
-    multiVmSigners: IMultiVMSignerFactory,
+    multiVmSigners: MultiVM.ISignerFactory,
     coreAddressesByChain: Readonly<ChainMap<Record<string, string>>>,
   ): Promise<EvmIcaTxSubmitter> {
     const interchainAccountRouterAddress: Address | undefined =

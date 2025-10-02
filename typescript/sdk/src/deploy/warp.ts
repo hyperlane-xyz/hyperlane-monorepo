@@ -12,7 +12,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { IMultiVMSignerFactory } from '../../../utils/dist/multivm.js';
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { CCIPContractCache } from '../ccip/utils.js';
 import {
@@ -47,7 +46,7 @@ type ChainAddresses = Record<string, string>;
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  multiVmSigners: IMultiVMSignerFactory,
+  multiVmSigners: MultiVM.ISignerFactory,
   registryAddresses: ChainMap<ChainAddresses>,
   apiKeys: ChainMap<string>,
 ): Promise<ChainMap<Address>> {
@@ -135,7 +134,7 @@ export async function executeWarpDeploy(
 async function resolveWarpIsmAndHook(
   warpConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  multiVmSigners: IMultiVMSignerFactory,
+  multiVmSigners: MultiVM.ISignerFactory,
   registryAddresses: ChainMap<ChainAddresses>,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier: ContractVerifier,
@@ -192,7 +191,7 @@ async function createWarpIsm({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
-  multiVmSigners: IMultiVMSignerFactory;
+  multiVmSigners: MultiVM.ISignerFactory;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -335,7 +334,7 @@ export async function enrollCrossChainRouters(
     warpDeployConfig,
   }: {
     multiProvider: MultiProvider;
-    multiVmSigners: MultiVM.IMultiVMSignerFactory;
+    multiVmSigners: MultiVM.ISignerFactory;
     registryAddresses: ChainMap<ChainAddresses>;
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },

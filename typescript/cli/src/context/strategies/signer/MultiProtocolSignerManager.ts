@@ -204,13 +204,13 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     return this.getSpecificSigner<Signer>(chain);
   }
 
-  getCosmosNativeSigner(chain: ChainName): MultiVM.IMultiVMSigner {
+  getCosmosNativeSigner(chain: ChainName): MultiVM.ISigner {
     const protocolType = this.multiProtocolProvider.getProtocol(chain);
     assert(
       protocolType === ProtocolType.CosmosNative,
       `Chain ${chain} is not a Cosmos Native chain`,
     );
-    return this.getSpecificSigner<MultiVM.IMultiVMSigner>(chain);
+    return this.getSpecificSigner<MultiVM.ISigner>(chain);
   }
 
   async getSignerAddress(chain: ChainName): Promise<Address> {

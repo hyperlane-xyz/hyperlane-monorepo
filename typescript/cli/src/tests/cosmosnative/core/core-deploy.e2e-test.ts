@@ -41,7 +41,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
     CORE_READ_CONFIG_PATH_1,
   );
 
-  let signer: MultiVM.IMultiVMSigner;
+  let signer: MultiVM.ISigner;
   let initialOwnerAddress: Address;
   let chainMetadata: ChainMetadata;
 

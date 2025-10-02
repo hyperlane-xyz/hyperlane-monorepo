@@ -16,7 +16,7 @@ import { createSigner } from './utils.js';
 describe('4. cosmos sdk warp e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: MultiVM.IMultiVMSigner;
+  let signer: MultiVM.ISigner;
 
   before(async () => {
     signer = await createSigner('alice');
@@ -113,9 +113,11 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     // ACT
     await signer.enrollRemoteRouter({
       token_id,
-      receiver_domain_id: domainId,
-      receiver_address: mailbox_id,
-      gas,
+      remote_router: {
+        receiver_domain_id: domainId,
+        receiver_address: mailbox_id,
+        gas,
+      },
     });
 
     // ASSERT
@@ -182,9 +184,11 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     await signer.enrollRemoteRouter({
       token_id,
-      receiver_domain_id: domainId,
-      receiver_address: mailbox_id,
-      gas,
+      remote_router: {
+        receiver_domain_id: domainId,
+        receiver_address: mailbox_id,
+        gas,
+      },
     });
 
     let remoteRouters = await signer.getRemoteRouters({
@@ -265,9 +269,11 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     await signer.enrollRemoteRouter({
       token_id,
-      receiver_domain_id: domainId,
-      receiver_address: mailbox_id,
-      gas,
+      remote_router: {
+        receiver_domain_id: domainId,
+        receiver_address: mailbox_id,
+        gas,
+      },
     });
 
     let remoteRouters = await signer.getRemoteRouters({

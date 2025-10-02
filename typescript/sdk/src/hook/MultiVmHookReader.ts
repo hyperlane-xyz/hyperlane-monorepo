@@ -22,7 +22,7 @@ export class MultiVmHookReader {
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly provider: MultiVM.IMultiVMProvider,
+    protected readonly provider: MultiVM.IProvider,
   ) {}
 
   async deriveHookConfigFromAddress(

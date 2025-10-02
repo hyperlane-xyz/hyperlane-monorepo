@@ -20,7 +20,7 @@ export class MultiVmDeployer {
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly signersMap: ChainMap<MultiVM.IMultiVMSigner>,
+    protected readonly signersMap: ChainMap<MultiVM.ISigner>,
   ) {
     this.logger = rootLogger.child({ module: 'MultiVmDeployer' });
   }

@@ -27,7 +27,7 @@ type TxOptions = {
 
 export class CosmosNativeSigner
   extends CosmosNativeProvider
-  implements MultiVM.IMultiVMSigner
+  implements MultiVM.ISigner
 {
   private readonly signer: SigningStargateClient;
   private readonly account: AccountData;
@@ -37,7 +37,7 @@ export class CosmosNativeSigner
     rpcUrl: string,
     privateKey: string | OfflineSigner,
     extraParams?: Record<string, any>,
-  ): Promise<MultiVM.IMultiVMSigner> {
+  ): Promise<MultiVM.ISigner> {
     assert(extraParams, `extra params not defined`);
     assert(extraParams.gasPrice, `gasPrice not defined in extra params`);
 
@@ -462,7 +462,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      receiver_domain_id: req.receiver_domain_id,
+      receiver_domain_id: req.remote_router.receiver_domain_id,
     };
   }
 
