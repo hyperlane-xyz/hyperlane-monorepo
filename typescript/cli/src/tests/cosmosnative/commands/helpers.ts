@@ -33,11 +33,15 @@ export async function deployCollateralToken(
     metadata.bech32Prefix,
   );
 
+  if (!metadata.gasPrice)
+    throw new Error(`Missing gasPrice for chain ${chain}`);
+  const gasPriceString = `${metadata.gasPrice.amount}${metadata.gasPrice.denom}`;
+
   const signer = await CosmosNativeSigner.connectWithSigner(
     metadata.rpcUrls[0].http,
     wallet,
     {
-      gasPrice: `${metadata.gasPrice?.amount}${metadata.gasPrice?.denom}`,
+      gasPrice: gasPriceString,
     },
   );
 

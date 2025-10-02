@@ -3,7 +3,6 @@ import {
   AltVM,
   ChainId,
   Domain,
-  eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -166,7 +165,7 @@ export class AltVMCoreModule extends HyperlaneModule<
       hookId: requiredHook,
     });
 
-    if (!eqAddress(signer.getSignerAddress(), config.owner)) {
+    if (signer.getSignerAddress() !== config.owner) {
       await signer.setMailboxOwner({
         mailboxId: mailbox.mailboxId,
         newOwner: config.owner,
@@ -265,7 +264,7 @@ export class AltVMCoreModule extends HyperlaneModule<
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): Promise<AnnotatedAltVMTransaction[]> {
-    if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
+    if (actualConfig.owner !== expectedConfig.owner) {
       return [];
     }
 

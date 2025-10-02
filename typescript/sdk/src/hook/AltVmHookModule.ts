@@ -7,7 +7,6 @@ import {
   Domain,
   assert,
   deepEquals,
-  eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -178,7 +177,7 @@ export class AltVMHookModule extends HyperlaneModule<
     }
 
     // Lastly, check if the resolved owner is different from the current owner
-    if (!eqAddress(this.signer.getSignerAddress(), targetConfig.owner)) {
+    if (this.signer.getSignerAddress() !== targetConfig.owner) {
       updateTxs.push({
         annotation: 'Transferring ownership of ownable Hook...',
         altvm_tx: await this.signer.populateSetInterchainGasPaymasterHookOwner({
@@ -274,7 +273,7 @@ export class AltVMHookModule extends HyperlaneModule<
       });
     }
 
-    if (!eqAddress(this.signer.getSignerAddress(), config.owner)) {
+    if (this.signer.getSignerAddress() !== config.owner) {
       await this.signer.setInterchainGasPaymasterHookOwner({
         hookId,
         newOwner: config.owner,

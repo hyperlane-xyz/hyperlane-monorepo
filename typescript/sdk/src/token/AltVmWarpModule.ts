@@ -8,7 +8,6 @@ import {
   assert,
   deepEquals,
   difference,
-  eqAddress,
   objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -139,10 +138,7 @@ export class AltVMWarpModule extends HyperlaneModule<
       .filter(([domain, expectedRouter]) => {
         const actualRouter = actualRemoteRouters[domain];
         // Enroll if router doesn't exist for domain or has different address
-        return (
-          !actualRouter ||
-          !eqAddress(actualRouter.address, expectedRouter.address)
-        );
+        return !actualRouter || actualRouter.address !== expectedRouter.address;
       })
       .map(([domain]) => domain);
 
@@ -361,7 +357,7 @@ export class AltVMWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedAltVMTransaction[]> {
-    if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
+    if (actualConfig.owner === expectedConfig.owner) {
       return [];
     }
 

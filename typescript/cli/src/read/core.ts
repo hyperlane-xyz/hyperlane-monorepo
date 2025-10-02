@@ -34,7 +34,7 @@ export async function executeCoreRead({
     case ProtocolType.Ethereum: {
       const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
       try {
-        return evmCoreReader.deriveCoreConfig({
+        return await evmCoreReader.deriveCoreConfig({
           mailbox,
           interchainAccountRouter: addresses?.interchainAccountRouter,
         });
@@ -51,7 +51,7 @@ export async function executeCoreRead({
       const provider = await context.altVmProvider.get(chain);
       const coreReader = new AltVMCoreReader(context.multiProvider, provider);
       try {
-        return coreReader.deriveCoreConfig(mailbox);
+        return await coreReader.deriveCoreConfig(mailbox);
       } catch (e: any) {
         errorRed(
           `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
