@@ -124,8 +124,9 @@ function validateCompatibility(
   addresses: ChainMap<string>,
 ): void {
   const nonCompatibleChains = Object.entries(addresses)
-    .filter(([chain]) =>
-      supportedProtocols.includes(multiProvider.getProtocol(chain)),
+    .filter(
+      ([chain]) =>
+        !supportedProtocols.includes(multiProvider.getProtocol(chain)),
     )
     .map(([chain]) => chain);
 
