@@ -787,10 +787,6 @@ contract TokenBridgeCctpV1Test is Test {
     ) public virtual {
         address refundAddress = makeAddr("refundAddress");
         uint256 refundBalanceBefore = refundAddress.balance;
-        uint256 excessValue = 1 ether;
-
-        // Fund the hook contract with excess value
-        vm.deal(address(tbOrigin), excessValue);
 
         // Create metadata with refund address using standard hook metadata format
         bytes memory metadata = abi.encodePacked(
@@ -800,7 +796,9 @@ contract TokenBridgeCctpV1Test is Test {
             refundAddress // refundAddress
         );
 
-        bytes32 id = mailboxOrigin.dispatch(
+        uint256 excessValue = 1 ether;
+
+        mailboxOrigin.dispatch{value: excessValue}(
             destination,
             recipient,
             body,
