@@ -87,11 +87,6 @@ contract HypERC4626Collateral is TokenRouter {
             _recipient,
             _amount
         );
-        uint256 externalFee = _externalFeeAmount(
-            _destination,
-            _recipient,
-            _amount
-        );
         _transferFromSender(_amount + feeRecipientFee);
         if (feeRecipientFee > 0) {
             wrappedToken._transferTo(feeRecipient(), feeRecipientFee);
@@ -137,7 +132,10 @@ contract HypERC4626Collateral is TokenRouter {
     /**
      * @inheritdoc TokenRouter
      * @dev Withdraws `_shares` of `wrappedToken` from this contract to `_recipient`
+     * @dev Known overrides:
+     * - HypERC4626OwnerCollateral: Withdraws assets instead of redeeming shares
      */
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function _transferTo(
         address _recipient,
         uint256 _shares

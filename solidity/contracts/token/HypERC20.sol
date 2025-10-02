@@ -36,14 +36,14 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public virtual initializer {
+    ) public initializer {
         // Initialize ERC20 metadata
         __ERC20_init(_name, _symbol);
         _mint(msg.sender, _totalSupply);
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
-    function decimals() public view virtual override returns (uint8) {
+    function decimals() public view override returns (uint8) {
         return _decimals;
     }
 
@@ -52,14 +52,17 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
     /**
      * @inheritdoc TokenRouter
      */
-    function token() public view virtual override returns (address) {
+    function token() public view override returns (address) {
         return address(this);
     }
 
     /**
      * @inheritdoc TokenRouter
      * @dev Overrides to burn `_amount` of token from `msg.sender` balance.
+     * @dev Known overrides:
+     * - HypERC4626: Converts the amount to shares and burns from the User (via HypERC20 implementation)
      */
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function _transferFromSender(uint256 _amount) internal virtual override {
         _burn(msg.sender, _amount);
     }
@@ -71,7 +74,7 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
     function _transferTo(
         address _recipient,
         uint256 _amount
-    ) internal virtual override {
+    ) internal override {
         _mint(_recipient, _amount);
     }
 }

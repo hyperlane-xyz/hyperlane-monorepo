@@ -53,12 +53,12 @@ contract HypERC20Collateral is LpCollateralRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public virtual initializer {
+    ) public initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
         _LpCollateralRouter_initialize();
     }
 
-    function token() public view virtual override returns (address) {
+    function token() public view override returns (address) {
         return address(wrappedToken);
     }
 
@@ -79,7 +79,7 @@ contract HypERC20Collateral is LpCollateralRouter {
      * @dev Transfers `_amount` of `wrappedToken` from `msg.sender` to this contract.
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(uint256 _amount) internal virtual override {
+    function _transferFromSender(uint256 _amount) internal override {
         wrappedToken._transferFromSender(_amount);
     }
 
@@ -90,7 +90,7 @@ contract HypERC20Collateral is LpCollateralRouter {
     function _transferTo(
         address _recipient,
         uint256 _amount
-    ) internal virtual override {
+    ) internal override {
         wrappedToken._transferTo(_recipient, _amount);
     }
 }

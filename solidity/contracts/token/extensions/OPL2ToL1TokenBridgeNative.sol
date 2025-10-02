@@ -43,10 +43,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
         l2Bridge = IStandardBridge(payable(_l2Bridge));
     }
 
-    function initialize(
-        address _hook,
-        address _owner
-    ) public virtual initializer {
+    function initialize(address _hook, address _owner) public initializer {
         // ISM should not be set (contract does not receive messages currently)
         _MailboxClient_initialize(_hook, address(0), _owner);
     }
@@ -213,7 +210,7 @@ abstract contract OpL1NativeTokenBridge is
     function initialize(
         address _owner,
         string[] memory _urls
-    ) public virtual initializer {
+    ) public initializer {
         __Ownable_init();
         setUrls(_urls);
         // ISM should not be set (this contract uses itself as ISM)

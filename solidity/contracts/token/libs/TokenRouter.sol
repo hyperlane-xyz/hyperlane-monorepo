@@ -388,6 +388,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * - EverclearEthBridge: Receives WETH, unwraps it and sends native ETH to the recipient.
      * - HypERC4626: Updates the exchange rate from the metadata
      */
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function _handle(
         uint32 _origin,
         bytes32,

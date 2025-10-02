@@ -226,7 +226,7 @@ abstract contract EverclearBridge is TokenRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public payable virtual override returns (bytes32 messageId) {
+    ) public payable override returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
             _destination,
@@ -265,16 +265,11 @@ abstract contract EverclearBridge is TokenRouter {
      */
     function _handle(
         uint32 _origin,
-        bytes32 /* sender */,
+        bytes32 _sender,
         bytes calldata _message
-    ) internal virtual override {
+    ) internal override {
         _settleIntent(_message);
-
-        bytes32 _recipient = _message.recipient();
-        uint256 _amount = _message.amount();
-
-        emit ReceivedTransferRemote(_origin, _recipient, _amount);
-        _transferTo(_recipient.bytes32ToAddress(), _amount);
+        super._handle(_origin, _sender, _message);
     }
 
     /**
@@ -404,7 +399,7 @@ contract EverclearTokenBridge is EverclearBridge {
         address _recipient,
         uint256 _amount
     ) internal override {
-        wrappedToken._transferTo(_recipient, _amount);
+        // Do nothing (tokens transferred to recipient directly)
     }
 
     /**

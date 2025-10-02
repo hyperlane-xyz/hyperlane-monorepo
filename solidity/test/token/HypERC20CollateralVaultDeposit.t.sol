@@ -17,6 +17,7 @@ import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {HypERC4626} from "../../contracts/token/extensions/HypERC4626.sol";
+import {HypERC20} from "../../contracts/token/HypERC20.sol";
 
 import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -240,11 +241,10 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
     function testERC4626VaultDeposit_TransferFromSender_CorrectMetadata()
         public
     {
-        remoteToken = new HypERC4626(
-            DECIMALS,
-            SCALE,
-            address(remoteMailbox),
-            ORIGIN
+        remoteToken = HypERC20(
+            address(
+                new HypERC4626(DECIMALS, SCALE, address(remoteMailbox), ORIGIN)
+            )
         );
         _enrollRemoteTokenRouter();
         vm.prank(ALICE);

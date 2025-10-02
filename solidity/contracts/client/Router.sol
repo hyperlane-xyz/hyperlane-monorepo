@@ -93,6 +93,7 @@ abstract contract Router is MailboxClient, IMessageRecipient {
      * @param _sender The sender address
      * @param _message The message
      */
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function handle(
         uint32 _origin,
         bytes32 _sender,

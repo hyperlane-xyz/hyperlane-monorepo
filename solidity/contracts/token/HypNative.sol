@@ -31,7 +31,7 @@ contract HypNative is LpCollateralRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public virtual initializer {
+    ) public initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
         _LpCollateralRouter_initialize();
     }
@@ -39,7 +39,7 @@ contract HypNative is LpCollateralRouter {
     /**
      * @inheritdoc TokenRouter
      */
-    function token() public view virtual override returns (address) {
+    function token() public view override returns (address) {
         return address(0);
     }
 
