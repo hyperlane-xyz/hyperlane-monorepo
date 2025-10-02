@@ -3,7 +3,6 @@
     "type": "collateral",
     "decimals": 6,
     "name": "USD Coin",
-    "owner": "GvjSzPttfE3dimBFZMKFhg7Yq3C5Jz17SrpE1L4nbR2F",
     "symbol": "USDC",
     "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
