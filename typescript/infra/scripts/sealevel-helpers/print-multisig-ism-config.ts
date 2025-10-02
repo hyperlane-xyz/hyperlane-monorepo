@@ -31,6 +31,7 @@ async function main() {
   const MAX_THRESHOLD = 4;
 
   for (const chain of Object.keys(config)) {
+    // exclude forma as it's not a core chain
     if (chain === 'forma') {
       continue;
     }
