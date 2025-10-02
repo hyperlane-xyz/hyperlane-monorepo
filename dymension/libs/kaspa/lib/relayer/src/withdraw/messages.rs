@@ -189,8 +189,9 @@ pub async fn build_withdrawal_fxg(
             .map_err(|e| eyre::eyre!("Create input from sweeping bundle: {}", e))?;
 
         info!(
-            "Constructed sweeping bundle of {} PSKTs, {to_sweep_num} escrow inputs are swept",
+            "constructed sweeping bundle: pskt_count: {}, escrow_inputs_swept: {}",
             sweeping_bundle.0.len(),
+            to_sweep_num
         );
 
         let mut inputs = Vec::with_capacity(swept_outputs.len() + 1);
@@ -234,9 +235,10 @@ pub async fn build_withdrawal_fxg(
     // Contract: the last output of the withdrawal PSKT is the new anchor
     let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
 
-    // The first N (if any) elements are empty since sweeping PSKTs don't have any HL messages.
-    // The last element is the withdrawal PSKT, so it should have all the HL messages.
     let messages = {
+        // Create a list of (list of) messages for teach TX
+        // The first N (if any) elements are empty since sweeping PSKTs don't have any HL messages.
+        // The last element is the withdrawal PSKT, so it should have all the HL messages.
         let sweep_count = sweeping_bundle.as_ref().map_or(0, |b| b.0.len());
         let mut messages = Vec::with_capacity(sweep_count + final_msgs.len());
         messages.extend(vec![Vec::new(); sweep_count]);
