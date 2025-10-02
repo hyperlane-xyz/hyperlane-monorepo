@@ -21,112 +21,112 @@ describe('2. cosmos sdk core e2e tests', async function () {
 
   step('create new mailbox', async () => {
     // ARRANGE
-    const { ism_id } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
     // ACT
     const txResponse = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
 
     // ASSERT
-    expect(txResponse.mailbox_id).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.mailbox_id))).to.be
+    expect(txResponse.mailboxId).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.mailboxId))).to.be
       .true;
 
     let mailbox = await signer.getMailbox({
-      mailbox_id: txResponse.mailbox_id,
+      mailboxId: txResponse.mailboxId,
     });
 
     expect(mailbox).not.to.be.undefined;
-    expect(mailbox.address).to.equal(txResponse.mailbox_id);
+    expect(mailbox.address).to.equal(txResponse.mailboxId);
     expect(mailbox.owner).to.equal(signer.getSignerAddress());
-    expect(mailbox.local_domain).to.equal(domainId);
-    expect(mailbox.default_ism).to.equal(ism_id);
-    expect(mailbox.default_hook).to.be.empty;
-    expect(mailbox.required_hook).to.be.empty;
+    expect(mailbox.localDomain).to.equal(domainId);
+    expect(mailbox.defaultIsm).to.equal(ismId);
+    expect(mailbox.defaultHook).to.be.empty;
+    expect(mailbox.requiredHook).to.be.empty;
   });
 
   step('set mailbox owner', async () => {
     // ARRANGE
-    const { ism_id } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
-    const { mailbox_id } = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+    const { mailboxId } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
 
-    let mailbox = await signer.getMailbox({ mailbox_id });
+    let mailbox = await signer.getMailbox({ mailboxId });
     expect(mailbox.owner).to.equal(signer.getSignerAddress());
 
     const bobSigner = await createSigner('bob');
 
     // ACT
     await signer.setMailboxOwner({
-      mailbox_id,
-      new_owner: bobSigner.getSignerAddress(),
+      mailboxId,
+      newOwner: bobSigner.getSignerAddress(),
     });
 
     // ASSERT
-    mailbox = await signer.getMailbox({ mailbox_id });
+    mailbox = await signer.getMailbox({ mailboxId });
     expect(mailbox.owner).to.equal(bobSigner.getSignerAddress());
   });
 
   step('set mailbox default hook', async () => {
     // ARRANGE
-    const { ism_id } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
-    const { mailbox_id } = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+    const { mailboxId } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
 
-    const { hook_id } = await signer.createMerkleTreeHook({ mailbox_id });
+    const { hookId } = await signer.createMerkleTreeHook({ mailboxId });
 
-    let mailbox = await signer.getMailbox({ mailbox_id });
-    expect(mailbox.default_hook).to.be.empty;
+    let mailbox = await signer.getMailbox({ mailboxId });
+    expect(mailbox.defaultHook).to.be.empty;
 
     // ACT
     await signer.setDefaultHook({
-      mailbox_id,
-      hook_id,
+      mailboxId,
+      hookId,
     });
 
     // ASSERT
-    mailbox = await signer.getMailbox({ mailbox_id });
-    expect(mailbox.default_hook).to.equal(hook_id);
+    mailbox = await signer.getMailbox({ mailboxId });
+    expect(mailbox.defaultHook).to.equal(hookId);
   });
 
   step('set mailbox required hook', async () => {
     // ARRANGE
-    const { ism_id } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
-    const { mailbox_id } = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+    const { mailboxId } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
 
-    const { hook_id } = await signer.createMerkleTreeHook({ mailbox_id });
+    const { hookId } = await signer.createMerkleTreeHook({ mailboxId });
 
-    let mailbox = await signer.getMailbox({ mailbox_id });
-    expect(mailbox.required_hook).to.be.empty;
+    let mailbox = await signer.getMailbox({ mailboxId });
+    expect(mailbox.requiredHook).to.be.empty;
 
     // ACT
     await signer.setRequiredHook({
-      mailbox_id,
-      hook_id,
+      mailboxId,
+      hookId,
     });
 
     // ASSERT
-    mailbox = await signer.getMailbox({ mailbox_id });
-    expect(mailbox.required_hook).to.equal(hook_id);
+    mailbox = await signer.getMailbox({ mailboxId });
+    expect(mailbox.requiredHook).to.equal(hookId);
   });
 });

@@ -29,11 +29,11 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
     });
 
     // ASSERT
-    expect(txResponse.hook_id).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.hook_id))).to.be.true;
+    expect(txResponse.hookId).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.hookId))).to.be.true;
 
     let igp = await signer.getInterchainGasPaymasterHook({
-      hook_id: txResponse.hook_id,
+      hookId: txResponse.hookId,
     });
 
     expect(igp).not.to.be.undefined;
@@ -42,37 +42,37 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
 
   step('create new Merkle Tree hook', async () => {
     // ARRANGE
-    const { ism_id } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
-    const { mailbox_id } = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+    const { mailboxId } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
 
     // ACT
     const txResponse = await signer.createMerkleTreeHook({
-      mailbox_id,
+      mailboxId,
     });
 
     // ASSERT
-    expect(txResponse.hook_id).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.hook_id))).to.be.true;
+    expect(txResponse.hookId).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.hookId))).to.be.true;
 
     let merkle_tree_hook = await signer.getMerkleTreeHook({
-      hook_id: txResponse.hook_id,
+      hookId: txResponse.hookId,
     });
 
     expect(merkle_tree_hook).not.to.be.undefined;
-    expect(merkle_tree_hook.address).to.equal(txResponse.hook_id);
+    expect(merkle_tree_hook.address).to.equal(txResponse.hookId);
   });
 
   step('set destination gas config', async () => {
     // ARRANGE
     const denom = 'uhyp';
 
-    const { hook_id } = await signer.createInterchainGasPaymasterHook({
+    const { hookId } = await signer.createInterchainGasPaymasterHook({
       denom,
     });
 
@@ -82,63 +82,61 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
     const tokenExchangeRate = '10000000000';
 
     let igp = await signer.getInterchainGasPaymasterHook({
-      hook_id,
+      hookId,
     });
-    expect(Object.keys(igp.destination_gas_configs)).to.have.lengthOf(0);
+    expect(Object.keys(igp.destinationGasConfigs)).to.have.lengthOf(0);
 
     // ACT
     await signer.setDestinationGasConfig({
-      hook_id,
-      destination_gas_config: {
-        remote_domain_id: remoteDomainId,
-        gas_oracle: {
-          token_exchange_rate: tokenExchangeRate,
-          gas_price: gasPrice,
+      hookId,
+      destinationGasConfig: {
+        remoteDomainId: remoteDomainId,
+        gasOracle: {
+          tokenExchangeRate: tokenExchangeRate,
+          gasPrice: gasPrice,
         },
-        gas_overhead: gasOverhead,
+        gasOverhead: gasOverhead,
       },
     });
 
     // ASSERT
     igp = await signer.getInterchainGasPaymasterHook({
-      hook_id,
+      hookId,
     });
-    expect(Object.keys(igp.destination_gas_configs)).to.have.lengthOf(1);
+    expect(Object.keys(igp.destinationGasConfigs)).to.have.lengthOf(1);
 
-    const gasConfig = igp.destination_gas_configs[remoteDomainId];
+    const gasConfig = igp.destinationGasConfigs[remoteDomainId];
 
-    expect(gasConfig.gas_overhead).to.equal(gasOverhead);
-    expect(gasConfig.gas_oracle?.gas_price).to.equal(gasPrice);
-    expect(gasConfig.gas_oracle?.token_exchange_rate).to.equal(
-      tokenExchangeRate,
-    );
+    expect(gasConfig.gasOverhead).to.equal(gasOverhead);
+    expect(gasConfig.gasOracle?.gasPrice).to.equal(gasPrice);
+    expect(gasConfig.gasOracle?.tokenExchangeRate).to.equal(tokenExchangeRate);
   });
 
   step('set igp owner', async () => {
     // ARRANGE
     const denom = 'uhyp';
 
-    const { hook_id } = await signer.createInterchainGasPaymasterHook({
+    const { hookId } = await signer.createInterchainGasPaymasterHook({
       denom,
     });
 
     const newOwner = (await createSigner('bob')).getSignerAddress();
 
     let igp = await signer.getInterchainGasPaymasterHook({
-      hook_id,
+      hookId,
     });
 
     expect(igp.owner).to.equal(signer.getSignerAddress());
 
     // ACT
     await signer.setInterchainGasPaymasterHookOwner({
-      hook_id,
-      new_owner: newOwner,
+      hookId,
+      newOwner: newOwner,
     });
 
     // ASSERT
     igp = await signer.getInterchainGasPaymasterHook({
-      hook_id,
+      hookId,
     });
 
     expect(igp.owner).to.equal(newOwner);

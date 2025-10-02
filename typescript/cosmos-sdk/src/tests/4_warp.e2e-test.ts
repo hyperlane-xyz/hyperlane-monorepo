@@ -24,191 +24,191 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
   step('create new collateral token', async () => {
     // ARRANGE
-    const { ism_id } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
-    const { mailbox_id } = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+    const { mailboxId } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
     const denom = 'uhyp';
 
     // ACT
     const txResponse = await signer.createCollateralToken({
-      mailbox_id,
-      origin_denom: denom,
+      mailboxId,
+      originDenom: denom,
     });
 
     // ASSERT
-    expect(txResponse.token_id).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.token_id))).to.be.true;
+    expect(txResponse.tokenId).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.tokenId))).to.be.true;
 
     let token = await signer.getToken({
-      token_id: txResponse.token_id,
+      tokenId: txResponse.tokenId,
     });
 
     expect(token).not.to.be.undefined;
     expect(token.owner).to.equal(signer.getSignerAddress());
-    expect(token.mailbox_id).to.equal(mailbox_id);
-    expect(token.origin_denom).to.equal(denom);
-    expect(token.ism_id).to.be.empty;
-    expect(token.token_type).to.equal(AltVM.TokenType.COLLATERAL);
+    expect(token.mailboxId).to.equal(mailboxId);
+    expect(token.originDenom).to.equal(denom);
+    expect(token.ismId).to.be.empty;
+    expect(token.tokenType).to.equal(AltVM.TokenType.COLLATERAL);
   });
 
   step('create new synthetic token', async () => {
     // ARRANGE
-    const { ism_id } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
-    const { mailbox_id } = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+    const { mailboxId } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
 
     // ACT
     const txResponse = await signer.createSyntheticToken({
-      mailbox_id,
+      mailboxId,
     });
 
     // ASSERT
-    expect(txResponse.token_id).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.token_id))).to.be.true;
+    expect(txResponse.tokenId).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.tokenId))).to.be.true;
 
     let token = await signer.getToken({
-      token_id: txResponse.token_id,
+      tokenId: txResponse.tokenId,
     });
 
     expect(token).not.to.be.undefined;
     expect(token.owner).to.equal(signer.getSignerAddress());
-    expect(token.mailbox_id).to.equal(mailbox_id);
-    expect(token.ism_id).to.be.empty;
-    expect(token.token_type).to.equal(AltVM.TokenType.SYNTHETIC);
+    expect(token.mailboxId).to.equal(mailboxId);
+    expect(token.ismId).to.be.empty;
+    expect(token.tokenType).to.equal(AltVM.TokenType.SYNTHETIC);
   });
 
   step('enroll remote router', async () => {
     // ARRANGE
-    const { ism_id } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
-    const { mailbox_id } = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+    const { mailboxId } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
     const denom = 'uhyp';
 
-    const { token_id } = await signer.createCollateralToken({
-      mailbox_id,
-      origin_denom: denom,
+    const { tokenId } = await signer.createCollateralToken({
+      mailboxId,
+      originDenom: denom,
     });
 
     let remoteRouters = await signer.getRemoteRouters({
-      token_id,
+      tokenId,
     });
-    expect(remoteRouters.remote_routers).to.have.lengthOf(0);
+    expect(remoteRouters.remoteRouters).to.have.lengthOf(0);
     const gas = '10000';
 
     // ACT
     await signer.enrollRemoteRouter({
-      token_id,
-      remote_router: {
-        receiver_domain_id: domainId,
-        receiver_address: mailbox_id,
+      tokenId,
+      remoteRouter: {
+        receiverDomainId: domainId,
+        receiverAddress: mailboxId,
         gas,
       },
     });
 
     // ASSERT
     remoteRouters = await signer.getRemoteRouters({
-      token_id,
+      tokenId,
     });
-    expect(remoteRouters.remote_routers).to.have.lengthOf(1);
+    expect(remoteRouters.remoteRouters).to.have.lengthOf(1);
 
-    const remoteRouter = remoteRouters.remote_routers[0];
+    const remoteRouter = remoteRouters.remoteRouters[0];
 
-    expect(remoteRouter.receiver_domain_id).to.equal(domainId);
-    expect(remoteRouter.receiver_contract).to.equal(mailbox_id);
+    expect(remoteRouter.receiverDomainId).to.equal(domainId);
+    expect(remoteRouter.receiverContract).to.equal(mailboxId);
     expect(remoteRouter.gas).to.equal(gas);
   });
 
   step('remote transfer', async () => {
     // ARRANGE
-    const { ism_id } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
-    const { mailbox_id } = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+    const { mailboxId } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
     const denom = 'uhyp';
 
-    const { hook_id: merkle_tree_hook_id } = await signer.createMerkleTreeHook({
-      mailbox_id,
+    const { hookId: merkle_tree_hook_id } = await signer.createMerkleTreeHook({
+      mailboxId,
     });
 
-    const { hook_id: igp_id } = await signer.createInterchainGasPaymasterHook({
+    const { hookId: igp_id } = await signer.createInterchainGasPaymasterHook({
       denom,
     });
 
     const gas = '10000';
 
     await signer.setDestinationGasConfig({
-      hook_id: igp_id,
-      destination_gas_config: {
-        remote_domain_id: domainId,
-        gas_oracle: {
-          token_exchange_rate: '1',
-          gas_price: '10000000000',
+      hookId: igp_id,
+      destinationGasConfig: {
+        remoteDomainId: domainId,
+        gasOracle: {
+          tokenExchangeRate: '1',
+          gasPrice: '10000000000',
         },
-        gas_overhead: '200000',
+        gasOverhead: '200000',
       },
     });
 
     await signer.setRequiredHook({
-      mailbox_id,
-      hook_id: merkle_tree_hook_id,
+      mailboxId,
+      hookId: merkle_tree_hook_id,
     });
 
     await signer.setDefaultHook({
-      mailbox_id,
-      hook_id: igp_id,
+      mailboxId,
+      hookId: igp_id,
     });
 
-    const { token_id } = await signer.createCollateralToken({
-      mailbox_id,
-      origin_denom: denom,
+    const { tokenId } = await signer.createCollateralToken({
+      mailboxId,
+      originDenom: denom,
     });
 
     await signer.enrollRemoteRouter({
-      token_id,
-      remote_router: {
-        receiver_domain_id: domainId,
-        receiver_address: mailbox_id,
+      tokenId,
+      remoteRouter: {
+        receiverDomainId: domainId,
+        receiverAddress: mailboxId,
         gas,
       },
     });
 
     let remoteRouters = await signer.getRemoteRouters({
-      token_id,
+      tokenId,
     });
-    expect(remoteRouters.remote_routers).to.have.lengthOf(1);
+    expect(remoteRouters.remoteRouters).to.have.lengthOf(1);
 
-    const remoteRouter = remoteRouters.remote_routers[0];
+    const remoteRouter = remoteRouters.remoteRouters[0];
 
     const interchainGas = await signer.quoteRemoteTransfer({
-      token_id,
-      destination_domain_id: remoteRouter.receiver_domain_id,
-      custom_hook_id: '',
-      custom_hook_metadata: '',
+      tokenId,
+      destinationDomainId: remoteRouter.receiverDomainId,
+      customHookId: '',
+      customHookMetadata: '',
     });
 
     // ACT
     const txResponse = await signer.remoteTransfer({
-      token_id,
-      destination_domain_id: remoteRouter.receiver_domain_id,
+      tokenId,
+      destinationDomainId: remoteRouter.receiverDomainId,
       recipient: addressToBytes32(
         convertToProtocolAddress(
           signer.getSignerAddress(),
@@ -217,145 +217,145 @@ describe('4. cosmos sdk warp e2e tests', async function () {
         ProtocolType.Ethereum,
       ),
       amount: '1000000',
-      custom_hook_id: '',
-      gas_limit: remoteRouter.gas,
-      max_fee: {
+      customHookId: '',
+      gasLimit: remoteRouter.gas,
+      maxFee: {
         amount: interchainGas.amount.toString(),
         denom: interchainGas.denom,
       },
-      custom_hook_metadata: '',
+      customHookMetadata: '',
     });
 
     // ASSERT
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.message_id))).to.be
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.messageId))).to.be
       .true;
 
-    let mailbox = await signer.getMailbox({ mailbox_id });
-    expect(mailbox.message_sent).to.equal(1);
+    let mailbox = await signer.getMailbox({ mailboxId });
+    expect(mailbox.messageSent).to.equal(1);
   });
 
   step('unroll remote router', async () => {
     // ARRANGE
-    const { ism_id } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
-    const { mailbox_id } = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+    const { mailboxId } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
     const denom = 'uhyp';
 
-    const { hook_id } = await signer.createMerkleTreeHook({
-      mailbox_id,
+    const { hookId } = await signer.createMerkleTreeHook({
+      mailboxId,
     });
 
     await signer.setRequiredHook({
-      mailbox_id,
-      hook_id,
+      mailboxId,
+      hookId,
     });
 
     await signer.setDefaultHook({
-      mailbox_id,
-      hook_id,
+      mailboxId,
+      hookId,
     });
 
-    const { token_id } = await signer.createCollateralToken({
-      mailbox_id,
-      origin_denom: denom,
+    const { tokenId } = await signer.createCollateralToken({
+      mailboxId,
+      originDenom: denom,
     });
 
     const gas = '10000';
 
     await signer.enrollRemoteRouter({
-      token_id,
-      remote_router: {
-        receiver_domain_id: domainId,
-        receiver_address: mailbox_id,
+      tokenId,
+      remoteRouter: {
+        receiverDomainId: domainId,
+        receiverAddress: mailboxId,
         gas,
       },
     });
 
     let remoteRouters = await signer.getRemoteRouters({
-      token_id,
+      tokenId,
     });
-    expect(remoteRouters.remote_routers).to.have.lengthOf(1);
+    expect(remoteRouters.remoteRouters).to.have.lengthOf(1);
 
     // ACT
     await signer.unenrollRemoteRouter({
-      token_id,
-      receiver_domain_id: domainId,
+      tokenId,
+      receiverDomainId: domainId,
     });
 
     // ASSERT
     remoteRouters = await signer.getRemoteRouters({
-      token_id,
+      tokenId,
     });
-    expect(remoteRouters.remote_routers).to.have.lengthOf(0);
+    expect(remoteRouters.remoteRouters).to.have.lengthOf(0);
   });
 
   step('set token owner', async () => {
     // ARRANGE
     const newOwner = (await createSigner('bob')).getSignerAddress();
 
-    const { ism_id } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
-    const { mailbox_id } = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+    const { mailboxId } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
     const denom = 'uhyp';
 
-    const { token_id } = await signer.createCollateralToken({
-      mailbox_id,
-      origin_denom: denom,
+    const { tokenId } = await signer.createCollateralToken({
+      mailboxId,
+      originDenom: denom,
     });
 
-    let token = await signer.getToken({ token_id });
+    let token = await signer.getToken({ tokenId });
     expect(token.owner).to.equal(signer.getSignerAddress());
 
     // ACT
     await signer.setTokenOwner({
-      token_id,
-      new_owner: newOwner,
+      tokenId,
+      newOwner: newOwner,
     });
 
     // ASSERT
-    token = await signer.getToken({ token_id });
+    token = await signer.getToken({ tokenId });
     expect(token.owner).to.equal(newOwner);
   });
 
   step('set token ism', async () => {
     // ARRANGE
-    const { ism_id } = await signer.createNoopIsm({});
-    const { ism_id: ism_id_new } = await signer.createNoopIsm({});
+    const { ismId } = await signer.createNoopIsm({});
+    const { ismId: ism_id_new } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
-    const { mailbox_id } = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: ism_id,
+    const { mailboxId } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmId: ismId,
     });
     const denom = 'uhyp';
 
-    const { token_id } = await signer.createCollateralToken({
-      mailbox_id,
-      origin_denom: denom,
+    const { tokenId } = await signer.createCollateralToken({
+      mailboxId,
+      originDenom: denom,
     });
 
-    let token = await signer.getToken({ token_id });
-    expect(token.ism_id).to.be.empty;
+    let token = await signer.getToken({ tokenId });
+    expect(token.ismId).to.be.empty;
 
     // ACT
     await signer.setTokenIsm({
-      token_id,
-      ism_id: ism_id_new,
+      tokenId,
+      ismId: ism_id_new,
     });
 
     // ASSERT
-    token = await signer.getToken({ token_id });
-    expect(token.ism_id).to.equal(ism_id_new);
+    token = await signer.getToken({ tokenId });
+    expect(token.ismId).to.equal(ism_id_new);
   });
 });
