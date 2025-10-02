@@ -16,7 +16,7 @@ import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import {
   AltVMProviderFactory,
-  AltVmSignerFactory,
+  AltVMSignerFactory,
 } from '../../../context/altvm.js';
 import { getContext } from '../../../context/context.js';
 import { CommandContext } from '../../../context/types.js';
@@ -587,7 +587,7 @@ export async function setupIncompleteWarpRouteExtension(
 
   context.altVmProvider = new AltVMProviderFactory(context.multiProvider);
 
-  const altVmSigner = await AltVmSignerFactory.createSigners(
+  const altVmSigner = await AltVMSignerFactory.createSigners(
     context.multiProvider,
     [],
     {},

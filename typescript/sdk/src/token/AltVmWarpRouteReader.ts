@@ -1,7 +1,7 @@
 import { Address, AltVM, rootLogger } from '@hyperlane-xyz/utils';
 
-import { AltVmHookReader } from '../hook/AltVmHookReader.js';
-import { AltVmIsmReader } from '../ism/AltVmIsmReader.js';
+import { AltVMHookReader } from '../hook/AltVMHookReader.js';
+import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
   DestinationGas,
@@ -14,20 +14,20 @@ import { ChainNameOrId } from '../types.js';
 import { TokenType } from './config.js';
 import { DerivedTokenRouterConfig, HypTokenConfig } from './types.js';
 
-export class AltVmWarpRouteReader {
+export class AltVMWarpRouteReader {
   protected readonly logger = rootLogger.child({
-    module: 'AltVmWarpRouteReader',
+    module: 'AltVMWarpRouteReader',
   });
-  hookReader: AltVmHookReader;
-  ismReader: AltVmIsmReader;
+  hookReader: AltVMHookReader;
+  ismReader: AltVMIsmReader;
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     protected readonly chain: ChainNameOrId,
     protected readonly provider: AltVM.IProvider,
   ) {
-    this.hookReader = new AltVmHookReader(metadataManager, provider);
-    this.ismReader = new AltVmIsmReader(metadataManager, provider);
+    this.hookReader = new AltVMHookReader(metadataManager, provider);
+    this.ismReader = new AltVMIsmReader(metadataManager, provider);
   }
 
   /**

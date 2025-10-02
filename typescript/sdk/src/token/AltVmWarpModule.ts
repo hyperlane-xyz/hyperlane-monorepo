@@ -17,15 +17,15 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { AltVmIsmModule } from '../ism/AltVmIsmModule.js';
+import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedAltVmTransaction } from '../providers/ProviderType.js';
+import { AnnotatedAltVMTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
-import { AltVmWarpRouteReader } from './AltVmWarpRouteReader.js';
-import { AltVmDeployer } from './altVmDeploy.js';
+import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
+import { AltVMDeployer } from './altVMDeploy.js';
 import {
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
@@ -36,15 +36,15 @@ type WarpRouteAddresses = {
   deployedTokenRoute: Address;
 };
 
-export class AltVmWarpModule extends HyperlaneModule<
+export class AltVMWarpModule extends HyperlaneModule<
   any,
   HypTokenRouterConfig,
   WarpRouteAddresses
 > {
   protected logger = rootLogger.child({
-    module: 'AltVmWarpModule',
+    module: 'AltVMWarpModule',
   });
-  reader: AltVmWarpRouteReader;
+  reader: AltVMWarpRouteReader;
   public readonly chainName: ChainName;
   public readonly chainId: string;
   public readonly domainId: Domain;
@@ -55,7 +55,7 @@ export class AltVmWarpModule extends HyperlaneModule<
     protected readonly signer: AltVM.ISigner,
   ) {
     super(args);
-    this.reader = new AltVmWarpRouteReader(metadataManager, args.chain, signer);
+    this.reader = new AltVMWarpRouteReader(metadataManager, args.chain, signer);
     this.chainName = this.metadataManager.getChainName(args.chain);
     this.chainId = metadataManager.getChainId(args.chain).toString();
     this.domainId = metadataManager.getDomainId(args.chain);
@@ -81,7 +81,7 @@ export class AltVmWarpModule extends HyperlaneModule<
    */
   async update(
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVmTransaction[]> {
+  ): Promise<AnnotatedAltVMTransaction[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
@@ -123,8 +123,8 @@ export class AltVmWarpModule extends HyperlaneModule<
   async createEnrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVmTransaction[]> {
-    const updateTransactions: AnnotatedAltVmTransaction[] = [];
+  ): Promise<AnnotatedAltVMTransaction[]> {
+    const updateTransactions: AnnotatedAltVMTransaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -175,8 +175,8 @@ export class AltVmWarpModule extends HyperlaneModule<
   async createUnenrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVmTransaction[]> {
-    const updateTransactions: AnnotatedAltVmTransaction[] = [];
+  ): Promise<AnnotatedAltVMTransaction[]> {
+    const updateTransactions: AnnotatedAltVMTransaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -222,8 +222,8 @@ export class AltVmWarpModule extends HyperlaneModule<
   async createSetDestinationGasUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVmTransaction[]> {
-    const updateTransactions: AnnotatedAltVmTransaction[] = [];
+  ): Promise<AnnotatedAltVMTransaction[]> {
+    const updateTransactions: AnnotatedAltVMTransaction[] = [];
     if (!expectedConfig.destinationGas) {
       return [];
     }
@@ -305,8 +305,8 @@ export class AltVmWarpModule extends HyperlaneModule<
   async createIsmUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVmTransaction[]> {
-    const updateTransactions: AnnotatedAltVmTransaction[] = [];
+  ): Promise<AnnotatedAltVMTransaction[]> {
+    const updateTransactions: AnnotatedAltVMTransaction[] = [];
 
     if (
       actualConfig.interchainSecurityModule ===
@@ -360,7 +360,7 @@ export class AltVmWarpModule extends HyperlaneModule<
   async createOwnershipUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVmTransaction[]> {
+  ): Promise<AnnotatedAltVMTransaction[]> {
     if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
       return [];
     }
@@ -387,11 +387,11 @@ export class AltVmWarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<{
     deployedIsm: Address;
-    updateTransactions: AnnotatedAltVmTransaction[];
+    updateTransactions: AnnotatedAltVMTransaction[];
   }> {
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
-    const ismModule = new AltVmIsmModule(
+    const ismModule = new AltVMIsmModule(
       this.metadataManager,
       {
         chain: this.args.chain,
@@ -424,17 +424,17 @@ export class AltVmWarpModule extends HyperlaneModule<
    * @param config - The configuration for the token router.
    * @param multiProvider - The multi-provider instance to use.
    * @param signer - The AltVM signing client
-   * @returns A new instance of the AltVmWarpModule.
+   * @returns A new instance of the AltVMWarpModule.
    */
   static async create(params: {
     chain: ChainNameOrId;
     config: HypTokenRouterConfig;
     multiProvider: MultiProvider;
     signer: AltVM.ISigner;
-  }): Promise<AltVmWarpModule> {
+  }): Promise<AltVMWarpModule> {
     const { chain, config, multiProvider, signer } = params;
 
-    const deployer = new AltVmDeployer(multiProvider, {
+    const deployer = new AltVMDeployer(multiProvider, {
       [chain]: signer,
     });
 
@@ -442,7 +442,7 @@ export class AltVmWarpModule extends HyperlaneModule<
       [chain]: config,
     });
 
-    const warpModule = new AltVmWarpModule(
+    const warpModule = new AltVMWarpModule(
       multiProvider,
       {
         addresses: {

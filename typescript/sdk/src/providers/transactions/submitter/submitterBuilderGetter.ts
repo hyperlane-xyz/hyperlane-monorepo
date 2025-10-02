@@ -6,7 +6,7 @@ import { MultiProvider } from '../../MultiProvider.js';
 import { EvmIcaTxSubmitter } from './IcaTxSubmitter.js';
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
-import { AltVmJsonRpcTxSubmitter } from './altvm/AltVmJsonRpcTxSubmitter.js';
+import { AltVMJsonRpcTxSubmitter } from './altvm/AltVMJsonRpcTxSubmitter.js';
 import { TxSubmitterBuilder } from './builder/TxSubmitterBuilder.js';
 import { SubmissionStrategy } from './builder/types.js';
 import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
@@ -123,7 +123,7 @@ const MULTI_VM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
       metadata.type === TxSubmitterType.JSON_RPC,
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
     );
-    return new AltVmJsonRpcTxSubmitter(multiProvider, altVmSigner, metadata);
+    return new AltVMJsonRpcTxSubmitter(multiProvider, altVmSigner, metadata);
   },
 };
 

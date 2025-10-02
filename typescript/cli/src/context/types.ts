@@ -13,7 +13,7 @@ import type {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { AltVMProviderFactory, AltVmSignerFactory } from './altvm.js';
+import { AltVMProviderFactory, AltVMSignerFactory } from './altvm.js';
 
 export const SignerKeyProtocolMapSchema = z
   .record(z.nativeEnum(ProtocolType), z.string().nonempty(), {
@@ -58,7 +58,7 @@ export interface CommandContext
 export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   key: SignerKeyProtocolMap;
   signer: ethers.Signer;
-  altVmSigner: AltVmSignerFactory;
+  altVmSigner: AltVMSignerFactory;
   apiKeys?: ChainMap<string>;
 }
 

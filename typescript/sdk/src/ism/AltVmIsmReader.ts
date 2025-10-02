@@ -10,9 +10,9 @@ import {
   MultisigIsmConfig,
 } from './types.js';
 
-export class AltVmIsmReader {
+export class AltVMIsmReader {
   protected readonly logger = rootLogger.child({
-    module: 'AltVmIsmReader',
+    module: 'AltVMIsmReader',
   });
 
   constructor(

@@ -3,7 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  AltVmCoreModule,
+  AltVMCoreModule,
   ChainName,
   ContractVerifier,
   CoreConfig,
@@ -105,7 +105,7 @@ export async function runCoreDeploy(params: DeployParams) {
       const userAddress = signer.getSignerAddress();
       const initialBalances = await getBalances(context, [chain], userAddress);
 
-      const coreModule = await AltVmCoreModule.create({
+      const coreModule = await AltVMCoreModule.create({
         chain,
         config,
         multiProvider,
@@ -163,7 +163,7 @@ export async function runCoreApply(params: ApplyParams) {
     default: {
       const signer = context.altVmSigner.get(chain);
 
-      const coreModule = new AltVmCoreModule(multiProvider, signer, {
+      const coreModule = new AltVMCoreModule(multiProvider, signer, {
         chain,
         config,
         addresses: deployedCoreAddresses,

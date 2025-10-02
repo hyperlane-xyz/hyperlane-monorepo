@@ -10,9 +10,9 @@ import {
   MerkleTreeHookConfig,
 } from './types.js';
 
-export class AltVmHookReader {
+export class AltVMHookReader {
   protected readonly logger = rootLogger.child({
-    module: 'AltVmHookReader',
+    module: 'AltVMHookReader',
   });
 
   constructor(

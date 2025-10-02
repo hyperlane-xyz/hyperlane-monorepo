@@ -19,9 +19,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
-import { AltVmHookReader } from '../hook/AltVmHookReader.js';
+import { AltVMHookReader } from '../hook/AltVMHookReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import { AltVmIsmReader } from '../ism/AltVmIsmReader.js';
+import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
@@ -255,7 +255,7 @@ export async function expandWarpDeployConfig(params: {
           default: {
             const provider = await altVmProvider.get(chain);
 
-            const reader = new AltVmHookReader(multiProvider, provider);
+            const reader = new AltVMHookReader(multiProvider, provider);
             chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
           }
         }
@@ -278,7 +278,7 @@ export async function expandWarpDeployConfig(params: {
           default: {
             const provider = await altVmProvider.get(chain);
 
-            const reader = new AltVmIsmReader(multiProvider, provider);
+            const reader = new AltVMIsmReader(multiProvider, provider);
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
               chainConfig.interchainSecurityModule,
             );

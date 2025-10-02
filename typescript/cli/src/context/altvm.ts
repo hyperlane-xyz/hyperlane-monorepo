@@ -73,7 +73,7 @@ export class AltVMProviderFactory implements AltVM.IProviderFactory {
   }
 }
 
-export class AltVmSignerFactory implements AltVM.ISignerFactory {
+export class AltVMSignerFactory implements AltVM.ISignerFactory {
   private readonly metadataManager: ChainMetadataManager;
   private readonly chains: ChainMap<AltVM.ISigner>;
 
@@ -171,7 +171,7 @@ export class AltVmSignerFactory implements AltVM.ISignerFactory {
         );
       }
 
-      const privateKey = await AltVmSignerFactory.loadPrivateKey(
+      const privateKey = await AltVMSignerFactory.loadPrivateKey(
         key,
         strategyConfig,
         metadata.protocol,
@@ -188,6 +188,6 @@ export class AltVmSignerFactory implements AltVM.ISignerFactory {
       );
     }
 
-    return new AltVmSignerFactory(metadataManager, signers);
+    return new AltVMSignerFactory(metadataManager, signers);
   }
 }

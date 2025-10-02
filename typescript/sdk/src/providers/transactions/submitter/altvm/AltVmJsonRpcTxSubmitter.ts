@@ -3,17 +3,17 @@ import { Logger } from 'pino';
 import { AltVM, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../../MultiProvider.js';
-import { AnnotatedAltVmTransaction } from '../../../ProviderType.js';
+import { AnnotatedAltVMTransaction } from '../../../ProviderType.js';
 import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
-export class AltVmJsonRpcTxSubmitter implements TxSubmitterInterface<any> {
+export class AltVMJsonRpcTxSubmitter implements TxSubmitterInterface<any> {
   public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.JSON_RPC;
 
   private signer: AltVM.ISigner;
 
   protected readonly logger: Logger = rootLogger.child({
-    module: AltVmJsonRpcTxSubmitter.name,
+    module: AltVMJsonRpcTxSubmitter.name,
   });
 
   constructor(
@@ -24,7 +24,7 @@ export class AltVmJsonRpcTxSubmitter implements TxSubmitterInterface<any> {
     this.signer = this.altVmSigner.get(this.config.chain);
   }
 
-  public async submit(...txs: AnnotatedAltVmTransaction[]): Promise<any[]> {
+  public async submit(...txs: AnnotatedAltVMTransaction[]): Promise<any[]> {
     const receipt = await this.signer.signAndBroadcast(
       txs.map((tx) => tx.altvm_tx),
     );

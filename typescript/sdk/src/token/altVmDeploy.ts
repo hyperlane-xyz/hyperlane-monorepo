@@ -15,14 +15,14 @@ import { ChainMap, ChainName } from '../types.js';
 import { TokenType, gasOverhead } from './config.js';
 import { WarpRouteDeployConfigMailboxRequired } from './types.js';
 
-export class AltVmDeployer {
+export class AltVMDeployer {
   protected logger: Logger;
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     protected readonly signersMap: ChainMap<AltVM.ISigner>,
   ) {
-    this.logger = rootLogger.child({ module: 'AltVmDeployer' });
+    this.logger = rootLogger.child({ module: 'AltVMDeployer' });
   }
 
   async deploy(

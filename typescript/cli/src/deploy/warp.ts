@@ -9,7 +9,7 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
-  AltVmWarpModule,
+  AltVMWarpModule,
   CCIPContractCache,
   ChainMap,
   ChainName,
@@ -666,7 +666,7 @@ async function updateExistingWarpRoute(
           }
           default: {
             const signer = altVmSigner.get(chain);
-            const warpModule = new AltVmWarpModule(
+            const warpModule = new AltVMWarpModule(
               multiProvider,
               {
                 config: configWithMailbox,

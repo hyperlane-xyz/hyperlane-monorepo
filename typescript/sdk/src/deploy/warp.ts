@@ -20,14 +20,14 @@ import {
 } from '../contracts/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
-import { AltVmIsmModule } from '../ism/AltVmIsmModule.js';
+import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
-import { AltVmWarpModule } from '../token/AltVmWarpModule.js';
+import { AltVMWarpModule } from '../token/AltVMWarpModule.js';
 import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
-import { AltVmDeployer } from '../token/altVmDeploy.js';
+import { AltVMDeployer } from '../token/altVMDeploy.js';
 import { gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
@@ -118,7 +118,7 @@ export async function executeWarpDeploy(
           altVmSigner.get(chain),
         );
 
-        const deployer = new AltVmDeployer(multiProvider, signersMap);
+        const deployer = new AltVMDeployer(multiProvider, signersMap);
         deployedContracts = {
           ...deployedContracts,
           ...(await deployer.deploy(protocolSpecificConfig)),
@@ -240,7 +240,7 @@ async function createWarpIsm({
     default: {
       const signer = altVmSigner.get(chain);
 
-      const ismModule = await AltVmIsmModule.create({
+      const ismModule = await AltVMIsmModule.create({
         chain,
         multiProvider: multiProvider,
         addresses: {
@@ -423,7 +423,7 @@ export async function enrollCrossChainRouters(
       default: {
         const signer = altVmSigner.get(chain);
 
-        const warpModule = new AltVmWarpModule(
+        const warpModule = new AltVMWarpModule(
           multiProvider,
           {
             chain,

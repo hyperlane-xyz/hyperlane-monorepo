@@ -1,5 +1,5 @@
 import {
-  AltVmCoreReader,
+  AltVMCoreReader,
   ChainName,
   CoreConfig,
   EvmCoreReader,
@@ -49,7 +49,7 @@ export async function executeCoreRead({
     }
     default: {
       const provider = await context.altVmProvider.get(chain);
-      const coreReader = new AltVmCoreReader(context.multiProvider, provider);
+      const coreReader = new AltVMCoreReader(context.multiProvider, provider);
       try {
         return coreReader.deriveCoreConfig(mailbox);
       } catch (e: any) {

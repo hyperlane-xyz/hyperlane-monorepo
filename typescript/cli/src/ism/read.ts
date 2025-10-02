@@ -1,4 +1,4 @@
-import { AltVmIsmReader, ChainName, EvmIsmReader } from '@hyperlane-xyz/sdk';
+import { AltVMIsmReader, ChainName, EvmIsmReader } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
@@ -35,7 +35,7 @@ export async function readIsmConfig({
     }
     default: {
       const provider = await context.altVmProvider.get(chain);
-      const ismReader = new AltVmIsmReader(context.multiProvider, provider);
+      const ismReader = new AltVMIsmReader(context.multiProvider, provider);
       const config = await ismReader.deriveIsmConfig(address);
       const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
       if (!out) {

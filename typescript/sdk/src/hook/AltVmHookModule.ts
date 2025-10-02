@@ -17,11 +17,11 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedAltVmTransaction } from '../providers/ProviderType.js';
+import { AnnotatedAltVMTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
-import { AltVmHookReader } from './AltVmHookReader.js';
+import { AltVMHookReader } from './AltVMHookReader.js';
 import {
   HookConfig,
   HookConfigSchema,
@@ -35,15 +35,15 @@ type HookModuleAddresses = {
   mailbox: Address;
 };
 
-export class AltVmHookModule extends HyperlaneModule<
+export class AltVMHookModule extends HyperlaneModule<
   any,
   HookConfig,
   HookModuleAddresses
 > {
   protected readonly logger = rootLogger.child({
-    module: 'AltVmHookModule',
+    module: 'AltVMHookModule',
   });
-  protected readonly reader: AltVmHookReader;
+  protected readonly reader: AltVMHookReader;
 
   // Adding these to reduce how often we need to grab from ChainMetadataManager.
   public readonly chain: ChainName;
@@ -58,7 +58,7 @@ export class AltVmHookModule extends HyperlaneModule<
     params.config = HookConfigSchema.parse(params.config);
     super(params);
 
-    this.reader = new AltVmHookReader(metadataManager, signer);
+    this.reader = new AltVMHookReader(metadataManager, signer);
 
     this.chain = metadataManager.getChainName(this.args.chain);
     this.chainId = metadataManager.getChainId(this.chain);
@@ -71,7 +71,7 @@ export class AltVmHookModule extends HyperlaneModule<
 
   public async update(
     targetConfig: HookConfig,
-  ): Promise<AnnotatedAltVmTransaction[]> {
+  ): Promise<AnnotatedAltVMTransaction[]> {
     if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }
@@ -112,9 +112,9 @@ export class AltVmHookModule extends HyperlaneModule<
   protected async updateMutableHook(configs: {
     current: Exclude<HookConfig, string>;
     target: Exclude<HookConfig, string>;
-  }): Promise<AnnotatedAltVmTransaction[]> {
+  }): Promise<AnnotatedAltVMTransaction[]> {
     const { current, target } = configs;
-    let updateTxs: AnnotatedAltVmTransaction[];
+    let updateTxs: AnnotatedAltVMTransaction[];
 
     assert(
       current.type === target.type,
@@ -146,8 +146,8 @@ export class AltVmHookModule extends HyperlaneModule<
   }: {
     currentConfig: IgpHookConfig;
     targetConfig: IgpHookConfig;
-  }): Promise<AnnotatedAltVmTransaction[]> {
-    const updateTxs: AnnotatedAltVmTransaction[] = [];
+  }): Promise<AnnotatedAltVMTransaction[]> {
+    const updateTxs: AnnotatedAltVMTransaction[] = [];
 
     for (const [remote, c] of Object.entries(targetConfig.oracleConfig)) {
       if (deepEquals(currentConfig.oracleConfig[remote], c)) {
@@ -204,8 +204,8 @@ export class AltVmHookModule extends HyperlaneModule<
     addresses: HookModuleAddresses;
     multiProvider: MultiProvider;
     signer: AltVM.ISigner;
-  }): Promise<AltVmHookModule> {
-    const module = new AltVmHookModule(
+  }): Promise<AltVMHookModule> {
+    const module = new AltVMHookModule(
       multiProvider,
       {
         addresses,

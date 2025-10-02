@@ -1,24 +1,24 @@
 import { Address, AltVM, rootLogger } from '@hyperlane-xyz/utils';
 
-import { AltVmHookReader } from '../hook/AltVmHookReader.js';
-import { AltVmIsmReader } from '../ism/AltVmIsmReader.js';
+import { AltVMHookReader } from '../hook/AltVMHookReader.js';
+import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 
 import { DerivedCoreConfig } from './types.js';
 
-export class AltVmCoreReader {
+export class AltVMCoreReader {
   protected readonly logger = rootLogger.child({
-    module: 'AltVmCoreReader',
+    module: 'AltVMCoreReader',
   });
-  protected ismReader: AltVmIsmReader;
-  protected hookReader: AltVmHookReader;
+  protected ismReader: AltVMIsmReader;
+  protected hookReader: AltVMHookReader;
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     protected readonly provider: AltVM.IProvider,
   ) {
-    this.ismReader = new AltVmIsmReader(this.metadataManager, this.provider);
-    this.hookReader = new AltVmHookReader(this.metadataManager, this.provider);
+    this.ismReader = new AltVMIsmReader(this.metadataManager, this.provider);
+    this.hookReader = new AltVMHookReader(this.metadataManager, this.provider);
   }
 
   async deriveCoreConfig(mailboxAddress: Address): Promise<DerivedCoreConfig> {
