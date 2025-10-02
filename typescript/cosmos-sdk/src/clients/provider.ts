@@ -258,17 +258,18 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
       if (igp) {
         return MultiVM.HookType.INTERCHAIN_GAS_PAYMASTER;
       }
-    } catch {}
+    } catch {
+      try {
+        const { merkle_tree_hook } =
+          await this.query.postDispatch.MerkleTreeHook({ id: req.hook_id });
 
-    try {
-      const { merkle_tree_hook } = await this.query.postDispatch.MerkleTreeHook(
-        { id: req.hook_id },
-      );
-
-      if (merkle_tree_hook) {
-        return MultiVM.HookType.MERKLE_TREE_HOOK;
+        if (merkle_tree_hook) {
+          return MultiVM.HookType.MERKLE_TREE_HOOK;
+        }
+      } catch {
+        throw new Error(`Unknown Hook Type: ${req.hook_id}`);
       }
-    } catch {}
+    }
 
     throw new Error(`Unknown Hook Type: ${req.hook_id}`);
   }
@@ -284,7 +285,7 @@ export class CosmosNativeProvider implements MultiVM.IProvider {
         id: igp.id,
       });
 
-    let configs: {
+    const configs: {
       [domain_id: string]: {
         gas_oracle: {
           token_exchange_rate: string;
