@@ -39,17 +39,41 @@ abstract contract EverclearBridge is TokenRouter {
 
     LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
-    /// @notice The output asset for a given destination domain
-    /// @dev Everclear needs to know the output asset address to create intents for cross-chain transfers
-    mapping(uint32 destination => bytes32 outputAssets) public outputAssets;
+    /**
+     * @notice Parameters for creating an Everclear intent
+     * @dev This struct is used to avoid stack too deep errors when creating intents
+     * @param receiver The address that will receive the tokens on the destination chain
+     * @param inputAsset The address of the input token on the source chain
+     * @param outputAsset The address of the output token on the destination chain
+     * @param amount The amount of tokens to transfer
+     * @param feeParams The fee parameters including fee amount, deadline, and signature
+     */
+    struct IntentParams {
+        bytes32 receiver;
+        address inputAsset;
+        bytes32 outputAsset;
+        uint256 amount;
+        IEverclearAdapter.FeeParams feeParams;
+    }
 
-    /// @notice Whether an intent has been settled
-    /// @dev This is used to prevent funds from being sent to a recipient that has already received them
+    /**
+     * @notice The output asset for a given destination domain
+     * @dev Everclear needs to know the output asset address to create intents for cross-chain transfers
+     */
+    mapping(uint32 destination => bytes32 outputAsset) public outputAssets;
+
+    /**
+     * @notice Whether an intent has been settled
+     * @dev This mapping prevents double-spending by tracking which intents have already been processed
+     */
     mapping(bytes32 intentId => bool isSettled) public intentSettled;
 
-    /// @notice Fee parameters for the bridge operations
-    /// @dev The signatures are produced by Everclear and stored here for re-use. We use the same fee for all transfers to all destinations
-    IEverclearAdapter.FeeParams public feeParams;
+    /**
+     * @notice Fee parameters for bridge operations on each destination domain
+     * @dev Contains fee amount, deadline, and signature from Everclear for fee validation
+     */
+    mapping(uint32 destination => IEverclearAdapter.FeeParams feeParams)
+        public feeParams;
 
     IERC20 public immutable wrappedToken;
 
@@ -57,7 +81,10 @@ abstract contract EverclearBridge is TokenRouter {
     /// @dev Immutable reference to the Everclear adapter used for creating intents
     IEverclearAdapter public immutable everclearAdapter;
 
-    /// @notice The Everclear spoke contract
+    /**
+     * @notice The Everclear spoke contract interface
+     * @dev Immutable reference used for checking intent status and settlement
+     */
     IEverclearSpoke public immutable everclearSpoke;
 
     /**
@@ -65,7 +92,7 @@ abstract contract EverclearBridge is TokenRouter {
      * @param fee The new fee amount
      * @param deadline The new deadline timestamp for fee validity
      */
-    event FeeParamsUpdated(uint256 fee, uint256 deadline);
+    event FeeParamsUpdated(uint32 destination, uint256 fee, uint256 deadline);
 
     /**
      * @notice Emitted when an output asset is configured for a destination
@@ -126,16 +153,17 @@ abstract contract EverclearBridge is TokenRouter {
      * @param _sig The signature for fee validation from Everclear
      */
     function setFeeParams(
+        uint32 _destination,
         uint256 _fee,
         uint256 _deadline,
         bytes calldata _sig
     ) external onlyOwner {
-        feeParams = IEverclearAdapter.FeeParams({
+        feeParams[_destination] = IEverclearAdapter.FeeParams({
             fee: _fee,
             deadline: _deadline,
             sig: _sig
         });
-        emit FeeParamsUpdated(_fee, _deadline);
+        emit FeeParamsUpdated(_destination, _fee, _deadline);
     }
 
     /**
@@ -183,11 +211,11 @@ abstract contract EverclearBridge is TokenRouter {
      * @inheritdoc TokenRouter
      */
     function _externalFeeAmount(
-        uint32,
+        uint32 _destination,
         bytes32,
         uint256
     ) internal view override returns (uint256 feeAmount) {
-        return feeParams.fee;
+        return feeParams[_destination].fee;
     }
 
     /**
@@ -250,6 +278,18 @@ abstract contract EverclearBridge is TokenRouter {
     }
 
     /**
+     * @notice Encodes the intent calldata for token transfers
+     * @dev Virtual function that can be overridden by derived contracts to include custom data
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of tokens to transfer
+     * @return The encoded calldata (empty in base implementation)
+     */
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal pure virtual returns (bytes memory);
+
+    /**
      * @notice Creates an Everclear intent for cross-chain token transfer
      * @dev Internal function to handle intent creation with Everclear adapter
      * @param _destination The destination domain ID
@@ -266,22 +306,35 @@ abstract contract EverclearBridge is TokenRouter {
             outputAssets[_destination] != bytes32(0),
             "ETB: Output asset not set"
         );
+        require(
+            feeParams[_destination].sig.length > 0,
+            "ETB: Fee params not set"
+        );
 
         // Create everclear intent
         uint32[] memory destinations = new uint32[](1);
         destinations[0] = _destination;
 
         // Create intent
+        // Packing the intent params in a struct to avoid stack too deep errors
+        IntentParams memory intentParams = IntentParams({
+            feeParams: feeParams[_destination],
+            receiver: _getReceiver(_destination, _recipient),
+            inputAsset: address(wrappedToken),
+            outputAsset: outputAssets[_destination],
+            amount: _amount
+        });
+
         (, IEverclear.Intent memory intent) = everclearAdapter.newIntent({
             _destinations: destinations,
-            _receiver: _getReceiver(_destination, _recipient),
-            _inputAsset: address(wrappedToken),
-            _outputAsset: outputAssets[_destination], // We load this from storage again to avoid stack too deep
-            _amount: _amount,
+            _receiver: intentParams.receiver,
+            _inputAsset: intentParams.inputAsset,
+            _outputAsset: intentParams.outputAsset,
+            _amount: intentParams.amount,
             _maxFee: 0,
             _ttl: 0,
-            _data: "",
-            _feeParams: feeParams
+            _data: _getIntentCalldata(_recipient, _amount),
+            _feeParams: intentParams.feeParams
         });
 
         return intent;
@@ -353,6 +406,17 @@ contract EverclearTokenBridge is EverclearBridge {
     ) internal override {
         wrappedToken._transferTo(_recipient, _amount);
     }
+
+    /**
+     * @notice Encodes the intent calldata for ETH transfers
+     * @return The encoded calldata for the everclear intent.
+     */
+    function _getIntentCalldata(
+        bytes32 /* _recipient */,
+        uint256 /* _amount */
+    ) internal pure override returns (bytes memory) {
+        return "";
+    }
 }
 
 /**
@@ -422,6 +486,47 @@ contract EverclearEthBridge is EverclearBridge {
         require(
             msg.sender == address(wrappedToken),
             "EEB: Only WETH can send ETH"
+        );
+    }
+
+    /**
+     * @notice Encodes the intent calldata for ETH transfers
+     * @dev Overrides parent to encode recipient and amount for ETH-specific intent validation
+     * @param _recipient The recipient address on the destination chain
+     * @param _amount The amount of ETH to transfer
+     * @return The encoded calldata containing recipient and amount
+     */
+    function _getIntentCalldata(
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal pure override returns (bytes memory) {
+        return abi.encode(_recipient, _amount);
+    }
+
+    /**
+     * @notice Validates the Everclear intent for ETH transfers
+     * @dev Overrides parent to add ETH-specific validation by checking intent data matches message
+     * @param _message The incoming message containing transfer details
+     */
+    function _settleIntent(bytes calldata _message) internal override {
+        super._settleIntent(_message);
+
+        IEverclear.Intent memory intent = abi.decode(
+            _message.metadata(),
+            (IEverclear.Intent)
+        );
+        (bytes32 _intentRecipient, uint256 _intentAmount) = abi.decode(
+            intent.data,
+            (bytes32, uint256)
+        );
+
+        require(
+            _intentRecipient == _message.recipient(),
+            "EEB: Intent recipient mismatch"
+        );
+        require(
+            _intentAmount == _message.amount(),
+            "EEB: Intent amount mismatch"
         );
     }
 }

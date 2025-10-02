@@ -56,6 +56,26 @@ contract HypERC4626 is ERC20Upgradeable, TokenRouter {
         _disableInitializers();
     }
 
+    /**
+     * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
+     * @param _totalSupply The initial supply of the token.
+     * @param _name The name of the token.
+     * @param _symbol The symbol of the token.
+     */
+    function initialize(
+        uint256 _totalSupply,
+        string memory _name,
+        string memory _symbol,
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public initializer {
+        // Initialize ERC20 metadata
+        __ERC20_init(_name, _symbol);
+        _mint(msg.sender, _totalSupply);
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+    }
+
     // ============ Public Functions ============
 
     /// Override totalSupply to return the total assets instead of shares. This reflects the actual circulating supply in terms of assets, accounting for rebasing
