@@ -964,7 +964,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             version,
             address(tokenOrigin).addressToBytes32(),
             recipient,
-            amount + (amount * maxFee) / 10_000,
+            amount + (amount * maxFee) / (10_000 - maxFee),
             sender.addressToBytes32(),
             maxFee,
             bytes("")
@@ -1401,7 +1401,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
         assertEq(quotes[1].token, address(tokenOrigin));
         assertEq(quotes[1].amount, amount);
-        uint256 fastFee = (amount * maxFee) / 10_000;
+        uint256 fastFee = (amount * maxFee) / (10_000 - maxFee);
         assertEq(quotes[2].token, address(tokenOrigin));
         assertEq(quotes[2].amount, fastFee);
     }

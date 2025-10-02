@@ -52,13 +52,16 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     /**
      * @inheritdoc TokenRouter
      * @dev Overrides to indicate v2 fees.
+     * @dev Calculates the fee needed such that after Circle takes their percentage,
+     * the recipient receives exactly `amount`. The formula ensures:
+     * (amount + fee) * (10_000 - maxFeeBps) / 10_000 = amount
      */
     function _externalFeeAmount(
         uint32,
         bytes32,
         uint256 amount
     ) internal view override returns (uint256 feeAmount) {
-        return (amount * maxFeeBps) / 10_000;
+        return (amount * maxFeeBps) / (10_000 - maxFeeBps);
     }
 
     function _getCCTPVersion() internal pure override returns (uint32) {
