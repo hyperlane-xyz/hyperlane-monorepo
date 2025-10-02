@@ -1,15 +1,11 @@
 {
-  "solanamainnet": {
-    "hex": "0xba09208ae54b61c960cd7286fc58fa276fa42aa290e71fd46dda1eef7580bc75",
-    "base58": "DXCuRZou6ovJzqnNgyFWZo6LntEFuBhtuCCuaysLMabE"
-  },
-  "base": {
-    "hex": "0x000000000000000000000000151b328ca752c67c9a4c6e0ca329be0c00b12a24",
-    "base58": "111111111111J4AnaoiRYSUAPvdkhWuW7nFCMtF"
-  },
   "radix": {
     "hex": "0x0000c0d97e55581082cb5e94d294786286b7b82d148c762009aa3ca109aa073d",
     "base58": "11feECTjUf4z1r25D8qufT1bjbAJYBZMCetM9avsrMJ"
+  },
+  "solanamainnet": {
+    "hex": "0x0b62a78ccf35124d9ef94e91cf87be42bcc18331d083335018c8f0a9ba3b1b79",
+    "base58": "mSjeF19MEyUto4RejyPeL6SGb2eDevNfYESaHBeQb9z"
   },
   "ethereum": {
     "hex": "0x00000000000000000000000067899664446ccfadf75e0d3f5668be262acd1069",
@@ -18,5 +14,9 @@
   "arbitrum": {
     "hex": "0x000000000000000000000000867a19a5b257bcb99e1840de2ef852268efd5e46",
     "base58": "1111111111112sfRP1dJpWo3haU2PyEPK8QDicEZ"
+  },
+  "base": {
+    "hex": "0x000000000000000000000000151b328ca752c67c9a4c6e0ca329be0c00b12a24",
+    "base58": "111111111111J4AnaoiRYSUAPvdkhWuW7nFCMtF"
   }
 }
