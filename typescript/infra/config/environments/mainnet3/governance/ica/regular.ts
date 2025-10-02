@@ -137,6 +137,5 @@ export const regularIcas: ChainMap<Address> = {
   // Sept 22, 2025
   // ----------------------------------------------------------
   zerogravity: '0x53FEEdcF42C1aACFeC3FA6Da573a3470FcD5C658',
-  sova: '0x759E0dBC1DE631db48Eb10ED011D3B86a1556DEb',
   mantra: '0x6b3353A453689a92aE3138c4d26e4eaD894b39D8',
 } as const;

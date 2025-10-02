@@ -455,10 +455,6 @@
     "amount": "3554.023647439",
     "decimals": 9
   },
-  "sova": {
-    "amount": "0.001000251",
-    "decimals": 9
-  },
   "starknet": {
     "amount": "5000",
     "decimals": 1

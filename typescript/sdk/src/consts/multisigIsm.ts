@@ -2163,17 +2163,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  sova: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x1763d686c45df79f6d5f63564255546b08cb206c',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   starknet: {
     threshold: 2,
     validators: [
