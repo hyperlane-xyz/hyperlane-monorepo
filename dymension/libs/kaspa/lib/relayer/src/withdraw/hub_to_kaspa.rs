@@ -19,9 +19,7 @@ use kaspa_consensus_core::constants::TX_VERSION;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
 use kaspa_consensus_core::tx::UtxoEntry;
-use kaspa_consensus_core::tx::{
-    Transaction, TransactionOutpoint, TransactionOutput,
-};
+use kaspa_consensus_core::tx::{Transaction, TransactionOutpoint, TransactionOutput};
 use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};

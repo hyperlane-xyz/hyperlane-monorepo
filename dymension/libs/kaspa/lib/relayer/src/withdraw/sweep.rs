@@ -345,7 +345,8 @@ pub async fn create_sweeping_bundle(
     // 2. We have enough for withdrawals AND reached the maximum number of inputs (1000)
     while !escrow_inputs.is_empty() {
         // Check if we've swept enough to cover withdrawals AND reached the maximum inputs
-        if total_swept_amount >= withdrawal_amount_without_anchor && total_inputs_swept >= MAX_SWEEP_INPUTS
+        if total_swept_amount >= withdrawal_amount_without_anchor
+            && total_inputs_swept >= MAX_SWEEP_INPUTS
         {
             info!(
                 "Kaspa sweeping: stopping - swept {} sompi (covers effective withdrawal amount of {} sompi) and reached maximum of {} inputs",
@@ -486,15 +487,11 @@ pub fn create_inputs_from_sweeping_bundle(
     )
     .build();
 
-    let escrow_input = PopulatedInputBuilder::new(
-        tx_id,
-        escrow_idx,
-        escrow_output.amount,
-        escrow.p2sh.clone(),
-    )
-    .sig_op_count(escrow.n() as u8)
-    .redeem_script(Some(escrow.redeem_script.clone()))
-    .build();
+    let escrow_input =
+        PopulatedInputBuilder::new(tx_id, escrow_idx, escrow_output.amount, escrow.p2sh.clone())
+            .sig_op_count(escrow.n() as u8)
+            .redeem_script(Some(escrow.redeem_script.clone()))
+            .build();
 
     Ok(vec![relayer_input, escrow_input])
 }

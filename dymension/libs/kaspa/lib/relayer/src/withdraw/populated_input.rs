@@ -1,8 +1,10 @@
 use corelib::consts::RELAYER_SIG_OP_COUNT;
 use kaspa_consensus_core::constants::UNACCEPTED_DAA_SCORE;
-use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, TransactionOutput, UtxoEntry};
-use kaspa_hashes::Hash;
 use kaspa_consensus_core::tx::ScriptPublicKey;
+use kaspa_consensus_core::tx::{
+    TransactionInput, TransactionOutpoint, TransactionOutput, UtxoEntry,
+};
+use kaspa_hashes::Hash;
 
 use super::messages::PopulatedInput;
 
@@ -62,14 +64,13 @@ impl PopulatedInputBuilder {
         self
     }
 
-
     /// Build the PopulatedInput
     pub fn build(self) -> PopulatedInput {
         (
             TransactionInput::new(
                 TransactionOutpoint::new(self.tx_id, self.index),
-                vec![],  // signature_script always starts empty
-                u64::MAX,  // sequence always u64::MAX
+                vec![],   // signature_script always starts empty
+                u64::MAX, // sequence always u64::MAX
                 self.sig_op_count,
             ),
             UtxoEntry::new(

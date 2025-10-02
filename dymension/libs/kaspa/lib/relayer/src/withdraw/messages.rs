@@ -28,7 +28,11 @@ fn adjust_outputs_for_mass_limit(
     mut messages: Vec<HyperlaneMessage>,
     network_id: kaspa_consensus_core::network::NetworkId,
     escrow_m: u16,
-) -> Result<(Vec<kaspa_consensus_core::tx::TransactionOutput>, Vec<HyperlaneMessage>, u64)> {
+) -> Result<(
+    Vec<kaspa_consensus_core::tx::TransactionOutput>,
+    Vec<HyperlaneMessage>,
+    u64,
+)> {
     // Calculate initial mass
     let mut tx_mass = super::hub_to_kaspa::estimate_mass(
         inputs.clone(),
@@ -41,7 +45,8 @@ fn adjust_outputs_for_mass_limit(
 
     // Use MAX_MASS_MARGIN as safety margin for mass limit
     // This ensures we stay under the limit even with estimation variance
-    let max_allowed_mass = (kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS as f64 * MAX_MASS_MARGIN) as u64;
+    let max_allowed_mass =
+        (kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS as f64 * MAX_MASS_MARGIN) as u64;
 
     // Remove outputs from the end if mass exceeds maximum (with safety margin)
     while tx_mass > max_allowed_mass && !outputs.is_empty() {
