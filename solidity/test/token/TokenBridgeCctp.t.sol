@@ -670,6 +670,9 @@ contract TokenBridgeCctpV1Test is Test {
         assertEq(actualId, id);
     }
 
+    // needed for hook refunds
+    receive() external payable {}
+
     function testFork_postDispatch(
         bytes32 recipient,
         bytes calldata body
