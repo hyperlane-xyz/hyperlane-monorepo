@@ -11,6 +11,8 @@ import { readYamlOrJson } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
+$.verbose = true;
+
 export class HyperlaneE2EWarpTestCommands {
   protected cmdPrefix: string[];
 
@@ -67,10 +69,12 @@ export class HyperlaneE2EWarpTestCommands {
     warpAddress,
     symbol,
     outputPath,
+    warpRouteId,
   }: {
     chain?: string;
     symbol?: string;
     warpAddress?: string;
+    warpRouteId?: string;
     outputPath?: string;
   }): ProcessPromise {
     return $`${localTestRunCmdPrefix()} hyperlane warp read \
@@ -78,6 +82,7 @@ export class HyperlaneE2EWarpTestCommands {
             ${warpAddress ? ['--address', warpAddress] : []} \
             ${chain ? ['--chain', chain] : []} \
             ${symbol ? ['--symbol', symbol] : []} \
+            ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
             --verbosity debug \
             ${outputPath || this.outputPath ? ['--config', outputPath || this.outputPath] : []}`;
   }
