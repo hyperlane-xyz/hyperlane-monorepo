@@ -7,11 +7,10 @@ import {
   CoreConfig,
   HookType,
   IgpConfig,
-  randomCosmosAddress,
 } from '@hyperlane-xyz/sdk';
 import { Address, MultiVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,
