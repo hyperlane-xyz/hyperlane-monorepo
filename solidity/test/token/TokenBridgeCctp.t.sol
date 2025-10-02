@@ -778,6 +778,37 @@ contract TokenBridgeCctpV1Test is Test {
         tbOrigin.postDispatch(bytes(""), message);
     }
 
+    function test_postDispatch_refundsExcessValue(
+        bytes32 recipient,
+        bytes calldata body
+    ) public virtual {
+        address refundAddress = makeAddr("refundAddress");
+        uint256 refundBalanceBefore = refundAddress.balance;
+        uint256 excessValue = 1 ether;
+
+        // Fund the hook contract with excess value
+        vm.deal(address(tbOrigin), excessValue);
+
+        // Create metadata with refund address using standard hook metadata format
+        bytes memory metadata = abi.encodePacked(
+            uint16(1), // variant
+            uint256(0), // msgValue
+            uint256(0), // gasLimit
+            refundAddress // refundAddress
+        );
+
+        bytes32 id = mailboxOrigin.dispatch(
+            destination,
+            recipient,
+            body,
+            metadata,
+            tbOrigin
+        );
+
+        // Verify refund was sent
+        assertEq(refundAddress.balance, refundBalanceBefore + excessValue);
+    }
+
     function test_verify_hookMessage(bytes calldata body) public {
         TestRecipient recipient = new TestRecipient();
         recipient.setInterchainSecurityModule(address(tbDestination));
