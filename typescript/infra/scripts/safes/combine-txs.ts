@@ -7,7 +7,10 @@ import yargs from 'yargs';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { readJSONAtPath, writeJsonAtPath } from '../../src/utils/utils.js';
+import {
+  readJSONAtPath,
+  writeAndFormatJsonAtPath,
+} from '../../src/utils/utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 type TxFile = {
@@ -77,7 +80,7 @@ async function writeCombinedTransactions(
     // NOTE: hacky use of chainid instead of domainid or chain name here
     const chainName = multiProvider.getChainName(chainId);
     const outputFilePath = path.join(outputDir, `${chainId}-${chainName}.json`);
-    writeJsonAtPath(outputFilePath, outputData);
+    writeAndFormatJsonAtPath(outputFilePath, outputData);
     rootLogger.info(`Combined transactions written to ${outputFilePath}`);
   }
 }

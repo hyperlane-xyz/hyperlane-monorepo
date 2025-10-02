@@ -56,6 +56,9 @@ export const chainsToSkip: ChainName[] = [
   // not AW owned
   'forma',
 
+  // chain is temporarily down
+  'sova',
+
   // TODO: remove once zksync PR is merged into main
   // mainnets
   'zksync',

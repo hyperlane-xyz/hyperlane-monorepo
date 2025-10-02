@@ -6,7 +6,7 @@ import { THRESHOLD_CONFIG_PATH } from '../../src/config/funding/balances.js';
 import { alertConfigMapping } from '../../src/config/funding/grafanaAlerts.js';
 import { getBalanceAlertThresholds } from '../../src/funding/alerts.js';
 import { sortThresholds } from '../../src/funding/balances.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { withAlertTypeRequired, withWrite } from '../agent-utils.js';
 
 // this scripts reads the thresholds in the grafana alert, prints and then overwrites the thresholds in the file
@@ -25,7 +25,7 @@ async function main() {
   if (write) {
     rootLogger.info('Writing alert thresholds to file..');
     try {
-      writeJsonAtPath(
+      writeAndFormatJsonAtPath(
         `${THRESHOLD_CONFIG_PATH}/${alertConfigMapping[alertType].configFileName}`,
         sortedThresholds,
       );

@@ -27,7 +27,7 @@ import {
   getInfraPath,
   isEthereumProtocolChain,
   readJSON,
-  writeJsonAtPath,
+  writeAndFormatJsonAtPath,
 } from '../utils/utils.js';
 
 import { AgentAwsKey } from './aws/key.js';
@@ -623,7 +623,7 @@ export async function persistRoleAddressesToLocalArtifacts(
   // Resolve the relative path
   const filePath = join(getInfraPath(), `config/${role}.json`);
 
-  writeJsonAtPath(filePath, addresses);
+  writeAndFormatJsonAtPath(filePath, addresses);
 }
 
 // maintaining the multisigIsm schema sans threshold
@@ -633,7 +633,7 @@ export async function persistValidatorAddressesToLocalArtifacts(
   fetchedValidatorAddresses: ChainMap<{ validators: Address[] }>,
 ) {
   // Write the updated object back to the file
-  writeJsonAtPath(
+  writeAndFormatJsonAtPath(
     getAWValidatorsPath(environment, context),
     fetchedValidatorAddresses,
   );

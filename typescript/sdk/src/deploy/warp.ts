@@ -87,8 +87,9 @@ export async function executeWarpDeploy(
   for (const protocol of protocols) {
     const protocolSpecificConfig = objFilter(
       modifiedConfig,
-      (chainName, _): _ is any =>
-        multiProvider.getProtocol(chainName) === protocol,
+      (chainName, config): config is any =>
+        multiProvider.getProtocol(chainName) === protocol &&
+        !config.foreignDeployment,
     );
 
     if (isObjEmpty(protocolSpecificConfig)) {

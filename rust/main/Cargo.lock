@@ -6530,6 +6530,7 @@ dependencies = [
  "derive-new",
  "ethers",
  "ethers-core",
+ "ethers-prometheus",
  "eyre",
  "futures-util",
  "gateway-api-client",
@@ -6543,6 +6544,7 @@ dependencies = [
  "prometheus",
  "radix-common",
  "radix-transactions",
+ "rand 0.8.5",
  "regex",
  "sbor",
  "scrypto",
@@ -6558,6 +6560,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "tracing-test",
+ "url",
  "uuid 1.11.0",
 ]
 
