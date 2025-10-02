@@ -48,10 +48,6 @@ fn calculate_sweep_size(
     relayer_address: &kaspa_addresses::Address,
     network_id: NetworkId,
 ) -> Result<usize> {
-    if escrow_inputs.is_empty() {
-        return Ok(0);
-    }
-
     let total_relayer_balance = relayer_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
 
     // First try all escrow inputs
@@ -246,6 +242,7 @@ fn prepare_next_iteration_inputs(
     let tx_id = sweep_tx.calculate_id();
 
     // Find both escrow and relayer outputs
+    // TODO: DRY out snippet with similar thing in create_inputs_from_sweeping_bundle
     let (relayer_idx, relayer_output, escrow_idx, escrow_output) = match sweep_tx.outputs.as_slice()
     {
         [o0, o1] if o0.script_public_key == escrow.p2sh => (1u32, o1, 0u32, o0),
