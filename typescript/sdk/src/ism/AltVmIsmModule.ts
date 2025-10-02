@@ -206,11 +206,11 @@ export class AltVMIsmModule extends HyperlaneModule<
       config.threshold <= config.validators.length,
       `threshold (${config.threshold}) for merkle root multisig ISM is greater than number of validators (${config.validators.length})`,
     );
-    const { ism_id } = await this.signer.createMerkleRootMultisigIsm({
+    const { ismId } = await this.signer.createMerkleRootMultisigIsm({
       validators: config.validators,
       threshold: config.threshold,
     });
-    return ism_id;
+    return ismId;
   }
 
   protected async deployMessageIdMultisigIsm(
@@ -220,11 +220,11 @@ export class AltVMIsmModule extends HyperlaneModule<
       config.threshold <= config.validators.length,
       `threshold (${config.threshold}) for message id multisig ISM is greater than number of validators (${config.validators.length})`,
     );
-    const { ism_id } = await this.signer.createMessageIdMultisigIsm({
+    const { ismId } = await this.signer.createMessageIdMultisigIsm({
       validators: config.validators,
       threshold: config.threshold,
     });
-    return ism_id;
+    return ismId;
   }
 
   protected async deployRoutingIsm(
@@ -245,14 +245,14 @@ export class AltVMIsmModule extends HyperlaneModule<
       const address = await this.deploy({ config: config.domains[chainName] });
       routes.push({
         ism: address,
-        domain_id: domainId,
+        domainId: domainId,
       });
     }
 
-    const { ism_id } = await this.signer.createRoutingIsm({
+    const { ismId } = await this.signer.createRoutingIsm({
       routes,
     });
-    return ism_id;
+    return ismId;
   }
 
   protected async updateRoutingIsm({
@@ -280,19 +280,19 @@ export class AltVMIsmModule extends HyperlaneModule<
       logger.debug(
         `Reconfiguring preexisting routing ISM for origin ${origin}...`,
       );
-      const ism_id = await this.deploy({
+      const ismId = await this.deploy({
         config: expected.domains[origin],
       });
 
-      const domain_id = this.metadataManager.getDomainId(origin);
+      const domainId = this.metadataManager.getDomainId(origin);
       updateTxs.push({
         annotation: `Setting new ISM for origin ${origin}...`,
         altvm_tx: await this.signer.populateSetRoutingIsmRoute({
           signer: this.signer.getSignerAddress(),
-          ism_id: this.args.addresses.deployedIsm,
+          ismId: this.args.addresses.deployedIsm,
           route: {
-            ism_id,
-            domain_id,
+            ismId,
+            domainId,
           },
         }),
       });
@@ -305,13 +305,13 @@ export class AltVMIsmModule extends HyperlaneModule<
 
     // Unenroll domains
     for (const origin of knownUnenrolls) {
-      const domain_id = this.metadataManager.getDomainId(origin);
+      const domainId = this.metadataManager.getDomainId(origin);
       updateTxs.push({
-        annotation: `Unenrolling originDomain ${domain_id} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
+        annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         altvm_tx: await this.signer.populateRemoveRoutingIsmRoute({
           signer: this.signer.getSignerAddress(),
-          ism_id: this.args.addresses.deployedIsm,
-          domain_id,
+          ismId: this.args.addresses.deployedIsm,
+          domainId,
         }),
       });
     }
@@ -324,8 +324,8 @@ export class AltVMIsmModule extends HyperlaneModule<
         } to ${expected.owner}`,
         altvm_tx: await this.signer.populateSetRoutingIsmOwner({
           signer: this.signer.getSignerAddress(),
-          ism_id: this.args.addresses.deployedIsm,
-          new_owner: expected.owner,
+          ismId: this.args.addresses.deployedIsm,
+          newOwner: expected.owner,
         }),
       });
     }
@@ -334,7 +334,7 @@ export class AltVMIsmModule extends HyperlaneModule<
   }
 
   protected async deployNoopIsm(): Promise<Address> {
-    const { ism_id } = await this.signer.createNoopIsm({});
-    return ism_id;
+    const { ismId } = await this.signer.createNoopIsm({});
+    return ismId;
   }
 }

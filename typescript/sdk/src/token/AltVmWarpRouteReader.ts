@@ -64,10 +64,10 @@ export class AltVMWarpRouteReader {
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
     const token = await this.provider.getToken({
-      token_id: warpRouteAddress,
+      tokenId: warpRouteAddress,
     });
 
-    switch (token.token_type) {
+    switch (token.tokenType) {
       case AltVM.TokenType.COLLATERAL:
         return TokenType.collateral;
       case AltVM.TokenType.SYNTHETIC:
@@ -89,16 +89,16 @@ export class AltVMWarpRouteReader {
     routerAddress: Address,
   ): Promise<MailboxClientConfig> {
     const token = await this.provider.getToken({
-      token_id: routerAddress,
+      tokenId: routerAddress,
     });
 
     const config: MailboxClientConfig = {
-      mailbox: token.mailbox_id,
+      mailbox: token.mailboxId,
       owner: token.owner,
     };
 
-    if (token.ism_id) {
-      const derivedIsm = await this.ismReader.deriveIsmConfig(token.ism_id);
+    if (token.ismId) {
+      const derivedIsm = await this.ismReader.deriveIsmConfig(token.ismId);
       config.interchainSecurityModule = derivedIsm;
     }
 
@@ -123,14 +123,14 @@ export class AltVMWarpRouteReader {
   }
 
   async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
-    const { remote_routers } = await this.provider.getRemoteRouters({
-      token_id: warpRouteAddress,
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenId: warpRouteAddress,
     });
 
     const routers: Record<string, { address: string }> = {};
-    for (const router of remote_routers) {
-      routers[router.receiver_domain_id] = {
-        address: router.receiver_contract,
+    for (const router of remoteRouters) {
+      routers[router.receiverDomainId] = {
+        address: router.receiverContract,
       };
     }
 
@@ -140,13 +140,13 @@ export class AltVMWarpRouteReader {
   async fetchDestinationGas(
     warpRouteAddress: Address,
   ): Promise<DestinationGas> {
-    const { remote_routers } = await this.provider.getRemoteRouters({
-      token_id: warpRouteAddress,
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenId: warpRouteAddress,
     });
 
     return Object.fromEntries(
-      remote_routers.map((routerConfig) => [
-        routerConfig.receiver_domain_id,
+      remoteRouters.map((routerConfig) => [
+        routerConfig.receiverDomainId,
         routerConfig.gas,
       ]),
     );

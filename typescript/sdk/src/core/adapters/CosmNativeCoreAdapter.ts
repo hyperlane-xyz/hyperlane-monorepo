@@ -75,8 +75,8 @@ export class CosmNativeCoreAdapter
       async () => {
         this.logger.debug(`Checking if message ${messageId} was processed`);
         const delivered = await provider.delivered({
-          mailbox_id: this.addresses.mailbox,
-          message_id: messageId,
+          mailboxId: this.addresses.mailbox,
+          messageId: messageId,
         });
 
         assert(delivered, `Message ${messageId} not yet processed`);

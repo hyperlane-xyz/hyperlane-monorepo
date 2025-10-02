@@ -164,14 +164,14 @@ export class AltVMHookModule extends HyperlaneModule<
         annotation: `Setting gas params for ${this.chain}`,
         altvm_tx: await this.signer.populateSetDestinationGasConfig({
           signer: this.signer.getSignerAddress(),
-          hook_id: this.args.addresses.deployedHook,
-          destination_gas_config: {
-            remote_domain_id: remoteDomain,
-            gas_oracle: {
-              token_exchange_rate: c.tokenExchangeRate,
-              gas_price: c.gasPrice,
+          hookId: this.args.addresses.deployedHook,
+          destinationGasConfig: {
+            remoteDomainId: remoteDomain,
+            gasOracle: {
+              tokenExchangeRate: c.tokenExchangeRate,
+              gasPrice: c.gasPrice,
             },
-            gas_overhead: targetConfig.overhead[remote].toString(),
+            gasOverhead: targetConfig.overhead[remote].toString(),
           },
         }),
       });
@@ -183,8 +183,8 @@ export class AltVMHookModule extends HyperlaneModule<
         annotation: 'Transferring ownership of ownable Hook...',
         altvm_tx: await this.signer.populateSetInterchainGasPaymasterHookOwner({
           signer: this.signer.getSignerAddress(),
-          hook_id: this.args.addresses.deployedHook,
-          new_owner: targetConfig.owner,
+          hookId: this.args.addresses.deployedHook,
+          newOwner: targetConfig.owner,
         }),
       });
     }
@@ -250,7 +250,7 @@ export class AltVMHookModule extends HyperlaneModule<
 
     assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
 
-    const { hook_id } = await this.signer.createInterchainGasPaymasterHook({
+    const { hookId } = await this.signer.createInterchainGasPaymasterHook({
       denom: nativeToken.denom,
     });
 
@@ -262,13 +262,13 @@ export class AltVMHookModule extends HyperlaneModule<
       }
 
       await this.signer.setDestinationGasConfig({
-        hook_id,
-        destination_gas_config: {
-          remote_domain_id: remoteDomain,
-          gas_overhead: config.overhead[remote].toString(),
-          gas_oracle: {
-            token_exchange_rate: c.tokenExchangeRate,
-            gas_price: c.gasPrice,
+        hookId,
+        destinationGasConfig: {
+          remoteDomainId: remoteDomain,
+          gasOverhead: config.overhead[remote].toString(),
+          gasOracle: {
+            tokenExchangeRate: c.tokenExchangeRate,
+            gasPrice: c.gasPrice,
           },
         },
       });
@@ -276,21 +276,21 @@ export class AltVMHookModule extends HyperlaneModule<
 
     if (!eqAddress(this.signer.getSignerAddress(), config.owner)) {
       await this.signer.setInterchainGasPaymasterHookOwner({
-        hook_id,
-        new_owner: config.owner,
+        hookId,
+        newOwner: config.owner,
       });
     }
 
-    return hook_id;
+    return hookId;
   }
 
   protected async deployMerkleTreeHook(): Promise<Address> {
     this.logger.debug('Deploying Merkle Tree Hook...');
 
-    const { hook_id } = await this.signer.createMerkleTreeHook({
-      mailbox_id: this.args.addresses.mailbox,
+    const { hookId } = await this.signer.createMerkleTreeHook({
+      mailboxId: this.args.addresses.mailbox,
     });
 
-    return hook_id;
+    return hookId;
   }
 }

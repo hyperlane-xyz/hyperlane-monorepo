@@ -23,15 +23,15 @@ export class AltVMCoreReader {
 
   async deriveCoreConfig(mailboxAddress: Address): Promise<DerivedCoreConfig> {
     const mailbox = await this.provider.getMailbox({
-      mailbox_id: mailboxAddress,
+      mailboxId: mailboxAddress,
     });
 
     return {
       owner: mailbox.owner,
-      defaultIsm: await this.ismReader.deriveIsmConfig(mailbox.default_ism),
-      defaultHook: await this.hookReader.deriveHookConfig(mailbox.default_hook),
+      defaultIsm: await this.ismReader.deriveIsmConfig(mailbox.defaultIsm),
+      defaultHook: await this.hookReader.deriveHookConfig(mailbox.defaultHook),
       requiredHook: await this.hookReader.deriveHookConfig(
-        mailbox.required_hook,
+        mailbox.requiredHook,
       ),
     };
   }

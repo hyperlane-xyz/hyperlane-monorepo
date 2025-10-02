@@ -120,8 +120,8 @@ export class AltVMCoreModule extends HyperlaneModule<
 
     // 2. Deploy Mailbox with initial configuration
     const mailbox = await signer.createMailbox({
-      domain_id: domainId,
-      default_ism_id: defaultIsm,
+      domainId: domainId,
+      defaultIsmId: defaultIsm,
     });
 
     // 3. Deploy default hook
@@ -130,7 +130,7 @@ export class AltVMCoreModule extends HyperlaneModule<
       config: config.defaultHook,
       addresses: {
         deployedHook: '',
-        mailbox: mailbox.mailbox_id,
+        mailbox: mailbox.mailboxId,
       },
       multiProvider,
       signer,
@@ -144,7 +144,7 @@ export class AltVMCoreModule extends HyperlaneModule<
       config: config.requiredHook,
       addresses: {
         deployedHook: '',
-        mailbox: mailbox.mailbox_id,
+        mailbox: mailbox.mailboxId,
       },
       multiProvider,
       signer,
@@ -154,31 +154,31 @@ export class AltVMCoreModule extends HyperlaneModule<
 
     // 5. Update the configuration with the newly created hooks
     await signer.setDefaultIsm({
-      mailbox_id: mailbox.mailbox_id,
-      ism_id: defaultIsm,
+      mailboxId: mailbox.mailboxId,
+      ismId: defaultIsm,
     });
     await signer.setDefaultHook({
-      mailbox_id: mailbox.mailbox_id,
-      hook_id: defaultHook,
+      mailboxId: mailbox.mailboxId,
+      hookId: defaultHook,
     });
     await signer.setRequiredHook({
-      mailbox_id: mailbox.mailbox_id,
-      hook_id: requiredHook,
+      mailboxId: mailbox.mailboxId,
+      hookId: requiredHook,
     });
 
     if (!eqAddress(signer.getSignerAddress(), config.owner)) {
       await signer.setMailboxOwner({
-        mailbox_id: mailbox.mailbox_id,
-        new_owner: config.owner,
+        mailboxId: mailbox.mailboxId,
+        newOwner: config.owner,
       });
     }
 
     const validatorAnnounce = await signer.createValidatorAnnounce({
-      mailbox_id: mailbox.mailbox_id,
+      mailboxId: mailbox.mailboxId,
     });
 
     const addresses: DeployedCoreAddresses = {
-      mailbox: mailbox.mailbox_id,
+      mailbox: mailbox.mailboxId,
       staticMerkleRootMultisigIsmFactory: '',
       proxyAdmin: '',
       staticMerkleRootWeightedMultisigIsmFactory: '',
@@ -186,7 +186,7 @@ export class AltVMCoreModule extends HyperlaneModule<
       staticAggregationIsmFactory: '',
       staticMessageIdMultisigIsmFactory: '',
       staticMessageIdWeightedMultisigIsmFactory: '',
-      validatorAnnounce: validatorAnnounce.validator_announce_id,
+      validatorAnnounce: validatorAnnounce.validatorAnnounceId,
       testRecipient: '',
       interchainAccountRouter: '',
       domainRoutingIsmFactory: '',
@@ -274,8 +274,8 @@ export class AltVMCoreModule extends HyperlaneModule<
         annotation: `Transferring ownership of Mailbox from ${actualConfig.owner} to ${expectedConfig.owner}`,
         altvm_tx: await this.signer.populateSetMailboxOwner({
           signer: this.signer.getSignerAddress(),
-          mailbox_id: this.args.addresses.mailbox,
-          new_owner: expectedConfig.owner,
+          mailboxId: this.args.addresses.mailbox,
+          newOwner: expectedConfig.owner,
         }),
       },
     ];
@@ -313,8 +313,8 @@ export class AltVMCoreModule extends HyperlaneModule<
         annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm}`,
         altvm_tx: await this.signer.populateSetDefaultIsm({
           signer: this.signer.getSignerAddress(),
-          mailbox_id: mailbox,
-          ism_id: deployedIsm,
+          mailboxId: mailbox,
+          ismId: deployedIsm,
         }),
       });
     }
@@ -390,8 +390,8 @@ export class AltVMCoreModule extends HyperlaneModule<
         annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook}`,
         altvm_tx: await this.signer.populateSetDefaultHook({
           signer: this.signer.getSignerAddress(),
-          mailbox_id: mailbox,
-          hook_id: deployedHook,
+          mailboxId: mailbox,
+          hookId: deployedHook,
         }),
       });
     }
@@ -432,8 +432,8 @@ export class AltVMCoreModule extends HyperlaneModule<
         annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook}`,
         altvm_tx: await this.signer.populateSetRequiredHook({
           signer: this.signer.getSignerAddress(),
-          mailbox_id: mailbox,
-          hook_id: deployedHook,
+          mailboxId: mailbox,
+          hookId: deployedHook,
         }),
       });
     }

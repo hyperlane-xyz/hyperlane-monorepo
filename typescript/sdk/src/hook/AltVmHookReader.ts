@@ -24,7 +24,7 @@ export class AltVMHookReader {
     address: Address,
   ): Promise<DerivedHookConfig> {
     try {
-      const hook_type = await this.provider.getHookType({ hook_id: address });
+      const hook_type = await this.provider.getHookType({ hookId: address });
 
       switch (hook_type) {
         case AltVM.HookType.MERKLE_TREE:
@@ -51,24 +51,24 @@ export class AltVMHookReader {
     address: Address,
   ): Promise<WithAddress<IgpHookConfig>> {
     const igp = await this.provider.getInterchainGasPaymasterHook({
-      hook_id: address,
+      hookId: address,
     });
 
     const overhead: IgpHookConfig['overhead'] = {};
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
 
-    Object.keys(igp.destination_gas_configs).forEach((domain_id) => {
+    Object.keys(igp.destinationGasConfigs).forEach((domain_id) => {
       const { name, nativeToken } =
         this.metadataManager.getChainMetadata(domain_id);
       overhead[name] = parseInt(
-        igp.destination_gas_configs[domain_id].gas_overhead,
+        igp.destinationGasConfigs[domain_id].gasOverhead,
       );
       oracleConfig[name] = {
         gasPrice:
-          igp.destination_gas_configs[domain_id].gas_oracle?.gas_price ?? '',
+          igp.destinationGasConfigs[domain_id].gasOracle?.gasPrice ?? '',
         tokenExchangeRate:
-          igp.destination_gas_configs[domain_id].gas_oracle
-            ?.token_exchange_rate ?? '',
+          igp.destinationGasConfigs[domain_id].gasOracle?.tokenExchangeRate ??
+          '',
         tokenDecimals: nativeToken?.decimals,
       };
     });
@@ -88,7 +88,7 @@ export class AltVMHookReader {
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
     const merkle_tree_hook = await this.provider.getMerkleTreeHook({
-      hook_id: address,
+      hookId: address,
     });
 
     return {

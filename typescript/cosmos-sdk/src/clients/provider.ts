@@ -152,32 +152,32 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   // ### QUERY CORE ###
 
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    const { mailbox } = await this.query.core.Mailbox({ id: req.mailbox_id });
-    assert(mailbox, `found no mailbox for id ${req.mailbox_id}`);
+    const { mailbox } = await this.query.core.Mailbox({ id: req.mailboxId });
+    assert(mailbox, `found no mailbox for id ${req.mailboxId}`);
 
     return {
       address: mailbox.id,
       owner: mailbox.owner,
-      local_domain: mailbox.local_domain,
-      default_ism: mailbox.default_ism,
-      default_hook: mailbox.default_hook,
-      required_hook: mailbox.required_hook,
-      message_sent: mailbox.message_sent,
-      message_received: mailbox.message_received,
+      localDomain: mailbox.local_domain,
+      defaultIsm: mailbox.default_ism,
+      defaultHook: mailbox.default_hook,
+      requiredHook: mailbox.required_hook,
+      messageSent: mailbox.message_sent,
+      messageReceived: mailbox.message_received,
     };
   }
 
   async delivered(req: AltVM.ReqDelivered): Promise<AltVM.ResDelivered> {
     const { delivered } = await this.query.core.Delivered({
-      id: req.mailbox_id,
-      message_id: req.message_id,
+      id: req.mailboxId,
+      message_id: req.messageId,
     });
     return delivered;
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.ResGetIsmType> {
-    const { ism } = await this.query.interchainSecurity.Ism({ id: req.ism_id });
-    assert(ism, `found no ism for id ${req.ism_id}`);
+    const { ism } = await this.query.interchainSecurity.Ism({ id: req.ismId });
+    assert(ism, `found no ism for id ${req.ismId}`);
 
     switch (ism.type_url) {
       case CosmosNativeIsmTypes.MerkleRootMultisigISM:
@@ -199,7 +199,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     const { ism } =
       await this.query.interchainSecurity.DecodedIsm<isTypes.MessageIdMultisigISM>(
         {
-          id: req.ism_id,
+          id: req.ismId,
         },
       );
 
@@ -216,7 +216,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     const { ism } =
       await this.query.interchainSecurity.DecodedIsm<isTypes.MerkleRootMultisigISM>(
         {
-          id: req.ism_id,
+          id: req.ismId,
         },
       );
 
@@ -230,20 +230,20 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
     const { ism } =
       await this.query.interchainSecurity.DecodedIsm<isTypes.RoutingISM>({
-        id: req.ism_id,
+        id: req.ismId,
       });
 
     return {
       address: ism.id,
       owner: ism.owner,
-      routes: ism.routes,
+      routes: ism.routes.map((r) => ({ domainId: r.domain, ismId: r.ism })),
     };
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
     const { ism } =
       await this.query.interchainSecurity.DecodedIsm<isTypes.NoopISM>({
-        id: req.ism_id,
+        id: req.ismId,
       });
 
     return {
@@ -253,7 +253,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.ResGetHookType> {
     try {
-      const { igp } = await this.query.postDispatch.Igp({ id: req.hook_id });
+      const { igp } = await this.query.postDispatch.Igp({ id: req.hookId });
 
       if (igp) {
         return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
@@ -261,24 +261,24 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     } catch {
       try {
         const { merkle_tree_hook } =
-          await this.query.postDispatch.MerkleTreeHook({ id: req.hook_id });
+          await this.query.postDispatch.MerkleTreeHook({ id: req.hookId });
 
         if (merkle_tree_hook) {
           return AltVM.HookType.MERKLE_TREE;
         }
       } catch {
-        throw new Error(`Unknown Hook Type: ${req.hook_id}`);
+        throw new Error(`Unknown Hook Type: ${req.hookId}`);
       }
     }
 
-    throw new Error(`Unknown Hook Type: ${req.hook_id}`);
+    throw new Error(`Unknown Hook Type: ${req.hookId}`);
   }
 
   async getInterchainGasPaymasterHook(
     req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    const { igp } = await this.query.postDispatch.Igp({ id: req.hook_id });
-    assert(igp, `found no igp for id ${req.hook_id}`);
+    const { igp } = await this.query.postDispatch.Igp({ id: req.hookId });
+    assert(igp, `found no igp for id ${req.hookId}`);
 
     const { destination_gas_configs } =
       await this.query.postDispatch.DestinationGasConfigs({
@@ -286,29 +286,29 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       });
 
     const configs: {
-      [domain_id: string]: {
-        gas_oracle: {
-          token_exchange_rate: string;
-          gas_price: string;
+      [domainId: string]: {
+        gasOracle: {
+          tokenExchangeRate: string;
+          gasPrice: string;
         };
-        gas_overhead: string;
+        gasOverhead: string;
       };
     } = {};
 
     for (const config of destination_gas_configs) {
       configs[config.remote_domain] = {
-        gas_oracle: config.gas_oracle || {
-          token_exchange_rate: '0',
-          gas_price: '0',
+        gasOracle: {
+          tokenExchangeRate: config.gas_oracle?.token_exchange_rate ?? '0',
+          gasPrice: config.gas_oracle?.gas_price ?? '0',
         },
-        gas_overhead: config.gas_overhead,
+        gasOverhead: config.gas_overhead,
       };
     }
 
     return {
       address: igp.id,
       owner: igp.owner,
-      destination_gas_configs: configs,
+      destinationGasConfigs: configs,
     };
   }
 
@@ -316,9 +316,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
     const { merkle_tree_hook } = await this.query.postDispatch.MerkleTreeHook({
-      id: req.hook_id,
+      id: req.hookId,
     });
-    assert(merkle_tree_hook, `found no merkle tree hook for id ${req.hook_id}`);
+    assert(merkle_tree_hook, `found no merkle tree hook for id ${req.hookId}`);
 
     return {
       address: merkle_tree_hook.id,
@@ -329,9 +329,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
 
   async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
     const { token } = await this.query.warp.Token({
-      id: req.token_id,
+      id: req.tokenId,
     });
-    assert(token, `found no token for id ${req.token_id}`);
+    assert(token, `found no token for id ${req.tokenId}`);
 
     let token_type: AltVM.TokenType;
 
@@ -344,17 +344,17 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
         break;
       default:
         throw new Error(
-          `Failed to determine token type for address ${req.token_id}`,
+          `Failed to determine token type for address ${req.tokenId}`,
         );
     }
 
     return {
       address: token.id,
       owner: token.owner,
-      token_type: token_type,
-      mailbox_id: token.origin_mailbox,
-      ism_id: token.ism_id,
-      origin_denom: token.origin_denom,
+      tokenType: token_type,
+      mailboxId: token.origin_mailbox,
+      ismId: token.ism_id,
+      originDenom: token.origin_denom,
       name: '',
       symbol: '',
       description: '',
@@ -366,14 +366,14 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     req: AltVM.ReqGetRemoteRouters,
   ): Promise<AltVM.ResGetRemoteRouters> {
     const { remote_routers } = await this.query.warp.RemoteRouters({
-      id: req.token_id,
+      id: req.tokenId,
     });
 
     return {
-      address: req.token_id,
-      remote_routers: remote_routers.map((r) => ({
-        receiver_domain_id: r.receiver_domain,
-        receiver_contract: r.receiver_contract,
+      address: req.tokenId,
+      remoteRouters: remote_routers.map((r) => ({
+        receiverDomainId: r.receiver_domain,
+        receiverContract: r.receiver_contract,
         gas: r.gas,
       })),
     };
@@ -383,11 +383,11 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     req: AltVM.ReqGetBridgedSupply,
   ): Promise<AltVM.ResGetBridgedSupply> {
     const { bridged_supply } = await this.query.warp.BridgedSupply({
-      id: req.token_id,
+      id: req.tokenId,
     });
     assert(
       bridged_supply,
-      `found no bridged supply for token id ${req.token_id}`,
+      `found no bridged supply for token id ${req.tokenId}`,
     );
 
     return BigInt(bridged_supply.amount);
@@ -397,14 +397,14 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     req: AltVM.ReqQuoteRemoteTransfer,
   ): Promise<AltVM.ResQuoteRemoteTransfer> {
     const { gas_payment } = await this.query.warp.QuoteRemoteTransfer({
-      id: req.token_id,
-      destination_domain: req.destination_domain_id.toString(),
-      custom_hook_id: req.custom_hook_id,
-      custom_hook_metadata: req.custom_hook_metadata,
+      id: req.tokenId,
+      destination_domain: req.destinationDomainId.toString(),
+      custom_hook_id: req.customHookId,
+      custom_hook_metadata: req.customHookMetadata,
     });
     assert(
       gas_payment[0],
-      `found no quote for token id ${req.token_id} and destination domain ${req.destination_domain_id}`,
+      `found no quote for token id ${req.tokenId} and destination domain ${req.destinationDomainId}`,
     );
 
     return {
@@ -421,8 +421,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     return {
       typeUrl: R.MsgCreateMailbox.proto.type,
       value: R.MsgCreateMailbox.proto.converter.create({
-        local_domain: req.domain_id,
-        default_ism: req.default_ism_id,
+        local_domain: req.domainId,
+        default_ism: req.defaultIsmId,
         owner: req.signer,
       }),
     };
@@ -434,8 +434,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     return {
       typeUrl: R.MsgSetMailbox.proto.type,
       value: R.MsgSetMailbox.proto.converter.create({
-        mailbox_id: req.mailbox_id,
-        default_ism: req.ism_id,
+        mailbox_id: req.mailboxId,
+        default_ism: req.ismId,
         owner: req.signer,
       }),
     };
@@ -447,8 +447,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     return {
       typeUrl: R.MsgSetMailbox.proto.type,
       value: R.MsgSetMailbox.proto.converter.create({
-        mailbox_id: req.mailbox_id,
-        default_hook: req.hook_id,
+        mailbox_id: req.mailboxId,
+        default_hook: req.hookId,
         owner: req.signer,
       }),
     };
@@ -460,8 +460,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     return {
       typeUrl: R.MsgSetMailbox.proto.type,
       value: R.MsgSetMailbox.proto.converter.create({
-        mailbox_id: req.mailbox_id,
-        required_hook: req.hook_id,
+        mailbox_id: req.mailboxId,
+        required_hook: req.hookId,
         owner: req.signer,
       }),
     };
@@ -474,9 +474,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgSetMailbox.proto.type,
       value: R.MsgSetMailbox.proto.converter.create({
         owner: req.signer,
-        mailbox_id: req.mailbox_id,
-        new_owner: req.new_owner,
-        renounce_ownership: !req.new_owner,
+        mailbox_id: req.mailboxId,
+        new_owner: req.newOwner,
+        renounce_ownership: !req.newOwner,
       }),
     };
   }
@@ -514,7 +514,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgCreateRoutingIsm.proto.type,
       value: R.MsgCreateRoutingIsm.proto.converter.create({
         creator: req.signer,
-        routes: req.routes.map((r) => ({ domain: r.domain_id, ism: r.ism })),
+        routes: req.routes.map((r) => ({ domain: r.domainId, ism: r.ism })),
       }),
     };
   }
@@ -526,10 +526,10 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgSetRoutingIsmDomain.proto.type,
       value: R.MsgSetRoutingIsmDomain.proto.converter.create({
         owner: req.signer,
-        ism_id: req.ism_id,
+        ism_id: req.ismId,
         route: {
-          domain: req.route.domain_id,
-          ism: req.route.ism_id,
+          domain: req.route.domainId,
+          ism: req.route.ismId,
         },
       }),
     };
@@ -542,8 +542,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgRemoveRoutingIsmDomain.proto.type,
       value: R.MsgRemoveRoutingIsmDomain.proto.converter.create({
         owner: req.signer,
-        ism_id: req.ism_id,
-        domain: req.domain_id,
+        ism_id: req.ismId,
+        domain: req.domainId,
       }),
     };
   }
@@ -555,9 +555,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgUpdateRoutingIsmOwner.proto.type,
       value: R.MsgUpdateRoutingIsmOwner.proto.converter.create({
         owner: req.signer,
-        ism_id: req.ism_id,
-        new_owner: req.new_owner,
-        renounce_ownership: !req.new_owner,
+        ism_id: req.ismId,
+        new_owner: req.newOwner,
+        renounce_ownership: !req.newOwner,
       }),
     };
   }
@@ -580,7 +580,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgCreateMerkleTreeHook.proto.type,
       value: R.MsgCreateMerkleTreeHook.proto.converter.create({
         owner: req.signer,
-        mailbox_id: req.mailbox_id,
+        mailbox_id: req.mailboxId,
       }),
     };
   }
@@ -604,9 +604,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgSetIgpOwner.proto.type,
       value: R.MsgSetIgpOwner.proto.converter.create({
         owner: req.signer,
-        igp_id: req.hook_id,
-        new_owner: req.new_owner,
-        renounce_ownership: !req.new_owner,
+        igp_id: req.hookId,
+        new_owner: req.newOwner,
+        renounce_ownership: !req.newOwner,
       }),
     };
   }
@@ -618,11 +618,15 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgSetDestinationGasConfig.proto.type,
       value: R.MsgSetDestinationGasConfig.proto.converter.create({
         owner: req.signer,
-        igp_id: req.hook_id,
+        igp_id: req.hookId,
         destination_gas_config: {
-          remote_domain: req.destination_gas_config.remote_domain_id,
-          gas_overhead: req.destination_gas_config.gas_overhead,
-          gas_oracle: req.destination_gas_config.gas_oracle,
+          remote_domain: req.destinationGasConfig.remoteDomainId,
+          gas_overhead: req.destinationGasConfig.gasOverhead,
+          gas_oracle: {
+            token_exchange_rate:
+              req.destinationGasConfig.gasOracle.tokenExchangeRate,
+            gas_price: req.destinationGasConfig.gasOracle.gasPrice,
+          },
         },
       }),
     };
@@ -645,8 +649,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgCreateCollateralToken.proto.type,
       value: R.MsgCreateCollateralToken.proto.converter.create({
         owner: req.signer,
-        origin_mailbox: req.mailbox_id,
-        origin_denom: req.origin_denom,
+        origin_mailbox: req.mailboxId,
+        origin_denom: req.originDenom,
       }),
     };
   }
@@ -658,7 +662,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgCreateSyntheticToken.proto.type,
       value: R.MsgCreateSyntheticToken.proto.converter.create({
         owner: req.signer,
-        origin_mailbox: req.mailbox_id,
+        origin_mailbox: req.mailboxId,
       }),
     };
   }
@@ -670,9 +674,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgSetToken.proto.type,
       value: R.MsgSetToken.proto.converter.create({
         owner: req.signer,
-        token_id: req.token_id,
-        new_owner: req.new_owner,
-        renounce_ownership: !req.new_owner,
+        token_id: req.tokenId,
+        new_owner: req.newOwner,
+        renounce_ownership: !req.newOwner,
       }),
     };
   }
@@ -684,8 +688,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgSetToken.proto.type,
       value: R.MsgSetToken.proto.converter.create({
         owner: req.signer,
-        token_id: req.token_id,
-        ism_id: req.ism_id,
+        token_id: req.tokenId,
+        ism_id: req.ismId,
       }),
     };
   }
@@ -697,11 +701,11 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgEnrollRemoteRouter.proto.type,
       value: R.MsgEnrollRemoteRouter.proto.converter.create({
         owner: req.signer,
-        token_id: req.token_id,
+        token_id: req.tokenId,
         remote_router: {
-          receiver_domain: req.remote_router.receiver_domain_id,
-          receiver_contract: req.remote_router.receiver_address,
-          gas: req.remote_router.gas,
+          receiver_domain: req.remoteRouter.receiverDomainId,
+          receiver_contract: req.remoteRouter.receiverAddress,
+          gas: req.remoteRouter.gas,
         },
       }),
     };
@@ -714,8 +718,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgUnrollRemoteRouter.proto.type,
       value: R.MsgUnrollRemoteRouter.proto.converter.create({
         owner: req.signer,
-        token_id: req.token_id,
-        receiver_domain: req.receiver_domain_id,
+        token_id: req.tokenId,
+        receiver_domain: req.receiverDomainId,
       }),
     };
   }
@@ -727,14 +731,14 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgRemoteTransfer.proto.type,
       value: R.MsgRemoteTransfer.proto.converter.create({
         sender: req.signer,
-        token_id: req.token_id,
-        destination_domain: req.destination_domain_id,
+        token_id: req.tokenId,
+        destination_domain: req.destinationDomainId,
         recipient: req.recipient,
         amount: req.amount,
-        custom_hook_id: req.custom_hook_id,
-        gas_limit: req.gas_limit,
-        max_fee: req.max_fee,
-        custom_hook_metadata: req.custom_hook_metadata,
+        custom_hook_id: req.customHookId,
+        gas_limit: req.gasLimit,
+        max_fee: req.maxFee,
+        custom_hook_metadata: req.customHookMetadata,
       }),
     };
   }

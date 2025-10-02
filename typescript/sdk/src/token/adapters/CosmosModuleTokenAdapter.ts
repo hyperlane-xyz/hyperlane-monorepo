@@ -67,7 +67,7 @@ class CosmosModuleTokenAdapter
         denom,
       });
     } else {
-      return provider.getBridgedSupply({ token_id: address });
+      return provider.getBridgedSupply({ tokenId: address });
     }
   }
 
@@ -145,57 +145,55 @@ export class CosmNativeHypCollateralAdapter
 
   protected async getDenom(): Promise<string> {
     const provider = await this.getProvider();
-    const { origin_denom } = await provider.getToken({
-      token_id: this.tokenId,
+    const { originDenom } = await provider.getToken({
+      tokenId: this.tokenId,
     });
 
-    return origin_denom;
+    return originDenom;
   }
 
   async getDomains(): Promise<Domain[]> {
     const provider = await this.getProvider();
     const remoteRouters = await provider.getRemoteRouters({
-      token_id: this.tokenId,
+      tokenId: this.tokenId,
     });
 
-    return remoteRouters.remote_routers.map(
-      (router) => router.receiver_domain_id,
-    );
+    return remoteRouters.remoteRouters.map((router) => router.receiverDomainId);
   }
 
   async getRouterAddress(domain: Domain): Promise<Buffer> {
     const provider = await this.getProvider();
     const remoteRouters = await provider.getRemoteRouters({
-      token_id: this.tokenId,
+      tokenId: this.tokenId,
     });
 
-    const router = remoteRouters.remote_routers.find(
-      (router) => router.receiver_domain_id === domain,
+    const router = remoteRouters.remoteRouters.find(
+      (router) => router.receiverDomainId === domain,
     );
 
     if (!router) {
       throw new Error(`Router with domain "${domain}" not found`);
     }
 
-    return Buffer.from(router.receiver_contract);
+    return Buffer.from(router.receiverContract);
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
     const provider = await this.getProvider();
     const remoteRouters = await provider.getRemoteRouters({
-      token_id: this.tokenId,
+      tokenId: this.tokenId,
     });
 
-    return remoteRouters.remote_routers.map((router) => ({
-      domain: router.receiver_domain_id,
-      address: Buffer.from(router.receiver_contract),
+    return remoteRouters.remoteRouters.map((router) => ({
+      domain: router.receiverDomainId,
+      address: Buffer.from(router.receiverContract),
     }));
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
     const provider = await this.getProvider();
     return await provider.getBridgedSupply({
-      token_id: this.tokenId,
+      tokenId: this.tokenId,
     });
   }
 
@@ -207,10 +205,10 @@ export class CosmNativeHypCollateralAdapter
     const provider = await this.getProvider();
     const { denom: addressOrDenom, amount } =
       await provider.quoteRemoteTransfer({
-        token_id: this.tokenId,
-        destination_domain_id: destination,
-        custom_hook_id: customHook || COSMOS_EMPTY_VALUE,
-        custom_hook_metadata: COSMOS_EMPTY_VALUE,
+        tokenId: this.tokenId,
+        destinationDomainId: destination,
+        customHookId: customHook || COSMOS_EMPTY_VALUE,
+        customHookMetadata: COSMOS_EMPTY_VALUE,
       });
 
     return {
@@ -232,12 +230,12 @@ export class CosmNativeHypCollateralAdapter
 
     const provider = await this.getProvider();
 
-    const { remote_routers } = await provider.getRemoteRouters({
-      token_id: this.tokenId,
+    const { remoteRouters } = await provider.getRemoteRouters({
+      tokenId: this.tokenId,
     });
 
-    const router = remote_routers.find(
-      (router) => router.receiver_domain_id === params.destination,
+    const router = remoteRouters.find(
+      (router) => router.receiverDomainId === params.destination,
     );
 
     if (!router) {
@@ -259,8 +257,8 @@ export class CosmNativeHypCollateralAdapter
 
     return provider.populateRemoteTransfer({
       signer: params.fromAccountOwner!,
-      token_id: this.tokenId,
-      destination_domain_id: params.destination,
+      tokenId: this.tokenId,
+      destinationDomainId: params.destination,
       recipient: addressToBytes32(
         convertToProtocolAddress(
           params.recipient,
@@ -270,10 +268,10 @@ export class CosmNativeHypCollateralAdapter
         destinationProtocol,
       ),
       amount: params.weiAmountOrId.toString(),
-      custom_hook_id: params.customHook || '',
-      custom_hook_metadata: '',
-      gas_limit: router.gas,
-      max_fee: {
+      customHookId: params.customHook || '',
+      customHookMetadata: '',
+      gasLimit: router.gas,
+      maxFee: {
         denom: params.interchainGas.addressOrDenom || '',
         amount: params.interchainGas.amount.toString(),
       },

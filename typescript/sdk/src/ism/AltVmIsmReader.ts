@@ -24,7 +24,7 @@ export class AltVMIsmReader {
     address: Address,
   ): Promise<DerivedIsmConfig> {
     try {
-      const ism_type = await this.provider.getIsmType({ ism_id: address });
+      const ism_type = await this.provider.getIsmType({ ismId: address });
 
       switch (ism_type) {
         case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
@@ -64,7 +64,7 @@ export class AltVMIsmReader {
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
     const ism = await this.provider.getMerkleRootMultisigIsm({
-      ism_id: address,
+      ismId: address,
     });
 
     return {
@@ -79,7 +79,7 @@ export class AltVMIsmReader {
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
     const ism = await this.provider.getMessageIdMultisigIsm({
-      ism_id: address,
+      ismId: address,
     });
 
     return {
@@ -94,21 +94,21 @@ export class AltVMIsmReader {
     address: Address,
   ): Promise<WithAddress<DomainRoutingIsmConfig>> {
     const ism = await this.provider.getRoutingIsm({
-      ism_id: address,
+      ismId: address,
     });
 
     const domains: DomainRoutingIsmConfig['domains'] = {};
 
     for (const route of ism.routes) {
-      const chainName = this.metadataManager.tryGetChainName(route.domain);
+      const chainName = this.metadataManager.tryGetChainName(route.domainId);
       if (!chainName) {
         this.logger.warn(
-          `Unknown domain ID ${route.domain}, skipping domain configuration`,
+          `Unknown domain ID ${route.domainId}, skipping domain configuration`,
         );
         continue;
       }
 
-      domains[chainName] = await this.deriveIsmConfig(route.ism);
+      domains[chainName] = await this.deriveIsmConfig(route.ismId);
     }
 
     return {

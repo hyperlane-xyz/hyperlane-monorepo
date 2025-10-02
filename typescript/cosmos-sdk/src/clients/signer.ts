@@ -176,7 +176,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      mailbox_id: result.id,
+      mailboxId: result.id,
     };
   }
 
@@ -190,7 +190,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      ism_id: req.ism_id,
+      ismId: req.ismId,
     };
   }
 
@@ -204,7 +204,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      hook_id: req.hook_id,
+      hookId: req.hookId,
     };
   }
 
@@ -218,7 +218,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      hook_id: req.hook_id,
+      hookId: req.hookId,
     };
   }
 
@@ -232,7 +232,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      new_owner: req.new_owner,
+      newOwner: req.newOwner,
     };
   }
 
@@ -246,7 +246,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      ism_id: result.id,
+      ismId: result.id,
     };
   }
 
@@ -260,7 +260,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      ism_id: result.id,
+      ismId: result.id,
     };
   }
 
@@ -274,7 +274,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      ism_id: result.id,
+      ismId: result.id,
     };
   }
 
@@ -302,7 +302,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      domain_id: req.domain_id,
+      domainId: req.domainId,
     };
   }
 
@@ -316,7 +316,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      new_owner: req.new_owner,
+      newOwner: req.newOwner,
     };
   }
 
@@ -330,7 +330,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      ism_id: result.id,
+      ismId: result.id,
     };
   }
 
@@ -344,7 +344,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      hook_id: result.id,
+      hookId: result.id,
     };
   }
 
@@ -358,7 +358,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      hook_id: result.id,
+      hookId: result.id,
     };
   }
 
@@ -372,7 +372,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      new_owner: req.new_owner,
+      newOwner: req.newOwner,
     };
   }
 
@@ -386,7 +386,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      destination_gas_config: req.destination_gas_config,
+      destinationGasConfig: req.destinationGasConfig,
     };
   }
 
@@ -394,7 +394,7 @@ export class CosmosNativeSigner
     _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
     // Cosmos Native has no validator announce
-    return { validator_announce_id: '' };
+    return { validatorAnnounceId: '' };
   }
 
   // ### TX WARP ###
@@ -409,7 +409,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      token_id: result.id,
+      tokenId: result.id,
     };
   }
 
@@ -423,7 +423,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      token_id: result.id,
+      tokenId: result.id,
     };
   }
 
@@ -437,7 +437,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      new_owner: req.new_owner,
+      newOwner: req.newOwner,
     };
   }
 
@@ -451,7 +451,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      ism_id: req.ism_id,
+      ismId: req.ismId,
     };
   }
 
@@ -465,7 +465,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      receiver_domain_id: req.remote_router.receiver_domain_id,
+      receiverDomainId: req.remoteRouter.receiverDomainId,
     };
   }
 
@@ -479,7 +479,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      receiver_domain_id: req.receiver_domain_id,
+      receiverDomainId: req.receiverDomainId,
     };
   }
 
@@ -493,7 +493,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      message_id: result.message_id,
+      messageId: result.message_id,
     };
   }
 }

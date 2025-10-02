@@ -157,10 +157,10 @@ export class AltVMWarpModule extends HyperlaneModule<
         annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         altvm_tx: await this.signer.populateEnrollRemoteRouter({
           signer: this.signer.getSignerAddress(),
-          token_id: this.args.addresses.deployedTokenRoute,
-          remote_router: {
-            receiver_domain_id: parseInt(domainId),
-            receiver_address: addressToBytes32(
+          tokenId: this.args.addresses.deployedTokenRoute,
+          remoteRouter: {
+            receiverDomainId: parseInt(domainId),
+            receiverAddress: addressToBytes32(
               expectedRemoteRouters[domainId].address,
             ),
             gas: '0',
@@ -203,8 +203,8 @@ export class AltVMWarpModule extends HyperlaneModule<
         annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         altvm_tx: await this.signer.populateUnenrollRemoteRouter({
           signer: this.signer.getSignerAddress(),
-          token_id: this.args.addresses.deployedTokenRoute,
-          receiver_domain_id: parseInt(domainId),
+          tokenId: this.args.addresses.deployedTokenRoute,
+          receiverDomainId: parseInt(domainId),
         }),
       });
     }
@@ -241,13 +241,13 @@ export class AltVMWarpModule extends HyperlaneModule<
 
     // refetch after routes have been previously enrolled without the "actualConfig"
     // updating
-    const { remote_routers: actualRemoteRouters } =
+    const { remoteRouters: actualRemoteRouters } =
       await this.signer.getRemoteRouters({
-        token_id: this.args.addresses.deployedTokenRoute,
+        tokenId: this.args.addresses.deployedTokenRoute,
       });
 
     const alreadyEnrolledDomains = actualRemoteRouters.map(
-      (router) => router.receiver_domain_id,
+      (router) => router.receiverDomainId,
     );
 
     if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
@@ -269,8 +269,8 @@ export class AltVMWarpModule extends HyperlaneModule<
             annotation: `Unenrolling ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
             altvm_tx: await this.signer.populateUnenrollRemoteRouter({
               signer: this.signer.getSignerAddress(),
-              token_id: this.args.addresses.deployedTokenRoute,
-              receiver_domain_id: parseInt(domain),
+              tokenId: this.args.addresses.deployedTokenRoute,
+              receiverDomainId: parseInt(domain),
             }),
           });
         }
@@ -279,10 +279,10 @@ export class AltVMWarpModule extends HyperlaneModule<
           annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain} to ${gas}`,
           altvm_tx: await this.signer.populateEnrollRemoteRouter({
             signer: this.signer.getSignerAddress(),
-            token_id: this.args.addresses.deployedTokenRoute,
-            remote_router: {
-              receiver_domain_id: parseInt(domain),
-              receiver_address: addressToBytes32(
+            tokenId: this.args.addresses.deployedTokenRoute,
+            remoteRouter: {
+              receiverDomainId: parseInt(domain),
+              receiverAddress: addressToBytes32(
                 expectedRemoteRouters[domain].address,
               ),
               gas: '0',
@@ -341,8 +341,8 @@ export class AltVMWarpModule extends HyperlaneModule<
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
         altvm_tx: await this.signer.populateSetTokenIsm({
           signer: this.signer.getSignerAddress(),
-          token_id: this.args.addresses.deployedTokenRoute,
-          ism_id: expectedDeployedIsm,
+          tokenId: this.args.addresses.deployedTokenRoute,
+          ismId: expectedDeployedIsm,
         }),
       });
     }
@@ -370,8 +370,8 @@ export class AltVMWarpModule extends HyperlaneModule<
         annotation: `Transferring ownership of ${this.args.addresses.deployedTokenRoute} from ${actualConfig.owner} to ${expectedConfig.owner}`,
         altvm_tx: await this.signer.populateSetTokenOwner({
           signer: this.signer.getSignerAddress(),
-          token_id: this.args.addresses.deployedTokenRoute,
-          new_owner: expectedConfig.owner,
+          tokenId: this.args.addresses.deployedTokenRoute,
+          newOwner: expectedConfig.owner,
         }),
       },
     ];
