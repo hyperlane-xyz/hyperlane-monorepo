@@ -27,7 +27,11 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, normalizeAddressEvm } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  bytes32ToAddress,
+  normalizeAddressEvm,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
@@ -44,6 +48,7 @@ import {
 import {
   hyperlaneWarpDeploy,
   hyperlaneWarpDeployRaw,
+  hyperlaneWarpRead,
   hyperlaneWarpSendRelay,
   readWarpConfig,
 } from '../commands/warp.js';
@@ -828,6 +833,80 @@ describe('hyperlane warp deploy e2e tests', async function () {
           ),
         );
       }
+    });
+
+    it.only('should handle foreignDeployment configurations correctly during enrollment', async function () {
+      const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+      const foreignDeployment = randomAddress();
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          mailbox: chain3Addresses.mailbox,
+          owner: ownerAddress,
+          // Add foreignDeployment to test enrollment handling
+          foreignDeployment,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      const finalOutput = await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      expect(finalOutput.exitCode).to.equal(0);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await token.symbol(),
+        );
+
+      // Verify warp core config only includes deployed contracts (not foreign deployments)
+      const warpCoreConfig: WarpCoreConfig = readYamlOrJson(
+        COMBINED_WARP_CORE_CONFIG_PATH,
+      );
+
+      const chain2Token = warpCoreConfig.tokens.find(
+        (token) => token.chainName === CHAIN_NAME_2,
+      );
+
+      // Now verify on-chain enrollment using hyperlane warp read
+      const chain3Metadata: ChainMetadata = readYamlOrJson(
+        CHAIN_3_METADATA_PATH,
+      );
+      const chain3DomainId = chain3Metadata.domainId;
+
+      // Get the deployed router address from warp core config
+      const deployedRouterAddress = chain2Token!.addressOrDenom!;
+
+      // Use hyperlane warp read to get the on-chain configuration of the deployed router
+      const readOutputPath = `${TEMP_PATH}/warp-read-output.yaml`;
+      await hyperlaneWarpRead(
+        CHAIN_NAME_2,
+        deployedRouterAddress,
+        readOutputPath,
+      );
+
+      // Read the on-chain configuration
+      const onChainConfig: WarpRouteDeployConfig =
+        readYamlOrJson(readOutputPath);
+      const chain2OnChainConfig = onChainConfig[CHAIN_NAME_2];
+
+      // Verify that the deployed router has the foreign deployment in its remoteRouters
+      expect(chain2OnChainConfig.remoteRouters).to.exist;
+      expect(chain2OnChainConfig.remoteRouters![chain3DomainId]).to.exist;
+      expect(
+        normalizeAddressEvm(
+          bytes32ToAddress(
+            chain2OnChainConfig.remoteRouters![chain3DomainId].address,
+          ),
+        ),
+      ).to.equal(normalizeAddressEvm(foreignDeployment));
     });
   });
 });

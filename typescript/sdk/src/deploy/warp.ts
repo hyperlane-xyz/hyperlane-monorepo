@@ -3,6 +3,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import {
   Address,
   ProtocolType,
+  convertToProtocolAddress,
   isObjEmpty,
   objFilter,
   objKeys,
@@ -354,16 +355,18 @@ export async function enrollCrossChainRouters(
     ...config,
   }));
 
-  const configMapToDeploy = objFilter(
+  const allChains = Object.keys(resolvedConfigMap);
+
+  // We assume configs with foreignDeployment are not supported
+  const supportedConfigMap = objFilter(
     resolvedConfigMap,
     (_, config: any): config is any => !config.foreignDeployment,
   );
-
-  const allChains = Object.keys(configMapToDeploy);
+  const supportedChains = Object.keys(supportedConfigMap);
 
   const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
 
-  for (const chain of allChains) {
+  for (const chain of supportedChains) {
     const protocol = multiProvider.getProtocol(chain);
 
     const allRemoteChains = multiProvider
@@ -384,7 +387,7 @@ export async function enrollCrossChainRouters(
 
         const evmWarpModule = new EvmERC20WarpModule(multiProvider, {
           chain,
-          config: configMapToDeploy[chain],
+          config: supportedConfigMap[chain],
           addresses: {
             deployedTokenRoute: deployedContracts[chain],
             domainRoutingIsmFactory,
@@ -400,12 +403,16 @@ export async function enrollCrossChainRouters(
         const actualConfig = await evmWarpModule.read();
         const expectedConfig = {
           ...actualConfig,
-          owner: configMapToDeploy[chain].owner,
+          owner: supportedConfigMap[chain].owner,
           remoteRouters: (() => {
             const routers: Record<string, { address: string }> = {};
             for (const c of allRemoteChains) {
+              const foreignDeployment = resolvedConfigMap[c].foreignDeployment;
+              const address = foreignDeployment
+                ? convertToProtocolAddress(foreignDeployment, protocol)
+                : deployedContracts[c];
               routers[multiProvider.getDomainId(c).toString()] = {
-                address: deployedContracts[c],
+                address,
               };
             }
             return routers;
@@ -414,7 +421,7 @@ export async function enrollCrossChainRouters(
             const dGas: Record<string, string> = {};
             for (const c of allRemoteChains) {
               dGas[multiProvider.getDomainId(c).toString()] =
-                configMapToDeploy[c].gas;
+                resolvedConfigMap[c].gas.toString();
             }
             return dGas;
           })(),
@@ -435,7 +442,7 @@ export async function enrollCrossChainRouters(
           multiProvider,
           {
             chain,
-            config: configMapToDeploy[chain],
+            config: supportedConfigMap[chain],
             addresses: {
               deployedTokenRoute: deployedContracts[chain],
             },
@@ -445,7 +452,7 @@ export async function enrollCrossChainRouters(
         const actualConfig = await cosmosNativeWarpModule.read();
         const expectedConfig = {
           ...actualConfig,
-          owner: configMapToDeploy[chain].owner,
+          owner: supportedConfigMap[chain].owner,
           remoteRouters: (() => {
             const routers: Record<string, { address: string }> = {};
             for (const c of allRemoteChains) {
@@ -459,7 +466,7 @@ export async function enrollCrossChainRouters(
             const dGas: Record<string, string> = {};
             for (const c of allRemoteChains) {
               dGas[multiProvider.getDomainId(c).toString()] =
-                configMapToDeploy[c].gas;
+                resolvedConfigMap[c].gas.toString();
             }
             return dGas;
           })(),
