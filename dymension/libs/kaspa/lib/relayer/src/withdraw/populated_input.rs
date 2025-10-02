@@ -16,7 +16,6 @@ pub struct PopulatedInputBuilder {
     script_public_key: ScriptPublicKey,
     sig_op_count: u8,
     block_daa_score: u64,
-    is_coinbase: bool,
     redeem_script: Option<Vec<u8>>,
 }
 
@@ -28,9 +27,8 @@ impl PopulatedInputBuilder {
             index,
             amount,
             script_public_key,
-            sig_op_count: RELAYER_SIG_OP_COUNT,
-            block_daa_score: UNACCEPTED_DAA_SCORE,
-            is_coinbase: false,
+            sig_op_count: RELAYER_SIG_OP_COUNT, // defaults, can be overridden
+            block_daa_score: UNACCEPTED_DAA_SCORE, // defaults, can be overridden
             redeem_script: None,
         }
     }
@@ -49,12 +47,6 @@ impl PopulatedInputBuilder {
     /// Set block DAA score (defaults to UNACCEPTED_DAA_SCORE)
     pub fn block_daa_score(mut self, score: u64) -> Self {
         self.block_daa_score = score;
-        self
-    }
-
-    /// Set coinbase flag (defaults to false)
-    pub fn is_coinbase(mut self, is_coinbase: bool) -> Self {
-        self.is_coinbase = is_coinbase;
         self
     }
 
@@ -77,7 +69,7 @@ impl PopulatedInputBuilder {
                 self.amount,
                 self.script_public_key,
                 self.block_daa_score,
-                self.is_coinbase,
+                false,
             ),
             self.redeem_script,
         )

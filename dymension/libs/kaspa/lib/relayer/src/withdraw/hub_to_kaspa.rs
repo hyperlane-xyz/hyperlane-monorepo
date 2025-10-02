@@ -56,7 +56,6 @@ pub async fn fetch_input_utxos(
             )
             .sig_op_count(sig_op_count)
             .block_daa_score(entry.block_daa_score)
-            .is_coinbase(entry.is_coinbase)
             .redeem_script(redeem_script.clone())
             .build()
         })
