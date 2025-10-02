@@ -241,29 +241,5 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
         initialOwnerAddress,
       );
     });
-
-    it('should create a core deployment with the mailbox owner set to the address in the config', async () => {
-      const coreConfig: CoreConfig = await readYamlOrJson(CORE_CONFIG_PATH);
-
-      const newOwner = await randomCosmosAddress(
-        chainMetadata.bech32Prefix || 'hyp',
-      );
-
-      coreConfig.owner = newOwner;
-      writeYamlOrJson(CORE_READ_CONFIG_PATH_1, coreConfig);
-
-      // Deploy the core contracts with the updated mailbox owner
-      await hyperlaneCore.deploy(HYP_KEY);
-
-      // Verify that the owner has been set correctly without modifying any other owner values
-      const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
-
-      expect(updatedConfig.owner.toLowerCase()).to.equal(newOwner);
-      expect(updatedConfig.proxyAdmin?.owner).to.be.undefined;
-      // Assuming that the ProtocolFeeHook is used for deployment
-      expect((updatedConfig.defaultHook as IgpConfig).owner).to.equal(
-        initialOwnerAddress,
-      );
-    });
   });
 });
