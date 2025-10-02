@@ -177,13 +177,13 @@ export class CosmosNativeProvider implements AltVM.IProvider {
 
     switch (ism.type_url) {
       case CosmosNativeIsmTypes.MerkleRootMultisigISM:
-        return AltVM.IsmType.MERKLE_ROOT_MULTISIG_ISM;
+        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
       case CosmosNativeIsmTypes.MessageIdMultisigISM:
-        return AltVM.IsmType.MESSAGE_ID_MULTISIG_ISM;
+        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
       case CosmosNativeIsmTypes.RoutingISM:
-        return AltVM.IsmType.ROUTING_ISM;
+        return AltVM.IsmType.ROUTING;
       case CosmosNativeIsmTypes.NoopISM:
-        return AltVM.IsmType.NOOP_ISM;
+        return AltVM.IsmType.TEST_ISM;
       default:
         throw new Error(`Unknown ISM ModuleType: ${ism.type_url}`);
     }
@@ -260,7 +260,7 @@ export class CosmosNativeProvider implements AltVM.IProvider {
           await this.query.postDispatch.MerkleTreeHook({ id: req.hook_id });
 
         if (merkle_tree_hook) {
-          return AltVM.HookType.MERKLE_TREE_HOOK;
+          return AltVM.HookType.MERKLE_TREE;
         }
       } catch {
         throw new Error(`Unknown Hook Type: ${req.hook_id}`);

@@ -27,7 +27,7 @@ export class AltVmHookReader {
       const hook_type = await this.provider.getHookType({ hook_id: address });
 
       switch (hook_type) {
-        case AltVM.HookType.MERKLE_TREE_HOOK:
+        case AltVM.HookType.MERKLE_TREE:
           return this.deriveMerkleTreeConfig(address);
         case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
           return this.deriveIgpConfig(address);

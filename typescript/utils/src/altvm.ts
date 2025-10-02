@@ -39,10 +39,26 @@ export type ReqDelivered = { mailbox_id: string; message_id: string };
 export type ResDelivered = boolean;
 
 export enum IsmType {
-  MESSAGE_ID_MULTISIG_ISM = 'MESSAGE_ID_MULTISIG_ISM',
-  MERKLE_ROOT_MULTISIG_ISM = 'MERKLE_ROOT_MULTISIG_ISM',
-  ROUTING_ISM = 'ROUTING_ISM',
-  NOOP_ISM = 'NOOP_ISM',
+  CUSTOM = 'custom',
+  OP_STACK = 'opStackIsm',
+  ROUTING = 'domainRoutingIsm',
+  FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
+  AMOUNT_ROUTING = 'amountRoutingIsm',
+  INTERCHAIN_ACCOUNT_ROUTING = 'interchainAccountRouting',
+  AGGREGATION = 'staticAggregationIsm',
+  STORAGE_AGGREGATION = 'storageAggregationIsm',
+  MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
+  MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
+  STORAGE_MERKLE_ROOT_MULTISIG = 'storageMerkleRootMultisigIsm',
+  STORAGE_MESSAGE_ID_MULTISIG = 'storageMessageIdMultisigIsm',
+  TEST_ISM = 'testIsm',
+  PAUSABLE = 'pausableIsm',
+  TRUSTED_RELAYER = 'trustedRelayerIsm',
+  ARB_L2_TO_L1 = 'arbL2ToL1Ism',
+  WEIGHTED_MERKLE_ROOT_MULTISIG = 'weightedMerkleRootMultisigIsm',
+  WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
+  CCIP = 'ccipIsm',
+  OFFCHAIN_LOOKUP = 'offchainLookupIsm',
 }
 
 export type ReqGetIsmType = { ism_id: string };
@@ -78,8 +94,19 @@ export type ResNoopIsm = {
 };
 
 export enum HookType {
-  INTERCHAIN_GAS_PAYMASTER = 'INTERCHAIN_GAS_PAYMASTER',
-  MERKLE_TREE_HOOK = 'MERKLE_TREE_HOOK',
+  CUSTOM = 'custom',
+  MERKLE_TREE = 'merkleTreeHook',
+  INTERCHAIN_GAS_PAYMASTER = 'interchainGasPaymaster',
+  AGGREGATION = 'aggregationHook',
+  PROTOCOL_FEE = 'protocolFee',
+  OP_STACK = 'opStackHook',
+  ROUTING = 'domainRoutingHook',
+  FALLBACK_ROUTING = 'fallbackRoutingHook',
+  AMOUNT_ROUTING = 'amountRoutingHook',
+  PAUSABLE = 'pausableHook',
+  ARB_L2_TO_L1 = 'arbL2ToL1Hook',
+  MAILBOX_DEFAULT = 'defaultHook',
+  CCIP = 'ccipHook',
 }
 
 export type ReqGetHookType = { hook_id: string };
