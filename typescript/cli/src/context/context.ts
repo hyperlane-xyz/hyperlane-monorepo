@@ -20,7 +20,6 @@ import { getSigner } from '../utils/keys.js';
 
 import { MultiVMProviderFactory, MultiVmSignerFactory } from './multivm.js';
 import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
-import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandContext,
   ContextSettings,
@@ -45,8 +44,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const { key, requiresKey, strategyPath, multiProtocolProvider } =
-    argv.context;
+  const { key, requiresKey, strategyPath } = argv.context;
 
   if (!requiresKey) return argv;
 
@@ -63,22 +61,6 @@ export async function signerMiddleware(argv: Record<string, any>) {
    * Resolves chains based on the chain strategy.
    */
   const chains = await chainStrategy.resolveChains(argv);
-
-  /**
-   * Extracts signer config
-   */
-  const multiProtocolSigner = await MultiProtocolSignerManager.init(
-    strategyConfig,
-    chains,
-    multiProtocolProvider,
-    { key },
-  );
-
-  /**
-   * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
-   */
-  argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
-  argv.context.multiProtocolSigner = multiProtocolSigner;
 
   /**
    * Creates MultiVM signers

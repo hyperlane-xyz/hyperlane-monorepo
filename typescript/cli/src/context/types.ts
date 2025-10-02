@@ -14,7 +14,6 @@ import type {
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MultiVMProviderFactory, MultiVmSignerFactory } from './multivm.js';
-import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 
 export const SignerKeyProtocolMapSchema = z
   .record(z.nativeEnum(ProtocolType), z.string().nonempty(), {
@@ -59,7 +58,6 @@ export interface CommandContext
 export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   key: SignerKeyProtocolMap;
   signer: ethers.Signer;
-  multiProtocolSigner?: MultiProtocolSignerManager;
   multiVmSigners: MultiVmSignerFactory;
   apiKeys?: ChainMap<string>;
 }

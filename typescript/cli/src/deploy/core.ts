@@ -20,7 +20,7 @@ import { indentYamlOrJson } from '../utils/files.js';
 
 import {
   completeDeploy,
-  prepareDeploy,
+  getBalances,
   runDeployPlanStep,
   runPreflightChecksForChains,
   validateCoreIsmCompatibility,
@@ -54,24 +54,27 @@ export async function runCoreDeploy(params: DeployParams) {
     config,
   };
 
+  await runDeployPlanStep(deploymentParams);
+
+  await runPreflightChecksForChains({
+    ...deploymentParams,
+    chains: [chain],
+    minGas: MINIMUM_GAS_ACTION.CORE_DEPLOY_GAS,
+  });
+
   let deployedAddresses: ChainAddresses;
   switch (multiProvider.getProtocol(chain)) {
     case ProtocolType.Ethereum:
       {
         const signer = multiProvider.getSigner(chain);
-        await runDeployPlanStep(deploymentParams);
-
-        await runPreflightChecksForChains({
-          ...deploymentParams,
-          chains: [chain],
-          minGas: MINIMUM_GAS_ACTION.CORE_DEPLOY_GAS,
-        });
 
         const userAddress = await signer.getAddress();
 
-        const initialBalances = await prepareDeploy(context, userAddress, [
-          chain,
-        ]);
+        const initialBalances = await getBalances(
+          context,
+          [chain],
+          userAddress,
+        );
 
         const contractVerifier = new ContractVerifier(
           multiProvider,
@@ -99,6 +102,10 @@ export async function runCoreDeploy(params: DeployParams) {
 
       logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
+      const userAddress = await signer.getSignerAddress();
+
+      const initialBalances = await getBalances(context, [chain], userAddress);
+
       const coreModule = await MultiVmCoreModule.create({
         chain,
         config,
@@ -106,6 +113,9 @@ export async function runCoreDeploy(params: DeployParams) {
         signer,
       });
 
+      await completeDeploy(context, 'core', initialBalances, userAddress, [
+        chain,
+      ]);
       deployedAddresses = coreModule.serialize();
     }
   }

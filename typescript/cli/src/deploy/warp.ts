@@ -82,7 +82,7 @@ import { canSelfRelay, runSelfRelay } from '../utils/relay.js';
 
 import {
   completeDeploy,
-  prepareDeploy,
+  getBalances,
   runPreflightChecksForChains,
   validateWarpIsmCompatibility,
   warpRouteIdFromFileName,
@@ -149,7 +149,7 @@ export async function runWarpRouteDeploy({
     minGas: MINIMUM_GAS_ACTION.WARP_DEPLOY_GAS,
   });
 
-  const initialBalances = await prepareDeploy(context, null, deploymentChains);
+  const initialBalances = await getBalances(context, deploymentChains);
 
   const { deployedContracts } = await executeDeploy(deploymentParams, apiKeys);
 
@@ -383,16 +383,25 @@ export async function runWarpRouteApply(
       context.registry,
     );
 
-  const { multiProtocolSigner } = context;
-  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
-
   // temporarily configure deployer as owner so that warp update after extension
   // can leverage JSON RPC submitter on new chains
   const intermediateOwnerConfig = await promiseObjAll(
-    objMap(params.warpDeployConfig, async (chain, config) => ({
-      ...config,
-      owner: await multiProtocolSigner.getSignerAddress(chain),
-    })),
+    objMap(params.warpDeployConfig, async (chain, config) => {
+      switch (context.multiProvider.getProtocol(chain)) {
+        case ProtocolType.Ethereum: {
+          return {
+            ...config,
+            owner: await context.multiProvider.getSignerAddress(chain),
+          };
+        }
+        default: {
+          return {
+            ...config,
+            owner: context.multiVmSigners.get(chain).getSignerAddress(),
+          };
+        }
+      }
+    }),
   );
 
   // Extend the warp route and get the updated configs
@@ -523,7 +532,7 @@ export async function extendWarpRoute(
     initialExtendedConfigs,
     (chainName, _): _ is (typeof initialExtendedConfigs)[string] =>
       context.supportedProtocols.includes(
-        context.multiProtocolProvider.getProtocol(chainName),
+        context.multiProvider.getProtocol(chainName),
       ),
   );
 
@@ -531,7 +540,7 @@ export async function extendWarpRoute(
     existingConfigs,
     (chainName, _): _ is (typeof existingConfigs)[string] =>
       context.supportedProtocols.includes(
-        context.multiProtocolProvider.getProtocol(chainName),
+        context.multiProvider.getProtocol(chainName),
       ),
   );
 
@@ -539,7 +548,7 @@ export async function extendWarpRoute(
     warpCoreConfigByChain,
     (chainName, _): _ is (typeof warpCoreConfigByChain)[string] =>
       context.supportedProtocols.includes(
-        context.multiProtocolProvider.getProtocol(chainName),
+        context.multiProvider.getProtocol(chainName),
       ),
   );
 
@@ -551,7 +560,7 @@ export async function extendWarpRoute(
     .filter(
       ([chainName]) =>
         !context.supportedProtocols.includes(
-          context.multiProtocolProvider.getProtocol(chainName),
+          context.multiProvider.getProtocol(chainName),
         ) && !!warpDeployConfig[chainName],
     )
     .map(([_, config]) => config);
