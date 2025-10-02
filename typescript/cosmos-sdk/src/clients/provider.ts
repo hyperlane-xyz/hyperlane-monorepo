@@ -1,6 +1,6 @@
 import { encodeSecp256k1Pubkey } from '@cosmjs/amino';
 import { Uint53 } from '@cosmjs/math';
-import { Registry } from '@cosmjs/proto-signing';
+import { EncodeObject, Registry } from '@cosmjs/proto-signing';
 import {
   BankExtension,
   QueryClient,
@@ -52,7 +52,7 @@ import {
 import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
-export class CosmosNativeProvider implements AltVM.IProvider {
+export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly query: QueryClient &
     BankExtension &
     WarpExtension &

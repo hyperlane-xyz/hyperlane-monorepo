@@ -135,7 +135,7 @@ function validateCompatibility(
     logRed(
       `${chainList} ${
         nonCompatibleChains.length > 1 ? 'are' : 'is'
-      } non-EVM/non-AltVM and not compatible with the cli`,
+      } not compatible with the cli, compatible protocols are: ${supportedProtocols.join(', ')}`,
     );
     process.exit(1);
   }

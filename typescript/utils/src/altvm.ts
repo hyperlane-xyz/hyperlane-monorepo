@@ -406,7 +406,12 @@ export type ResRemoteTransfer = {
   message_id: string;
 };
 
-export interface IProvider {
+export type ResSignAndBroadcast = {
+  height: number;
+  transactionHash: string;
+};
+
+export interface IProvider<T = any> {
   // ### QUERY BASE ###
 
   isHealthy(): Promise<boolean>;
@@ -465,73 +470,70 @@ export interface IProvider {
 
   // ### POPULATE CORE ###
 
-  populateCreateMailbox(req: ReqCreateMailbox): Promise<any>;
+  populateCreateMailbox(req: ReqCreateMailbox): Promise<T>;
 
-  populateSetDefaultIsm(req: ReqSetDefaultIsm): Promise<any>;
+  populateSetDefaultIsm(req: ReqSetDefaultIsm): Promise<T>;
 
-  populateSetDefaultHook(req: ReqSetDefaultHook): Promise<any>;
+  populateSetDefaultHook(req: ReqSetDefaultHook): Promise<T>;
 
-  populateSetRequiredHook(req: ReqSetRequiredHook): Promise<any>;
+  populateSetRequiredHook(req: ReqSetRequiredHook): Promise<T>;
 
-  populateSetMailboxOwner(req: ReqSetMailboxOwner): Promise<any>;
+  populateSetMailboxOwner(req: ReqSetMailboxOwner): Promise<T>;
 
   populateCreateMerkleRootMultisigIsm(
     req: ReqCreateMerkleRootMultisigIsm,
-  ): Promise<any>;
+  ): Promise<T>;
 
   populateCreateMessageIdMultisigIsm(
     req: ReqCreateMessageIdMultisigIsm,
-  ): Promise<any>;
+  ): Promise<T>;
 
-  populateCreateRoutingIsm(req: ReqCreateRoutingIsm): Promise<any>;
+  populateCreateRoutingIsm(req: ReqCreateRoutingIsm): Promise<T>;
 
-  populateSetRoutingIsmRoute(req: ReqSetRoutingIsmRoute): Promise<any>;
+  populateSetRoutingIsmRoute(req: ReqSetRoutingIsmRoute): Promise<T>;
 
-  populateRemoveRoutingIsmRoute(req: ReqRemoveRoutingIsmRoute): Promise<any>;
+  populateRemoveRoutingIsmRoute(req: ReqRemoveRoutingIsmRoute): Promise<T>;
 
-  populateSetRoutingIsmOwner(req: ReqSetRoutingIsmOwner): Promise<any>;
+  populateSetRoutingIsmOwner(req: ReqSetRoutingIsmOwner): Promise<T>;
 
-  populateCreateNoopIsm(req: ReqCreateNoopIsm): Promise<any>;
+  populateCreateNoopIsm(req: ReqCreateNoopIsm): Promise<T>;
 
-  populateCreateMerkleTreeHook(req: ReqCreateMerkleTreeHook): Promise<any>;
+  populateCreateMerkleTreeHook(req: ReqCreateMerkleTreeHook): Promise<T>;
 
   populateCreateInterchainGasPaymasterHook(
     req: ReqCreateInterchainGasPaymasterHook,
-  ): Promise<any>;
+  ): Promise<T>;
 
   populateSetInterchainGasPaymasterHookOwner(
     req: ReqSetInterchainGasPaymasterHookOwner,
-  ): Promise<any>;
+  ): Promise<T>;
 
-  populateSetDestinationGasConfig(
-    req: ReqSetDestinationGasConfig,
-  ): Promise<any>;
+  populateSetDestinationGasConfig(req: ReqSetDestinationGasConfig): Promise<T>;
 
-  populateCreateValidatorAnnounce(
-    req: ReqCreateValidatorAnnounce,
-  ): Promise<any>;
+  populateCreateValidatorAnnounce(req: ReqCreateValidatorAnnounce): Promise<T>;
 
   // ### POPULATE WARP ###
 
-  populateCreateCollateralToken(req: ReqCreateCollateralToken): Promise<any>;
+  populateCreateCollateralToken(req: ReqCreateCollateralToken): Promise<T>;
 
-  populateCreateSyntheticToken(req: ReqCreateSyntheticToken): Promise<any>;
+  populateCreateSyntheticToken(req: ReqCreateSyntheticToken): Promise<T>;
 
-  populateSetTokenOwner(req: ReqSetTokenOwner): Promise<any>;
+  populateSetTokenOwner(req: ReqSetTokenOwner): Promise<T>;
 
-  populateSetTokenIsm(req: ReqSetTokenIsm): Promise<any>;
+  populateSetTokenIsm(req: ReqSetTokenIsm): Promise<T>;
 
-  populateEnrollRemoteRouter(req: ReqEnrollRemoteRouter): Promise<any>;
+  populateEnrollRemoteRouter(req: ReqEnrollRemoteRouter): Promise<T>;
 
-  populateUnenrollRemoteRouter(req: ReqUnenrollRemoteRouter): Promise<any>;
+  populateUnenrollRemoteRouter(req: ReqUnenrollRemoteRouter): Promise<T>;
 
-  populateRemoteTransfer(req: ReqRemoteTransfer): Promise<any>;
+  populateRemoteTransfer(req: ReqRemoteTransfer): Promise<T>;
 }
 
-export interface ISigner extends IProvider {
+export interface ISigner<T = any, R extends ResSignAndBroadcast = any>
+  extends IProvider<T> {
   getSignerAddress(): string;
 
-  signAndBroadcast(transactions: any[]): Promise<any>;
+  signAndBroadcast(transactions: T[]): Promise<R>;
 
   // ### TX CORE ###
 

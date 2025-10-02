@@ -7,6 +7,7 @@ import {
 } from '@cosmjs/proto-signing';
 import {
   AminoTypes,
+  DeliverTxResponse,
   GasPrice,
   SigningStargateClient,
   StdFee,
@@ -27,7 +28,7 @@ type TxOptions = {
 
 export class CosmosNativeSigner
   extends CosmosNativeProvider
-  implements AltVM.ISigner
+  implements AltVM.ISigner<EncodeObject, DeliverTxResponse>
 {
   private readonly signer: SigningStargateClient;
   private readonly account: AccountData;
@@ -37,7 +38,7 @@ export class CosmosNativeSigner
     rpcUrl: string,
     privateKey: string | OfflineSigner,
     extraParams?: Record<string, any>,
-  ): Promise<AltVM.ISigner> {
+  ): Promise<AltVM.ISigner<EncodeObject>> {
     assert(extraParams, `extra params not defined`);
     assert(extraParams.gasPrice, `gasPrice not defined in extra params`);
 
@@ -149,7 +150,9 @@ export class CosmosNativeSigner
     return this.account.address;
   }
 
-  async signAndBroadcast(transactions: any[]): Promise<any> {
+  async signAndBroadcast(
+    transactions: EncodeObject[],
+  ): Promise<DeliverTxResponse> {
     const receipt = await this.signer.signAndBroadcast(
       this.account.address,
       transactions,
