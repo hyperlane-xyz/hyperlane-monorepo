@@ -50,7 +50,6 @@ export interface IMultiProtocolSignerManager {
   getMultiProvider(): Promise<MultiProvider>;
 
   getEVMSigner(chain: ChainName): Signer;
-  getCosmosNativeSigner(chain: ChainName): MultiVM.ISigner;
 
   getSignerAddress(chain: ChainName): Promise<Address>;
   getBalance(params: {

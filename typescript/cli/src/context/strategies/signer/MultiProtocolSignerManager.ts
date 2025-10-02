@@ -11,7 +11,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  MultiVM,
   ProtocolType,
   assert,
   rootLogger,
@@ -38,8 +37,7 @@ function getSignerCompatibleChains(
 ): ReadonlyArray<ChainName> {
   return chains.filter(
     (chain) =>
-      multiProtocolProvider.getProtocol(chain) === ProtocolType.Ethereum ||
-      multiProtocolProvider.getProtocol(chain) === ProtocolType.CosmosNative,
+      multiProtocolProvider.getProtocol(chain) === ProtocolType.Ethereum,
   );
 }
 
@@ -204,15 +202,6 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     return this.getSpecificSigner<Signer>(chain);
   }
 
-  getCosmosNativeSigner(chain: ChainName): MultiVM.ISigner {
-    const protocolType = this.multiProtocolProvider.getProtocol(chain);
-    assert(
-      protocolType === ProtocolType.CosmosNative,
-      `Chain ${chain} is not a Cosmos Native chain`,
-    );
-    return this.getSpecificSigner<MultiVM.ISigner>(chain);
-  }
-
   async getSignerAddress(chain: ChainName): Promise<Address> {
     const metadata = this.multiProtocolProvider.getChainMetadata(chain);
 
@@ -220,10 +209,6 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
       case ProtocolType.Ethereum: {
         const signer = this.getEVMSigner(chain);
         return signer.getAddress();
-      }
-      case ProtocolType.CosmosNative: {
-        const signer = this.getCosmosNativeSigner(chain);
-        return signer.getSignerAddress();
       }
       default: {
         throw new Error(
@@ -251,28 +236,6 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
         } catch (err) {
           throw new Error(
             `failed to get balance of address ${params.address} on EVM chain ${params.chain}: ${err}`,
-          );
-        }
-      }
-      case ProtocolType.CosmosNative: {
-        assert(
-          params.denom,
-          `need denom to get balance of Cosmos Native chain ${params.chain}`,
-        );
-
-        try {
-          const provider =
-            await this.multiProtocolProvider.getCosmJsNativeProvider(
-              params.chain,
-            );
-          const balance = await provider.getBalance({
-            address: params.address,
-            denom: params.denom,
-          });
-          return BigNumber.from(balance);
-        } catch (err) {
-          throw new Error(
-            `failed to get balance of address ${params.address} on Cosmos Native chain ${params.chain}: ${err}`,
           );
         }
       }

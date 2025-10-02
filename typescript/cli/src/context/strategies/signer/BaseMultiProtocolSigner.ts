@@ -2,11 +2,11 @@ import { password } from '@inquirer/prompts';
 import { Signer } from 'ethers';
 
 import { MultiProtocolProvider, TxSubmitterType } from '@hyperlane-xyz/sdk';
-import { Address, MultiVM } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 
-export type TypedSigner = Signer | MultiVM.ISigner;
+export type TypedSigner = Signer;
 
 export type SignerConfig = Omit<
   Extract<
