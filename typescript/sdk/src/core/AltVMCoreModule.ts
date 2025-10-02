@@ -264,7 +264,7 @@ export class AltVMCoreModule extends HyperlaneModule<
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): Promise<AnnotatedAltVMTransaction[]> {
-    if (actualConfig.owner !== expectedConfig.owner) {
+    if (actualConfig.owner === expectedConfig.owner) {
       return [];
     }
 

@@ -94,7 +94,7 @@ export class AltVMHookModule extends HyperlaneModule<
       return [];
     }
 
-    if (!MUTABLE_HOOK_TYPE.includes(normalizedTargetConfig.target)) {
+    if (!MUTABLE_HOOK_TYPE.includes(normalizedTargetConfig.type)) {
       this.args.addresses.deployedHook = await this.deploy({
         config: normalizedTargetConfig,
       });
