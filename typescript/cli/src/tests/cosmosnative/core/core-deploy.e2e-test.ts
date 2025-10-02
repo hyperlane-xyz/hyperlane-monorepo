@@ -13,8 +13,6 @@ import { Address, MultiVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
-  KeyBoardKeys,
-  SELECT_MAINNET_CHAIN_TYPE_STEP,
   SETUP_CHAIN_SIGNER_MANUALLY_STEP,
   TestPromptAction,
   handlePrompts,
@@ -67,30 +65,11 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
 
   describe('hyperlane cosmosnative core deploy', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
-      const steps: TestPromptAction[] = [
-        SELECT_MAINNET_CHAIN_TYPE_STEP,
-        {
-          check: (currentOutput: string) =>
-            currentOutput.includes('--Mainnet Chains--'),
-          // Scroll down through the mainnet chains list and select hyp1
-          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}${KeyBoardKeys.ENTER}`,
-        },
-        SETUP_CHAIN_SIGNER_MANUALLY_STEP(HYP_KEY),
-        {
-          // When running locally the e2e tests, the chains folder might already have the chain contracts
-          check: (currentOutput) =>
-            currentOutput.includes('Mailbox already exists at') ||
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: `yes${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: KeyBoardKeys.ENTER,
-        },
-      ];
+      const steps: TestPromptAction[] = [];
 
-      const output = hyperlaneCore.deployRaw(HYP_KEY).stdio('pipe');
+      const output = hyperlaneCore
+        .deployRaw(HYP_KEY, undefined, true, CHAIN_NAME_1)
+        .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -133,29 +112,11 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
 
   describe('hyperlane cosmosnative core deploy --key ...', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
-      const steps: TestPromptAction[] = [
-        SELECT_MAINNET_CHAIN_TYPE_STEP,
-        {
-          check: (currentOutput: string) =>
-            currentOutput.includes('--Mainnet Chains--'),
-          // Scroll down through the mainnet chains list and select hyp1
-          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          // When running locally the e2e tests, the chains folder might already have the chain contracts
-          check: (currentOutput) =>
-            currentOutput.includes('Mailbox already exists at') ||
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: `yes${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: KeyBoardKeys.ENTER,
-        },
-      ];
+      const steps: TestPromptAction[] = [];
 
-      const output = hyperlaneCore.deployRaw(HYP_KEY).stdio('pipe');
+      const output = hyperlaneCore
+        .deployRaw(HYP_KEY, undefined, true, CHAIN_NAME_1)
+        .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -180,30 +141,10 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
 
   describe('HYP_KEY= ... hyperlane cosmosnative core deploy', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
-      const steps: TestPromptAction[] = [
-        SELECT_MAINNET_CHAIN_TYPE_STEP,
-        {
-          check: (currentOutput: string) =>
-            currentOutput.includes('--Mainnet Chains--'),
-          // Scroll down through the mainnet chains list and select hyp1
-          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          // When running locally the e2e tests, the chains folder might already have the chain contracts
-          check: (currentOutput) =>
-            currentOutput.includes('Mailbox already exists at') ||
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: `yes${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: KeyBoardKeys.ENTER,
-        },
-      ];
+      const steps: TestPromptAction[] = [];
 
       const output = hyperlaneCore
-        .deployRaw(undefined, HYP_KEY, undefined)
+        .deployRaw(undefined, HYP_KEY, true, CHAIN_NAME_1)
         .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
