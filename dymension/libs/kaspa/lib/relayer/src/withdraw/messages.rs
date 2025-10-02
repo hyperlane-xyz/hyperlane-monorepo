@@ -33,46 +33,30 @@ fn adjust_outputs_for_mass_limit(
     Vec<HyperlaneMessage>,
     u64,
 )> {
-    // Calculate initial mass
-    let mut tx_mass = super::hub_to_kaspa::estimate_mass(
-        inputs.clone(),
-        outputs.clone(),
-        MessageIDs::from(&messages).to_bytes(),
-        network_id,
-        escrow_m,
-    )
-    .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
-
     // Use MAX_MASS_MARGIN as safety margin for mass limit
     // This ensures we stay under the limit even with estimation variance
     let max_allowed_mass =
         (kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS as f64 * MAX_MASS_MARGIN) as u64;
-
-    // Remove outputs from the end if mass exceeds maximum (with safety margin)
-    while tx_mass > max_allowed_mass && !outputs.is_empty() {
+    loop {
+        let tx_mass = super::hub_to_kaspa::estimate_mass(
+            inputs.clone(),
+            outputs.clone(),
+            MessageIDs::from(&messages).to_bytes(),
+            network_id,
+            escrow_m,
+        )
+        .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
+        if tx_mass <= max_allowed_mass {
+            return Ok((outputs, messages, tx_mass));
+        }
+        if outputs.is_empty() {
+            return Err(eyre::eyre!(
+                "Cannot process any withdrawals - even a single withdrawal exceeds mass limit"
+            ));
+        }
         outputs.pop();
         messages.pop();
-
-        // Recalculate mass with reduced outputs
-        if !outputs.is_empty() {
-            tx_mass = super::hub_to_kaspa::estimate_mass(
-                inputs.clone(),
-                outputs.clone(),
-                MessageIDs::from(&messages).to_bytes(),
-                network_id,
-                escrow_m,
-            )
-            .map_err(|e| eyre::eyre!("Estimate TX mass after output removal: {e}"))?;
-        }
     }
-
-    if outputs.is_empty() {
-        return Err(eyre::eyre!(
-            "Cannot process any withdrawals - even a single withdrawal exceeds mass limit"
-        ));
-    }
-
-    Ok((outputs, messages, tx_mass))
 }
 
 /// Processes given messages and returns WithdrawFXG and the very first outpoint
