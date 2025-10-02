@@ -138,4 +138,11 @@ export const regularIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   zerogravity: '0x53FEEdcF42C1aACFeC3FA6Da573a3470FcD5C658',
   mantra: '0x6b3353A453689a92aE3138c4d26e4eaD894b39D8',
+
+  // Oct 2, 2025
+  // ----------------------------------------------------------
+  carrchain: '0x86563B7E9499Cd826bC5e6a1D98436aDb440DDb2',
+  incentiv: '0x86563B7E9499Cd826bC5e6a1D98436aDb440DDb2',
+  monad: '0x9126696d9C3c44dc1273352ce171E359b1802560',
+  litchain: '0x6b3353A453689a92aE3138c4d26e4eaD894b39D8',
 } as const;
