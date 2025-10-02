@@ -84,25 +84,17 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
         localToken = HypERC4626Collateral(address(proxy));
 
-        remoteToken = HypERC20(
-            address(
-                new HypERC4626(
-                    primaryToken.decimals(),
-                    SCALE,
-                    address(remoteMailbox),
-                    localToken.localDomain()
-                )
-            )
+        remoteToken = new HypERC4626(
+            primaryToken.decimals(),
+            SCALE,
+            address(remoteMailbox),
+            localToken.localDomain()
         );
-        peerToken = HypERC20(
-            address(
-                new HypERC4626(
-                    primaryToken.decimals(),
-                    SCALE,
-                    address(peerMailbox),
-                    localToken.localDomain()
-                )
-            )
+        peerToken = new HypERC4626(
+            primaryToken.decimals(),
+            SCALE,
+            address(peerMailbox),
+            localToken.localDomain()
         );
 
         localRebasingToken = HypERC4626Collateral(address(proxy));
