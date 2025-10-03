@@ -1,5 +1,30 @@
 # @hyperlane-xyz/infra
 
+## 18.3.0
+
+### Minor Changes
+
+- edada3640: added USDC/matchain warp route config getter with submitters and rebalancing support
+
+### Patch Changes
+
+- Updated dependencies [4974e66a0]
+- Updated dependencies [30ec5ffbb]
+- Updated dependencies [57cf9e953]
+- Updated dependencies [c41bc3b93]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [b66129ee2]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [2b16904f8]
+- Updated dependencies [096389aea]
+- Updated dependencies [e4e6a75a8]
+- Updated dependencies [ee7c7ade4]
+- Updated dependencies [6b8419370]
+- Updated dependencies [94e7116c2]
+  - @hyperlane-xyz/sdk@18.3.0
+  - @hyperlane-xyz/utils@18.3.0
+  - @hyperlane-xyz/helloworld@18.3.0
+
 ## 18.2.0
 
 ### Minor Changes

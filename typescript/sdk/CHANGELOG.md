@@ -1,5 +1,35 @@
 # @hyperlane-xyz/sdk
 
+## 18.3.0
+
+### Minor Changes
+
+- 4974e66a0: export radix core reader
+- 30ec5ffbb: Add signer abstraction for different protocol types by defining the IMultiProtocolSigner interface
+- b66129ee2: export radix hook reader
+- 2c47e1143: Update the `ContractVerifier` class to avoid verification of already verified contracts and to show verification errors in debug logs
+- 2b16904f8: Add getBridgedSupply to EvmHypNativeAdapter to return the native token balance as collateral
+- 096389aea: Fix a bug in the `EvmIcaTxSubmitter.submit` method which failed when the evm chain id and the hyperlane domain id are different
+- e4e6a75a8: export radix hook module
+- 6b8419370: export radix ism module
+- 94e7116c2: export RadixIsmTypes enum to consumers
+
+### Patch Changes
+
+- 57cf9e953: now token.isFungibleWith() will also check for isHypNative() tokens
+- ee7c7ade4: Avoid extra Safe API call when only creating local JSON files for manual upload. When proposing, the Safe UI will automatically update the tx nonce. So we can return 0 and save ourselves from Safe API unreliability.
+- Updated dependencies [e5a530e43]
+- Updated dependencies [a5728818f]
+- Updated dependencies [c41bc3b93]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [b66129ee2]
+- Updated dependencies [6b8419370]
+  - @hyperlane-xyz/radix-sdk@18.3.0
+  - @hyperlane-xyz/core@9.0.10
+  - @hyperlane-xyz/utils@18.3.0
+  - @hyperlane-xyz/starknet-core@18.3.0
+  - @hyperlane-xyz/cosmos-sdk@18.3.0
+
 ## 18.2.0
 
 ### Minor Changes
