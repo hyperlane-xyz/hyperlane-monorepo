@@ -175,6 +175,18 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         token: token.address,
         allowedRebalancers,
       },
+      [TokenType.collateralLSP7]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        allowedRebalancers,
+      },
+      [TokenType.collateralLSP8]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        allowedRebalancers,
+      },
       [TokenType.collateralVault]: {
         ...baseConfig,
         type: TokenType.collateralVault,

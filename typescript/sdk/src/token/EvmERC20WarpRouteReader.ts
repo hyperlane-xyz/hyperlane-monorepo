@@ -1,5 +1,11 @@
+import { LSP4DataKeys } from '@lukso/lsp4-contracts';
+import {
+  HypLSP7Collateral__factory,
+  HypLSP7__factory,
+} from '@lukso/lsp-hyperlane-token-routers';
 import { compareVersions } from 'compare-versions';
 import { BigNumber, Contract } from 'ethers';
+import { toUtf8String } from 'ethers/lib/utils.js';
 
 import {
   HypERC20Collateral__factory,
@@ -99,6 +105,8 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       [TokenType.XERC20Lockbox]:
         this.deriveHypXERC20LockboxTokenConfig.bind(this),
       [TokenType.collateral]: this.deriveHypCollateralTokenConfig.bind(this),
+      [TokenType.collateralLSP7]:
+        this.deriveHypLSP7CollateralTokenConfig.bind(this),
       [TokenType.collateralFiat]:
         this.deriveHypCollateralFiatTokenConfig.bind(this),
       [TokenType.collateralVault]:
@@ -111,11 +119,15 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       [TokenType.nativeOpL2]: this.deriveOpL2TokenConfig.bind(this),
       [TokenType.nativeOpL1]: this.deriveOpL1TokenConfig.bind(this),
       [TokenType.synthetic]: this.deriveHypSyntheticTokenConfig.bind(this),
+      [TokenType.syntheticLSP7]:
+        this.deriveHypLSP7SyntheticTokenConfig.bind(this),
       [TokenType.syntheticRebase]:
         this.deriveHypSyntheticRebaseConfig.bind(this),
       [TokenType.nativeScaled]: null,
       [TokenType.collateralUri]: null,
       [TokenType.syntheticUri]: null,
+      [TokenType.collateralLSP8]: null,
+      [TokenType.syntheticLSP8]: null,
     };
 
     this.contractVerifier =
@@ -586,6 +598,27 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     };
   }
 
+  private async deriveHypLSP7CollateralTokenConfig(
+    hypToken: Address,
+  ): Promise<CollateralTokenConfig> {
+    const hypCollateralTokenInstance = HypLSP7Collateral__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const collateralTokenAddress =
+      await hypCollateralTokenInstance.wrappedToken();
+    const lsp7TokenMetadata = await this.fetchLSP7Metadata(
+      collateralTokenAddress,
+    );
+
+    return {
+      ...lsp7TokenMetadata,
+      type: TokenType.collateralLSP7,
+      token: collateralTokenAddress,
+    };
+  }
+
   private async deriveHypCollateralFiatTokenConfig(
     hypToken: Address,
   ): Promise<HypTokenConfig> {
@@ -630,6 +663,17 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     return {
       ...erc20TokenMetadata,
       type: TokenType.synthetic,
+    };
+  }
+
+  private async deriveHypLSP7SyntheticTokenConfig(
+    hypTokenAddress: Address,
+  ): Promise<HypTokenConfig> {
+    const lsp7TokenMetadata = await this.fetchLSP7Metadata(hypTokenAddress);
+
+    return {
+      ...lsp7TokenMetadata,
+      type: TokenType.syntheticLSP7,
     };
   }
 
@@ -715,6 +759,23 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       type: TokenType.syntheticRebase,
       collateralChainName,
     };
+  }
+
+  async fetchLSP7Metadata(tokenAddress: Address): Promise<TokenMetadata> {
+    const lsp4Contract = HypLSP7__factory.connect(tokenAddress, this.provider);
+
+    const [decimals, [symbolHex, nameHex]] = await Promise.all([
+      lsp4Contract.decimals(),
+      lsp4Contract.getDataBatch([
+        LSP4DataKeys.LSP4TokenSymbol,
+        LSP4DataKeys.LSP4TokenName,
+      ]),
+    ]);
+
+    const symbol = toUtf8String(symbolHex);
+    const name = toUtf8String(nameHex);
+
+    return { name, symbol, decimals, isNft: false };
   }
 
   async fetchERC20Metadata(tokenAddress: Address): Promise<TokenMetadata> {
