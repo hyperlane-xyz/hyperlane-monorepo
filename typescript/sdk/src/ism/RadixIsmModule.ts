@@ -48,7 +48,6 @@ export class RadixIsmModule extends HyperlaneModule<
     module: 'RadixIsmModule',
   });
   protected readonly reader: RadixIsmReader;
-  protected readonly mailbox: Address;
 
   // Adding these to reduce how often we need to grab from MetadataManager.
   public readonly chain: ChainName;
@@ -63,7 +62,6 @@ export class RadixIsmModule extends HyperlaneModule<
     params.config = IsmConfigSchema.parse(params.config);
     super(params);
 
-    this.mailbox = params.addresses.mailbox;
     this.chain = metadataManager.getChainName(this.args.chain);
     this.chainId = metadataManager.getChainId(this.chain);
     this.domainId = metadataManager.getDomainId(this.chain);
