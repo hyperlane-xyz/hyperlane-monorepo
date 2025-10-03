@@ -146,7 +146,7 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         uint32 circleDomain,
         bytes32 _recipient,
         uint256 _amount
-    ) internal override returns (bytes memory _message) {
+    ) internal override returns (bytes memory metadata) {
         uint64 nonce = ITokenMessengerV1(address(tokenMessenger))
             .depositForBurn(
                 _amount,
@@ -155,13 +155,6 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
                 address(wrappedToken)
             );
 
-        _message = TokenMessage.format(
-            _recipient,
-            _outboundAmount(_amount),
-            abi.encodePacked(nonce)
-        );
-        _validateTokenMessageLength(_message);
-
-        return _message;
+        return abi.encodePacked(nonce);
     }
 }
