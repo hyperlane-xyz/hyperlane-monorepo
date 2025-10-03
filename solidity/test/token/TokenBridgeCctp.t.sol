@@ -32,6 +32,8 @@ import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
 import {ISpecifiesInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 
 contract TokenBridgeCctpV1Test is Test {
     using TypeCasts for address;
@@ -779,6 +781,24 @@ contract TokenBridgeCctpV1Test is Test {
         );
         vm.expectRevert(bytes("Message not dispatched"));
         tbOrigin.postDispatch(bytes(""), message);
+    }
+
+    function test_hookType() public {
+        assertEq(tbOrigin.hookType(), uint8(IPostDispatchHook.HookTypes.CCTP));
+    }
+
+    function test_supportsMetadata() public {
+        assertEq(tbOrigin.supportsMetadata(bytes("")), true);
+        assertEq(
+            tbOrigin.supportsMetadata(
+                StandardHookMetadata.format(0, 100_000, address(this))
+            ),
+            true
+        );
+    }
+
+    function test_quoteDispatch() public {
+        assertEq(tbOrigin.quoteDispatch(bytes(""), bytes("")), 0);
     }
 
     function test_postDispatch_refundsExcessValue(
