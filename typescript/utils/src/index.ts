@@ -189,6 +189,7 @@ export {
   ProtocolSmallestUnit,
   ProtocolType,
   ProtocolTypeValue,
+  ReorgEvent,
   S3Announcement,
   S3Checkpoint,
   S3CheckpointWithId,
