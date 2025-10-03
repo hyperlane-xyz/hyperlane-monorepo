@@ -92,7 +92,7 @@ abstract contract LpCollateralRouter is
     }
 
     // can be used to distribute rewards to LPs pro rata
-    function donate(uint256 amount) public {
+    function donate(uint256 amount) public payable {
         // checks
         _transferFromSender(amount);
 

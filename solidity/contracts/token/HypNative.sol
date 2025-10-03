@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
+// ============ Internal Imports ============
 import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
 import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
 import {NativeCollateral} from "./libs/TokenCollateral.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
 
+// ============ External Imports ============
+import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
@@ -37,9 +40,19 @@ contract HypNative is LpCollateralRouter {
     }
 
     /**
+     * Replacement for ERC4626Upgradeable.deposit that allows for native token deposits.
+     * @dev msg.value will be used as the amount to deposit.
+     * @param receiver The address to deposit the native token to.
+     * @return shares The number of shares minted.
+     */
+    function deposit(address receiver) public payable returns (uint256 shares) {
+        return ERC4626Upgradeable.deposit(msg.value, receiver);
+    }
+
+    /**
      * @inheritdoc TokenRouter
      */
-    function token() public view override returns (address) {
+    function token() public pure override returns (address) {
         return address(0);
     }
 
