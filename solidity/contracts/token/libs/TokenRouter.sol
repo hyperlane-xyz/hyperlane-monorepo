@@ -82,7 +82,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     /**
      * @inheritdoc ITokenFee
      * @notice Implements the standardized fee quoting interface for token transfers based on
-     * overridable internal functions of _quoteGasPayment, _feeRecipientAmount, and _externalFeeAmount.
+     * overridable internal functions of _quoteGasPayment, _feeRecipient, and _externalFeeAmount.
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
@@ -105,11 +105,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             token: address(0),
             amount: _quoteGasPayment(_destination, _recipient, _amount)
         });
-        quotes[1] = Quote({
-            token: token(),
-            amount: _amount +
-                _feeRecipientAmount(_destination, _recipient, _amount)
-        });
+        (uint256 fee, ) = _feeRecipient(_destination, _recipient, _amount);
+        quotes[1] = Quote({token: token(), amount: _amount + fee});
         quotes[2] = Quote({
             token: token(),
             amount: _externalFeeAmount(_destination, _recipient, _amount)
@@ -175,18 +172,18 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount,
         uint256 _msgValue
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
-        uint256 feeRecipientFee = _feeRecipientAmount(
+        (uint256 feeAmount, address recipient) = _feeRecipient(
             _destination,
             _recipient,
             _amount
         );
         externalFee = _externalFeeAmount(_destination, _recipient, _amount);
-        uint256 charge = _amount + feeRecipientFee + externalFee;
+        uint256 charge = _amount + feeAmount + externalFee;
         _transferFromSender(charge);
-        if (feeRecipientFee > 0) {
+        if (feeAmount > 0) {
             // transfer atomically so we don't need to keep track of collateral
             // and fee balances separately
-            _transferTo(feeRecipient(), feeRecipientFee);
+            _transferTo(recipient, feeAmount);
         }
         remainingNativeValue = token() != address(0)
             ? _msgValue
@@ -221,12 +218,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     /**
      * @notice Sets the fee recipient for the router.
      * @dev Allows for address(0) to be set, which disables fees.
-     * @param _feeRecipient The address of the fee recipient.
+     * @param recipient The address that receives fees.
      */
-    function setFeeRecipient(address _feeRecipient) public onlyOwner {
-        require(_feeRecipient != address(this), "Fee recipient cannot be self");
-        FEE_RECIPIENT_SLOT.getAddressSlot().value = _feeRecipient;
-        emit FeeRecipientSet(_feeRecipient);
+    function setFeeRecipient(address recipient) public onlyOwner {
+        require(recipient != address(this), "Fee recipient cannot be self");
+        FEE_RECIPIENT_SLOT.getAddressSlot().value = recipient;
+        emit FeeRecipientSet(recipient);
     }
 
     /**
@@ -265,23 +262,23 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
-     * @return feeAmount The fee recipient amount.
+     * @return fee The fee recipient amount.
+     * @return recipient The address of the fee recipient.
      * @dev This function is is not intended to be overridden as storage and logic is contained in TokenRouter.
      */
-    function _feeRecipientAmount(
+    function _feeRecipient(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view returns (uint256 feeAmount) {
-        address _feeRecipient = feeRecipient();
-        if (_feeRecipient == address(0)) {
-            return 0;
+    ) internal view returns (uint256 fee, address recipient) {
+        recipient = feeRecipient();
+        if (recipient == address(0)) {
+            return (0, recipient);
         }
 
-        return
-            ITokenFee(_feeRecipient)
-                .quoteTransferRemote(_destination, _recipient, _amount)
-                .extract(token());
+        fee = ITokenFee(recipient)
+            .quoteTransferRemote(_destination, _recipient, _amount)
+            .extract(token());
     }
 
     /**
