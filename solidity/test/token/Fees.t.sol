@@ -177,6 +177,66 @@ contract ProgressiveFeeTest is BaseFeeTest {
             "Progressive fee mismatch"
         );
     }
+
+    function test_ProgressiveFee_IncreasingPercentageBeforePeak() public {
+        // Test that fee percentage increases as amount increases toward halfAmount
+        ProgressiveFee localProgressiveFee = new ProgressiveFee(
+            address(token),
+            1000,
+            10000,
+            OWNER
+        );
+
+        uint256 amount1 = 2000;
+        uint256 amount2 = 5000;
+        uint256 amount3 = 10000;
+
+        uint256 fee1 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount1)[0].amount;
+        uint256 fee2 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount2)[0].amount;
+        uint256 fee3 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount3)[0].amount;
+
+        // Calculate percentages (scaled by 1e18 for precision)
+        uint256 percentage1 = (fee1 * 1e18) / amount1;
+        uint256 percentage2 = (fee2 * 1e18) / amount2;
+        uint256 percentage3 = (fee3 * 1e18) / amount3;
+
+        // Verify percentages increase before peak
+        assertLt(percentage1, percentage2, "Percentage should increase");
+        assertLt(percentage2, percentage3, "Percentage should increase");
+    }
+
+    function test_ProgressiveFee_DecreasingPercentageAfterPeak() public {
+        // Test that fee percentage decreases as amount increases beyond halfAmount
+        ProgressiveFee localProgressiveFee = new ProgressiveFee(
+            address(token),
+            1000,
+            10000,
+            OWNER
+        );
+
+        uint256 amount1 = 10000;
+        uint256 amount2 = 20000;
+        uint256 amount3 = 50000;
+
+        uint256 fee1 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount1)[0].amount;
+        uint256 fee2 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount2)[0].amount;
+        uint256 fee3 = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, amount3)[0].amount;
+
+        // Calculate percentages (scaled by 1e18 for precision)
+        uint256 percentage1 = (fee1 * 1e18) / amount1;
+        uint256 percentage2 = (fee2 * 1e18) / amount2;
+        uint256 percentage3 = (fee3 * 1e18) / amount3;
+
+        // Verify percentages decrease after peak
+        assertGt(percentage1, percentage2, "Percentage should decrease");
+        assertGt(percentage2, percentage3, "Percentage should decrease");
+    }
 }
 
 // --- RegressiveFee Tests ---
@@ -224,6 +284,36 @@ contract RegressiveFeeTest is BaseFeeTest {
             expectedFee,
             "Regressive fee mismatch"
         );
+    }
+
+    function test_RegressiveFee_ContinuouslyDecreasingPercentage() public {
+        // Test that fee percentage continuously decreases as amount increases
+        RegressiveFee localRegressiveFee = new RegressiveFee(
+            address(token),
+            1000,
+            5000,
+            OWNER
+        );
+
+        uint256 amount1 = 1000;
+        uint256 amount2 = 5000;
+        uint256 amount3 = 20000;
+
+        uint256 fee1 = localRegressiveFee
+        .quoteTransferRemote(destination, recipient, amount1)[0].amount;
+        uint256 fee2 = localRegressiveFee
+        .quoteTransferRemote(destination, recipient, amount2)[0].amount;
+        uint256 fee3 = localRegressiveFee
+        .quoteTransferRemote(destination, recipient, amount3)[0].amount;
+
+        // Calculate percentages (scaled by 1e18 for precision)
+        uint256 percentage1 = (fee1 * 1e18) / amount1;
+        uint256 percentage2 = (fee2 * 1e18) / amount2;
+        uint256 percentage3 = (fee3 * 1e18) / amount3;
+
+        // Verify percentages continuously decrease
+        assertGt(percentage1, percentage2, "Percentage should decrease");
+        assertGt(percentage2, percentage3, "Percentage should decrease");
     }
 }
 

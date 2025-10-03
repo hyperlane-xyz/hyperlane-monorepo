@@ -5,23 +5,24 @@ import {BaseFee, FeeType} from "./BaseFee.sol";
 
 /**
  * @title Regressive Fee Structure
- * @dev Implements a regressive fee model where the fee percentage decreases as the transfer amount increases.
+ * @dev Implements a regressive fee model where the fee percentage continuously decreases as the transfer amount increases.
  *
  * The fee calculation uses a rational function: fee = (maxFee * amount) / (halfAmount + amount)
  *
  * Key characteristics:
- * - Higher fee percentage for smaller transfers
- * - Lower fee percentage for larger transfers
- * - Fee approaches maxFee as amount approaches infinity
+ * - Fee percentage continuously decreases as amount increases (regressive throughout)
+ * - At halfAmount, fee = maxFee/2 and fee percentage = maxFee/(2*halfAmount)
+ * - Absolute fee approaches but never reaches maxFee as amount approaches infinity
  * - Fee approaches 0 as amount approaches 0
  *
  * Example:
- * - If maxFee = 1000 and halfAmount = 1000:
- *   - Transfer of 100 wei: fee = (1000 * 100) / (1000 + 100) = 90.9 wei (90.9%)
- *   - Transfer of 1000 wei: fee = (1000 * 1000) / (1000 + 1000) = 500 wei (50%)
- *   - Transfer of 10000 wei: fee = (1000 * 10000) / (1000 + 10000) = 909 wei (9.09%)
+ * - If maxFee = 1000 and halfAmount = 5000:
+ *   - Transfer of 1000 wei: fee = (1000 * 1000) / (5000 + 1000) = 166.7 wei (16.67% of amount)
+ *   - Transfer of 5000 wei: fee = (1000 * 5000) / (5000 + 5000) = 500 wei (10% of amount)
+ *   - Transfer of 20000 wei: fee = (1000 * 20000) / (5000 + 20000) = 800 wei (4% of amount)
  *
- * This structure encourages larger transfers while applying higher fees to smaller transactions.
+ * This structure encourages larger transfers while discouraging smaller transactions with higher
+ * effective fee rates.
  */
 contract RegressiveFee is BaseFee {
     constructor(
