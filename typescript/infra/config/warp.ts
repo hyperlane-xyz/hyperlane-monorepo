@@ -28,7 +28,6 @@ import {
   getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumLumiaprismOptimismPolygonETHWarpConfig.js';
 import { getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDCWarpConfig.js';
-import { getArbitrumBaseEthereumRadixUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumRadixUSDCWarpConfig.js';
 import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
 import { getBaseEthereumSuperseedCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseEthereumSuperseedCBBTCWarpConfig.js';
@@ -72,6 +71,10 @@ import { getMintSolanaMintWarpConfig } from './environments/mainnet3/warp/config
 import { getMitosisMITOWarpConfig } from './environments/mainnet3/warp/configGetters/getMitosisMITOWarpConfig.js';
 import { getParadexUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getParadexUSDCWarpConfig.js';
 import { getPulsechainUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getPulsechainUSDCWarpConfig.js';
+import {
+  getRadixUSDCWarpConfig,
+  getUSDCRadixSafeBuilderStrategyConfig,
+} from './environments/mainnet3/warp/configGetters/getRadixUSDCWarpConfig.js';
 import {
   getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
   getRenzoEZETHSTAGEWarpConfig,
@@ -171,8 +174,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.LumiaUSDC]: getLumiaUSDCWarpConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCWarpConfig,
   [WarpRouteIds.MitosisMITO]: getMitosisMITOWarpConfig,
-  [WarpRouteIds.ArbitrumBaseEthereumRadixUSDC]:
-    getArbitrumBaseEthereumRadixUSDCWarpConfig,
+  [WarpRouteIds.RadixUSDC]: getRadixUSDCWarpConfig,
   [WarpRouteIds.PulsechainUSDC]: getPulsechainUSDCWarpConfig,
   [WarpRouteIds.ElectroneumUSDC]: getElectroneumUSDCWarpConfig,
 };
@@ -196,6 +198,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.MainnetCCTP]: getCCTPStrategyConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
+  [WarpRouteIds.RadixUSDC]: getUSDCRadixSafeBuilderStrategyConfig,
 };
 
 /**

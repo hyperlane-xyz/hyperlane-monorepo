@@ -7,6 +7,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../utils.js';
 
 const safeOwners: Record<string, string> = {
   arbitrum: '0xc8A9Dea7359Bd6FDCAD3B8EDE108416C25cF4CE9',
@@ -101,26 +102,5 @@ export const getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWa
     };
   };
 
-// Create a GnosisSafeBuilder Strategy for each safe address
-export function getLUMIAGnosisSafeBuilderStrategyConfigGenerator(
-  lumiaSafes: Record<string, string>,
-) {
-  return (): ChainSubmissionStrategy => {
-    return Object.fromEntries(
-      Object.entries(lumiaSafes).map(([chain, safeAddress]) => [
-        chain,
-        {
-          submitter: {
-            type: TxSubmitterType.GNOSIS_TX_BUILDER,
-            version: '1.0',
-            chain,
-            safeAddress,
-          },
-        },
-      ]),
-    );
-  };
-}
-
 export const getLUMIAGnosisSafeBuilderStrategyConfig =
-  getLUMIAGnosisSafeBuilderStrategyConfigGenerator(safeOwners);
+  getGnosisSafeBuilderStrategyConfigGenerator(safeOwners);
