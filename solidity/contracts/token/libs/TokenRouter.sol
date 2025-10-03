@@ -147,20 +147,14 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             msg.value
         );
 
-        // 2. Prepare the token message with the recipient and amount
-        bytes memory _tokenMessage = TokenMessage.format(
-            _recipient,
-            _outboundAmount(_amount)
-        );
-
-        // 3. Emit the SentTransferRemote event and 4. dispatch the message
+        // 2. Emit the SentTransferRemote event and 3. dispatch the message
         return
             _emitAndDispatch(
                 _destination,
                 _recipient,
                 _amount,
                 remainingNativeValue,
-                _tokenMessage
+                msg.data[0:0] // default to empty metadata
             );
     }
 
@@ -197,10 +191,18 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount,
         uint256 _messageDispatchValue,
-        bytes memory _tokenMessage
+        bytes memory metadata
     ) internal returns (bytes32 messageId) {
+        uint256 outboundAmount = _outboundAmount(_amount);
+
         // effects
-        emit SentTransferRemote(_destination, _recipient, _amount);
+        emit SentTransferRemote(_destination, _recipient, outboundAmount);
+
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            outboundAmount,
+            metadata
+        );
 
         // interactions
         messageId = _Router_dispatch(

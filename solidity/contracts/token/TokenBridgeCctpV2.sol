@@ -172,7 +172,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         uint32 circleDomain,
         bytes32 _recipient,
         uint256 _amount
-    ) internal override returns (bytes memory message) {
+    ) internal override returns (bytes memory metadata) {
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
             _amount,
             circleDomain,
@@ -183,9 +183,6 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             minFinalityThreshold
         );
 
-        message = TokenMessage.format(_recipient, _amount);
-        _validateTokenMessageLength(message);
-
-        return message;
+        return msg.data[0:0];
     }
 }
