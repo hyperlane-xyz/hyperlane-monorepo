@@ -1,10 +1,10 @@
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, AltVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   InterchainAccount,
   buildInterchainAccountApp,
 } from '../../../middleware/account/InterchainAccount.js';
-import { ChainMap, IMultiProtocolSignerManager } from '../../../types.js';
+import { ChainMap } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 import {
   AnnotatedEV5Transaction,
@@ -40,7 +40,7 @@ export class EvmIcaTxSubmitter
   static async fromConfig(
     config: EvmIcaTxSubmitterProps,
     multiProvider: MultiProvider,
-    multiProtocolSigner: IMultiProtocolSignerManager,
+    altVmSigner: AltVM.ISignerFactory,
     coreAddressesByChain: Readonly<ChainMap<Record<string, string>>>,
   ): Promise<EvmIcaTxSubmitter> {
     const interchainAccountRouterAddress: Address | undefined =
@@ -53,7 +53,7 @@ export class EvmIcaTxSubmitter
 
     const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
-      multiProtocolSigner,
+      altVmSigner,
       config.internalSubmitter,
       coreAddressesByChain,
     );

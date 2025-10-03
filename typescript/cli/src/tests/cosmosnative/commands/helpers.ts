@@ -1,8 +1,7 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
-import { GasPrice } from '@cosmjs/stargate';
 import path from 'path';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
@@ -30,26 +29,28 @@ export async function deployCollateralToken(
   const metadata = multiProvider.getChainMetadata(chain);
 
   const wallet = await DirectSecp256k1Wallet.fromKey(
-    Buffer.from(privateKey, 'hex'),
+    new Uint8Array(Buffer.from(privateKey, 'hex')),
     metadata.bech32Prefix,
   );
 
-  const signer = await SigningHyperlaneModuleClient.connectWithSigner(
+  if (!metadata.gasPrice)
+    throw new Error(`Missing gasPrice for chain ${chain}`);
+  const gasPriceString = `${metadata.gasPrice.amount}${metadata.gasPrice.denom}`;
+
+  const signer = await CosmosNativeSigner.connectWithSigner(
     metadata.rpcUrls[0].http,
     wallet,
     {
-      gasPrice: GasPrice.fromString(
-        `${metadata.gasPrice?.amount}${metadata.gasPrice?.denom}`,
-      ),
+      gasPrice: gasPriceString,
     },
   );
 
-  const { response } = await signer.createCollateralToken({
-    origin_mailbox: mailbox,
-    origin_denom: metadata.nativeToken?.denom ?? '',
+  const { tokenId } = await signer.createCollateralToken({
+    mailboxId: mailbox,
+    originDenom: metadata.nativeToken?.denom ?? '',
   });
 
-  return response.id;
+  return tokenId;
 }
 
 export async function deploySyntheticToken(
@@ -65,23 +66,21 @@ export async function deploySyntheticToken(
   const metadata = multiProvider.getChainMetadata(chain);
 
   const wallet = await DirectSecp256k1Wallet.fromKey(
-    Buffer.from(privateKey, 'hex'),
+    new Uint8Array(Buffer.from(privateKey, 'hex')),
     metadata.bech32Prefix,
   );
 
-  const signer = await SigningHyperlaneModuleClient.connectWithSigner(
+  const signer = await CosmosNativeSigner.connectWithSigner(
     metadata.rpcUrls[0].http,
     wallet,
     {
-      gasPrice: GasPrice.fromString(
-        `${metadata.gasPrice?.amount}${metadata.gasPrice?.denom}`,
-      ),
+      gasPrice: `${metadata.gasPrice?.amount}${metadata.gasPrice?.denom}`,
     },
   );
 
-  const { response } = await signer.createSyntheticToken({
-    origin_mailbox: mailbox,
+  const { tokenId } = await signer.createSyntheticToken({
+    mailboxId: mailbox,
   });
 
-  return response.id;
+  return tokenId;
 }

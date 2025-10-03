@@ -1,18 +1,14 @@
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { AltVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import {
-  ChainMap,
-  IMultiProtocolSignerManager,
-  ProtocolMap,
-} from '../../../types.js';
+import { ChainMap, ProtocolMap } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 
 import { EvmIcaTxSubmitter } from './IcaTxSubmitter.js';
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
+import { AltVMJsonRpcTxSubmitter } from './altvm/AltVMJsonRpcTxSubmitter.js';
 import { TxSubmitterBuilder } from './builder/TxSubmitterBuilder.js';
 import { SubmissionStrategy } from './builder/types.js';
-import { CosmosNativeRpcTxSubmitter } from './cosmosnative/CosmosNativeJsonRpcTxSubmitter.js';
 import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
 import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
@@ -23,7 +19,7 @@ import { SubmitterMetadata } from './types.js';
 export type SubmitterBuilderSettings = {
   submissionStrategy: SubmissionStrategy;
   multiProvider: MultiProvider;
-  multiProtocolSigner: IMultiProtocolSignerManager;
+  altVmSigner: AltVM.ISignerFactory;
   coreAddressesByChain: ChainMap<Record<string, string>>;
   additionalSubmitterFactories?: ProtocolMap<Record<string, SubmitterFactory>>;
 };
@@ -31,13 +27,13 @@ export type SubmitterBuilderSettings = {
 export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
   submissionStrategy,
   multiProvider,
-  multiProtocolSigner,
+  altVmSigner,
   coreAddressesByChain,
   additionalSubmitterFactories,
 }: SubmitterBuilderSettings): Promise<TxSubmitterBuilder<TProtocol>> {
   const submitter = await getSubmitter<TProtocol>(
     multiProvider,
-    multiProtocolSigner,
+    altVmSigner,
     submissionStrategy.submitter,
     coreAddressesByChain,
     additionalSubmitterFactories,
@@ -48,7 +44,7 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
 
 export type SubmitterFactory<TProtocol extends ProtocolType = any> = (
   multiProvider: MultiProvider,
-  multiProtocolSigner: IMultiProtocolSignerManager,
+  altVmSigner: AltVM.ISignerFactory,
   metadata: SubmitterMetadata,
   coreAddressesByChain: ChainMap<Record<string, string>>,
 ) => Promise<TxSubmitterInterface<TProtocol>> | TxSubmitterInterface<TProtocol>;
@@ -85,7 +81,7 @@ const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
   },
   [TxSubmitterType.INTERCHAIN_ACCOUNT]: (
     multiProvider,
-    multiProtocolSigner,
+    altVmSigner,
     metadata,
     coreAddressesByChain,
   ) => {
@@ -96,13 +92,13 @@ const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
     return EvmIcaTxSubmitter.fromConfig(
       metadata,
       multiProvider,
-      multiProtocolSigner,
+      altVmSigner,
       coreAddressesByChain,
     );
   },
   [TxSubmitterType.TIMELOCK_CONTROLLER]: (
     multiProvider,
-    multiProtocolSigner,
+    altVmSigner,
     metadata,
     coreAddressesByChain,
   ) => {
@@ -114,35 +110,26 @@ const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
     return EV5TimelockSubmitter.fromConfig(
       metadata,
       multiProvider,
-      multiProtocolSigner,
+      altVmSigner,
       coreAddressesByChain,
     );
   },
 };
 
-const COSMOS_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
-  [TxSubmitterType.JSON_RPC]: (
-    multiProvider,
-    multiProtocolSigner,
-    metadata,
-  ) => {
+const MULTI_VM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
+  [TxSubmitterType.JSON_RPC]: (multiProvider, altVmSigner, metadata) => {
     // Used to type narrow metadata
     assert(
       metadata.type === TxSubmitterType.JSON_RPC,
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
     );
-    return new CosmosNativeRpcTxSubmitter(
-      multiProvider,
-      multiProtocolSigner,
-      metadata,
-    );
+    return new AltVMJsonRpcTxSubmitter(multiProvider, altVmSigner, metadata);
   },
 };
 
 const defaultSubmitterFactories: ProtocolMap<Record<string, SubmitterFactory>> =
   {
     [ProtocolType.Ethereum]: EVM_SUBMITTERS_FACTORIES,
-    [ProtocolType.CosmosNative]: COSMOS_SUBMITTERS_FACTORIES,
   };
 
 /**
@@ -160,7 +147,7 @@ const defaultSubmitterFactories: ProtocolMap<Record<string, SubmitterFactory>> =
  */
 export async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
-  multiProtocolSigner: IMultiProtocolSignerManager,
+  altVmSigner: AltVM.ISignerFactory,
   submitterMetadata: SubmitterMetadata,
   coreAddressesByChain: ChainMap<Record<string, string>>,
   additionalSubmitterFactories: ProtocolMap<
@@ -170,6 +157,10 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
   const mergedSubmitterRegistry = {
     ...defaultSubmitterFactories,
   };
+
+  for (const protocol of altVmSigner.getSupportedProtocols()) {
+    mergedSubmitterRegistry[protocol] = MULTI_VM_SUBMITTERS_FACTORIES;
+  }
 
   for (const [p, factories] of Object.entries(additionalSubmitterFactories)) {
     if (!factories) continue;
@@ -205,7 +196,7 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
   }
   return factory(
     multiProvider,
-    multiProtocolSigner,
+    altVmSigner,
     submitterMetadata,
     coreAddressesByChain,
   );

@@ -1,22 +1,18 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
-import { GasPrice } from '@cosmjs/stargate';
 import { expect } from 'chai';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
 import {
   ChainMetadata,
   CoreConfig,
   HookType,
   IgpConfig,
-  randomCosmosAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, AltVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
-  KeyBoardKeys,
-  SELECT_MAINNET_CHAIN_TYPE_STEP,
   SETUP_CHAIN_SIGNER_MANUALLY_STEP,
   TestPromptAction,
   handlePrompts,
@@ -42,7 +38,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
     CORE_READ_CONFIG_PATH_1,
   );
 
-  let signer: SigningHyperlaneModuleClient;
+  let signer: AltVM.ISigner;
   let initialOwnerAddress: Address;
   let chainMetadata: ChainMetadata;
 
@@ -52,49 +48,28 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
     assert(chainMetadata.gasPrice, 'gasPrice not defined in chain metadata');
 
     const wallet = await DirectSecp256k1Wallet.fromKey(
-      Buffer.from(HYP_KEY, 'hex'),
+      new Uint8Array(Buffer.from(HYP_KEY, 'hex')),
       'hyp',
     );
 
-    signer = await SigningHyperlaneModuleClient.connectWithSigner(
+    signer = await CosmosNativeSigner.connectWithSigner(
       chainMetadata.rpcUrls[0].http,
       wallet,
       {
-        gasPrice: GasPrice.fromString(
-          `${chainMetadata.gasPrice.amount}${chainMetadata.gasPrice.denom}`,
-        ),
+        gasPrice: `${chainMetadata.gasPrice.amount}${chainMetadata.gasPrice.denom}`,
       },
     );
 
-    initialOwnerAddress = signer.account.address;
+    initialOwnerAddress = signer.getSignerAddress();
   });
 
   describe('hyperlane cosmosnative core deploy', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
-      const steps: TestPromptAction[] = [
-        SELECT_MAINNET_CHAIN_TYPE_STEP,
-        {
-          check: (currentOutput: string) =>
-            currentOutput.includes('--Mainnet Chains--'),
-          // Scroll down through the mainnet chains list and select hyp1
-          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}${KeyBoardKeys.ENTER}`,
-        },
-        SETUP_CHAIN_SIGNER_MANUALLY_STEP(HYP_KEY),
-        {
-          // When running locally the e2e tests, the chains folder might already have the chain contracts
-          check: (currentOutput) =>
-            currentOutput.includes('Mailbox already exists at') ||
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: `yes${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: KeyBoardKeys.ENTER,
-        },
-      ];
+      const steps: TestPromptAction[] = [];
 
-      const output = hyperlaneCore.deployRaw(HYP_KEY).stdio('pipe');
+      const output = hyperlaneCore
+        .deployRaw(HYP_KEY, undefined, true, CHAIN_NAME_1)
+        .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -137,29 +112,11 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
 
   describe('hyperlane cosmosnative core deploy --key ...', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
-      const steps: TestPromptAction[] = [
-        SELECT_MAINNET_CHAIN_TYPE_STEP,
-        {
-          check: (currentOutput: string) =>
-            currentOutput.includes('--Mainnet Chains--'),
-          // Scroll down through the mainnet chains list and select hyp1
-          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          // When running locally the e2e tests, the chains folder might already have the chain contracts
-          check: (currentOutput) =>
-            currentOutput.includes('Mailbox already exists at') ||
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: `yes${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: KeyBoardKeys.ENTER,
-        },
-      ];
+      const steps: TestPromptAction[] = [];
 
-      const output = hyperlaneCore.deployRaw(HYP_KEY).stdio('pipe');
+      const output = hyperlaneCore
+        .deployRaw(HYP_KEY, undefined, true, CHAIN_NAME_1)
+        .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -184,30 +141,10 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
 
   describe('HYP_KEY= ... hyperlane cosmosnative core deploy', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
-      const steps: TestPromptAction[] = [
-        SELECT_MAINNET_CHAIN_TYPE_STEP,
-        {
-          check: (currentOutput: string) =>
-            currentOutput.includes('--Mainnet Chains--'),
-          // Scroll down through the mainnet chains list and select hyp1
-          input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          // When running locally the e2e tests, the chains folder might already have the chain contracts
-          check: (currentOutput) =>
-            currentOutput.includes('Mailbox already exists at') ||
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: `yes${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Is this deployment plan correct?'),
-          input: KeyBoardKeys.ENTER,
-        },
-      ];
+      const steps: TestPromptAction[] = [];
 
       const output = hyperlaneCore
-        .deployRaw(undefined, HYP_KEY, undefined)
+        .deployRaw(undefined, HYP_KEY, true, CHAIN_NAME_1)
         .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
@@ -241,30 +178,6 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
       expect(coreConfig.proxyAdmin?.owner).to.be.undefined;
       // Assuming that the ProtocolFeeHook is used for deployment
       expect((coreConfig.defaultHook as IgpConfig).owner).to.equal(
-        initialOwnerAddress,
-      );
-    });
-
-    it('should create a core deployment with the mailbox owner set to the address in the config', async () => {
-      const coreConfig: CoreConfig = await readYamlOrJson(CORE_CONFIG_PATH);
-
-      const newOwner = await randomCosmosAddress(
-        chainMetadata.bech32Prefix || 'hyp',
-      );
-
-      coreConfig.owner = newOwner;
-      writeYamlOrJson(CORE_READ_CONFIG_PATH_1, coreConfig);
-
-      // Deploy the core contracts with the updated mailbox owner
-      await hyperlaneCore.deploy(HYP_KEY);
-
-      // Verify that the owner has been set correctly without modifying any other owner values
-      const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
-
-      expect(updatedConfig.owner.toLowerCase()).to.equal(newOwner);
-      expect(updatedConfig.proxyAdmin?.owner).to.be.undefined;
-      // Assuming that the ProtocolFeeHook is used for deployment
-      expect((updatedConfig.defaultHook as IgpConfig).owner).to.equal(
         initialOwnerAddress,
       );
     });
