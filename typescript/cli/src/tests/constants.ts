@@ -8,6 +8,10 @@ export const E2E_TEST_CONFIGS_PATH = './test-configs';
 export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/test-registry`;
 export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 
+export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
+export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
+export const WARP_READ_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}-read.yaml`;
+
 export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   [ProtocolType.Ethereum]: {
     CHAIN_NAME_2: 'anvil2',
@@ -59,12 +63,29 @@ export const CORE_READ_CONFIG_PATH_BY_PROTOCOL: CoreReadPathByProtocolAndChain<
   ]),
 ) as any;
 
-export function getCombinedWarpRoutePath(
+export function getWarpCoreConfigPath(
   tokenSymbol: string,
   chains: string[],
 ): string {
-  return `${REGISTRY_PATH}/deployments/warp_routes/${createWarpRouteConfigId(
+  return `${REGISTRY_PATH}/deployments/warp_routes/${getWarpId(
+    tokenSymbol.toUpperCase(),
+    chains,
+  )}-config.yaml`;
+}
+
+export function getWarpDeployConfigPath(
+  tokenSymbol: string,
+  chains: string[],
+): string {
+  return `${REGISTRY_PATH}/deployments/warp_routes/${getWarpId(
+    tokenSymbol.toUpperCase(),
+    chains,
+  )}-deploy.yaml`;
+}
+
+export function getWarpId(tokenSymbol: string, chains: string[]): string {
+  return createWarpRouteConfigId(
     tokenSymbol.toUpperCase(),
     chains.sort().join('-'),
-  )}-config.yaml`;
+  );
 }

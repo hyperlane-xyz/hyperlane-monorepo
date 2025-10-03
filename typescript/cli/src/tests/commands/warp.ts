@@ -118,6 +118,7 @@ export class HyperlaneE2EWarpTestCommands {
     skipConfirmationPrompts,
     privateKey,
     warpRouteId,
+    extraArgs,
   }: {
     warpCorePath?: string;
     warpDeployPath?: string;
@@ -125,6 +126,7 @@ export class HyperlaneE2EWarpTestCommands {
     skipConfirmationPrompts?: boolean;
     privateKey?: string;
     warpRouteId?: string;
+    extraArgs?: string[];
   }): ProcessPromise {
     return $`${
       hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
@@ -135,7 +137,9 @@ export class HyperlaneE2EWarpTestCommands {
           ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
           --verbosity debug \
           ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
-          ${skipConfirmationPrompts ? ['--yes'] : []}`;
+          ${skipConfirmationPrompts ? ['--yes'] : []} \
+          ${extraArgs ? extraArgs : []}
+          `;
   }
 
   /**
