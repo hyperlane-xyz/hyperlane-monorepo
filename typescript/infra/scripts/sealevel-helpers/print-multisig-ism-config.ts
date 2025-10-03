@@ -31,6 +31,11 @@ async function main() {
   const MAX_THRESHOLD = 4;
 
   for (const chain of Object.keys(config)) {
+    // exclude forma as it's not a core chain
+    if (chain === 'forma') {
+      continue;
+    }
+
     if (config[chain].threshold > MAX_THRESHOLD) {
       console.warn(
         `Threshold for ${chain} is ${config[chain].threshold}. Capping to ${MAX_THRESHOLD}.`,
