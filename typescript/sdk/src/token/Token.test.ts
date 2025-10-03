@@ -123,6 +123,8 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
+  [TokenStandard.EvmHypEverclearCollateral]: null,
+  [TokenStandard.EvmHypEverclearEth]: null,
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
