@@ -29,6 +29,7 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
+  TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
   UNSUPPORTED_CHAIN_CORE_ADDRESSES,
   WARP_READ_OUTPUT_PATH,
@@ -85,14 +86,14 @@ describe('hyperlane warp deploy e2e tests', async function () {
   let coreAddressByChain: ChainMap<ChainAddresses>;
 
   before(async function () {
-    await runCosmosNode();
-    // TODO: parametrize this
-    await runAnvilNode(8555, 31338);
+    await runCosmosNode(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
+    );
+    await runAnvilNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2);
 
     const cosmosWallet = await DirectSecp256k1Wallet.fromKey(
       Buffer.from(HYP_KEY_BY_PROTOCOL.cosmosnative, 'hex'),
-      // TODO: parametrize this
-      'hyp',
+      TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1.bech32Prefix,
     );
     [{ address: cosmosNativeDeployerAddress }] =
       await cosmosWallet.getAccounts();
@@ -250,9 +251,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
         chainName,
       );
 
-      // TODO: parametrize this
       expect(
-        (config[chainName].remoteRouters ?? {})['1399811149'].address,
+        (config[chainName].remoteRouters ?? {})[
+          TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.domainId
+        ].address,
       ).to.eql(addressToBytes32(unsupportedChainAddress));
     }
   });

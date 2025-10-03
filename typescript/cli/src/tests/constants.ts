@@ -2,8 +2,10 @@ import {
   ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
-import { ProtocolMap } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ChainMetadata, ProtocolMap } from '@hyperlane-xyz/sdk';
+import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
+
+import { readYamlOrJson } from '../utils/files.js';
 
 export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
 
@@ -50,6 +52,15 @@ export const HYP_KEY_BY_PROTOCOL = {
   [ProtocolType.CosmosNative]:
     '33913dd43a5d5764f7a23da212a8664fc4f5eedc68db35f3eb4a5c4f046b5b51',
 } as const satisfies ProtocolMap<string>;
+
+type ProtocolChainMap<
+  T extends ProtocolMap<{ [key: string]: string }>,
+  TValue,
+> = {
+  [TProtocol in keyof T]: {
+    [TChainName in keyof T[TProtocol]]: TValue;
+  };
+};
 
 type CoreDeploymentPath<T extends string> =
   `${typeof TEMP_PATH}/${T}/core-config-read.yaml`;
@@ -102,6 +113,57 @@ export const CORE_ADDRESSES_PATH_BY_PROTOCOL: CoreAddressesPathByProtocolAndChai
     ),
   ]),
 ) as any;
+
+type TestChainMetadataPath<T extends string> =
+  `${typeof REGISTRY_PATH}/chains/${T}/metadata.yaml`;
+type TestChainMetadataPathByProtocolAndChain<
+  T extends ProtocolMap<{ [key: string]: string }>,
+> = {
+  [TProtocol in keyof T]: {
+    [TChainName in keyof T[TProtocol]]: TestChainMetadataPath<
+      T[TProtocol][TChainName] & string
+    >;
+  };
+};
+
+export const TEST_CHAIN_METADATA_PATH_BY_PROTOCOL: TestChainMetadataPathByProtocolAndChain<
+  typeof TEST_CHAIN_NAMES_BY_PROTOCOL
+> = objMap(TEST_CHAIN_NAMES_BY_PROTOCOL, (_protocol, chainNames) => {
+  return objMap(
+    chainNames,
+    (_chainName, name): TestChainMetadataPath<string> =>
+      `${REGISTRY_PATH}/chains/${name}/metadata.yaml`,
+  );
+}) as any;
+
+export type TestChainMetadata = ChainMetadata & {
+  rpcPort: number;
+  restPort: number;
+};
+
+export const TEST_CHAIN_METADATA_BY_PROTOCOL: ProtocolChainMap<
+  typeof TEST_CHAIN_NAMES_BY_PROTOCOL,
+  TestChainMetadata
+> = objMap(TEST_CHAIN_NAMES_BY_PROTOCOL, (protocol, chainNames) => {
+  return objMap(chainNames, (chainName, _name): TestChainMetadata => {
+    const currentChainMetadata: ChainMetadata = readYamlOrJson(
+      TEST_CHAIN_METADATA_PATH_BY_PROTOCOL[protocol][chainName],
+    );
+
+    const rpcUrl = currentChainMetadata.rpcUrls[0].http;
+    assert(rpcUrl, 'Rpc url is required');
+    const rpcPort = parseInt(new URL(rpcUrl).port);
+
+    const restUrl = (currentChainMetadata?.restUrls ?? [])[0]?.http;
+    const restPort = restUrl ? parseInt(new URL(restUrl).port) : rpcPort;
+
+    return {
+      ...currentChainMetadata,
+      rpcPort,
+      restPort,
+    };
+  });
+}) as any;
 
 export function getWarpCoreConfigPath(
   tokenSymbol: string,

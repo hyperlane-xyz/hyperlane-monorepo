@@ -1,10 +1,8 @@
-import {
-  DockerComposeEnvironment,
-  GenericContainer,
-  Wait,
-} from 'testcontainers';
+import { GenericContainer, Wait } from 'testcontainers';
 
-export async function runAnvilNode(port: number, chainId: number) {
+import { TestChainMetadata } from './constants.js';
+
+export async function runAnvilNode({ rpcPort, chainId }: TestChainMetadata) {
   const container = await new GenericContainer(
     'ghcr.io/foundry-rs/foundry:latest',
   )
@@ -13,13 +11,13 @@ export async function runAnvilNode(port: number, chainId: number) {
       '--host',
       '0.0.0.0',
       '-p',
-      port.toString(),
+      rpcPort.toString(),
       '--chain-id',
       chainId.toString(),
     ])
     .withExposedPorts({
-      container: port,
-      host: port,
+      container: rpcPort,
+      host: rpcPort,
     })
     .withWaitStrategy(Wait.forLogMessage(/Listening on/))
     .start();
@@ -27,12 +25,23 @@ export async function runAnvilNode(port: number, chainId: number) {
   return container;
 }
 
-export async function runCosmosNode() {
-  const environment = await new DockerComposeEnvironment(
-    // TODO: parametrize this based on the current host
-    '/Users/xeno097/Desktop/hyperlane/hyperlane-monorepo/typescript/cli',
-    'compose.yaml',
-  ).up();
+export async function runCosmosNode({ rpcPort, restPort }: TestChainMetadata) {
+  const container = await new GenericContainer(
+    'gcr.io/abacus-labs-dev/hyperlane-cosmos-simapp:v1.0.1',
+  )
+    .withExposedPorts(
+      {
+        // default port on the container
+        container: 26657,
+        host: rpcPort,
+      },
+      {
+        // default port on the container
+        container: 1317,
+        host: restPort,
+      },
+    )
+    .start();
 
-  return environment;
+  return container;
 }
