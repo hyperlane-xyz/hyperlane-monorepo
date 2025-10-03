@@ -6,7 +6,7 @@ use std::{
 };
 
 use agents::{start_relayer, start_scraper, start_scraper_db, start_validators, VALIDATOR_ADDRESS};
-use ops::{connect_chains, dispatch_transfers, ChainRouter};
+use ops::{connect_chains, dispatch_transfers};
 use tempfile::tempdir;
 use types::{ChainConfig, ChainRegistry};
 
@@ -14,9 +14,8 @@ use crate::sovereign::invariants::termination_invariants_met;
 use crate::sovereign::node::SovereignParameters;
 use crate::sovereign::ops::set_relayer_igp_configs;
 use crate::{
-    config::Config, logging::log, metrics::agent_balance_sum, utils::concat_path,
-    wait_for_condition, AgentHandles, State, TaskHandle, AGENT_BIN_PATH, AGENT_LOGGING_DIR,
-    SCRAPER_METRICS_PORT, SHUTDOWN,
+    config::Config, logging::log, metrics::agent_balance_sum, program::Program, utils::concat_path,
+    wait_for_condition, AgentHandles, State, TaskHandle, SHUTDOWN,
 };
 
 mod agents;
@@ -37,6 +36,19 @@ async fn run_locally() {
         SHUTDOWN.store(true, Ordering::Relaxed);
     })
     .unwrap();
+
+    log!("Building rust...");
+    Program::new("cargo")
+        .cmd("build")
+        .working_dir("../../")
+        .arg("features", "test-utils")
+        .arg("bin", "relayer")
+        .arg("bin", "validator")
+        .arg("bin", "scraper")
+        .arg("bin", "init-db")
+        .filter_logs(|l| !l.contains("workspace-inheritance"))
+        .run()
+        .join();
 
     log!("Running simplified Sovereign node startup test...");
 
@@ -181,7 +193,7 @@ fn wait_until_nodes_healthy(params: &[SovereignParameters]) {
     }
 }
 
-// #[cfg(feature = "sovereign")]
+#[cfg(feature = "sovereign")]
 #[cfg(test)]
 mod test {
     #[tokio::test]

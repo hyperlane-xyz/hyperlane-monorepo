@@ -1,10 +1,6 @@
-#![allow(dead_code)]
-
 use std::{
     env, fs,
     path::{Path, PathBuf},
-    thread::sleep,
-    time::Duration,
 };
 
 use macro_rules_attribute::apply;
@@ -41,11 +37,10 @@ pub fn clone_sovereign_rollup(clone_dir: PathBuf) -> PathBuf {
         clone_dir
     );
 
-    // Clone the repository
     Program::new("git")
         .cmd("clone")
         .arg("branch", SOVEREIGN_ROLLUP_BRANCH)
-        .arg("depth", "1") // Shallow clone for faster setup
+        .arg("depth", "1")
         .cmd(SOVEREIGN_ROLLUP_REPO)
         .cmd(clone_dir.to_str().unwrap())
         .run()
@@ -183,7 +178,7 @@ pub fn setup_sovereign_environment() -> (PathBuf, Vec<(AgentHandles, SovereignPa
 
     let rollup_path = env::var(SOVEREIGN_ROLLUP_PATH_ENV)
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("./sovereign-rollup"));
+        .unwrap_or_else(|_| tempdir().unwrap().path().to_path_buf());
     let rollup_dir = clone_sovereign_rollup(rollup_path.clone());
 
     log!("Sovereign repository cloned to: {}", rollup_dir.display());
