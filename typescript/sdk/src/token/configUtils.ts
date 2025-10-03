@@ -70,13 +70,19 @@ export function getDefaultRemoteRouterAndDestinationGasConfig(
 
   const otherChains = multiProvider
     .getRemoteChains(chain)
-    .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
+    .filter(
+      (c) =>
+        Object.keys(deployedRoutersAddresses).includes(c) ||
+        warpDeployConfig[c]?.foreignDeployment,
+    );
 
   for (const otherChain of otherChains) {
     const domainId = multiProvider.getDomainId(otherChain);
 
     remoteRouters[domainId] = {
-      address: deployedRoutersAddresses[otherChain],
+      address:
+        deployedRoutersAddresses[otherChain] ??
+        warpDeployConfig[otherChain].foreignDeployment,
     };
 
     destinationGas[domainId] = getGasConfig(warpDeployConfig, otherChain);
