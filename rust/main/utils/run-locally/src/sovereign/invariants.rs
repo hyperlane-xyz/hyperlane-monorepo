@@ -1,6 +1,11 @@
 use crate::config::Config;
-use crate::invariants::{relayer_termination_invariants_met, RelayerTerminationInvariantParams};
+use crate::fetch_metric;
+use crate::invariants::{
+    relayer_termination_invariants_met, scraper_termination_invariants_met,
+    RelayerTerminationInvariantParams, ScraperTerminationInvariantParams,
+};
 use crate::server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count};
+use maplit::hashmap;
 
 pub fn termination_invariants_met(
     config: &Config,
@@ -30,7 +35,15 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    // TODO: scraper invariants
+    let scraper_params = ScraperTerminationInvariantParams {
+        gas_payment_events_count,
+        total_messages_dispatched: messages_expected,
+        delivered_messages_scraped_expected: messages_expected,
+    };
+
+    if !scraper_termination_invariants_met(scraper_params)? {
+        return Ok(false);
+    }
 
     Ok(true)
 }

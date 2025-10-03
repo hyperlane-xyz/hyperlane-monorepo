@@ -628,8 +628,14 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
-            ChainConnectionConf::Sovereign(_conf) => {
-                Err(eyre!("Sovereign does not support delivery indexer yet")).context(ctx)
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let provider =
+                    h_sovereign::SovereignProvider::new(locator.domain.clone(), conf, signer)
+                        .await?;
+                let indexer = h_sovereign::SovereignDeliveryIndexer::new(provider)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
         }
         .context(ctx)

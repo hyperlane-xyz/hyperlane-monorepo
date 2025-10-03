@@ -3,7 +3,7 @@ use std::ops::Deref;
 use async_trait::async_trait;
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneProvider, TxnInfo, H256, H512, U256,
+    HyperlaneProvider, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
 mod client;
@@ -60,14 +60,40 @@ impl HyperlaneProvider for SovereignProvider {
         Ok(BlockInfo {
             hash: slot.hash,
             number: slot.number,
-            timestamp: slot.timestamp,
+            // Needs to be in seconds
+            timestamp: slot.timestamp / 1000,
         })
     }
 
-    /// The transaction info returned by the sovereign node doesn't have enough data
-    /// to properly fill in the [`TxnInfo`], thus calling this will result in an error.
-    async fn get_txn_by_hash(&self, _hash: &H512) -> ChainResult<TxnInfo> {
-        Err(custom_err!("Not supported"))
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        if hash.0[0..32] != [0; 32] {
+            return Err(custom_err!(
+                "Invalid sovereign transaction id, should have 32 zero bytes prefix: {hash:?}"
+            ));
+        }
+
+        let tx_hash = H256(hash[32..].try_into().expect("Must be 32 bytes"));
+        let _tx = self.get_tx_by_hash(tx_hash).await?;
+
+        // Create a stub TxnInfo - we'll fill in what we can from the Sovereign tx
+        let txn_info = TxnInfo {
+            hash: *hash,
+            gas_limit: 0.into(),
+            gas_price: None,
+            max_priority_fee_per_gas: None,
+            max_fee_per_gas: None,
+            nonce: 0,
+            sender: H256::zero(),
+            recipient: None,
+            receipt: Some(TxnReceiptInfo {
+                gas_used: U256::zero(),
+                cumulative_gas_used: U256::zero(),
+                effective_gas_price: None,
+            }),
+            raw_input_data: None,
+        };
+
+        Ok(txn_info)
     }
 
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {

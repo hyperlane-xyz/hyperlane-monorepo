@@ -8,7 +8,6 @@ use crate::{TaskHandle, AGENT_BIN_PATH, AGENT_LOGGING_DIR};
 use super::types::ChainRegistry;
 
 const AGENTS_STARTING_METRICS_PORT: u16 = 9096;
-pub const SCRAPER_METRICS_PORT: u16 = AGENTS_STARTING_METRICS_PORT + 1;
 const VALIDATOR_METRICS_PORT: u16 = AGENTS_STARTING_METRICS_PORT + 2;
 pub const VALIDATOR_KEY: &str =
     "0x6c164a86d0eb22bdcad687c0aa2e202b81adf0b3281f99eda9e981f8d7dc8e68";
@@ -45,8 +44,9 @@ pub fn start_scraper(conf_path: &Path, conf: &ChainRegistry) -> AgentHandles {
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         )
-        .hyp_env("METRICSPORT", SCRAPER_METRICS_PORT.to_string())
-        .spawn("SCR", None)
+        .hyp_env("LOG_LEVEL", "debug")
+        .hyp_env("METRICSPORT", crate::SCRAPER_METRICS_PORT)
+        .spawn("SCR", Some(&AGENT_LOGGING_DIR))
 }
 
 pub fn start_relayer(conf_path: &Path, conf: &ChainRegistry, base_dir: &Path) -> AgentHandles {

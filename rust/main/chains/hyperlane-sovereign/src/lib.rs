@@ -1,5 +1,5 @@
 pub use self::{
-    interchain_gas::*, interchain_security_module::*, mailbox::*, merkle_tree_hook::*,
+    delivery::*, interchain_gas::*, interchain_security_module::*, mailbox::*, merkle_tree_hook::*,
     multisig_ism::*, provider::*, signers::*, trait_builder::*, validator_announce::*,
 };
 
@@ -13,6 +13,7 @@ macro_rules! custom_err {
 }
 
 pub mod application;
+mod delivery;
 mod indexer;
 mod interchain_gas;
 mod interchain_security_module;

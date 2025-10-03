@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::{
     fs,
     sync::atomic::Ordering,
@@ -33,9 +31,7 @@ const RELAYER_KEY: &str = "0x0187c12ea7c12024b3f70ac5d73587463af17c8bce2bd9e6fe8
 // rollup-starter uses ethereum style accounts
 pub const RELAYER_ADDRESS: &str = "0xA6edfca3AA985Dd3CC728BFFB700933a986aC085";
 
-#[allow(dead_code)]
 async fn run_locally() {
-    // Signal handler for graceful shutdown
     ctrlc::set_handler(|| {
         log!("Terminating...");
         SHUTDOWN.store(true, Ordering::Relaxed);
@@ -46,7 +42,6 @@ async fn run_locally() {
 
     let mut state = State::default();
 
-    // Setup and start Sovereign rollup nodes
     log!("Setting up Sovereign rollup environment...");
     let (_rollup_dir, agent_and_confs) = node::setup_sovereign_environment();
     let (agents, params): (Vec<AgentHandles>, Vec<SovereignParameters>) =
@@ -75,7 +70,7 @@ async fn run_locally() {
     let routers = connect_chains(&chain_registry, RELAYER_ADDRESS, VALIDATOR_ADDRESS).await;
 
     let data_dir = tempdir().unwrap();
-    let agent_conf_path = concat_path(&data_dir, "config.json");
+    let agent_conf_path = concat_path(data_dir.path(), "config.json");
     fs::write(
         &agent_conf_path,
         serde_json::to_string_pretty(&chain_registry)
@@ -84,13 +79,13 @@ async fn run_locally() {
     .expect("Failed to write chain registry to file");
     log!("wrote config to: {}", &agent_conf_path.display());
 
-    // log!("initializing scrapper agent");
-    // let postgres = start_scraper_db();
-    // state.push_agent(postgres);
-    //
-    // log!("starting scrapper");
-    // let scrapper = start_scraper(&agent_conf_path, &chain_registry);
-    // state.push_agent(scrapper);
+    log!("initializing scrapper db");
+    let postgres = start_scraper_db();
+    state.push_agent(postgres);
+
+    log!("starting scrapper");
+    let scrapper = start_scraper(&agent_conf_path, &chain_registry);
+    state.push_agent(scrapper);
 
     log!("starting relayer");
     let relayer = start_relayer(&agent_conf_path, &chain_registry, data_dir.path());
@@ -148,8 +143,8 @@ async fn run_locally() {
 }
 
 fn wait_until_nodes_healthy(params: &[SovereignParameters]) {
-    let timeout_duration = Duration::from_secs(30); // 30 second timeout
-    let check_interval = Duration::from_secs(2); // Check every 2 seconds
+    let timeout_duration = Duration::from_secs(30);
+    let check_interval = Duration::from_secs(2);
     let start_time = Instant::now();
 
     loop {

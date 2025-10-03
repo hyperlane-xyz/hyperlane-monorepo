@@ -36,7 +36,7 @@ where
                     slot.batches
                         .into_iter()
                         .flat_map(|batch| batch.txs)
-                        .map(move |tx| self.process_tx(&tx, slot.hash)),
+                        .map(move |tx| self.process_tx(&tx, slot.number, slot.hash)),
                 ))
             })
             .collect::<FuturesOrdered<_>>()
@@ -66,9 +66,12 @@ where
         }
         let tx_hash = H256(tx_hash[32..].try_into().expect("Must be 32 bytes"));
 
-        let tx = self.provider().get_tx_by_hash(tx_hash).await?;
-        let batch = self.provider().get_batch(tx.batch_number).await?;
-        self.process_tx(&tx, batch.hash)
+        let provider = self.provider();
+        let tx = provider.get_tx_by_hash(tx_hash).await?;
+        let batch = provider.get_batch(tx.batch_number).await?;
+        let slot = provider.get_specified_slot(batch.slot_number).await?;
+
+        self.process_tx(&tx, slot.number, slot.hash)
     }
 
     // Default implementation of SequenceAwareIndexer<T>
@@ -85,11 +88,11 @@ where
     }
 
     // Helper function to process a single transaction
-    fn process_tx(&self, tx: &Tx, slot_hash: H256) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+    fn process_tx(&self, tx: &Tx, slot_num: u64, slot_hash: H256) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
         tx.events
             .iter()
             .filter(|ev| ev.key == Self::EVENT_KEY)
-            .map(|ev| self.process_event(tx, ev, tx.batch_number, slot_hash))
+            .map(|ev| self.process_event(tx, ev, slot_num, slot_hash))
             .collect()
     }
 
