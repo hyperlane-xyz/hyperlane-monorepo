@@ -113,4 +113,23 @@ contract HypNativeMovableTest is Test {
         assertEq(address(router).balance, balance - amount);
         assertEq(address(vtb).balance, amount);
     }
+
+    function test_setFeeRecipient_cannotSetToSelf() public {
+        vm.expectRevert("Fee recipient cannot be self");
+        router.setFeeRecipient(address(router));
+    }
+
+    function test_setFeeRecipient_canSetToOtherAddress() public {
+        address feeRecipient = address(0x123);
+        router.setFeeRecipient(feeRecipient);
+        assertEq(router.feeRecipient(), feeRecipient);
+    }
+
+    function test_setFeeRecipient_canSetToZeroAddress() public {
+        router.setFeeRecipient(address(0x123));
+        assertEq(router.feeRecipient(), address(0x123));
+
+        router.setFeeRecipient(address(0));
+        assertEq(router.feeRecipient(), address(0));
+    }
 }
