@@ -1,4 +1,7 @@
-import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
+import {
+  ChainAddresses,
+  createWarpRouteConfigId,
+} from '@hyperlane-xyz/registry';
 import { ProtocolMap } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -23,7 +26,18 @@ export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
     CHAIN_NAME_2: 'hyp2',
     CHAIN_NAME_3: 'hyp3',
   },
+  [ProtocolType.Sealevel]: {
+    UNSUPPORTED_CHAIN: 'sealevel1',
+  },
 } as const satisfies ProtocolMap<Record<string, string>>;
+
+export const UNSUPPORTED_CHAIN_CORE_ADDRESSES: ChainAddresses = {
+  interchainGasPaymaster: 'JAvHW21tYXE9dtdG83DReqU2b4LUexFuCbtJT5tF8X6M',
+  interchainSecurityModule: 'Da6Lp9syj8hLRiqjZLTLbZEC1NPhPMPd1JJ3HQRN4NyJ',
+  mailbox: 'E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi',
+  merkleTreeHook: 'E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi',
+  validatorAnnounce: 'pRgs5vN4Pj7WvFbxf6QDHizo2njq2uksqEUbaSghVA8',
+};
 
 export const CORE_CONFIG_PATH_BY_PROTOCOL = {
   [ProtocolType.Ethereum]: `./examples/core-config.yaml`,
@@ -57,7 +71,33 @@ export const CORE_READ_CONFIG_PATH_BY_PROTOCOL: CoreReadPathByProtocolAndChain<
     Object.fromEntries(
       Object.entries(chainNames).map(([key, name]) => [
         key,
-        `${TEMP_PATH}/${name}/core-config-read.yaml`,
+        `${TEMP_PATH}/${name}/core-config-read.yam`,
+      ]),
+    ),
+  ]),
+) as any;
+
+type CoreAddressesPath<T extends string> =
+  `${typeof REGISTRY_PATH}/chains/${T}/addresses.yaml`;
+type CoreAddressesPathByProtocolAndChain<
+  T extends ProtocolMap<{ [key: string]: string }>,
+> = {
+  [TProtocol in keyof T]: {
+    [TChainName in keyof T[TProtocol]]: CoreAddressesPath<
+      T[TProtocol][TChainName] & string
+    >;
+  };
+};
+
+export const CORE_ADDRESSES_PATH_BY_PROTOCOL: CoreAddressesPathByProtocolAndChain<
+  typeof TEST_CHAIN_NAMES_BY_PROTOCOL
+> = Object.fromEntries(
+  Object.entries(TEST_CHAIN_NAMES_BY_PROTOCOL).map(([protocol, chainNames]) => [
+    protocol,
+    Object.fromEntries(
+      Object.entries(chainNames).map(([key, name]) => [
+        key,
+        `${REGISTRY_PATH}/chains/${name}/addresses.yaml`,
       ]),
     ),
   ]),

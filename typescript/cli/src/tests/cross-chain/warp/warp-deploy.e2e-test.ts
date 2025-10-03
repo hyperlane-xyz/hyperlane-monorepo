@@ -10,19 +10,27 @@ import {
   DerivedWarpRouteDeployConfig,
   TokenType,
   WarpRouteDeployConfig,
+  randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  addressToBytes32,
+  isObjEmpty,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
+  CORE_ADDRESSES_PATH_BY_PROTOCOL,
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
+  UNSUPPORTED_CHAIN_CORE_ADDRESSES,
   WARP_READ_OUTPUT_PATH,
   getWarpCoreConfigPath,
   getWarpDeployConfigPath,
@@ -98,6 +106,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         ),
         evmChain1Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
       ]);
+
+    writeYamlOrJson(
+      CORE_ADDRESSES_PATH_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN,
+      UNSUPPORTED_CHAIN_CORE_ADDRESSES,
+    );
 
     coreAddressByChain = {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1]:
@@ -187,6 +200,60 @@ describe('hyperlane warp deploy e2e tests', async function () {
         coreAddressByChain,
         chainName,
       );
+    }
+  });
+
+  it('should successfully enroll unsupported chains that specify the foreignDeployment field', async () => {
+    const unsupportedChainAddress = randomAddress();
+    warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN] =
+      {
+        type: TokenType.synthetic,
+        owner: randomAddress(),
+        foreignDeployment: unsupportedChainAddress,
+      };
+    writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
+
+    const output = await hyperlaneWarp
+      .deployRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        skipConfirmationPrompts: true,
+        extraArgs: [
+          `--key.${ProtocolType.Ethereum}`,
+          HYP_KEY_BY_PROTOCOL.ethereum,
+          `--key.${ProtocolType.CosmosNative}`,
+          HYP_KEY_BY_PROTOCOL.cosmosnative,
+        ],
+      })
+      .stdio('pipe')
+      .nothrow();
+
+    expect(output.exitCode).to.eql(0);
+
+    await hyperlaneWarp.readRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      outputPath: WARP_READ_OUTPUT_PATH,
+    });
+
+    const config: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      WARP_READ_OUTPUT_PATH,
+    );
+
+    const chainsToAssert = Object.keys(warpDeployConfig).filter(
+      (chainName) =>
+        chainName !== TEST_CHAIN_NAMES_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN,
+    );
+    for (const chainName of chainsToAssert) {
+      assertWarpRouteConfig(
+        warpDeployConfig,
+        config,
+        coreAddressByChain,
+        chainName,
+      );
+
+      // TODO: parametrize this
+      expect(
+        (config[chainName].remoteRouters ?? {})['1399811149'].address,
+      ).to.eql(addressToBytes32(unsupportedChainAddress));
     }
   });
 });
