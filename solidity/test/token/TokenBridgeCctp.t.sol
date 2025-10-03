@@ -32,6 +32,8 @@ import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
 import {ISpecifiesInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 
 contract TokenBridgeCctpV1Test is Test {
     using TypeCasts for address;
@@ -670,6 +672,9 @@ contract TokenBridgeCctpV1Test is Test {
         assertEq(actualId, id);
     }
 
+    // needed for hook refunds
+    receive() external payable {}
+
     function testFork_postDispatch(
         bytes32 recipient,
         bytes calldata body
@@ -776,6 +781,53 @@ contract TokenBridgeCctpV1Test is Test {
         );
         vm.expectRevert(bytes("Message not dispatched"));
         tbOrigin.postDispatch(bytes(""), message);
+    }
+
+    function test_hookType() public {
+        assertEq(tbOrigin.hookType(), uint8(IPostDispatchHook.HookTypes.CCTP));
+    }
+
+    function test_supportsMetadata() public {
+        assertEq(tbOrigin.supportsMetadata(bytes("")), true);
+        assertEq(
+            tbOrigin.supportsMetadata(
+                StandardHookMetadata.format(0, 100_000, address(this))
+            ),
+            true
+        );
+    }
+
+    function test_quoteDispatch() public {
+        assertEq(tbOrigin.quoteDispatch(bytes(""), bytes("")), 0);
+    }
+
+    function test_postDispatch_refundsExcessValue(
+        bytes32 recipient,
+        bytes calldata body
+    ) public virtual {
+        address refundAddress = makeAddr("refundAddress");
+        uint256 refundBalanceBefore = refundAddress.balance;
+
+        // Create metadata with refund address using standard hook metadata format
+        bytes memory metadata = abi.encodePacked(
+            uint16(1), // variant
+            uint256(0), // msgValue
+            uint256(0), // gasLimit
+            refundAddress // refundAddress
+        );
+
+        uint256 excessValue = 1 ether;
+
+        mailboxOrigin.dispatch{value: excessValue}(
+            destination,
+            recipient,
+            body,
+            metadata,
+            tbOrigin
+        );
+
+        // Verify refund was sent
+        assertEq(refundAddress.balance, refundBalanceBefore + excessValue);
     }
 
     function test_verify_hookMessage(bytes calldata body) public {
