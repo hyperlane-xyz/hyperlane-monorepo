@@ -67,7 +67,7 @@ contract HypERC4626OwnerCollateral is HypERC4626Collateral {
      */
     function sweep() external onlyOwner {
         uint256 excessShares = vault.maxRedeem(address(this)) -
-            vault.convertToShares(assetDeposited);
+            vault.previewWithdraw(assetDeposited);
         uint256 assetsRedeemed = vault.redeem(
             excessShares,
             owner(),
