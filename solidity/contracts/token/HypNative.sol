@@ -39,7 +39,7 @@ contract HypNative is LpCollateralRouter {
     /**
      * @inheritdoc TokenRouter
      */
-    function token() public view override returns (address) {
+    function token() public pure override returns (address) {
         return address(0);
     }
 

@@ -6,6 +6,7 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {GasRouter} from "../../client/GasRouter.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 import {Quote, ITokenBridge, ITokenFee} from "../../interfaces/ITokenBridge.sol";
+import {Quotes} from "./Quotes.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 /**
@@ -24,6 +25,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     using TypeCasts for address;
     using TokenMessage for bytes;
     using StorageSlot for bytes32;
+    using Quotes for Quote[];
 
     /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
@@ -222,6 +224,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @param _feeRecipient The address of the fee recipient.
      */
     function setFeeRecipient(address _feeRecipient) public onlyOwner {
+        require(_feeRecipient != address(this), "Fee recipient cannot be self");
         FEE_RECIPIENT_SLOT.getAddressSlot().value = _feeRecipient;
         emit FeeRecipientSet(_feeRecipient);
     }
@@ -270,24 +273,15 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) internal view returns (uint256 feeAmount) {
-        if (feeRecipient() == address(0)) {
+        address _feeRecipient = feeRecipient();
+        if (_feeRecipient == address(0)) {
             return 0;
         }
 
-        Quote[] memory quotes = ITokenFee(feeRecipient()).quoteTransferRemote(
-            _destination,
-            _recipient,
-            _amount
-        );
-        if (quotes.length == 0) {
-            return 0;
-        }
-
-        require(
-            quotes.length == 1 && quotes[0].token == token(),
-            "FungibleTokenRouter: fee must match token"
-        );
-        return quotes[0].amount;
+        return
+            ITokenFee(_feeRecipient)
+                .quoteTransferRemote(_destination, _recipient, _amount)
+                .extract(token());
     }
 
     /**
