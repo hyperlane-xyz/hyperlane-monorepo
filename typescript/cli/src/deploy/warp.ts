@@ -373,7 +373,7 @@ export async function runWarpRouteApply(
   params: WarpApplyParams,
 ): Promise<void> {
   const { warpDeployConfig, warpCoreConfig, context } = params;
-  const { chainMetadata, skipConfirmation } = context;
+  const { chainMetadata, skipConfirmation, multiProvider } = context;
 
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
@@ -394,10 +394,18 @@ export async function runWarpRouteApply(
   // temporarily configure deployer as owner so that warp update after extension
   // can leverage JSON RPC submitter on new chains
   const intermediateOwnerConfig = await promiseObjAll(
-    objMap(params.warpDeployConfig, async (chain, config) => ({
-      ...config,
-      owner: await multiProtocolSigner.getSignerAddress(chain),
-    })),
+    objMap(params.warpDeployConfig, async (chain, config) => {
+      const protocolType = multiProvider.getProtocol(chain);
+
+      if (!COMPATIBLE_PROTOCOLS.includes(protocolType)) {
+        return config;
+      }
+
+      return {
+        ...config,
+        owner: await multiProtocolSigner.getSignerAddress(chain),
+      };
+    }),
   );
 
   // Extend the warp route and get the updated configs
@@ -636,6 +644,12 @@ async function updateExistingWarpRoute(
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
+        const protocolType = multiProvider.getProtocol(chain);
+        if (!COMPATIBLE_PROTOCOLS.includes(protocolType)) {
+          logBlue(`Skipping non-compatible chain ${chain}`);
+          return;
+        }
+
         const deployedTokenRoute = deployedRoutersAddresses[chain];
         assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
         const configWithMailbox = {
@@ -643,7 +657,7 @@ async function updateExistingWarpRoute(
           mailbox: registryAddresses[chain].mailbox,
         };
 
-        switch (multiProvider.getProtocol(chain)) {
+        switch (protocolType) {
           case ProtocolType.Ethereum: {
             const evmERC20WarpModule = new EvmERC20WarpModule(
               multiProvider,
@@ -682,10 +696,6 @@ async function updateExistingWarpRoute(
               await cosmosNativeWarpModule.update(configWithMailbox);
             updateTransactions[chain] = transactions;
             break;
-          }
-          default: {
-            logBlue(`Skipping non-compatible chain ${chain}`);
-            return;
           }
         }
       });

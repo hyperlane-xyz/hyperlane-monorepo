@@ -1,0 +1,32 @@
+# Configs for describing chain metadata for use in Hyperlane deployments or apps
+# Consists of a map of chain names to metadata
+# Schema here: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/metadata/chainMetadataTypes.ts
+---
+bech32Prefix: hyp
+chainId: hyperlane-local-3
+domainId: 758986693
+name: hyp3
+protocol: cosmosnative
+slip44: 118
+restUrls:
+  - http: http://127.0.0.1:1317
+rpcUrls:
+  - http: http://127.0.0.1:26657
+grpcUrls:
+  - http: http://127.0.0.1:9090
+blockExplorers: # Array: List of BlockExplorer configs
+  # Required fields:
+  - name: My Chain Explorer # String: Human-readable name for the explorer
+    url: https://mychain.com/explorer # String: Base URL for the explorer
+    apiUrl: https://mychain.com/api # String: Base URL for the explorer API
+    # Optional fields:
+    apiKey: myapikey # String: API key for the explorer (optional)
+    family: etherscan # ExplorerFamily: See ExplorerFamily for valid values
+nativeToken:
+  decimals: 6
+  denom: uhyp
+  name: TEST
+  symbol: TEST
+gasPrice:
+  amount: '1'
+  denom: uhyp

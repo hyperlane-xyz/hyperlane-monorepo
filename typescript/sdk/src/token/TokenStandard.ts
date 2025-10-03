@@ -1,4 +1,4 @@
-import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
 
 import {
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
@@ -250,6 +250,18 @@ export const tokenTypeToStandard = (
         `token type ${tokenType} not available on protocol ${protocolType}`,
       );
     }
+    case ProtocolType.Sealevel: {
+      const sealevelTokenStandard =
+        SEALEVEL_TOKEN_TYPE_TO_STANDARD[
+          tokenType as SealevelSupportedTokenTypes
+        ];
+
+      assert(
+        sealevelTokenStandard,
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+      return sealevelTokenStandard;
+    }
     default: {
       throw new Error(
         `no token standard available for protocol type ${protocolType}`,
@@ -291,6 +303,25 @@ export const COSMOS_NATIVE_TOKEN_TYPE_TO_STANDARD: Record<
 > = {
   [TokenType.collateral]: TokenStandard.CosmNativeHypCollateral,
   [TokenType.synthetic]: TokenStandard.CosmNativeHypSynthetic,
+};
+
+// Sealevel supported token types
+export const SEALEVEL_SUPPORTED_TOKEN_TYPES = [
+  TokenType.collateral,
+  TokenType.synthetic,
+  TokenType.native,
+] as const;
+
+type SealevelSupportedTokenTypes =
+  (typeof SEALEVEL_SUPPORTED_TOKEN_TYPES)[number];
+
+export const SEALEVEL_TOKEN_TYPE_TO_STANDARD: Record<
+  SealevelSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.collateral]: TokenStandard.SealevelHypCollateral,
+  [TokenType.synthetic]: TokenStandard.SealevelHypSynthetic,
+  [TokenType.native]: TokenStandard.SealevelHypNative,
 };
 
 // Starknet supported token types

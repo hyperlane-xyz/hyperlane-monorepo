@@ -20,10 +20,12 @@ import {
 import {
   Address,
   ProtocolType,
+  objFilter,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
+import { COMPATIBLE_PROTOCOLS } from '../config/protocols.js';
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable, warnYellow } from '../logger.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
@@ -66,7 +68,21 @@ export async function runWarpRouteRead({
     );
   }
 
-  return deriveWarpRouteConfigs(context, addresses, warpCoreConfig);
+  // Remove any unsupported chain to avoid crashing
+  const filteredAddresses = objFilter(
+    addresses,
+    (chain, _address): _address is string =>
+      COMPATIBLE_PROTOCOLS.includes(context.multiProvider.getProtocol(chain)),
+  );
+  if (warpCoreConfig) {
+    warpCoreConfig.tokens = warpCoreConfig.tokens.filter((config) =>
+      COMPATIBLE_PROTOCOLS.includes(
+        context.multiProvider.getProtocol(config.chainName),
+      ),
+    );
+  }
+
+  return deriveWarpRouteConfigs(context, filteredAddresses, warpCoreConfig);
 }
 
 export async function getWarpRouteConfigsByCore({
