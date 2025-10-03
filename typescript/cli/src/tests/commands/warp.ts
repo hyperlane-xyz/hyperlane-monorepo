@@ -157,4 +157,41 @@ export class HyperlaneE2EWarpTestCommands {
       warpRouteId,
     });
   }
+
+  public applyRaw({
+    warpDeployPath,
+    warpCorePath,
+    strategyUrl,
+    warpRouteId,
+    privateKey,
+    relay,
+    hypKey,
+    extraArgs,
+    skipConfirmationPrompts,
+  }: {
+    warpDeployPath?: string;
+    warpCorePath?: string;
+    strategyUrl?: string;
+    warpRouteId?: string;
+    privateKey?: string;
+    hypKey?: string;
+    relay?: boolean;
+    skipConfirmationPrompts?: boolean;
+    extraArgs?: string[];
+  }): ProcessPromise {
+    return $` ${
+      hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
+    } ${localTestRunCmdPrefix()} hyperlane warp apply \
+          --registry ${this.registryPath} \
+          ${warpDeployPath ? ['--config', warpDeployPath] : []} \
+          ${warpCorePath ? ['--warp', warpCorePath] : []} \
+          ${strategyUrl ? ['--strategy', strategyUrl] : []} \
+          ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+          ${privateKey ? [this.privateKeyFlag, privateKey] : []} \ \
+          --verbosity debug \
+          ${relay ? ['--relay'] : []} \
+          ${skipConfirmationPrompts ? ['--yes'] : []} \ \
+          ${extraArgs ? extraArgs : []}
+          `;
+  }
 }
