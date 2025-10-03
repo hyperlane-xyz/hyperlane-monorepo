@@ -990,15 +990,25 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   const { multiProvider, multiProtocolSigner, registry } = context;
   assert(multiProtocolSigner, `multiProtocolSigner not defined`);
 
-  const submissionStrategy: ExtendedSubmissionStrategy =
-    strategyUrl && !isExtendedChain
-      ? readChainSubmissionStrategy(strategyUrl)[chain]
-      : {
-          submitter: {
-            chain,
-            type: TxSubmitterType.JSON_RPC,
-          },
-        };
+  const submissionStrategy: ExtendedSubmissionStrategy = (() => {
+    if (!strategyUrl || isExtendedChain) {
+      return {
+        submitter: {
+          chain,
+          type: TxSubmitterType.JSON_RPC,
+        },
+      };
+    }
+
+    const strategyFromFile = readChainSubmissionStrategy(strategyUrl)[chain];
+    if (!strategyFromFile) {
+      throw new Error(
+        `No submission strategy found for chain '${chain}' in strategy file '${strategyUrl}'`,
+      );
+    }
+
+    return strategyFromFile;
+  })();
 
   return {
     submitter: await getSubmitterBuilder<T>({
