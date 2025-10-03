@@ -128,6 +128,8 @@ fn run_locally() {
                 .hyp_env("METRICSPORT", (9094 + i).to_string())
                 .hyp_env("DB", validator_dbs[i].to_str().unwrap())
                 .hyp_env("ORIGINCHAINNAME", validator_origin_chains[i])
+                .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[0])
+                .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[1])
                 .hyp_env("VALIDATOR_KEY", validator_keys[i])
                 .hyp_env(
                     "CHECKPOINTSYNCER_PATH",
