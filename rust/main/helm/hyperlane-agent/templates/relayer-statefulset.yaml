@@ -112,6 +112,8 @@ spec:
           - name: HYP_MAXSUBMITQUEUELENGTH
             value: {{ . | quote }}
           {{- end }}
+          - name: HYP_CHAINS_RADIX_SUBMITTER
+            value: "Lander"
         resources:
           {{- toYaml .Values.hyperlane.relayer.resources | nindent 10 }}
         volumeMounts:
