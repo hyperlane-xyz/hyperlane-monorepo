@@ -610,7 +610,7 @@ Claude uses optimized, progressive queries to minimize tokens and maximize relev
 
 ### Base Agent Query Templates (with noise filtering)
 
-**Relayer Query:**
+**Relayer Query (Optimized with Enhanced Noise Filtering):**
 
 ```
 resource.type="k8s_container"
@@ -623,7 +623,20 @@ labels."k8s-pod/app_kubernetes_io/instance"="omniscient-relayer"
 labels."k8s-pod/app_kubernetes_io/name"="hyperlane-agent"
 -jsonPayload.fields.message="No message found in DB for leaf index"
 -jsonPayload.fields.message="Found log(s) in index range"
+-jsonPayload.fields.message="Dispatching get_public_key"
+NOT "Instantiated AWS signer"
+-jsonPayload.fields.message="Ingesting leaf"
+-jsonPayload.fields.message="Message already marked as processed in DB"
+-jsonPayload.fields.message="Message destined for self, skipping"
+-jsonPayload.fields.message="Message has already been delivered, marking as submitted."
+-jsonPayload.fields.message="Processor working on message"
+-jsonPayload.fields.message="Message destined for unknown domain, skipping"
 -jsonPayload.fields.message="Popped OpQueue operations"
+-jsonPayload.fields.message="Validator returned latest index"
+-jsonPayload.fields.message="Found signed checkpoint"
+-jsonPayload.fields.return="Ok(None)"
+-jsonPayload.fields.message="Fast forwarded current sequence"
+-jsonPayload.fields.message="Cursor can't make progress, sleeping"
 -jsonPayload.fields.message="fallback_request"
 ```
 
