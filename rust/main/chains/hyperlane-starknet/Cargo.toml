@@ -28,6 +28,7 @@ url.workspace = true
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
+hyperlane-metric = { path = "../../hyperlane-metric" }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["starknet"] }
