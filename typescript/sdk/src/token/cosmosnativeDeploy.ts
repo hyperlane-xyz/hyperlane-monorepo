@@ -47,7 +47,7 @@ export class CosmosNativeDeployer {
       assert(this.signersMap[chain], `No signer configured for ${chain}`);
 
       const config = configMapToDeploy[chain];
-      assert(this.signersMap[chain], `No config configured for ${chain}`);
+      assert(config, `No config configured for ${chain}`);
 
       this.logger.info(
         `Deploying ${config.type} token to Cosmos Native chain ${chain}`,
@@ -74,6 +74,17 @@ export class CosmosNativeDeployer {
             `Token type ${config.type} not supported on chain ${chain}`,
           );
         }
+      }
+
+      if (config.interchainSecurityModule) {
+        this.logger.info(`Set ISM for token`);
+
+        await this.signersMap[chain].setToken({
+          token_id: result[chain],
+          new_owner: '',
+          ism_id: config.interchainSecurityModule,
+          renounce_ownership: false,
+        });
       }
 
       this.logger.info(`Successfully deployed contracts on ${chain}`);

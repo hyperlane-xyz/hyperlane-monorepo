@@ -1,7 +1,10 @@
+import { objMap } from '@hyperlane-xyz/utils';
+
 import { KeyFunderConfig } from '../../../src/config/funding.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
+import desiredRebalancerBalances from './balances/desiredRebalancerBalances.json' with { type: 'json' };
 import desiredRelayerBalances from './balances/desiredRelayerBalances.json' with { type: 'json' };
 import { environment } from './chains.js';
 import { mainnet3SupportedChainNames } from './supportedChainNames.js';
@@ -14,12 +17,18 @@ const desiredRelayerBalancePerChain = Object.fromEntries(
   ]),
 ) as Record<DesiredRelayerBalanceChains, string>;
 
+type DesiredRebalancerBalanceChains = keyof typeof desiredRebalancerBalances;
+const desiredRebalancerBalancePerChain = objMap(
+  desiredRebalancerBalances,
+  (_, balance) => balance.toString(),
+) as Record<DesiredRebalancerBalanceChains, string>;
+
 export const keyFunderConfig: KeyFunderConfig<
   typeof mainnet3SupportedChainNames
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '093e0be-20250904-212218',
+    tag: 'c868da2-20251003-124947',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -30,10 +39,10 @@ export const keyFunderConfig: KeyFunderConfig<
     'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
-    [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
+    [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy, Role.Rebalancer],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['infinityvmmainnet'],
+  chainsToSkip: ['proofofplay'],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // if not set, keyfunder defaults to 0
@@ -90,6 +99,8 @@ export const keyFunderConfig: KeyFunderConfig<
     soon: '0',
     sonicsvm: '0',
   },
+  // desired rebalancer balance config
+  desiredRebalancerBalancePerChain,
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
     ancient8: '0.1',

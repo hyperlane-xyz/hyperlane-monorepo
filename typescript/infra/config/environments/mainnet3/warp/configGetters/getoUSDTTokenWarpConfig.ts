@@ -43,6 +43,7 @@ export const deploymentChains = [
   'hashkey',
   'swell',
   'botanix',
+  'zerogravity',
 ] as const;
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
 const xERC20LockboxChains: oUSDTTokenChainName[] = ['celo', 'ethereum'];
@@ -82,6 +83,7 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   hashkey: lowerBufferCap,
   swell: middleBufferCap,
   botanix: middleBufferCap,
+  zerogravity: middleBufferCap,
 };
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
 const middleRateLimitPerSecond = '2000000000'; // 2k/s = 2 * 10^3 ^ 10^6
@@ -110,6 +112,7 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   hashkey: lowerRateLimitPerSecond,
   swell: middleRateLimitPerSecond,
   botanix: middleRateLimitPerSecond,
+  zerogravity: middleRateLimitPerSecond,
 };
 
 const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = [];
@@ -220,6 +223,10 @@ const productionOwnerOverridesByChain: TypedoUSDTTokenChainMap<
     collateralToken: productionOwnerByChain.botanix,
     collateralProxyAdmin: productionOwnerByChain.botanix,
   },
+  zerogravity: {
+    collateralToken: productionOwnerByChain.zerogravity,
+    collateralProxyAdmin: productionOwnerByChain.zerogravity,
+  },
 };
 
 const productionAmountRoutingThreshold = 250000000000; // 250k = 250 * 10^3 ^ 10^6
@@ -245,6 +252,7 @@ const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
   bob: '0xAFEd606Bd2CAb6983fC6F10167c98aaC2173D77f',
   hashkey: '0x55aeb80Aa6Ab34aA83E1F387903F8Bb2Aa9e2F2d',
   botanix: '0x0EEFa8b75587bcD4A909a0F3c36180D4441481a0',
+  zerogravity: '0xd7502CaBdb70c79382deF58FB6df3CdA69cb2A1b',
 };
 
 const productionCCIPTokenPoolLimits: XERC20VSLimitConfig = {
@@ -330,6 +338,12 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
       limits: productionCCIPTokenPoolLimits,
     },
   ],
+  zerogravity: [
+    {
+      lockbox: productionCCIPTokenPoolAddresses.zerogravity,
+      limits: productionCCIPTokenPoolLimits,
+    },
+  ],
 };
 
 const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
@@ -356,6 +370,7 @@ const productionXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   hashkey: productionXERC20TokenAddress,
   swell: productionXERC20TokenAddress,
   botanix: productionXERC20TokenAddress,
+  zerogravity: productionXERC20TokenAddress,
 };
 
 // Staging
@@ -384,6 +399,7 @@ const stagingBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   hashkey: stagingDefaultBufferCap,
   swell: stagingDefaultBufferCap,
   botanix: stagingDefaultBufferCap,
+  zerogravity: stagingDefaultBufferCap,
 };
 const stagingDefaultRateLimitPerSecond = '120000000';
 const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
@@ -410,6 +426,7 @@ const stagingRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   hashkey: stagingDefaultRateLimitPerSecond,
   swell: stagingDefaultRateLimitPerSecond,
   botanix: stagingDefaultRateLimitPerSecond,
+  zerogravity: stagingDefaultRateLimitPerSecond,
 };
 
 const stagingOwnerByChain: TypedoUSDTTokenChainMap<string> =
@@ -448,6 +465,7 @@ const stagingXERC20AddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   hashkey: stagingXERC20TokenAddress,
   swell: stagingXERC20TokenAddress,
   botanix: stagingXERC20TokenAddress,
+  zerogravity: stagingXERC20TokenAddress,
 };
 
 const stagingExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {

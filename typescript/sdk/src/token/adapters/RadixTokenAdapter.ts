@@ -6,6 +6,7 @@ import {
   Domain,
   addressToBytes32,
   assert,
+  fromWei,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
@@ -105,6 +106,11 @@ export class RadixNativeTokenAdapter
   ): Promise<RadixSDKTransaction> {
     const resource = await this.getResourceAddress();
 
+    const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
+    assert(
+      nativeToken,
+      `Native token data is required for ${RadixNativeTokenAdapter.name}`,
+    );
     assert(transferParams.fromAccountOwner, `no sender in transfer params`);
 
     return {
@@ -113,7 +119,10 @@ export class RadixNativeTokenAdapter
         from_address: transferParams.fromAccountOwner!,
         to_address: transferParams.recipient,
         resource_address: resource,
-        amount: transferParams.weiAmountOrId.toString(),
+        amount: fromWei(
+          transferParams.weiAmountOrId.toString(),
+          nativeToken.decimals,
+        ),
       }),
     };
   }

@@ -9,6 +9,7 @@ import {
   ZHash,
 } from '../../../../metadata/customZodTypes.js';
 import { ChainName } from '../../../../types.js';
+import { isCompliant } from '../../../../utils/schemas.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 export const EV5GnosisSafeTxSubmitterPropsSchema = z.object({
@@ -34,11 +35,16 @@ export const EV5JsonRpcTxSubmitterPropsSchema = z.object({
   chain: ZChainName,
   userAddress: ZHash.optional(),
   privateKey: ZHash.optional(),
+  extraParams: z.record(z.string(), z.string()).optional(),
 });
 
 export type EV5JsonRpcTxSubmitterProps = z.infer<
   typeof EV5JsonRpcTxSubmitterPropsSchema
 >;
+
+export const isJsonRpcSubmitterConfig = isCompliant(
+  EV5JsonRpcTxSubmitterPropsSchema,
+);
 
 export const EV5ImpersonatedAccountTxSubmitterPropsSchema =
   EV5JsonRpcTxSubmitterPropsSchema.extend({

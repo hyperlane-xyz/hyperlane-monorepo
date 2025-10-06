@@ -18,6 +18,7 @@ import type { IToken, TokenArgs } from './IToken.js';
 import { TokenAmount } from './TokenAmount.js';
 import { TokenConnection, TokenConnectionType } from './TokenConnection.js';
 import {
+  PROTOCOL_TO_HYP_NATIVE_STANDARD,
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_HYP_STANDARDS,
@@ -406,6 +407,12 @@ export class Token implements IToken {
     return Object.values(PROTOCOL_TO_NATIVE_STANDARD).includes(this.standard);
   }
 
+  isHypNative(): boolean {
+    return Object.values(PROTOCOL_TO_HYP_NATIVE_STANDARD).includes(
+      this.standard,
+    );
+  }
+
   isCollateralized(): boolean {
     return TOKEN_COLLATERALIZED_STANDARDS.includes(this.standard);
   }
@@ -486,7 +493,10 @@ export class Token implements IToken {
         return true;
       }
 
-      if (!this.collateralAddressOrDenom && token.isNative()) {
+      if (
+        !this.collateralAddressOrDenom &&
+        (token.isNative() || token.isHypNative())
+      ) {
         return true;
       }
     }

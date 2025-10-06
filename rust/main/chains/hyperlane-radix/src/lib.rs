@@ -21,6 +21,12 @@ mod validator_announce;
 pub(crate) use {events::*, parse::*, provider::*, utils::*};
 
 pub use {
-    config::ConnectionConf, error::HyperlaneRadixError, ism::RadixIsm, mailbox::RadixMailbox,
-    provider::RadixProvider, signer::RadixSigner, validator_announce::RadixValidatorAnnounce,
+    config::ConnectionConf,
+    error::HyperlaneRadixError,
+    ism::RadixIsm,
+    mailbox::RadixMailbox,
+    provider::RadixGatewayProvider,
+    provider::{RadixProvider, RadixProviderForLander, RadixTxCalldata},
+    signer::RadixSigner,
+    validator_announce::RadixValidatorAnnounce,
 };

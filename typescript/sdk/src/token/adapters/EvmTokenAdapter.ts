@@ -832,6 +832,11 @@ export class EvmHypNativeAdapter
       },
     );
   }
+
+  override async getBridgedSupply(): Promise<bigint | undefined> {
+    const balance = await this.getProvider().getBalance(this.addresses.token);
+    return BigInt(balance.toString());
+  }
 }
 
 export class EvmXERC20Adapter

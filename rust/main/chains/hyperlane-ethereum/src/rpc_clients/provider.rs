@@ -275,6 +275,7 @@ where
             .map(Into::into)
     }
 
+    #[instrument(skip(self), ret)]
     async fn fee_history(
         &self,
         block_count: U256,

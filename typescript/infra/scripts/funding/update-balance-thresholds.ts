@@ -21,7 +21,7 @@ import {
   sortThresholdTypes,
   sortThresholds,
 } from '../../src/funding/balances.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { withSkipReview } from '../agent-utils.js';
 
 enum UserReview {
@@ -354,7 +354,7 @@ function writeConfigsToFile(newConfigs: ThresholdsData) {
       rootLogger.info(
         `Writing updated thresholds for ${thresholdType} => ${fileName}`,
       );
-      writeJsonAtPath(configPath, newConfigs[thresholdType]);
+      writeAndFormatJsonAtPath(configPath, newConfigs[thresholdType]);
     } catch (error) {
       rootLogger.error(`Failed to write config for ${thresholdType}:`, error);
     }

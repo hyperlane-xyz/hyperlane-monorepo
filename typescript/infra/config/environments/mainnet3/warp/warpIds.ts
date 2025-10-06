@@ -7,7 +7,7 @@ export enum WarpRouteIds {
   ArbitrumBaseEnduranceUSDC = 'USDC/arbitrum-base-endurance',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
-  ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
+  ArbitrumNeutronTIA = 'TIA/arbitrum-celestia-neutron',
   ArtelaBaseSolanaART = 'ART/artela-base-solanamainnet',
   BscEthereumLumiaPrismPNDR = 'PNDR/bsc-ethereum-lumiaprism',
   BaseSolanamainnetTONY = 'TONY/base-solanamainnet',
@@ -101,10 +101,18 @@ export enum WarpRouteIds {
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
   LumiaUSDC = 'USDC/lumia',
+  MatchainUSDC = 'USDC/matchain',
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
 
   SonicSVMMoney = 'MONEY/sonicsvm',
+
+  PulsechainUSDC = 'USDC/pulsechain',
+  ElectroneumUSDC = 'USDC/electroneum',
+
+  GalacticaGNET = 'GNET/galactica',
+
+  SolaxyUSDC = 'USDC/solaxy',
 
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',

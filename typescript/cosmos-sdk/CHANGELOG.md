@@ -1,5 +1,21 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 18.3.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@18.3.0
+
+## 18.2.0
+
+### Minor Changes
+
+- dfa9d368c: Added a `getCometClientOrFail` to the `HyperlaneModuleClient` to expose the internal provider connection
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@18.2.0
+
 ## 18.1.0
 
 ### Patch Changes

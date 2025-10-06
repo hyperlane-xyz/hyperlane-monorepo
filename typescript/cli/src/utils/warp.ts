@@ -31,19 +31,31 @@ export async function getWarpCoreConfigOrExit({
   context,
   symbol,
   warp,
+  warpRouteId,
 }: {
   context: CommandContext;
   symbol?: string;
   warp?: string;
+  warpRouteId?: string;
 }): Promise<WarpCoreConfig> {
   let warpCoreConfig: WarpCoreConfig;
   if (symbol) {
     warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
   } else if (warp) {
     warpCoreConfig = await readWarpCoreConfig({ filePath: warp });
+  } else if (warpRouteId) {
+    const maybeWarpRoute = await context.registry.getWarpRoute(warpRouteId);
+    assert(
+      maybeWarpRoute,
+      `No warp route found with the provided id "${warpRouteId}"`,
+    );
+
+    warpCoreConfig = maybeWarpRoute;
   } else {
-    logRed(`Please specify either a symbol or warp config`);
-    process.exit(0);
+    logRed(
+      `Invalid input parameters. Please provide either a token symbol, a warp route id or both chain name and token address`,
+    );
+    process.exit(1);
   }
 
   return warpCoreConfig;

@@ -88,15 +88,18 @@ export function promiseObjAll<K extends string, V>(obj: {
 }
 
 // Get the subset of the object from key list
-export function pick<K extends string, V = any>(obj: Record<K, V>, keys: K[]) {
-  const ret: Partial<Record<K, V>> = {};
+export function pick<T extends object, K extends keyof T>(
+  obj: T,
+  keys: K[],
+): Pick<T, K> {
+  const ret = {} as Pick<T, K>;
   const objKeys = Object.keys(obj);
   for (const key of keys) {
-    if (objKeys.includes(key)) {
+    if (objKeys.includes(key.toString())) {
       ret[key] = obj[key];
     }
   }
-  return ret as Record<K, V>;
+  return ret;
 }
 
 /**

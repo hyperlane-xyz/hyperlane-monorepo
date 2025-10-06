@@ -8,7 +8,6 @@ export const awTimelocks: ChainMap<Address> = {
 
   // Jul 18, 2025 - Timelocks for v2 "Abacus Works" ICAs
   // ----------------------------------------------------------
-  alephzeroevmmainnet: '0x1934716A0fe1B6F2483184FdD079767d10592a76',
   ancient8: '0xfcBAaB071De701f0DeD875966a68ff28b6a5F71d',
   apechain: '0x1A4E4661b0027b859bF5c671d599f02dE68f0345',
   appchain: '0xf2F83b26d56f0e9B9Bd81efAb9e0ECB9ba5708be',
@@ -46,7 +45,6 @@ export const awTimelocks: ChainMap<Address> = {
   fraxtal: '0x09F478e8dEB9Ef466025bf96d13cd9DC56881E18',
   fusemainnet: '0xFeeB86e70e4a640cDd29636CCE19BD6fe8628135',
   galactica: '0xF100a80D9e47518a14C68Fca0a113E849be27411',
-  game7: '0xb1Eda188C5B25Ace165d696D83B4f03c5f246ED6',
   gnosis: '0x04587eF285B3028E281f21Ad94C7a16bE138381D',
   gravity: '0x910FF91a92c9141b8352Ad3e50cF13ef9F3169A1',
   harmony: '0x1c103FF92333b2F1975704D20EdFE6eFD05CeAE7',
@@ -55,7 +53,6 @@ export const awTimelocks: ChainMap<Address> = {
   hyperevm: '0x677fbdE16AC399Bcd1d136b822939ea1b50D31E2',
   immutablezkevmmainnet: '0x3de63b62BeF9Da290F51f856cA9F3dB4225EDc05',
   inevm: '0x999bE2aBe444888b31f1d175310E4bD1F5B96423',
-  infinityvmmainnet: '0x7279B1e11142078b8dC9e69620200f4C84FB8aaa',
   ink: '0xED56728fb977b0bBdacf65bCdD5e17Bb7e84504f',
   kaia: '0x6Ff2c6b1c707d3dc1a7A43F4Ce5d09004224b0b3',
   katana: '0x9C6e8d989ea7F212e679191BEb44139d83ac927a',
@@ -94,7 +91,6 @@ export const awTimelocks: ChainMap<Address> = {
   scroll: '0xeFC55057FC31D3fbbEeE53f64D63d2D336927D33',
   sei: '0xd223107e1B9fd4a298b52a49564626D10d6E5c44',
   shibarium: '0x7759513f71a1EDF48385f7EE5948Bf80786D59a2',
-  snaxchain: '0xA59eA276bfD97699BA82Da49F166d70296856178',
   soneium: '0x39d3c2Cf646447ee302178EDBe5a15E13B6F33aC',
   sonic: '0x591273A518b59B4E9E4c104B001Fee4B9920244F',
   story: '0xe45323361e6F2a801BEdB6E6316DF745923f1a6C',
@@ -115,4 +111,8 @@ export const awTimelocks: ChainMap<Address> = {
   zetachain: '0x9A291D353Fc52CE3b5F6fC7e9432eB1743d1bBe0',
   zircuit: '0x3f1332D80E390BE30c231BB57efFFAa56546aB27',
   zoramainnet: '0xaB402f227e892Ef37C105bf06619c0fa106a1fB2',
+
+  // Sep 22, 2025 - Timelock for 0G oUSDT extension
+  // ----------------------------------------------------------
+  zerogravity: '0x11EF91d17c5ad3330DbCa709a8841743d3Af6819',
 } as const;
