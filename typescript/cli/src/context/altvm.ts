@@ -1,3 +1,5 @@
+import { password } from '@inquirer/prompts';
+
 import {
   CosmosNativeProvider,
   CosmosNativeSigner,
@@ -124,28 +126,33 @@ export class AltVMSignerFactory implements AltVM.ISignerFactory {
     protocol: ProtocolType,
     chain: string,
   ): Promise<string> {
+    // 1. First try to get private key from --key.{protocol} flag
     if (key[protocol]) {
       return key[protocol]!;
     }
 
-    if (!strategyConfig[chain]) {
-      throw new Error(`found no strategy in config for chain ${chain}`);
+    // 2. If no key flag was provided we check if a strategy config
+    // was provided for our chain where we can read our private key
+    if (strategyConfig[chain]) {
+      const rawConfig = strategyConfig[chain]!.submitter;
+      if (!isJsonRpcSubmitterConfig(rawConfig)) {
+        throw new Error(
+          `found unknown submitter in strategy config for chain ${chain}`,
+        );
+      }
+
+      if (!rawConfig.privateKey) {
+        throw new Error(
+          `missing private key in strategy config for chain ${chain}`,
+        );
+      }
     }
 
-    const rawConfig = strategyConfig[chain]!.submitter;
-    if (!isJsonRpcSubmitterConfig(rawConfig)) {
-      throw new Error(
-        `found unknown submitter in strategy config for chain ${chain}`,
-      );
-    }
-
-    if (!rawConfig.privateKey) {
-      throw new Error(
-        `missing private key in strategy config for chain ${chain}`,
-      );
-    }
-
-    return rawConfig.privateKey;
+    // 3. Finally, if no key flag or strategy was provided we prompt the user
+    // for the private key
+    return password({
+      message: `Please enter the private key for chain ${chain} (will be re-used for other chains with the same protocol type)`,
+    });
   }
 
   public static async createSigners(

@@ -166,15 +166,27 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
 
-      const steps: TestPromptAction[] = [];
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Is this deployment plan correct?'),
+          input: KeyBoardKeys.ENTER,
+        },
+      ];
 
       // Deploy
       const output = hyperlaneWarp
-        .deployRaw({
-          privateKey: HYP_KEY,
-          skipConfirmationPrompts: true,
-          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        })
+        .deployRaw({ warpDeployPath: WARP_DEPLOY_OUTPUT_PATH })
         .stdio('pipe')
         .nothrow();
 
@@ -215,13 +227,27 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpDeployPath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}-deploy.yaml`;
       writeYamlOrJson(warpDeployPath, warpConfig);
 
-      const steps: TestPromptAction[] = [];
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Is this deployment plan correct?'),
+          input: KeyBoardKeys.ENTER,
+        },
+      ];
 
       // Deploy
       const output = hyperlaneWarp
         .deployRaw({
-          privateKey: HYP_KEY,
-          skipConfirmationPrompts: true,
           warpRouteId,
         })
         .stdio('pipe')
@@ -259,7 +285,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       const output = hyperlaneWarp
         .deployRaw({
-          privateKey: HYP_KEY,
           warpDeployPath: nonExistingFilePath,
           skipConfirmationPrompts: true,
         })
@@ -303,12 +328,22 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
 
-      const steps: TestPromptAction[] = [];
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
+        },
+      ];
 
       // Deploy
       const output = hyperlaneWarp
         .deployRaw({
-          hypKey: HYP_KEY,
           warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
           skipConfirmationPrompts: true,
         })
