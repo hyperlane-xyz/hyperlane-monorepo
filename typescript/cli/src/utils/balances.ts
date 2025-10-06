@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber } from 'bignumber.js';
 import { formatUnits } from 'ethers/lib/utils.js';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
@@ -29,10 +29,10 @@ export async function nativeBalancesAreSufficient(
     assert(symbol, `no symbol found for native token on chain ${chain}`);
 
     let address: Address = '';
-    let requiredMinBalanceNativeDenom = BigNumber.from(0);
+    let requiredMinBalanceNativeDenom = new BigNumber(0);
     let requiredMinBalance: string = '0';
 
-    let deployerBalanceNativeDenom = BigNumber.from(0);
+    let deployerBalanceNativeDenom = new BigNumber(0);
     let deployerBalance: string = '0';
 
     switch (protocolType) {
@@ -40,16 +40,20 @@ export async function nativeBalancesAreSufficient(
         address = await multiProvider.getSignerAddress(chain);
 
         const provider = multiProvider.getProvider(chain);
-        const gasPrice = await provider.getGasPrice();
+        const gasPrice = new BigNumber(
+          (await provider.getGasPrice()).toString(),
+        );
 
-        requiredMinBalanceNativeDenom = gasPrice.mul(
+        requiredMinBalanceNativeDenom = gasPrice.multipliedBy(
           ETHEREUM_MINIMUM_GAS[minGas],
         );
         requiredMinBalance = formatUnits(
           requiredMinBalanceNativeDenom.toString(),
         );
 
-        deployerBalanceNativeDenom = await provider.getBalance(address);
+        deployerBalanceNativeDenom = new BigNumber(
+          (await provider.getBalance(address)).toString(),
+        );
         deployerBalance = formatUnits(deployerBalanceNativeDenom.toString());
         break;
       }
@@ -69,19 +73,21 @@ export async function nativeBalancesAreSufficient(
         assert(gasPrice, `gasPrice is not defined on chain ${chain}`);
 
         const MULTI_VM_GAS = altVmSigner.getGas(protocol);
-        requiredMinBalanceNativeDenom = BigNumber.from(gasPrice.amount).mul(
-          MULTI_VM_GAS[minGas],
-        );
+        requiredMinBalanceNativeDenom = new BigNumber(
+          gasPrice.amount,
+        ).multipliedBy(MULTI_VM_GAS[minGas]);
         requiredMinBalance = formatUnits(
-          requiredMinBalanceNativeDenom,
+          requiredMinBalanceNativeDenom.toFixed(0),
           nativeToken.decimals,
         );
 
-        deployerBalanceNativeDenom = BigNumber.from(
-          await signer.getBalance({ address, denom: nativeToken.denom }),
+        deployerBalanceNativeDenom = new BigNumber(
+          (
+            await signer.getBalance({ address, denom: nativeToken.denom })
+          ).toString(),
         );
         deployerBalance = formatUnits(
-          deployerBalanceNativeDenom,
+          deployerBalanceNativeDenom.toString(),
           nativeToken.decimals,
         );
       }
