@@ -646,12 +646,12 @@ export interface ISignerConnect {
   ): Promise<ISigner>;
 }
 
-abstract class IAltVMFactory {
+export abstract class IAltVMFactory {
   abstract getSupportedProtocols(): ProtocolType[];
 
   abstract supports(_protocol: ProtocolType): boolean;
 
-  abstract getGas(_protocol: ProtocolType): MINIMUM_GAS;
+  abstract getMinGas(_protocol: ProtocolType): MINIMUM_GAS;
 }
 
 export abstract class IProviderFactory extends IAltVMFactory {

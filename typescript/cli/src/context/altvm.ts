@@ -37,13 +37,7 @@ type ALT_VM_PROTOCOL = ProtocolMap<{
   gas: MINIMUM_GAS;
 }>;
 
-export class AltVMProviderFactory implements AltVM.IProviderFactory {
-  private readonly metadataManager: ChainMetadataManager;
-
-  constructor(metadataManager: ChainMetadataManager) {
-    this.metadataManager = metadataManager;
-  }
-
+class AltVMFactory implements AltVM.IAltVMFactory {
   public getSupportedProtocols(): ProtocolType[] {
     return Object.keys(ALT_VM_SUPPORTED_PROTOCOLS) as ProtocolType[];
   }
@@ -52,13 +46,26 @@ export class AltVMProviderFactory implements AltVM.IProviderFactory {
     return !!ALT_VM_SUPPORTED_PROTOCOLS[protocol];
   }
 
-  public getGas(protocol: ProtocolType) {
+  public getMinGas(protocol: ProtocolType) {
     if (!this.supports(protocol)) {
       throw new Error(`Protocol type ${protocol} not supported in AltVM`);
     }
 
     const { gas } = ALT_VM_SUPPORTED_PROTOCOLS[protocol]!;
     return gas;
+  }
+}
+
+export class AltVMProviderFactory
+  extends AltVMFactory
+  implements AltVM.IProviderFactory
+{
+  private readonly metadataManager: ChainMetadataManager;
+
+  constructor(metadataManager: ChainMetadataManager) {
+    super();
+
+    this.metadataManager = metadataManager;
   }
 
   public async get(chain: string): Promise<AltVM.IProvider> {
@@ -75,7 +82,10 @@ export class AltVMProviderFactory implements AltVM.IProviderFactory {
   }
 }
 
-export class AltVMSignerFactory implements AltVM.ISignerFactory {
+export class AltVMSignerFactory
+  extends AltVMFactory
+  implements AltVM.ISignerFactory
+{
   private readonly metadataManager: ChainMetadataManager;
   private readonly chains: ChainMap<AltVM.ISigner>;
 
@@ -83,25 +93,10 @@ export class AltVMSignerFactory implements AltVM.ISignerFactory {
     metadataManager: ChainMetadataManager,
     chains: ChainMap<AltVM.ISigner>,
   ) {
+    super();
+
     this.metadataManager = metadataManager;
     this.chains = chains;
-  }
-
-  public getSupportedProtocols(): ProtocolType[] {
-    return Object.keys(ALT_VM_SUPPORTED_PROTOCOLS) as ProtocolType[];
-  }
-
-  public supports(protocol: ProtocolType) {
-    return !!ALT_VM_SUPPORTED_PROTOCOLS[protocol];
-  }
-
-  public getGas(protocol: ProtocolType) {
-    if (!this.supports(protocol)) {
-      throw new Error(`Protocol type ${protocol} not supported in AltVM`);
-    }
-
-    const { gas } = ALT_VM_SUPPORTED_PROTOCOLS[protocol]!;
-    return gas;
   }
 
   public get(chain: string): AltVM.ISigner {
