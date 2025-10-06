@@ -10,6 +10,7 @@ import type {
 
 import { ZHash } from './metadata/customZodTypes.js';
 import { MultiProvider } from './providers/MultiProvider.js';
+import { ProtocolTransaction } from './providers/ProviderType.js';
 
 // An alias for string to clarify type is a chain name
 export type ChainName = string;
@@ -44,7 +45,9 @@ export const PausableSchema = OwnableSchema.extend({
 });
 export type PausableConfig = z.infer<typeof PausableSchema>;
 
-export type TypedSigner = Signer | AltVM.ISigner;
+export type TypedSigner<T extends ProtocolType> =
+  | Signer
+  | AltVM.ISigner<ProtocolTransaction<T>>;
 
 export interface IMultiProtocolSignerManager {
   getMultiProvider(): Promise<MultiProvider>;

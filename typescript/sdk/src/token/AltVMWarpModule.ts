@@ -4,6 +4,7 @@ import {
   Address,
   AltVM,
   Domain,
+  ProtocolType,
   addressToBytes32,
   assert,
   deepEquals,
@@ -20,7 +21,10 @@ import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedAltVMTransaction } from '../providers/ProviderType.js';
+import {
+  AnnotatedTypedTransaction,
+  ProtocolTransaction,
+} from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
@@ -35,8 +39,8 @@ type WarpRouteAddresses = {
   deployedTokenRoute: Address;
 };
 
-export class AltVMWarpModule extends HyperlaneModule<
-  any,
+export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
+  PT,
   HypTokenRouterConfig,
   WarpRouteAddresses
 > {
@@ -51,7 +55,7 @@ export class AltVMWarpModule extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
-    protected readonly signer: AltVM.ISigner,
+    protected readonly signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>,
   ) {
     super(args);
     this.reader = new AltVMWarpRouteReader(metadataManager, args.chain, signer);
@@ -80,11 +84,11 @@ export class AltVMWarpModule extends HyperlaneModule<
    */
   async update(
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions = [];
+    const transactions: AnnotatedTypedTransaction<PT>[] = [];
 
     /**
      * @remark
@@ -122,8 +126,8 @@ export class AltVMWarpModule extends HyperlaneModule<
   async createEnrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
-    const updateTransactions: AnnotatedAltVMTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -151,7 +155,7 @@ export class AltVMWarpModule extends HyperlaneModule<
     for (const domainId of routesToEnroll) {
       updateTransactions.push({
         annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        altvm_tx: await this.signer.populateEnrollRemoteRouter({
+        ...(await this.signer.populateEnrollRemoteRouter({
           signer: this.signer.getSignerAddress(),
           tokenId: this.args.addresses.deployedTokenRoute,
           remoteRouter: {
@@ -161,7 +165,7 @@ export class AltVMWarpModule extends HyperlaneModule<
             ),
             gas: '0',
           },
-        }),
+        })),
       });
     }
 
@@ -171,8 +175,8 @@ export class AltVMWarpModule extends HyperlaneModule<
   async createUnenrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
-    const updateTransactions: AnnotatedAltVMTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -197,11 +201,11 @@ export class AltVMWarpModule extends HyperlaneModule<
     for (const domainId of routesToUnenroll) {
       updateTransactions.push({
         annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        altvm_tx: await this.signer.populateUnenrollRemoteRouter({
+        ...(await this.signer.populateUnenrollRemoteRouter({
           signer: this.signer.getSignerAddress(),
           tokenId: this.args.addresses.deployedTokenRoute,
           receiverDomainId: parseInt(domainId),
-        }),
+        })),
       });
     }
 
@@ -218,8 +222,8 @@ export class AltVMWarpModule extends HyperlaneModule<
   async createSetDestinationGasUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
-    const updateTransactions: AnnotatedAltVMTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
     if (!expectedConfig.destinationGas) {
       return [];
     }
@@ -263,17 +267,17 @@ export class AltVMWarpModule extends HyperlaneModule<
         if (alreadyEnrolledDomains.includes(parseInt(domain))) {
           updateTransactions.push({
             annotation: `Unenrolling ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-            altvm_tx: await this.signer.populateUnenrollRemoteRouter({
+            ...(await this.signer.populateUnenrollRemoteRouter({
               signer: this.signer.getSignerAddress(),
               tokenId: this.args.addresses.deployedTokenRoute,
               receiverDomainId: parseInt(domain),
-            }),
+            })),
           });
         }
 
         updateTransactions.push({
           annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain} to ${gas}`,
-          altvm_tx: await this.signer.populateEnrollRemoteRouter({
+          ...(await this.signer.populateEnrollRemoteRouter({
             signer: this.signer.getSignerAddress(),
             tokenId: this.args.addresses.deployedTokenRoute,
             remoteRouter: {
@@ -283,7 +287,7 @@ export class AltVMWarpModule extends HyperlaneModule<
               ),
               gas,
             },
-          }),
+          })),
         });
       }
     }
@@ -301,8 +305,8 @@ export class AltVMWarpModule extends HyperlaneModule<
   async createIsmUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
-    const updateTransactions: AnnotatedAltVMTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
 
     if (
       actualConfig.interchainSecurityModule ===
@@ -335,11 +339,11 @@ export class AltVMWarpModule extends HyperlaneModule<
     if (actualDeployedIsm !== expectedDeployedIsm) {
       updateTransactions.push({
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
-        altvm_tx: await this.signer.populateSetTokenIsm({
+        ...(await this.signer.populateSetTokenIsm({
           signer: this.signer.getSignerAddress(),
           tokenId: this.args.addresses.deployedTokenRoute,
           ismId: expectedDeployedIsm,
-        }),
+        })),
       });
     }
 
@@ -356,7 +360,7 @@ export class AltVMWarpModule extends HyperlaneModule<
   async createOwnershipUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
     if (actualConfig.owner === expectedConfig.owner) {
       return [];
     }
@@ -364,11 +368,11 @@ export class AltVMWarpModule extends HyperlaneModule<
     return [
       {
         annotation: `Transferring ownership of ${this.args.addresses.deployedTokenRoute} from ${actualConfig.owner} to ${expectedConfig.owner}`,
-        altvm_tx: await this.signer.populateSetTokenOwner({
+        ...(await this.signer.populateSetTokenOwner({
           signer: this.signer.getSignerAddress(),
           tokenId: this.args.addresses.deployedTokenRoute,
           newOwner: expectedConfig.owner,
-        }),
+        })),
       },
     ];
   }
@@ -383,7 +387,7 @@ export class AltVMWarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<{
     deployedIsm: Address;
-    updateTransactions: AnnotatedAltVMTransaction[];
+    updateTransactions: AnnotatedTypedTransaction<PT>[];
   }> {
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
@@ -422,12 +426,12 @@ export class AltVMWarpModule extends HyperlaneModule<
    * @param signer - The AltVM signing client
    * @returns A new instance of the AltVMWarpModule.
    */
-  static async create(params: {
+  static async create<PT extends ProtocolType>(params: {
     chain: ChainNameOrId;
     config: HypTokenRouterConfig;
     multiProvider: MultiProvider;
-    signer: AltVM.ISigner;
-  }): Promise<AltVMWarpModule> {
+    signer: AltVM.ISigner<ProtocolTransaction<PT>>;
+  }): Promise<AltVMWarpModule<PT>> {
     const { chain, config, multiProvider, signer } = params;
 
     const deployer = new AltVMDeployer(multiProvider, {
@@ -438,7 +442,7 @@ export class AltVMWarpModule extends HyperlaneModule<
       [chain]: config,
     });
 
-    const warpModule = new AltVMWarpModule(
+    const warpModule = new AltVMWarpModule<PT>(
       multiProvider,
       {
         addresses: {

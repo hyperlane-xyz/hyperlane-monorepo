@@ -5,9 +5,11 @@ import {
   CosmosNativeSigner,
 } from '@hyperlane-xyz/cosmos-sdk';
 import {
+  AnyProtocolTransaction,
   ChainMap,
   ChainMetadataManager,
   ProtocolMap,
+  ProtocolTransaction,
   isJsonRpcSubmitterConfig,
 } from '@hyperlane-xyz/sdk';
 import { AltVM, MINIMUM_GAS, ProtocolType } from '@hyperlane-xyz/utils';
@@ -33,7 +35,7 @@ const ALT_VM_SUPPORTED_PROTOCOLS: ALT_VM_PROTOCOL = {
 
 type ALT_VM_PROTOCOL = ProtocolMap<{
   provider: AltVM.IProviderConnect;
-  signer: AltVM.ISignerConnect;
+  signer: AltVM.ISignerConnect<ProtocolTransaction<ProtocolType.CosmosNative>>;
   gas: MINIMUM_GAS;
 }>;
 
@@ -84,14 +86,14 @@ export class AltVMProviderFactory
 
 export class AltVMSignerFactory
   extends AltVMFactory
-  implements AltVM.ISignerFactory
+  implements AltVM.ISignerFactory<AnyProtocolTransaction>
 {
   private readonly metadataManager: ChainMetadataManager;
-  private readonly chains: ChainMap<AltVM.ISigner>;
+  private readonly chains: ChainMap<AltVM.ISigner<AnyProtocolTransaction>>;
 
   private constructor(
     metadataManager: ChainMetadataManager,
-    chains: ChainMap<AltVM.ISigner>,
+    chains: ChainMap<AltVM.ISigner<AnyProtocolTransaction>>,
   ) {
     super();
 
@@ -99,7 +101,7 @@ export class AltVMSignerFactory
     this.chains = chains;
   }
 
-  public get(chain: string): AltVM.ISigner {
+  public get(chain: string): AltVM.ISigner<AnyProtocolTransaction> {
     const protocol = this.metadataManager.getProtocol(chain);
 
     if (!this.supports(protocol)) {
@@ -158,7 +160,7 @@ export class AltVMSignerFactory
     keyByProtocol: SignerKeyProtocolMap,
     strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   ) {
-    const signers: ChainMap<AltVM.ISigner> = {};
+    const signers: ChainMap<AltVM.ISigner<AnyProtocolTransaction>> = {};
 
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);

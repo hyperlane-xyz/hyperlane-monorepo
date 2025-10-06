@@ -5,6 +5,7 @@ import {
   AltVM,
   ChainId,
   Domain,
+  ProtocolType,
   assert,
   deepEquals,
   intersection,
@@ -17,7 +18,7 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedAltVMTransaction } from '../providers/ProviderType.js';
+import { AnnotatedTypedTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -37,8 +38,8 @@ type IsmModuleAddresses = {
   mailbox: Address;
 };
 
-export class AltVMIsmModule extends HyperlaneModule<
-  any,
+export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
+  PT,
   IsmConfig,
   IsmModuleAddresses
 > {
@@ -56,7 +57,7 @@ export class AltVMIsmModule extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
-    protected readonly signer: AltVM.ISigner,
+    protected readonly signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>,
   ) {
     params.config = IsmConfigSchema.parse(params.config);
     super(params);
@@ -76,7 +77,7 @@ export class AltVMIsmModule extends HyperlaneModule<
   // whoever calls update() needs to ensure that targetConfig has a valid owner
   public async update(
     expectedConfig: IsmConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
     expectedConfig = IsmConfigSchema.parse(expectedConfig);
 
     // Do not support updating to a custom ISM address
@@ -123,7 +124,7 @@ export class AltVMIsmModule extends HyperlaneModule<
       return [];
     }
 
-    let updateTxs: AnnotatedAltVMTransaction[] = [];
+    let updateTxs: AnnotatedTypedTransaction<PT>[] = [];
     if (expectedConfig.type === IsmType.ROUTING) {
       const logger = this.logger.child({
         destination: this.chain,
@@ -142,7 +143,7 @@ export class AltVMIsmModule extends HyperlaneModule<
   }
 
   // manually write static create function
-  public static async create({
+  public static async create<PT extends ProtocolType>({
     chain,
     config,
     addresses,
@@ -155,8 +156,8 @@ export class AltVMIsmModule extends HyperlaneModule<
       mailbox: string;
     };
     multiProvider: MultiProvider;
-    signer: AltVM.ISigner;
-  }): Promise<AltVMIsmModule> {
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>;
+  }): Promise<AltVMIsmModule<PT>> {
     const module = new AltVMIsmModule(
       multiProvider,
       {
@@ -263,8 +264,8 @@ export class AltVMIsmModule extends HyperlaneModule<
     actual: DomainRoutingIsmConfig;
     expected: DomainRoutingIsmConfig;
     logger: Logger;
-  }): Promise<AnnotatedAltVMTransaction[]> {
-    const updateTxs: AnnotatedAltVMTransaction[] = [];
+  }): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTxs: AnnotatedTypedTransaction<PT>[] = [];
 
     const knownChains = new Set(this.metadataManager.getKnownChainNames());
 
@@ -287,14 +288,14 @@ export class AltVMIsmModule extends HyperlaneModule<
       const domainId = this.metadataManager.getDomainId(origin);
       updateTxs.push({
         annotation: `Setting new ISM for origin ${origin}...`,
-        altvm_tx: await this.signer.populateSetRoutingIsmRoute({
+        ...(await this.signer.populateSetRoutingIsmRoute({
           signer: this.signer.getSignerAddress(),
           ismId: this.args.addresses.deployedIsm,
           route: {
             ismId,
             domainId,
           },
-        }),
+        })),
       });
     }
 
@@ -308,11 +309,11 @@ export class AltVMIsmModule extends HyperlaneModule<
       const domainId = this.metadataManager.getDomainId(origin);
       updateTxs.push({
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
-        altvm_tx: await this.signer.populateRemoveRoutingIsmRoute({
+        ...(await this.signer.populateRemoveRoutingIsmRoute({
           signer: this.signer.getSignerAddress(),
           ismId: this.args.addresses.deployedIsm,
           domainId,
-        }),
+        })),
       });
     }
 
@@ -322,11 +323,11 @@ export class AltVMIsmModule extends HyperlaneModule<
         annotation: `Transferring ownership of ISM from ${
           actual.owner
         } to ${expected.owner}`,
-        altvm_tx: await this.signer.populateSetRoutingIsmOwner({
+        ...(await this.signer.populateSetRoutingIsmOwner({
           signer: this.signer.getSignerAddress(),
           ismId: this.args.addresses.deployedIsm,
           newOwner: expected.owner,
-        }),
+        })),
       });
     }
 

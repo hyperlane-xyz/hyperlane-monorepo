@@ -127,6 +127,15 @@ export type ProtocolTypedReceipt<T extends ProtocolType> = ProtocolTyped<
   'receipt'
 >;
 
+export type AnyProtocolTransaction = ProtocolTransaction<ProtocolType>;
+export type ProtocolTransaction<T extends ProtocolType> =
+  ProtocolTypedTransaction<T>['transaction'];
+export type ProtocolReceipt<T extends ProtocolType> =
+  ProtocolTypedReceipt<T>['receipt'];
+export type AnnotatedTypedTransaction<T extends ProtocolType> = Annotated<
+  ProtocolTransaction<T>
+>;
+
 /**
  * Providers with discriminated union of type
  */
@@ -353,7 +362,7 @@ export type AnnotatedZKSyncTransaction =
 
 export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
-export type AnnotatedAltVMTransaction = Annotated<{ altvm_tx: any }>;
+// export type AnnotatedAltVMTransaction = Annotated<{ altvm_tx: any }>;
 
 export type TypedAnnotatedTransaction =
   | AnnotatedEV5Transaction

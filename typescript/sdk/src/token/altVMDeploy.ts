@@ -3,6 +3,7 @@ import { Logger } from 'pino';
 import {
   Address,
   AltVM,
+  ProtocolType,
   assert,
   objFilter,
   objMap,
@@ -10,17 +11,20 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import { ProtocolTransaction } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenType, gasOverhead } from './config.js';
 import { WarpRouteDeployConfigMailboxRequired } from './types.js';
 
-export class AltVMDeployer {
+export class AltVMDeployer<PT extends ProtocolType> {
   protected logger: Logger;
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly signersMap: ChainMap<AltVM.ISigner>,
+    protected readonly signersMap: ChainMap<
+      AltVM.ISigner<ProtocolTransaction<PT>>
+    >,
   ) {
     this.logger = rootLogger.child({ module: 'AltVMDeployer' });
   }

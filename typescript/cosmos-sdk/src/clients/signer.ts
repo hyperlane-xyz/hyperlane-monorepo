@@ -26,9 +26,11 @@ type TxOptions = {
   memo?: string;
 };
 
+type CosmosSigner = AltVM.ISigner<EncodeObject, DeliverTxResponse>;
+
 export class CosmosNativeSigner
   extends CosmosNativeProvider
-  implements AltVM.ISigner<EncodeObject, DeliverTxResponse>
+  implements CosmosSigner
 {
   private readonly signer: SigningStargateClient;
   private readonly account: AccountData;
@@ -38,7 +40,7 @@ export class CosmosNativeSigner
     rpcUrls: string[],
     privateKey: string | OfflineSigner,
     extraParams?: Record<string, any>,
-  ): Promise<AltVM.ISigner<EncodeObject>> {
+  ): Promise<CosmosSigner> {
     assert(rpcUrls.length > 0, `got no rpcUrls`);
     assert(rpcUrls[0], `invalid rpc url: ${rpcUrls[0]}`);
 

@@ -6,6 +6,7 @@ import {
   ChainMetadata,
   CoreConfig,
   IgpConfig,
+  ProtocolTransaction,
   randomCosmosAddress,
 } from '@hyperlane-xyz/sdk';
 import { Address, AltVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -33,7 +34,7 @@ describe('hyperlane core apply e2e tests', async function () {
     CORE_READ_CONFIG_PATH_1,
   );
 
-  let signer: AltVM.ISigner;
+  let signer: AltVM.ISigner<ProtocolTransaction<ProtocolType.CosmosNative>>;
   let initialOwnerAddress: Address;
 
   before(async () => {

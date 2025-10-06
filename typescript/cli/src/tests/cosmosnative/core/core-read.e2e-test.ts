@@ -2,7 +2,12 @@ import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { expect } from 'chai';
 
 import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
-import { ChainMetadata, CoreConfig, IgpConfig } from '@hyperlane-xyz/sdk';
+import {
+  ChainMetadata,
+  CoreConfig,
+  IgpConfig,
+  ProtocolTransaction,
+} from '@hyperlane-xyz/sdk';
 import { Address, AltVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
@@ -28,7 +33,7 @@ describe('hyperlane cosmosnative core read e2e tests', async function () {
     CORE_READ_CONFIG_PATH_1,
   );
 
-  let signer: AltVM.ISigner;
+  let signer: AltVM.ISigner<ProtocolTransaction<ProtocolType.CosmosNative>>;
   let initialOwnerAddress: Address;
 
   before(async () => {
