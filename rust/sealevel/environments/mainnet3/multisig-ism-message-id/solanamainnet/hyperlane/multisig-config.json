@@ -213,6 +213,14 @@
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
+  "carrchain": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x7ed0a7582af75dc38ad82e7125b51e3eaa6ec33b",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
   "celestia": {
     "type": "messageIdMultisigIsm",
     "threshold": 4,

@@ -225,6 +225,8 @@ export const read: CommandModuleWithContext<
     address,
     config: configFilePath,
     symbol,
+    warp,
+    warpRouteId,
   }) => {
     logCommandHeader('Hyperlane Warp Reader');
 
@@ -233,6 +235,8 @@ export const read: CommandModuleWithContext<
       chain,
       address,
       symbol,
+      warpCoreConfigPath: warp,
+      warpRouteId,
     });
 
     if (configFilePath) {

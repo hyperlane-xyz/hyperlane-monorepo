@@ -16,7 +16,12 @@ import {
   TokenStandard,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable } from '../logger.js';
@@ -27,36 +32,38 @@ export async function runWarpRouteRead({
   chain,
   address,
   symbol,
+  warpRouteId,
+  warpCoreConfigPath,
 }: {
   context: CommandContext;
   chain?: ChainName;
   address?: string;
   symbol?: string;
+  warpRouteId?: string;
+  warpCoreConfigPath?: string;
 }): Promise<ChainMap<HypTokenRouterConfig>> {
-  const hasTokenSymbol = Boolean(symbol);
-  const hasChainAddress = Boolean(chain && address);
+  let addresses: ChainMap<Address>;
+  let warpCoreConfig: WarpCoreConfig | undefined;
+  if (symbol || warpCoreConfigPath || warpRouteId) {
+    warpCoreConfig = await getWarpCoreConfigOrExit({
+      context,
+      symbol,
+      warp: warpCoreConfigPath,
+      warpRouteId,
+    });
 
-  if (!hasTokenSymbol && !hasChainAddress) {
-    logRed(
-      'Invalid input parameters. Please provide either a token symbol or both chain name and token address',
+    addresses = Object.fromEntries(
+      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
     );
-    process.exit(1);
+  } else if (chain && address) {
+    addresses = {
+      [chain]: address,
+    };
+  } else {
+    throw new Error(
+      'Invalid input parameters. Please provide either a token symbol, a warp route id or both chain name and token address',
+    );
   }
-
-  const warpCoreConfig = hasTokenSymbol
-    ? await getWarpCoreConfigOrExit({
-        context,
-        symbol,
-      })
-    : undefined;
-
-  const addresses = warpCoreConfig
-    ? Object.fromEntries(
-        warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
-      )
-    : {
-        [chain!]: address!,
-      };
 
   return deriveWarpRouteConfigs(context, addresses, warpCoreConfig);
 }
