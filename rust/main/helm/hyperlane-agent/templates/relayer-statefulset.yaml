@@ -91,7 +91,7 @@ spec:
         env:
           {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.relayer.envConfig) | nindent 10 }}
           - name: CONFIG_FILES
-            value: "/relayer-configmap/relayer-config.json,./config/mainnet_configmap.json"
+            value: "/relayer-configmap/relayer-config.json"
           {{- with .Values.hyperlane.relayer.cacheDefaultExpirationSeconds }}
           - name: HYP_CACHEDEFAULTEXPIRATIONSECONDS
             value: {{ . | quote }}
@@ -112,8 +112,6 @@ spec:
           - name: HYP_MAXSUBMITQUEUELENGTH
             value: {{ . | quote }}
           {{- end }}
-          - name: HYP_CHAINS_RADIX_SUBMITTER
-            value: "lander"
         resources:
           {{- toYaml .Values.hyperlane.relayer.resources | nindent 10 }}
         volumeMounts:
