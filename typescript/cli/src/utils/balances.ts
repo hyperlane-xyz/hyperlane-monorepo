@@ -1,6 +1,5 @@
-import { GasPrice } from '@cosmjs/stargate';
 import { BigNumber } from 'ethers';
-import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
+import { formatUnits } from 'ethers/lib/utils.js';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import {
@@ -69,14 +68,8 @@ export async function nativeBalancesAreSufficient(
         );
         assert(gasPrice, `gasPrice is not defined on chain ${chain}`);
 
-        const gasPriceInNativeDenom = parseUnits(
-          GasPrice.fromString(
-            `${gasPrice.amount}${gasPrice.denom}`,
-          ).amount.toString(),
-          nativeToken.decimals,
-        );
         const MULTI_VM_GAS = altVmSigner.getGas(protocol);
-        requiredMinBalanceNativeDenom = gasPriceInNativeDenom.mul(
+        requiredMinBalanceNativeDenom = BigNumber.from(gasPrice.amount).mul(
           MULTI_VM_GAS[minGas],
         );
         requiredMinBalance = formatUnits(
