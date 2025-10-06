@@ -50,7 +50,7 @@ pub async fn get_tx_hash_status(
                     block_number_result_to_tx_status(provider, receipt.block_number, reorg_period)
                         .await
                 }
-                _ => TransactionStatus::Dropped(TransactionDropReason::DroppedByChain),
+                _ => TransactionStatus::Dropped(TransactionDropReason::RevertedByChain),
             })
         }
         Err(err) => Err(LanderError::TxHashNotFound(err.to_string())),
