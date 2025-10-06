@@ -37,7 +37,7 @@ import {
   getWarpDeployConfigPath,
   getWarpId,
 } from '../../constants.js';
-import { runAnvilNode, runCosmosNode } from '../../nodes.js';
+import { runCosmosNode, runEvmNode } from '../../nodes.js';
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
@@ -89,7 +89,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     await runCosmosNode(
       TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
     );
-    await runAnvilNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2);
+    await runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2);
 
     const cosmosWallet = await DirectSecp256k1Wallet.fromKey(
       Buffer.from(HYP_KEY_BY_PROTOCOL.cosmosnative, 'hex'),

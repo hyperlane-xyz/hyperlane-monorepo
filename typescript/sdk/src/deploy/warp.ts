@@ -84,8 +84,11 @@ export async function executeWarpDeploy(
       ): config is WarpRouteDeployConfigMailboxRequired[string] =>
         !!config.foreignDeployment,
     ),
-    (_chain, config) => {
-      assert(config.foreignDeployment, '');
+    (chain, config) => {
+      assert(
+        config.foreignDeployment,
+        `Expected foreignDeployment field to be defined on ${chain} after filtering`,
+      );
 
       return config.foreignDeployment;
     },
@@ -430,7 +433,7 @@ export async function enrollCrossChainRouters(
         });
 
         const actualConfig = await evmWarpModule.read();
-        const expectedConfig = {
+        const expectedConfig: HypTokenRouterConfig = {
           ...actualConfig,
           owner: resolvedConfigMap[currentChain].owner,
           remoteRouters,
@@ -460,7 +463,7 @@ export async function enrollCrossChainRouters(
           signer,
         );
         const actualConfig = await cosmosNativeWarpModule.read();
-        const expectedConfig = {
+        const expectedConfig: HypTokenRouterConfig = {
           ...actualConfig,
           owner: resolvedConfigMap[currentChain].owner,
           remoteRouters,

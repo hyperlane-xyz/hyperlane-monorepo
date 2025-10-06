@@ -2,7 +2,7 @@ import { GenericContainer, Wait } from 'testcontainers';
 
 import { TestChainMetadata } from './constants.js';
 
-export async function runAnvilNode({ rpcPort, chainId }: TestChainMetadata) {
+export async function runEvmNode({ rpcPort, chainId }: TestChainMetadata) {
   const container = await new GenericContainer(
     'ghcr.io/foundry-rs/foundry:latest',
   )

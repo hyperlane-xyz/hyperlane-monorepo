@@ -33,6 +33,9 @@ export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   },
 } as const satisfies ProtocolMap<Record<string, string>>;
 
+// Used for tests where we need to access the registry addresses but
+// the chain does not support core deployments so we manually fill
+// the registry
 export const UNSUPPORTED_CHAIN_CORE_ADDRESSES: ChainAddresses = {
   interchainGasPaymaster: 'JAvHW21tYXE9dtdG83DReqU2b4LUexFuCbtJT5tF8X6M',
   interchainSecurityModule: 'Da6Lp9syj8hLRiqjZLTLbZEC1NPhPMPd1JJ3HQRN4NyJ',
