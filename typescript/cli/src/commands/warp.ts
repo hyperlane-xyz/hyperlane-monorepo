@@ -225,6 +225,8 @@ export const read: CommandModuleWithContext<
     address,
     config: configFilePath,
     symbol,
+    warp,
+    warpRouteId,
   }) => {
     logCommandHeader('Hyperlane Warp Reader');
 
@@ -233,6 +235,8 @@ export const read: CommandModuleWithContext<
       chain,
       address,
       symbol,
+      warpCoreConfigPath: warp,
+      warpRouteId,
     });
 
     if (configFilePath) {
@@ -386,6 +390,7 @@ export const check: CommandModuleWithContext<SelectWarpRouteBuilder> = {
 
     let expandedWarpDeployConfig = await expandWarpDeployConfig({
       multiProvider: context.multiProvider,
+      multiProtocolProvider: context.multiProtocolProvider,
       warpDeployConfig,
       deployedRoutersAddresses,
       expandedOnChainWarpConfig,

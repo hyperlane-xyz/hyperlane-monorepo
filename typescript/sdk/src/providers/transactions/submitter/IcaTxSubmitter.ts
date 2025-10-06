@@ -4,7 +4,7 @@ import {
   InterchainAccount,
   buildInterchainAccountApp,
 } from '../../../middleware/account/InterchainAccount.js';
-import { ChainMap } from '../../../types.js';
+import { ChainMap, IMultiProtocolSignerManager } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 import {
   AnnotatedEV5Transaction,
@@ -40,6 +40,7 @@ export class EvmIcaTxSubmitter
   static async fromConfig(
     config: EvmIcaTxSubmitterProps,
     multiProvider: MultiProvider,
+    multiProtocolSigner: IMultiProtocolSignerManager,
     coreAddressesByChain: Readonly<ChainMap<Record<string, string>>>,
   ): Promise<EvmIcaTxSubmitter> {
     const interchainAccountRouterAddress: Address | undefined =
@@ -52,6 +53,7 @@ export class EvmIcaTxSubmitter
 
     const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
+      multiProtocolSigner,
       config.internalSubmitter,
       coreAddressesByChain,
     );
@@ -100,17 +102,21 @@ export class EvmIcaTxSubmitter
       );
     }
 
-    const [domainId] = transactionChains.values();
-    if (!domainId) {
+    const [chainId] = transactionChains.values();
+    if (!chainId) {
       throw new Error(
         'Destination domain for ICA transactions should be defined',
       );
     }
 
-    const chainName = this.multiProvider.getChainName(domainId);
-    if (chainName !== this.config.destinationChain) {
+    const { chainId: destinationEvmChainId, domainId: destinationDomainId } =
+      this.multiProvider.getChainMetadata(this.config.destinationChain);
+
+    // On the EVM chains the id and domain id might be different so we match either against the
+    // EVM chain id or the Hyperlane domain id
+    if (chainId !== destinationDomainId && chainId !== destinationEvmChainId) {
       throw new Error(
-        `Destination chain mismatch expected ${this.config.destinationChain} but received ${chainName}`,
+        `Destination chain mismatch. Expected EVM chain id ${destinationEvmChainId} or Hyperlane domain id ${destinationDomainId} but received ${chainId}.`,
       );
     }
 

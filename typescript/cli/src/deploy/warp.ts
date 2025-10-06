@@ -1,5 +1,4 @@
 import { confirm } from '@inquirer/prompts';
-import { groupBy } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -10,11 +9,11 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
-  AnnotatedEV5Transaction,
   CCIPContractCache,
   ChainMap,
   ChainName,
   ContractVerifier,
+  CosmosNativeWarpModule,
   EvmERC20WarpModule,
   ExplorerLicenseType,
   HypERC20Deployer,
@@ -55,6 +54,8 @@ import {
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
+import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
+import { COMPATIBLE_PROTOCOLS } from '../config/protocols.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -157,10 +158,19 @@ export async function runWarpRouteDeploy({
 
   const registryAddresses = await registry.getAddresses();
 
-  await enrollCrossChainRouters(
+  const enrollTxs = await enrollCrossChainRouters(
     { multiProvider, multiProtocolSigner, registryAddresses, warpDeployConfig },
     deployedContracts,
   );
+
+  for (const chain of Object.keys(enrollTxs)) {
+    log(`Enrolling routers for chain ${chain}`);
+    const { submitter } = await getSubmitterByStrategy({
+      chain,
+      context: context,
+    });
+    await submitter.submit(...(enrollTxs[chain] as any[]));
+  }
 
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
     deploymentParams,
@@ -378,22 +388,16 @@ export async function runWarpRouteApply(
       context.registry,
     );
 
-  const { multiProvider } = context;
+  const { multiProtocolSigner } = context;
+  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
+
   // temporarily configure deployer as owner so that warp update after extension
   // can leverage JSON RPC submitter on new chains
   const intermediateOwnerConfig = await promiseObjAll(
-    objMap(params.warpDeployConfig, async (chain, config) => {
-      const protocolType = multiProvider.getProtocol(chain);
-
-      if (protocolType !== ProtocolType.Ethereum) {
-        return config;
-      }
-
-      return {
-        ...config,
-        owner: await multiProvider.getSignerAddress(chain),
-      };
-    }),
+    objMap(params.warpDeployConfig, async (chain, config) => ({
+      ...config,
+      owner: await multiProtocolSigner.getSignerAddress(chain),
+    })),
   );
 
   // Extend the warp route and get the updated configs
@@ -404,16 +408,22 @@ export async function runWarpRouteApply(
   );
 
   // Then create and submit update transactions
-  const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
+  const updateTransactions = await updateExistingWarpRoute(
     params,
     apiKeys,
     warpDeployConfig,
     updatedWarpCoreConfig,
   );
 
-  if (transactions.length == 0)
+  // Check if update transactions are empty
+  const hasAnyTx = Object.values(updateTransactions).some(
+    (txs) => txs.length > 0,
+  );
+
+  if (!hasAnyTx)
     return logGreen(`Warp config is the same as target. No updates needed.`);
-  await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
+
+  await submitWarpApplyTransactions(params, updateTransactions);
 }
 
 /**
@@ -512,38 +522,42 @@ export async function extendWarpRoute(
   const { existingConfigs, initialExtendedConfigs, warpCoreConfigByChain } =
     getWarpRouteExtensionDetails(warpCoreConfig, warpDeployConfig);
 
-  // Remove all the non-EVM chains from the extended configuration to avoid
+  // Remove all the non compatible chains from the extended configuration to avoid
   // having the extension crash
   const filteredExtendedConfigs = objFilter(
     initialExtendedConfigs,
     (chainName, _): _ is (typeof initialExtendedConfigs)[string] =>
-      context.multiProtocolProvider.getProtocol(chainName) ===
-      ProtocolType.Ethereum,
+      COMPATIBLE_PROTOCOLS.includes(
+        context.multiProtocolProvider.getProtocol(chainName),
+      ),
   );
 
   const filteredExistingConfigs = objFilter(
     existingConfigs,
     (chainName, _): _ is (typeof existingConfigs)[string] =>
-      context.multiProtocolProvider.getProtocol(chainName) ===
-      ProtocolType.Ethereum,
+      COMPATIBLE_PROTOCOLS.includes(
+        context.multiProtocolProvider.getProtocol(chainName),
+      ),
   );
 
   const filteredWarpCoreConfigByChain = objFilter(
     warpCoreConfigByChain,
     (chainName, _): _ is (typeof warpCoreConfigByChain)[string] =>
-      context.multiProtocolProvider.getProtocol(chainName) ===
-      ProtocolType.Ethereum,
+      COMPATIBLE_PROTOCOLS.includes(
+        context.multiProtocolProvider.getProtocol(chainName),
+      ),
   );
 
-  // Get the non EVM chains that should not be unenrolled/removed after the extension
+  // Get the non compatible chains that should not be unenrolled/removed after the extension
   // otherwise the update will generate unenroll transactions
-  const nonEvmWarpCoreConfigs: WarpCoreConfig['tokens'] = Object.entries(
+  const nonCompatibleWarpCoreConfigs: WarpCoreConfig['tokens'] = Object.entries(
     warpCoreConfigByChain,
   )
     .filter(
       ([chainName]) =>
-        context.multiProtocolProvider.getProtocol(chainName) !==
-          ProtocolType.Ethereum && !!warpDeployConfig[chainName],
+        !COMPATIBLE_PROTOCOLS.includes(
+          context.multiProtocolProvider.getProtocol(chainName),
+        ) && !!warpDeployConfig[chainName],
     )
     .map(([_, config]) => config);
 
@@ -564,9 +578,9 @@ export async function extendWarpRoute(
       filteredWarpCoreConfigByChain,
     );
 
-  // Re-add the non EVM chains to the warp core config so that expanding the config
+  // Re-add the non compatible chains to the warp core config so that expanding the config
   // to get the proper remote routers and gas config works as expected
-  updatedWarpCoreConfig.tokens.push(...nonEvmWarpCoreConfigs);
+  updatedWarpCoreConfig.tokens.push(...nonCompatibleWarpCoreConfigs);
 
   // Write the updated artifacts
   await writeDeploymentArtifacts(
@@ -586,9 +600,16 @@ async function updateExistingWarpRoute(
   apiKeys: ChainMap<string>,
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,
-) {
+): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, registry } = params.context;
+  const {
+    multiProvider,
+    multiProtocolProvider,
+    multiProtocolSigner,
+    registry,
+  } = params.context;
+  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
+
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
   const ccipContractCache = new CCIPContractCache(registryAddresses);
@@ -598,7 +619,8 @@ async function updateExistingWarpRoute(
     coreBuildArtifact,
     ExplorerLicenseType.MIT,
   );
-  const transactions: AnnotatedEV5Transaction[] = [];
+
+  const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
 
   // Get all deployed router addresses
   const deployedRoutersAddresses =
@@ -606,17 +628,13 @@ async function updateExistingWarpRoute(
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
+    multiProtocolProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
   });
 
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
-      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-        logBlue(`Skipping non-EVM chain ${chain}`);
-        return;
-      }
-
       await retryAsync(async () => {
         const deployedTokenRoute = deployedRoutersAddresses[chain];
         assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
@@ -625,26 +643,55 @@ async function updateExistingWarpRoute(
           mailbox: registryAddresses[chain].mailbox,
         };
 
-        const evmERC20WarpModule = new EvmERC20WarpModule(
-          multiProvider,
-          {
-            config: configWithMailbox,
-            chain,
-            addresses: {
-              deployedTokenRoute,
-              ...extractIsmAndHookFactoryAddresses(registryAddresses[chain]),
-            },
-          },
-          ccipContractCache,
-          contractVerifier,
-        );
-        transactions.push(
-          ...(await evmERC20WarpModule.update(configWithMailbox)),
-        );
+        switch (multiProvider.getProtocol(chain)) {
+          case ProtocolType.Ethereum: {
+            const evmERC20WarpModule = new EvmERC20WarpModule(
+              multiProvider,
+              {
+                config: configWithMailbox,
+                chain,
+                addresses: {
+                  deployedTokenRoute,
+                  ...extractIsmAndHookFactoryAddresses(
+                    registryAddresses[chain],
+                  ),
+                },
+              },
+              ccipContractCache,
+              contractVerifier,
+            );
+            const transactions =
+              await evmERC20WarpModule.update(configWithMailbox);
+            updateTransactions[chain] = transactions;
+            break;
+          }
+          case ProtocolType.CosmosNative: {
+            const signer = multiProtocolSigner.getCosmosNativeSigner(chain);
+            const cosmosNativeWarpModule = new CosmosNativeWarpModule(
+              multiProvider,
+              {
+                config: configWithMailbox,
+                chain,
+                addresses: {
+                  deployedTokenRoute,
+                },
+              },
+              signer,
+            );
+            const transactions =
+              await cosmosNativeWarpModule.update(configWithMailbox);
+            updateTransactions[chain] = transactions;
+            break;
+          }
+          default: {
+            logBlue(`Skipping non-compatible chain ${chain}`);
+            return;
+          }
+        }
       });
     }),
   );
-  return transactions;
+  return updateTransactions;
 }
 
 /**
@@ -847,81 +894,78 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
  */
 async function submitWarpApplyTransactions(
   params: WarpApplyParams,
-  chainTransactions: Record<string, AnnotatedEV5Transaction[]>,
+  updateTransactions: ChainMap<TypedAnnotatedTransaction[]>,
 ): Promise<void> {
-  // Create mapping of chain ID to chain name for all chains in warpDeployConfig
-  const chains = Object.keys(params.warpDeployConfig);
-  const chainIdToName = Object.fromEntries(
-    chains.map((chain) => [
-      params.context.multiProvider.getChainId(chain),
-      chain,
-    ]),
-  );
-
   const { extendedChains } = getWarpRouteExtensionDetails(
     params.warpCoreConfig,
     params.warpDeployConfig,
   );
 
-  await promiseObjAll(
-    objMap(chainTransactions, async (chainId, transactions) => {
-      try {
-        await retryAsync(
-          async () => {
-            const chain = chainIdToName[chainId];
-            const isExtendedChain = extendedChains.includes(chain);
-            const { submitter, config } = await getSubmitterByStrategy({
-              chain,
-              context: params.context,
-              strategyUrl: params.strategyUrl,
-              isExtendedChain,
-            });
-            const transactionReceipts = await submitter.submit(...transactions);
-            if (transactionReceipts) {
-              const receiptPath = `${params.receiptsDir}/${chain}-${
-                submitter.txSubmitterType
-              }-${Date.now()}-receipts.json`;
-              writeYamlOrJson(receiptPath, transactionReceipts);
-              logGreen(
-                `Transactions receipts successfully written to ${receiptPath}`,
-              );
-            }
+  for (const [chain, transactions] of Object.entries(updateTransactions)) {
+    try {
+      const protocol = params.context.multiProvider.getProtocol(chain);
 
-            const canRelay = canSelfRelay(
-              params.selfRelay ?? false,
-              config,
-              transactionReceipts,
+      await retryAsync(
+        async () => {
+          const isExtendedChain = extendedChains.includes(chain);
+          const { submitter, config } = await getSubmitterByStrategy({
+            chain,
+            context: params.context,
+            strategyUrl: params.strategyUrl,
+            isExtendedChain,
+          });
+          const transactionReceipts = await submitter.submit(
+            ...(transactions as any[]),
+          );
+
+          if (protocol !== ProtocolType.Ethereum) {
+            return;
+          }
+
+          if (transactionReceipts) {
+            const receiptPath = `${params.receiptsDir}/${chain}-${
+              submitter.txSubmitterType
+            }-${Date.now()}-receipts.json`;
+            writeYamlOrJson(receiptPath, transactionReceipts);
+            logGreen(
+              `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
             );
+          }
 
-            if (!canRelay.relay) {
-              return;
-            }
+          const canRelay = canSelfRelay(
+            params.selfRelay ?? false,
+            config,
+            transactionReceipts,
+          );
 
-            // if self relaying does not work (possibly because metadata cannot be built yet)
-            // we don't want to rerun the complete code block as this will result in
-            // the update transactions being sent multiple times
-            try {
-              await retryAsync(() =>
-                runSelfRelay({
-                  txReceipt: canRelay.txReceipt,
-                  multiProvider: params.context.multiProvider,
-                  registry: params.context.registry,
-                  successMessage: WarpSendLogs.SUCCESS,
-                }),
-              );
-            } catch (error) {
-              warnYellow(`Error when self-relaying Warp transaction`, error);
-            }
-          },
-          5, // attempts
-          100, // baseRetryMs
-        );
-      } catch (e) {
-        logBlue(`Error in submitWarpApplyTransactions`, e);
-        console.dir(transactions);
-      }
-    }),
-  );
+          if (!canRelay.relay) {
+            return;
+          }
+
+          // if self relaying does not work (possibly because metadata cannot be built yet)
+          // we don't want to rerun the complete code block as this will result in
+          // the update transactions being sent multiple times
+          try {
+            await retryAsync(() =>
+              runSelfRelay({
+                txReceipt: canRelay.txReceipt,
+                multiProvider: params.context.multiProvider,
+                registry: params.context.registry,
+                successMessage: WarpSendLogs.SUCCESS,
+              }),
+            );
+          } catch (error) {
+            warnYellow(`Error when self-relaying Warp transaction`, error);
+          }
+        },
+        5, // attempts
+        100, // baseRetryMs
+      );
+    } catch (e) {
+      logBlue(`Error in submitWarpApplyTransactions`, e);
+      console.dir(transactions);
+    }
+  }
 }
 
 /**
@@ -943,7 +987,8 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   submitter: TxSubmitterBuilder<T>;
   config: ExtendedSubmissionStrategy;
 }> {
-  const { multiProvider, registry } = context;
+  const { multiProvider, multiProtocolSigner, registry } = context;
+  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
 
   const submissionStrategy: ExtendedSubmissionStrategy =
     strategyUrl && !isExtendedChain
@@ -959,10 +1004,13 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     submitter: await getSubmitterBuilder<T>({
       submissionStrategy: submissionStrategy as SubmissionStrategy, // TODO: fix this
       multiProvider,
+      multiProtocolSigner,
       coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories: {
-        file: (_multiProvider: MultiProvider, metadata: any) => {
-          return new EV5FileSubmitter(metadata);
+        [ProtocolType.Ethereum]: {
+          file: (_multiProvider: MultiProvider, metadata: any) => {
+            return new EV5FileSubmitter(metadata);
+          },
         },
       },
     }),

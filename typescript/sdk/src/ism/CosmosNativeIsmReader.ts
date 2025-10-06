@@ -11,6 +11,7 @@ import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
+  IsmConfig,
   IsmType,
   MultisigIsmConfig,
 } from './types.js';
@@ -27,7 +28,9 @@ export class CosmosNativeIsmReader {
       | SigningHyperlaneModuleClient,
   ) {}
 
-  async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
+  async deriveIsmConfigFromAddress(
+    address: Address,
+  ): Promise<DerivedIsmConfig> {
     try {
       const { ism } =
         await this.cosmosProviderOrSigner.query.interchainSecurity.Ism({
@@ -52,6 +55,22 @@ export class CosmosNativeIsmReader {
       this.logger.error(`Failed to derive ISM config for ${address}`, error);
       throw error;
     }
+  }
+
+  async deriveIsmConfig(config: IsmConfig): Promise<DerivedIsmConfig> {
+    if (typeof config === 'string')
+      return this.deriveIsmConfigFromAddress(config);
+
+    // Extend the inner isms
+    switch (config.type) {
+      case IsmType.ROUTING:
+        for (const [chain, ism] of Object.entries(config.domains)) {
+          config.domains[chain] = await this.deriveIsmConfig(ism);
+        }
+        break;
+    }
+
+    return config as DerivedIsmConfig;
   }
 
   private async deriveMerkleRootMultisigConfig(

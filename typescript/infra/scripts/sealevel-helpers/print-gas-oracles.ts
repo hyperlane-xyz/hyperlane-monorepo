@@ -13,7 +13,7 @@ import {
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { getChain, getWarpAddresses } from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withOutputFile } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -79,7 +79,7 @@ async function main() {
 
   if (outFile) {
     console.log(`Writing config to ${outFile}`);
-    writeJsonAtPath(outFile, gasOracles);
+    writeAndFormatJsonAtPath(outFile, gasOracles);
   }
 }
 
@@ -110,6 +110,7 @@ function getChainConnections(
       ['solanamainnet', 'electroneum'],
       ['solanamainnet', 'galactica'],
       ['solanamainnet', 'radix'],
+      ['solanamainnet', 'carrchain'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
