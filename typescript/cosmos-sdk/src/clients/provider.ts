@@ -107,14 +107,12 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     return status.syncInfo.latestBlockHeight;
   }
 
-  async getBalance(req: AltVM.ReqGetBalance): Promise<AltVM.ResGetBalance> {
+  async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
     const coin = await this.query.bank.balance(req.address, req.denom);
     return BigInt(coin.amount);
   }
 
-  async getTotalSupply(
-    req: AltVM.ReqGetTotalSupply,
-  ): Promise<AltVM.ResGetTotalSupply> {
+  async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
     const coin = await this.query.bank.supplyOf(req.denom);
     return BigInt(coin.amount);
   }
@@ -169,7 +167,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async delivered(req: AltVM.ReqDelivered): Promise<AltVM.ResDelivered> {
+  async delivered(req: AltVM.ReqDelivered): Promise<boolean> {
     const { delivered } = await this.query.core.Delivered({
       id: req.mailboxId,
       message_id: req.messageId,
@@ -177,7 +175,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     return delivered;
   }
 
-  async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.ResGetIsmType> {
+  async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
     const { ism } = await this.query.interchainSecurity.Ism({ id: req.ismId });
     assert(ism, `found no ism for id ${req.ismId}`);
 
@@ -253,7 +251,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.ResGetHookType> {
+  async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
     try {
       const { igp } = await this.query.postDispatch.Igp({ id: req.hookId });
 

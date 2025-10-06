@@ -116,14 +116,14 @@ export class AltVMSignerFactory
   }
 
   private static async loadPrivateKey(
-    key: SignerKeyProtocolMap,
+    keyByProtocol: SignerKeyProtocolMap,
     strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
     protocol: ProtocolType,
     chain: string,
   ): Promise<string> {
     // 1. First try to get private key from --key.{protocol} flag
-    if (key[protocol]) {
-      return key[protocol]!;
+    if (keyByProtocol[protocol]) {
+      return keyByProtocol[protocol]!;
     }
 
     // 2. If no key flag was provided we check if a strategy config
@@ -155,7 +155,7 @@ export class AltVMSignerFactory
   public static async createSigners(
     metadataManager: ChainMetadataManager,
     chains: string[],
-    key: SignerKeyProtocolMap,
+    keyByProtocol: SignerKeyProtocolMap,
     strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   ) {
     const signers: ChainMap<AltVM.ISigner> = {};
@@ -176,7 +176,7 @@ export class AltVMSignerFactory
       }
 
       const privateKey = await AltVMSignerFactory.loadPrivateKey(
-        key,
+        keyByProtocol,
         strategyConfig,
         metadata.protocol,
         chain,

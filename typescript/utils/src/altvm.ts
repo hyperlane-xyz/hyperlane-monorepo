@@ -3,10 +3,8 @@ import { ProtocolType } from './types.js';
 
 // ### QUERY BASE ###
 export type ReqGetBalance = { address: string; denom: string };
-export type ResGetBalance = bigint;
 
 export type ReqGetTotalSupply = { denom: string };
-export type ResGetTotalSupply = bigint;
 
 export type ReqEstimateTransactionFee = {
   transaction: any;
@@ -36,7 +34,6 @@ export type ResGetMailbox = {
 };
 
 export type ReqDelivered = { mailboxId: string; messageId: string };
-export type ResDelivered = boolean;
 
 export enum IsmType {
   CUSTOM = 'custom',
@@ -62,7 +59,6 @@ export enum IsmType {
 }
 
 export type ReqGetIsmType = { ismId: string };
-export type ResGetIsmType = IsmType;
 
 export type ReqMessageIdMultisigIsm = { ismId: string };
 export type ResMessageIdMultisigIsm = {
@@ -110,7 +106,6 @@ export enum HookType {
 }
 
 export type ReqGetHookType = { hookId: string };
-export type ResGetHookType = HookType;
 
 export type ReqGetInterchainGasPaymasterHook = { hookId: string };
 export type ResGetInterchainGasPaymasterHook = {
@@ -420,9 +415,9 @@ export interface IProvider<T = any> {
 
   getHeight(): Promise<number>;
 
-  getBalance(req: ReqGetBalance): Promise<ResGetBalance>;
+  getBalance(req: ReqGetBalance): Promise<bigint>;
 
-  getTotalSupply(req: ReqGetTotalSupply): Promise<ResGetTotalSupply>;
+  getTotalSupply(req: ReqGetTotalSupply): Promise<bigint>;
 
   estimateTransactionFee(
     req: ReqEstimateTransactionFee,
@@ -432,9 +427,9 @@ export interface IProvider<T = any> {
 
   getMailbox(req: ReqGetMailbox): Promise<ResGetMailbox>;
 
-  delivered(req: ReqDelivered): Promise<ResDelivered>;
+  delivered(req: ReqDelivered): Promise<boolean>;
 
-  getIsmType(req: ReqGetIsmType): Promise<ResGetIsmType>;
+  getIsmType(req: ReqGetIsmType): Promise<IsmType>;
 
   getMessageIdMultisigIsm(
     req: ReqMessageIdMultisigIsm,
@@ -448,7 +443,7 @@ export interface IProvider<T = any> {
 
   getNoopIsm(req: ReqNoopIsm): Promise<ResNoopIsm>;
 
-  getHookType(req: ReqGetHookType): Promise<ResGetHookType>;
+  getHookType(req: ReqGetHookType): Promise<HookType>;
 
   getInterchainGasPaymasterHook(
     req: ReqGetInterchainGasPaymasterHook,
