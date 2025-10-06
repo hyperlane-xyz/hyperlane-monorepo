@@ -901,7 +901,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c868da2-20251003-124948',
+      tag: 'f81913d-20251006-144136',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -924,7 +924,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '093e0be-20250904-212216',
+      tag: 'f81913d-20251006-144136',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
