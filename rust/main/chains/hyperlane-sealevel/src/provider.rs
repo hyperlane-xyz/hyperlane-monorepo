@@ -6,6 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::rpc_client::SerializableTransaction;
 use solana_client::rpc_response::Response;
+use solana_sdk::account::Account;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::instruction::{AccountMeta, Instruction};
@@ -98,6 +99,9 @@ pub trait SealevelProviderForLander: Send + Sync {
         signature: Signature,
         commitment: CommitmentConfig,
     ) -> ChainResult<bool>;
+
+    /// Request account with finalised commitment level
+    async fn get_account(&self, account: Pubkey) -> ChainResult<Option<Account>>;
 }
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
@@ -313,6 +317,14 @@ impl SealevelProviderForLander for SealevelProvider {
         self.rpc_client()
             .confirm_transaction_with_commitment(signature, commitment)
             .await
+    }
+
+    async fn get_account(&self, account: Pubkey) -> ChainResult<Option<Account>> {
+        let account = self
+            .rpc_client()
+            .get_account_option_with_finalized_commitment(account)
+            .await?;
+        Ok(account)
     }
 }
 

@@ -35,6 +35,8 @@ use hyperlane_sealevel::{
     PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForLander, SealevelTxCostEstimate,
 };
 
+use crate::adapter::chains::sealevel::payload::processed_account;
+use crate::adapter::EthereumTxPrecursor;
 use crate::{
     adapter::{
         chains::sealevel::{
@@ -431,6 +433,27 @@ impl AdaptsChain for SealevelAdapter {
             return seconds_since_last_submission >= time_before_resubmission.as_millis() as u64;
         }
         true
+    }
+
+    async fn reverted_payloads(
+        &self,
+        tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, LanderError> {
+        let processed_accounts = tx
+            .payload_details
+            .iter()
+            .filter_map(|d| processed_account(d).map(|a| (d, a)))
+            .collect::<Vec<_>>();
+
+        let mut reverted = Vec::new();
+        for (detail, processed_account) in processed_accounts {
+            let account = self.provider.get_account(processed_account).await?;
+            if account.is_none() {
+                reverted.push(detail.clone());
+            }
+        }
+
+        Ok(reverted)
     }
 
     fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics) {}
