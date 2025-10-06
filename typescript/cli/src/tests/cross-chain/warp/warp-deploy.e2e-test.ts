@@ -6,18 +6,13 @@ import { Wallet } from 'ethers';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
-  ChainName,
   DerivedWarpRouteDeployConfig,
   TokenType,
+  WarpCoreConfig,
   WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
-  addressToBytes32,
-  isObjEmpty,
-} from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -31,6 +26,7 @@ import {
   REGISTRY_PATH,
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
+  TEST_TOKEN_SYMBOL,
   UNSUPPORTED_CHAIN_CORE_ADDRESSES,
   WARP_READ_OUTPUT_PATH,
   getWarpCoreConfigPath,
@@ -38,6 +34,7 @@ import {
   getWarpId,
 } from '../../constants.js';
 import { runCosmosNode, runEvmNode } from '../../nodes.js';
+import { assertWarpRouteConfig } from '../../utils.js';
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
@@ -66,14 +63,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
     CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
   );
 
-  const TOKEN_SYMBOL = 'TST';
-  const WARP_CORE_PATH = getWarpCoreConfigPath(TOKEN_SYMBOL, [
+  const WARP_CORE_PATH = getWarpCoreConfigPath(TEST_TOKEN_SYMBOL, [
     TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
   ]);
-  const WARP_DEPLOY_PATH = getWarpDeployConfigPath(TOKEN_SYMBOL, [
+  const WARP_DEPLOY_PATH = getWarpDeployConfigPath(TEST_TOKEN_SYMBOL, [
     TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
   ]);
-  const WARP_ROUTE_ID = getWarpId(TOKEN_SYMBOL, [
+  const WARP_ROUTE_ID = getWarpId(TEST_TOKEN_SYMBOL, [
     TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
   ]);
 
@@ -129,44 +125,22 @@ describe('hyperlane warp deploy e2e tests', async function () {
         token: 'uhyp',
         mailbox: cosmosNativeChain1CoreAddress.mailbox,
         owner: cosmosNativeDeployerAddress,
-        name: TOKEN_SYMBOL,
-        symbol: TOKEN_SYMBOL,
+        name: TEST_TOKEN_SYMBOL,
+        symbol: TEST_TOKEN_SYMBOL,
         decimals: 6,
       },
       [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
         type: TokenType.synthetic,
         mailbox: evmChain1CoreCoreAddress.mailbox,
         owner: evmDeployerAddress,
-        name: TOKEN_SYMBOL,
-        symbol: TOKEN_SYMBOL,
+        name: TEST_TOKEN_SYMBOL,
+        symbol: TEST_TOKEN_SYMBOL,
         decimals: 6,
       },
     };
 
     writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
   });
-
-  function assertWarpRouteConfig(
-    warpDeployConfig: Readonly<WarpRouteDeployConfig>,
-    derivedWarpDeployConfig: Readonly<WarpRouteDeployConfig>,
-    coreAddressByChain: ChainMap<ChainAddresses>,
-    chainName: ChainName,
-  ): void {
-    expect(derivedWarpDeployConfig[chainName].type).to.equal(
-      warpDeployConfig[chainName].type,
-    );
-    expect(derivedWarpDeployConfig[chainName].owner).to.equal(
-      warpDeployConfig[chainName].owner,
-    );
-
-    expect(warpDeployConfig[chainName].mailbox).to.equal(
-      coreAddressByChain[chainName].mailbox,
-    );
-    expect(isObjEmpty(derivedWarpDeployConfig[chainName].destinationGas ?? {}))
-      .to.be.false;
-    expect(isObjEmpty(derivedWarpDeployConfig[chainName].remoteRouters ?? {}))
-      .to.be.false;
-  }
 
   it('should successfully deploy on multiple supported chains of different protocol types', async () => {
     const output = await hyperlaneWarp
@@ -257,5 +231,16 @@ describe('hyperlane warp deploy e2e tests', async function () {
         ].address,
       ).to.eql(addressToBytes32(unsupportedChainAddress));
     }
+
+    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(WARP_CORE_PATH);
+    const unsuportedChainData = warpCoreConfig.tokens.find(
+      (tokenConfig) =>
+        tokenConfig.chainName ===
+        TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name,
+    );
+    expect(
+      unsuportedChainData,
+      `Expected warp core config for chain ${TEST_CHAIN_METADATA_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN.name} to be defined in the deployment output file`,
+    ).not.to.be.undefined;
   });
 });

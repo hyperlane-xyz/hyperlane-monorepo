@@ -194,3 +194,5 @@ export function getWarpId(tokenSymbol: string, chains: string[]): string {
     chains.sort().join('-'),
   );
 }
+
+export const TEST_TOKEN_SYMBOL = 'TST';
