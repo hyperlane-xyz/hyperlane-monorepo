@@ -114,6 +114,8 @@ export enum WarpRouteIds {
 
   SolaxyUSDC = 'USDC/solaxy',
 
+  MantraUSDC = 'USDC/mantra',
+
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
 

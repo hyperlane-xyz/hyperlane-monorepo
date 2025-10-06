@@ -64,6 +64,7 @@ import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getLumiaUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getLumiaUSDCWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
+import { getMantraUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getMantraUSDCWarpConfig.js';
 import {
   getMatchainUSDCStrategyConfig,
   getMatchainUSDCWarpConfig,
@@ -175,6 +176,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumBaseEthereumRadixUSDCWarpConfig,
   [WarpRouteIds.PulsechainUSDC]: getPulsechainUSDCWarpConfig,
   [WarpRouteIds.ElectroneumUSDC]: getElectroneumUSDCWarpConfig,
+  [WarpRouteIds.MantraUSDC]: getMantraUSDCWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
