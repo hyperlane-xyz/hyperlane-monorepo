@@ -416,7 +416,7 @@ export interface IProvider<T = any> {
 
   isHealthy(): Promise<boolean>;
 
-  getRpcUrl(): string;
+  getRpcUrls(): string[];
 
   getHeight(): Promise<number>;
 
@@ -635,12 +635,12 @@ export interface ISigner<T = any, R extends ResSignAndBroadcast = any>
 }
 
 export interface IProviderConnect {
-  connect(_rpc: string): Promise<IProvider>;
+  connect(_rpcs: string[]): Promise<IProvider>;
 }
 
 export interface ISignerConnect {
   connectWithSigner(
-    _rpc: string,
+    _rpcs: string[],
     _privateKey: string,
     _extraParams: Record<string, any>,
   ): Promise<ISigner>;

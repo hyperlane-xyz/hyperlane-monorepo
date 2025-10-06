@@ -38,7 +38,7 @@ export async function deployCollateralToken(
   const gasPriceString = `${metadata.gasPrice.amount}${metadata.gasPrice.denom}`;
 
   const signer = await CosmosNativeSigner.connectWithSigner(
-    metadata.rpcUrls[0].http,
+    metadata.rpcUrls.map((rpc) => rpc.http),
     wallet,
     {
       gasPrice: gasPriceString,
@@ -71,7 +71,7 @@ export async function deploySyntheticToken(
   );
 
   const signer = await CosmosNativeSigner.connectWithSigner(
-    metadata.rpcUrls[0].http,
+    metadata.rpcUrls.map((rpc) => rpc.http),
     wallet,
     {
       gasPrice: `${metadata.gasPrice?.amount}${metadata.gasPrice?.denom}`,

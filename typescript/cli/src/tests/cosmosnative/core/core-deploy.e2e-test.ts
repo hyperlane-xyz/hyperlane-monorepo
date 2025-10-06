@@ -56,7 +56,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
     );
 
     signer = await CosmosNativeSigner.connectWithSigner(
-      chainMetadata.rpcUrls[0].http,
+      chainMetadata.rpcUrls.map((rpc) => rpc.http),
       wallet,
       {
         gasPrice: `${chainMetadata.gasPrice.amount}${chainMetadata.gasPrice.denom}`,

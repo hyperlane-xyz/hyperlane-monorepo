@@ -71,7 +71,7 @@ export class AltVMProviderFactory implements AltVM.IProviderFactory {
     }
 
     const { provider } = ALT_VM_SUPPORTED_PROTOCOLS[metadata.protocol]!;
-    return provider.connect(metadata.rpcUrls[0].http);
+    return provider.connect(metadata.rpcUrls.map((rpc) => rpc.http));
   }
 }
 
@@ -188,7 +188,7 @@ export class AltVMSignerFactory implements AltVM.ISignerFactory {
       );
 
       signers[chain] = await protocol.signer.connectWithSigner(
-        metadata.rpcUrls[0].http,
+        metadata.rpcUrls.map((rpc) => rpc.http),
         privateKey,
         {
           bech32Prefix: metadata.bech32Prefix,

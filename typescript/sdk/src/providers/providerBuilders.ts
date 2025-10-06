@@ -124,7 +124,7 @@ export function defaultCosmJsNativeProviderBuilder(
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
   return {
     type: ProviderType.CosmJsNative,
-    provider: CosmosNativeProvider.connect(rpcUrls[0].http),
+    provider: CosmosNativeProvider.connect(rpcUrls.map((rpc) => rpc.http)),
   };
 }
 

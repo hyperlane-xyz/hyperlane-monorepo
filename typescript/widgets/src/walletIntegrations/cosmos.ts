@@ -189,7 +189,7 @@ export function useCosmosTransactionFns(
       } else if (tx.type === ProviderType.CosmJsNative) {
         const signer = getOfflineSigner();
         const client = await CosmosNativeSigner.connectWithSigner(
-          chain.apis!.rpc![0].address,
+          chain.apis?.rpc?.map((rpc) => rpc.address) ?? [],
           signer,
           {
             // set zero gas price here so it does not error. actual gas price

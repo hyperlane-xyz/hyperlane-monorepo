@@ -61,14 +61,16 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     PostDispatchExtension;
   private readonly registry: Registry;
   private readonly cometClient: CometClient;
-  private readonly rpcUrl: string;
+  private readonly rpcUrls: string[];
 
-  static async connect(rpcUrl: string): Promise<CosmosNativeProvider> {
-    const client = await connectComet(rpcUrl);
-    return new CosmosNativeProvider(client, rpcUrl);
+  static async connect(rpcUrls: string[]): Promise<CosmosNativeProvider> {
+    assert(rpcUrls.length > 0, `got no rpcUrls`);
+
+    const client = await connectComet(rpcUrls[0]);
+    return new CosmosNativeProvider(client, rpcUrls);
   }
 
-  protected constructor(cometClient: CometClient, rpcUrl: string) {
+  protected constructor(cometClient: CometClient, rpcUrls: string[]) {
     this.query = QueryClient.withExtensions(
       cometClient,
       setupBankExtension,
@@ -86,7 +88,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     });
 
     this.cometClient = cometClient;
-    this.rpcUrl = rpcUrl;
+    this.rpcUrls = rpcUrls;
   }
 
   // ### QUERY BASE ###
@@ -96,8 +98,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     return status.syncInfo.latestBlockHeight > 0;
   }
 
-  getRpcUrl(): string {
-    return this.rpcUrl;
+  getRpcUrls(): string[] {
+    return this.rpcUrls;
   }
 
   async getHeight() {
@@ -124,7 +126,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       req.senderPubKey,
       `Cosmos Native requires a sender public key to estimate the transaction fee`,
     );
-    const stargateClient = await StargateClient.connect(this.rpcUrl);
+    const stargateClient = await StargateClient.connect(this.rpcUrls[0]);
 
     const message = this.registry.encodeAsAny(req.transaction);
     const pubKey = encodeSecp256k1Pubkey(

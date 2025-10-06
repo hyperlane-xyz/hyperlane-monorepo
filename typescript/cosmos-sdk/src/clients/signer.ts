@@ -35,10 +35,12 @@ export class CosmosNativeSigner
   private readonly options: TxOptions;
 
   static async connectWithSigner(
-    rpcUrl: string,
+    rpcUrls: string[],
     privateKey: string | OfflineSigner,
     extraParams?: Record<string, any>,
   ): Promise<AltVM.ISigner<EncodeObject>> {
+    assert(rpcUrls.length > 0, `got no rpcUrls`);
+
     assert(extraParams, `extra params not defined`);
     assert(extraParams.gasPrice, `gasPrice not defined in extra params`);
 
@@ -84,7 +86,7 @@ export class CosmosNativeSigner
       );
 
     const signer = await SigningStargateClient.connectWithSigner(
-      rpcUrl,
+      rpcUrls[0],
       wallet,
       {
         aminoTypes: new AminoTypes({
@@ -99,10 +101,10 @@ export class CosmosNativeSigner
       signer.registry.register(proto.type, proto.converter);
     });
 
-    const cometClient = await connectComet(rpcUrl);
+    const cometClient = await connectComet(rpcUrls[0]);
     const account = await wallet.getAccounts();
 
-    return new CosmosNativeSigner(cometClient, signer, account[0], rpcUrl, {
+    return new CosmosNativeSigner(cometClient, signer, account[0], rpcUrls, {
       fee: 2,
       memo: '',
     });
@@ -112,10 +114,10 @@ export class CosmosNativeSigner
     cometClient: CometClient,
     signer: SigningStargateClient,
     account: AccountData,
-    rpcUrl: string,
+    rpcUrls: string[],
     options: TxOptions,
   ) {
-    super(cometClient, rpcUrl);
+    super(cometClient, rpcUrls);
     this.signer = signer;
     this.account = account;
     this.options = options;
