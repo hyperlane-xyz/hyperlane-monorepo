@@ -1,17 +1,18 @@
+use mockall::predicate::eq;
 use solana_sdk::{account::Account, pubkey::Pubkey};
+use uuid::Uuid;
 
 use hyperlane_core::identifiers::UniqueIdentifier;
-use uuid::Uuid;
 
 use crate::{
     adapter::chains::sealevel::SealevelTxPrecursor,
     adapter::{chains::sealevel::payload::processed_account, AdaptsChain},
     payload::PayloadDetails,
     transaction::{Transaction, TransactionStatus, VmSpecificTxData},
+    TransactionDropReason,
 };
 
 use super::tests_common::{adapter_with_mock_svm_provider, estimate, instruction, MockSvmProvider};
-use mockall::predicate::eq;
 
 fn create_test_pubkey() -> Pubkey {
     Pubkey::new_unique()
@@ -33,6 +34,16 @@ fn create_payload_details_with_success_criteria(
 }
 
 fn create_transaction_with_payload_details(payload_details: Vec<PayloadDetails>) -> Transaction {
+    create_transaction_with_payload_details_and_status(
+        payload_details,
+        TransactionStatus::Finalized,
+    )
+}
+
+fn create_transaction_with_payload_details_and_status(
+    payload_details: Vec<PayloadDetails>,
+    status: TransactionStatus,
+) -> Transaction {
     Transaction {
         uuid: UniqueIdentifier::new(Uuid::new_v4()),
         tx_hashes: vec![],
@@ -41,7 +52,7 @@ fn create_transaction_with_payload_details(payload_details: Vec<PayloadDetails>)
             estimate(),
         )),
         payload_details,
-        status: TransactionStatus::Finalized,
+        status,
         submission_attempts: 1,
         creation_timestamp: chrono::Utc::now(),
         last_submission_attempt: None,
@@ -347,6 +358,119 @@ async fn test_reverted_payloads_all_successful() {
     let result = adapter.reverted_payloads(&transaction).await;
 
     // then: should return empty vec (all successful)
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_empty());
+}
+
+// Tests for the new finalization check logic
+#[tokio::test]
+async fn test_reverted_payloads_non_finalized_transaction_returns_empty() {
+    // given: transaction with valid success criteria but status is not Finalized
+    let mock_provider = create_basic_mock_provider();
+    let adapter = adapter_with_mock_svm_provider(mock_provider);
+
+    let test_pubkey = create_test_pubkey();
+    let pubkey_bytes = serde_json::to_vec(&test_pubkey).unwrap();
+    let payload_details = vec![create_payload_details_with_success_criteria(Some(
+        pubkey_bytes,
+    ))];
+
+    // Test different non-finalized statuses
+    let non_finalized_statuses = vec![
+        TransactionStatus::Included,
+        TransactionStatus::PendingInclusion,
+        TransactionStatus::Mempool,
+        TransactionStatus::Dropped(TransactionDropReason::DroppedByChain),
+    ];
+
+    for status in non_finalized_statuses {
+        let transaction = create_transaction_with_payload_details_and_status(
+            payload_details.clone(),
+            status.clone(),
+        );
+
+        // when
+        let result = adapter.reverted_payloads(&transaction).await;
+
+        // then: should return empty vec regardless of account existence
+        assert!(result.is_ok(), "Failed for status: {:?}", status);
+        assert!(
+            result.unwrap().is_empty(),
+            "Non-empty result for status: {:?}",
+            status
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_reverted_payloads_finalized_transaction_checks_accounts() {
+    // given: finalized transaction with valid success criteria and missing account
+    let mut mock_provider = MockSvmProvider::new();
+    let test_pubkey = create_test_pubkey();
+    let pubkey_bytes = serde_json::to_vec(&test_pubkey).unwrap();
+
+    let payload_details = vec![create_payload_details_with_success_criteria(Some(
+        pubkey_bytes,
+    ))];
+    let transaction = create_transaction_with_payload_details_and_status(
+        payload_details.clone(),
+        TransactionStatus::Finalized,
+    );
+
+    // Mock provider to return None (account doesn't exist = reverted)
+    mock_provider
+        .expect_get_account()
+        .with(eq(test_pubkey))
+        .times(1)
+        .returning(|_| Ok(None));
+
+    let adapter = adapter_with_mock_svm_provider(mock_provider);
+
+    // when
+    let result = adapter.reverted_payloads(&transaction).await;
+
+    // then: should check accounts and return reverted payloads
+    assert!(result.is_ok());
+    let reverted = result.unwrap();
+    assert_eq!(reverted.len(), 1);
+    assert_eq!(reverted[0], payload_details[0]);
+}
+
+#[tokio::test]
+async fn test_reverted_payloads_finalized_transaction_with_existing_accounts() {
+    // given: finalized transaction with valid success criteria and existing account
+    let mut mock_provider = MockSvmProvider::new();
+    let test_pubkey = create_test_pubkey();
+    let pubkey_bytes = serde_json::to_vec(&test_pubkey).unwrap();
+
+    let payload_details = vec![create_payload_details_with_success_criteria(Some(
+        pubkey_bytes,
+    ))];
+    let transaction = create_transaction_with_payload_details_and_status(
+        payload_details,
+        TransactionStatus::Finalized,
+    );
+
+    // Mock provider to return an existing account (not reverted)
+    let test_account = Account {
+        lamports: 100,
+        data: vec![1, 2, 3],
+        owner: Pubkey::new_unique(),
+        executable: false,
+        rent_epoch: 0,
+    };
+    mock_provider
+        .expect_get_account()
+        .with(eq(test_pubkey))
+        .times(1)
+        .returning(move |_| Ok(Some(test_account.clone())));
+
+    let adapter = adapter_with_mock_svm_provider(mock_provider);
+
+    // when
+    let result = adapter.reverted_payloads(&transaction).await;
+
+    // then: should check accounts and return empty (no reverted payloads)
     assert!(result.is_ok());
     assert!(result.unwrap().is_empty());
 }

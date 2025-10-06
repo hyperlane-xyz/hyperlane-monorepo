@@ -439,6 +439,12 @@ impl AdaptsChain for SealevelAdapter {
         &self,
         tx: &Transaction,
     ) -> Result<Vec<PayloadDetails>, LanderError> {
+        if tx.status != TransactionStatus::Finalized {
+            // if transaction is not finalized, we cannot know if any payloads were reverted
+            // since the processed account should not exist on the chain yet
+            return Ok(Vec::new());
+        }
+
         let processed_accounts = tx
             .payload_details
             .iter()
@@ -451,6 +457,10 @@ impl AdaptsChain for SealevelAdapter {
             if account.is_none() {
                 reverted.push(detail.clone());
             }
+        }
+
+        if !reverted.is_empty() {
+            warn!(?tx, ?reverted, "reverted payloads");
         }
 
         Ok(reverted)
