@@ -33,6 +33,11 @@ export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   },
 } as const satisfies ProtocolMap<Record<string, string>>;
 
+type TestProtocolType = keyof typeof TEST_CHAIN_NAMES_BY_PROTOCOL;
+type TestChainName = {
+  [K in TestProtocolType]: (typeof TEST_CHAIN_NAMES_BY_PROTOCOL)[K][keyof (typeof TEST_CHAIN_NAMES_BY_PROTOCOL)[K]];
+}[TestProtocolType];
+
 // Used for tests where we need to access the registry addresses but
 // the chain does not support core deployments so we manually fill
 // the registry
@@ -65,20 +70,12 @@ type ProtocolChainMap<
   };
 };
 
-type CoreDeploymentPath<T extends string> =
-  `${typeof TEMP_PATH}/${T}/core-config-read.yaml`;
-type CoreReadPathByProtocolAndChain<
-  T extends ProtocolMap<{ [key: string]: string }>,
-> = {
-  [TProtocol in keyof T]: {
-    [TChainName in keyof T[TProtocol]]: CoreDeploymentPath<
-      T[TProtocol][TChainName] & string
-    >;
-  };
-};
+type CoreDeploymentPath<TChainName extends string> =
+  `${typeof TEMP_PATH}/${TChainName}/core-config-read.yaml`;
 
-export const CORE_READ_CONFIG_PATH_BY_PROTOCOL: CoreReadPathByProtocolAndChain<
-  typeof TEST_CHAIN_NAMES_BY_PROTOCOL
+export const CORE_READ_CONFIG_PATH_BY_PROTOCOL: ProtocolChainMap<
+  typeof TEST_CHAIN_NAMES_BY_PROTOCOL,
+  CoreDeploymentPath<TestChainName>
 > = Object.fromEntries(
   Object.entries(TEST_CHAIN_NAMES_BY_PROTOCOL).map(([protocol, chainNames]) => [
     protocol,
@@ -91,20 +88,12 @@ export const CORE_READ_CONFIG_PATH_BY_PROTOCOL: CoreReadPathByProtocolAndChain<
   ]),
 ) as any;
 
-type CoreAddressesPath<T extends string> =
-  `${typeof REGISTRY_PATH}/chains/${T}/addresses.yaml`;
-type CoreAddressesPathByProtocolAndChain<
-  T extends ProtocolMap<{ [key: string]: string }>,
-> = {
-  [TProtocol in keyof T]: {
-    [TChainName in keyof T[TProtocol]]: CoreAddressesPath<
-      T[TProtocol][TChainName] & string
-    >;
-  };
-};
+type CoreAddressesPath<TChainName extends string> =
+  `${typeof REGISTRY_PATH}/chains/${TChainName}/addresses.yaml`;
 
-export const CORE_ADDRESSES_PATH_BY_PROTOCOL: CoreAddressesPathByProtocolAndChain<
-  typeof TEST_CHAIN_NAMES_BY_PROTOCOL
+export const CORE_ADDRESSES_PATH_BY_PROTOCOL: ProtocolChainMap<
+  typeof TEST_CHAIN_NAMES_BY_PROTOCOL,
+  CoreAddressesPath<TestChainName>
 > = Object.fromEntries(
   Object.entries(TEST_CHAIN_NAMES_BY_PROTOCOL).map(([protocol, chainNames]) => [
     protocol,
@@ -117,20 +106,12 @@ export const CORE_ADDRESSES_PATH_BY_PROTOCOL: CoreAddressesPathByProtocolAndChai
   ]),
 ) as any;
 
-type TestChainMetadataPath<T extends string> =
-  `${typeof REGISTRY_PATH}/chains/${T}/metadata.yaml`;
-type TestChainMetadataPathByProtocolAndChain<
-  T extends ProtocolMap<{ [key: string]: string }>,
-> = {
-  [TProtocol in keyof T]: {
-    [TChainName in keyof T[TProtocol]]: TestChainMetadataPath<
-      T[TProtocol][TChainName] & string
-    >;
-  };
-};
+type TestChainMetadataPath<TChainName extends string> =
+  `${typeof REGISTRY_PATH}/chains/${TChainName}/metadata.yaml`;
 
-export const TEST_CHAIN_METADATA_PATH_BY_PROTOCOL: TestChainMetadataPathByProtocolAndChain<
-  typeof TEST_CHAIN_NAMES_BY_PROTOCOL
+export const TEST_CHAIN_METADATA_PATH_BY_PROTOCOL: ProtocolChainMap<
+  typeof TEST_CHAIN_NAMES_BY_PROTOCOL,
+  TestChainMetadataPath<TestChainName>
 > = objMap(TEST_CHAIN_NAMES_BY_PROTOCOL, (_protocol, chainNames) => {
   return objMap(
     chainNames,
