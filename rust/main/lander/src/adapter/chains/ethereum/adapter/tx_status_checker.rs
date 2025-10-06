@@ -93,6 +93,8 @@ mod tests {
         }
     }
 
+    /// When the transaction was sent to network, but failed
+    /// during execution.
     #[tokio::test]
     async fn test_get_tx_hash_status_failed_tx() {
         let transaction_hash =
@@ -116,7 +118,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             tx_status,
-            TransactionStatus::Dropped(TransactionDropReason::DroppedByChain)
+            TransactionStatus::Dropped(TransactionDropReason::RevertedByChain)
         );
     }
 
