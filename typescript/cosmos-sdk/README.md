@@ -21,7 +21,7 @@ import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 
 // using hyperlane queries without needing signers
 const client = await CosmosNativeProvider.connect(
-  "https://rpc-endpoint:26657"
+  ["https://rpc-endpoint:26657"]
 );
 
 const mailbox = await client.getMailbox('mailbox-id');
@@ -32,7 +32,7 @@ const bridgedSupply = await client.getBridgedSupply({ id: "token-id" });
 const wallet = await DirectSecp256k1Wallet.fromKey(PRIV_KEY);
 
 const signer = await CosmosNativeSigner.connectWithSigner(
-  "https://rpc-endpoint:26657",
+  ["https://rpc-endpoint:26657"],
   wallet,
   {
     metadata: {
@@ -43,14 +43,14 @@ const signer = await CosmosNativeSigner.connectWithSigner(
 
 const { mailbox_id } = await signer.createMailbox({
   owner: '...',
-  local_domain: '...',
-  default_ism: '...',
+  localDomain: '...',
+  defaultIsm: '...',
 });
 
 await signer.remoteTransfer({
   sender: '...',
-  token_id: '...',
-  destination_domain_id: '...',
+  tokenId: '...',
+  destinationDomainId: '...',
   recipient: '...',
   amount: '...',
   ...
