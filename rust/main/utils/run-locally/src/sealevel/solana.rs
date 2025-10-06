@@ -337,19 +337,6 @@ pub fn start_solana_test_validator(
         .run()
         .join();
 
-    sealevel_client
-        .clone()
-        .cmd("validator-announce")
-        .cmd("announce")
-        .arg("validator", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
-        .arg(
-            "storage-location",
-            format!("file://{SOLANA_CHECKPOINT_LOCATION}")
-        )
-        .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b")
-        .run()
-        .join();
-
     // So we can test paying for gas with a different IGP account
     const ALTERNATIVE_SALT: &str =
         "0x0000000000000000000000000000000000000000000000000000000000000001";
