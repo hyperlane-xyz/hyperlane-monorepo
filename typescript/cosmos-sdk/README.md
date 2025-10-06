@@ -24,7 +24,7 @@ const client = await CosmosNativeProvider.connect(
   "https://rpc-endpoint:26657"
 );
 
-const mailboxes = await client.getMailbox('mailbox-id');
+const mailbox = await client.getMailbox('mailbox-id');
 const bridgedSupply = await client.getBridgedSupply({ id: "token-id" });
 ...
 

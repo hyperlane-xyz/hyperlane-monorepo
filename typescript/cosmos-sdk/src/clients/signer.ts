@@ -40,12 +40,13 @@ export class CosmosNativeSigner
     extraParams?: Record<string, any>,
   ): Promise<AltVM.ISigner<EncodeObject>> {
     assert(rpcUrls.length > 0, `got no rpcUrls`);
+    assert(rpcUrls[0], `invalid rpc url: ${rpcUrls[0]}`);
 
     assert(extraParams, `extra params not defined`);
     assert(extraParams.metadata, `metadata not defined in extra params`);
     assert(
       extraParams.metadata.gasPrice,
-      `metadata not defined in metadata extra params`,
+      `gasPrice not defined in metadata extra params`,
     );
 
     let wallet: OfflineSigner;

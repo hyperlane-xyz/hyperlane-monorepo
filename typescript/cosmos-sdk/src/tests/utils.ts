@@ -19,7 +19,7 @@ export const createSigner = async (account: 'alice' | 'bob' | 'charlie') => {
   );
 
   return CosmosNativeSigner.connectWithSigner(
-    'http://127.0.0.1:26657',
+    ['http://127.0.0.1:26657'],
     wallet,
     {
       metadata: {
