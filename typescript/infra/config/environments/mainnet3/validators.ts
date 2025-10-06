@@ -1547,16 +1547,6 @@ export const validatorChainConfig = (
         'zerogravity',
       ),
     },
-    sova: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('sova'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x1763d686c45df79f6d5f63564255546b08cb206c'],
-        },
-        'sova',
-      ),
-    },
     mantra: {
       interval: 5,
       reorgPeriod: getReorgPeriod('mantra'),

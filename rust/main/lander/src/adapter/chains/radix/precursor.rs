@@ -17,7 +17,7 @@ use crate::{
     LanderError,
 };
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub struct RadixTxPrecursor {
     /// Address of contract to interact with
     pub component_address: String,
@@ -31,6 +31,41 @@ pub struct RadixTxPrecursor {
     pub fee_summary: Option<FeeSummary>,
     /// tx hash
     pub tx_hash: Option<H512>,
+}
+
+impl std::fmt::Debug for RadixTxPrecursor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        #[allow(dead_code)]
+        #[derive(Debug)]
+        struct RadixTxPrecursorDebug<'a> {
+            component_address: &'a str,
+            method_name: &'a str,
+            encoded_arguments_len: usize,
+            visible_components: &'a Option<VisibleComponents>,
+            fee_summary: &'a Option<FeeSummary>,
+            tx_hash: &'a Option<H512>,
+        }
+
+        let Self {
+            component_address,
+            method_name,
+            encoded_arguments,
+            visible_components,
+            fee_summary,
+            tx_hash,
+        } = self;
+        std::fmt::Debug::fmt(
+            &RadixTxPrecursorDebug {
+                component_address,
+                method_name,
+                encoded_arguments_len: encoded_arguments.len(),
+                visible_components,
+                fee_summary,
+                tx_hash,
+            },
+            f,
+        )
+    }
 }
 
 impl RadixTxPrecursor {

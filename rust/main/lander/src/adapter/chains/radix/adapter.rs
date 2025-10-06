@@ -5,6 +5,7 @@ use std::{str::FromStr, sync::Arc, time::Duration};
 
 use core_api_client::models::FeeSummary;
 use ethers::utils::hex;
+use futures_util::TryFutureExt;
 use gateway_api_client::models::{CompiledPreviewTransaction, TransactionPreviewV2Request};
 use radix_transactions::{
     model::{IntentHeaderV2, TransactionHeaderV2, TransactionPayload},
@@ -25,12 +26,15 @@ use scrypto::{
 };
 use uuid::Uuid;
 
-use hyperlane_core::{ChainCommunicationError, ChainResult, H256, H512};
+use hyperlane_base::settings::ChainConf;
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, ReorgPeriod, H256, H512,
+};
 use hyperlane_radix::{RadixProvider, RadixProviderForLander, RadixSigner, RadixTxCalldata};
 
 use crate::{
     adapter::{
-        chains::radix::{Precursor, VisibleComponents},
+        chains::radix::{conf::create_signer, Precursor, VisibleComponents},
         AdaptsChain, GasLimit, RadixTxPrecursor, TxBuildingResult,
     },
     payload::PayloadDetails,
@@ -42,7 +46,6 @@ use crate::{
 const NODE_DEPTH: usize = 5;
 const GAS_MULTIPLIER: &str = "1.5";
 
-#[allow(dead_code)]
 pub struct RadixAdapter {
     pub network: NetworkDefinition,
     pub provider: Arc<dyn RadixProviderForLander>,
@@ -58,6 +61,37 @@ pub struct RadixTxBuilder {
 }
 
 impl RadixAdapter {
+    pub fn from_conf(
+        conf: &ChainConf,
+        connection_conf: &hyperlane_radix::ConnectionConf,
+    ) -> Result<Self, LanderError> {
+        // We must have a signer if we want to land transactions.
+        let signer = create_signer(conf)?;
+
+        let locator = ContractLocator {
+            domain: &conf.domain,
+            address: H256::zero(),
+        };
+        let provider = RadixProvider::new(
+            Some(signer.clone()),
+            connection_conf,
+            &locator,
+            &conf.reorg_period,
+        )?;
+
+        let network = connection_conf.network.clone();
+        let component_regex =
+            regex::Regex::new(&format!(r"\w+_{}([a-zA-Z0-9]+)", network.hrp_suffix))
+                .map_err(ChainCommunicationError::from_other)?;
+        Ok(Self {
+            network,
+            provider: Arc::new(provider),
+            signer,
+            component_regex,
+            estimated_block_time: conf.estimated_block_time,
+        })
+    }
+
     fn extract_tx_hash(tx: &DetailedNotarizedTransactionV2) -> H512 {
         // transaction_intent_hash basically is the TX Hash and
         // refers to all of the intents that are made in the TX
@@ -66,21 +100,21 @@ impl RadixAdapter {
         tx_hash
     }
 
-    async fn tx_builder(&self) -> ChainResult<RadixTxBuilder> {
+    async fn tx_builder(&self, intent_discriminator: u64) -> ChainResult<RadixTxBuilder> {
         let epoch = self.provider.get_gateway_status().await?.ledger_state.epoch as u64;
 
         let private_key = self.signer.get_signer()?;
         let tx_builder = TransactionBuilder::new_v2()
             .transaction_header(TransactionHeaderV2 {
                 notary_public_key: private_key.public_key(),
-                notary_is_signatory: false,
+                notary_is_signatory: true,
                 tip_basis_points: 0u32, // TODO: what should we set this to?
             })
             .intent_header(IntentHeaderV2 {
                 network_id: self.network.id,
                 start_epoch_inclusive: Epoch::of(epoch),
                 end_epoch_exclusive: Epoch::of(epoch.saturating_add(2)), // ~5 minutes per epoch -> 10min timeout
-                intent_discriminator: 0u64, // TODO: do we want this to happen? This is used like a nonce
+                intent_discriminator,
                 min_proposer_timestamp_inclusive: None, // TODO: discuss whether or not we want to have a time limit
                 max_proposer_timestamp_exclusive: None,
             });
@@ -103,6 +137,9 @@ impl RadixAdapter {
         let mut visible_components: Vec<ComponentAddress> = Vec::new();
         let mut fee_summary = FeeSummary::default();
 
+        let intent_discriminator = rand::random::<u64>();
+        let RadixTxBuilder { tx_builder, .. } = self.tx_builder(intent_discriminator).await?;
+
         // in radix all addresses/node have to visible for a transaction to be valid
         // we simulate the tx first to get the necessary addresses
         for _ in 0..NODE_DEPTH {
@@ -113,8 +150,8 @@ impl RadixAdapter {
                 .call_method(*component_address, method_name, manifest_args)
                 .build();
 
-            let RadixTxBuilder { tx_builder, .. } = self.tx_builder().await?;
             let tx = tx_builder
+                .clone()
                 .manifest(tx_manifest)
                 .build_preview_transaction(vec![])
                 .to_raw()
@@ -190,6 +227,75 @@ impl RadixAdapter {
         ManifestArgs::new_from_tuple_or_panic(ManifestValue::Tuple {
             fields: manifest_values,
         })
+    }
+
+    async fn build_transaction(
+        &self,
+        tx: &Transaction,
+        intent_discriminator: u64,
+    ) -> Result<DetailedNotarizedTransactionV2, LanderError> {
+        let tx_precursor = tx.precursor();
+
+        let fee_summary = match tx_precursor.fee_summary.clone() {
+            Some(s) => s,
+            None => return Err(LanderError::EstimationFailed),
+        };
+        let decoder = AddressBech32Decoder::new(&self.network);
+        let component_address =
+            ComponentAddress::try_from_bech32(&decoder, &tx_precursor.component_address)
+                .ok_or_else(|| {
+                    let error_msg = "Failed to parse ComponentAddress";
+                    tracing::error!(
+                        component_address = tx_precursor.component_address,
+                        "{error_msg}"
+                    );
+                    LanderError::PayloadNotFound
+                })?;
+
+        let method_name = tx_precursor.method_name.clone();
+        let visible_components: Vec<ComponentAddress> =
+            match tx_precursor.visible_components.as_ref() {
+                Some(v) => v
+                    .addresses
+                    .iter()
+                    .filter_map(|s| ComponentAddress::try_from_bech32(&decoder, s))
+                    .collect(),
+                None => return Err(LanderError::EstimationFailed),
+            };
+
+        // decode manifest value from Mailbox::process_calldata()
+        let manifest_value: ManifestValue = manifest_decode(&tx_precursor.encoded_arguments)
+            .map_err(|_| LanderError::PayloadNotFound)?;
+        let manifest_values = match manifest_value {
+            // Should always be a tuple, but mirror simulate_tx for safety
+            sbor::Value::Tuple { fields } => fields,
+            s => vec![s],
+        };
+        let manifest_args =
+            Self::combine_args_with_visible_components(manifest_values, &visible_components);
+
+        // 1.5x multiplier to fee summary
+        let multiplier = Decimal::from_str(GAS_MULTIPLIER).expect("Failed to parse GAS_MULTIPLIER");
+        let simulated_xrd = RadixProvider::total_fee(fee_summary)?
+            .checked_mul(multiplier)
+            .ok_or_else(|| LanderError::EstimationFailed)?;
+
+        tracing::debug!("simulated_xrd: {:?}", simulated_xrd);
+
+        let RadixTxBuilder { tx_builder, signer } = self.tx_builder(intent_discriminator).await?;
+        let private_key = signer.get_signer()?;
+        let radix_tx = tx_builder
+            .manifest_builder(|builder| {
+                builder.lock_fee(signer.address, simulated_xrd).call_method(
+                    component_address,
+                    method_name,
+                    manifest_args,
+                )
+            })
+            .notarize(&private_key)
+            .build();
+
+        Ok(radix_tx)
     }
 }
 
@@ -293,73 +399,19 @@ impl AdaptsChain for RadixAdapter {
         Ok(Vec::new())
     }
 
-    async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        self.simulate_tx(tx).await?;
+    async fn estimate_tx(&self, _tx: &mut Transaction) -> Result<(), LanderError> {
         Ok(())
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         tracing::info!(?tx, "submitting transaction");
 
-        let tx_precursor = tx.precursor();
-
-        let fee_summary = match tx_precursor.fee_summary.clone() {
-            Some(s) => s,
-            None => return Err(LanderError::EstimationFailed),
+        // derive a stable discriminator from the tx UUID to keep hashes reproducible
+        let intent_discriminator = {
+            let b = tx.uuid.as_bytes();
+            u64::from_le_bytes(b[0..8].try_into().expect("uuid is 16 bytes"))
         };
-
-        let decoder = AddressBech32Decoder::new(&self.network);
-        let component_address =
-            ComponentAddress::try_from_bech32(&decoder, &tx_precursor.component_address)
-                .ok_or_else(|| {
-                    let error_msg = "Failed to parse ComponentAddress";
-                    tracing::error!(
-                        component_address = tx_precursor.component_address,
-                        "{error_msg}"
-                    );
-                    LanderError::PayloadNotFound
-                })?;
-
-        let method_name = tx_precursor.method_name.clone();
-        let visible_components: Vec<ComponentAddress> =
-            match tx_precursor.visible_components.as_ref() {
-                Some(v) => v
-                    .addresses
-                    .iter()
-                    .filter_map(|s| ComponentAddress::try_from_bech32(&decoder, s))
-                    .collect(),
-                None => return Err(LanderError::EstimationFailed),
-            };
-
-        // decode arguments
-        let manifest_value: ManifestValue = manifest_decode(&tx_precursor.encoded_arguments)
-            .map_err(|_| LanderError::PayloadNotFound)?;
-        let manifest_values = match manifest_value {
-            sbor::Value::Tuple { fields } => fields,
-            s => vec![s],
-        };
-        let manifest_args =
-            Self::combine_args_with_visible_components(manifest_values, &visible_components);
-
-        // 1.5x multiplier to fee summary
-        let multiplier = Decimal::from_str(GAS_MULTIPLIER).expect("Failed to parse GAS_MULTIPLIER");
-
-        let simulated_xrd = RadixProvider::total_fee(fee_summary)?
-            .checked_mul(multiplier)
-            .ok_or_else(|| LanderError::EstimationFailed)?;
-
-        let RadixTxBuilder { tx_builder, signer } = self.tx_builder().await?;
-        let private_key = signer.get_signer()?;
-        let radix_tx = tx_builder
-            .manifest_builder(|builder| {
-                builder
-                    .call_method(component_address, method_name, manifest_args)
-                    .lock_fee(signer.address, simulated_xrd)
-            })
-            .sign(&private_key)
-            .notarize(&private_key)
-            .build();
-
+        let radix_tx = self.build_transaction(tx, intent_discriminator).await?;
         self.provider
             .send_transaction(radix_tx.raw.clone().to_vec())
             .await?;
@@ -372,8 +424,7 @@ impl AdaptsChain for RadixAdapter {
         let tx_precursor = tx.precursor_mut();
         tx_precursor.tx_hash = Some(tx_hash);
 
-        tracing::info!(?tx, ?radix_tx, ?tx_hash, "submitted transaction");
-
+        tracing::info!(tx_uuid=?tx.uuid, ?tx_hash, "submitted transaction");
         Ok(())
     }
 

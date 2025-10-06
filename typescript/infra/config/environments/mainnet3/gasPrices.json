@@ -40,7 +40,7 @@
     "decimals": 9
   },
   "botanix": {
-    "amount": "0.00265",
+    "amount": "0.00375",
     "decimals": 9
   },
   "avalanche": {
@@ -136,7 +136,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "12.5",
+    "amount": "2.5",
     "decimals": 9
   },
   "everclear": {
@@ -280,7 +280,7 @@
     "decimals": 9
   },
   "metis": {
-    "amount": "3.214164502",
+    "amount": "3.477821089",
     "decimals": 9
   },
   "milkyway": {
@@ -296,7 +296,7 @@
     "decimals": 9
   },
   "mitosis": {
-    "amount": "500.000000007",
+    "amount": "18.000000003",
     "decimals": 9
   },
   "mode": {
@@ -424,7 +424,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "226.686",
+    "amount": "1593.58",
     "decimals": 9
   },
   "solanamainnet": {
@@ -452,11 +452,7 @@
     "decimals": 1
   },
   "sophon": {
-    "amount": "3554.023647439",
-    "decimals": 9
-  },
-  "sova": {
-    "amount": "0.001000251",
+    "amount": "8316.314493515",
     "decimals": 9
   },
   "starknet": {

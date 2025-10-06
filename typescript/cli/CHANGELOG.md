@@ -1,5 +1,16 @@
 # @hyperlane-xyz/cli
 
+## 18.3.0
+
+### Minor Changes
+
+- 2b16904f8: Dont check for token collateralAddressOrDenom to enable HypNative router collateral balance reads
+- 571901a6d: Fix warp read crashing when providing the `--warpRouteId` flag
+
+### Patch Changes
+
+- a5728818f: Fixed pre deploy balance check logic that attempted to convert to bignumber decimal numbers
+
 ## 18.2.0
 
 ### Minor Changes

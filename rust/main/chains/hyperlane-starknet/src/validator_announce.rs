@@ -161,7 +161,7 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
 
         let Ok(balance) = self
             .provider
-            .get_balance(self.contract.account.address().to_string())
+            .get_balance(self.contract.account.address().to_hex_string())
             .await
         else {
             warn!("Unable to query balance");
