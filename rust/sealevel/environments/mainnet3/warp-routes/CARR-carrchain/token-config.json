@@ -1,7 +1,7 @@
 {
     "solanamainnet": {
         "type": "collateral",
-        "decimals": 9,
+        "decimals": 6,
         "remoteDecimals": 18,
         "name": "Carnomaly",
         "symbol": "CARR",
