@@ -210,7 +210,7 @@ pub fn start_solana_test_validator(
     let solana_env_dir = concat_path(&sealevel_path, SOLANA_ENVS_DIR);
     let solana_env_dir_str = solana_env_dir.to_string_lossy();
 
-    let mock_registry_path = concat_path(&sealevel_path, LOCAL_E2E_MOCK_REGISTRY);
+    let _mock_registry_path = concat_path(&sealevel_path, LOCAL_E2E_MOCK_REGISTRY);
 
     let solana_warproute_token_config_file =
         concat_path(&sealevel_path, SOLANA_WARPROUTE_TOKEN_CONFIG_FILE);
