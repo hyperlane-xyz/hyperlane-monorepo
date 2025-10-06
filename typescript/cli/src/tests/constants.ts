@@ -82,7 +82,7 @@ export const CORE_READ_CONFIG_PATH_BY_PROTOCOL: ProtocolChainMap<
     Object.fromEntries(
       Object.entries(chainNames).map(([key, name]) => [
         key,
-        `${TEMP_PATH}/${name}/core-config-read.yam`,
+        `${TEMP_PATH}/${name}/core-config-read.yaml`,
       ]),
     ),
   ]),

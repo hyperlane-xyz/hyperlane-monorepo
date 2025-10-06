@@ -187,10 +187,10 @@ export class HyperlaneE2EWarpTestCommands {
           ${warpCorePath ? ['--warp', warpCorePath] : []} \
           ${strategyUrl ? ['--strategy', strategyUrl] : []} \
           ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
-          ${privateKey ? [this.privateKeyFlag, privateKey] : []} \ \
+          ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
           --verbosity debug \
           ${relay ? ['--relay'] : []} \
-          ${skipConfirmationPrompts ? ['--yes'] : []} \ \
+          ${skipConfirmationPrompts ? ['--yes'] : []} \
           ${extraArgs ? extraArgs : []}
           `;
   }
