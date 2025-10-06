@@ -3,6 +3,7 @@
         "type": "collateral",
         "decimals": 6,
         "remoteDecimals": 18,
+        "owner": "5HDsXasp9a3bTdT2YyXookfBQtLKtshQXyWyMv1mZKx7",
         "name": "Carnomaly",
         "symbol": "CARR",
         "token": "CDwKAreA1ipd1hUDBKsfVXVFWqNEeGDdvmZ7RHdiQk1U",
