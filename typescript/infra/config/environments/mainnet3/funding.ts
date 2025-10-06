@@ -42,7 +42,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy, Role.Rebalancer],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['proofofplay'],
+  chainsToSkip: [],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // if not set, keyfunder defaults to 0
@@ -77,7 +77,6 @@ export const keyFunderConfig: KeyFunderConfig<
     optimism: '0.1',
     polygon: '85',
     polygonzkevm: '0.05',
-    proofofplay: '0',
     redstone: '0',
     scroll: '0.05',
     sei: '0',
@@ -133,7 +132,6 @@ export const keyFunderConfig: KeyFunderConfig<
     optimism: '0.1',
     polygon: '20',
     polygonzkevm: '0.1',
-    proofofplay: '0.025',
     redstone: '0.1',
     scroll: '0.1',
     sei: '5',

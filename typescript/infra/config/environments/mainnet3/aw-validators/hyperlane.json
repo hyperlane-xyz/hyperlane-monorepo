@@ -287,9 +287,6 @@
   "prom": {
     "validators": ["0xb0c4042b7c9a95345be8913f4cdbf4043b923d98"]
   },
-  "proofofplay": {
-    "validators": ["0xcda40baa71970a06e5f55e306474de5ca4e21c3b"]
-  },
   "pulsechain": {
     "validators": ["0xa73fc7ebb2149d9c6992ae002cb1849696be895b"]
   },

@@ -648,18 +648,6 @@ export const validatorChainConfig = (
         'mint',
       ),
     },
-    proofofplay: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('proofofplay'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xcda40baa71970a06e5f55e306474de5ca4e21c3b'],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'proofofplay',
-      ),
-    },
     tangle: {
       interval: 5,
       reorgPeriod: getReorgPeriod('tangle'),

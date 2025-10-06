@@ -98,7 +98,6 @@ export const mainnet3SupportedChainNames = [
   'polygonzkevm',
   'polynomialfi',
   'prom',
-  'proofofplay',
   'pulsechain',
   'radix',
   'rarichain',
