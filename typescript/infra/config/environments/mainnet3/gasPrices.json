@@ -451,6 +451,10 @@
     "amount": "8316.314493515",
     "decimals": 9
   },
+  "sovachain": {
+    "amount": "0.001000251",
+    "decimals": 9
+  },
   "starknet": {
     "amount": "5000",
     "decimals": 1

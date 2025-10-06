@@ -114,6 +114,7 @@ export const mainnet3SupportedChainNames = [
   'sonicsvm',
   'soon',
   'sophon',
+  'sovachain',
   'starknet',
   'story',
   'stride',
