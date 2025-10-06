@@ -146,6 +146,8 @@ export class AltVMSignerFactory implements AltVM.ISignerFactory {
           `missing private key in strategy config for chain ${chain}`,
         );
       }
+
+      return rawConfig.privateKey;
     }
 
     // 3. Finally, if no key flag or strategy was provided we prompt the user
