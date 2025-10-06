@@ -25,6 +25,12 @@ export class AltVMJsonRpcTxSubmitter implements TxSubmitterInterface<any> {
   }
 
   public async submit(...txs: AnnotatedAltVMTransaction[]): Promise<any[]> {
+    for (const tx of txs) {
+      if (tx.annotation) {
+        this.logger.debug(tx.annotation);
+      }
+    }
+
     const receipt = await this.signer.signAndBroadcast(
       txs.map((tx) => tx.altvm_tx),
     );

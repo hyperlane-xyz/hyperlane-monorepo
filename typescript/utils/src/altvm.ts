@@ -159,7 +159,6 @@ export type ResGetRemoteRouters = {
 };
 
 export type ReqGetBridgedSupply = { tokenId: string };
-export type ResGetBridgedSupply = bigint;
 
 export type ReqQuoteRemoteTransfer = {
   tokenId: string;
@@ -457,7 +456,7 @@ export interface IProvider<T = any> {
 
   getRemoteRouters(req: ReqGetRemoteRouters): Promise<ResGetRemoteRouters>;
 
-  getBridgedSupply(req: ReqGetBridgedSupply): Promise<ResGetBridgedSupply>;
+  getBridgedSupply(req: ReqGetBridgedSupply): Promise<bigint>;
 
   quoteRemoteTransfer(
     req: ReqQuoteRemoteTransfer,

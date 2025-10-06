@@ -379,9 +379,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async getBridgedSupply(
-    req: AltVM.ReqGetBridgedSupply,
-  ): Promise<AltVM.ResGetBridgedSupply> {
+  async getBridgedSupply(req: AltVM.ReqGetBridgedSupply): Promise<bigint> {
     const { bridged_supply } = await this.query.warp.BridgedSupply({
       id: req.tokenId,
     });

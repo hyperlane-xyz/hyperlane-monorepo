@@ -281,7 +281,7 @@ export class AltVMWarpModule extends HyperlaneModule<
               receiverAddress: addressToBytes32(
                 expectedRemoteRouters[domain].address,
               ),
-              gas: '0',
+              gas,
             },
           }),
         });
