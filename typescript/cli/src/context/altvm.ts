@@ -186,8 +186,7 @@ export class AltVMSignerFactory
         metadata.rpcUrls.map((rpc) => rpc.http),
         privateKey,
         {
-          bech32Prefix: metadata.bech32Prefix,
-          gasPrice: `${metadata.gasPrice?.amount ?? '0'}${metadata.gasPrice?.denom ?? ''}`,
+          metadata,
         },
       );
     }

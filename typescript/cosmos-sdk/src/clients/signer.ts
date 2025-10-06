@@ -42,14 +42,18 @@ export class CosmosNativeSigner
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
     assert(extraParams, `extra params not defined`);
-    assert(extraParams.gasPrice, `gasPrice not defined in extra params`);
+    assert(extraParams.metadata, `metadata not defined in extra params`);
+    assert(
+      extraParams.metadata.gasPrice,
+      `metadata not defined in metadata extra params`,
+    );
 
     let wallet: OfflineSigner;
 
     if (typeof privateKey === 'string') {
       assert(
-        extraParams.bech32Prefix,
-        `bech32Prefix not defined in extra params`,
+        extraParams.metadata.bech32Prefix,
+        `bech32Prefix not defined in metadata extra params`,
       );
 
       const isPrivateKey = new RegExp(/(^|\b)(0x)?[0-9a-fA-F]{64}(\b|$)/).test(
@@ -59,11 +63,11 @@ export class CosmosNativeSigner
       if (isPrivateKey) {
         wallet = await DirectSecp256k1Wallet.fromKey(
           new Uint8Array(Buffer.from(privateKey, 'hex')),
-          extraParams.bech32Prefix,
+          extraParams.metadata.bech32Prefix,
         );
       } else {
         wallet = await DirectSecp256k1HdWallet.fromMnemonic(privateKey, {
-          prefix: extraParams.bech32Prefix,
+          prefix: extraParams.metadata.bech32Prefix,
         });
       }
     } else {
@@ -92,7 +96,9 @@ export class CosmosNativeSigner
         aminoTypes: new AminoTypes({
           ...aminoTypes,
         }),
-        gasPrice: GasPrice.fromString(extraParams.gasPrice),
+        gasPrice: GasPrice.fromString(
+          `${extraParams.metadata.gasPrice.amount}${extraParams.metadata.gasPrice.denom}`,
+        ),
       },
     );
 

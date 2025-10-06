@@ -35,13 +35,12 @@ export async function deployCollateralToken(
 
   if (!metadata.gasPrice)
     throw new Error(`Missing gasPrice for chain ${chain}`);
-  const gasPriceString = `${metadata.gasPrice.amount}${metadata.gasPrice.denom}`;
 
   const signer = await CosmosNativeSigner.connectWithSigner(
     metadata.rpcUrls.map((rpc) => rpc.http),
     wallet,
     {
-      gasPrice: gasPriceString,
+      metadata,
     },
   );
 
@@ -74,7 +73,7 @@ export async function deploySyntheticToken(
     metadata.rpcUrls.map((rpc) => rpc.http),
     wallet,
     {
-      gasPrice: `${metadata.gasPrice?.amount}${metadata.gasPrice?.denom}`,
+      metadata,
     },
   );
 

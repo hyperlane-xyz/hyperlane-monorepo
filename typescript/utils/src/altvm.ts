@@ -6,8 +6,8 @@ export type ReqGetBalance = { address: string; denom: string };
 
 export type ReqGetTotalSupply = { denom: string };
 
-export type ReqEstimateTransactionFee = {
-  transaction: any;
+export type ReqEstimateTransactionFee<T> = {
+  transaction: T;
   estimatedGasPrice: string;
   sender: string;
   senderPubKey?: string;
@@ -420,7 +420,7 @@ export interface IProvider<T = any> {
   getTotalSupply(req: ReqGetTotalSupply): Promise<bigint>;
 
   estimateTransactionFee(
-    req: ReqEstimateTransactionFee,
+    req: ReqEstimateTransactionFee<T>,
   ): Promise<ResEstimateTransactionFee>;
 
   // ### QUERY CORE ###

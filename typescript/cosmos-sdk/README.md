@@ -35,7 +35,9 @@ const signer = await CosmosNativeSigner.connectWithSigner(
   "https://rpc-endpoint:26657",
   wallet,
   {
-    bech32Prefix: 'test'
+    metadata: {
+      bech32Prefix: 'test',
+    }
   }
 );
 

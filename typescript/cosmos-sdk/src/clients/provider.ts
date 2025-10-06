@@ -118,7 +118,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   }
 
   async estimateTransactionFee(
-    req: AltVM.ReqEstimateTransactionFee,
+    req: AltVM.ReqEstimateTransactionFee<EncodeObject>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
     assert(
       req.senderPubKey,

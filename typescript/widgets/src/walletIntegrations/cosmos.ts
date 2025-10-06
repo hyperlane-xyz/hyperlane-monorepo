@@ -194,7 +194,9 @@ export function useCosmosTransactionFns(
           {
             // set zero gas price here so it does not error. actual gas price
             // will be injected from the wallet registry like Keplr or Leap
-            gasPrice: '0token',
+            metadata: {
+              gasPrice: '0token',
+            },
           },
         );
 

@@ -22,7 +22,9 @@ export const createSigner = async (account: 'alice' | 'bob' | 'charlie') => {
     'http://127.0.0.1:26657',
     wallet,
     {
-      gasPrice: '0.2uhyp',
+      metadata: {
+        gasPrice: '0.2uhyp',
+      },
     },
   );
 };

@@ -59,7 +59,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
       chainMetadata.rpcUrls.map((rpc) => rpc.http),
       wallet,
       {
-        gasPrice: `${chainMetadata.gasPrice.amount}${chainMetadata.gasPrice.denom}`,
+        metadata: chainMetadata,
       },
     );
 
