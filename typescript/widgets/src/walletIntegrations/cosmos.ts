@@ -1,9 +1,5 @@
 import type { AssetList, Chain as CosmosChain } from '@chain-registry/types';
-import type {
-  DeliverTxResponse,
-  ExecuteResult,
-  IndexedTx,
-} from '@cosmjs/cosmwasm-stargate';
+import type { DeliverTxResponse } from '@cosmjs/cosmwasm-stargate';
 import { useChain, useChains } from '@cosmos-kit/react';
 import { useCallback, useMemo } from 'react';
 
@@ -164,28 +160,32 @@ export function useCosmosTransactionFns(
         getOfflineSigner,
         chain,
       } = chainContext;
-      let result: ExecuteResult | DeliverTxResponse;
-      let txDetails: IndexedTx | null;
+      let receipt: DeliverTxResponse;
+
       if (tx.type === ProviderType.CosmJsWasm) {
         const client = await getSigningCosmWasmClient();
-        result = await client.executeMultiple(
+        const executionResult = await client.executeMultiple(
           chainContext.address,
           [tx.transaction],
           'auto',
         );
-        txDetails = await client.getTx(result.transactionHash);
+        const txDetails = await client.getTx(executionResult.transactionHash);
+        assert(txDetails, `Cosmos tx failed: ${JSON.stringify(txDetails)}`);
+        receipt = {
+          ...txDetails,
+          transactionHash: executionResult.transactionHash,
+        };
       } else if (tx.type === ProviderType.CosmJs) {
         const client = await getSigningStargateClient();
         // The fee param of 'auto' here stopped working for Neutron-based IBC transfers
         // It seems the signAndBroadcast method uses a default fee multiplier of 1.4
         // https://github.com/cosmos/cosmjs/blob/e819a1fc0e99a3e5320d8d6667a08d3b92e5e836/packages/stargate/src/signingstargateclient.ts#L115
         // A multiplier of 1.6 was insufficient for Celestia -> Neutron|Cosmos -> XXX transfers, but 2 worked.
-        result = await client.signAndBroadcast(
+        receipt = await client.signAndBroadcast(
           chainContext.address,
           [tx.transaction],
           2,
         );
-        txDetails = await client.getTx(result.transactionHash);
       } else if (tx.type === ProviderType.CosmJsNative) {
         const signer = getOfflineSigner();
         const client = await CosmosNativeSigner.connectWithSigner(
@@ -198,29 +198,22 @@ export function useCosmosTransactionFns(
           },
         );
 
-        const txResponse: DeliverTxResponse = await client.signAndBroadcast([
-          tx.transaction,
-        ]);
-
-        result = txResponse;
-        txDetails = {
-          ...txResponse,
-          hash: txResponse.transactionHash,
-          tx: new Uint8Array(),
-          rawLog: txResponse.rawLog || '',
-        };
+        receipt = await client.signAndBroadcast([tx.transaction]);
       } else {
         throw new Error(`Invalid cosmos provider type ${tx.type}`);
       }
 
       const confirm = async (): Promise<TypedTransactionReceipt> => {
-        assert(txDetails, `Cosmos tx failed: ${JSON.stringify(result)}`);
+        assert(
+          receipt && receipt.code === 0,
+          `Cosmos tx failed: ${JSON.stringify(receipt)}`,
+        );
         return {
           type: tx.type,
-          receipt: { ...txDetails, transactionHash: result.transactionHash },
+          receipt,
         };
       };
-      return { hash: result.transactionHash, confirm };
+      return { hash: receipt.transactionHash, confirm };
     },
     [switchNetwork, chainToContext],
   );
