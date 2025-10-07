@@ -238,7 +238,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(mailbox.nonce).to.equal(1);
   });
 
-  step('unroll remote router', async () => {
+  step('unenroll remote router', async () => {
     // ARRANGE
     const { ismAddress } = await signer.createNoopIsm({});
 

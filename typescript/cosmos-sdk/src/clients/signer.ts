@@ -15,7 +15,7 @@ import {
 } from '@cosmjs/stargate';
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
-import { AltVM, assert, isUrl } from '@hyperlane-xyz/utils';
+import { AltVM, assert, isUrl, strip0x } from '@hyperlane-xyz/utils';
 
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
@@ -66,7 +66,7 @@ export class CosmosNativeSigner
 
       if (isPrivateKey) {
         wallet = await DirectSecp256k1Wallet.fromKey(
-          new Uint8Array(Buffer.from(privateKey, 'hex')),
+          new Uint8Array(Buffer.from(strip0x(privateKey), 'hex')),
           extraParams.metadata.bech32Prefix,
         );
       } else {

@@ -128,8 +128,21 @@ export type ResGetMerkleTreeHook = {
 // ### QUERY WARP ###
 
 export enum TokenType {
-  COLLATERAL = 'COLLATERAL',
-  SYNTHETIC = 'SYNTHETIC',
+  synthetic = 'synthetic',
+  syntheticRebase = 'syntheticRebase',
+  syntheticUri = 'syntheticUri',
+  collateral = 'collateral',
+  collateralVault = 'collateralVault',
+  collateralVaultRebase = 'collateralVaultRebase',
+  XERC20 = 'xERC20',
+  XERC20Lockbox = 'xERC20Lockbox',
+  collateralFiat = 'collateralFiat',
+  collateralUri = 'collateralUri',
+  collateralCctp = 'collateralCctp',
+  native = 'native',
+  nativeOpL2 = 'nativeOpL2',
+  nativeOpL1 = 'nativeOpL1',
+  nativeScaled = 'nativeScaled',
 }
 
 export type ReqGetToken = { tokenAddress: string };

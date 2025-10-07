@@ -348,10 +348,10 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
 
     switch (token.token_type) {
       case warpTypes.HypTokenType.HYP_TOKEN_TYPE_COLLATERAL:
-        token_type = AltVM.TokenType.COLLATERAL;
+        token_type = AltVM.TokenType.collateral;
         break;
       case warpTypes.HypTokenType.HYP_TOKEN_TYPE_SYNTHETIC:
-        token_type = AltVM.TokenType.SYNTHETIC;
+        token_type = AltVM.TokenType.synthetic;
         break;
       default:
         throw new Error(

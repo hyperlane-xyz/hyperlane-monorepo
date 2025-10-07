@@ -177,7 +177,7 @@ export class AltVMHookModule extends HyperlaneModule<
     }
 
     // Lastly, check if the resolved owner is different from the current owner
-    if (this.signer.getSignerAddress() !== targetConfig.owner) {
+    if (currentConfig.owner !== targetConfig.owner) {
       updateTxs.push({
         annotation: 'Transferring ownership of ownable Hook...',
         altvm_tx:
