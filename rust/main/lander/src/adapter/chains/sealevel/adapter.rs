@@ -454,10 +454,16 @@ impl AdaptsChain for SealevelAdapter {
         for (detail, processed_account) in processed_accounts {
             debug!(
                 ?tx,
-                ?processed_account,
-                "Checking if processed message account exists"
+                processed_account_key=?processed_account,
+                "Checking if processed message account exists for the key"
             );
             let account = self.provider.get_account(processed_account).await?;
+            debug!(
+                ?tx,
+                processed_account_key=?processed_account,
+                processed_account=?account,
+                "Check result of processed message account exists check"
+            );
             if account.is_none() {
                 reverted.push(detail.clone());
             }
