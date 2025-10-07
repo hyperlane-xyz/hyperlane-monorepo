@@ -43,8 +43,8 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
       }
     }
 
-    if (this.signer.supportsMultiTransactions()) {
-      const receipt = await this.signer.sendAndConfirmMultiTransactions(txs);
+    if (this.signer.supportsTransactionBatching()) {
+      const receipt = await this.signer.sendAndConfirmBatchTransactions(txs);
       return [receipt];
     }
 

@@ -174,8 +174,8 @@ export async function runCoreApply(params: ApplyParams) {
       if (transactions.length) {
         logGray('Updating deployed core contracts');
 
-        if (signer.supportsMultiTransactions()) {
-          await signer.sendAndConfirmMultiTransactions(transactions);
+        if (signer.supportsTransactionBatching()) {
+          await signer.sendAndConfirmBatchTransactions(transactions);
         } else {
           for (const tx of transactions) {
             await signer.sendAndConfirmTransaction(tx);

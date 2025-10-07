@@ -548,11 +548,11 @@ export interface IProvider<T = any> {
 export interface ISigner<T, R extends Receipt = any> extends IProvider<T> {
   getSignerAddress(): string;
 
-  supportsMultiTransactions(): boolean;
+  supportsTransactionBatching(): boolean;
 
   sendAndConfirmTransaction(transaction: T): Promise<R>;
 
-  sendAndConfirmMultiTransactions(transactions: T[]): Promise<R>;
+  sendAndConfirmBatchTransactions(transactions: T[]): Promise<R>;
 
   // ### TX CORE ###
 

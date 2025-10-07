@@ -162,7 +162,7 @@ export class CosmosNativeSigner
     return this.account.address;
   }
 
-  supportsMultiTransactions(): boolean {
+  supportsTransactionBatching(): boolean {
     return true;
   }
 
@@ -180,7 +180,7 @@ export class CosmosNativeSigner
     return receipt;
   }
 
-  async sendAndConfirmMultiTransactions(
+  async sendAndConfirmBatchTransactions(
     transactions: EncodeObject[],
   ): Promise<DeliverTxResponse> {
     const receipt = await this.signer.signAndBroadcast(
