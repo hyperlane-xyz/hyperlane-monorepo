@@ -100,7 +100,11 @@ pub trait SealevelProviderForLander: Send + Sync {
         commitment: CommitmentConfig,
     ) -> ChainResult<bool>;
 
-    /// Request account with finalized commitment level
+    /// Request account with processed commitment level
+    /// We use this method to identify if payload was or was not reverted
+    /// by checking if the account exists. That's why if the account
+    /// exits at the processed commitment level (as opposite to finalized),
+    /// it should be enough.
     async fn get_account(&self, account: Pubkey) -> ChainResult<Option<Account>>;
 }
 
@@ -321,7 +325,7 @@ impl SealevelProviderForLander for SealevelProvider {
 
     async fn get_account(&self, account: Pubkey) -> ChainResult<Option<Account>> {
         self.rpc_client()
-            .get_account_option_with_finalized_commitment(account)
+            .get_account_option_with_commitment(account, CommitmentConfig::processed())
             .await
     }
 }
