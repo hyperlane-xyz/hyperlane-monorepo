@@ -201,6 +201,7 @@ export async function writeAgentConfig(
   );
 
   const filepath = getAgentConfigJsonPath(envNameToAgentEnv[environment]);
+  console.log(`Writing config to ${filepath}`);
   if (fs.existsSync(filepath)) {
     const currentAgentConfig: AgentConfig = readJSONAtPath(filepath);
     // Remove transactionOverrides from each chain in the agent config
@@ -230,12 +231,10 @@ export async function writeAgentConfigMap(
 
   const helmValues = await relayerManager.helmValues();
 
-  const agentConfigMap = {
-    envConfig: helmValues.hyperlane.relayer?.envConfig,
-    configMapConfig: helmValues.hyperlane.relayer?.configMapConfig,
-  };
+  const agentConfigMap = helmValues.hyperlane.relayer?.configMapConfig ?? {};
 
   const filepath = getAgentConfigMapJsonPath(envNameToAgentEnv[environment]);
+  console.log(`Writing config to ${filepath}`);
   if (fs.existsSync(filepath)) {
     const currentAgentConfigMap = readJSONAtPath(filepath);
     writeAndFormatJsonAtPath(
