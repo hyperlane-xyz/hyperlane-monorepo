@@ -1332,9 +1332,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "gasPrice": 3000000000
-      },
       "aggregationHook": "0x402Fc106576462a892355d69ACF03D46A888ae88",
       "domainRoutingIsm": "0xBc3Af0D4930502Ff0f6a8416a7a184c7BFFe19E7",
       "domainRoutingIsmFactory": "0xe6Af5720d34213C805C08e2470aea979e3F72F75",
@@ -1362,6 +1359,9 @@
       "validatorAnnounce": "0x7024078130D9c2100fEA474DAD009C2d1703aCcd",
       "index": {
         "from": 32893043
+      },
+      "transactionOverrides": {
+        "gasPrice": 3000000000
       }
     },
     "bsquared": {
@@ -1749,9 +1749,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "maxPriorityFeePerGas": 1000000000
-      },
       "aggregationHook": "0x219c20baA25f296DC83B0Fa8F0B2aFc951625C20",
       "domainRoutingIsm": "0xdAEe23c103419600F3B96f4DbA3858d4a1c3eaaf",
       "domainRoutingIsmFactory": "0x2f0E57527Bb37E5E064EF243fad56CCE6241906c",
@@ -1778,6 +1775,9 @@
       "validatorAnnounce": "0x16625230dD6cFe1B2bec3eCaEc7d43bA3A902CD6",
       "index": {
         "from": 18075501
+      },
+      "transactionOverrides": {
+        "maxPriorityFeePerGas": 1000000000
       }
     },
     "coredao": {
@@ -2668,9 +2668,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "gasPrice": 100000000
-      },
       "aggregationHook": "0xB66fd84619eDd59822c5748DCB4F1F78B7D8093D",
       "domainRoutingIsm": "0xa2d4E4dF4972d5196c45bD7f9287827a712Dd27a",
       "domainRoutingIsmFactory": "0x693A4cE39d99e46B04cb562329e3F0141cA17331",
@@ -2697,6 +2694,9 @@
       "validatorAnnounce": "0x5C6699c133A583d389Ba7e0bDD4993e2e63fA804",
       "index": {
         "from": 6777659
+      },
+      "transactionOverrides": {
+        "gasPrice": 100000000
       }
     },
     "fluence": {
@@ -3521,10 +3521,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "maxFeePerGas": 100000000000,
-        "maxPriorityFeePerGas": 100000000000
-      },
       "aggregationHook": "0x10b1F811a649A82250a98fDae5494E440B0A9F89",
       "domainRoutingIsm": "0x34397CaA9e6c1A5EF6440E82C46a83D1ef779dcF",
       "domainRoutingIsmFactory": "0xbed53B5C5BCE9433f25A2A702e6df13E22d84Ae9",
@@ -3551,6 +3547,10 @@
       "validatorAnnounce": "0x8c794a781327b819416E7b67908f1D22397f1E67",
       "index": {
         "from": 14336020
+      },
+      "transactionOverrides": {
+        "maxFeePerGas": 100000000000,
+        "maxPriorityFeePerGas": 100000000000
       }
     },
     "incentiv": {
@@ -5295,10 +5295,6 @@
         }
       ],
       "technicalStack": "polkadotsubstrate",
-      "transactionOverrides": {
-        "maxFeePerGas": 350000000000,
-        "maxPriorityFeePerGas": 50000000000
-      },
       "aggregationHook": "0x23cca255aE83F57F39EAf9D14fB9FdaDF22D5863",
       "domainRoutingIsm": "0x7Faa23CEdA03364A79e05259e07D5E358E7400F7",
       "domainRoutingIsmFactory": "0x8061Af3A459093540d17823D651BC5E2A92669a7",
@@ -5326,6 +5322,10 @@
       "validatorAnnounce": "0x8c1001eBee6F25b31863A55EadfF149aF88B356F",
       "index": {
         "from": 4719713
+      },
+      "transactionOverrides": {
+        "maxFeePerGas": 350000000000,
+        "maxPriorityFeePerGas": 50000000000
       }
     },
     "morph": {
@@ -5363,9 +5363,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "gasPrice": 1000000
-      },
       "aggregationHook": "0xcFD1c5b1357539566edC273aDaae19CA5e359c42",
       "domainRoutingIsm": "0x494415e823236A05c608D6b777bC80082cED6A2E",
       "domainRoutingIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
@@ -5392,6 +5389,9 @@
       "validatorAnnounce": "0x60B8d195f1b2EcaC26d54b95C69E6399cFD64b53",
       "index": {
         "from": 94151
+      },
+      "transactionOverrides": {
+        "gasPrice": 1000000
       }
     },
     "neutron": {
@@ -6363,9 +6363,6 @@
         }
       ],
       "technicalStack": "polygoncdk",
-      "transactionOverrides": {
-        "gasPrice": 1000000000
-      },
       "aggregationHook": "0x8464aF853363B8d6844070F68b0AB34Cb6523d0F",
       "domainRoutingIsm": "0x8b6862a784f634F4C8E1cbb04c9DA3dB637B7EaA",
       "domainRoutingIsmFactory": "0xe4057c5B0c43Dc18E36b08C39B419F190D29Ac2d",
@@ -6392,6 +6389,9 @@
       "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
       "index": {
         "from": 6577743
+      },
+      "transactionOverrides": {
+        "gasPrice": 1000000000
       }
     },
     "polynomialfi": {
@@ -7021,9 +7021,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "gasPrice": 200000000
-      },
       "aggregationHook": "0x9Bc0FAf446E128a618A88a2F28960Fb2Ca169faE",
       "domainRoutingIsm": "0x4d02AfFc3F030c887e2f914B8B67E0B845e034fD",
       "domainRoutingIsmFactory": "0xe03dad16074BC5EEA9A9311257BF02Eb0B6AAA2b",
@@ -7050,6 +7047,9 @@
       "validatorAnnounce": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
       "index": {
         "from": 271840
+      },
+      "transactionOverrides": {
+        "gasPrice": 200000000
       }
     },
     "sei": {
@@ -7089,9 +7089,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "gasPrice": 101000000000
-      },
       "aggregationHook": "0x40514BD46C57455933Be8BAedE96C4F0Ba3507D6",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
@@ -7118,6 +7115,9 @@
       "validatorAnnounce": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d",
       "index": {
         "from": 80809403
+      },
+      "transactionOverrides": {
+        "gasPrice": 101000000000
       }
     },
     "shibarium": {

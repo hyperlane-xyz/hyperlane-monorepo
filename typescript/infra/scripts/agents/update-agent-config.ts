@@ -243,7 +243,7 @@ export async function writeAgentConfigMap(
     ismCacheConfigs: relayerConfig.ismCacheConfigs,
   };
 
-  const filepath = getAgentConfigMapJsonPath(envNameToAgentEnv[environment]);
+  const filepath = getAgentConfigMapJsonPath(environment);
   console.log(`Writing config to ${filepath}`);
   if (fs.existsSync(filepath)) {
     const currentAgentConfigMap = readJSONAtPath(filepath);
