@@ -174,6 +174,37 @@ export async function writeAndFormatJsonAtPath(filepath: string, obj: any) {
 }
 
 /**
+ * Write JSON to file, optionally preserving existing values for keys.
+ * If appendMode is true, keeps values from existingData for existing keys, adds new keys from newData.
+ */
+export async function writeJsonWithAppendMode(
+  filepath: string,
+  newData: any,
+  appendMode: boolean,
+) {
+  let finalData = newData;
+  const existingData = readJSONAtPath(filepath);
+
+  if (appendMode) {
+    finalData = {};
+    const newKeys: string[] = [];
+    let preservedCount = 0;
+
+    for (const key of Object.keys(newData)) {
+      if (Object.prototype.hasOwnProperty.call(existingData, key)) {
+        finalData[key] = existingData[key];
+        preservedCount++;
+      } else {
+        finalData[key] = newData[key];
+        newKeys.push(key);
+      }
+    }
+  }
+
+  await writeAndFormatJsonAtPath(filepath, finalData);
+}
+
+/**
  * Gets the monorepo root directory
  */
 function getMonorepoRoot(): string {
