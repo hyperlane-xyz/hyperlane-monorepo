@@ -10,7 +10,7 @@ import {
   ProtocolMap,
   isJsonRpcSubmitterConfig,
 } from '@hyperlane-xyz/sdk';
-import { AltVM, MINIMUM_GAS, ProtocolType } from '@hyperlane-xyz/utils';
+import { AltVM, type MINIMUM_GAS, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
@@ -47,12 +47,13 @@ class AltVMFactory implements AltVM.IAltVMFactory {
   }
 
   public getMinGas(protocol: ProtocolType) {
-    if (!this.supports(protocol)) {
+    const protocolDefinition = ALT_VM_SUPPORTED_PROTOCOLS[protocol];
+
+    if (!protocolDefinition) {
       throw new Error(`Protocol type ${protocol} not supported in AltVM`);
     }
 
-    const { gas } = ALT_VM_SUPPORTED_PROTOCOLS[protocol]!;
-    return gas;
+    return protocolDefinition.gas;
   }
 }
 
@@ -70,15 +71,17 @@ export class AltVMProviderFactory
 
   public async get(chain: string): Promise<AltVM.IProvider> {
     const metadata = this.metadataManager.getChainMetadata(chain);
+    const protocolDefinition = ALT_VM_SUPPORTED_PROTOCOLS[metadata.protocol];
 
-    if (!this.supports(metadata.protocol)) {
+    if (!protocolDefinition) {
       throw new Error(
         `Chain ${chain} with protocol type ${metadata.protocol} not supported in AltVM`,
       );
     }
 
-    const { provider } = ALT_VM_SUPPORTED_PROTOCOLS[metadata.protocol]!;
-    return provider.connect(metadata.rpcUrls.map((rpc) => rpc.http));
+    return protocolDefinition.provider.connect(
+      metadata.rpcUrls.map((rpc) => rpc.http),
+    );
   }
 }
 

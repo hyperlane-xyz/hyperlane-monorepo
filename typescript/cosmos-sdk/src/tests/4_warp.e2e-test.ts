@@ -231,7 +231,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
       .true;
 
     let mailbox = await signer.getMailbox({ mailboxId });
-    expect(mailbox.messageSent).to.equal(1);
+    expect(mailbox.nonce).to.equal(1);
   });
 
   step('unroll remote router', async () => {

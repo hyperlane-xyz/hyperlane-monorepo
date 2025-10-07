@@ -232,25 +232,22 @@ export async function estimateTransactionFeeCosmJsNative({
   transaction,
   provider,
   estimatedGasPrice,
-  sender,
+  senderAddress,
   senderPubKey,
-  memo,
 }: {
   transaction: CosmJsNativeTransaction;
   provider: CosmJsNativeProvider;
   estimatedGasPrice: Numberish;
-  sender: Address;
+  senderAddress: Address;
   senderPubKey: HexString;
-  memo?: string;
 }): Promise<TransactionFeeEstimate> {
   const client = await provider.provider;
 
   return client.estimateTransactionFee({
     transaction: transaction.transaction,
     estimatedGasPrice: estimatedGasPrice.toString(),
-    sender,
+    senderAddress,
     senderPubKey,
-    memo,
   });
 }
 
@@ -350,7 +347,7 @@ export function estimateTransactionFee({
       transaction,
       provider,
       estimatedGasPrice,
-      sender,
+      senderAddress: sender,
       senderPubKey,
     });
   } else if (

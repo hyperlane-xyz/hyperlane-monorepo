@@ -15,7 +15,7 @@ import {
 } from '@cosmjs/stargate';
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
-import { AltVM, assert } from '@hyperlane-xyz/utils';
+import { AltVM, assert, isUrl } from '@hyperlane-xyz/utils';
 
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
@@ -40,7 +40,10 @@ export class CosmosNativeSigner
     extraParams?: Record<string, any>,
   ): Promise<AltVM.ISigner<EncodeObject>> {
     assert(rpcUrls.length > 0, `got no rpcUrls`);
-    assert(rpcUrls[0], `invalid rpc url: ${rpcUrls[0]}`);
+    assert(
+      rpcUrls.every((rpc) => isUrl(rpc)),
+      `invalid rpc urls: ${rpcUrls.join(', ')}`,
+    );
 
     assert(extraParams, `extra params not defined`);
     assert(extraParams.metadata, `metadata not defined in extra params`);

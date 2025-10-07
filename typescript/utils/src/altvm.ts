@@ -9,9 +9,8 @@ export type ReqGetTotalSupply = { denom: string };
 export type ReqEstimateTransactionFee<T> = {
   transaction: T;
   estimatedGasPrice: string;
-  sender: string;
+  senderAddress: string;
   senderPubKey?: string;
-  memo?: string;
 };
 export type ResEstimateTransactionFee = {
   gasUnits: number;
@@ -29,8 +28,7 @@ export type ResGetMailbox = {
   defaultIsm: string;
   defaultHook: string;
   requiredHook: string;
-  messageSent: number;
-  messageReceived: number;
+  nonce: number;
 };
 
 export type ReqDelivered = { mailboxId: string; messageId: string };

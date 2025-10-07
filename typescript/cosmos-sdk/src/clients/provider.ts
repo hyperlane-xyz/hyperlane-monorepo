@@ -134,10 +134,10 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     const queryClient = stargateClient['getQueryClient']();
     assert(queryClient, `queryClient could not be found on stargate client`);
 
-    const { sequence } = await stargateClient.getSequence(req.sender);
+    const { sequence } = await stargateClient.getSequence(req.senderAddress);
     const { gasInfo } = await queryClient.tx.simulate(
       [message],
-      req.memo,
+      undefined,
       pubKey,
       sequence,
     );
@@ -162,8 +162,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       defaultIsm: mailbox.default_ism,
       defaultHook: mailbox.default_hook,
       requiredHook: mailbox.required_hook,
-      messageSent: mailbox.message_sent,
-      messageReceived: mailbox.message_received,
+      nonce: mailbox.message_sent,
     };
   }
 
