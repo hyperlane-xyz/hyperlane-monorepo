@@ -16,7 +16,7 @@ use solana_sdk::{
     transaction::Transaction as SealevelTransaction,
 };
 use tokio::sync::Mutex;
-use tracing::{error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -452,6 +452,11 @@ impl AdaptsChain for SealevelAdapter {
 
         let mut reverted = Vec::new();
         for (detail, processed_account) in processed_accounts {
+            debug!(
+                ?tx,
+                ?processed_account,
+                "Checking if processed message account exists"
+            );
             let account = self.provider.get_account(processed_account).await?;
             if account.is_none() {
                 reverted.push(detail.clone());

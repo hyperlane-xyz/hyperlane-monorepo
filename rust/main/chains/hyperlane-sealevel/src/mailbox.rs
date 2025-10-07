@@ -581,6 +581,11 @@ impl Mailbox for SealevelMailbox {
 
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         let account = self.processed_message_account(message_id);
+        debug!(
+            ?message_id,
+            ?account,
+            "Processed message account as delivered calldata"
+        );
         serde_json::to_vec(&account).map(Some).map_err(Into::into)
     }
 }
