@@ -648,18 +648,6 @@ export const validatorChainConfig = (
         'mint',
       ),
     },
-    proofofplay: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('proofofplay'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xcda40baa71970a06e5f55e306474de5ca4e21c3b'],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'proofofplay',
-      ),
-    },
     tangle: {
       interval: 5,
       reorgPeriod: getReorgPeriod('tangle'),
@@ -1595,6 +1583,16 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xde5509be55483aa525e9b5cce6fe64d3e68d068d'],
         },
         'litchain',
+      ),
+    },
+    sovachain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sovachain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x5f9a044bbf460fb7236bfae24b5ca9090fff844d'],
+        },
+        'sovachain',
       ),
     },
   };
