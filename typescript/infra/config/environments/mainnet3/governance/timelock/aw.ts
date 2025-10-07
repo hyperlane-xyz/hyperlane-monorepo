@@ -83,7 +83,6 @@ export const awTimelocks: ChainMap<Address> = {
   polygonzkevm: '0x68eE9bec9B4dbB61f69D9D293Ae26a5AACb2e28f',
   polynomialfi: '0xABe90B9b98d622D336Ae734962F2c0842aAFbc90',
   prom: '0xB5F67845aE1cAb6b02bf089B15456B49647d33Ad',
-  proofofplay: '0xD9A9966E7dA9a7f0032bF449FB12696a638E673C',
   rarichain: '0x30FAbD6257BEA5e09C24225da59E9eD1B6f12B01',
   reactive: '0xcD78A32Da8cfe9452cD2F50F547c11B979Afcf1b',
   redstone: '0x6ff6F7e23a51c2a45cd31B066f5a23C38849fc13',

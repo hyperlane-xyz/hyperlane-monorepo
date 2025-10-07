@@ -172,9 +172,6 @@
       "0x1cd73544c000fd519784f56e59bc380a5fef53d6"
     ]
   },
-  "proofofplay": {
-    "validators": ["0xc18b802596b5d939c35c8e58afa5ef0872d3f792"]
-  },
   "redstone": {
     "validators": ["0x51ed7127c0afc0513a0f141e910c5e02b2a9a4b5"]
   },

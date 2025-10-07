@@ -1,0 +1,22 @@
+{
+  "bsc": {
+    "hex": "0x000000000000000000000000cf73d7119cd121f02a3dd2cbf8a609279830eb69",
+    "base58": "1111111111113tdWHrbP7ja9iamFyu7CrP97ah28"
+  },
+  "solanamainnet": {
+    "hex": "0x94bdc8d6904dbd2e5f9963fc91d082bf6605e4e670b7b24042c23ceae6c65776",
+    "base58": "B1dBmaEFGMbLvNn3UsrayxQBTVF7K9XFBS66M1csyUz1"
+  },
+  "polygon": {
+    "hex": "0x000000000000000000000000810db1ea27946acddc40ca98b6a6380af6c7b89a",
+    "base58": "1111111111112oHF8XaeTk41nX13JGmzNZfVpK8d"
+  },
+  "carrchain": {
+    "hex": "0x000000000000000000000000810db1ea27946acddc40ca98b6a6380af6c7b89a",
+    "base58": "1111111111112oHF8XaeTk41nX13JGmzNZfVpK8d"
+  },
+  "arbitrum": {
+    "hex": "0x000000000000000000000000c7b42d83255ac2874f39370101a9dbd4ed219d84",
+    "base58": "1111111111113nNMXnSUzpdzLJbgXe935AF6GvLT"
+  }
+}
