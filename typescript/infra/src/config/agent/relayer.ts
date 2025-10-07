@@ -85,8 +85,9 @@ export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
 // and are intended to derisk hitting max env var length limits.
 export type RelayerConfigMapConfig = Pick<
   RelayerConfig,
-  | 'blacklist'
   | 'addressBlacklist'
+  | 'blacklist'
+  | 'whitelist'
   | 'gasPaymentEnforcement'
   | 'metricAppContexts'
   | 'ismCacheConfigs'

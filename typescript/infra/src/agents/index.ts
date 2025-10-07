@@ -201,18 +201,9 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
 
     const config = await this.config.buildConfig();
 
-    const configMapConfig: RelayerConfigMapConfig = {
-      blacklist: config.blacklist,
-      addressBlacklist: config.addressBlacklist,
-      metricAppContexts: config.metricAppContexts,
-      gasPaymentEnforcement: config.gasPaymentEnforcement,
-      ismCacheConfigs: config.ismCacheConfigs,
-    };
-
     values.hyperlane.relayer = {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
-      configMapConfig,
       resources: this.kubernetesResources(),
       dbBootstrap: await this.dbBootstrapConfig(
         this.config.relayerConfig.dbBootstrap,
