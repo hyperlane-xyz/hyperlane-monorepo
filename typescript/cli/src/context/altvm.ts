@@ -5,14 +5,24 @@ import {
   CosmosNativeSigner,
 } from '@hyperlane-xyz/cosmos-sdk';
 import {
+  AltVMJsonRpcTxSubmitter,
   AnyProtocolReceipt,
   AnyProtocolTransaction,
   ChainMap,
   ChainMetadataManager,
+  MultiProvider,
   ProtocolMap,
+  SubmitterFactory,
+  SubmitterMetadata,
+  TxSubmitterType,
   isJsonRpcSubmitterConfig,
 } from '@hyperlane-xyz/sdk';
-import { AltVM, type MINIMUM_GAS, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  AltVM,
+  type MINIMUM_GAS,
+  ProtocolType,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
@@ -206,5 +216,28 @@ export class AltVMSignerFactory
     }
 
     return new AltVMSignerFactory(metadataManager, signers);
+  }
+
+  public submitterFactories(): ProtocolMap<Record<string, SubmitterFactory>> {
+    const factories: ProtocolMap<Record<string, SubmitterFactory>> = {};
+
+    for (const protocol of this.getSupportedProtocols()) {
+      factories[protocol] = {
+        [TxSubmitterType.JSON_RPC]: (
+          multiProvider: MultiProvider,
+          metadata: SubmitterMetadata,
+          _coreAddressesByChain: ChainMap<Record<string, string>>,
+        ) => {
+          // Used to type narrow metadata
+          assert(
+            metadata.type === TxSubmitterType.JSON_RPC,
+            `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
+          );
+          return new AltVMJsonRpcTxSubmitter(multiProvider, this, metadata);
+        },
+      };
+    }
+
+    return factories;
   }
 }
