@@ -11,7 +11,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { ProtocolTransaction } from '../providers/ProviderType.js';
+import {
+  ProtocolReceipt,
+  ProtocolTransaction,
+} from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenType, gasOverhead } from './config.js';
@@ -23,7 +26,7 @@ export class AltVMDeployer<PT extends ProtocolType> {
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     protected readonly signersMap: ChainMap<
-      AltVM.ISigner<ProtocolTransaction<PT>>
+      AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>
     >,
   ) {
     this.logger = rootLogger.child({ module: 'AltVMDeployer' });

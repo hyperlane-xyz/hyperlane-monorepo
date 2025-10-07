@@ -130,8 +130,11 @@ export type ProtocolTypedReceipt<T extends ProtocolType> = ProtocolTyped<
 export type AnyProtocolTransaction = ProtocolTransaction<ProtocolType>;
 export type ProtocolTransaction<T extends ProtocolType> =
   ProtocolTypedTransaction<T>['transaction'];
+
+export type AnyProtocolReceipt = ProtocolReceipt<ProtocolType>;
 export type ProtocolReceipt<T extends ProtocolType> =
   ProtocolTypedReceipt<T>['receipt'];
+
 export type AnnotatedTypedTransaction<T extends ProtocolType> = Annotated<
   ProtocolTransaction<T>
 >;

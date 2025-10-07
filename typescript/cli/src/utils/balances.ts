@@ -3,6 +3,7 @@ import { BigNumber } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 
 import {
+  AnyProtocolReceipt,
   AnyProtocolTransaction,
   ChainName,
   MultiProvider,
@@ -21,7 +22,7 @@ import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction>,
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>,
   chains: ChainName[],
   minGas: MINIMUM_GAS_ACTION,
   skipConfirmation: boolean,

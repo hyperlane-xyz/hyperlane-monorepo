@@ -9,6 +9,7 @@ import { ChainMap } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import {
   AnnotatedEV5Transaction,
+  ProtocolReceipt,
   ProtocolTransaction,
   ProtocolTypedReceipt,
 } from '../../../ProviderType.js';
@@ -43,7 +44,8 @@ export class EV5TimelockSubmitter
     config: EvmTimelockControllerSubmitterProps,
     multiProvider: MultiProvider,
     altVmSigner: AltVM.ISignerFactory<
-      ProtocolTransaction<ProtocolType.Ethereum>
+      ProtocolTransaction<ProtocolType.Ethereum>,
+      ProtocolReceipt<ProtocolType.Ethereum>
     >,
     coreAddressesByChain: ChainMap<Record<string, string>>,
   ): Promise<EV5TimelockSubmitter> {

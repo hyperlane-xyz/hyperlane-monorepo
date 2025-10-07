@@ -5,6 +5,7 @@ import {
   CosmosNativeSigner,
 } from '@hyperlane-xyz/cosmos-sdk';
 import {
+  AnyProtocolReceipt,
   AnyProtocolTransaction,
   ChainMap,
   ChainMetadataManager,
@@ -34,7 +35,7 @@ const ALT_VM_SUPPORTED_PROTOCOLS: ALT_VM_PROTOCOL = {
 
 type ALT_VM_PROTOCOL = ProtocolMap<{
   provider: AltVM.IProviderConnect;
-  signer: AltVM.ISignerConnect<AnyProtocolTransaction>;
+  signer: AltVM.ISignerConnect<AnyProtocolTransaction, AnyProtocolReceipt>;
   gas: MINIMUM_GAS;
 }>;
 
@@ -88,14 +89,16 @@ export class AltVMProviderFactory
 
 export class AltVMSignerFactory
   extends AltVMFactory
-  implements AltVM.ISignerFactory<AnyProtocolTransaction>
+  implements AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>
 {
   private readonly metadataManager: ChainMetadataManager;
-  private readonly chains: ChainMap<AltVM.ISigner<AnyProtocolTransaction>>;
+  private readonly chains: ChainMap<
+    AltVM.ISigner<AnyProtocolTransaction, AnyProtocolReceipt>
+  >;
 
   private constructor(
     metadataManager: ChainMetadataManager,
-    chains: ChainMap<AltVM.ISigner<AnyProtocolTransaction>>,
+    chains: ChainMap<AltVM.ISigner<AnyProtocolTransaction, AnyProtocolReceipt>>,
   ) {
     super();
 
@@ -103,7 +106,9 @@ export class AltVMSignerFactory
     this.chains = chains;
   }
 
-  public get(chain: string): AltVM.ISigner<AnyProtocolTransaction> {
+  public get(
+    chain: string,
+  ): AltVM.ISigner<AnyProtocolTransaction, AnyProtocolReceipt> {
     const protocol = this.metadataManager.getProtocol(chain);
 
     if (!this.supports(protocol)) {
@@ -165,7 +170,9 @@ export class AltVMSignerFactory
     keyByProtocol: SignerKeyProtocolMap,
     strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   ) {
-    const signers: ChainMap<AltVM.ISigner<AnyProtocolTransaction>> = {};
+    const signers: ChainMap<
+      AltVM.ISigner<AnyProtocolTransaction, AnyProtocolReceipt>
+    > = {};
 
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);

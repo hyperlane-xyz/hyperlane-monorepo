@@ -23,6 +23,7 @@ import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AnnotatedTypedTransaction,
+  ProtocolReceipt,
   ProtocolTransaction,
 } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -55,7 +56,10 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
-    protected readonly signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>,
+    protected readonly signer: AltVM.ISigner<
+      AnnotatedTypedTransaction<PT>,
+      ProtocolReceipt<PT>
+    >,
   ) {
     super(args);
     this.reader = new AltVMWarpRouteReader(metadataManager, args.chain, signer);
@@ -430,7 +434,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     chain: ChainNameOrId;
     config: HypTokenRouterConfig;
     multiProvider: MultiProvider;
-    signer: AltVM.ISigner<ProtocolTransaction<PT>>;
+    signer: AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMWarpModule<PT>> {
     const { chain, config, multiProvider, signer } = params;
 

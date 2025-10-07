@@ -391,7 +391,9 @@ export {
   RadixTransaction,
   RadixTransactionReceipt,
   type AnyProtocolTransaction,
+  type AnyProtocolReceipt,
   type ProtocolTransaction,
+  type ProtocolReceipt,
 } from './providers/ProviderType.js';
 export {
   isCosmJsProviderHealthy,

@@ -25,6 +25,7 @@ import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
+  AnyProtocolReceipt,
   AnyProtocolTransaction,
   TypedAnnotatedTransaction,
 } from '../providers/ProviderType.js';
@@ -49,7 +50,7 @@ type ChainAddresses = Record<string, string>;
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction>,
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>,
   registryAddresses: ChainMap<ChainAddresses>,
   apiKeys: ChainMap<string>,
 ): Promise<ChainMap<Address>> {
@@ -138,7 +139,7 @@ export async function executeWarpDeploy(
 async function resolveWarpIsmAndHook(
   warpConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction>,
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>,
   registryAddresses: ChainMap<ChainAddresses>,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier: ContractVerifier,
@@ -195,7 +196,7 @@ async function createWarpIsm({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
-  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction>;
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -338,7 +339,10 @@ export async function enrollCrossChainRouters(
     warpDeployConfig,
   }: {
     multiProvider: MultiProvider;
-    altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction>;
+    altVmSigner: AltVM.ISignerFactory<
+      AnyProtocolTransaction,
+      AnyProtocolReceipt
+    >;
     registryAddresses: ChainMap<ChainAddresses>;
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },

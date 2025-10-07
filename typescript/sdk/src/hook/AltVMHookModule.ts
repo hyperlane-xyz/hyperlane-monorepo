@@ -17,7 +17,10 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedTypedTransaction } from '../providers/ProviderType.js';
+import {
+  AnnotatedTypedTransaction,
+  ProtocolReceipt,
+} from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -53,7 +56,10 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
-    protected readonly signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>,
+    protected readonly signer: AltVM.ISigner<
+      AnnotatedTypedTransaction<PT>,
+      ProtocolReceipt<PT>
+    >,
   ) {
     params.config = HookConfigSchema.parse(params.config);
     super(params);
@@ -203,7 +209,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
     config: HookConfig;
     addresses: HookModuleAddresses;
     multiProvider: MultiProvider;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>;
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMHookModule<PT>> {
     const module = new AltVMHookModule<PT>(
       multiProvider,

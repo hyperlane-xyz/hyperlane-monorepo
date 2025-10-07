@@ -8,6 +8,7 @@ import { ChainMap } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 import {
   AnnotatedEV5Transaction,
+  ProtocolReceipt,
   ProtocolTransaction,
   ProtocolTypedReceipt,
 } from '../../ProviderType.js';
@@ -42,7 +43,8 @@ export class EvmIcaTxSubmitter
     config: EvmIcaTxSubmitterProps,
     multiProvider: MultiProvider,
     altVmSigner: AltVM.ISignerFactory<
-      ProtocolTransaction<ProtocolType.Ethereum>
+      ProtocolTransaction<ProtocolType.Ethereum>,
+      ProtocolReceipt<ProtocolType.Ethereum>
     >,
     coreAddressesByChain: Readonly<ChainMap<Record<string, string>>>,
   ): Promise<EvmIcaTxSubmitter> {

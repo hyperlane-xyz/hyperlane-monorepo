@@ -6,6 +6,7 @@ import {
   ChainMetadata,
   CoreConfig,
   IgpConfig,
+  ProtocolReceipt,
   ProtocolTransaction,
 } from '@hyperlane-xyz/sdk';
 import { Address, AltVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -33,7 +34,10 @@ describe('hyperlane cosmosnative core read e2e tests', async function () {
     CORE_READ_CONFIG_PATH_1,
   );
 
-  let signer: AltVM.ISigner<ProtocolTransaction<ProtocolType.CosmosNative>>;
+  let signer: AltVM.ISigner<
+    ProtocolTransaction<ProtocolType.CosmosNative>,
+    ProtocolReceipt<ProtocolType.CosmosNative>
+  >;
   let initialOwnerAddress: Address;
 
   before(async () => {

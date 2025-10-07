@@ -18,7 +18,10 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedTypedTransaction } from '../providers/ProviderType.js';
+import {
+  AnnotatedTypedTransaction,
+  ProtocolReceipt,
+} from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -57,7 +60,10 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
-    protected readonly signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>,
+    protected readonly signer: AltVM.ISigner<
+      AnnotatedTypedTransaction<PT>,
+      ProtocolReceipt<PT>
+    >,
   ) {
     params.config = IsmConfigSchema.parse(params.config);
     super(params);
@@ -156,7 +162,7 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       mailbox: string;
     };
     multiProvider: MultiProvider;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>;
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMIsmModule<PT>> {
     const module = new AltVMIsmModule<PT>(
       multiProvider,

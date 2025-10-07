@@ -2,7 +2,7 @@ import { AltVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { ChainMap, ProtocolMap } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
-import { ProtocolTransaction } from '../../ProviderType.js';
+import { ProtocolReceipt, ProtocolTransaction } from '../../ProviderType.js';
 
 import { EvmIcaTxSubmitter } from './IcaTxSubmitter.js';
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
@@ -20,7 +20,10 @@ import { SubmitterMetadata } from './types.js';
 export type SubmitterBuilderSettings<TProtocol extends ProtocolType> = {
   submissionStrategy: SubmissionStrategy;
   multiProvider: MultiProvider;
-  altVmSigner: AltVM.ISignerFactory<ProtocolTransaction<TProtocol>>;
+  altVmSigner: AltVM.ISignerFactory<
+    ProtocolTransaction<TProtocol>,
+    ProtocolReceipt<TProtocol>
+  >;
   coreAddressesByChain: ChainMap<Record<string, string>>;
   additionalSubmitterFactories?: ProtocolMap<Record<string, SubmitterFactory>>;
 };
@@ -47,7 +50,10 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
 
 export type SubmitterFactory<TProtocol extends ProtocolType = any> = (
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory<ProtocolTransaction<TProtocol>>,
+  altVmSigner: AltVM.ISignerFactory<
+    ProtocolTransaction<TProtocol>,
+    ProtocolReceipt<TProtocol>
+  >,
   metadata: SubmitterMetadata,
   coreAddressesByChain: ChainMap<Record<string, string>>,
 ) => Promise<TxSubmitterInterface<TProtocol>> | TxSubmitterInterface<TProtocol>;
@@ -150,7 +156,10 @@ const defaultSubmitterFactories: ProtocolMap<Record<string, SubmitterFactory>> =
  */
 export async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory<ProtocolTransaction<TProtocol>>,
+  altVmSigner: AltVM.ISignerFactory<
+    ProtocolTransaction<TProtocol>,
+    ProtocolReceipt<TProtocol>
+  >,
   submitterMetadata: SubmitterMetadata,
   coreAddressesByChain: ChainMap<Record<string, string>>,
   additionalSubmitterFactories: ProtocolMap<

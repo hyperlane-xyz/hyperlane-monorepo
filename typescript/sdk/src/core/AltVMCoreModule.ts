@@ -13,7 +13,10 @@ import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedTypedTransaction } from '../providers/ProviderType.js';
+import {
+  AnnotatedTypedTransaction,
+  ProtocolReceipt,
+} from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -42,7 +45,10 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>,
+    protected readonly signer: AltVM.ISigner<
+      AnnotatedTypedTransaction<PT>,
+      ProtocolReceipt<PT>
+    >,
     args: HyperlaneModuleParams<CoreConfig, Record<string, string>>,
   ) {
     super(args);
@@ -70,7 +76,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     chain: ChainNameOrId;
     config: CoreConfig;
     multiProvider: MultiProvider;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>;
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMCoreModule<PT>> {
     const { chain, config, multiProvider, signer } = params;
     const addresses = await AltVMCoreModule.deploy<PT>({
@@ -98,7 +104,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     config: CoreConfig;
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>;
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<DeployedCoreAddresses> {
     const { config, multiProvider, chain, signer } = params;
 

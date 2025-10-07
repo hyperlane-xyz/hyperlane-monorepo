@@ -16,7 +16,7 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
 {
   public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.JSON_RPC;
 
-  private signer: AltVM.ISigner<ProtocolTransaction<PT>>;
+  private signer: AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>;
 
   protected readonly logger: Logger = rootLogger.child({
     module: AltVMJsonRpcTxSubmitter.name,
@@ -24,7 +24,10 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
 
   constructor(
     public readonly multiProvider: MultiProvider,
-    public readonly altVmSigner: AltVM.ISignerFactory<ProtocolTransaction<PT>>,
+    public readonly altVmSigner: AltVM.ISignerFactory<
+      ProtocolTransaction<PT>,
+      ProtocolReceipt<PT>
+    >,
     public readonly config: { chain: string },
   ) {
     this.signer = this.altVmSigner.get(this.config.chain);
