@@ -596,7 +596,15 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { originDomain: getDomainId('starknet') },
       { originDomain: getDomainId('paradex') },
       // Not a core chain
-      { originDomain: getDomainId('forma') },
+      {
+        originDomain: getDomainId('forma'),
+        destinationDomain: getDomainId('stride'),
+      },
+      // Not a core chain
+      {
+        originDomain: getDomainId('stride'),
+        destinationDomain: getDomainId('forma'),
+      },
     ],
   },
   {
