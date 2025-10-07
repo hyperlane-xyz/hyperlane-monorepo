@@ -5,6 +5,7 @@ import {
   ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
+  assert,
   deepCopy,
   intersection,
   isAddressEvm,
@@ -49,9 +50,18 @@ import {
 const getGasConfig = (
   warpDeployConfig: WarpRouteDeployConfig,
   chain: string,
-): string =>
-  warpDeployConfig[chain].gas?.toString() ||
-  gasOverhead(warpDeployConfig[chain].type).toString();
+): string => {
+  const chainDeployConfig = warpDeployConfig[chain];
+  assert(
+    chainDeployConfig,
+    `Deploy config not found for chain ${chain}. Unable to get gas config`,
+  );
+
+  return (
+    chainDeployConfig.gas?.toString() ||
+    gasOverhead(chainDeployConfig.type).toString()
+  );
+};
 
 /**
  * Returns default router addresses and gas values for cross-chain communication.

@@ -145,6 +145,42 @@ describe('hyperlane warp apply e2e tests', async function () {
     writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
   });
 
+  it('should fail enrollment of an unsupported chain route if it is defined in the warp core config but not in the deployment config', async () => {
+    await hyperlaneWarp.deployRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      skipConfirmationPrompts: true,
+      extraArgs: [
+        `--key.${ProtocolType.Ethereum}`,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        `--key.${ProtocolType.CosmosNative}`,
+        HYP_KEY_BY_PROTOCOL.cosmosnative,
+      ],
+    });
+
+    // Update warp core config file with the unsupported token
+    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(WARP_CORE_PATH);
+    warpCoreConfig.tokens.push(getUnsupportedChainWarpCoreTokenConfig());
+    writeYamlOrJson(WARP_CORE_PATH, warpCoreConfig);
+
+    const output = await hyperlaneWarp
+      .applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        skipConfirmationPrompts: true,
+        extraArgs: [
+          `--key.${ProtocolType.Ethereum}`,
+          HYP_KEY_BY_PROTOCOL.ethereum,
+          `--key.${ProtocolType.CosmosNative}`,
+          HYP_KEY_BY_PROTOCOL.cosmosnative,
+        ],
+      })
+      .nothrow();
+
+    expect(output.exitCode).to.eql(1);
+    expect(output.text()).includes(
+      `Deploy config not found for chain ${TEST_CHAIN_NAMES_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN}. Unable to get gas config`,
+    );
+  });
+
   it('should successfully enroll an unsupported chain route if it is defined in the deployment config with the foreignDeployment field but not in the warp core config', async () => {
     await hyperlaneWarp.deployRaw({
       warpRouteId: WARP_ROUTE_ID,
