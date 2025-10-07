@@ -20,7 +20,7 @@ export type ResEstimateTransactionFee = {
 
 // ### QUERY CORE ###
 
-export type ReqGetMailbox = { mailboxId: string };
+export type ReqGetMailbox = { mailboxAddress: string };
 export type ResGetMailbox = {
   address: string;
   owner: string;
@@ -31,7 +31,7 @@ export type ResGetMailbox = {
   nonce: number;
 };
 
-export type ReqDelivered = { mailboxId: string; messageId: string };
+export type ReqDelivered = { mailboxAddress: string; messageId: string };
 
 export enum IsmType {
   CUSTOM = 'custom',
@@ -56,33 +56,33 @@ export enum IsmType {
   OFFCHAIN_LOOKUP = 'offchainLookupIsm',
 }
 
-export type ReqGetIsmType = { ismId: string };
+export type ReqGetIsmType = { ismAddress: string };
 
-export type ReqMessageIdMultisigIsm = { ismId: string };
+export type ReqMessageIdMultisigIsm = { ismAddress: string };
 export type ResMessageIdMultisigIsm = {
   address: string;
   threshold: number;
   validators: string[];
 };
 
-export type ReqMerkleRootMultisigIsm = { ismId: string };
+export type ReqMerkleRootMultisigIsm = { ismAddress: string };
 export type ResMerkleRootMultisigIsm = {
   address: string;
   threshold: number;
   validators: string[];
 };
 
-export type ReqRoutingIsm = { ismId: string };
+export type ReqRoutingIsm = { ismAddress: string };
 export type ResRoutingIsm = {
   address: string;
   owner: string;
   routes: {
     domainId: number;
-    ismId: string;
+    ismAddress: string;
   }[];
 };
 
-export type ReqNoopIsm = { ismId: string };
+export type ReqNoopIsm = { ismAddress: string };
 export type ResNoopIsm = {
   address: string;
 };
@@ -103,9 +103,9 @@ export enum HookType {
   CCIP = 'ccipHook',
 }
 
-export type ReqGetHookType = { hookId: string };
+export type ReqGetHookType = { hookAddress: string };
 
-export type ReqGetInterchainGasPaymasterHook = { hookId: string };
+export type ReqGetInterchainGasPaymasterHook = { hookAddress: string };
 export type ResGetInterchainGasPaymasterHook = {
   address: string;
   owner: string;
@@ -120,7 +120,7 @@ export type ResGetInterchainGasPaymasterHook = {
   };
 };
 
-export type ReqGetMerkleTreeHook = { hookId: string };
+export type ReqGetMerkleTreeHook = { hookAddress: string };
 export type ResGetMerkleTreeHook = {
   address: string;
 };
@@ -132,13 +132,13 @@ export enum TokenType {
   SYNTHETIC = 'SYNTHETIC',
 }
 
-export type ReqGetToken = { tokenId: string };
+export type ReqGetToken = { tokenAddress: string };
 export type ResGetToken = {
   address: string;
   owner: string;
   tokenType: TokenType;
-  mailboxId: string;
-  ismId: string;
+  mailboxAddress: string;
+  ismAddress: string;
   originDenom: string;
   name: string;
   symbol: string;
@@ -146,7 +146,7 @@ export type ResGetToken = {
   decimals: number;
 };
 
-export type ReqGetRemoteRouters = { tokenId: string };
+export type ReqGetRemoteRouters = { tokenAddress: string };
 export type ResGetRemoteRouters = {
   address: string;
   remoteRouters: {
@@ -156,12 +156,12 @@ export type ResGetRemoteRouters = {
   }[];
 };
 
-export type ReqGetBridgedSupply = { tokenId: string };
+export type ReqGetBridgedSupply = { tokenAddress: string };
 
 export type ReqQuoteRemoteTransfer = {
-  tokenId: string;
+  tokenAddress: string;
   destinationDomainId: number;
-  customHookId: string;
+  customHookAddress: string;
   customHookMetadata: string;
 };
 export type ResQuoteRemoteTransfer = { denom: string; amount: bigint };
@@ -171,40 +171,40 @@ export type ResQuoteRemoteTransfer = { denom: string; amount: bigint };
 export type ReqCreateMailbox = {
   signer: string;
   domainId: number;
-  defaultIsmId: string;
+  defaultIsmAddress: string;
 };
-export type ResCreateMailbox = { mailboxId: string };
+export type ResCreateMailbox = { mailboxAddress: string };
 
 export type ReqSetDefaultIsm = {
   signer: string;
-  mailboxId: string;
-  ismId: string;
+  mailboxAddress: string;
+  ismAddress: string;
 };
 export type ResSetDefaultIsm = {
-  ismId: string;
+  ismAddress: string;
 };
 
 export type ReqSetDefaultHook = {
   signer: string;
-  mailboxId: string;
-  hookId: string;
+  mailboxAddress: string;
+  hookAddress: string;
 };
 export type ResSetDefaultHook = {
-  hookId: string;
+  hookAddress: string;
 };
 
 export type ReqSetRequiredHook = {
   signer: string;
-  mailboxId: string;
-  hookId: string;
+  mailboxAddress: string;
+  hookAddress: string;
 };
 export type ResSetRequiredHook = {
-  hookId: string;
+  hookAddress: string;
 };
 
 export type ReqSetMailboxOwner = {
   signer: string;
-  mailboxId: string;
+  mailboxAddress: string;
   newOwner: string;
 };
 export type ResSetMailboxOwner = {
@@ -217,7 +217,7 @@ export type ReqCreateMerkleRootMultisigIsm = {
   threshold: number;
 };
 export type ResCreateMerkleRootMultisigIsm = {
-  ismId: string;
+  ismAddress: string;
 };
 
 export type ReqCreateMessageIdMultisigIsm = {
@@ -226,29 +226,29 @@ export type ReqCreateMessageIdMultisigIsm = {
   threshold: number;
 };
 export type ResCreateMessageIdMultisigIsm = {
-  ismId: string;
+  ismAddress: string;
 };
 
 export type ReqCreateRoutingIsm = {
   signer: string;
-  routes: { ism: string; domainId: number }[];
+  routes: { ismAddress: string; domainId: number }[];
 };
 export type ResCreateRoutingIsm = {
-  ismId: string;
+  ismAddress: string;
 };
 
 export type ReqSetRoutingIsmRoute = {
   signer: string;
-  ismId: string;
-  route: { domainId: number; ismId: string };
+  ismAddress: string;
+  route: { domainId: number; ismAddress: string };
 };
 export type ResSetRoutingIsmRoute = {
-  route: { domainId: number; ismId: string };
+  route: { domainId: number; ismAddress: string };
 };
 
 export type ReqRemoveRoutingIsmRoute = {
   signer: string;
-  ismId: string;
+  ismAddress: string;
   domainId: number;
 };
 export type ResRemoveRoutingIsmRoute = {
@@ -257,7 +257,7 @@ export type ResRemoveRoutingIsmRoute = {
 
 export type ReqSetRoutingIsmOwner = {
   signer: string;
-  ismId: string;
+  ismAddress: string;
   newOwner: string;
 };
 export type ResSetRoutingIsmOwner = {
@@ -268,12 +268,15 @@ export type ReqCreateNoopIsm = {
   signer: string;
 };
 export type ResCreateNoopIsm = {
-  ismId: string;
+  ismAddress: string;
 };
 
-export type ReqCreateMerkleTreeHook = { signer: string; mailboxId: string };
+export type ReqCreateMerkleTreeHook = {
+  signer: string;
+  mailboxAddress: string;
+};
 export type ResCreateMerkleTreeHook = {
-  hookId: string;
+  hookAddress: string;
 };
 
 export type ReqCreateInterchainGasPaymasterHook = {
@@ -281,12 +284,12 @@ export type ReqCreateInterchainGasPaymasterHook = {
   denom: string;
 };
 export type ResCreateInterchainGasPaymasterHook = {
-  hookId: string;
+  hookAddress: string;
 };
 
 export type ReqSetInterchainGasPaymasterHookOwner = {
   signer: string;
-  hookId: string;
+  hookAddress: string;
   newOwner: string;
 };
 export type ResSetInterchainGasPaymasterHookOwner = {
@@ -295,7 +298,7 @@ export type ResSetInterchainGasPaymasterHookOwner = {
 
 export type ReqSetDestinationGasConfig = {
   signer: string;
-  hookId: string;
+  hookAddress: string;
   destinationGasConfig: {
     remoteDomainId: number;
     gasOracle: {
@@ -318,7 +321,7 @@ export type ResSetDestinationGasConfig = {
 
 export type ReqCreateValidatorAnnounce = {
   signer: string;
-  mailboxId: string;
+  mailboxAddress: string;
 };
 export type ResCreateValidatorAnnounce = {
   validatorAnnounceId: string;
@@ -328,24 +331,24 @@ export type ResCreateValidatorAnnounce = {
 
 export type ReqCreateCollateralToken = {
   signer: string;
-  mailboxId: string;
+  mailboxAddress: string;
   originDenom: string;
 };
 export type ResCreateCollateralToken = {
-  tokenId: string;
+  tokenAddress: string;
 };
 
 export type ReqCreateSyntheticToken = {
   signer: string;
-  mailboxId: string;
+  mailboxAddress: string;
 };
 export type ResCreateSyntheticToken = {
-  tokenId: string;
+  tokenAddress: string;
 };
 
 export type ReqSetTokenOwner = {
   signer: string;
-  tokenId: string;
+  tokenAddress: string;
   newOwner: string;
 };
 export type ResSetTokenOwner = {
@@ -354,16 +357,16 @@ export type ResSetTokenOwner = {
 
 export type ReqSetTokenIsm = {
   signer: string;
-  tokenId: string;
-  ismId: string;
+  tokenAddress: string;
+  ismAddress: string;
 };
 export type ResSetTokenIsm = {
-  ismId: string;
+  ismAddress: string;
 };
 
 export type ReqEnrollRemoteRouter = {
   signer: string;
-  tokenId: string;
+  tokenAddress: string;
   remoteRouter: {
     receiverDomainId: number;
     receiverAddress: string;
@@ -376,7 +379,7 @@ export type ResEnrollRemoteRouter = {
 
 export type ReqUnenrollRemoteRouter = {
   signer: string;
-  tokenId: string;
+  tokenAddress: string;
   receiverDomainId: number;
 };
 export type ResUnenrollRemoteRouter = {
@@ -385,11 +388,11 @@ export type ResUnenrollRemoteRouter = {
 
 export type ReqRemoteTransfer = {
   signer: string;
-  tokenId: string;
+  tokenAddress: string;
   destinationDomainId: number;
   recipient: string;
   amount: string;
-  customHookId: string;
+  customHookAddress: string;
   gasLimit: string;
   customHookMetadata: string;
   maxFee: { denom: string; amount: string };

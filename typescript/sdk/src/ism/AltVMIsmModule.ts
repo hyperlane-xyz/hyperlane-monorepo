@@ -206,11 +206,11 @@ export class AltVMIsmModule extends HyperlaneModule<
       config.threshold <= config.validators.length,
       `threshold (${config.threshold}) for merkle root multisig ISM is greater than number of validators (${config.validators.length})`,
     );
-    const { ismId } = await this.signer.createMerkleRootMultisigIsm({
+    const { ismAddress } = await this.signer.createMerkleRootMultisigIsm({
       validators: config.validators,
       threshold: config.threshold,
     });
-    return ismId;
+    return ismAddress;
   }
 
   protected async deployMessageIdMultisigIsm(
@@ -220,11 +220,11 @@ export class AltVMIsmModule extends HyperlaneModule<
       config.threshold <= config.validators.length,
       `threshold (${config.threshold}) for message id multisig ISM is greater than number of validators (${config.validators.length})`,
     );
-    const { ismId } = await this.signer.createMessageIdMultisigIsm({
+    const { ismAddress } = await this.signer.createMessageIdMultisigIsm({
       validators: config.validators,
       threshold: config.threshold,
     });
-    return ismId;
+    return ismAddress;
   }
 
   protected async deployRoutingIsm(
@@ -244,15 +244,15 @@ export class AltVMIsmModule extends HyperlaneModule<
 
       const address = await this.deploy({ config: config.domains[chainName] });
       routes.push({
-        ism: address,
+        ismAddress: address,
         domainId: domainId,
       });
     }
 
-    const { ismId } = await this.signer.createRoutingIsm({
+    const { ismAddress } = await this.signer.createRoutingIsm({
       routes,
     });
-    return ismId;
+    return ismAddress;
   }
 
   protected async updateRoutingIsm({
@@ -280,7 +280,7 @@ export class AltVMIsmModule extends HyperlaneModule<
       logger.debug(
         `Reconfiguring preexisting routing ISM for origin ${origin}...`,
       );
-      const ismId = await this.deploy({
+      const ismAddress = await this.deploy({
         config: expected.domains[origin],
       });
 
@@ -289,9 +289,9 @@ export class AltVMIsmModule extends HyperlaneModule<
         annotation: `Setting new ISM for origin ${origin}...`,
         altvm_tx: await this.signer.getSetRoutingIsmRouteTransaction({
           signer: this.signer.getSignerAddress(),
-          ismId: this.args.addresses.deployedIsm,
+          ismAddress: this.args.addresses.deployedIsm,
           route: {
-            ismId,
+            ismAddress,
             domainId,
           },
         }),
@@ -310,7 +310,7 @@ export class AltVMIsmModule extends HyperlaneModule<
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         altvm_tx: await this.signer.getRemoveRoutingIsmRouteTransaction({
           signer: this.signer.getSignerAddress(),
-          ismId: this.args.addresses.deployedIsm,
+          ismAddress: this.args.addresses.deployedIsm,
           domainId,
         }),
       });
@@ -324,7 +324,7 @@ export class AltVMIsmModule extends HyperlaneModule<
         } to ${expected.owner}`,
         altvm_tx: await this.signer.getSetRoutingIsmOwnerTransaction({
           signer: this.signer.getSignerAddress(),
-          ismId: this.args.addresses.deployedIsm,
+          ismAddress: this.args.addresses.deployedIsm,
           newOwner: expected.owner,
         }),
       });
@@ -334,7 +334,7 @@ export class AltVMIsmModule extends HyperlaneModule<
   }
 
   protected async deployNoopIsm(): Promise<Address> {
-    const { ismId } = await this.signer.createNoopIsm({});
-    return ismId;
+    const { ismAddress } = await this.signer.createNoopIsm({});
+    return ismAddress;
   }
 }

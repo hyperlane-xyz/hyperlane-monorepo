@@ -64,7 +64,7 @@ export class AltVMWarpRouteReader {
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
     const token = await this.provider.getToken({
-      tokenId: warpRouteAddress,
+      tokenAddress: warpRouteAddress,
     });
 
     switch (token.tokenType) {
@@ -89,16 +89,16 @@ export class AltVMWarpRouteReader {
     routerAddress: Address,
   ): Promise<MailboxClientConfig> {
     const token = await this.provider.getToken({
-      tokenId: routerAddress,
+      tokenAddress: routerAddress,
     });
 
     const config: MailboxClientConfig = {
-      mailbox: token.mailboxId,
+      mailbox: token.mailboxAddress,
       owner: token.owner,
     };
 
-    if (token.ismId) {
-      const derivedIsm = await this.ismReader.deriveIsmConfig(token.ismId);
+    if (token.ismAddress) {
+      const derivedIsm = await this.ismReader.deriveIsmConfig(token.ismAddress);
       config.interchainSecurityModule = derivedIsm;
     }
 
@@ -124,7 +124,7 @@ export class AltVMWarpRouteReader {
 
   async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
     const { remoteRouters } = await this.provider.getRemoteRouters({
-      tokenId: warpRouteAddress,
+      tokenAddress: warpRouteAddress,
     });
 
     const routers: Record<string, { address: string }> = {};
@@ -141,7 +141,7 @@ export class AltVMWarpRouteReader {
     warpRouteAddress: Address,
   ): Promise<DestinationGas> {
     const { remoteRouters } = await this.provider.getRemoteRouters({
-      tokenId: warpRouteAddress,
+      tokenAddress: warpRouteAddress,
     });
 
     return Object.fromEntries(

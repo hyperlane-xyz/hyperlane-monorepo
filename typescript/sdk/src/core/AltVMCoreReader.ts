@@ -23,7 +23,7 @@ export class AltVMCoreReader {
 
   async deriveCoreConfig(mailboxAddress: Address): Promise<DerivedCoreConfig> {
     const mailbox = await this.provider.getMailbox({
-      mailboxId: mailboxAddress,
+      mailboxAddress: mailboxAddress,
     });
 
     return {

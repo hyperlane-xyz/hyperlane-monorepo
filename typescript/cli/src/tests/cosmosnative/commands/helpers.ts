@@ -44,12 +44,12 @@ export async function deployCollateralToken(
     },
   );
 
-  const { tokenId } = await signer.createCollateralToken({
-    mailboxId: mailbox,
+  const { tokenAddress } = await signer.createCollateralToken({
+    mailboxAddress: mailbox,
     originDenom: metadata.nativeToken?.denom ?? '',
   });
 
-  return tokenId;
+  return tokenAddress;
 }
 
 export async function deploySyntheticToken(
@@ -77,9 +77,9 @@ export async function deploySyntheticToken(
     },
   );
 
-  const { tokenId } = await signer.createSyntheticToken({
-    mailboxId: mailbox,
+  const { tokenAddress } = await signer.createSyntheticToken({
+    mailboxAddress: mailbox,
   });
 
-  return tokenId;
+  return tokenAddress;
 }

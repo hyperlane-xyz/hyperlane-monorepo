@@ -26,14 +26,15 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     const txResponse = await signer.createNoopIsm({});
 
     // ASSERT
-    expect(txResponse.ismId).not.to.be.empty;
+    expect(txResponse.ismAddress).not.to.be.empty;
 
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismId))).to.be.true;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
+      .true;
 
     let ism = await signer.getNoopIsm({
-      ismId: txResponse.ismId,
+      ismAddress: txResponse.ismAddress,
     });
-    expect(ism.address).to.equal(txResponse.ismId);
+    expect(ism.address).to.equal(txResponse.ismAddress);
   });
 
   step('create new MessageIdMultisig ISM', async () => {
@@ -55,14 +56,15 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     });
 
     // ASSERT
-    expect(txResponse.ismId).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismId))).to.be.true;
+    expect(txResponse.ismAddress).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
+      .true;
 
     let ism = await signer.getMessageIdMultisigIsm({
-      ismId: txResponse.ismId,
+      ismAddress: txResponse.ismAddress,
     });
 
-    expect(ism.address).to.equal(txResponse.ismId);
+    expect(ism.address).to.equal(txResponse.ismAddress);
     expect(ism.threshold).to.equal(threshold);
     expect(ism.validators).deep.equal(validators);
   });
@@ -86,14 +88,15 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     });
 
     // ASSERT
-    expect(txResponse.ismId).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismId))).to.be.true;
+    expect(txResponse.ismAddress).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
+      .true;
 
     let ism = await signer.getMerkleRootMultisigIsm({
-      ismId: txResponse.ismId,
+      ismAddress: txResponse.ismAddress,
     });
 
-    expect(ism.address).to.equal(txResponse.ismId);
+    expect(ism.address).to.equal(txResponse.ismAddress);
     expect(ism.threshold).to.equal(threshold);
     expect(ism.validators).deep.equal(validators);
   });
@@ -107,14 +110,15 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     });
 
     // ASSERT
-    expect(txResponse.ismId).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismId))).to.be.true;
+    expect(txResponse.ismAddress).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
+      .true;
 
     let ism = await signer.getRoutingIsm({
-      ismId: txResponse.ismId,
+      ismAddress: txResponse.ismAddress,
     });
 
-    expect(ism.address).to.equal(txResponse.ismId);
+    expect(ism.address).to.equal(txResponse.ismAddress);
     expect(ism.owner).to.equal(signer.getSignerAddress());
 
     expect(ism.routes).to.be.empty;
@@ -122,68 +126,68 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
 
   step('set Routing Ism domain', async () => {
     // ARRANGE
-    const { ismId: noop_ism } = await signer.createNoopIsm({});
+    const { ismAddress: noop_ism } = await signer.createNoopIsm({});
 
-    const { ismId: routing_ism_id } = await signer.createRoutingIsm({
+    const { ismAddress: routing_ism_id } = await signer.createRoutingIsm({
       routes: [],
     });
 
     // ACT
     await signer.setRoutingIsmRoute({
-      ismId: routing_ism_id,
+      ismAddress: routing_ism_id,
       route: {
-        ismId: noop_ism,
+        ismAddress: noop_ism,
         domainId: 1234,
       },
     });
 
     // ASSERT
     let ism = await signer.getRoutingIsm({
-      ismId: routing_ism_id,
+      ismAddress: routing_ism_id,
     });
 
     expect(ism.routes).to.have.lengthOf(1);
     expect(ism.routes[0]).to.deep.equal({
-      ismId: noop_ism,
+      ismAddress: noop_ism,
       domainId: 1234,
     });
   });
 
   step('remove Routing Ism domain', async () => {
     // ARRANGE
-    const { ismId: noop_ism } = await signer.createNoopIsm({});
+    const { ismAddress: noop_ism } = await signer.createNoopIsm({});
 
-    const { ismId: routing_ism_id } = await signer.createRoutingIsm({
+    const { ismAddress: routing_ism_id } = await signer.createRoutingIsm({
       routes: [],
     });
 
     await signer.setRoutingIsmRoute({
-      ismId: routing_ism_id,
+      ismAddress: routing_ism_id,
       route: {
-        ismId: noop_ism,
+        ismAddress: noop_ism,
         domainId: 1234,
       },
     });
 
     let ism = await signer.getRoutingIsm({
-      ismId: routing_ism_id,
+      ismAddress: routing_ism_id,
     });
 
     expect(ism.routes).to.have.lengthOf(1);
     expect(ism.routes[0]).to.deep.equal({
-      ismId: noop_ism,
+      ismAddress: noop_ism,
       domainId: 1234,
     });
 
     // ACT
     await signer.removeRoutingIsmRoute({
-      ismId: routing_ism_id,
+      ismAddress: routing_ism_id,
       domainId: 1234,
     });
 
     // ASSERT
     ism = await signer.getRoutingIsm({
-      ismId: routing_ism_id,
+      ismAddress: routing_ism_id,
     });
 
     expect(ism.routes).to.be.empty;
@@ -191,12 +195,12 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
 
   step('update Routing Ism owner', async () => {
     // ARRANGE
-    const { ismId: routing_ism_id } = await signer.createRoutingIsm({
+    const { ismAddress: routing_ism_id } = await signer.createRoutingIsm({
       routes: [],
     });
 
     let ism = await signer.getRoutingIsm({
-      ismId: routing_ism_id,
+      ismAddress: routing_ism_id,
     });
 
     expect(ism.owner).to.equal(signer.getSignerAddress());
@@ -205,13 +209,13 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
 
     // ACT
     await signer.setRoutingIsmOwner({
-      ismId: routing_ism_id,
+      ismAddress: routing_ism_id,
       newOwner: bobSigner.getSignerAddress(),
     });
 
     // ASSERT
     ism = await signer.getRoutingIsm({
-      ismId: routing_ism_id,
+      ismAddress: routing_ism_id,
     });
 
     expect(ism.owner).to.equal(bobSigner.getSignerAddress());

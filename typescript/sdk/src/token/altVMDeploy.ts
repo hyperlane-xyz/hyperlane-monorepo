@@ -75,8 +75,8 @@ export class AltVMDeployer {
         this.logger.info(`Set ISM for token`);
 
         await this.signersMap[chain].setTokenIsm({
-          tokenId: result[chain],
-          ismId: config.interchainSecurityModule,
+          tokenAddress: result[chain],
+          ismAddress: config.interchainSecurityModule,
         });
       }
 
@@ -92,11 +92,13 @@ export class AltVMDeployer {
     originDenom: string,
   ): Promise<Address> {
     this.logger.info(`Deploying collateral token to ${chain}`);
-    const { tokenId } = await this.signersMap[chain].createCollateralToken({
-      mailboxId: originMailbox,
-      originDenom: originDenom,
-    });
-    return tokenId;
+    const { tokenAddress } = await this.signersMap[chain].createCollateralToken(
+      {
+        mailboxAddress: originMailbox,
+        originDenom: originDenom,
+      },
+    );
+    return tokenAddress;
   }
 
   private async deploySyntheticToken(
@@ -104,9 +106,9 @@ export class AltVMDeployer {
     originMailbox: Address,
   ): Promise<Address> {
     this.logger.info(`Deploying synthetic token to ${chain}`);
-    const { tokenId } = await this.signersMap[chain].createSyntheticToken({
-      mailboxId: originMailbox,
+    const { tokenAddress } = await this.signersMap[chain].createSyntheticToken({
+      mailboxAddress: originMailbox,
     });
-    return tokenId;
+    return tokenAddress;
   }
 }

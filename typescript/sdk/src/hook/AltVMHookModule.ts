@@ -163,7 +163,7 @@ export class AltVMHookModule extends HyperlaneModule<
         annotation: `Setting gas params for ${this.chain}`,
         altvm_tx: await this.signer.getSetDestinationGasConfigTransaction({
           signer: this.signer.getSignerAddress(),
-          hookId: this.args.addresses.deployedHook,
+          hookAddress: this.args.addresses.deployedHook,
           destinationGasConfig: {
             remoteDomainId: remoteDomain,
             gasOracle: {
@@ -183,7 +183,7 @@ export class AltVMHookModule extends HyperlaneModule<
         altvm_tx:
           await this.signer.getSetInterchainGasPaymasterHookOwnerTransaction({
             signer: this.signer.getSignerAddress(),
-            hookId: this.args.addresses.deployedHook,
+            hookAddress: this.args.addresses.deployedHook,
             newOwner: targetConfig.owner,
           }),
       });
@@ -250,7 +250,7 @@ export class AltVMHookModule extends HyperlaneModule<
 
     assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
 
-    const { hookId } = await this.signer.createInterchainGasPaymasterHook({
+    const { hookAddress } = await this.signer.createInterchainGasPaymasterHook({
       denom: nativeToken.denom,
     });
 
@@ -262,7 +262,7 @@ export class AltVMHookModule extends HyperlaneModule<
       }
 
       await this.signer.setDestinationGasConfig({
-        hookId,
+        hookAddress,
         destinationGasConfig: {
           remoteDomainId: remoteDomain,
           gasOverhead: config.overhead[remote].toString(),
@@ -276,21 +276,21 @@ export class AltVMHookModule extends HyperlaneModule<
 
     if (this.signer.getSignerAddress() !== config.owner) {
       await this.signer.setInterchainGasPaymasterHookOwner({
-        hookId,
+        hookAddress,
         newOwner: config.owner,
       });
     }
 
-    return hookId;
+    return hookAddress;
   }
 
   protected async deployMerkleTreeHook(): Promise<Address> {
     this.logger.debug('Deploying Merkle Tree Hook...');
 
-    const { hookId } = await this.signer.createMerkleTreeHook({
-      mailboxId: this.args.addresses.mailbox,
+    const { hookAddress } = await this.signer.createMerkleTreeHook({
+      mailboxAddress: this.args.addresses.mailbox,
     });
 
-    return hookId;
+    return hookAddress;
   }
 }

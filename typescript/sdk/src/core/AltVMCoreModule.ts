@@ -120,7 +120,7 @@ export class AltVMCoreModule extends HyperlaneModule<
     // 2. Deploy Mailbox with initial configuration
     const mailbox = await signer.createMailbox({
       domainId: domainId,
-      defaultIsmId: defaultIsm,
+      defaultIsmAddress: defaultIsm,
     });
 
     // 3. Deploy default hook
@@ -129,7 +129,7 @@ export class AltVMCoreModule extends HyperlaneModule<
       config: config.defaultHook,
       addresses: {
         deployedHook: '',
-        mailbox: mailbox.mailboxId,
+        mailbox: mailbox.mailboxAddress,
       },
       multiProvider,
       signer,
@@ -143,7 +143,7 @@ export class AltVMCoreModule extends HyperlaneModule<
       config: config.requiredHook,
       addresses: {
         deployedHook: '',
-        mailbox: mailbox.mailboxId,
+        mailbox: mailbox.mailboxAddress,
       },
       multiProvider,
       signer,
@@ -153,31 +153,31 @@ export class AltVMCoreModule extends HyperlaneModule<
 
     // 5. Update the configuration with the newly created hooks
     await signer.setDefaultIsm({
-      mailboxId: mailbox.mailboxId,
-      ismId: defaultIsm,
+      mailboxAddress: mailbox.mailboxAddress,
+      ismAddress: defaultIsm,
     });
     await signer.setDefaultHook({
-      mailboxId: mailbox.mailboxId,
-      hookId: defaultHook,
+      mailboxAddress: mailbox.mailboxAddress,
+      hookAddress: defaultHook,
     });
     await signer.setRequiredHook({
-      mailboxId: mailbox.mailboxId,
-      hookId: requiredHook,
+      mailboxAddress: mailbox.mailboxAddress,
+      hookAddress: requiredHook,
     });
 
     if (signer.getSignerAddress() !== config.owner) {
       await signer.setMailboxOwner({
-        mailboxId: mailbox.mailboxId,
+        mailboxAddress: mailbox.mailboxAddress,
         newOwner: config.owner,
       });
     }
 
     const validatorAnnounce = await signer.createValidatorAnnounce({
-      mailboxId: mailbox.mailboxId,
+      mailboxAddress: mailbox.mailboxAddress,
     });
 
     const addresses: DeployedCoreAddresses = {
-      mailbox: mailbox.mailboxId,
+      mailbox: mailbox.mailboxAddress,
       staticMerkleRootMultisigIsmFactory: '',
       proxyAdmin: '',
       staticMerkleRootWeightedMultisigIsmFactory: '',
@@ -273,7 +273,7 @@ export class AltVMCoreModule extends HyperlaneModule<
         annotation: `Transferring ownership of Mailbox from ${actualConfig.owner} to ${expectedConfig.owner}`,
         altvm_tx: await this.signer.getSetMailboxOwnerTransaction({
           signer: this.signer.getSignerAddress(),
-          mailboxId: this.args.addresses.mailbox,
+          mailboxAddress: this.args.addresses.mailbox,
           newOwner: expectedConfig.owner,
         }),
       },
@@ -312,8 +312,8 @@ export class AltVMCoreModule extends HyperlaneModule<
         annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm}`,
         altvm_tx: await this.signer.getSetDefaultIsmTransaction({
           signer: this.signer.getSignerAddress(),
-          mailboxId: mailbox,
-          ismId: deployedIsm,
+          mailboxAddress: mailbox,
+          ismAddress: deployedIsm,
         }),
       });
     }
@@ -389,8 +389,8 @@ export class AltVMCoreModule extends HyperlaneModule<
         annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook}`,
         altvm_tx: await this.signer.getSetDefaultHookTransaction({
           signer: this.signer.getSignerAddress(),
-          mailboxId: mailbox,
-          hookId: deployedHook,
+          mailboxAddress: mailbox,
+          hookAddress: deployedHook,
         }),
       });
     }
@@ -431,8 +431,8 @@ export class AltVMCoreModule extends HyperlaneModule<
         annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook}`,
         altvm_tx: await this.signer.getSetRequiredHookTransaction({
           signer: this.signer.getSignerAddress(),
-          mailboxId: mailbox,
-          hookId: deployedHook,
+          mailboxAddress: mailbox,
+          hookAddress: deployedHook,
         }),
       });
     }

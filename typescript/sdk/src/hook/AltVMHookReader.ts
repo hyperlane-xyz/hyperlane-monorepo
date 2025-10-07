@@ -24,7 +24,9 @@ export class AltVMHookReader {
     address: Address,
   ): Promise<DerivedHookConfig> {
     try {
-      const hook_type = await this.provider.getHookType({ hookId: address });
+      const hook_type = await this.provider.getHookType({
+        hookAddress: address,
+      });
 
       switch (hook_type) {
         case AltVM.HookType.MERKLE_TREE:
@@ -51,7 +53,7 @@ export class AltVMHookReader {
     address: Address,
   ): Promise<WithAddress<IgpHookConfig>> {
     const igp = await this.provider.getInterchainGasPaymasterHook({
-      hookId: address,
+      hookAddress: address,
     });
 
     const overhead: IgpHookConfig['overhead'] = {};
@@ -88,7 +90,7 @@ export class AltVMHookReader {
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
     const merkle_tree_hook = await this.provider.getMerkleTreeHook({
-      hookId: address,
+      hookAddress: address,
     });
 
     return {

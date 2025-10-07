@@ -206,7 +206,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      mailboxId: result.id,
+      mailboxAddress: result.id,
     };
   }
 
@@ -220,7 +220,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      ismId: req.ismId,
+      ismAddress: req.ismAddress,
     };
   }
 
@@ -234,7 +234,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      hookId: req.hookId,
+      hookAddress: req.hookAddress,
     };
   }
 
@@ -248,7 +248,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      hookId: req.hookId,
+      hookAddress: req.hookAddress,
     };
   }
 
@@ -276,7 +276,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      ismId: result.id,
+      ismAddress: result.id,
     };
   }
 
@@ -290,7 +290,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      ismId: result.id,
+      ismAddress: result.id,
     };
   }
 
@@ -304,7 +304,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      ismId: result.id,
+      ismAddress: result.id,
     };
   }
 
@@ -360,7 +360,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      ismId: result.id,
+      ismAddress: result.id,
     };
   }
 
@@ -374,7 +374,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      hookId: result.id,
+      hookAddress: result.id,
     };
   }
 
@@ -388,7 +388,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      hookId: result.id,
+      hookAddress: result.id,
     };
   }
 
@@ -439,7 +439,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      tokenId: result.id,
+      tokenAddress: result.id,
     };
   }
 
@@ -453,7 +453,7 @@ export class CosmosNativeSigner
 
     const result = await this.submitTx(msg);
     return {
-      tokenId: result.id,
+      tokenAddress: result.id,
     };
   }
 
@@ -481,7 +481,7 @@ export class CosmosNativeSigner
 
     await this.submitTx(msg);
     return {
-      ismId: req.ismId,
+      ismAddress: req.ismAddress,
     };
   }
 

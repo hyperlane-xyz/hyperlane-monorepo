@@ -29,10 +29,10 @@ export class RadixNativeTokenAdapter
   implements ITokenAdapter<RadixSDKTransaction>
 {
   protected provider: RadixSDK;
-  protected tokenId: string;
+  protected tokenAddress: string;
 
   protected async getResourceAddress(): Promise<string> {
-    return this.tokenId;
+    return this.tokenAddress;
   }
 
   constructor(
@@ -43,7 +43,7 @@ export class RadixNativeTokenAdapter
     super(chainName, multiProvider, addresses);
 
     this.provider = this.getProvider();
-    this.tokenId = addresses.token;
+    this.tokenAddress = addresses.token;
   }
 
   async getBalance(address: string): Promise<bigint> {
@@ -60,20 +60,20 @@ export class RadixNativeTokenAdapter
       symbol,
       divisibility: decimals,
     } = await this.provider.query.warp.getToken({
-      token: this.tokenId,
+      token: this.tokenAddress,
     });
 
     assert(
       name !== undefined,
-      `name on radix token ${this.tokenId} is undefined`,
+      `name on radix token ${this.tokenAddress} is undefined`,
     );
     assert(
       symbol !== undefined,
-      `symbol on radix token ${this.tokenId} is undefined`,
+      `symbol on radix token ${this.tokenAddress} is undefined`,
     );
     assert(
       decimals !== undefined,
-      `divisibility on radix token ${this.tokenId} is undefined`,
+      `divisibility on radix token ${this.tokenAddress} is undefined`,
     );
 
     return {
@@ -149,14 +149,14 @@ export class RadixHypCollateralAdapter
 
   protected async getResourceAddress(): Promise<string> {
     const { origin_denom } = await this.provider.query.warp.getToken({
-      token: this.tokenId,
+      token: this.tokenAddress,
     });
     return origin_denom;
   }
 
   async getDomains(): Promise<Domain[]> {
     const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
-      token: this.tokenId,
+      token: this.tokenAddress,
     });
 
     return remote_routers.map((router) => parseInt(router.receiver_domain));
@@ -164,7 +164,7 @@ export class RadixHypCollateralAdapter
 
   async getRouterAddress(domain: Domain): Promise<Buffer> {
     const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
-      token: this.tokenId,
+      token: this.tokenAddress,
     });
 
     const router = remote_routers.find(
@@ -180,7 +180,7 @@ export class RadixHypCollateralAdapter
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
     const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
-      token: this.tokenId,
+      token: this.tokenAddress,
     });
 
     return remote_routers.map((router) => ({
@@ -190,7 +190,9 @@ export class RadixHypCollateralAdapter
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
-    return this.provider.query.warp.getBridgedSupply({ token: this.tokenId });
+    return this.provider.query.warp.getBridgedSupply({
+      token: this.tokenAddress,
+    });
   }
 
   async quoteTransferRemoteGas(
@@ -198,7 +200,7 @@ export class RadixHypCollateralAdapter
   ): Promise<InterchainGasQuote> {
     const { resource: addressOrDenom, amount } =
       await this.provider.query.warp.quoteRemoteTransfer({
-        token: this.tokenId,
+        token: this.tokenAddress,
         destination_domain: destination,
       });
 
@@ -220,7 +222,7 @@ export class RadixHypCollateralAdapter
     }
 
     const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
-      token: this.tokenId,
+      token: this.tokenAddress,
     });
 
     const router = remote_routers.find(
@@ -229,7 +231,7 @@ export class RadixHypCollateralAdapter
 
     if (!router) {
       throw new Error(
-        `Failed to find remote router for token id and destination: ${this.tokenId},${params.destination}`,
+        `Failed to find remote router for token id and destination: ${this.tokenAddress},${params.destination}`,
       );
     }
 
@@ -245,7 +247,7 @@ export class RadixHypCollateralAdapter
         from_address: params.fromAccountOwner!,
         recipient: strip0x(addressToBytes32(params.recipient)),
         amount: params.weiAmountOrId.toString(),
-        token: this.tokenId,
+        token: this.tokenAddress,
         destination_domain: params.destination,
         gas_limit: router.gas,
         custom_hook_id: params.customHook || '',

@@ -24,7 +24,7 @@ export class AltVMIsmReader {
     address: Address,
   ): Promise<DerivedIsmConfig> {
     try {
-      const ism_type = await this.provider.getIsmType({ ismId: address });
+      const ism_type = await this.provider.getIsmType({ ismAddress: address });
 
       switch (ism_type) {
         case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
@@ -64,7 +64,7 @@ export class AltVMIsmReader {
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
     const ism = await this.provider.getMerkleRootMultisigIsm({
-      ismId: address,
+      ismAddress: address,
     });
 
     return {
@@ -79,7 +79,7 @@ export class AltVMIsmReader {
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
     const ism = await this.provider.getMessageIdMultisigIsm({
-      ismId: address,
+      ismAddress: address,
     });
 
     return {
@@ -94,7 +94,7 @@ export class AltVMIsmReader {
     address: Address,
   ): Promise<WithAddress<DomainRoutingIsmConfig>> {
     const ism = await this.provider.getRoutingIsm({
-      ismId: address,
+      ismAddress: address,
     });
 
     const domains: DomainRoutingIsmConfig['domains'] = {};
@@ -108,7 +108,7 @@ export class AltVMIsmReader {
         continue;
       }
 
-      domains[chainName] = await this.deriveIsmConfig(route.ismId);
+      domains[chainName] = await this.deriveIsmConfig(route.ismAddress);
     }
 
     return {

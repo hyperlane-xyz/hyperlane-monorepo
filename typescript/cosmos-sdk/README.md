@@ -49,7 +49,7 @@ const { mailbox_id } = await signer.createMailbox({
 
 await signer.remoteTransfer({
   sender: '...',
-  tokenId: '...',
+  tokenAddress: '...',
   destinationDomainId: '...',
   recipient: '...',
   amount: '...',
