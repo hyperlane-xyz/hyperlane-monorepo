@@ -357,7 +357,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       name: '',
       symbol: '',
       description: '',
-      divisibility: 0,
+      decimals: 0,
     };
   }
 

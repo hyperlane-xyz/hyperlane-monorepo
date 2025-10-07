@@ -162,7 +162,25 @@ export class CosmosNativeSigner
     return this.account.address;
   }
 
-  async signAndBroadcast(
+  supportsMultiTransactions(): boolean {
+    return true;
+  }
+
+  async sendAndConfirmTransaction(
+    transaction: EncodeObject,
+  ): Promise<DeliverTxResponse> {
+    const receipt = await this.signer.signAndBroadcast(
+      this.account.address,
+      [transaction],
+      this.options.fee,
+      this.options.memo,
+    );
+    assertIsDeliverTxSuccess(receipt);
+
+    return receipt;
+  }
+
+  async sendAndConfirmMultiTransactions(
     transactions: EncodeObject[],
   ): Promise<DeliverTxResponse> {
     const receipt = await this.signer.signAndBroadcast(

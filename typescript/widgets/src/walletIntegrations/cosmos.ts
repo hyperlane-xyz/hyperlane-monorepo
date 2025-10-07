@@ -200,7 +200,7 @@ export function useCosmosTransactionFns(
           },
         );
 
-        receipt = await client.signAndBroadcast([tx.transaction]);
+        receipt = await client.sendAndConfirmTransaction(tx.transaction);
       } else {
         throw new Error(`Invalid cosmos provider type ${tx.type}`);
       }

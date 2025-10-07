@@ -35,9 +35,20 @@ export class AltVMJsonRpcTxSubmitter implements TxSubmitterInterface<any> {
       }
     }
 
-    const receipt = await this.signer.signAndBroadcast(
-      txs.map((tx) => tx.altvm_tx),
-    );
-    return [receipt];
+    if (this.signer.supportsMultiTransactions()) {
+      const receipt = await this.signer.sendAndConfirmMultiTransactions(
+        txs.map((tx) => tx.altvm_tx),
+      );
+      return [receipt];
+    }
+
+    const receipts = [];
+
+    for (const tx of txs) {
+      const receipt = await this.signer.sendAndConfirmTransaction(tx.altvm_tx);
+      receipts.push(receipt);
+    }
+
+    return receipts;
   }
 }

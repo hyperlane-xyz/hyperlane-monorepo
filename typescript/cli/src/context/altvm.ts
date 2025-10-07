@@ -149,10 +149,13 @@ export class AltVMSignerFactory
     }
 
     // 3. Finally, if no key flag or strategy was provided we prompt the user
-    // for the private key
-    return password({
+    // for the private key. We save it in the keyByProtocol map so that we can
+    // reuse it if another chain is of the same protocol
+    keyByProtocol[protocol] = await password({
       message: `Please enter the private key for chain ${chain} (will be re-used for other chains with the same protocol type)`,
     });
+
+    return keyByProtocol[protocol]!;
   }
 
   public static async createSigners(

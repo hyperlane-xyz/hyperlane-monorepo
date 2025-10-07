@@ -143,7 +143,7 @@ export type ResGetToken = {
   name: string;
   symbol: string;
   description: string;
-  divisibility: number;
+  decimals: number;
 };
 
 export type ReqGetRemoteRouters = { tokenId: string };
@@ -525,7 +525,11 @@ export interface ISigner<T = any, R extends ResSignAndBroadcast = any>
   extends IProvider<T> {
   getSignerAddress(): string;
 
-  signAndBroadcast(transactions: T[]): Promise<R>;
+  supportsMultiTransactions(): boolean;
+
+  sendAndConfirmTransaction(transaction: T): Promise<R>;
+
+  sendAndConfirmMultiTransactions(transactions: T[]): Promise<R>;
 
   // ### TX CORE ###
 
