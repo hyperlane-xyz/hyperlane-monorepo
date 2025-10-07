@@ -3,6 +3,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import {
   Address,
   ProtocolType,
+  addressToBytes32,
   assert,
   isObjEmpty,
   objFilter,
@@ -391,7 +392,7 @@ export async function enrollCrossChainRouters(
         .map(([chain, address]) => [
           multiProvider.getDomainId(chain).toString(),
           {
-            address,
+            address: addressToBytes32(address),
           },
         ]),
     );

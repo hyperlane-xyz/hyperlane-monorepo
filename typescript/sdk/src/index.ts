@@ -414,6 +414,8 @@ export { CallData, CallDataSchema } from './providers/transactions/types.js';
 export {
   randomAddress,
   randomCosmosAddress,
+  randomSvmAddress,
+  randomStarknetAddress,
   randomHookConfig,
   randomIsmConfig,
 } from './test/testUtils.js';
