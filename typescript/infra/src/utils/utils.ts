@@ -179,29 +179,17 @@ export async function writeAndFormatJsonAtPath(filepath: string, obj: any) {
  */
 export async function writeJsonWithAppendMode(
   filepath: string,
-  newData: any,
+  newData: Record<string, any>,
   appendMode: boolean,
 ) {
-  let finalData = newData;
-  const existingData = readJSONAtPath(filepath);
-
-  if (appendMode) {
-    finalData = {};
-    const newKeys: string[] = [];
-    let preservedCount = 0;
-
-    for (const key of Object.keys(newData)) {
-      if (Object.prototype.hasOwnProperty.call(existingData, key)) {
-        finalData[key] = existingData[key];
-        preservedCount++;
-      } else {
-        finalData[key] = newData[key];
-        newKeys.push(key);
-      }
-    }
+  let data = newData;
+  if (appendMode && fs.existsSync(filepath)) {
+    const existing = readJSONAtPath(filepath);
+    data = Object.fromEntries(
+      Object.keys(newData).map((key) => [key, existing[key] ?? newData[key]]),
+    );
   }
-
-  await writeAndFormatJsonAtPath(filepath, finalData);
+  await writeAndFormatJsonAtPath(filepath, data);
 }
 
 /**
