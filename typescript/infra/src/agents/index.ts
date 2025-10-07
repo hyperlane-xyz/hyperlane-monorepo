@@ -199,8 +199,6 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
 
-    const config = await this.config.buildConfig();
-
     values.hyperlane.relayer = {
       enabled: true,
       aws: this.config.requiresAwsCredentials,

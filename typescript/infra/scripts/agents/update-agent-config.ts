@@ -27,7 +27,10 @@ import {
 import { Contexts } from '../../config/contexts.js';
 import mainnet3GasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
 import testnet4GasPrices from '../../config/environments/testnet4/gasPrices.json' with { type: 'json' };
-import { RelayerHelmManager } from '../../src/agents/index.js';
+import {
+  RelayerConfigHelper,
+  RelayerConfigMapConfig,
+} from '../../src/config/agent/relayer.js';
 import { getCombinedChainsToScrape } from '../../src/config/agent/scraper.js';
 import {
   DeployEnvironment,
@@ -227,11 +230,18 @@ export async function writeAgentConfigMap(
   environment: DeployEnvironment,
 ) {
   const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
-  const relayerManager = new RelayerHelmManager(envAgentConfig);
+  const relayerConfig = await new RelayerConfigHelper(
+    envAgentConfig,
+  ).buildConfig();
 
-  const helmValues = await relayerManager.helmValues();
-
-  const agentConfigMap = helmValues.hyperlane.relayer?.configMapConfig ?? {};
+  const agentConfigMap: RelayerConfigMapConfig = {
+    addressBlacklist: relayerConfig.addressBlacklist,
+    blacklist: relayerConfig.blacklist,
+    whitelist: relayerConfig.whitelist,
+    gasPaymentEnforcement: relayerConfig.gasPaymentEnforcement,
+    metricAppContexts: relayerConfig.metricAppContexts,
+    ismCacheConfigs: relayerConfig.ismCacheConfigs,
+  };
 
   const filepath = getAgentConfigMapJsonPath(envNameToAgentEnv[environment]);
   console.log(`Writing config to ${filepath}`);
