@@ -953,7 +953,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c868da2-20251003-124948',
+      tag: '3d13493-20251007-100258',
     },
     blacklist,
     gasPaymentEnforcement,
