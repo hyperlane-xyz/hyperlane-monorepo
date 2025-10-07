@@ -3,6 +3,7 @@ import {
   AltVM,
   ChainId,
   Domain,
+  ProtocolType,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -12,7 +13,7 @@ import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedAltVMTransaction } from '../providers/ProviderType.js';
+import { AnnotatedTypedTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -27,7 +28,7 @@ import {
   DerivedCoreConfig,
 } from './types.js';
 
-export class AltVMCoreModule extends HyperlaneModule<
+export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
   any,
   CoreConfig,
   Record<string, string>
@@ -41,7 +42,7 @@ export class AltVMCoreModule extends HyperlaneModule<
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly signer: AltVM.ISigner,
+    protected readonly signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>,
     args: HyperlaneModuleParams<CoreConfig, Record<string, string>>,
   ) {
     super(args);
@@ -65,14 +66,14 @@ export class AltVMCoreModule extends HyperlaneModule<
    * Deploys the Core contracts.
    * @returns The created AltVMCoreModule instance.
    */
-  public static async create(params: {
+  public static async create<PT extends ProtocolType>(params: {
     chain: ChainNameOrId;
     config: CoreConfig;
     multiProvider: MultiProvider;
-    signer: AltVM.ISigner;
-  }): Promise<AltVMCoreModule> {
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>;
+  }): Promise<AltVMCoreModule<PT>> {
     const { chain, config, multiProvider, signer } = params;
-    const addresses = await AltVMCoreModule.deploy({
+    const addresses = await AltVMCoreModule.deploy<PT>({
       config,
       multiProvider,
       chain,
@@ -80,7 +81,7 @@ export class AltVMCoreModule extends HyperlaneModule<
     });
 
     // Create CoreModule and deploy the Core contracts
-    const module = new AltVMCoreModule(multiProvider, signer, {
+    const module = new AltVMCoreModule<PT>(multiProvider, signer, {
       addresses,
       chain,
       config,
@@ -93,11 +94,11 @@ export class AltVMCoreModule extends HyperlaneModule<
    * Deploys the core Hyperlane contracts.
    * @returns The deployed core contract addresses.
    */
-  static async deploy(params: {
+  static async deploy<PT extends ProtocolType>(params: {
     config: CoreConfig;
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
-    signer: AltVM.ISigner;
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>;
   }): Promise<DeployedCoreAddresses> {
     const { config, multiProvider, chain, signer } = params;
 
@@ -245,11 +246,11 @@ export class AltVMCoreModule extends HyperlaneModule<
    */
   public async update(
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions: AnnotatedAltVMTransaction[] = [];
+    const transactions: AnnotatedTypedTransaction<PT>[] = [];
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createDefaultHookUpdateTxs(actualConfig, expectedConfig)),
@@ -263,7 +264,7 @@ export class AltVMCoreModule extends HyperlaneModule<
   private async createMailboxOwnerUpdateTxs(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
     if (actualConfig.owner === expectedConfig.owner) {
       return [];
     }
@@ -271,11 +272,11 @@ export class AltVMCoreModule extends HyperlaneModule<
     return [
       {
         annotation: `Transferring ownership of Mailbox from ${actualConfig.owner} to ${expectedConfig.owner}`,
-        altvm_tx: await this.signer.getSetMailboxOwnerTransaction({
+        ...(await this.signer.getSetMailboxOwnerTransaction({
           signer: this.signer.getSignerAddress(),
           mailboxAddress: this.args.addresses.mailbox,
           newOwner: expectedConfig.owner,
-        }),
+        })),
       },
     ];
   }
@@ -290,8 +291,8 @@ export class AltVMCoreModule extends HyperlaneModule<
   async createDefaultIsmUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
-    const updateTransactions: AnnotatedAltVMTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
 
     const actualDefaultIsmConfig = actualConfig.defaultIsm as DerivedIsmConfig;
 
@@ -310,11 +311,11 @@ export class AltVMCoreModule extends HyperlaneModule<
       const { mailbox } = this.serialize();
       updateTransactions.push({
         annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm}`,
-        altvm_tx: await this.signer.getSetDefaultIsmTransaction({
+        ...(await this.signer.getSetDefaultIsmTransaction({
           signer: this.signer.getSignerAddress(),
           mailboxAddress: mailbox,
           ismAddress: deployedIsm,
-        }),
+        })),
       });
     }
 
@@ -331,7 +332,7 @@ export class AltVMCoreModule extends HyperlaneModule<
     expectDefaultIsmConfig: IsmConfig,
   ): Promise<{
     deployedIsm: Address;
-    ismUpdateTxs: AnnotatedAltVMTransaction[];
+    ismUpdateTxs: AnnotatedTypedTransaction<PT>[];
   }> {
     const { mailbox } = this.serialize();
 
@@ -366,8 +367,8 @@ export class AltVMCoreModule extends HyperlaneModule<
   async createDefaultHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
-    const updateTransactions: AnnotatedAltVMTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
 
     const actualDefaultHookConfig =
       actualConfig.defaultHook as DerivedHookConfig;
@@ -387,11 +388,11 @@ export class AltVMCoreModule extends HyperlaneModule<
       const { mailbox } = this.serialize();
       updateTransactions.push({
         annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook}`,
-        altvm_tx: await this.signer.getSetDefaultHookTransaction({
+        ...(await this.signer.getSetDefaultHookTransaction({
           signer: this.signer.getSignerAddress(),
           mailboxAddress: mailbox,
           hookAddress: deployedHook,
-        }),
+        })),
       });
     }
 
@@ -408,8 +409,8 @@ export class AltVMCoreModule extends HyperlaneModule<
   async createRequiredHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
-    const updateTransactions: AnnotatedAltVMTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
 
     const actualRequiredHookConfig =
       actualConfig.requiredHook as DerivedHookConfig;
@@ -429,11 +430,11 @@ export class AltVMCoreModule extends HyperlaneModule<
       const { mailbox } = this.serialize();
       updateTransactions.push({
         annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook}`,
-        altvm_tx: await this.signer.getSetRequiredHookTransaction({
+        ...(await this.signer.getSetRequiredHookTransaction({
           signer: this.signer.getSignerAddress(),
           mailboxAddress: mailbox,
           hookAddress: deployedHook,
-        }),
+        })),
       });
     }
 
@@ -450,7 +451,7 @@ export class AltVMCoreModule extends HyperlaneModule<
     expectHookConfig: HookConfig,
   ): Promise<{
     deployedHook: Address;
-    hookUpdateTxs: AnnotatedAltVMTransaction[];
+    hookUpdateTxs: AnnotatedTypedTransaction<PT>[];
   }> {
     const { mailbox } = this.serialize();
 

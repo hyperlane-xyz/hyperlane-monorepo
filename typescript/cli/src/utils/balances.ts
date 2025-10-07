@@ -2,7 +2,11 @@ import { BigNumber as BN } from 'bignumber.js';
 import { BigNumber } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  AnyProtocolTransaction,
+  ChainName,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import {
   Address,
   AltVM,
@@ -17,7 +21,7 @@ import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory,
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction>,
   chains: ChainName[],
   minGas: MINIMUM_GAS_ACTION,
   skipConfirmation: boolean,

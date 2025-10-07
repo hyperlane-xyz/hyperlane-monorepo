@@ -36,6 +36,10 @@ const signer = await CosmosNativeSigner.connectWithSigner(
   wallet,
   {
     metadata: {
+      gasPrice: {
+        amount: '0.2',
+        denom: 'denom'
+      },
       bech32Prefix: 'test',
     }
   }

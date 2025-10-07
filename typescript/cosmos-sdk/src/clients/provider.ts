@@ -412,7 +412,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       custom_hook_metadata: req.customHookMetadata,
     });
     assert(
-      gas_payment[0],
+      gas_payment && gas_payment[0],
       `found no quote for token id ${req.tokenAddress} and destination domain ${req.destinationDomainId}`,
     );
 

@@ -23,7 +23,10 @@ export const createSigner = async (account: 'alice' | 'bob' | 'charlie') => {
     wallet,
     {
       metadata: {
-        gasPrice: '0.2uhyp',
+        gasPrice: {
+          amount: '0.2',
+          denom: 'uhyp',
+        },
       },
     },
   );

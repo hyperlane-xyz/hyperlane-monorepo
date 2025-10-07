@@ -1,19 +1,20 @@
+import { EncodeObject } from '@cosmjs/proto-signing';
+import { DeliverTxResponse } from '@cosmjs/stargate';
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { AltVM } from '@hyperlane-xyz/utils';
-
 import {
+  AltVM,
   bytes32ToAddress,
   isValidAddressEvm,
-} from '../../../utils/dist/addresses.js';
+} from '@hyperlane-xyz/utils';
 
 import { createSigner } from './utils.js';
 
 describe('2. cosmos sdk core e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: AltVM.ISigner;
+  let signer: AltVM.ISigner<EncodeObject, DeliverTxResponse>;
 
   before(async () => {
     signer = await createSigner('alice');

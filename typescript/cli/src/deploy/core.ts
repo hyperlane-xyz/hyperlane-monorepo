@@ -175,12 +175,10 @@ export async function runCoreApply(params: ApplyParams) {
         logGray('Updating deployed core contracts');
 
         if (signer.supportsMultiTransactions()) {
-          await signer.sendAndConfirmMultiTransactions(
-            transactions.map((t) => t.altvm_tx),
-          );
+          await signer.sendAndConfirmMultiTransactions(transactions);
         } else {
           for (const tx of transactions) {
-            await signer.sendAndConfirmTransaction(tx.altvm_tx);
+            await signer.sendAndConfirmTransaction(tx);
           }
         }
 

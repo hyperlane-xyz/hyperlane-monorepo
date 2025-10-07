@@ -414,7 +414,7 @@ export type ResRemoteTransfer = {
   messageId: string;
 };
 
-export type ResSignAndBroadcast = {
+export type Receipt = {
   height: number;
   transactionHash: string;
 };
@@ -545,8 +545,7 @@ export interface IProvider<T = any> {
   getRemoteTransferTransaction(req: ReqRemoteTransfer): Promise<T>;
 }
 
-export interface ISigner<T = any, R extends ResSignAndBroadcast = any>
-  extends IProvider<T> {
+export interface ISigner<T, R extends Receipt = any> extends IProvider<T> {
   getSignerAddress(): string;
 
   supportsMultiTransactions(): boolean;
@@ -658,12 +657,12 @@ export interface IProviderConnect {
   connect(_rpcs: string[]): Promise<IProvider>;
 }
 
-export interface ISignerConnect {
+export interface ISignerConnect<T> {
   connectWithSigner(
     _rpcs: string[],
     _privateKey: string,
     _extraParams: Record<string, any>,
-  ): Promise<ISigner>;
+  ): Promise<ISigner<T>>;
 }
 
 export abstract class IAltVMFactory {
@@ -678,6 +677,6 @@ export abstract class IProviderFactory extends IAltVMFactory {
   abstract get(chain: string): Promise<IProvider>;
 }
 
-export abstract class ISignerFactory extends IAltVMFactory {
-  abstract get(chain: string): ISigner;
+export abstract class ISignerFactory<T> extends IAltVMFactory {
+  abstract get(chain: string): ISigner<T>;
 }

@@ -5,6 +5,7 @@ import {
   AltVM,
   ChainId,
   Domain,
+  ProtocolType,
   assert,
   deepEquals,
   rootLogger,
@@ -16,7 +17,7 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedAltVMTransaction } from '../providers/ProviderType.js';
+import { AnnotatedTypedTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -34,8 +35,8 @@ type HookModuleAddresses = {
   mailbox: Address;
 };
 
-export class AltVMHookModule extends HyperlaneModule<
-  any,
+export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
+  PT,
   HookConfig,
   HookModuleAddresses
 > {
@@ -52,7 +53,7 @@ export class AltVMHookModule extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
-    protected readonly signer: AltVM.ISigner,
+    protected readonly signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>,
   ) {
     params.config = HookConfigSchema.parse(params.config);
     super(params);
@@ -70,7 +71,7 @@ export class AltVMHookModule extends HyperlaneModule<
 
   public async update(
     targetConfig: HookConfig,
-  ): Promise<AnnotatedAltVMTransaction[]> {
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
     if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }
@@ -111,9 +112,9 @@ export class AltVMHookModule extends HyperlaneModule<
   protected async updateMutableHook(configs: {
     current: Exclude<HookConfig, string>;
     target: Exclude<HookConfig, string>;
-  }): Promise<AnnotatedAltVMTransaction[]> {
+  }): Promise<AnnotatedTypedTransaction<PT>[]> {
     const { current, target } = configs;
-    let updateTxs: AnnotatedAltVMTransaction[];
+    let updateTxs: AnnotatedTypedTransaction<PT>[];
 
     assert(
       current.type === target.type,
@@ -145,8 +146,8 @@ export class AltVMHookModule extends HyperlaneModule<
   }: {
     currentConfig: IgpHookConfig;
     targetConfig: IgpHookConfig;
-  }): Promise<AnnotatedAltVMTransaction[]> {
-    const updateTxs: AnnotatedAltVMTransaction[] = [];
+  }): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTxs: AnnotatedTypedTransaction<PT>[] = [];
 
     for (const [remote, c] of Object.entries(targetConfig.oracleConfig)) {
       if (deepEquals(currentConfig.oracleConfig[remote], c)) {
@@ -161,7 +162,7 @@ export class AltVMHookModule extends HyperlaneModule<
 
       updateTxs.push({
         annotation: `Setting gas params for ${this.chain}`,
-        altvm_tx: await this.signer.getSetDestinationGasConfigTransaction({
+        ...(await this.signer.getSetDestinationGasConfigTransaction({
           signer: this.signer.getSignerAddress(),
           hookAddress: this.args.addresses.deployedHook,
           destinationGasConfig: {
@@ -172,7 +173,7 @@ export class AltVMHookModule extends HyperlaneModule<
             },
             gasOverhead: targetConfig.overhead[remote].toString(),
           },
-        }),
+        })),
       });
     }
 
@@ -180,19 +181,18 @@ export class AltVMHookModule extends HyperlaneModule<
     if (currentConfig.owner !== targetConfig.owner) {
       updateTxs.push({
         annotation: 'Transferring ownership of ownable Hook...',
-        altvm_tx:
-          await this.signer.getSetInterchainGasPaymasterHookOwnerTransaction({
-            signer: this.signer.getSignerAddress(),
-            hookAddress: this.args.addresses.deployedHook,
-            newOwner: targetConfig.owner,
-          }),
+        ...(await this.signer.getSetInterchainGasPaymasterHookOwnerTransaction({
+          signer: this.signer.getSignerAddress(),
+          hookAddress: this.args.addresses.deployedHook,
+          newOwner: targetConfig.owner,
+        })),
       });
     }
 
     return updateTxs;
   }
 
-  public static async create({
+  public static async create<PT extends ProtocolType>({
     chain,
     config,
     addresses,
@@ -203,9 +203,9 @@ export class AltVMHookModule extends HyperlaneModule<
     config: HookConfig;
     addresses: HookModuleAddresses;
     multiProvider: MultiProvider;
-    signer: AltVM.ISigner;
-  }): Promise<AltVMHookModule> {
-    const module = new AltVMHookModule(
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>>;
+  }): Promise<AltVMHookModule<PT>> {
+    const module = new AltVMHookModule<PT>(
       multiProvider,
       {
         addresses,

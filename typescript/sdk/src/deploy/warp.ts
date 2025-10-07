@@ -24,7 +24,10 @@ import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
+import {
+  AnyProtocolTransaction,
+  TypedAnnotatedTransaction,
+} from '../providers/ProviderType.js';
 import { AltVMWarpModule } from '../token/AltVMWarpModule.js';
 import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
 import { AltVMDeployer } from '../token/altVMDeploy.js';
@@ -46,7 +49,7 @@ type ChainAddresses = Record<string, string>;
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory,
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction>,
   registryAddresses: ChainMap<ChainAddresses>,
   apiKeys: ChainMap<string>,
 ): Promise<ChainMap<Address>> {
@@ -135,7 +138,7 @@ export async function executeWarpDeploy(
 async function resolveWarpIsmAndHook(
   warpConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory,
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction>,
   registryAddresses: ChainMap<ChainAddresses>,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier: ContractVerifier,
@@ -192,7 +195,7 @@ async function createWarpIsm({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
-  altVmSigner: AltVM.ISignerFactory;
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction>;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -335,7 +338,7 @@ export async function enrollCrossChainRouters(
     warpDeployConfig,
   }: {
     multiProvider: MultiProvider;
-    altVmSigner: AltVM.ISignerFactory;
+    altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction>;
     registryAddresses: ChainMap<ChainAddresses>;
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },

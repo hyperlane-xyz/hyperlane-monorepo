@@ -1,14 +1,16 @@
+import { EncodeObject } from '@cosmjs/proto-signing';
+import { DeliverTxResponse } from '@cosmjs/stargate';
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { AltVM } from '@hyperlane-xyz/utils';
-
 import {
+  AltVM,
   addressToBytes32,
   bytes32ToAddress,
   convertToProtocolAddress,
   isValidAddressEvm,
-} from '../../../utils/src/addresses.js';
+} from '@hyperlane-xyz/utils';
+
 import { ProtocolType } from '../../../utils/src/types.js';
 
 import { createSigner } from './utils.js';
@@ -16,7 +18,7 @@ import { createSigner } from './utils.js';
 describe('4. cosmos sdk warp e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: AltVM.ISigner;
+  let signer: AltVM.ISigner<EncodeObject, DeliverTxResponse>;
 
   before(async () => {
     signer = await createSigner('alice');
@@ -54,7 +56,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(token.mailboxAddress).to.equal(mailboxAddress);
     expect(token.originDenom).to.equal(denom);
     expect(token.ismAddress).to.be.empty;
-    expect(token.tokenType).to.equal(AltVM.TokenType.COLLATERAL);
+    expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
   });
 
   step('create new synthetic token', async () => {
@@ -86,7 +88,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(token.owner).to.equal(signer.getSignerAddress());
     expect(token.mailboxAddress).to.equal(mailboxAddress);
     expect(token.ismAddress).to.be.empty;
-    expect(token.tokenType).to.equal(AltVM.TokenType.SYNTHETIC);
+    expect(token.tokenType).to.equal(AltVM.TokenType.synthetic);
   });
 
   step('enroll remote router', async () => {
