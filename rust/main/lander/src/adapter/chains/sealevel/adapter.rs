@@ -16,7 +16,7 @@ use solana_sdk::{
     transaction::Transaction as SealevelTransaction,
 };
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
 use hyperlane_base::{
