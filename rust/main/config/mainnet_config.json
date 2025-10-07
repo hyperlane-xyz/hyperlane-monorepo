@@ -9375,13 +9375,6 @@
       "validatorAnnounce": "0xBCD18636e5876DFd7AAb5F2B2a5Eb5ca168BA1d8"
     },
     "sovachain": {
-      "availability": {
-        "reasons": [
-          "deprecated",
-          "unavailable"
-        ],
-        "status": "disabled"
-      },
       "blockExplorers": [
         {
           "apiUrl": "https://explorer.sova.io/api",
