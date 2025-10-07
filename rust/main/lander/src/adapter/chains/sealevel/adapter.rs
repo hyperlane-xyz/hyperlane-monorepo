@@ -35,12 +35,11 @@ use hyperlane_sealevel::{
     PriorityFeeOracleConfig, SealevelProvider, SealevelProviderForLander, SealevelTxCostEstimate,
 };
 
-use crate::adapter::chains::sealevel::payload::processed_account;
-use crate::adapter::EthereumTxPrecursor;
 use crate::{
     adapter::{
         chains::sealevel::{
             conf::{create_keypair, get_connection_conf},
+            payload::processed_account,
             transaction::{Precursor, TransactionFactory, Update},
             SealevelTxPrecursor,
         },
