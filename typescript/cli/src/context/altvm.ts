@@ -226,7 +226,6 @@ export class AltVMSignerFactory
         [TxSubmitterType.JSON_RPC]: (
           multiProvider: MultiProvider,
           metadata: SubmitterMetadata,
-          _coreAddressesByChain: ChainMap<Record<string, string>>,
         ) => {
           // Used to type narrow metadata
           assert(

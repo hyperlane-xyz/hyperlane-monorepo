@@ -15,7 +15,7 @@ import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
 import { EV5TimelockSubmitter } from './ethersV5/EV5TimelockSubmitter.js';
 import { SubmitterMetadata } from './types.js';
 
-export type SubmitterBuilderSettings<_TProtocol extends ProtocolType> = {
+export type SubmitterBuilderSettings = {
   submissionStrategy: SubmissionStrategy;
   multiProvider: MultiProvider;
   coreAddressesByChain: ChainMap<Record<string, string>>;
@@ -27,9 +27,7 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
   multiProvider,
   coreAddressesByChain,
   additionalSubmitterFactories,
-}: SubmitterBuilderSettings<TProtocol>): Promise<
-  TxSubmitterBuilder<TProtocol>
-> {
+}: SubmitterBuilderSettings): Promise<TxSubmitterBuilder<TProtocol>> {
   const submitter = await getSubmitter<TProtocol>(
     multiProvider,
     submissionStrategy.submitter,
