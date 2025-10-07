@@ -255,7 +255,7 @@ export class CosmNativeHypCollateralAdapter
     );
     const destinationProtocol = destinationMetadata.protocol;
 
-    return provider.populateRemoteTransfer({
+    return provider.getRemoteTransferTransaction({
       signer: params.fromAccountOwner!,
       tokenId: this.tokenId,
       destinationDomainId: params.destination,

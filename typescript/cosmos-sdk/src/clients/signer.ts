@@ -199,7 +199,7 @@ export class CosmosNativeSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const msg = await this.populateCreateMailbox({
+    const msg = await this.getCreateMailboxTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -213,7 +213,7 @@ export class CosmosNativeSigner
   async setDefaultIsm(
     req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
   ): Promise<AltVM.ResSetDefaultIsm> {
-    const msg = await this.populateSetDefaultIsm({
+    const msg = await this.getSetDefaultIsmTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -227,7 +227,7 @@ export class CosmosNativeSigner
   async setDefaultHook(
     req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
   ): Promise<AltVM.ResSetDefaultHook> {
-    const msg = await this.populateSetDefaultHook({
+    const msg = await this.getSetDefaultHookTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -241,7 +241,7 @@ export class CosmosNativeSigner
   async setRequiredHook(
     req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
   ): Promise<AltVM.ResSetRequiredHook> {
-    const msg = await this.populateSetRequiredHook({
+    const msg = await this.getSetRequiredHookTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -255,7 +255,7 @@ export class CosmosNativeSigner
   async setMailboxOwner(
     req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
   ): Promise<AltVM.ResSetMailboxOwner> {
-    const msg = await this.populateSetMailboxOwner({
+    const msg = await this.getSetMailboxOwnerTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -269,7 +269,7 @@ export class CosmosNativeSigner
   async createMerkleRootMultisigIsm(
     req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
-    const msg = await this.populateCreateMerkleRootMultisigIsm({
+    const msg = await this.getCreateMerkleRootMultisigIsmTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -283,7 +283,7 @@ export class CosmosNativeSigner
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    const msg = await this.populateCreateMessageIdMultisigIsm({
+    const msg = await this.getCreateMessageIdMultisigIsmTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -297,7 +297,7 @@ export class CosmosNativeSigner
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
-    const msg = await this.populateCreateRoutingIsm({
+    const msg = await this.getCreateRoutingIsmTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -311,7 +311,7 @@ export class CosmosNativeSigner
   async setRoutingIsmRoute(
     req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmRoute> {
-    const msg = await this.populateSetRoutingIsmRoute({
+    const msg = await this.getSetRoutingIsmRouteTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -325,7 +325,7 @@ export class CosmosNativeSigner
   async removeRoutingIsmRoute(
     req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
-    const msg = await this.populateRemoveRoutingIsmRoute({
+    const msg = await this.getRemoveRoutingIsmRouteTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -339,7 +339,7 @@ export class CosmosNativeSigner
   async setRoutingIsmOwner(
     req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmOwner> {
-    const msg = await this.populateSetRoutingIsmOwner({
+    const msg = await this.getSetRoutingIsmOwnerTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -353,7 +353,7 @@ export class CosmosNativeSigner
   async createNoopIsm(
     req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
-    const msg = await this.populateCreateNoopIsm({
+    const msg = await this.getCreateNoopIsmTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -367,7 +367,7 @@ export class CosmosNativeSigner
   async createMerkleTreeHook(
     req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleTreeHook> {
-    const msg = await this.populateCreateMerkleTreeHook({
+    const msg = await this.getCreateMerkleTreeHookTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -381,7 +381,7 @@ export class CosmosNativeSigner
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
-    const msg = await this.populateCreateInterchainGasPaymasterHook({
+    const msg = await this.getCreateInterchainGasPaymasterHookTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -395,7 +395,7 @@ export class CosmosNativeSigner
   async setInterchainGasPaymasterHookOwner(
     req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
   ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
-    const msg = await this.populateSetInterchainGasPaymasterHookOwner({
+    const msg = await this.getSetInterchainGasPaymasterHookOwnerTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -409,7 +409,7 @@ export class CosmosNativeSigner
   async setDestinationGasConfig(
     req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
   ): Promise<AltVM.ResSetDestinationGasConfig> {
-    const msg = await this.populateSetDestinationGasConfig({
+    const msg = await this.getSetDestinationGasConfigTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -432,7 +432,7 @@ export class CosmosNativeSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
-    const msg = await this.populateCreateCollateralToken({
+    const msg = await this.getCreateCollateralTokenTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -446,7 +446,7 @@ export class CosmosNativeSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
-    const msg = await this.populateCreateSyntheticToken({
+    const msg = await this.getCreateSyntheticTokenTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -460,7 +460,7 @@ export class CosmosNativeSigner
   async setTokenOwner(
     req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
   ): Promise<AltVM.ResSetTokenOwner> {
-    const msg = await this.populateSetTokenOwner({
+    const msg = await this.getSetTokenOwnerTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -474,7 +474,7 @@ export class CosmosNativeSigner
   async setTokenIsm(
     req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
   ): Promise<AltVM.ResSetTokenIsm> {
-    const msg = await this.populateSetTokenIsm({
+    const msg = await this.getSetTokenIsmTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -488,7 +488,7 @@ export class CosmosNativeSigner
   async enrollRemoteRouter(
     req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResEnrollRemoteRouter> {
-    const msg = await this.populateEnrollRemoteRouter({
+    const msg = await this.getEnrollRemoteRouterTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -502,7 +502,7 @@ export class CosmosNativeSigner
   async unenrollRemoteRouter(
     req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResUnenrollRemoteRouter> {
-    const msg = await this.populateUnenrollRemoteRouter({
+    const msg = await this.getUnenrollRemoteRouterTransaction({
       ...req,
       signer: this.account.address,
     });
@@ -516,7 +516,7 @@ export class CosmosNativeSigner
   async remoteTransfer(
     req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
   ): Promise<AltVM.ResRemoteTransfer> {
-    const msg = await this.populateRemoteTransfer({
+    const msg = await this.getRemoteTransferTransaction({
       ...req,
       signer: this.account.address,
     });

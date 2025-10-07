@@ -460,65 +460,73 @@ export interface IProvider<T = any> {
     req: ReqQuoteRemoteTransfer,
   ): Promise<ResQuoteRemoteTransfer>;
 
-  // ### POPULATE CORE ###
+  // ### GET CORE TXS ###
 
-  populateCreateMailbox(req: ReqCreateMailbox): Promise<T>;
+  getCreateMailboxTransaction(req: ReqCreateMailbox): Promise<T>;
 
-  populateSetDefaultIsm(req: ReqSetDefaultIsm): Promise<T>;
+  getSetDefaultIsmTransaction(req: ReqSetDefaultIsm): Promise<T>;
 
-  populateSetDefaultHook(req: ReqSetDefaultHook): Promise<T>;
+  getSetDefaultHookTransaction(req: ReqSetDefaultHook): Promise<T>;
 
-  populateSetRequiredHook(req: ReqSetRequiredHook): Promise<T>;
+  getSetRequiredHookTransaction(req: ReqSetRequiredHook): Promise<T>;
 
-  populateSetMailboxOwner(req: ReqSetMailboxOwner): Promise<T>;
+  getSetMailboxOwnerTransaction(req: ReqSetMailboxOwner): Promise<T>;
 
-  populateCreateMerkleRootMultisigIsm(
+  getCreateMerkleRootMultisigIsmTransaction(
     req: ReqCreateMerkleRootMultisigIsm,
   ): Promise<T>;
 
-  populateCreateMessageIdMultisigIsm(
+  getCreateMessageIdMultisigIsmTransaction(
     req: ReqCreateMessageIdMultisigIsm,
   ): Promise<T>;
 
-  populateCreateRoutingIsm(req: ReqCreateRoutingIsm): Promise<T>;
+  getCreateRoutingIsmTransaction(req: ReqCreateRoutingIsm): Promise<T>;
 
-  populateSetRoutingIsmRoute(req: ReqSetRoutingIsmRoute): Promise<T>;
+  getSetRoutingIsmRouteTransaction(req: ReqSetRoutingIsmRoute): Promise<T>;
 
-  populateRemoveRoutingIsmRoute(req: ReqRemoveRoutingIsmRoute): Promise<T>;
+  getRemoveRoutingIsmRouteTransaction(
+    req: ReqRemoveRoutingIsmRoute,
+  ): Promise<T>;
 
-  populateSetRoutingIsmOwner(req: ReqSetRoutingIsmOwner): Promise<T>;
+  getSetRoutingIsmOwnerTransaction(req: ReqSetRoutingIsmOwner): Promise<T>;
 
-  populateCreateNoopIsm(req: ReqCreateNoopIsm): Promise<T>;
+  getCreateNoopIsmTransaction(req: ReqCreateNoopIsm): Promise<T>;
 
-  populateCreateMerkleTreeHook(req: ReqCreateMerkleTreeHook): Promise<T>;
+  getCreateMerkleTreeHookTransaction(req: ReqCreateMerkleTreeHook): Promise<T>;
 
-  populateCreateInterchainGasPaymasterHook(
+  getCreateInterchainGasPaymasterHookTransaction(
     req: ReqCreateInterchainGasPaymasterHook,
   ): Promise<T>;
 
-  populateSetInterchainGasPaymasterHookOwner(
+  getSetInterchainGasPaymasterHookOwnerTransaction(
     req: ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<T>;
 
-  populateSetDestinationGasConfig(req: ReqSetDestinationGasConfig): Promise<T>;
+  getSetDestinationGasConfigTransaction(
+    req: ReqSetDestinationGasConfig,
+  ): Promise<T>;
 
-  populateCreateValidatorAnnounce(req: ReqCreateValidatorAnnounce): Promise<T>;
+  getCreateValidatorAnnounceTransaction(
+    req: ReqCreateValidatorAnnounce,
+  ): Promise<T>;
 
-  // ### POPULATE WARP ###
+  // ### GET WARP TXS ###
 
-  populateCreateCollateralToken(req: ReqCreateCollateralToken): Promise<T>;
+  getCreateCollateralTokenTransaction(
+    req: ReqCreateCollateralToken,
+  ): Promise<T>;
 
-  populateCreateSyntheticToken(req: ReqCreateSyntheticToken): Promise<T>;
+  getCreateSyntheticTokenTransaction(req: ReqCreateSyntheticToken): Promise<T>;
 
-  populateSetTokenOwner(req: ReqSetTokenOwner): Promise<T>;
+  getSetTokenOwnerTransaction(req: ReqSetTokenOwner): Promise<T>;
 
-  populateSetTokenIsm(req: ReqSetTokenIsm): Promise<T>;
+  getSetTokenIsmTransaction(req: ReqSetTokenIsm): Promise<T>;
 
-  populateEnrollRemoteRouter(req: ReqEnrollRemoteRouter): Promise<T>;
+  getEnrollRemoteRouterTransaction(req: ReqEnrollRemoteRouter): Promise<T>;
 
-  populateUnenrollRemoteRouter(req: ReqUnenrollRemoteRouter): Promise<T>;
+  getUnenrollRemoteRouterTransaction(req: ReqUnenrollRemoteRouter): Promise<T>;
 
-  populateRemoteTransfer(req: ReqRemoteTransfer): Promise<T>;
+  getRemoteTransferTransaction(req: ReqRemoteTransfer): Promise<T>;
 }
 
 export interface ISigner<T = any, R extends ResSignAndBroadcast = any>

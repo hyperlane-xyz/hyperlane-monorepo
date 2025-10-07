@@ -410,9 +410,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  // ### POPULATE CORE ###
+  // ### GET CORE TXS ###
 
-  async populateCreateMailbox(
+  async getCreateMailboxTransaction(
     req: AltVM.ReqCreateMailbox,
   ): Promise<MsgCreateMailboxEncodeObject> {
     return {
@@ -425,7 +425,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateSetDefaultIsm(
+  async getSetDefaultIsmTransaction(
     req: AltVM.ReqSetDefaultIsm,
   ): Promise<MsgSetMailboxEncodeObject> {
     return {
@@ -438,7 +438,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateSetDefaultHook(
+  async getSetDefaultHookTransaction(
     req: AltVM.ReqSetDefaultHook,
   ): Promise<MsgSetMailboxEncodeObject> {
     return {
@@ -451,7 +451,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateSetRequiredHook(
+  async getSetRequiredHookTransaction(
     req: AltVM.ReqSetRequiredHook,
   ): Promise<MsgSetMailboxEncodeObject> {
     return {
@@ -464,7 +464,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateSetMailboxOwner(
+  async getSetMailboxOwnerTransaction(
     req: AltVM.ReqSetMailboxOwner,
   ): Promise<MsgSetMailboxEncodeObject> {
     return {
@@ -478,7 +478,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateCreateMerkleRootMultisigIsm(
+  async getCreateMerkleRootMultisigIsmTransaction(
     req: AltVM.ReqCreateMerkleRootMultisigIsm,
   ): Promise<MsgCreateMerkleRootMultisigIsmEncodeObject> {
     return {
@@ -491,7 +491,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateCreateMessageIdMultisigIsm(
+  async getCreateMessageIdMultisigIsmTransaction(
     req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<MsgCreateMessageIdMultisigIsmEncodeObject> {
     return {
@@ -504,7 +504,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateCreateRoutingIsm(
+  async getCreateRoutingIsmTransaction(
     req: AltVM.ReqCreateRoutingIsm,
   ): Promise<MsgCreateRoutingIsmEncodeObject> {
     return {
@@ -516,7 +516,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateSetRoutingIsmRoute(
+  async getSetRoutingIsmRouteTransaction(
     req: AltVM.ReqSetRoutingIsmRoute,
   ): Promise<MsgSetRoutingIsmDomainEncodeObject> {
     return {
@@ -532,7 +532,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateRemoveRoutingIsmRoute(
+  async getRemoveRoutingIsmRouteTransaction(
     req: AltVM.ReqRemoveRoutingIsmRoute,
   ): Promise<MsgRemoveRoutingIsmDomainEncodeObject> {
     return {
@@ -545,7 +545,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateSetRoutingIsmOwner(
+  async getSetRoutingIsmOwnerTransaction(
     req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<any> {
     return {
@@ -559,7 +559,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateCreateNoopIsm(
+  async getCreateNoopIsmTransaction(
     req: AltVM.ReqCreateNoopIsm,
   ): Promise<MsgCreateNoopIsmEncodeObject> {
     return {
@@ -570,7 +570,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateCreateMerkleTreeHook(
+  async getCreateMerkleTreeHookTransaction(
     req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<MsgCreateMerkleTreeHookEncodeObject> {
     return {
@@ -582,7 +582,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateCreateInterchainGasPaymasterHook(
+  async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<MsgCreateIgpEncodeObject> {
     return {
@@ -594,7 +594,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateSetInterchainGasPaymasterHookOwner(
+  async getSetInterchainGasPaymasterHookOwnerTransaction(
     req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<MsgSetIgpOwnerEncodeObject> {
     return {
@@ -608,7 +608,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateSetDestinationGasConfig(
+  async getSetDestinationGasConfigTransaction(
     req: AltVM.ReqSetDestinationGasConfig,
   ): Promise<MsgSetDestinationGasConfigEncodeObject> {
     return {
@@ -629,7 +629,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateCreateValidatorAnnounce(
+  async getCreateValidatorAnnounceTransaction(
     _req: AltVM.ReqCreateValidatorAnnounce,
   ): Promise<any> {
     throw new Error(
@@ -637,9 +637,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     );
   }
 
-  // ### POPULATE WARP ###
+  // ### GET WARP TXS ###
 
-  async populateCreateCollateralToken(
+  async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,
   ): Promise<MsgCreateCollateralTokenEncodeObject> {
     return {
@@ -652,7 +652,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateCreateSyntheticToken(
+  async getCreateSyntheticTokenTransaction(
     req: AltVM.ReqCreateSyntheticToken,
   ): Promise<MsgCreateSyntheticTokenEncodeObject> {
     return {
@@ -664,7 +664,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateSetTokenOwner(
+  async getSetTokenOwnerTransaction(
     req: AltVM.ReqSetTokenOwner,
   ): Promise<MsgSetTokenEncodeObject> {
     return {
@@ -678,7 +678,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateSetTokenIsm(
+  async getSetTokenIsmTransaction(
     req: AltVM.ReqSetTokenIsm,
   ): Promise<MsgSetTokenEncodeObject> {
     return {
@@ -691,7 +691,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateEnrollRemoteRouter(
+  async getEnrollRemoteRouterTransaction(
     req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<MsgEnrollRemoteRouterEncodeObject> {
     return {
@@ -708,7 +708,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateUnenrollRemoteRouter(
+  async getUnenrollRemoteRouterTransaction(
     req: AltVM.ReqUnenrollRemoteRouter,
   ): Promise<MsgUnrollRemoteRouterEncodeObject> {
     return {
@@ -721,7 +721,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async populateRemoteTransfer(
+  async getRemoteTransferTransaction(
     req: AltVM.ReqRemoteTransfer,
   ): Promise<MsgRemoteTransferEncodeObject> {
     return {
