@@ -1,7 +1,9 @@
 import { ethers } from 'ethers';
 
 import {
+  AggregationHookConfig,
   ChainMap,
+  HookType,
   HypTokenRouterConfig,
   OwnableConfig,
   TokenType,
@@ -27,6 +29,20 @@ const owners = {
   solanamainnet: '5HDsXasp9a3bTdT2YyXookfBQtLKtshQXyWyMv1mZKx7',
 };
 
+const pausableHook: AggregationHookConfig = {
+  type: HookType.AGGREGATION,
+  hooks: [
+    {
+      type: HookType.MAILBOX_DEFAULT,
+    },
+    {
+      type: HookType.PAUSABLE,
+      paused: false,
+      owner: owners.carrchain,
+    },
+  ],
+};
+
 export const getCarrChainCARRWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
@@ -48,6 +64,7 @@ export const getCarrChainCARRWarpConfig = async (
     ...routerConfig.carrchain,
     owner: owners.carrchain,
     type: TokenType.native,
+    hook: pausableHook,
   };
 
   const polygon: HypTokenRouterConfig = {
