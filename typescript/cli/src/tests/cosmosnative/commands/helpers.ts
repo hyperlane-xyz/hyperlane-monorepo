@@ -29,7 +29,7 @@ export async function deployCollateralToken(
   const metadata = multiProvider.getChainMetadata(chain);
 
   const wallet = await DirectSecp256k1Wallet.fromKey(
-    new Uint8Array(Buffer.from(privateKey, 'hex')),
+    Uint8Array.from(Buffer.from(privateKey, 'hex')),
     metadata.bech32Prefix,
   );
 
@@ -65,7 +65,7 @@ export async function deploySyntheticToken(
   const metadata = multiProvider.getChainMetadata(chain);
 
   const wallet = await DirectSecp256k1Wallet.fromKey(
-    new Uint8Array(Buffer.from(privateKey, 'hex')),
+    Uint8Array.from(Buffer.from(privateKey, 'hex')),
     metadata.bech32Prefix,
   );
 

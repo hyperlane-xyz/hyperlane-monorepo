@@ -25,6 +25,7 @@ import {
   MsgCreateRoutingIsmEncodeObject,
   MsgRemoveRoutingIsmDomainEncodeObject,
   MsgSetRoutingIsmDomainEncodeObject,
+  MsgUpdateRoutingIsmOwnerEncodeObject,
 } from '../hyperlane/interchain_security/messages.js';
 import {
   IsmTypes as CosmosNativeIsmTypes,
@@ -561,7 +562,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
 
   async getSetRoutingIsmOwnerTransaction(
     req: AltVM.ReqSetRoutingIsmOwner,
-  ): Promise<any> {
+  ): Promise<MsgUpdateRoutingIsmOwnerEncodeObject> {
     return {
       typeUrl: R.MsgUpdateRoutingIsmOwner.proto.type,
       value: R.MsgUpdateRoutingIsmOwner.proto.converter.create({
