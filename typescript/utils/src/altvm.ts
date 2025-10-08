@@ -418,7 +418,7 @@ export type ReqRemoteTransfer = {
   maxFee: { denom: string; amount: string };
 };
 export type ResRemoteTransfer = {
-  messageId: string;
+  tokenAddress: string;
 };
 
 export interface IProvider<T = any> {

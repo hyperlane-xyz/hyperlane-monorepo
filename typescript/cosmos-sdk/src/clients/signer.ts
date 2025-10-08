@@ -521,9 +521,9 @@ export class CosmosNativeSigner
       signer: this.account.address,
     });
 
-    const result = await this.submitTx(msg);
+    await this.submitTx(msg);
     return {
-      messageId: result.message_id,
+      tokenAddress: req.tokenAddress,
     };
   }
 }
