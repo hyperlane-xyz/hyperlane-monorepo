@@ -212,6 +212,10 @@ export const DEFAULT_EVM_WARP_ID = getWarpId('ETH', [
 export const DEFAULT_EVM_WARP_CORE_PATH = getWarpCoreConfigPath('ETH', [
   TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
 ]);
+export const DEFAULT_EVM_WARP_READ_OUTPUT_PATH = getWarpCoreConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+  'read',
+]);
 export const DEFAULT_EVM_WARP_DEPLOY_PATH = getWarpDeployConfigPath('ETH', [
   TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
 ]);

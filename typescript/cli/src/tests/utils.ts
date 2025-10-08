@@ -6,12 +6,16 @@ import {
   ChainName,
   TokenStandard,
   WarpCoreConfig,
+  WarpCoreConfigSchema,
   WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
 
+import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+
 import {
+  REGISTRY_PATH,
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_TOKEN_SYMBOL,
 } from './constants.js';
@@ -50,4 +54,38 @@ export function getUnsupportedChainWarpCoreTokenConfig(): WarpCoreConfig['tokens
     standard: TokenStandard.SealevelHypSynthetic,
     symbol: TEST_TOKEN_SYMBOL,
   };
+}
+
+export function exportWarpConfigsToFilePaths({
+  warpRouteId,
+  warpConfig,
+  warpCoreConfig,
+}: {
+  warpRouteId: string;
+  warpConfig: WarpRouteDeployConfig;
+  warpCoreConfig: WarpCoreConfig;
+}): {
+  warpDeployPath: string;
+  warpCorePath: string;
+} {
+  const basePath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}`;
+  const updatedWarpConfigPath = `${basePath}-deploy.yaml`;
+  const updatedWarpCorePath = `${basePath}-config.yaml`;
+  writeYamlOrJson(updatedWarpConfigPath, warpConfig);
+  writeYamlOrJson(updatedWarpCorePath, warpCoreConfig);
+
+  return {
+    warpDeployPath: updatedWarpConfigPath,
+    warpCorePath: updatedWarpCorePath,
+  };
+}
+
+/**
+ * Retrieves the deployed Warp address from the Warp core config.
+ */
+export function getDeployedWarpAddress(chain: string, warpCorePath: string) {
+  const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpCorePath);
+  WarpCoreConfigSchema.parse(warpCoreConfig);
+  return warpCoreConfig.tokens.find((t) => t.chainName === chain)!
+    .addressOrDenom;
 }
