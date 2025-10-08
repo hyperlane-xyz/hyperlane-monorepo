@@ -50,13 +50,11 @@ export class RadixWarpTx {
     mailbox,
     name,
     symbol,
-    description,
     divisibility,
   }: {
     mailbox: string;
     name: string;
     symbol: string;
-    description: string;
     divisibility: number;
   }) {
     const transactionManifest = await this.populate.createSyntheticToken({
@@ -64,7 +62,6 @@ export class RadixWarpTx {
       mailbox,
       name,
       symbol,
-      description,
       divisibility,
     });
 

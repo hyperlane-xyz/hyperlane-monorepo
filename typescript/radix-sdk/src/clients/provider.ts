@@ -473,7 +473,6 @@ export class RadixProvider implements AltVM.IProvider<TransactionManifest> {
       mailbox: req.mailboxAddress,
       name: req.name,
       symbol: req.denom,
-      description: req.description,
       divisibility: req.decimals,
     });
   }

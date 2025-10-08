@@ -310,7 +310,6 @@ export class RadixSigner
         mailbox: req.mailboxAddress,
         name: req.name,
         symbol: req.denom,
-        description: req.description,
         divisibility: req.decimals,
       }),
     };

@@ -58,14 +58,12 @@ export class RadixWarpPopulate {
     mailbox,
     name,
     symbol,
-    description,
     divisibility,
   }: {
     from_address: string;
     mailbox: string;
     name: string;
     symbol: string;
-    description: string;
     divisibility: number;
   }) {
     return this.base.createCallFunctionManifest(
@@ -74,13 +72,7 @@ export class RadixWarpPopulate {
       'HypToken',
       INSTRUCTIONS.INSTANTIATE,
       [
-        enumeration(
-          1,
-          str(name),
-          str(symbol),
-          str(description),
-          u8(divisibility),
-        ),
+        enumeration(1, str(name), str(symbol), str(''), u8(divisibility)),
         address(mailbox),
       ],
     );
