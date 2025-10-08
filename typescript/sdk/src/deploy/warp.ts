@@ -4,6 +4,7 @@ import {
   Address,
   AltVM,
   ProtocolType,
+  addressToBytes32,
   isObjEmpty,
   objFilter,
   objKeys,
@@ -404,7 +405,7 @@ export async function enrollCrossChainRouters(
             const routers: Record<string, { address: string }> = {};
             for (const c of allRemoteChains) {
               routers[multiProvider.getDomainId(c).toString()] = {
-                address: deployedContracts[c],
+                address: addressToBytes32(deployedContracts[c]),
               };
             }
             return routers;
@@ -413,7 +414,7 @@ export async function enrollCrossChainRouters(
             const dGas: Record<string, string> = {};
             for (const c of allRemoteChains) {
               dGas[multiProvider.getDomainId(c).toString()] =
-                configMapToDeploy[c].gas;
+                configMapToDeploy[c].gas.toString();
             }
             return dGas;
           })(),
@@ -449,7 +450,7 @@ export async function enrollCrossChainRouters(
             const routers: Record<string, { address: string }> = {};
             for (const c of allRemoteChains) {
               routers[multiProvider.getDomainId(c).toString()] = {
-                address: deployedContracts[c],
+                address: addressToBytes32(deployedContracts[c]),
               };
             }
             return routers;
@@ -458,7 +459,7 @@ export async function enrollCrossChainRouters(
             const dGas: Record<string, string> = {};
             for (const c of allRemoteChains) {
               dGas[multiProvider.getDomainId(c).toString()] =
-                configMapToDeploy[c].gas;
+                configMapToDeploy[c].gas.toString();
             }
             return dGas;
           })(),
