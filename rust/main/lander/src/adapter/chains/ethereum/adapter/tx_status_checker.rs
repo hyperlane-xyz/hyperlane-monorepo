@@ -38,23 +38,24 @@ pub async fn get_tx_hash_status(
     hash: hyperlane_core::H512,
     reorg_period: &EthereumReorgPeriod,
 ) -> Result<TransactionStatus, LanderError> {
-    match provider.get_transaction_receipt(hash.into()).await {
-        Ok(None) => Err(LanderError::TxHashNotFound(
-            "Transaction not found".to_string(),
+    let receipt = provider
+        .get_transaction_receipt(hash.into())
+        .await
+        .map_err(|err| LanderError::TxHashNotFound(err.to_string()))?
+        .ok_or_else(|| LanderError::TxHashNotFound("Transaction not found".to_string()))?;
+
+    tracing::debug!(?receipt, "TX RECEIPT");
+    match receipt.status.as_ref().map(|s| s.as_u64()) {
+        // https://eips.ethereum.org/EIPS/eip-658
+        Some(0) => Ok(TransactionStatus::Dropped(
+            TransactionDropReason::RevertedByChain,
         )),
-        Ok(Some(receipt)) => match receipt.status.as_ref().map(|s| s.as_u64()) {
-            // https://eips.ethereum.org/EIPS/eip-658
-            Some(0) => Ok(TransactionStatus::Dropped(
-                TransactionDropReason::RevertedByChain,
-            )),
-            _ => {
-                let res =
-                    block_number_result_to_tx_status(provider, receipt.block_number, reorg_period)
-                        .await;
-                Ok(res)
-            }
-        },
-        Err(err) => Err(LanderError::TxHashNotFound(err.to_string())),
+        _ => {
+            let res =
+                block_number_result_to_tx_status(provider, receipt.block_number, reorg_period)
+                    .await;
+            Ok(res)
+        }
     }
 }
 
