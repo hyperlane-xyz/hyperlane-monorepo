@@ -384,6 +384,6 @@ export class RadixSigner
       max_fee: req.maxFee,
     });
 
-    return { messageId: '' };
+    return { tokenAddress: req.tokenAddress };
   }
 }
