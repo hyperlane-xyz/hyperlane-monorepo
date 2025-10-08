@@ -1,4 +1,7 @@
-import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import { DirectSecp256k1Wallet, EncodeObject } from '@cosmjs/proto-signing';
+import { DeliverTxResponse } from '@cosmjs/stargate';
+
+import { AltVM } from '@hyperlane-xyz/utils';
 
 import { CosmosNativeSigner } from '../index.js';
 
@@ -12,7 +15,9 @@ const PKS = {
   charlie: '8ef41fc20bf963ce18494c0f13e9303f70abc4c1d1ecfdb0a329d7fd468865b8',
 };
 
-export const createSigner = async (account: 'alice' | 'bob' | 'charlie') => {
+export const createSigner = async (
+  account: 'alice' | 'bob' | 'charlie',
+): Promise<AltVM.ISigner<EncodeObject, DeliverTxResponse>> => {
   const wallet = await DirectSecp256k1Wallet.fromKey(
     new Uint8Array(Buffer.from(PKS[account], 'hex')),
     'hyp',
