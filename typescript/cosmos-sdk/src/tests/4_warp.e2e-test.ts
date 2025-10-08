@@ -75,6 +75,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
       mailboxAddress,
       name: '',
       denom: '',
+      description: '',
       decimals: 0,
     });
 
