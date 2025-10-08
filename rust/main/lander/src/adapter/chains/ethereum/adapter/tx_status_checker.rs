@@ -44,7 +44,7 @@ pub async fn get_tx_hash_status(
         .map_err(|err| LanderError::TxHashNotFound(err.to_string()))?
         .ok_or_else(|| LanderError::TxHashNotFound("Transaction not found".to_string()))?;
 
-    tracing::debug!(?receipt, "TX RECEIPT");
+    tracing::debug!(?receipt, "tx receipt");
     match receipt.status.as_ref().map(|s| s.as_u64()) {
         // https://eips.ethereum.org/EIPS/eip-658
         Some(0) => Ok(TransactionStatus::Dropped(
