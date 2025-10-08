@@ -89,12 +89,13 @@ export type RelayerConfigMapConfig = Pick<
   | 'blacklist'
   | 'whitelist'
   | 'gasPaymentEnforcement'
-  | 'metricAppContexts'
   | 'ismCacheConfigs'
 >;
+//
+export type RelayerAppContextConfig = Pick<RelayerConfig, 'metricAppContexts'>;
 // The rest of the config is intended to be set as env vars.
 export type RelayerEnvConfig = Omit<
-  RelayerConfig,
+  Omit<RelayerConfig, keyof RelayerAppContextConfig>,
   keyof RelayerConfigMapConfig
 >;
 

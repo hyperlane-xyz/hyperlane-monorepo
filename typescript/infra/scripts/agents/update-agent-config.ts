@@ -58,7 +58,7 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
   await writeAgentConfig(multiProvider, environment);
-  await writeAgentConfigMap(multiProvider, environment);
+  await writeAgentAppContexts(multiProvider, environment);
 }
 
 // Keep as a function in case we want to use it in the future
@@ -225,7 +225,7 @@ export async function writeAgentConfig(
   }
 }
 
-export async function writeAgentConfigMap(
+export async function writeAgentAppContexts(
   multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ) {
