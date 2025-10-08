@@ -1,7 +1,7 @@
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
-import { RadixSigner } from '../utils/signer.js';
+import { RadixBaseSigner } from '../utils/signer.js';
 import { Account, MultisigIsmReq } from '../utils/types.js';
 
 import { RadixCorePopulate } from './populate.js';
@@ -11,12 +11,12 @@ export class RadixCoreTx {
 
   protected base: RadixBase;
   protected populate: RadixCorePopulate;
-  protected signer: RadixSigner;
+  protected signer: RadixBaseSigner;
 
   constructor(
     account: Account,
     base: RadixBase,
-    signer: RadixSigner,
+    signer: RadixBaseSigner,
     populate: RadixCorePopulate,
   ) {
     this.account = account;
@@ -58,10 +58,10 @@ export class RadixCoreTx {
       domain_id,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async createMerkleTreeHook({ mailbox }: { mailbox: string }) {
@@ -70,10 +70,10 @@ export class RadixCoreTx {
       mailbox,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async createMerkleRootMultisigIsm({
@@ -88,10 +88,10 @@ export class RadixCoreTx {
       },
     );
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async createMessageIdMultisigIsm({
@@ -104,26 +104,26 @@ export class RadixCoreTx {
       threshold,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async createRoutingIsm({
     routes,
   }: {
-    routes: { ism: string; domain: number }[];
+    routes: { ismAddress: string; domainId: number }[];
   }) {
     const transactionManifest = await this.populate.createRoutingIsm({
       from_address: this.account.address,
       routes,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async setRoutingIsmRoute({
@@ -132,8 +132,8 @@ export class RadixCoreTx {
   }: {
     ism: string;
     route: {
-      domain: number;
-      ism_address: string;
+      domainId: number;
+      ismAddress: string;
     };
   }) {
     const transactionManifest = await this.populate.setRoutingIsmRoute({
@@ -182,10 +182,10 @@ export class RadixCoreTx {
       from_address: this.account.address,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async createIgp({ denom }: { denom: string }) {
@@ -194,10 +194,10 @@ export class RadixCoreTx {
       denom,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async setIgpOwner({
@@ -218,22 +218,22 @@ export class RadixCoreTx {
 
   public async setDestinationGasConfig({
     igp,
-    destination_gas_config,
+    destinationGasConfig,
   }: {
     igp: string;
-    destination_gas_config: {
-      remote_domain: string;
-      gas_oracle: {
-        token_exchange_rate: string;
-        gas_price: string;
+    destinationGasConfig: {
+      remoteDomainId: number;
+      gasOracle: {
+        tokenExchangeRate: string;
+        gasPrice: string;
       };
-      gas_overhead: string;
+      gasOverhead: string;
     };
   }) {
     const transactionManifest = await this.populate.setDestinationGasConfig({
       from_address: this.account.address,
       igp,
-      destination_gas_config,
+      destinationGasConfig,
     });
 
     await this.signer.signAndBroadcast(transactionManifest);
@@ -261,10 +261,10 @@ export class RadixCoreTx {
       mailbox,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async setRequiredHook({

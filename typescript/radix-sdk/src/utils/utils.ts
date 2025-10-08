@@ -62,7 +62,7 @@ export const generateNewEd25519VirtualAccount = async (
   };
 };
 
-export async function transactionManifestFromString(
+export async function stringToTransactionManifest(
   tx: string,
   networkId: number,
 ): Promise<TransactionManifest> {
@@ -79,4 +79,17 @@ export async function transactionManifestFromString(
     instructions: res,
     blobs: [],
   };
+}
+
+export async function transactionManifestToString(
+  tx: TransactionManifest,
+  networkId: number,
+): Promise<string> {
+  const res = await RadixEngineToolkit.Instructions.convert(
+    tx.instructions,
+    networkId,
+    InstructionsKind.String,
+  );
+
+  return res.value as string;
 }

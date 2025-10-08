@@ -5,11 +5,14 @@ import {
 import { useCallback, useMemo } from 'react';
 
 import {
+  RadixSDKTransaction,
+  transactionManifestToString,
+} from '@hyperlane-xyz/radix-sdk';
+import {
   ChainName,
   IToken,
   MultiProtocolProvider,
   ProviderType,
-  RadixSDKTransaction,
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
@@ -163,7 +166,10 @@ export function useRadixTransactionFns(
       assert(gatewayApi, `gateway api is not defined`);
 
       const transaction = tx.transaction as never as RadixSDKTransaction;
-      const transactionManifest = transaction.manifest as string;
+      const transactionManifest = await transactionManifestToString(
+        transaction.manifest,
+        transaction.networkId,
+      );
 
       const transactionResult = await rdt.walletApi.sendTransaction({
         transactionManifest,

@@ -26,11 +26,11 @@ export class RadixCoreQuery {
   public async getMailbox({ mailbox }: { mailbox: string }): Promise<{
     address: string;
     owner: string;
-    local_domain: number;
+    localDomain: number;
     nonce: number;
-    default_ism: string;
-    default_hook: string;
-    required_hook: string;
+    defaultIsm: string;
+    defaultHook: string;
+    requiredHook: string;
   }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(mailbox);
@@ -54,19 +54,19 @@ export class RadixCoreQuery {
     const result = {
       address: mailbox,
       owner: resourceHolders[0],
-      local_domain: parseInt(
+      localDomain: parseInt(
         fields.find((f) => f.field_name === 'local_domain')?.value ?? '0',
       ),
       nonce: parseInt(
         fields.find((f) => f.field_name === 'nonce')?.value ?? '0',
       ),
-      default_ism:
+      defaultIsm:
         fields.find((f) => f.field_name === 'default_ism')?.fields?.at(0)
           ?.value ?? '',
-      default_hook:
+      defaultHook:
         fields.find((f) => f.field_name === 'default_hook')?.fields?.at(0)
           ?.value ?? '',
-      required_hook:
+      requiredHook:
         fields.find((f) => f.field_name === 'required_hook')?.fields?.at(0)
           ?.value ?? '',
     };
@@ -110,8 +110,8 @@ export class RadixCoreQuery {
     address: string;
     owner: string;
     routes: {
-      domain: number;
-      ism: string;
+      domainId: number;
+      ismAddress: string;
     }[];
   }> {
     const details =
@@ -165,14 +165,15 @@ export class RadixCoreQuery {
           },
         });
 
-      const domain = parseInt(
+      const domainId = parseInt(
         (key.programmatic_json as EntityField)?.value ?? '0',
       );
-      const ism = (entries[0].value.programmatic_json as EntityField).value;
+      const ismAddress = (entries[0].value.programmatic_json as EntityField)
+        .value;
 
       routes.push({
-        domain,
-        ism,
+        domainId,
+        ismAddress,
       });
     }
 
@@ -193,13 +194,13 @@ export class RadixCoreQuery {
   public async getIgpHook({ hook }: { hook: string }): Promise<{
     address: string;
     owner: string;
-    destination_gas_configs: {
-      [domain_id: string]: {
-        gas_oracle: {
-          token_exchange_rate: string;
-          gas_price: string;
+    destinationGasConfigs: {
+      [domainId: string]: {
+        gasOracle: {
+          tokenExchangeRate: string;
+          gasPrice: string;
         };
-        gas_overhead: string;
+        gasOverhead: string;
       };
     };
   }> {
@@ -237,7 +238,7 @@ export class RadixCoreQuery {
       `found no destination gas configs on hook ${hook}`,
     );
 
-    const destination_gas_configs = {};
+    const destinationGasConfigs = {};
 
     const { items } = await this.gateway.state.innerClient.keyValueStoreKeys({
       stateKeyValueStoreKeysRequest: {
@@ -268,18 +269,18 @@ export class RadixCoreQuery {
         gasConfigFields?.find((r) => r.field_name === 'gas_oracle')?.fields ??
         [];
 
-      Object.assign(destination_gas_configs, {
+      Object.assign(destinationGasConfigs, {
         [remoteDomain]: {
-          gas_oracle: {
-            token_exchange_rate:
+          gasOracle: {
+            tokenExchangeRate:
               gasOracleFields.find(
                 (r) => r.field_name === 'token_exchange_rate',
               )?.value ?? '0',
-            gas_price:
+            gasPrice:
               gasOracleFields.find((r) => r.field_name === 'gas_price')
                 ?.value ?? '0',
           },
-          gas_overhead:
+          gasOverhead:
             gasConfigFields?.find((r) => r.field_name === 'gas_overhead')
               ?.value ?? '0',
         },
@@ -289,7 +290,7 @@ export class RadixCoreQuery {
     return {
       address: hook,
       owner: resourceHolders[0],
-      destination_gas_configs,
+      destinationGasConfigs,
     };
   }
 

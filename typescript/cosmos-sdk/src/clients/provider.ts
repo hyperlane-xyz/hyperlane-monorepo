@@ -64,7 +64,10 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly cometClient: CometClient;
   private readonly rpcUrls: string[];
 
-  static async connect(rpcUrls: string[]): Promise<CosmosNativeProvider> {
+  static async connect(
+    rpcUrls: string[],
+    _chainId: string | number,
+  ): Promise<CosmosNativeProvider> {
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
     const client = await connectComet(rpcUrls[0]);
