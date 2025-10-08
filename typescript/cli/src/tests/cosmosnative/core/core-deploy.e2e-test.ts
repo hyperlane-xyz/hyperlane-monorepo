@@ -56,7 +56,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
     assert(chainMetadata.gasPrice, 'gasPrice not defined in chain metadata');
 
     const wallet = await DirectSecp256k1Wallet.fromKey(
-      new Uint8Array(Buffer.from(HYP_KEY, 'hex')),
+      Uint8Array.from(Buffer.from(HYP_KEY, 'hex')),
       'hyp',
     );
 
