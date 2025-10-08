@@ -18,9 +18,7 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
 
   private signer: AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>;
 
-  protected readonly logger: Logger = rootLogger.child({
-    module: AltVMJsonRpcTxSubmitter.name,
-  });
+  protected readonly logger: Logger;
 
   constructor(
     public readonly multiProvider: MultiProvider,
@@ -31,6 +29,10 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
     public readonly config: { chain: string },
   ) {
     this.signer = this.altVmSigner.get(this.config.chain);
+
+    this.logger = rootLogger.child({
+      module: AltVMJsonRpcTxSubmitter.name,
+    });
   }
 
   public async submit(
@@ -40,13 +42,12 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
       return [];
     }
 
-    for (const tx of txs) {
-      if (tx.annotation) {
-        this.logger.debug(tx.annotation);
-      }
-    }
-
     if (this.signer.supportsTransactionBatching()) {
+      for (const tx of txs) {
+        if (tx.annotation) {
+          this.logger.debug(tx.annotation);
+        }
+      }
       const receipt = await this.signer.sendAndConfirmBatchTransactions(txs);
       return [receipt];
     }
@@ -54,6 +55,10 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
     const receipts = [];
 
     for (const tx of txs) {
+      if (tx.annotation) {
+        this.logger.debug(tx.annotation);
+      }
+
       const receipt = await this.signer.sendAndConfirmTransaction(tx);
       receipts.push(receipt);
     }

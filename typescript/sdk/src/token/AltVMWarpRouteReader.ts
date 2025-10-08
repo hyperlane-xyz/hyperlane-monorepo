@@ -1,3 +1,5 @@
+import { Logger } from 'pino';
+
 import { Address, AltVM, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from '../hook/AltVMHookReader.js';
@@ -15,9 +17,7 @@ import { TokenType } from './config.js';
 import { DerivedTokenRouterConfig, HypTokenConfig } from './types.js';
 
 export class AltVMWarpRouteReader {
-  protected readonly logger = rootLogger.child({
-    module: 'AltVMWarpRouteReader',
-  });
+  protected readonly logger: Logger;
   hookReader: AltVMHookReader;
   ismReader: AltVMIsmReader;
 
@@ -28,6 +28,10 @@ export class AltVMWarpRouteReader {
   ) {
     this.hookReader = new AltVMHookReader(metadataManager, provider);
     this.ismReader = new AltVMIsmReader(metadataManager, provider);
+
+    this.logger = rootLogger.child({
+      module: AltVMWarpRouteReader.name,
+    });
   }
 
   /**

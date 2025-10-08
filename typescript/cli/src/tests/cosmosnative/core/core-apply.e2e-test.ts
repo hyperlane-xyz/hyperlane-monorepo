@@ -45,7 +45,7 @@ describe('hyperlane core apply e2e tests', async function () {
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_1_METADATA_PATH);
 
     const wallet = await DirectSecp256k1Wallet.fromKey(
-      new Uint8Array(Buffer.from(HYP_KEY, 'hex')),
+      Uint8Array.from(Buffer.from(HYP_KEY, 'hex')),
       'hyp',
     );
 

@@ -49,7 +49,7 @@ type AltVMProtocol = ProtocolMap<{
   gas: MinimumRequiredGasByAction;
 }>;
 
-class AltVMFactory implements AltVM.IAltVMFactory {
+class AltVMSupportedProtocols implements AltVM.ISupportedProtocols {
   public getSupportedProtocols(): ProtocolType[] {
     return Object.keys(ALT_VM_SUPPORTED_PROTOCOLS) as ProtocolType[];
   }
@@ -70,7 +70,7 @@ class AltVMFactory implements AltVM.IAltVMFactory {
 }
 
 export class AltVMProviderFactory
-  extends AltVMFactory
+  extends AltVMSupportedProtocols
   implements AltVM.IProviderFactory
 {
   private readonly metadataManager: ChainMetadataManager;
@@ -98,7 +98,7 @@ export class AltVMProviderFactory
 }
 
 export class AltVMSignerFactory
-  extends AltVMFactory
+  extends AltVMSupportedProtocols
   implements AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>
 {
   private readonly metadataManager: ChainMetadataManager;

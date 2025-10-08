@@ -152,7 +152,7 @@ export type ResGetToken = {
   tokenType: TokenType;
   mailboxAddress: string;
   ismAddress: string;
-  originDenom: string;
+  denom: string;
   name: string;
   symbol: string;
   description: string;
@@ -345,7 +345,7 @@ export type ResCreateValidatorAnnounce = {
 export type ReqCreateCollateralToken = {
   signer: string;
   mailboxAddress: string;
-  originDenom: string;
+  collateralDenom: string;
 };
 export type ResCreateCollateralToken = {
   tokenAddress: string;
@@ -354,6 +354,9 @@ export type ResCreateCollateralToken = {
 export type ReqCreateSyntheticToken = {
   signer: string;
   mailboxAddress: string;
+  name: string;
+  denom: string;
+  decimals: number;
 };
 export type ResCreateSyntheticToken = {
   tokenAddress: string;
@@ -435,7 +438,7 @@ export interface IProvider<T = any> {
 
   getMailbox(req: ReqGetMailbox): Promise<ResGetMailbox>;
 
-  delivered(req: ReqDelivered): Promise<boolean>;
+  isMessageDelivered(req: ReqDelivered): Promise<boolean>;
 
   getIsmType(req: ReqGetIsmType): Promise<IsmType>;
 
@@ -660,7 +663,7 @@ export interface ISignerConnect<T, R> {
   ): Promise<ISigner<T, R>>;
 }
 
-export abstract class IAltVMFactory {
+export abstract class ISupportedProtocols {
   abstract getSupportedProtocols(): ProtocolType[];
 
   abstract supports(_protocol: ProtocolType): boolean;
@@ -668,10 +671,10 @@ export abstract class IAltVMFactory {
   abstract getMinGas(_protocol: ProtocolType): MinimumRequiredGasByAction;
 }
 
-export abstract class IProviderFactory extends IAltVMFactory {
+export abstract class IProviderFactory extends ISupportedProtocols {
   abstract get(chain: string): Promise<IProvider>;
 }
 
-export abstract class ISignerFactory<T, R> extends IAltVMFactory {
+export abstract class ISignerFactory<T, R> extends ISupportedProtocols {
   abstract get(chain: string): ISigner<T, R>;
 }

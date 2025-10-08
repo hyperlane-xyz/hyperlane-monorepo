@@ -1,3 +1,4 @@
+import { Logger } from 'pino';
 import { zeroAddress } from 'viem';
 
 import {
@@ -41,13 +42,12 @@ type WarpRouteAddresses = {
 };
 
 export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
-  any,
+  PT,
   HypTokenRouterConfig,
   WarpRouteAddresses
 > {
-  protected logger = rootLogger.child({
-    module: 'AltVMWarpModule',
-  });
+  protected logger: Logger;
+
   reader: AltVMWarpRouteReader;
   public readonly chainName: ChainName;
   public readonly chainId: string;
@@ -66,6 +66,10 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     this.chainName = this.metadataManager.getChainName(args.chain);
     this.chainId = metadataManager.getChainId(args.chain).toString();
     this.domainId = metadataManager.getDomainId(args.chain);
+
+    this.logger = rootLogger.child({
+      module: AltVMWarpModule.name,
+    });
   }
 
   /**

@@ -72,7 +72,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
   });
 
   describe('hyperlane cosmosnative core deploy', () => {
-    it('1. should create a core deployment with the signer as the mailbox owner', async () => {
+    it('should create a core deployment with the signer as the mailbox owner', async () => {
       const steps: TestPromptAction[] = [
         SELECT_MAINNET_CHAIN_TYPE_STEP,
         {
@@ -137,7 +137,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
   });
 
   describe('hyperlane cosmosnative core deploy --key ...', () => {
-    it('2. should create a core deployment with the signer as the mailbox owner', async () => {
+    it('should create a core deployment with the signer as the mailbox owner', async () => {
       const steps: TestPromptAction[] = [
         SELECT_MAINNET_CHAIN_TYPE_STEP,
         {
@@ -184,7 +184,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
   });
 
   describe('HYP_KEY= ... hyperlane cosmosnative core deploy', () => {
-    it('3. should create a core deployment with the signer as the mailbox owner', async () => {
+    it('should create a core deployment with the signer as the mailbox owner', async () => {
       const steps: TestPromptAction[] = [
         SELECT_MAINNET_CHAIN_TYPE_STEP,
         {
@@ -233,7 +233,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
   });
 
   describe('hyperlane cosmosnative core deploy --yes --key ...', () => {
-    it('4. should create a core deployment with the signer as the mailbox owner', async () => {
+    it('should create a core deployment with the signer as the mailbox owner', async () => {
       await hyperlaneCore.deploy(HYP_KEY);
 
       const coreConfig: CoreConfig = await hyperlaneCore.readConfig();

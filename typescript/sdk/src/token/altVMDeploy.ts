@@ -68,6 +68,9 @@ export class AltVMDeployer<PT extends ProtocolType> {
           result[chain] = await this.deploySyntheticToken(
             chain,
             config.mailbox,
+            config.name,
+            config.symbol,
+            config.decimals,
           );
           break;
         }
@@ -102,7 +105,7 @@ export class AltVMDeployer<PT extends ProtocolType> {
     const { tokenAddress } = await this.signersMap[chain].createCollateralToken(
       {
         mailboxAddress: originMailbox,
-        originDenom: originDenom,
+        collateralDenom: originDenom,
       },
     );
     return tokenAddress;
@@ -111,10 +114,16 @@ export class AltVMDeployer<PT extends ProtocolType> {
   private async deploySyntheticToken(
     chain: ChainName,
     originMailbox: Address,
+    name: string,
+    denom: string,
+    decimals: number,
   ): Promise<Address> {
     this.logger.info(`Deploying synthetic token to ${chain}`);
     const { tokenAddress } = await this.signersMap[chain].createSyntheticToken({
       mailboxAddress: originMailbox,
+      name,
+      denom,
+      decimals,
     });
     return tokenAddress;
   }

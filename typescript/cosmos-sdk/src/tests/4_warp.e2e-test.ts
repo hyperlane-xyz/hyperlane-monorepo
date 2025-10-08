@@ -39,7 +39,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     // ACT
     const txResponse = await signer.createCollateralToken({
       mailboxAddress,
-      originDenom: denom,
+      collateralDenom: denom,
     });
 
     // ASSERT
@@ -54,7 +54,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(token).not.to.be.undefined;
     expect(token.owner).to.equal(signer.getSignerAddress());
     expect(token.mailboxAddress).to.equal(mailboxAddress);
-    expect(token.originDenom).to.equal(denom);
+    expect(token.denom).to.equal(denom);
     expect(token.ismAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
   });
@@ -73,6 +73,9 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     // ACT
     const txResponse = await signer.createSyntheticToken({
       mailboxAddress,
+      name: '',
+      denom: '',
+      decimals: 0,
     });
 
     // ASSERT
@@ -105,7 +108,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     const { tokenAddress } = await signer.createCollateralToken({
       mailboxAddress,
-      originDenom: denom,
+      collateralDenom: denom,
     });
 
     let remoteRouters = await signer.getRemoteRouters({
@@ -185,7 +188,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     const { tokenAddress } = await signer.createCollateralToken({
       mailboxAddress,
-      originDenom: denom,
+      collateralDenom: denom,
     });
 
     await signer.enrollRemoteRouter({
@@ -268,7 +271,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     const { tokenAddress } = await signer.createCollateralToken({
       mailboxAddress,
-      originDenom: denom,
+      collateralDenom: denom,
     });
 
     const gas = '10000';
@@ -316,7 +319,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     const { tokenAddress } = await signer.createCollateralToken({
       mailboxAddress,
-      originDenom: denom,
+      collateralDenom: denom,
     });
 
     let token = await signer.getToken({ tokenAddress });
@@ -348,7 +351,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     const { tokenAddress } = await signer.createCollateralToken({
       mailboxAddress,
-      originDenom: denom,
+      collateralDenom: denom,
     });
 
     let token = await signer.getToken({ tokenAddress });

@@ -74,7 +74,7 @@ export class CosmNativeCoreAdapter
     await pollAsync(
       async () => {
         this.logger.debug(`Checking if message ${messageId} was processed`);
-        const delivered = await provider.delivered({
+        const delivered = await provider.isMessageDelivered({
           mailboxAddress: this.addresses.mailbox,
           messageId: messageId,
         });

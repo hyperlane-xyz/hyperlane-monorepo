@@ -1,4 +1,9 @@
-import { AltVMIsmReader, ChainName, EvmIsmReader } from '@hyperlane-xyz/sdk';
+import {
+  AltVMIsmReader,
+  ChainName,
+  DerivedIsmConfig,
+  EvmIsmReader,
+} from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
@@ -19,32 +24,25 @@ export async function readIsmConfig({
   address: Address;
   out?: string;
 }): Promise<void> {
-  switch (context.multiProvider.getProtocol(chain)) {
-    case ProtocolType.Ethereum: {
-      const ismReader = new EvmIsmReader(context.multiProvider, chain);
-      const config = await ismReader.deriveIsmConfig(address);
-      const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
-      if (!out) {
-        logBlue(`ISM Config at ${address} on ${chain}:`);
-        log(stringConfig);
-      } else {
-        writeFileAtPath(out, stringConfig + '\n');
-        logBlue(`ISM Config written to ${out}.`);
-      }
-      break;
-    }
-    default: {
-      const provider = await context.altVmProvider.get(chain);
-      const ismReader = new AltVMIsmReader(context.multiProvider, provider);
-      const config = await ismReader.deriveIsmConfig(address);
-      const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
-      if (!out) {
-        logBlue(`ISM Config at ${address} on ${chain}:`);
-        log(stringConfig);
-      } else {
-        writeFileAtPath(out, stringConfig + '\n');
-        logBlue(`ISM Config written to ${out}.`);
-      }
-    }
+  let config: DerivedIsmConfig;
+  let stringConfig: string;
+
+  if (context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+    const ismReader = new EvmIsmReader(context.multiProvider, chain);
+    config = await ismReader.deriveIsmConfig(address);
+    stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
+  } else {
+    const provider = await context.altVmProvider.get(chain);
+    const ismReader = new AltVMIsmReader(context.multiProvider, provider);
+    config = await ismReader.deriveIsmConfig(address);
+    stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
+  }
+
+  if (!out) {
+    logBlue(`ISM Config at ${address} on ${chain}:`);
+    log(stringConfig);
+  } else {
+    writeFileAtPath(out, stringConfig + '\n');
+    logBlue(`ISM Config written to ${out}.`);
   }
 }

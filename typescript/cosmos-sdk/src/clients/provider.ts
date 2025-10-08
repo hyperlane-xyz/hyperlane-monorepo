@@ -168,7 +168,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async delivered(req: AltVM.ReqDelivered): Promise<boolean> {
+  async isMessageDelivered(req: AltVM.ReqDelivered): Promise<boolean> {
     const { delivered } = await this.query.core.Delivered({
       id: req.mailboxAddress,
       message_id: req.messageId,
@@ -365,7 +365,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       tokenType: token_type,
       mailboxAddress: token.origin_mailbox,
       ismAddress: token.ism_id,
-      originDenom: token.origin_denom,
+      denom: token.origin_denom,
       name: '',
       symbol: '',
       description: '',
@@ -662,7 +662,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       value: R.MsgCreateCollateralToken.proto.converter.create({
         owner: req.signer,
         origin_mailbox: req.mailboxAddress,
-        origin_denom: req.originDenom,
+        origin_denom: req.collateralDenom,
       }),
     };
   }

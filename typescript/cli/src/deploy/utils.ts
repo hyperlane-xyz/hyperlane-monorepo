@@ -49,17 +49,10 @@ export async function runPreflightChecksForChains({
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
 
-    let signer;
-
-    switch (metadata.protocol) {
-      case ProtocolType.Ethereum: {
-        signer = multiProvider.getSigner(chain);
-        break;
-      }
-      default: {
-        signer = altVmSigner.get(chain);
-      }
-    }
+    const signer =
+      metadata.protocol === ProtocolType.Ethereum
+        ? multiProvider.getSigner(chain)
+        : altVmSigner.get(chain);
 
     if (!signer) {
       throw new Error('signer is invalid');

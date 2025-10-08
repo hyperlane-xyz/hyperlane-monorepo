@@ -145,11 +145,11 @@ export class CosmNativeHypCollateralAdapter
 
   protected async getDenom(): Promise<string> {
     const provider = await this.getProvider();
-    const { originDenom } = await provider.getToken({
+    const { denom } = await provider.getToken({
       tokenAddress: this.tokenAddress,
     });
 
-    return originDenom;
+    return denom;
   }
 
   async getDomains(): Promise<Domain[]> {
