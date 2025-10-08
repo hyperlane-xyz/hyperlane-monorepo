@@ -1,7 +1,7 @@
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
-import { RadixSigner } from '../utils/signer.js';
+import { RadixBaseSigner } from '../utils/signer.js';
 import { Account, MultisigIsmReq } from '../utils/types.js';
 
 import { RadixCorePopulate } from './populate.js';
@@ -11,12 +11,12 @@ export class RadixCoreTx {
 
   protected base: RadixBase;
   protected populate: RadixCorePopulate;
-  protected signer: RadixSigner;
+  protected signer: RadixBaseSigner;
 
   constructor(
     account: Account,
     base: RadixBase,
-    signer: RadixSigner,
+    signer: RadixBaseSigner,
     populate: RadixCorePopulate,
   ) {
     this.account = account;
@@ -113,7 +113,7 @@ export class RadixCoreTx {
   public async createRoutingIsm({
     routes,
   }: {
-    routes: { ism: string; domain: number }[];
+    routes: { ismAddress: string; domainId: number }[];
   }) {
     const transactionManifest = await this.populate.createRoutingIsm({
       from_address: this.account.address,
@@ -132,8 +132,8 @@ export class RadixCoreTx {
   }: {
     ism: string;
     route: {
-      domain: number;
-      ism_address: string;
+      domainId: number;
+      ismAddress: string;
     };
   }) {
     const transactionManifest = await this.populate.setRoutingIsmRoute({
@@ -218,22 +218,22 @@ export class RadixCoreTx {
 
   public async setDestinationGasConfig({
     igp,
-    destination_gas_config,
+    destinationGasConfig,
   }: {
     igp: string;
-    destination_gas_config: {
-      remote_domain: string;
-      gas_oracle: {
-        token_exchange_rate: string;
-        gas_price: string;
+    destinationGasConfig: {
+      remoteDomainId: number;
+      gasOracle: {
+        tokenExchangeRate: string;
+        gasPrice: string;
       };
-      gas_overhead: string;
+      gasOverhead: string;
     };
   }) {
     const transactionManifest = await this.populate.setDestinationGasConfig({
       from_address: this.account.address,
       igp,
-      destination_gas_config,
+      destinationGasConfig,
     });
 
     await this.signer.signAndBroadcast(transactionManifest);

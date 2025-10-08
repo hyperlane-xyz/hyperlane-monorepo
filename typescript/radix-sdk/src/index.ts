@@ -8,7 +8,7 @@ import { RadixCorePopulate } from './core/populate.js';
 import { RadixCoreQuery } from './core/query.js';
 import { RadixCoreTx } from './core/tx.js';
 import { RadixBase } from './utils/base.js';
-import { RadixSigner } from './utils/signer.js';
+import { RadixBaseSigner } from './utils/signer.js';
 import { Account, RadixSDKOptions } from './utils/types.js';
 import { generateNewEd25519VirtualAccount } from './utils/utils.js';
 import { RadixWarpPopulate } from './warp/populate.js';
@@ -101,13 +101,13 @@ export class RadixSigningSDK extends RadixSDK {
     core: RadixCoreTx;
     warp: RadixWarpTx;
   };
-  public signer: RadixSigner;
+  public signer: RadixBaseSigner;
 
   private constructor(account: Account, options?: RadixSDKOptions) {
     super(options);
 
     this.account = account;
-    this.signer = new RadixSigner(
+    this.signer = new RadixBaseSigner(
       this.networkId,
       this.gateway,
       this.base,
@@ -122,6 +122,7 @@ export class RadixSigningSDK extends RadixSDK {
       ),
       warp: new RadixWarpTx(
         account,
+        this.networkId,
         this.base,
         this.signer,
         this.populate.warp,

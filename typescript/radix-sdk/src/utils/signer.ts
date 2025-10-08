@@ -15,7 +15,7 @@ import {
 import { RadixBase } from './base.js';
 import { Account } from './types.js';
 
-export class RadixSigner {
+export class RadixBaseSigner {
   protected networkId: number;
   protected gateway: GatewayApiClient;
   protected base: RadixBase;
