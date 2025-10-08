@@ -19,7 +19,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   AltVM,
-  type MINIMUM_GAS,
+  type MinimumRequiredGasByAction,
   ProtocolType,
   assert,
 } from '@hyperlane-xyz/utils';
@@ -29,24 +29,24 @@ import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 import { SignerKeyProtocolMap } from './types.js';
 
 // ### ALL Alt VM PROTOCOLS ARE REGISTERED HERE ###
-const ALT_VM_SUPPORTED_PROTOCOLS: ALT_VM_PROTOCOL = {
+const ALT_VM_SUPPORTED_PROTOCOLS: AltVMProtocol = {
   [ProtocolType.CosmosNative]: {
     provider: CosmosNativeProvider,
     signer: CosmosNativeSigner,
     gas: {
-      CORE_DEPLOY_GAS: (1e6).toString(),
-      WARP_DEPLOY_GAS: (3e6).toString(),
-      TEST_SEND_GAS: (3e5).toString(),
-      AVS_GAS: (3e6).toString(),
+      CORE_DEPLOY_GAS: BigInt(1e6),
+      WARP_DEPLOY_GAS: BigInt(3e6),
+      TEST_SEND_GAS: BigInt(3e5),
+      AVS_GAS: BigInt(3e6),
     },
   },
   // [NEW PROTOCOL]: {...}
 };
 
-type ALT_VM_PROTOCOL = ProtocolMap<{
+type AltVMProtocol = ProtocolMap<{
   provider: AltVM.IProviderConnect;
   signer: AltVM.ISignerConnect<AnyProtocolTransaction, AnyProtocolReceipt>;
-  gas: MINIMUM_GAS;
+  gas: MinimumRequiredGasByAction;
 }>;
 
 class AltVMFactory implements AltVM.IAltVMFactory {

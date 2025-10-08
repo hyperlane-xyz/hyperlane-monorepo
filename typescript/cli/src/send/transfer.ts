@@ -12,7 +12,7 @@ import {
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import {
-  MINIMUM_GAS_ACTION,
+  GasAction,
   parseWarpRouteMessage,
   timeout,
 } from '@hyperlane-xyz/utils';
@@ -51,7 +51,7 @@ export async function sendTestTransfer({
   await runPreflightChecksForChains({
     context,
     chains,
-    minGas: MINIMUM_GAS_ACTION.TEST_SEND_GAS,
+    minGas: GasAction.TEST_SEND_GAS,
   });
 
   for (let i = 0; i < chains.length; i++) {

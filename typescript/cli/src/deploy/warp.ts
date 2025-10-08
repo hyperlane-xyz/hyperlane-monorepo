@@ -46,7 +46,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  MINIMUM_GAS_ACTION,
+  GasAction,
   ProtocolType,
   assert,
   objFilter,
@@ -146,7 +146,7 @@ export async function runWarpRouteDeploy({
   await runPreflightChecksForChains({
     context,
     chains: deploymentChains,
-    minGas: MINIMUM_GAS_ACTION.WARP_DEPLOY_GAS,
+    minGas: GasAction.WARP_DEPLOY_GAS,
   });
 
   const initialBalances = await getBalances(context, deploymentChains);

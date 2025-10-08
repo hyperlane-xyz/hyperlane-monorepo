@@ -1,4 +1,4 @@
-import { MINIMUM_GAS } from './mingas.js';
+import { MinimumRequiredGasByAction } from './mingas.js';
 import { ProtocolType } from './types.js';
 
 // ### QUERY BASE ###
@@ -665,7 +665,7 @@ export abstract class IAltVMFactory {
 
   abstract supports(_protocol: ProtocolType): boolean;
 
-  abstract getMinGas(_protocol: ProtocolType): MINIMUM_GAS;
+  abstract getMinGas(_protocol: ProtocolType): MinimumRequiredGasByAction;
 }
 
 export abstract class IProviderFactory extends IAltVMFactory {

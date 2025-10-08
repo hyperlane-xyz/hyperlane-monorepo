@@ -11,7 +11,7 @@ import {
   EvmCoreModule,
   ExplorerLicenseType,
 } from '@hyperlane-xyz/sdk';
-import { MINIMUM_GAS_ACTION, ProtocolType } from '@hyperlane-xyz/utils';
+import { GasAction, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -59,7 +59,7 @@ export async function runCoreDeploy(params: DeployParams) {
   await runPreflightChecksForChains({
     ...deploymentParams,
     chains: [chain],
-    minGas: MINIMUM_GAS_ACTION.CORE_DEPLOY_GAS,
+    minGas: GasAction.CORE_DEPLOY_GAS,
   });
 
   let deployedAddresses: ChainAddresses;

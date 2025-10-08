@@ -11,7 +11,7 @@ import {
 import {
   Address,
   AltVM,
-  MINIMUM_GAS_ACTION,
+  GasAction,
   ProtocolType,
   assert,
 } from '@hyperlane-xyz/utils';
@@ -24,7 +24,7 @@ export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
   altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>,
   chains: ChainName[],
-  minGas: MINIMUM_GAS_ACTION,
+  minGas: GasAction,
   skipConfirmation: boolean,
 ) {
   const sufficientBalances: boolean[] = [];
@@ -76,7 +76,9 @@ export async function nativeBalancesAreSufficient(
 
         const ALT_VM_GAS = altVmSigner.getMinGas(protocol);
         requiredMinBalanceNativeDenom = BigNumber.from(
-          new BN(gasPrice.amount).times(ALT_VM_GAS[minGas]).toFixed(0),
+          new BN(gasPrice.amount)
+            .times(ALT_VM_GAS[minGas].toString())
+            .toFixed(0),
         );
         requiredMinBalance = formatUnits(
           requiredMinBalanceNativeDenom,

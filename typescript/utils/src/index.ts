@@ -202,5 +202,5 @@ export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
 export { tryParseJsonOrYaml } from './yaml.js';
 export { createServiceLogger } from './logging.js';
-export { MINIMUM_GAS, MINIMUM_GAS_ACTION } from './mingas.js';
+export { MinimumRequiredGasByAction, GasAction } from './mingas.js';
 export * as AltVM from './altvm.js';
