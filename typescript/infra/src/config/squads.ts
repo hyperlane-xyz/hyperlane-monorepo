@@ -1,5 +1,4 @@
 import { PublicKey } from '@solana/web3.js';
-import { Argv } from 'yargs';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';

@@ -63,7 +63,8 @@ export async function getSquadProposal(
 
     // Fetch the deserialized Multisig account
     const multisig = await accounts.Multisig.fromAccountAddress(
-      svmProvider as any,
+      // @ts-ignore
+      svmProvider,
       multisigPda,
     );
 
@@ -76,7 +77,8 @@ export async function getSquadProposal(
 
     // Fetch the proposal account
     const proposal = await accounts.Proposal.fromAccountAddress(
-      svmProvider as any,
+      // @ts-ignore
+      svmProvider,
       proposalPda,
     );
 
@@ -99,18 +101,21 @@ export async function getPendingProposalsForChains(
 
   await Promise.all(
     chains.map(async (chain) => {
-      if (!squadsConfigs[chain as ChainName]) {
+      if (!squadsConfigs[chain]) {
         rootLogger.error(chalk.red.bold(`No squads config found for ${chain}`));
         return;
       }
 
       try {
-        const { svmProvider, multisigPda, programId } =
-          await getSquadAndProvider(chain as ChainName, mpp);
+        const { svmProvider, multisigPda } = await getSquadAndProvider(
+          chain,
+          mpp,
+        );
 
         // Fetch the deserialized Multisig account
         const multisig = await accounts.Multisig.fromAccountAddress(
-          svmProvider as any,
+          // @ts-ignore
+          svmProvider,
           multisigPda,
         );
 
@@ -120,10 +125,9 @@ export async function getPendingProposalsForChains(
         const staleTransactionIndex = Number(multisig.staleTransactionIndex);
 
         // Get vault balance using getSquadsKeys for consistent PublicKey construction
-        const { vault } = getSquadsKeys(chain as ChainName);
+        const { vault } = getSquadsKeys(chain);
         const vaultBalance = await svmProvider.getBalance(vault);
-        const decimals = mpp.getChainMetadata(chain as ChainName).nativeToken
-          ?.decimals;
+        const decimals = mpp.getChainMetadata(chain).nativeToken?.decimals;
         if (!decimals) {
           rootLogger.error(chalk.red.bold(`No decimals found for ${chain}`));
           return;
@@ -142,11 +146,7 @@ export async function getPendingProposalsForChains(
 
         for (let i = currentTransactionIndex; i >= maxIndexToCheck; i--) {
           try {
-            const proposalData = await getSquadProposal(
-              chain as ChainName,
-              mpp,
-              i,
-            );
+            const proposalData = await getSquadProposal(chain, mpp, i);
 
             if (!proposalData) continue;
 

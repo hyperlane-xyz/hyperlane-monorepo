@@ -37,9 +37,11 @@ async function main() {
 
   const { chain, transactionIndex, verbose } = await withChain(
     withTransactionIndex(withVerbose(yargs(process.argv.slice(2)))),
-  ).choices('chain', Object.keys(squadsConfigs)).argv;
+  )
+    .choices('chain', Object.keys(squadsConfigs))
+    .demandOption('chain').argv;
 
-  if (!squadsConfigs[chain as keyof typeof squadsConfigs]) {
+  if (!squadsConfigs[chain]) {
     rootLogger.error(
       chalk.red.bold(`No squads config found for chain: ${chain}`),
     );
@@ -61,11 +63,7 @@ async function main() {
 
     rootLogger.info(chalk.gray('Fetching proposal data...'));
 
-    const proposalData = await getSquadProposal(
-      chain as any,
-      mpp,
-      transactionIndex,
-    );
+    const proposalData = await getSquadProposal(chain, mpp, transactionIndex);
 
     if (!proposalData) {
       rootLogger.error(
@@ -172,11 +170,11 @@ async function main() {
     rootLogger.info(chalk.white(`  Bump: ${Number(proposal.bump)}`));
 
     // Display vault information
-    const { vault } = getSquadsKeys(chain as any);
+    const { vault } = getSquadsKeys(chain);
     const vaultBalance = await mpp
-      .getSolanaWeb3Provider(chain as any)
+      .getSolanaWeb3Provider(chain)
       .getBalance(vault);
-    const decimals = mpp.getChainMetadata(chain as any).nativeToken?.decimals;
+    const decimals = mpp.getChainMetadata(chain).nativeToken?.decimals;
     if (!decimals) {
       rootLogger.error(chalk.red.bold(`No decimals found for ${chain}`));
       process.exit(1);
