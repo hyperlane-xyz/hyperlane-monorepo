@@ -52,6 +52,7 @@ const RPC_BLOCKCHAIN_ERRORS = [
 const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
 const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
+const DEFAULT_PHASE2_WAIT_MULTIPLIER = 20;
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
@@ -350,7 +351,7 @@ export class HyperlaneSmartProvider
     if (providerResultPromises.length > 0) {
       const timeoutPromise = timeoutResult(
         this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
-        20,
+        DEFAULT_PHASE2_WAIT_MULTIPLIER,
       );
       const resultPromise = this.waitForProviderSuccess(providerResultPromises);
       const result = await Promise.race([resultPromise, timeoutPromise]);
