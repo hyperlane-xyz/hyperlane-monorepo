@@ -173,6 +173,13 @@ export function withWrite<T>(args: Argv<T>) {
     .default('write', false);
 }
 
+export function withAppend<T>(args: Argv<T>) {
+  return args
+    .describe('append', 'Write only new keys to file (preserves existing keys)')
+    .boolean('append')
+    .default('append', false);
+}
+
 export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
   return (
     args

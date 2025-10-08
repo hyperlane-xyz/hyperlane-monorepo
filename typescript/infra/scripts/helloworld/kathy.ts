@@ -407,7 +407,11 @@ async function sendMessage(
 
   const sendAndConfirmMsg = async () => {
     const originProtocol = app.metadata(origin).protocol;
-    const sender = keys[origin].addressForProtocol(originProtocol);
+    const bech32Prefix = app.metadata(origin).bech32Prefix;
+    const sender = keys[origin].addressForProtocol(
+      originProtocol,
+      bech32Prefix,
+    );
     if (!sender) {
       throw new Error(
         `No sender address found for chain ${origin} and protocol ${originProtocol}`,
