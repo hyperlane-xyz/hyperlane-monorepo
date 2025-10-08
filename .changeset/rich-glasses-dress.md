@@ -2,4 +2,4 @@
 "@hyperlane-xyz/utils": major
 ---
 
-feat: add VltVM interface
+feat: add AltVM interface
