@@ -6,7 +6,7 @@ import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
 
-import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
@@ -124,7 +124,7 @@ export function defaultCosmJsNativeProviderBuilder(
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
   return {
     type: ProviderType.CosmJsNative,
-    provider: HyperlaneModuleClient.connect(rpcUrls[0].http),
+    provider: CosmosNativeProvider.connect(rpcUrls.map((rpc) => rpc.http)),
   };
 }
 

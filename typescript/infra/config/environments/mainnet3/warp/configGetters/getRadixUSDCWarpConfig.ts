@@ -34,9 +34,10 @@ const owners = {
   base: '0xA365Bf3Da1f1B01E2a80f9261Ec717B305b2Eb8F',
   bnb: '0xA365Bf3Da1f1B01E2a80f9261Ec717B305b2Eb8F',
   radix: 'account_rdx1280taxhhnuek02y59yapsg4kjtux954qkyufpwmy4dlfcxdrjzr7fj',
+  solanamainnet: 'GvjSzPttfE3dimBFZMKFhg7Yq3C5Jz17SrpE1L4nbR2F',
 };
 
-export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
+export const getRadixUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
@@ -84,10 +85,22 @@ export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
     decimals: 6,
   };
 
+  const solanamainnet: HypTokenRouterConfig = {
+    ...routerConfig.solanamainnet,
+    decimals: 6,
+    interchainSecurityModule: getIsm('solanamainnet'),
+    owner: owners.solanamainnet,
+    type: TokenType.collateral,
+    token: tokens.solanamainnet.USDC,
+    foreignDeployment: 'mSjeF19MEyUto4RejyPeL6SGb2eDevNfYESaHBeQb9z',
+    gas: 300_000,
+  };
+
   return {
     arbitrum,
     base,
     ethereum,
     radix,
+    solanamainnet,
   };
 };

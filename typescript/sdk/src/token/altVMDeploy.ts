@@ -1,8 +1,8 @@
 import { Logger } from 'pino';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import {
   Address,
+  AltVM,
   ProtocolType,
   assert,
   objFilter,
@@ -11,19 +11,25 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import {
+  ProtocolReceipt,
+  ProtocolTransaction,
+} from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenType, gasOverhead } from './config.js';
 import { WarpRouteDeployConfigMailboxRequired } from './types.js';
 
-export class CosmosNativeDeployer {
+export class AltVMDeployer<PT extends ProtocolType> {
   protected logger: Logger;
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly signersMap: ChainMap<SigningHyperlaneModuleClient>,
+    protected readonly signersMap: ChainMap<
+      AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>
+    >,
   ) {
-    this.logger = rootLogger.child({ module: 'CosmosNativeDeployer' });
+    this.logger = rootLogger.child({ module: 'AltVMDeployer' });
   }
 
   async deploy(
@@ -36,11 +42,10 @@ export class CosmosNativeDeployer {
 
     const result: ChainMap<Address> = {};
 
+    type Config = WarpRouteDeployConfigMailboxRequired[string];
     const configMapToDeploy = objFilter(
       resolvedConfigMap,
-      (chain: string, config: any): config is any =>
-        this.metadataManager.getProtocol(chain) === ProtocolType.CosmosNative &&
-        !config.foreignDeployment,
+      (_: string, cfg: Config): cfg is Config => !cfg.foreignDeployment,
     );
 
     for (const chain of Object.keys(configMapToDeploy)) {
@@ -49,9 +54,7 @@ export class CosmosNativeDeployer {
       const config = configMapToDeploy[chain];
       assert(config, `No config configured for ${chain}`);
 
-      this.logger.info(
-        `Deploying ${config.type} token to Cosmos Native chain ${chain}`,
-      );
+      this.logger.info(`Deploying ${config.type} token to chain ${chain}`);
 
       switch (config.type) {
         case TokenType.collateral: {
@@ -66,6 +69,9 @@ export class CosmosNativeDeployer {
           result[chain] = await this.deploySyntheticToken(
             chain,
             config.mailbox,
+            config.name,
+            config.symbol,
+            config.decimals,
           );
           break;
         }
@@ -76,14 +82,15 @@ export class CosmosNativeDeployer {
         }
       }
 
-      if (config.interchainSecurityModule) {
+      if (
+        config.interchainSecurityModule &&
+        typeof config.interchainSecurityModule === 'string'
+      ) {
         this.logger.info(`Set ISM for token`);
 
-        await this.signersMap[chain].setToken({
-          token_id: result[chain],
-          new_owner: '',
-          ism_id: config.interchainSecurityModule,
-          renounce_ownership: false,
+        await this.signersMap[chain].setTokenIsm({
+          tokenAddress: result[chain],
+          ismAddress: config.interchainSecurityModule,
         });
       }
 
@@ -99,21 +106,29 @@ export class CosmosNativeDeployer {
     originDenom: string,
   ): Promise<Address> {
     this.logger.info(`Deploying collateral token to ${chain}`);
-    const { response } = await this.signersMap[chain].createCollateralToken({
-      origin_mailbox: originMailbox,
-      origin_denom: originDenom,
-    });
-    return response.id;
+    const { tokenAddress } = await this.signersMap[chain].createCollateralToken(
+      {
+        mailboxAddress: originMailbox,
+        collateralDenom: originDenom,
+      },
+    );
+    return tokenAddress;
   }
 
   private async deploySyntheticToken(
     chain: ChainName,
     originMailbox: Address,
+    name: string | undefined,
+    denom: string | undefined,
+    decimals: number | undefined,
   ): Promise<Address> {
     this.logger.info(`Deploying synthetic token to ${chain}`);
-    const { response } = await this.signersMap[chain].createSyntheticToken({
-      origin_mailbox: originMailbox,
+    const { tokenAddress } = await this.signersMap[chain].createSyntheticToken({
+      mailboxAddress: originMailbox,
+      name: name || '',
+      denom: denom || '',
+      decimals: decimals || 0,
     });
-    return response.id;
+    return tokenAddress;
   }
 }

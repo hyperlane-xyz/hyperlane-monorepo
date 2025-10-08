@@ -1,30 +1,29 @@
 import {
-  COSMOS_MODULE_MESSAGE_REGISTRY as R,
-  SigningHyperlaneModuleClient,
-} from '@hyperlane-xyz/cosmos-sdk';
-import {
   Address,
+  AltVM,
   ChainId,
   Domain,
   ProtocolType,
-  eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { CosmosNativeHookModule } from '../hook/CosmosNativeHookModule.js';
+import { AltVMHookModule } from '../hook/AltVMHookModule.js';
 import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
-import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
+import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
+import {
+  AnnotatedTypedTransaction,
+  ProtocolReceipt,
+} from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from './AbstractHyperlaneModule.js';
-import { CosmosNativeCoreReader } from './CosmosNativeCoreReader.js';
+import { AltVMCoreReader } from './AltVMCoreReader.js';
 import {
   CoreConfig,
   CoreConfigSchema,
@@ -32,13 +31,13 @@ import {
   DerivedCoreConfig,
 } from './types.js';
 
-export class CosmosNativeCoreModule extends HyperlaneModule<
-  ProtocolType.CosmosNative,
+export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
+  any,
   CoreConfig,
   Record<string, string>
 > {
-  protected logger = rootLogger.child({ module: 'CosmosNativeCoreModule' });
-  protected coreReader: CosmosNativeCoreReader;
+  protected logger = rootLogger.child({ module: 'AltVMCoreModule' });
+  protected coreReader: AltVMCoreReader;
 
   public readonly chainName: ChainName;
   public readonly chainId: ChainId;
@@ -46,7 +45,10 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly signer: SigningHyperlaneModuleClient,
+    protected readonly signer: AltVM.ISigner<
+      AnnotatedTypedTransaction<PT>,
+      ProtocolReceipt<PT>
+    >,
     args: HyperlaneModuleParams<CoreConfig, Record<string, string>>,
   ) {
     super(args);
@@ -55,7 +57,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     this.chainId = metadataManager.getChainId(args.chain);
     this.domainId = metadataManager.getDomainId(args.chain);
 
-    this.coreReader = new CosmosNativeCoreReader(this.metadataManager, signer);
+    this.coreReader = new AltVMCoreReader(this.metadataManager, signer);
   }
 
   /**
@@ -68,16 +70,16 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
 
   /**
    * Deploys the Core contracts.
-   * @returns The created CosmosNativeCoreModule instance.
+   * @returns The created AltVMCoreModule instance.
    */
-  public static async create(params: {
+  public static async create<PT extends ProtocolType>(params: {
     chain: ChainNameOrId;
     config: CoreConfig;
     multiProvider: MultiProvider;
-    signer: SigningHyperlaneModuleClient;
-  }): Promise<CosmosNativeCoreModule> {
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
+  }): Promise<AltVMCoreModule<PT>> {
     const { chain, config, multiProvider, signer } = params;
-    const addresses = await CosmosNativeCoreModule.deploy({
+    const addresses = await AltVMCoreModule.deploy<PT>({
       config,
       multiProvider,
       chain,
@@ -85,7 +87,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     });
 
     // Create CoreModule and deploy the Core contracts
-    const module = new CosmosNativeCoreModule(multiProvider, signer, {
+    const module = new AltVMCoreModule<PT>(multiProvider, signer, {
       addresses,
       chain,
       config,
@@ -98,11 +100,11 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
    * Deploys the core Hyperlane contracts.
    * @returns The deployed core contract addresses.
    */
-  static async deploy(params: {
+  static async deploy<PT extends ProtocolType>(params: {
     config: CoreConfig;
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
-    signer: SigningHyperlaneModuleClient;
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<DeployedCoreAddresses> {
     const { config, multiProvider, chain, signer } = params;
 
@@ -110,7 +112,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     const domainId = multiProvider.getDomainId(chain);
 
     // 1. Deploy default ISM
-    const ismModule = await CosmosNativeIsmModule.create({
+    const ismModule = await AltVMIsmModule.create({
       chain: chainName,
       config: config.defaultIsm,
       addresses: {
@@ -123,20 +125,18 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     const { deployedIsm: defaultIsm } = ismModule.serialize();
 
     // 2. Deploy Mailbox with initial configuration
-    const { response: mailbox } = await signer.createMailbox({
-      local_domain: domainId,
-      default_ism: defaultIsm,
-      default_hook: '',
-      required_hook: '',
+    const mailbox = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmAddress: defaultIsm,
     });
 
     // 3. Deploy default hook
-    const defaultHookModule = await CosmosNativeHookModule.create({
+    const defaultHookModule = await AltVMHookModule.create({
       chain: chainName,
       config: config.defaultHook,
       addresses: {
         deployedHook: '',
-        mailbox: mailbox.id,
+        mailbox: mailbox.mailboxAddress,
       },
       multiProvider,
       signer,
@@ -145,12 +145,12 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     const { deployedHook: defaultHook } = defaultHookModule.serialize();
 
     // 4. Deploy required hook
-    const requiredHookModule = await CosmosNativeHookModule.create({
+    const requiredHookModule = await AltVMHookModule.create({
       chain: chainName,
       config: config.requiredHook,
       addresses: {
         deployedHook: '',
-        mailbox: mailbox.id,
+        mailbox: mailbox.mailboxAddress,
       },
       multiProvider,
       signer,
@@ -159,17 +159,32 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     const { deployedHook: requiredHook } = requiredHookModule.serialize();
 
     // 5. Update the configuration with the newly created hooks
-    await signer.setMailbox({
-      mailbox_id: mailbox.id,
-      default_ism: defaultIsm,
-      default_hook: defaultHook,
-      required_hook: requiredHook,
-      new_owner: config.owner || '',
-      renounce_ownership: !config.owner, // if owner is empty we renounce the ownership
+    await signer.setDefaultIsm({
+      mailboxAddress: mailbox.mailboxAddress,
+      ismAddress: defaultIsm,
+    });
+    await signer.setDefaultHook({
+      mailboxAddress: mailbox.mailboxAddress,
+      hookAddress: defaultHook,
+    });
+    await signer.setRequiredHook({
+      mailboxAddress: mailbox.mailboxAddress,
+      hookAddress: requiredHook,
+    });
+
+    if (signer.getSignerAddress() !== config.owner) {
+      await signer.setMailboxOwner({
+        mailboxAddress: mailbox.mailboxAddress,
+        newOwner: config.owner,
+      });
+    }
+
+    const validatorAnnounce = await signer.createValidatorAnnounce({
+      mailboxAddress: mailbox.mailboxAddress,
     });
 
     const addresses: DeployedCoreAddresses = {
-      mailbox: mailbox.id,
+      mailbox: mailbox.mailboxAddress,
       staticMerkleRootMultisigIsmFactory: '',
       proxyAdmin: '',
       staticMerkleRootWeightedMultisigIsmFactory: '',
@@ -177,13 +192,13 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
       staticAggregationIsmFactory: '',
       staticMessageIdMultisigIsmFactory: '',
       staticMessageIdWeightedMultisigIsmFactory: '',
-      validatorAnnounce: '',
+      validatorAnnounce: validatorAnnounce.validatorAnnounceId,
       testRecipient: '',
       interchainAccountRouter: '',
       domainRoutingIsmFactory: '',
     };
 
-    if (typeof config.defaultIsm !== 'string') {
+    if (config.defaultIsm && typeof config.defaultIsm !== 'string') {
       switch (config.defaultIsm.type) {
         case IsmType.MERKLE_ROOT_MULTISIG: {
           addresses.staticMerkleRootMultisigIsmFactory = defaultIsm;
@@ -200,7 +215,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
       }
     }
 
-    if (typeof config.defaultHook !== 'string') {
+    if (config.defaultHook && typeof config.defaultHook !== 'string') {
       switch (config.defaultHook.type) {
         case HookType.INTERCHAIN_GAS_PAYMASTER: {
           addresses.interchainGasPaymaster = defaultHook;
@@ -213,7 +228,7 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
       }
     }
 
-    if (typeof config.requiredHook !== 'string') {
+    if (config.requiredHook && typeof config.requiredHook !== 'string') {
       switch (config.requiredHook.type) {
         case HookType.INTERCHAIN_GAS_PAYMASTER: {
           addresses.interchainGasPaymaster = requiredHook;
@@ -233,42 +248,41 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
    * Updates the core contracts with the provided configuration.
    *
    * @param expectedConfig - The configuration for the core contracts to be updated.
-   * @returns An array of Cosmos transactions that were executed to update the contract.
+   * @returns An array of transactions that were executed to update the contract.
    */
   public async update(
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedCosmJsNativeTransaction[]> {
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions: AnnotatedCosmJsNativeTransaction[] = [];
+    const transactions: AnnotatedTypedTransaction<PT>[] = [];
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createDefaultHookUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createRequiredHookUpdateTxs(actualConfig, expectedConfig)),
-      ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
+      ...(await this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig)),
     );
 
     return transactions;
   }
 
-  private createMailboxOwnerUpdateTxs(
+  private async createMailboxOwnerUpdateTxs(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
-  ): AnnotatedCosmJsNativeTransaction[] {
-    if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    if (actualConfig.owner === expectedConfig.owner) {
       return [];
     }
 
     return [
       {
         annotation: `Transferring ownership of Mailbox from ${actualConfig.owner} to ${expectedConfig.owner}`,
-        typeUrl: R.MsgSetMailbox.proto.type,
-        value: R.MsgSetMailbox.proto.converter.create({
-          owner: actualConfig.owner,
-          mailbox_id: this.args.addresses.mailbox,
-          new_owner: expectedConfig.owner,
-        }),
+        ...(await this.signer.getSetMailboxOwnerTransaction({
+          signer: this.signer.getSignerAddress(),
+          mailboxAddress: this.args.addresses.mailbox,
+          newOwner: expectedConfig.owner,
+        })),
       },
     ];
   }
@@ -283,8 +297,8 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
   async createDefaultIsmUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedCosmJsNativeTransaction[]> {
-    const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
 
     const actualDefaultIsmConfig = actualConfig.defaultIsm as DerivedIsmConfig;
 
@@ -303,12 +317,11 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
       const { mailbox } = this.serialize();
       updateTransactions.push({
         annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm}`,
-        typeUrl: R.MsgSetMailbox.proto.type,
-        value: R.MsgSetMailbox.proto.converter.create({
-          owner: actualConfig.owner,
-          mailbox_id: mailbox,
-          default_ism: deployedIsm,
-        }),
+        ...(await this.signer.getSetDefaultIsmTransaction({
+          signer: this.signer.getSignerAddress(),
+          mailboxAddress: mailbox,
+          ismAddress: deployedIsm,
+        })),
       });
     }
 
@@ -325,11 +338,11 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     expectDefaultIsmConfig: IsmConfig,
   ): Promise<{
     deployedIsm: Address;
-    ismUpdateTxs: AnnotatedCosmJsNativeTransaction[];
+    ismUpdateTxs: AnnotatedTypedTransaction<PT>[];
   }> {
     const { mailbox } = this.serialize();
 
-    const ismModule = new CosmosNativeIsmModule(
+    const ismModule = new AltVMIsmModule(
       this.metadataManager,
       {
         addresses: {
@@ -360,8 +373,8 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
   async createDefaultHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedCosmJsNativeTransaction[]> {
-    const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
 
     const actualDefaultHookConfig =
       actualConfig.defaultHook as DerivedHookConfig;
@@ -381,12 +394,11 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
       const { mailbox } = this.serialize();
       updateTransactions.push({
         annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook}`,
-        typeUrl: R.MsgSetMailbox.proto.type,
-        value: R.MsgSetMailbox.proto.converter.create({
-          owner: actualConfig.owner,
-          mailbox_id: mailbox,
-          default_hook: deployedHook,
-        }),
+        ...(await this.signer.getSetDefaultHookTransaction({
+          signer: this.signer.getSignerAddress(),
+          mailboxAddress: mailbox,
+          hookAddress: deployedHook,
+        })),
       });
     }
 
@@ -403,8 +415,8 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
   async createRequiredHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedCosmJsNativeTransaction[]> {
-    const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
 
     const actualRequiredHookConfig =
       actualConfig.requiredHook as DerivedHookConfig;
@@ -424,12 +436,11 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
       const { mailbox } = this.serialize();
       updateTransactions.push({
         annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook}`,
-        typeUrl: R.MsgSetMailbox.proto.type,
-        value: R.MsgSetMailbox.proto.converter.create({
-          owner: actualConfig.owner,
-          mailbox_id: mailbox,
-          required_hook: deployedHook,
-        }),
+        ...(await this.signer.getSetRequiredHookTransaction({
+          signer: this.signer.getSignerAddress(),
+          mailboxAddress: mailbox,
+          hookAddress: deployedHook,
+        })),
       });
     }
 
@@ -446,11 +457,11 @@ export class CosmosNativeCoreModule extends HyperlaneModule<
     expectHookConfig: HookConfig,
   ): Promise<{
     deployedHook: Address;
-    hookUpdateTxs: AnnotatedCosmJsNativeTransaction[];
+    hookUpdateTxs: AnnotatedTypedTransaction<PT>[];
   }> {
     const { mailbox } = this.serialize();
 
-    const hookModule = new CosmosNativeHookModule(
+    const hookModule = new AltVMHookModule(
       this.metadataManager,
       {
         addresses: {

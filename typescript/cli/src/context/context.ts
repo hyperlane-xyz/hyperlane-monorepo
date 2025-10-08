@@ -18,6 +18,7 @@ import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
+import { AltVMProviderFactory, AltVMSignerFactory } from './altvm.js';
 import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
@@ -77,7 +78,16 @@ export async function signerMiddleware(argv: Record<string, any>) {
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
   argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
-  argv.context.multiProtocolSigner = multiProtocolSigner;
+
+  /**
+   * Creates AltVM signers
+   */
+  argv.context.altVmSigner = await AltVMSignerFactory.createSigners(
+    argv.context.multiProvider,
+    chains,
+    key,
+    strategyConfig,
+  );
 
   return argv;
 }
@@ -109,6 +119,11 @@ export async function getContext({
 
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
+  const altVmProvider = new AltVMProviderFactory(multiProvider);
+  const supportedProtocols = [
+    ProtocolType.Ethereum,
+    ...altVmProvider.getSupportedProtocols(),
+  ];
 
   return {
     registry,
@@ -116,6 +131,8 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
+    altVmProvider,
+    supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,
     signerAddress: ethereumSignerAddress,
