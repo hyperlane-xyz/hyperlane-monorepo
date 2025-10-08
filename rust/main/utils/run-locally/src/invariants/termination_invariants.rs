@@ -24,7 +24,7 @@ pub struct RelayerTerminationInvariantParams<'a> {
     pub submitter_queue_length_expected: u32,
     pub non_matching_igp_message_count: u32,
     pub double_insertion_message_count: u32,
-    pub sealevel_tx_id_indexing: bool,
+    pub skip_tx_id_indexing: bool,
     pub submitter_type: SubmitterType,
 }
 
@@ -44,7 +44,7 @@ pub fn relayer_termination_invariants_met(
         submitter_queue_length_expected,
         non_matching_igp_message_count,
         double_insertion_message_count,
-        sealevel_tx_id_indexing,
+        skip_tx_id_indexing,
         submitter_type,
     } = params.clone();
 
@@ -139,7 +139,7 @@ pub fn relayer_termination_invariants_met(
 
     // Sealevel relayer does not require tx id indexing.
     // It performs sequenced indexing, that's why we don't expect any tx_id_logs
-    let expected_tx_id_logs = if sealevel_tx_id_indexing {
+    let expected_tx_id_logs = if skip_tx_id_indexing {
         0
     } else {
         config.kathy_messages

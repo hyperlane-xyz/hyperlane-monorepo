@@ -13,6 +13,7 @@ import { Contexts } from '../../config/contexts.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
+import { executePendingTransactions } from '../../src/tx/utils.js';
 import { logTable } from '../../src/utils/log.js';
 import {
   SafeTxStatus,
@@ -96,29 +97,12 @@ async function main() {
   }
 
   rootLogger.info(chalk.blueBright('Executing transactions...'));
-
-  for (const tx of executableTxs) {
-    const confirmExecuteTx = await confirm({
-      message: `Execute transaction ${tx.shortTxHash} on chain ${tx.chain}?`,
-      default: false,
-    });
-    if (confirmExecuteTx) {
-      rootLogger.info(
-        `Executing transaction ${tx.shortTxHash} on chain ${tx.chain}`,
-      );
-      try {
-        await executeTx(
-          tx.chain,
-          multiProvider,
-          safes[tx.chain],
-          tx.fullTxHash,
-        );
-      } catch (error) {
-        rootLogger.error(chalk.red(`Error executing transaction: ${error}`));
-        return;
-      }
-    }
-  }
+  await executePendingTransactions(
+    executableTxs,
+    (tx) => tx.shortTxHash,
+    (tx) => tx.chain,
+    (tx) => executeTx(tx.chain, multiProvider, safes[tx.chain], tx.fullTxHash),
+  );
 
   process.exit(0);
 }

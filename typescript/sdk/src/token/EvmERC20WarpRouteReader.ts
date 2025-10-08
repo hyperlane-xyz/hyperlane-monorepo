@@ -34,13 +34,11 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { isAddressActive } from '../contracts/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import {
-  ExplorerLicenseType,
-  VerifyContractTypes,
-} from '../deploy/verify/types.js';
+import { VerifyContractTypes } from '../deploy/verify/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';

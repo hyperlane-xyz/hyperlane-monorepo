@@ -11,9 +11,13 @@ import {
   WarpCore,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
+import {
+  GasAction,
+  parseWarpRouteMessage,
+  timeout,
+} from '@hyperlane-xyz/utils';
 
-import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
+import { EXPLORER_URL } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
@@ -47,7 +51,7 @@ export async function sendTestTransfer({
   await runPreflightChecksForChains({
     context,
     chains,
-    minGas: MINIMUM_TEST_SEND_GAS,
+    minGas: GasAction.TEST_SEND_GAS,
   });
 
   for (let i = 0; i < chains.length; i++) {

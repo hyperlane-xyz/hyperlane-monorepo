@@ -226,6 +226,14 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Install gitleaks
+        id: gitleaks-install
+        if: github.event_name != 'merge_group'
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}}
+
       - name: Check for balance/config changes
         run: |
           if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
@@ -237,14 +245,16 @@ jobs:
 
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
-        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           cache-provider: github
 
       - name: Checkout registry
-        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         uses: ./.github/actions/checkout-registry
+
+      - name: GitLeaks Tests
+        if: steps.gitleaks-install.outcome != 'skipped'
+        run: yarn --cwd typescript/infra test:gitleaks
 
       - name: Balance Tests
         if: env.BALANCE_CHANGES == 'true'
@@ -383,9 +393,43 @@ jobs:
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
+  cli-cross-chain-e2e-matrix:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Warp Commands
+          - warp-apply
+          - warp-deploy
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI cross chain e2e tests (${{ matrix.test }})
+        run: yarn --cwd typescript/cli test:cross-chain:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
   cli-e2e:
     runs-on: ubuntu-latest
-    needs: [cli-evm-e2e-matrix, cli-cosmos-e2e-matrix]
+    needs:
+      [cli-evm-e2e-matrix, cli-cosmos-e2e-matrix, cli-cross-chain-e2e-matrix]
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -399,6 +443,11 @@ jobs:
         with:
           job_name: 'CLI CosmosNative E2E'
           result: ${{ needs.cli-cosmos-e2e-matrix.result }}
+      - name: Check CLI Cross Chain E2E status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI Cross Chain E2E'
+          result: ${{ needs.cli-cross-chain-e2e-matrix.result }}
 
   cosmos-sdk-e2e-run:
     runs-on: depot-ubuntu-latest
@@ -469,7 +518,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet]
+        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet, radix]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -606,6 +655,15 @@ jobs:
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
+
+      - name: agent tests (Radix)
+        run: cargo test --release --package run-locally --bin run-locally --features radix -- radix::test --nocapture
+        if: ${{ matrix.e2e-type == 'radix' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
 
       - name: agent tests (EVM)
         if: ${{ matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
