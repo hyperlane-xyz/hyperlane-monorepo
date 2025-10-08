@@ -63,6 +63,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 # Minimal runtime image containing config, binaries, and runtime dependencies
 FROM ubuntu:22.04
 WORKDIR /app
+COPY rust/main/app-contexts /app/app-contexts
 COPY rust/main/config /app/config
 COPY --from=builder /release/* .
 
