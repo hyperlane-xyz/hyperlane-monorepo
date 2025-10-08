@@ -155,7 +155,10 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       relayerConfig.blacklist = baseConfig.blacklist;
     }
 
-    relayerConfig.addressBlacklist = await this.getSanctionedAddresses();
+    relayerConfig.addressBlacklist = [
+      ...(baseConfig.addressBlacklist ?? []),
+      ...(await this.getSanctionedAddresses()),
+    ];
 
     if (baseConfig.transactionGasLimit) {
       relayerConfig.transactionGasLimit =
