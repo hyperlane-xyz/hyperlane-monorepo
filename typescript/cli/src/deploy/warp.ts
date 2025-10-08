@@ -998,7 +998,6 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     submitter: await getSubmitterBuilder<T>({
       submissionStrategy: submissionStrategy as SubmissionStrategy, // TODO: fix this
       multiProvider,
-      altVmSigner,
       coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories: {
         [ProtocolType.Ethereum]: {
@@ -1006,6 +1005,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
             return new EV5FileSubmitter(metadata);
           },
         },
+        ...altVmSigner.submitterFactories(),
       },
     }),
     config: submissionStrategy,

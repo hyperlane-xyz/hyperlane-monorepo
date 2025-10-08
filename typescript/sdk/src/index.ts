@@ -456,10 +456,12 @@ export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethe
 export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmitter.js';
 export {
   SubmitterBuilderSettings,
+  SubmitterFactory,
   getSubmitterBuilder,
   getSubmitter,
 } from './providers/transactions/submitter/submitterBuilderGetter.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
+export { AltVMJsonRpcTxSubmitter } from './providers/transactions/submitter/altvm/AltVMJsonRpcTxSubmitter.js';
 export {
   CCIPContractCache,
   getCCIPChains,
