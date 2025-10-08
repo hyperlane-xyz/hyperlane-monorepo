@@ -7,7 +7,7 @@ import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
 
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
-import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
+import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
@@ -148,12 +148,13 @@ export function defaultZKSyncProviderBuilder(
 }
 
 export function defaultRadixProviderBuilder(
-  _rpcUrls: RpcUrl[],
+  rpcUrls: RpcUrl[],
   network: string | number,
 ): RadixProvider {
   assert(isNumeric(network), 'Radix requires a numeric network id');
   const networkId = parseInt(network.toString(), 10);
-  const provider = new RadixSDK({
+  const provider = new RadixSDKProvider({
+    rpcUrls: rpcUrls.map((rpc) => rpc.http),
     networkId,
   });
   return { provider, type: ProviderType.Radix };

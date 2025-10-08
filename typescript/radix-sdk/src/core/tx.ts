@@ -58,10 +58,10 @@ export class RadixCoreTx {
       domain_id,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async createMerkleTreeHook({ mailbox }: { mailbox: string }) {
@@ -70,10 +70,10 @@ export class RadixCoreTx {
       mailbox,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async createMerkleRootMultisigIsm({
@@ -88,10 +88,10 @@ export class RadixCoreTx {
       },
     );
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async createMessageIdMultisigIsm({
@@ -104,10 +104,10 @@ export class RadixCoreTx {
       threshold,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async createRoutingIsm({
@@ -120,10 +120,10 @@ export class RadixCoreTx {
       routes,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async setRoutingIsmRoute({
@@ -182,10 +182,10 @@ export class RadixCoreTx {
       from_address: this.account.address,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async createIgp({ denom }: { denom: string }) {
@@ -194,10 +194,10 @@ export class RadixCoreTx {
       denom,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async setIgpOwner({
@@ -261,10 +261,10 @@ export class RadixCoreTx {
       mailbox,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async setRequiredHook({

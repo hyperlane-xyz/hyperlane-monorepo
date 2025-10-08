@@ -4,6 +4,7 @@ import {
   CosmosNativeProvider,
   CosmosNativeSigner,
 } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixProvider, RadixSigner } from '@hyperlane-xyz/radix-sdk';
 import {
   AltVMJsonRpcTxSubmitter,
   AnyProtocolReceipt,
@@ -38,6 +39,16 @@ const ALT_VM_SUPPORTED_PROTOCOLS: AltVMProtocol = {
       WARP_DEPLOY_GAS: BigInt(3e6),
       TEST_SEND_GAS: BigInt(3e5),
       AVS_GAS: BigInt(3e6),
+    },
+  },
+  [ProtocolType.Radix]: {
+    provider: RadixProvider,
+    signer: RadixSigner,
+    gas: {
+      CORE_DEPLOY_GAS: BigInt(0),
+      WARP_DEPLOY_GAS: BigInt(0),
+      TEST_SEND_GAS: BigInt(0),
+      AVS_GAS: BigInt(0),
     },
   },
   // [NEW PROTOCOL]: {...}

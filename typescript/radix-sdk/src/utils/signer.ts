@@ -6,14 +6,13 @@ import {
   SignatureWithPublicKey,
   SimpleTransactionBuilder,
   TransactionBuilder,
-  TransactionHash,
   TransactionHeader,
   TransactionManifest,
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
 
 import { RadixBase } from './base.js';
-import { Account } from './types.js';
+import { Account, RadixSDKReceipt } from './types.js';
 
 export class RadixBaseSigner {
   protected networkId: number;
@@ -35,7 +34,7 @@ export class RadixBaseSigner {
 
   public async signAndBroadcast(
     manifest: TransactionManifest,
-  ): Promise<TransactionHash> {
+  ): Promise<RadixSDKReceipt> {
     // transaction builder from official example:
     // https://github.com/radixdlt/typescript-radix-engine-toolkit?tab=readme-ov-file#constructing-transactions
     const constructionMetadata =
@@ -73,7 +72,14 @@ export class RadixBaseSigner {
     });
     await this.base.pollForCommit(intentHashTransactionId.id);
 
-    return intentHashTransactionId;
+    const committedDetails = await this.gateway.transaction.getCommittedDetails(
+      intentHashTransactionId.id,
+    );
+
+    return {
+      ...committedDetails,
+      transactionHash: intentHashTransactionId.id,
+    };
   }
 
   public async getTestnetXrd() {

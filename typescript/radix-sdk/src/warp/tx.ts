@@ -1,7 +1,7 @@
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import { Account } from '../utils/types.js';
-import { transactionManifestFromString } from '../utils/utils.js';
+import { stringToTransactionManifest } from '../utils/utils.js';
 
 import { RadixWarpPopulate } from './populate.js';
 
@@ -40,10 +40,10 @@ export class RadixWarpTx {
       origin_denom,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async createSyntheticToken({
@@ -65,10 +65,10 @@ export class RadixWarpTx {
       divisibility,
     });
 
-    const intentHashTransactionId =
+    const { transactionHash } =
       await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(transactionHash);
   }
 
   public async setTokenOwner({
@@ -166,7 +166,7 @@ export class RadixWarpTx {
       max_fee,
     });
 
-    const transactionManifest = await transactionManifestFromString(
+    const transactionManifest = await stringToTransactionManifest(
       stringManifest,
       this.networkId,
     );

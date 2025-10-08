@@ -1,5 +1,5 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import { NetworkId, TransactionManifest } from '@radixdlt/radix-engine-toolkit';
+import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 
 import { AltVM, assert } from '@hyperlane-xyz/utils';
 
@@ -10,8 +10,9 @@ import {
   RadixHookTypes,
   RadixIsmTypes,
   RadixSDKOptions,
+  RadixSDKTransaction,
 } from '../utils/types.js';
-import { transactionManifestFromString } from '../utils/utils.js';
+import { stringToTransactionManifest } from '../utils/utils.js';
 import { RadixWarpPopulate } from '../warp/populate.js';
 import { RadixWarpQuery } from '../warp/query.js';
 
@@ -30,7 +31,7 @@ const NETWORKS = {
   },
 };
 
-export class RadixProvider implements AltVM.IProvider<TransactionManifest> {
+export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   protected rpcUrls: string[];
   protected networkId: number;
   protected gateway: GatewayApiClient;
@@ -121,10 +122,10 @@ export class RadixProvider implements AltVM.IProvider<TransactionManifest> {
   }
 
   async estimateTransactionFee(
-    req: AltVM.ReqEstimateTransactionFee<TransactionManifest>,
+    req: AltVM.ReqEstimateTransactionFee<RadixSDKTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
     return this.base.estimateTransactionFee({
-      transactionManifest: req.transaction,
+      transactionManifest: req.transaction.manifest,
     });
   }
 
@@ -292,236 +293,305 @@ export class RadixProvider implements AltVM.IProvider<TransactionManifest> {
 
   async getCreateMailboxTransaction(
     req: AltVM.ReqCreateMailbox,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.createMailbox({
-      from_address: req.signer,
-      domain_id: req.domainId,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.createMailbox({
+        from_address: req.signer,
+        domain_id: req.domainId,
+      }),
+    };
   }
 
   async getSetDefaultIsmTransaction(
     req: AltVM.ReqSetDefaultIsm,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.setDefaultIsm({
-      from_address: req.signer,
-      mailbox: req.mailboxAddress,
-      ism: req.ismAddress,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.setDefaultIsm({
+        from_address: req.signer,
+        mailbox: req.mailboxAddress,
+        ism: req.ismAddress,
+      }),
+    };
   }
 
   async getSetDefaultHookTransaction(
     req: AltVM.ReqSetDefaultHook,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.setDefaultHook({
-      from_address: req.signer,
-      mailbox: req.mailboxAddress,
-      hook: req.hookAddress,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.setDefaultHook({
+        from_address: req.signer,
+        mailbox: req.mailboxAddress,
+        hook: req.hookAddress,
+      }),
+    };
   }
 
   async getSetRequiredHookTransaction(
     req: AltVM.ReqSetRequiredHook,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.setRequiredHook({
-      from_address: req.signer,
-      mailbox: req.mailboxAddress,
-      hook: req.hookAddress,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.setRequiredHook({
+        from_address: req.signer,
+        mailbox: req.mailboxAddress,
+        hook: req.hookAddress,
+      }),
+    };
   }
 
   async getSetMailboxOwnerTransaction(
     req: AltVM.ReqSetMailboxOwner,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.setMailboxOwner({
-      from_address: req.signer,
-      mailbox: req.mailboxAddress,
-      new_owner: req.newOwner,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.setMailboxOwner({
+        from_address: req.signer,
+        mailbox: req.mailboxAddress,
+        new_owner: req.newOwner,
+      }),
+    };
   }
 
   async getCreateMerkleRootMultisigIsmTransaction(
     req: AltVM.ReqCreateMerkleRootMultisigIsm,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.createMerkleRootMultisigIsm({
-      from_address: req.signer,
-      validators: req.validators,
-      threshold: req.threshold,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.createMerkleRootMultisigIsm({
+        from_address: req.signer,
+        validators: req.validators,
+        threshold: req.threshold,
+      }),
+    };
   }
 
   async getCreateMessageIdMultisigIsmTransaction(
     req: AltVM.ReqCreateMessageIdMultisigIsm,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.createMessageIdMultisigIsm({
-      from_address: req.signer,
-      validators: req.validators,
-      threshold: req.threshold,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.createMessageIdMultisigIsm({
+        from_address: req.signer,
+        validators: req.validators,
+        threshold: req.threshold,
+      }),
+    };
   }
 
   async getCreateRoutingIsmTransaction(
     req: AltVM.ReqCreateRoutingIsm,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.createRoutingIsm({
-      from_address: req.signer,
-      routes: req.routes,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.createRoutingIsm({
+        from_address: req.signer,
+        routes: req.routes,
+      }),
+    };
   }
 
   async getSetRoutingIsmRouteTransaction(
     req: AltVM.ReqSetRoutingIsmRoute,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.setRoutingIsmRoute({
-      from_address: req.signer,
-      ism: req.ismAddress,
-      route: req.route,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.setRoutingIsmRoute({
+        from_address: req.signer,
+        ism: req.ismAddress,
+        route: req.route,
+      }),
+    };
   }
 
   async getRemoveRoutingIsmRouteTransaction(
     req: AltVM.ReqRemoveRoutingIsmRoute,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.removeRoutingIsmRoute({
-      from_address: req.signer,
-      ism: req.ismAddress,
-      domain: req.domainId,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.removeRoutingIsmRoute({
+        from_address: req.signer,
+        ism: req.ismAddress,
+        domain: req.domainId,
+      }),
+    };
   }
 
   async getSetRoutingIsmOwnerTransaction(
     req: AltVM.ReqSetRoutingIsmOwner,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.setRoutingIsmOwner({
-      from_address: req.signer,
-      ism: req.ismAddress,
-      new_owner: req.newOwner,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.setRoutingIsmOwner({
+        from_address: req.signer,
+        ism: req.ismAddress,
+        new_owner: req.newOwner,
+      }),
+    };
   }
 
   async getCreateNoopIsmTransaction(
     req: AltVM.ReqCreateNoopIsm,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.createNoopIsm({
-      from_address: req.signer,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.createNoopIsm({
+        from_address: req.signer,
+      }),
+    };
   }
 
   async getCreateMerkleTreeHookTransaction(
     req: AltVM.ReqCreateMerkleTreeHook,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.createMerkleTreeHook({
-      from_address: req.signer,
-      mailbox: req.mailboxAddress,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.createMerkleTreeHook({
+        from_address: req.signer,
+        mailbox: req.mailboxAddress,
+      }),
+    };
   }
 
   async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.createIgp({
-      from_address: req.signer,
-      denom: req.denom,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.createIgp({
+        from_address: req.signer,
+        denom: req.denom,
+      }),
+    };
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
     req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.setIgpOwner({
-      from_address: req.signer,
-      igp: req.hookAddress,
-      new_owner: req.newOwner,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.setIgpOwner({
+        from_address: req.signer,
+        igp: req.hookAddress,
+        new_owner: req.newOwner,
+      }),
+    };
   }
 
   async getSetDestinationGasConfigTransaction(
     req: AltVM.ReqSetDestinationGasConfig,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.setDestinationGasConfig({
-      from_address: req.signer,
-      igp: req.hookAddress,
-      destinationGasConfig: req.destinationGasConfig,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.setDestinationGasConfig({
+        from_address: req.signer,
+        igp: req.hookAddress,
+        destinationGasConfig: req.destinationGasConfig,
+      }),
+    };
   }
 
   async getCreateValidatorAnnounceTransaction(
     req: AltVM.ReqCreateValidatorAnnounce,
-  ): Promise<TransactionManifest> {
-    return this.populate.core.createValidatorAnnounce({
-      from_address: req.signer,
-      mailbox: req.mailboxAddress,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.core.createValidatorAnnounce({
+        from_address: req.signer,
+        mailbox: req.mailboxAddress,
+      }),
+    };
   }
 
   // ### GET WARP TXS ###
 
   async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,
-  ): Promise<TransactionManifest> {
-    return this.populate.warp.createCollateralToken({
-      from_address: req.signer,
-      mailbox: req.mailboxAddress,
-      origin_denom: req.collateralDenom,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.warp.createCollateralToken({
+        from_address: req.signer,
+        mailbox: req.mailboxAddress,
+        origin_denom: req.collateralDenom,
+      }),
+    };
   }
 
   async getCreateSyntheticTokenTransaction(
     req: AltVM.ReqCreateSyntheticToken,
-  ): Promise<TransactionManifest> {
-    return this.populate.warp.createSyntheticToken({
-      from_address: req.signer,
-      mailbox: req.mailboxAddress,
-      name: req.name,
-      symbol: req.denom,
-      divisibility: req.decimals,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.warp.createSyntheticToken({
+        from_address: req.signer,
+        mailbox: req.mailboxAddress,
+        name: req.name,
+        symbol: req.denom,
+        divisibility: req.decimals,
+      }),
+    };
   }
 
   async getSetTokenOwnerTransaction(
     req: AltVM.ReqSetTokenOwner,
-  ): Promise<TransactionManifest> {
-    return this.populate.warp.setTokenOwner({
-      from_address: req.signer,
-      token: req.tokenAddress,
-      new_owner: req.newOwner,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.warp.setTokenOwner({
+        from_address: req.signer,
+        token: req.tokenAddress,
+        new_owner: req.newOwner,
+      }),
+    };
   }
 
   async getSetTokenIsmTransaction(
     req: AltVM.ReqSetTokenIsm,
-  ): Promise<TransactionManifest> {
-    return this.populate.warp.setTokenIsm({
-      from_address: req.signer,
-      token: req.tokenAddress,
-      ism: req.ismAddress,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.warp.setTokenIsm({
+        from_address: req.signer,
+        token: req.tokenAddress,
+        ism: req.ismAddress,
+      }),
+    };
   }
 
   async getEnrollRemoteRouterTransaction(
     req: AltVM.ReqEnrollRemoteRouter,
-  ): Promise<TransactionManifest> {
-    return this.populate.warp.enrollRemoteRouter({
-      from_address: req.signer,
-      token: req.tokenAddress,
-      receiver_domain: req.remoteRouter.receiverDomainId,
-      receiver_address: req.remoteRouter.receiverAddress,
-      gas: req.remoteRouter.gas,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.warp.enrollRemoteRouter({
+        from_address: req.signer,
+        token: req.tokenAddress,
+        receiver_domain: req.remoteRouter.receiverDomainId,
+        receiver_address: req.remoteRouter.receiverAddress,
+        gas: req.remoteRouter.gas,
+      }),
+    };
   }
 
   async getUnenrollRemoteRouterTransaction(
     req: AltVM.ReqUnenrollRemoteRouter,
-  ): Promise<TransactionManifest> {
-    return this.populate.warp.unenrollRemoteRouter({
-      from_address: req.signer,
-      token: req.tokenAddress,
-      receiver_domain: req.receiverDomainId,
-    });
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.populate.warp.unenrollRemoteRouter({
+        from_address: req.signer,
+        token: req.tokenAddress,
+        receiver_domain: req.receiverDomainId,
+      }),
+    };
   }
 
   async getRemoteTransferTransaction(
     req: AltVM.ReqRemoteTransfer,
-  ): Promise<TransactionManifest> {
+  ): Promise<RadixSDKTransaction> {
     const manifest = await this.populate.warp.remoteTransfer({
       from_address: req.signer,
       token: req.tokenAddress,
@@ -537,6 +607,9 @@ export class RadixProvider implements AltVM.IProvider<TransactionManifest> {
       },
     });
 
-    return transactionManifestFromString(manifest, this.networkId);
+    return {
+      networkId: this.networkId,
+      manifest: await stringToTransactionManifest(manifest, this.networkId),
+    };
   }
 }

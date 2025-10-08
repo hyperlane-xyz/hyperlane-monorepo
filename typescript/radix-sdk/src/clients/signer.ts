@@ -1,14 +1,13 @@
-import {
-  NetworkId,
-  TransactionHash,
-  TransactionManifest,
-} from '@radixdlt/radix-engine-toolkit';
-
-import { AltVM, strip0x } from '@hyperlane-xyz/utils';
+import { AltVM, assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixCoreTx } from '../core/tx.js';
 import { RadixBaseSigner } from '../utils/signer.js';
-import { Account, RadixSDKOptions } from '../utils/types.js';
+import {
+  Account,
+  RadixSDKOptions,
+  RadixSDKReceipt,
+  RadixSDKTransaction,
+} from '../utils/types.js';
 import { generateNewEd25519VirtualAccount } from '../utils/utils.js';
 import { RadixWarpTx } from '../warp/tx.js';
 
@@ -16,7 +15,7 @@ import { RadixProvider } from './provider.js';
 
 export class RadixSigner
   extends RadixProvider
-  implements AltVM.ISigner<TransactionManifest, TransactionHash>
+  implements AltVM.ISigner<RadixSDKTransaction, RadixSDKReceipt>
 {
   private account: Account;
 
@@ -57,8 +56,15 @@ export class RadixSigner
     rpcUrls: string[],
     privateKey: string,
     extraParams?: Record<string, any>,
-  ): Promise<AltVM.ISigner<TransactionManifest, TransactionHash>> {
-    const networkId = NetworkId.Mainnet;
+  ): Promise<AltVM.ISigner<RadixSDKTransaction, RadixSDKReceipt>> {
+    assert(extraParams, `extra params not defined`);
+    assert(extraParams.metadata, `metadata not defined in extra params`);
+    assert(
+      extraParams.metadata.chainId,
+      `chainId not defined in metadata extra params`,
+    );
+
+    const networkId = parseInt(extraParams.metadata.chainId.toString());
 
     const account = await generateNewEd25519VirtualAccount(
       strip0x(privateKey),
@@ -79,14 +85,14 @@ export class RadixSigner
   }
 
   async sendAndConfirmTransaction(
-    transaction: TransactionManifest,
-  ): Promise<TransactionHash> {
-    return this.signer.signAndBroadcast(transaction);
+    transaction: RadixSDKTransaction,
+  ): Promise<RadixSDKReceipt> {
+    return this.signer.signAndBroadcast(transaction.manifest);
   }
 
   async sendAndConfirmBatchTransactions(
-    _transactions: TransactionManifest[],
-  ): Promise<TransactionHash> {
+    _transactions: RadixSDKTransaction[],
+  ): Promise<RadixSDKReceipt> {
     throw new Error(`Radix does not support transaction batching`);
   }
 

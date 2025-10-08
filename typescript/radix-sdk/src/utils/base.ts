@@ -8,7 +8,6 @@ import {
   ManifestBuilder,
   PrivateKey,
   RadixEngineToolkit,
-  TransactionHash,
   TransactionManifest,
   Value,
   address,
@@ -276,15 +275,15 @@ export class RadixBase {
     }
   }
 
-  public async getNewComponent(transaction: TransactionHash): Promise<string> {
+  public async getNewComponent(transactionHash: string): Promise<string> {
     const transactionReceipt = await retryAsync(
-      () => this.gateway.transaction.getCommittedDetails(transaction.id),
+      () => this.gateway.transaction.getCommittedDetails(transactionHash),
       5,
       5000,
     );
 
     const receipt = transactionReceipt.transaction.receipt;
-    assert(receipt, `found no receipt on transaction: ${transaction.id}`);
+    assert(receipt, `found no receipt on transaction: ${transactionHash}`);
 
     const newGlobalGenericComponent = (
       receipt.state_updates as any
@@ -294,7 +293,7 @@ export class RadixBase {
     );
     assert(
       newGlobalGenericComponent,
-      `found no newly created component on transaction: ${transaction.id}`,
+      `found no newly created component on transaction: ${transactionHash}`,
     );
 
     return newGlobalGenericComponent.entity_address;
