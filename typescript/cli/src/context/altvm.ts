@@ -191,6 +191,10 @@ export class AltVMSignerFactory
         continue;
       }
 
+      if (metadata.protocol === ProtocolType.Sealevel) {
+        continue;
+      }
+
       const protocol = ALT_VM_SUPPORTED_PROTOCOLS[metadata.protocol];
 
       if (!protocol) {
