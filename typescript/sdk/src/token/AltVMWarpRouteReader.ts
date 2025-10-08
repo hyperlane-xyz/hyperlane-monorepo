@@ -1,12 +1,9 @@
-import {
-  HyperlaneModuleClient,
-  SigningHyperlaneModuleClient,
-} from '@hyperlane-xyz/cosmos-sdk';
-import { warpTypes } from '@hyperlane-xyz/cosmos-types';
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger } from 'pino';
 
-import { CosmosNativeHookReader } from '../hook/CosmosNativeHookReader.js';
-import { CosmosNativeIsmReader } from '../ism/CosmosNativeIsmReader.js';
+import { Address, AltVM, rootLogger } from '@hyperlane-xyz/utils';
+
+import { AltVMHookReader } from '../hook/AltVMHookReader.js';
+import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
   DestinationGas,
@@ -19,28 +16,22 @@ import { ChainNameOrId } from '../types.js';
 import { TokenType } from './config.js';
 import { DerivedTokenRouterConfig, HypTokenConfig } from './types.js';
 
-export class CosmosNativeWarpRouteReader {
-  protected readonly logger = rootLogger.child({
-    module: 'CosmosNativeWarpRouteReader',
-  });
-  hookReader: CosmosNativeHookReader;
-  ismReader: CosmosNativeIsmReader;
+export class AltVMWarpRouteReader {
+  protected readonly logger: Logger;
+  hookReader: AltVMHookReader;
+  ismReader: AltVMIsmReader;
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     protected readonly chain: ChainNameOrId,
-    protected readonly cosmosProviderOrSigner:
-      | SigningHyperlaneModuleClient
-      | HyperlaneModuleClient,
+    protected readonly provider: AltVM.IProvider,
   ) {
-    this.hookReader = new CosmosNativeHookReader(
-      metadataManager,
-      cosmosProviderOrSigner,
-    );
-    this.ismReader = new CosmosNativeIsmReader(
-      metadataManager,
-      cosmosProviderOrSigner,
-    );
+    this.hookReader = new AltVMHookReader(metadataManager, provider);
+    this.ismReader = new AltVMIsmReader(metadataManager, provider);
+
+    this.logger = rootLogger.child({
+      module: AltVMWarpRouteReader.name,
+    });
   }
 
   /**
@@ -76,18 +67,14 @@ export class CosmosNativeWarpRouteReader {
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
-    const { token } = await this.cosmosProviderOrSigner.query.warp.Token({
-      id: warpRouteAddress,
+    const token = await this.provider.getToken({
+      tokenAddress: warpRouteAddress,
     });
 
-    if (!token) {
-      throw new Error(`Failed to find token for address ${warpRouteAddress}`);
-    }
-
-    switch (token.token_type) {
-      case warpTypes.HypTokenType.HYP_TOKEN_TYPE_COLLATERAL:
+    switch (token.tokenType) {
+      case AltVM.TokenType.collateral:
         return TokenType.collateral;
-      case warpTypes.HypTokenType.HYP_TOKEN_TYPE_SYNTHETIC:
+      case AltVM.TokenType.synthetic:
         return TokenType.synthetic;
       default:
         throw new Error(
@@ -105,19 +92,17 @@ export class CosmosNativeWarpRouteReader {
   async fetchMailboxClientConfig(
     routerAddress: Address,
   ): Promise<MailboxClientConfig> {
-    const { token } = await this.cosmosProviderOrSigner.query.warp.Token({
-      id: routerAddress,
+    const token = await this.provider.getToken({
+      tokenAddress: routerAddress,
     });
 
-    assert(token, `Failed to find token for address ${routerAddress}`);
-
     const config: MailboxClientConfig = {
-      mailbox: token.origin_mailbox,
+      mailbox: token.mailboxAddress,
       owner: token.owner,
     };
 
-    if (token.ism_id) {
-      const derivedIsm = await this.ismReader.deriveIsmConfig(token.ism_id);
+    if (token.ismAddress) {
+      const derivedIsm = await this.ismReader.deriveIsmConfig(token.ismAddress);
       config.interchainSecurityModule = derivedIsm;
     }
 
@@ -142,15 +127,14 @@ export class CosmosNativeWarpRouteReader {
   }
 
   async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
-    const { remote_routers } =
-      await this.cosmosProviderOrSigner.query.warp.RemoteRouters({
-        id: warpRouteAddress,
-      });
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenAddress: warpRouteAddress,
+    });
 
     const routers: Record<string, { address: string }> = {};
-    for (const router of remote_routers) {
-      routers[router.receiver_domain] = {
-        address: router.receiver_contract,
+    for (const router of remoteRouters) {
+      routers[router.receiverDomainId] = {
+        address: router.receiverAddress,
       };
     }
 
@@ -160,14 +144,13 @@ export class CosmosNativeWarpRouteReader {
   async fetchDestinationGas(
     warpRouteAddress: Address,
   ): Promise<DestinationGas> {
-    const { remote_routers } =
-      await this.cosmosProviderOrSigner.query.warp.RemoteRouters({
-        id: warpRouteAddress,
-      });
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenAddress: warpRouteAddress,
+    });
 
     return Object.fromEntries(
-      remote_routers.map((routerConfig) => [
-        routerConfig.receiver_domain,
+      remoteRouters.map((routerConfig) => [
+        routerConfig.receiverDomainId,
         routerConfig.gas,
       ]),
     );

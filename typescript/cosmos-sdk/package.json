@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@cosmjs/stargate": "^0.32.4",
-    "@hyperlane-xyz/cosmos-types": "18.3.0"
+    "@hyperlane-xyz/cosmos-types": "18.3.0",
+    "@hyperlane-xyz/utils": "18.3.0"
   }
 }

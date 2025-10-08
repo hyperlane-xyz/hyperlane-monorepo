@@ -1,11 +1,8 @@
 import { Logger } from 'pino';
 
 import {
-  COSMOS_MODULE_MESSAGE_REGISTRY as R,
-  SigningHyperlaneModuleClient,
-} from '@hyperlane-xyz/cosmos-sdk';
-import {
   Address,
+  AltVM,
   ChainId,
   Domain,
   ProtocolType,
@@ -21,11 +18,14 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
+import {
+  AnnotatedTypedTransaction,
+  ProtocolReceipt,
+} from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
-import { CosmosNativeIsmReader } from './CosmosNativeIsmReader.js';
+import { AltVMIsmReader } from './AltVMIsmReader.js';
 import {
   DomainRoutingIsmConfig,
   IsmConfig,
@@ -41,15 +41,15 @@ type IsmModuleAddresses = {
   mailbox: Address;
 };
 
-export class CosmosNativeIsmModule extends HyperlaneModule<
-  ProtocolType.CosmosNative,
+export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
+  PT,
   IsmConfig,
   IsmModuleAddresses
 > {
   protected readonly logger = rootLogger.child({
-    module: 'CosmosNativeIsmModule',
+    module: 'AltVMIsmModule',
   });
-  protected readonly reader: CosmosNativeIsmReader;
+  protected readonly reader: AltVMIsmReader;
   protected readonly mailbox: Address;
 
   // Adding these to reduce how often we need to grab from MetadataManager.
@@ -60,7 +60,10 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
-    protected readonly signer: SigningHyperlaneModuleClient,
+    protected readonly signer: AltVM.ISigner<
+      AnnotatedTypedTransaction<PT>,
+      ProtocolReceipt<PT>
+    >,
   ) {
     params.config = IsmConfigSchema.parse(params.config);
     super(params);
@@ -70,7 +73,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
     this.chainId = metadataManager.getChainId(this.chain);
     this.domainId = metadataManager.getDomainId(this.chain);
 
-    this.reader = new CosmosNativeIsmReader(this.metadataManager, this.signer);
+    this.reader = new AltVMIsmReader(this.metadataManager, this.signer);
   }
 
   public async read(): Promise<IsmConfig> {
@@ -80,7 +83,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
   // whoever calls update() needs to ensure that targetConfig has a valid owner
   public async update(
     expectedConfig: IsmConfig,
-  ): Promise<AnnotatedCosmJsNativeTransaction[]> {
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
     expectedConfig = IsmConfigSchema.parse(expectedConfig);
 
     // Do not support updating to a custom ISM address
@@ -127,7 +130,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       return [];
     }
 
-    let updateTxs: AnnotatedCosmJsNativeTransaction[] = [];
+    let updateTxs: AnnotatedTypedTransaction<PT>[] = [];
     if (expectedConfig.type === IsmType.ROUTING) {
       const logger = this.logger.child({
         destination: this.chain,
@@ -146,7 +149,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
   }
 
   // manually write static create function
-  public static async create({
+  public static async create<PT extends ProtocolType>({
     chain,
     config,
     addresses,
@@ -159,9 +162,9 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       mailbox: string;
     };
     multiProvider: MultiProvider;
-    signer: SigningHyperlaneModuleClient;
-  }): Promise<CosmosNativeIsmModule> {
-    const module = new CosmosNativeIsmModule(
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
+  }): Promise<AltVMIsmModule<PT>> {
+    const module = new AltVMIsmModule<PT>(
       multiProvider,
       {
         addresses: {
@@ -199,9 +202,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
         return this.deployNoopIsm();
       }
       default:
-        throw new Error(
-          `ISM type ${ismType} is not supported on Cosmos Native`,
-        );
+        throw new Error(`ISM type ${ismType} is not supported on AltVM`);
     }
   }
 
@@ -212,11 +213,11 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       config.threshold <= config.validators.length,
       `threshold (${config.threshold}) for merkle root multisig ISM is greater than number of validators (${config.validators.length})`,
     );
-    const { response } = await this.signer.createMerkleRootMultisigIsm({
+    const { ismAddress } = await this.signer.createMerkleRootMultisigIsm({
       validators: config.validators,
       threshold: config.threshold,
     });
-    return response.id;
+    return ismAddress;
   }
 
   protected async deployMessageIdMultisigIsm(
@@ -226,11 +227,11 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       config.threshold <= config.validators.length,
       `threshold (${config.threshold}) for message id multisig ISM is greater than number of validators (${config.validators.length})`,
     );
-    const { response } = await this.signer.createMessageIdMultisigIsm({
+    const { ismAddress } = await this.signer.createMessageIdMultisigIsm({
       validators: config.validators,
       threshold: config.threshold,
     });
-    return response.id;
+    return ismAddress;
   }
 
   protected async deployRoutingIsm(
@@ -250,15 +251,15 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
 
       const address = await this.deploy({ config: config.domains[chainName] });
       routes.push({
-        ism: address,
-        domain: domainId,
+        ismAddress: address,
+        domainId: domainId,
       });
     }
 
-    const { response } = await this.signer.createRoutingIsm({
+    const { ismAddress } = await this.signer.createRoutingIsm({
       routes,
     });
-    return response.id;
+    return ismAddress;
   }
 
   protected async updateRoutingIsm({
@@ -269,8 +270,8 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
     actual: DomainRoutingIsmConfig;
     expected: DomainRoutingIsmConfig;
     logger: Logger;
-  }): Promise<AnnotatedCosmJsNativeTransaction[]> {
-    const updateTxs: AnnotatedCosmJsNativeTransaction[] = [];
+  }): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTxs: AnnotatedTypedTransaction<PT>[] = [];
 
     const knownChains = new Set(this.metadataManager.getKnownChainNames());
 
@@ -286,22 +287,21 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
       logger.debug(
         `Reconfiguring preexisting routing ISM for origin ${origin}...`,
       );
-      const ism = await this.deploy({
+      const ismAddress = await this.deploy({
         config: expected.domains[origin],
       });
 
-      const domain = this.metadataManager.getDomainId(origin);
+      const domainId = this.metadataManager.getDomainId(origin);
       updateTxs.push({
         annotation: `Setting new ISM for origin ${origin}...`,
-        typeUrl: R.MsgSetRoutingIsmDomain.proto.type,
-        value: R.MsgSetRoutingIsmDomain.proto.converter.create({
-          owner: actual.owner,
-          ism_id: this.args.addresses.deployedIsm,
+        ...(await this.signer.getSetRoutingIsmRouteTransaction({
+          signer: this.signer.getSignerAddress(),
+          ismAddress: this.args.addresses.deployedIsm,
           route: {
-            ism,
-            domain,
+            ismAddress,
+            domainId,
           },
-        }),
+        })),
       });
     }
 
@@ -312,15 +312,14 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
 
     // Unenroll domains
     for (const origin of knownUnenrolls) {
-      const domain = this.metadataManager.getDomainId(origin);
+      const domainId = this.metadataManager.getDomainId(origin);
       updateTxs.push({
-        annotation: `Unenrolling originDomain ${domain} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
-        typeUrl: R.MsgRemoveRoutingIsmDomain.proto.type,
-        value: R.MsgRemoveRoutingIsmDomain.proto.converter.create({
-          owner: actual.owner,
-          ism_id: this.args.addresses.deployedIsm,
-          domain,
-        }),
+        annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
+        ...(await this.signer.getRemoveRoutingIsmRouteTransaction({
+          signer: this.signer.getSignerAddress(),
+          ismAddress: this.args.addresses.deployedIsm,
+          domainId,
+        })),
       });
     }
 
@@ -330,14 +329,11 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
         annotation: `Transferring ownership of ISM from ${
           actual.owner
         } to ${expected.owner}`,
-        typeUrl: R.MsgUpdateRoutingIsmOwner.proto.type,
-        value: R.MsgUpdateRoutingIsmOwner.proto.converter.create({
-          owner: actual.owner,
-          ism_id: this.args.addresses.deployedIsm,
-          new_owner: expected.owner,
-          // if the new owner is empty we renounce the ownership
-          renounce_ownership: !expected.owner,
-        }),
+        ...(await this.signer.getSetRoutingIsmOwnerTransaction({
+          signer: this.signer.getSignerAddress(),
+          ismAddress: this.args.addresses.deployedIsm,
+          newOwner: expected.owner,
+        })),
       });
     }
 
@@ -345,7 +341,7 @@ export class CosmosNativeIsmModule extends HyperlaneModule<
   }
 
   protected async deployNoopIsm(): Promise<Address> {
-    const { response } = await this.signer.createNoopIsm({});
-    return response.id;
+    const { ismAddress } = await this.signer.createNoopIsm({});
+    return ismAddress;
   }
 }

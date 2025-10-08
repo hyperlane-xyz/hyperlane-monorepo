@@ -1,18 +1,15 @@
+import { Logger } from 'pino';
 import { zeroAddress } from 'viem';
 
 import {
-  COSMOS_MODULE_MESSAGE_REGISTRY as R,
-  SigningHyperlaneModuleClient,
-} from '@hyperlane-xyz/cosmos-sdk';
-import {
   Address,
+  AltVM,
   Domain,
   ProtocolType,
   addressToBytes32,
   assert,
   deepEquals,
   difference,
-  eqAddress,
   objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -21,15 +18,19 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
+import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedCosmJsNativeTransaction } from '../providers/ProviderType.js';
+import {
+  AnnotatedTypedTransaction,
+  ProtocolReceipt,
+  ProtocolTransaction,
+} from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
-import { CosmosNativeWarpRouteReader } from './CosmosNativeWarpRouteReader.js';
-import { CosmosNativeDeployer } from './cosmosnativeDeploy.js';
+import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
+import { AltVMDeployer } from './altVMDeploy.js';
 import {
   DerivedTokenRouterConfig,
   HypTokenRouterConfig,
@@ -40,15 +41,14 @@ type WarpRouteAddresses = {
   deployedTokenRoute: Address;
 };
 
-export class CosmosNativeWarpModule extends HyperlaneModule<
-  ProtocolType.CosmosNative,
+export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
+  PT,
   HypTokenRouterConfig,
   WarpRouteAddresses
 > {
-  protected logger = rootLogger.child({
-    module: 'CosmosNativeWarpModule',
-  });
-  reader: CosmosNativeWarpRouteReader;
+  protected logger: Logger;
+
+  reader: AltVMWarpRouteReader;
   public readonly chainName: ChainName;
   public readonly chainId: string;
   public readonly domainId: Domain;
@@ -56,17 +56,20 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
     args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
-    protected readonly signer: SigningHyperlaneModuleClient,
+    protected readonly signer: AltVM.ISigner<
+      AnnotatedTypedTransaction<PT>,
+      ProtocolReceipt<PT>
+    >,
   ) {
     super(args);
-    this.reader = new CosmosNativeWarpRouteReader(
-      metadataManager,
-      args.chain,
-      signer,
-    );
+    this.reader = new AltVMWarpRouteReader(metadataManager, args.chain, signer);
     this.chainName = this.metadataManager.getChainName(args.chain);
     this.chainId = metadataManager.getChainId(args.chain).toString();
     this.domainId = metadataManager.getDomainId(args.chain);
+
+    this.logger = rootLogger.child({
+      module: AltVMWarpModule.name,
+    });
   }
 
   /**
@@ -85,11 +88,11 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    * Updates the Warp Route contract with the provided configuration.
    *
    * @param expectedConfig - The configuration for the token router to be updated.
-   * @returns An array of Cosmos transactions that were executed to update the contract, or an error if the update failed.
+   * @returns An array of transactions that were executed to update the contract, or an error if the update failed.
    */
   async update(
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedCosmJsNativeTransaction[]> {
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
@@ -103,16 +106,19 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
      */
     transactions.push(
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
-      ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
-      ...this.createUnenrollRemoteRoutersUpdateTxs(
+      ...(await this.createEnrollRemoteRoutersUpdateTxs(
         actualConfig,
         expectedConfig,
-      ),
+      )),
+      ...(await this.createUnenrollRemoteRoutersUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      )),
       ...(await this.createSetDestinationGasUpdateTxs(
         actualConfig,
         expectedConfig,
       )),
-      ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
+      ...(await this.createOwnershipUpdateTxs(actualConfig, expectedConfig)),
     );
 
     return transactions;
@@ -123,13 +129,13 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    *
    * @param actualConfig - The on-chain router configuration, including the remoteRouters array.
    * @param expectedConfig - The expected token router configuration.
-   * @returns An array with Cosmos Native transactions that need to be executed to enroll the routers
+   * @returns An array with transactions that need to be executed to enroll the routers
    */
-  createEnrollRemoteRoutersUpdateTxs(
+  async createEnrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedCosmJsNativeTransaction[] {
-    const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -144,10 +150,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
       .filter(([domain, expectedRouter]) => {
         const actualRouter = actualRemoteRouters[domain];
         // Enroll if router doesn't exist for domain or has different address
-        return (
-          !actualRouter ||
-          !eqAddress(actualRouter.address, expectedRouter.address)
-        );
+        return !actualRouter || actualRouter.address !== expectedRouter.address;
       })
       .map(([domain]) => domain);
 
@@ -155,35 +158,33 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
       return updateTransactions;
     }
 
-    // in cosmos the gas is attached to the remote router. we set
-    // it to zero for now and set the real value later during the
+    // we set the gas to zero for now and set the real value later during the
     // createSetDestinationGasUpdateTxs step
-    routesToEnroll.forEach((domainId) => {
+    for (const domainId of routesToEnroll) {
       updateTransactions.push({
         annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        typeUrl: R.MsgEnrollRemoteRouter.proto.type,
-        value: R.MsgEnrollRemoteRouter.proto.converter.create({
-          owner: actualConfig.owner,
-          token_id: this.args.addresses.deployedTokenRoute,
-          remote_router: {
-            receiver_domain: parseInt(domainId),
-            receiver_contract: addressToBytes32(
+        ...(await this.signer.getEnrollRemoteRouterTransaction({
+          signer: this.signer.getSignerAddress(),
+          tokenAddress: this.args.addresses.deployedTokenRoute,
+          remoteRouter: {
+            receiverDomainId: parseInt(domainId),
+            receiverAddress: addressToBytes32(
               expectedRemoteRouters[domainId].address,
             ),
             gas: '0',
           },
-        }),
+        })),
       });
-    });
+    }
 
     return updateTransactions;
   }
 
-  createUnenrollRemoteRoutersUpdateTxs(
+  async createUnenrollRemoteRoutersUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedCosmJsNativeTransaction[] {
-    const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -205,17 +206,16 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
       return updateTransactions;
     }
 
-    routesToUnenroll.forEach((domainId) => {
+    for (const domainId of routesToUnenroll) {
       updateTransactions.push({
         annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        typeUrl: R.MsgUnrollRemoteRouter.proto.type,
-        value: R.MsgUnrollRemoteRouter.proto.converter.create({
-          owner: actualConfig.owner,
-          token_id: this.args.addresses.deployedTokenRoute,
-          receiver_domain: parseInt(domainId),
-        }),
+        ...(await this.signer.getUnenrollRemoteRouterTransaction({
+          signer: this.signer.getSignerAddress(),
+          tokenAddress: this.args.addresses.deployedTokenRoute,
+          receiverDomainId: parseInt(domainId),
+        })),
       });
-    });
+    }
 
     return updateTransactions;
   }
@@ -225,13 +225,13 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    *
    * @param actualConfig - The on-chain router configuration, including the remoteRouters array.
    * @param expectedConfig - The expected token router configuration.
-   * @returns A array with Cosmos transactions that need to be executed to update the destination gas
+   * @returns A array with transactions that need to be executed to update the destination gas
    */
   async createSetDestinationGasUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedCosmJsNativeTransaction[]> {
-    const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
     if (!expectedConfig.destinationGas) {
       return [];
     }
@@ -249,13 +249,13 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
 
     // refetch after routes have been previously enrolled without the "actualConfig"
     // updating
-    const { remote_routers: actualRemoteRouters } =
-      await this.signer.query.warp.RemoteRouters({
-        id: this.args.addresses.deployedTokenRoute,
+    const { remoteRouters: actualRemoteRouters } =
+      await this.signer.getRemoteRouters({
+        tokenAddress: this.args.addresses.deployedTokenRoute,
       });
 
     const alreadyEnrolledDomains = actualRemoteRouters.map(
-      (router) => router.receiver_domain,
+      (router) => router.receiverDomainId,
     );
 
     if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
@@ -268,37 +268,36 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
         });
       });
 
-      // in cosmos updating the gas config is done by unenrolling the router and then
+      // to update the gas config we unenroll the router and then
       // enrolling it with the updating value again
-      gasRouterConfigs.forEach(({ domain, gas }) => {
+
+      for (const { domain, gas } of gasRouterConfigs) {
         if (alreadyEnrolledDomains.includes(parseInt(domain))) {
           updateTransactions.push({
             annotation: `Unenrolling ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-            typeUrl: R.MsgUnrollRemoteRouter.proto.type,
-            value: R.MsgUnrollRemoteRouter.proto.converter.create({
-              owner: actualConfig.owner,
-              token_id: this.args.addresses.deployedTokenRoute,
-              receiver_domain: parseInt(domain),
-            }),
+            ...(await this.signer.getUnenrollRemoteRouterTransaction({
+              signer: this.signer.getSignerAddress(),
+              tokenAddress: this.args.addresses.deployedTokenRoute,
+              receiverDomainId: parseInt(domain),
+            })),
           });
         }
 
         updateTransactions.push({
           annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain} to ${gas}`,
-          typeUrl: R.MsgEnrollRemoteRouter.proto.type,
-          value: R.MsgEnrollRemoteRouter.proto.converter.create({
-            owner: actualConfig.owner,
-            token_id: this.args.addresses.deployedTokenRoute,
-            remote_router: {
-              receiver_domain: parseInt(domain),
-              receiver_contract: addressToBytes32(
+          ...(await this.signer.getEnrollRemoteRouterTransaction({
+            signer: this.signer.getSignerAddress(),
+            tokenAddress: this.args.addresses.deployedTokenRoute,
+            remoteRouter: {
+              receiverDomainId: parseInt(domain),
+              receiverAddress: addressToBytes32(
                 expectedRemoteRouters[domain].address,
               ),
               gas,
             },
-          }),
+          })),
         });
-      });
+      }
     }
 
     return updateTransactions;
@@ -309,13 +308,13 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    *
    * @param actualConfig - The on-chain router configuration, including the ISM configuration, and address.
    * @param expectedConfig - The expected token router configuration, including the ISM configuration.
-   * @returns Cosmos transaction that need to be executed to update the ISM configuration.
+   * @returns transaction that need to be executed to update the ISM configuration.
    */
   async createIsmUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedCosmJsNativeTransaction[]> {
-    const updateTransactions: AnnotatedCosmJsNativeTransaction[] = [];
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
 
     if (
       actualConfig.interchainSecurityModule ===
@@ -348,12 +347,11 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
     if (actualDeployedIsm !== expectedDeployedIsm) {
       updateTransactions.push({
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
-        typeUrl: R.MsgSetToken.proto.type,
-        value: R.MsgSetToken.proto.converter.create({
-          owner: actualConfig.owner,
-          token_id: this.args.addresses.deployedTokenRoute,
-          ism_id: expectedDeployedIsm,
-        }),
+        ...(await this.signer.getSetTokenIsmTransaction({
+          signer: this.signer.getSignerAddress(),
+          tokenAddress: this.args.addresses.deployedTokenRoute,
+          ismAddress: expectedDeployedIsm,
+        })),
       });
     }
 
@@ -365,25 +363,24 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    *
    * @param actualConfig - The on-chain router configuration.
    * @param expectedConfig - The expected token router configuration.
-   * @returns Cosmos transaction that need to be executed to update the owner.
+   * @returns transaction that need to be executed to update the owner.
    */
-  createOwnershipUpdateTxs(
+  async createOwnershipUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): AnnotatedCosmJsNativeTransaction[] {
-    if (eqAddress(actualConfig.owner, expectedConfig.owner)) {
+  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    if (actualConfig.owner === expectedConfig.owner) {
       return [];
     }
 
     return [
       {
         annotation: `Transferring ownership of ${this.args.addresses.deployedTokenRoute} from ${actualConfig.owner} to ${expectedConfig.owner}`,
-        typeUrl: R.MsgSetToken.proto.type,
-        value: R.MsgSetToken.proto.converter.create({
-          owner: actualConfig.owner,
-          token_id: this.args.addresses.deployedTokenRoute,
-          new_owner: expectedConfig.owner,
-        }),
+        ...(await this.signer.getSetTokenOwnerTransaction({
+          signer: this.signer.getSignerAddress(),
+          tokenAddress: this.args.addresses.deployedTokenRoute,
+          newOwner: expectedConfig.owner,
+        })),
       },
     ];
   }
@@ -398,11 +395,11 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<{
     deployedIsm: Address;
-    updateTransactions: AnnotatedCosmJsNativeTransaction[];
+    updateTransactions: AnnotatedTypedTransaction<PT>[];
   }> {
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
-    const ismModule = new CosmosNativeIsmModule(
+    const ismModule = new AltVMIsmModule(
       this.metadataManager,
       {
         chain: this.args.chain,
@@ -434,18 +431,18 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
    * @param chain - The chain to deploy the module on.
    * @param config - The configuration for the token router.
    * @param multiProvider - The multi-provider instance to use.
-   * @param signer - The Cosmos signing client
-   * @returns A new instance of the CosmosNativeWarpModule.
+   * @param signer - The AltVM signing client
+   * @returns A new instance of the AltVMWarpModule.
    */
-  static async create(params: {
+  static async create<PT extends ProtocolType>(params: {
     chain: ChainNameOrId;
     config: HypTokenRouterConfig;
     multiProvider: MultiProvider;
-    signer: SigningHyperlaneModuleClient;
-  }): Promise<CosmosNativeWarpModule> {
+    signer: AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>;
+  }): Promise<AltVMWarpModule<PT>> {
     const { chain, config, multiProvider, signer } = params;
 
-    const deployer = new CosmosNativeDeployer(multiProvider, {
+    const deployer = new AltVMDeployer(multiProvider, {
       [chain]: signer,
     });
 
@@ -453,7 +450,7 @@ export class CosmosNativeWarpModule extends HyperlaneModule<
       [chain]: config,
     });
 
-    const warpModule = new CosmosNativeWarpModule(
+    const warpModule = new AltVMWarpModule<PT>(
       multiProvider,
       {
         addresses: {
