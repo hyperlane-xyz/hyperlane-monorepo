@@ -1,3 +1,6 @@
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import { Wallet } from 'ethers';
+
 import {
   ChainAddresses,
   createWarpRouteConfigId,
@@ -60,6 +63,21 @@ export const HYP_KEY_BY_PROTOCOL = {
   [ProtocolType.CosmosNative]:
     '33913dd43a5d5764f7a23da212a8664fc4f5eedc68db35f3eb4a5c4f046b5b51',
 } as const satisfies ProtocolMap<string>;
+
+export const DEPLOYER_ADDRESS_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: async () =>
+    new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).address,
+  [ProtocolType.CosmosNative]: async () => {
+    const cosmosWallet = await DirectSecp256k1Wallet.fromKey(
+      Buffer.from(HYP_KEY_BY_PROTOCOL.cosmosnative, 'hex'),
+      TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1.bech32Prefix,
+    );
+    const [{ address: cosmosNativeDeployerAddress }] =
+      await cosmosWallet.getAccounts();
+
+    return cosmosNativeDeployerAddress;
+  },
+} as const satisfies ProtocolMap<() => Promise<string>>;
 
 type ProtocolChainMap<
   T extends ProtocolMap<{ [key: string]: string }>,
@@ -176,4 +194,24 @@ export function getWarpId(tokenSymbol: string, chains: string[]): string {
   );
 }
 
+export const E2E_BURN_ADDRESS_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: '0x0000000000000000000000000000000000000001',
+  // Result of:
+  // bytesToAddressCosmosNative(
+  //   addressToBytes(ZERO_ADDRESS_HEX_32),
+  //   TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1.bech32Prefix,
+  // ),
+  [ProtocolType.CosmosNative]: 'hyp1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk98wwq',
+} as const satisfies ProtocolMap<string>;
+
 export const TEST_TOKEN_SYMBOL = 'TST';
+
+export const DEFAULT_EVM_WARP_ID = getWarpId('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
+export const DEFAULT_EVM_WARP_CORE_PATH = getWarpCoreConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
+export const DEFAULT_EVM_WARP_DEPLOY_PATH = getWarpDeployConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
