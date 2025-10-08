@@ -112,7 +112,7 @@ export class RadixWarpQuery {
     address: string;
     remoteRouters: {
       receiverDomainId: number;
-      receiverContract: string;
+      receiverAddress: string;
       gas: string;
     }[];
   }> {
@@ -161,7 +161,7 @@ export class RadixWarpQuery {
         receiverDomainId: parseInt(
           routerFields.find((r) => r.field_name === 'domain')?.value ?? '',
         ),
-        receiverContract:
+        receiverAddress:
           routerFields.find((r) => r.field_name === 'recipient')?.hex ?? '',
         gas: routerFields.find((r) => r.field_name === 'gas')?.value ?? '',
       });
