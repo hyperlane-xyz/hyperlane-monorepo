@@ -368,7 +368,6 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       denom: token.origin_denom,
       name: '',
       symbol: '',
-      description: '',
       decimals: 0,
     };
   }

@@ -158,7 +158,6 @@ export type ResGetToken = {
   denom: string;
   name: string;
   symbol: string;
-  description: string;
   decimals: number;
 };
 
@@ -359,7 +358,6 @@ export type ReqCreateSyntheticToken = {
   mailboxAddress: string;
   name: string;
   denom: string;
-  description: string;
   decimals: number;
 };
 export type ResCreateSyntheticToken = {
