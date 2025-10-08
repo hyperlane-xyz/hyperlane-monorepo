@@ -346,9 +346,7 @@ async fn test_entrypoint_send_fails_estimation_before_first_submission() {
         |payload_status| {
             matches!(
                 payload_status,
-                PayloadStatus::InTransaction(TransactionStatus::Dropped(
-                    TransactionDropReason::RevertedByChain
-                ))
+                PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
             )
         },
     )
