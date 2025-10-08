@@ -104,6 +104,7 @@ export class AltVMProviderFactory
 
     return protocolDefinition.provider.connect(
       metadata.rpcUrls.map((rpc) => rpc.http),
+      metadata.chainId,
     );
   }
 }

@@ -119,12 +119,15 @@ export function defaultCosmJsWasmProviderBuilder(
 
 export function defaultCosmJsNativeProviderBuilder(
   rpcUrls: RpcUrl[],
-  _network: number | string,
+  network: number | string,
 ): CosmJsNativeProvider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
   return {
     type: ProviderType.CosmJsNative,
-    provider: CosmosNativeProvider.connect(rpcUrls.map((rpc) => rpc.http)),
+    provider: CosmosNativeProvider.connect(
+      rpcUrls.map((rpc) => rpc.http),
+      network,
+    ),
   };
 }
 

@@ -654,7 +654,7 @@ export interface ISigner<T, R> extends IProvider<T> {
 }
 
 export interface IProviderConnect {
-  connect(_rpcs: string[]): Promise<IProvider>;
+  connect(_rpcs: string[], _chainId: string | number): Promise<IProvider>;
 }
 
 export interface ISignerConnect<T, R> {

@@ -49,9 +49,15 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     warp: RadixWarpPopulate;
   };
 
-  static async connect(rpcUrls: string[]): Promise<RadixProvider> {
+  static async connect(
+    rpcUrls: string[],
+    chainId: string | number,
+  ): Promise<RadixProvider> {
+    const networkId = parseInt(chainId.toString());
+
     return new RadixProvider({
       rpcUrls,
+      networkId,
     });
   }
 
