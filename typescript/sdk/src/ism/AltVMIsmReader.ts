@@ -1,10 +1,4 @@
-import {
-  HyperlaneModuleClient,
-  IsmTypes,
-  SigningHyperlaneModuleClient,
-} from '@hyperlane-xyz/cosmos-sdk';
-import { isTypes } from '@hyperlane-xyz/cosmos-types';
-import { Address, WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, AltVM, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 
@@ -16,40 +10,33 @@ import {
   MultisigIsmConfig,
 } from './types.js';
 
-export class CosmosNativeIsmReader {
+export class AltVMIsmReader {
   protected readonly logger = rootLogger.child({
-    module: 'CosmosNativeIsmReader',
+    module: 'AltVMIsmReader',
   });
 
   constructor(
     protected readonly metadataManager: ChainMetadataManager,
-    protected readonly cosmosProviderOrSigner:
-      | HyperlaneModuleClient
-      | SigningHyperlaneModuleClient,
+    protected readonly provider: AltVM.IProvider,
   ) {}
 
   async deriveIsmConfigFromAddress(
     address: Address,
   ): Promise<DerivedIsmConfig> {
     try {
-      const { ism } =
-        await this.cosmosProviderOrSigner.query.interchainSecurity.Ism({
-          id: address,
-        });
+      const ism_type = await this.provider.getIsmType({ ismAddress: address });
 
-      assert(ism, `ISM with id ${address} not found`);
-
-      switch (ism.type_url) {
-        case IsmTypes.MerkleRootMultisigISM:
+      switch (ism_type) {
+        case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
           return this.deriveMerkleRootMultisigConfig(address);
-        case IsmTypes.MessageIdMultisigISM:
+        case AltVM.IsmType.MESSAGE_ID_MULTISIG:
           return this.deriveMessageIdMultisigConfig(address);
-        case IsmTypes.RoutingISM:
+        case AltVM.IsmType.ROUTING:
           return this.deriveRoutingConfig(address);
-        case IsmTypes.NoopISM:
+        case AltVM.IsmType.TEST_ISM:
           return this.deriveTestConfig(address);
         default:
-          throw new Error(`Unknown ISM ModuleType: ${ism.type_url}`);
+          throw new Error(`Unknown ISM ModuleType: ${ism_type}`);
       }
     } catch (error) {
       this.logger.error(`Failed to derive ISM config for ${address}`, error);
@@ -76,12 +63,9 @@ export class CosmosNativeIsmReader {
   private async deriveMerkleRootMultisigConfig(
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
-    const { ism } =
-      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm<isTypes.MerkleRootMultisigISM>(
-        {
-          id: address,
-        },
-      );
+    const ism = await this.provider.getMerkleRootMultisigIsm({
+      ismAddress: address,
+    });
 
     return {
       type: IsmType.MERKLE_ROOT_MULTISIG,
@@ -94,12 +78,9 @@ export class CosmosNativeIsmReader {
   private async deriveMessageIdMultisigConfig(
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>> {
-    const { ism } =
-      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm<isTypes.MessageIdMultisigISM>(
-        {
-          id: address,
-        },
-      );
+    const ism = await this.provider.getMessageIdMultisigIsm({
+      ismAddress: address,
+    });
 
     return {
       type: IsmType.MESSAGE_ID_MULTISIG,
@@ -112,25 +93,22 @@ export class CosmosNativeIsmReader {
   private async deriveRoutingConfig(
     address: Address,
   ): Promise<WithAddress<DomainRoutingIsmConfig>> {
-    const { ism } =
-      await this.cosmosProviderOrSigner.query.interchainSecurity.DecodedIsm<isTypes.RoutingISM>(
-        {
-          id: address,
-        },
-      );
+    const ism = await this.provider.getRoutingIsm({
+      ismAddress: address,
+    });
 
     const domains: DomainRoutingIsmConfig['domains'] = {};
 
     for (const route of ism.routes) {
-      const chainName = this.metadataManager.tryGetChainName(route.domain);
+      const chainName = this.metadataManager.tryGetChainName(route.domainId);
       if (!chainName) {
         this.logger.warn(
-          `Unknown domain ID ${route.domain}, skipping domain configuration`,
+          `Unknown domain ID ${route.domainId}, skipping domain configuration`,
         );
         continue;
       }
 
-      domains[chainName] = await this.deriveIsmConfig(route.ism);
+      domains[chainName] = await this.deriveIsmConfig(route.ismAddress);
     }
 
     return {

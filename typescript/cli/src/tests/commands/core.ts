@@ -135,6 +135,7 @@ export class HyperlaneE2ECoreTestCommands {
     privateKey?: string,
     privateKeyEnv?: string,
     skipConfirmationPrompts?: boolean,
+    chain?: string,
   ): ProcessPromise {
     const flags = [
       '--registry',
@@ -151,6 +152,10 @@ export class HyperlaneE2ECoreTestCommands {
 
     if (skipConfirmationPrompts) {
       flags.push('--yes');
+    }
+
+    if (chain) {
+      flags.push('--chain', chain);
     }
 
     return $`${

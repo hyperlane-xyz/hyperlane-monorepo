@@ -35,7 +35,7 @@ import {
   types as zkSyncTypes,
 } from 'zksync-ethers';
 
-import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -127,6 +127,18 @@ export type ProtocolTypedReceipt<T extends ProtocolType> = ProtocolTyped<
   'receipt'
 >;
 
+export type AnyProtocolTransaction = ProtocolTransaction<ProtocolType>;
+export type ProtocolTransaction<T extends ProtocolType> =
+  ProtocolTypedTransaction<T>['transaction'];
+
+export type AnyProtocolReceipt = ProtocolReceipt<ProtocolType>;
+export type ProtocolReceipt<T extends ProtocolType> =
+  ProtocolTypedReceipt<T>['receipt'];
+
+export type AnnotatedTypedTransaction<T extends ProtocolType> = Annotated<
+  ProtocolTransaction<T>
+>;
+
 /**
  * Providers with discriminated union of type
  */
@@ -165,9 +177,9 @@ export interface CosmJsWasmProvider
 }
 
 export interface CosmJsNativeProvider
-  extends TypedProviderBase<Promise<HyperlaneModuleClient>> {
+  extends TypedProviderBase<Promise<CosmosNativeProvider>> {
   type: ProviderType.CosmJsNative;
-  provider: Promise<HyperlaneModuleClient>;
+  provider: Promise<CosmosNativeProvider>;
 }
 
 export interface StarknetJsProvider
