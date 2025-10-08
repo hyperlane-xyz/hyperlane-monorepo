@@ -359,6 +359,7 @@ export type ReqCreateSyntheticToken = {
   mailboxAddress: string;
   name: string;
   denom: string;
+  description: string;
   decimals: number;
 };
 export type ResCreateSyntheticToken = {

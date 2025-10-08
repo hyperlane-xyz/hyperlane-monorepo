@@ -70,6 +70,7 @@ export class AltVMDeployer<PT extends ProtocolType> {
             config.mailbox,
             config.name,
             config.symbol,
+            config.description,
             config.decimals,
           );
           break;
@@ -116,6 +117,7 @@ export class AltVMDeployer<PT extends ProtocolType> {
     originMailbox: Address,
     name: string,
     denom: string,
+    description: string,
     decimals: number,
   ): Promise<Address> {
     this.logger.info(`Deploying synthetic token to ${chain}`);
@@ -123,6 +125,7 @@ export class AltVMDeployer<PT extends ProtocolType> {
       mailboxAddress: originMailbox,
       name,
       denom,
+      description,
       decimals,
     });
     return tokenAddress;
