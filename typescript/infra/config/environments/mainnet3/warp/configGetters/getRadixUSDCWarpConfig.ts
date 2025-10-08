@@ -36,7 +36,7 @@ const owners = {
   radix: 'account_rdx1280taxhhnuek02y59yapsg4kjtux954qkyufpwmy4dlfcxdrjzr7fj',
 };
 
-export const getArbitrumBaseEthereumRadixUSDCWarpConfig = async (
+export const getRadixUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
