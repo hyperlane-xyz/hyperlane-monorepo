@@ -65,7 +65,7 @@ export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;
-  addressBlacklist?: string;
+  addressBlacklist?: string[];
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
@@ -85,13 +85,10 @@ export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
 // and are intended to derisk hitting max env var length limits.
 export type RelayerConfigMapConfig = Pick<
   RelayerConfig,
-  | 'addressBlacklist'
-  | 'blacklist'
-  | 'whitelist'
-  | 'gasPaymentEnforcement'
-  | 'ismCacheConfigs'
+  'addressBlacklist' | 'gasPaymentEnforcement' | 'ismCacheConfigs'
 >;
-//
+// Config that will be embedded into relayer docker image because
+// of its large size.
 export type RelayerAppContextConfig = Pick<RelayerConfig, 'metricAppContexts'>;
 // The rest of the config is intended to be set as env vars.
 export type RelayerEnvConfig = Omit<

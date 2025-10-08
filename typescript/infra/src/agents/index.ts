@@ -4,9 +4,10 @@ import {
   AgentSealevelPriorityFeeOracle,
   AgentSealevelTransactionSubmitter,
   ChainName,
+  RelayerConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objOmitKeys } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
@@ -22,6 +23,7 @@ import {
   RelayerConfigHelper,
   RelayerConfigMapConfig,
   RelayerDbBootstrapConfig,
+  RelayerEnvConfig,
 } from '../config/agent/relayer.js';
 import { ScraperConfigHelper } from '../config/agent/scraper.js';
 import { ValidatorConfigHelper } from '../config/agent/validator.js';
@@ -199,9 +201,24 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
 
+    const config = await this.config.buildConfig();
+
+    // Divide the keys between the configmap and the env config.
+    const configMapConfig: RelayerConfigMapConfig = {
+      addressBlacklist: config.addressBlacklist,
+      gasPaymentEnforcement: config.gasPaymentEnforcement,
+      ismCacheConfigs: config.ismCacheConfigs,
+    };
+    const envConfig = objOmitKeys<RelayerConfig>(config, [
+      ...Object.keys(configMapConfig),
+      'metricAppContexts',
+    ]) as RelayerEnvConfig;
+
     values.hyperlane.relayer = {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
+      envConfig,
+      configMapConfig,
       resources: this.kubernetesResources(),
       dbBootstrap: await this.dbBootstrapConfig(
         this.config.relayerConfig.dbBootstrap,

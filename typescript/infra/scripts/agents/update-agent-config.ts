@@ -28,8 +28,8 @@ import { Contexts } from '../../config/contexts.js';
 import mainnet3GasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
 import testnet4GasPrices from '../../config/environments/testnet4/gasPrices.json' with { type: 'json' };
 import {
+  RelayerAppContextConfig,
   RelayerConfigHelper,
-  RelayerConfigMapConfig,
 } from '../../src/config/agent/relayer.js';
 import { getCombinedChainsToScrape } from '../../src/config/agent/scraper.js';
 import {
@@ -46,9 +46,9 @@ import {
 import {
   Modules,
   getAddresses,
+  getAgentAppContextConfigJsonPath,
   getAgentConfig,
   getAgentConfigJsonPath,
-  getAgentConfigMapJsonPath,
   getArgs,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -234,16 +234,11 @@ export async function writeAgentAppContexts(
     envAgentConfig,
   ).buildConfig();
 
-  const agentConfigMap: RelayerConfigMapConfig = {
-    addressBlacklist: relayerConfig.addressBlacklist,
-    blacklist: relayerConfig.blacklist,
-    whitelist: relayerConfig.whitelist,
-    gasPaymentEnforcement: relayerConfig.gasPaymentEnforcement,
+  const agentConfigMap: RelayerAppContextConfig = {
     metricAppContexts: relayerConfig.metricAppContexts,
-    ismCacheConfigs: relayerConfig.ismCacheConfigs,
   };
 
-  const filepath = getAgentConfigMapJsonPath(environment);
+  const filepath = getAgentAppContextConfigJsonPath(environment);
   console.log(`Writing config to ${filepath}`);
   if (fs.existsSync(filepath)) {
     const currentAgentConfigMap = readJSONAtPath(filepath);

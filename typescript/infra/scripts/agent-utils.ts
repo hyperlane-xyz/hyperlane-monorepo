@@ -727,8 +727,16 @@ export function getAgentConfigJsonPath(environment: AgentEnvironment) {
   return path.join(getAgentConfigDirectory(), `${environment}_config.json`);
 }
 
-export function getAgentConfigMapJsonPath(environment: DeployEnvironment) {
-  return `config/environments/${environment}/agent/configmap.json`;
+export function getAgentAppContextConfigJsonPath(
+  environment: DeployEnvironment,
+) {
+  return path.join(
+    '../../',
+    'rust',
+    'main',
+    'app-contexts',
+    `${environment}_config.json`,
+  );
 }
 
 export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {
