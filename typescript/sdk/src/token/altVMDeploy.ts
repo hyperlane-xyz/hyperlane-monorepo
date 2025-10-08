@@ -42,10 +42,10 @@ export class AltVMDeployer<PT extends ProtocolType> {
 
     const result: ChainMap<Address> = {};
 
-    type ConfigMap = WarpRouteDeployConfigMailboxRequired;
-    const configMapToDeploy: ConfigMap = objFilter(
+    type Config = WarpRouteDeployConfigMailboxRequired[string];
+    const configMapToDeploy = objFilter(
       resolvedConfigMap,
-      (_: string, config: any): config is any => !config.foreignDeployment,
+      (_: string, cfg: Config): cfg is Config => !cfg.foreignDeployment,
     );
 
     for (const chain of Object.keys(configMapToDeploy)) {
