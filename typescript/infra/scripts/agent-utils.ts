@@ -735,7 +735,7 @@ export function getAgentConfigJsonPath(environment: AgentEnvironment) {
 }
 
 export function getAgentAppContextConfigJsonPath(
-  environment: DeployEnvironment,
+  environment: AgentEnvironment,
 ) {
   return path.join(
     '../../',

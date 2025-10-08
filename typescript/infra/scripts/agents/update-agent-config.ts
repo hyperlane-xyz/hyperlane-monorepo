@@ -238,7 +238,9 @@ export async function writeAgentAppContexts(
     metricAppContexts: relayerConfig.metricAppContexts,
   };
 
-  const filepath = getAgentAppContextConfigJsonPath(environment);
+  const filepath = getAgentAppContextConfigJsonPath(
+    envNameToAgentEnv[environment],
+  );
   console.log(`Writing config to ${filepath}`);
   if (fs.existsSync(filepath)) {
     const currentAgentConfigMap = readJSONAtPath(filepath);
@@ -254,6 +256,7 @@ export async function writeAgentAppContexts(
 main()
   .then(() => process.exit(0))
   .catch((e) => {
+    console.error(e);
     rootLogger.error('Failed to update agent config', e);
     process.exit(1);
   });
