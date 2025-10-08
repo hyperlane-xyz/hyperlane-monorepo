@@ -3,7 +3,7 @@ name: rust
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches: [main]
+    branches: [ main ]
   # Triggers on pull requests
   pull_request:
     branches:
@@ -18,7 +18,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  MIN_LANDERCOVERAGE_PERCENTAGE: 18
+  MIN_LANDERCOVERAGE_PERCENTAGE: 19
   RUSTC_WRAPPER: sccache
 
 jobs:
