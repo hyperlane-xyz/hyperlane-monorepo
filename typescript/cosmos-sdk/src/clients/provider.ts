@@ -3,6 +3,7 @@ import { Uint53 } from '@cosmjs/math';
 import { EncodeObject, Registry } from '@cosmjs/proto-signing';
 import {
   BankExtension,
+  MsgSendEncodeObject,
   QueryClient,
   StargateClient,
   defaultRegistryTypes,
@@ -736,6 +737,24 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
         token_id: req.tokenAddress,
         receiver_domain: req.receiverDomainId,
       }),
+    };
+  }
+
+  async getTransferTransaction(
+    req: AltVM.ReqTransfer,
+  ): Promise<MsgSendEncodeObject> {
+    return {
+      typeUrl: '/cosmos.bank.v1beta1.MsgSend',
+      value: {
+        fromAddress: req.signer,
+        toAddress: req.recipient,
+        amount: [
+          {
+            denom: req.denom,
+            amount: req.amount,
+          },
+        ],
+      },
     };
   }
 

@@ -375,6 +375,23 @@ export class RadixSigner
     };
   }
 
+  async transfer(
+    req: Omit<AltVM.ReqTransfer, 'signer'>,
+  ): Promise<AltVM.ResTransfer> {
+    const manifest = await this.base.transfer({
+      from_address: this.account.address,
+      to_address: req.recipient,
+      amount: req.amount,
+      resource_address: req.denom,
+    });
+
+    await this.signer.signAndBroadcast(manifest);
+
+    return {
+      recipient: req.recipient,
+    };
+  }
+
   async remoteTransfer(
     req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
   ): Promise<AltVM.ResRemoteTransfer> {

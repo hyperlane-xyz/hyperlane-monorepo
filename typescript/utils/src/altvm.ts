@@ -404,6 +404,16 @@ export type ResUnenrollRemoteRouter = {
   receiverDomainId: number;
 };
 
+export type ReqTransfer = {
+  signer: string;
+  recipient: string;
+  denom: string;
+  amount: string;
+};
+export type ResTransfer = {
+  recipient: string;
+};
+
 export type ReqRemoteTransfer = {
   signer: string;
   tokenAddress: string;
@@ -542,6 +552,8 @@ export interface IProvider<T = any> {
 
   getUnenrollRemoteRouterTransaction(req: ReqUnenrollRemoteRouter): Promise<T>;
 
+  getTransferTransaction(req: ReqTransfer): Promise<T>;
+
   getRemoteTransferTransaction(req: ReqRemoteTransfer): Promise<T>;
 }
 
@@ -647,6 +659,8 @@ export interface ISigner<T, R> extends IProvider<T> {
   unenrollRemoteRouter(
     req: Omit<ReqUnenrollRemoteRouter, 'signer'>,
   ): Promise<ResUnenrollRemoteRouter>;
+
+  transfer(req: Omit<ReqTransfer, 'signer'>): Promise<ResTransfer>;
 
   remoteTransfer(
     req: Omit<ReqRemoteTransfer, 'signer'>,

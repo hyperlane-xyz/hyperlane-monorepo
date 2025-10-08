@@ -6,6 +6,7 @@ import {
   Domain,
   addressToBytes32,
   assert,
+  fromWei,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
@@ -98,7 +99,7 @@ export class RadixNativeTokenAdapter
   async populateTransferTx(
     transferParams: TransferParams,
   ): Promise<RadixSDKTransaction> {
-    // const resource = await this.getResourceAddress();
+    const denom = await this.getResourceAddress();
 
     const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
     assert(
@@ -107,19 +108,15 @@ export class RadixNativeTokenAdapter
     );
     assert(transferParams.fromAccountOwner, `no sender in transfer params`);
 
-    throw new Error(`not implemented`);
-    // return {
-    //   networkId: this.provider.getNetworkId(),
-    //   manifest: await this.provider.base.transfer({
-    //     from_address: transferParams.fromAccountOwner!,
-    //     to_address: transferParams.recipient,
-    //     resource_address: resource,
-    //     amount: fromWei(
-    //       transferParams.weiAmountOrId.toString(),
-    //       nativeToken.decimals,
-    //     ),
-    //   }),
-    // };
+    return this.provider.getTransferTransaction({
+      signer: transferParams.fromAccountOwner,
+      recipient: transferParams.recipient,
+      denom,
+      amount: fromWei(
+        transferParams.weiAmountOrId.toString(),
+        nativeToken.decimals,
+      ),
+    });
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {

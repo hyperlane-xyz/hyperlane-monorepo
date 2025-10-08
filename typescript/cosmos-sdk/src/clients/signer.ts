@@ -513,6 +513,20 @@ export class CosmosNativeSigner
     };
   }
 
+  async transfer(
+    req: Omit<AltVM.ReqTransfer, 'signer'>,
+  ): Promise<AltVM.ResTransfer> {
+    const msg = await this.getTransferTransaction({
+      ...req,
+      signer: this.account.address,
+    });
+
+    await this.submitTx(msg);
+    return {
+      recipient: req.recipient,
+    };
+  }
+
   async remoteTransfer(
     req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
   ): Promise<AltVM.ResRemoteTransfer> {

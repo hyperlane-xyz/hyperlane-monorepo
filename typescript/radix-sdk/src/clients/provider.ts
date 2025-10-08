@@ -595,6 +595,20 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     };
   }
 
+  async getTransferTransaction(
+    req: AltVM.ReqTransfer,
+  ): Promise<RadixSDKTransaction> {
+    return {
+      networkId: this.networkId,
+      manifest: await this.base.transfer({
+        from_address: req.signer,
+        to_address: req.recipient,
+        amount: req.amount,
+        resource_address: req.denom,
+      }),
+    };
+  }
+
   async getRemoteTransferTransaction(
     req: AltVM.ReqRemoteTransfer,
   ): Promise<RadixSDKTransaction> {
