@@ -175,7 +175,7 @@ export class CosmNativeHypCollateralAdapter
       throw new Error(`Router with domain "${domain}" not found`);
     }
 
-    return Buffer.from(router.receiverContract);
+    return Buffer.from(router.receiverAddress);
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
@@ -186,7 +186,7 @@ export class CosmNativeHypCollateralAdapter
 
     return remoteRouters.remoteRouters.map((router) => ({
       domain: router.receiverDomainId,
-      address: Buffer.from(router.receiverContract),
+      address: Buffer.from(router.receiverAddress),
     }));
   }
 

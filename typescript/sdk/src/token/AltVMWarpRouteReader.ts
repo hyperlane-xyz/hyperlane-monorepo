@@ -134,7 +134,7 @@ export class AltVMWarpRouteReader {
     const routers: Record<string, { address: string }> = {};
     for (const router of remoteRouters) {
       routers[router.receiverDomainId] = {
-        address: router.receiverContract,
+        address: router.receiverAddress,
       };
     }
 

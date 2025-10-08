@@ -167,7 +167,7 @@ export type ResGetRemoteRouters = {
   address: string;
   remoteRouters: {
     receiverDomainId: number;
-    receiverContract: string;
+    receiverAddress: string;
     gas: string;
   }[];
 };
