@@ -58,6 +58,7 @@ impl AdapterFactory {
                 let adapter = RadixAdapter::from_conf(conf, &connection_conf)?;
                 Arc::new(adapter)
             }
+            ChainConnectionConf::Sovereign(_) => todo!(),
         };
         Ok(adapter)
     }
