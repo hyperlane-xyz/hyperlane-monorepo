@@ -316,16 +316,7 @@ export class HyperlaneSmartProvider
           providerResultPromises.push(resultPromise);
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
-          this.logger.debug(
-            {
-              error: result.error,
-              ...providerMetadata,
-            },
-            `Error from provider.`,
-            isLastProvider ? '' : 'Triggering next provider.',
-          );
           providerResultErrors.push(result.error);
-
           // If this is a blockchain error, stop trying additional providers as it's a permanent failure
           if (RPC_BLOCKCHAIN_ERRORS.includes((result.error as any)?.code)) {
             this.logger.debug(
@@ -334,7 +325,14 @@ export class HyperlaneSmartProvider
             );
             break;
           }
-
+          this.logger.debug(
+            {
+              error: result.error,
+              ...providerMetadata,
+            },
+            `Error from provider.`,
+            isLastProvider ? '' : 'Triggering next provider.',
+          );
           pIndex += 1;
         } else {
           throw new Error(
