@@ -384,7 +384,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       address: req.tokenAddress,
       remoteRouters: remote_routers.map((r) => ({
         receiverDomainId: r.receiver_domain,
-        receiverContract: r.receiver_contract,
+        receiverAddress: r.receiver_contract,
         gas: r.gas,
       })),
     };
