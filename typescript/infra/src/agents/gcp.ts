@@ -144,7 +144,10 @@ export class AgentGCPKey extends CloudAgentKey {
     return this.remoteKey.address;
   }
 
-  addressForProtocol(protocol: ProtocolType): string | undefined {
+  addressForProtocol(
+    protocol: ProtocolType,
+    bech32Prefix?: string,
+  ): string | undefined {
     this.requireFetched();
     this.logger.debug(`Getting address for protocol: ${protocol}`);
 
@@ -167,9 +170,10 @@ export class AgentGCPKey extends CloudAgentKey {
         const encodedPubkey = encodeSecp256k1Pubkey(
           new Uint8Array(Buffer.from(strip0x(compressedPubkey), 'hex')),
         );
-        // TODO support other prefixes?
-        // https://cosmosdrops.io/en/tools/bech32-converter is useful for converting to other prefixes.
-        return pubkeyToAddress(encodedPubkey, 'celestia');
+        if (!bech32Prefix) {
+          throw new Error('Bech32 prefix is required for Cosmos address');
+        }
+        return pubkeyToAddress(encodedPubkey, bech32Prefix);
       }
       default:
         this.logger.debug(`Unsupported protocol: ${protocol}`);
