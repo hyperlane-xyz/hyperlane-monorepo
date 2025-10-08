@@ -55,7 +55,7 @@ const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
-class BlockchainError extends Error {
+export class BlockchainError extends Error {
   public readonly isRecoverable = false;
 
   constructor(message: string, options?: { cause?: Error }) {

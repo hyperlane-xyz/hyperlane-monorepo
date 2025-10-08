@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { errors as EthersError, providers } from 'ethers';
 
 import { AllProviderMethods, IProviderMethods } from './ProviderMethods.js';
-import { HyperlaneSmartProvider } from './SmartProvider.js';
+import { BlockchainError, HyperlaneSmartProvider } from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
 
 // Dummy provider for testing
@@ -145,7 +145,7 @@ describe('SmartProvider', () => {
           );
           throw new CombinedError();
         } catch (e: any) {
-          expect(e.name).to.equal('BlockchainError');
+          expect(e).to.be.instanceOf(BlockchainError);
           expect(e.isRecoverable).to.equal(false);
           expect(e.message).to.equal(message);
           expect(e.cause).to.equal(error);
@@ -167,7 +167,8 @@ describe('SmartProvider', () => {
         );
         throw new CombinedError();
       } catch (e: any) {
-        expect(e.name).to.equal('Error');
+        expect(e).to.be.instanceOf(Error);
+        expect(e).to.not.be.instanceOf(BlockchainError);
         expect(e.isRecoverable).to.be.undefined;
         expect(e.cause).to.equal(error);
         expect(e.cause.code).to.equal(EthersError.SERVER_ERROR);
@@ -184,7 +185,8 @@ describe('SmartProvider', () => {
         );
         throw new CombinedError();
       } catch (e: any) {
-        expect(e.name).to.equal('Error');
+        expect(e).to.be.instanceOf(Error);
+        expect(e).to.not.be.instanceOf(BlockchainError);
         expect(e.isRecoverable).to.be.undefined;
         expect(e.cause).to.equal(error);
       }
@@ -207,7 +209,7 @@ describe('SmartProvider', () => {
         );
         throw new CombinedError();
       } catch (e: any) {
-        expect(e.name).to.equal('BlockchainError');
+        expect(e).to.be.instanceOf(BlockchainError);
         expect(e.isRecoverable).to.equal(false);
         expect(e.message).to.equal('execution reverted');
         expect(e.cause).to.equal(blockchainError);
@@ -228,7 +230,7 @@ describe('SmartProvider', () => {
         );
         throw new CombinedError();
       } catch (e: any) {
-        expect(e.name).to.equal('BlockchainError');
+        expect(e).to.be.instanceOf(BlockchainError);
         expect(e.isRecoverable).to.equal(false);
         expect(e.message).to.equal('insufficient funds');
         expect(e.cause).to.equal(blockchainError);
@@ -308,7 +310,8 @@ describe('SmartProvider', () => {
         await provider.simplePerform('getBlockNumber', 1);
         expect.fail('Should have thrown an error');
       } catch (e: any) {
-        expect(e.name).to.equal('Error');
+        expect(e).to.be.instanceOf(Error);
+        expect(e).to.not.be.instanceOf(BlockchainError);
         expect(e.isRecoverable).to.be.undefined;
         expect(e.cause).to.equal(serverError1); // First error should be the cause
         expect(provider1.called).to.be.true;
@@ -325,7 +328,8 @@ describe('SmartProvider', () => {
         await provider.simplePerform('getBlockNumber', 1);
         expect.fail('Should have thrown an error');
       } catch (e: any) {
-        expect(e.name).to.equal('Error');
+        expect(e).to.be.instanceOf(Error);
+        expect(e).to.not.be.instanceOf(BlockchainError);
         expect(e.isRecoverable).to.be.undefined;
         expect(e.message).to.include('All providers timed out');
         expect(provider1.called).to.be.true;
@@ -346,7 +350,7 @@ describe('SmartProvider', () => {
         await provider.simplePerform('getBlockNumber', 1);
         expect.fail('Should have thrown an error');
       } catch (e: any) {
-        expect(e.name).to.equal('BlockchainError');
+        expect(e).to.be.instanceOf(BlockchainError);
         expect(e.isRecoverable).to.equal(false);
         expect(e.message).to.equal('execution reverted');
         expect(e.cause).to.equal(blockchainError);
@@ -373,7 +377,7 @@ describe('SmartProvider', () => {
         await provider.simplePerform('getBlockNumber', 1);
         expect.fail('Should have thrown an error');
       } catch (e: any) {
-        expect(e.name).to.equal('BlockchainError'); // Should get blockchain error, not server error
+        expect(e).to.be.instanceOf(BlockchainError); // Should get blockchain error, not server error
         expect(e.isRecoverable).to.equal(false);
         expect(e.message).to.equal('insufficient funds');
         expect(e.cause).to.equal(blockchainError);
