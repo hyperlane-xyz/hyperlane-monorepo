@@ -53,11 +53,16 @@ export class RadixBase {
     return status.ledger_state.state_version > 0;
   }
 
+  public async getHeight(): Promise<number> {
+    const status = await this.gateway.status.getCurrent();
+    return status.ledger_state.state_version;
+  }
+
   public async estimateTransactionFee({
     transactionManifest,
   }: {
     transactionManifest: TransactionManifest | string;
-  }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
+  }): Promise<{ gasUnits: number; gasPrice: number; fee: number }> {
     const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
@@ -120,8 +125,8 @@ export class RadixBase {
       0.5; // average out the cost parameters to get a more accurate estimate
 
     return {
-      gasUnits,
-      fee,
+      gasUnits: Number(gasUnits),
+      fee: Number(fee),
       gasPrice,
     };
   }
@@ -130,7 +135,7 @@ export class RadixBase {
     name: string;
     symbol: string;
     description: string;
-    divisibility: number;
+    decimals: number;
   }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(resource);
@@ -151,7 +156,7 @@ export class RadixBase {
           details.metadata.items.find((i) => i.key === 'description')?.value
             .typed as any
         ).value ?? '',
-      divisibility: (details.details as any).divisibility as number,
+      decimals: (details.details as any).divisibility as number,
     };
 
     return result;
@@ -161,7 +166,7 @@ export class RadixBase {
     name: string;
     symbol: string;
     description: string;
-    divisibility: number;
+    decimals: number;
   }> {
     const xrdAddress = await this.getXrdAddress();
     return this.getMetadata({ resource: xrdAddress });
@@ -189,11 +194,11 @@ export class RadixBase {
       return BigInt(0);
     }
 
-    const { divisibility } = await this.getMetadata({ resource });
+    const { decimals } = await this.getMetadata({ resource });
 
     return BigInt(
       new BigNumber(fungibleResource.vaults.items[0].amount)
-        .times(new BigNumber(10).exponentiatedBy(divisibility))
+        .times(new BigNumber(10).exponentiatedBy(decimals))
         .toFixed(0),
     );
   }
@@ -215,11 +220,11 @@ export class RadixBase {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(resource);
 
-    const { divisibility } = await this.getMetadata({ resource });
+    const { decimals } = await this.getMetadata({ resource });
 
     return BigInt(
       new BigNumber((details.details as any).total_supply)
-        .times(new BigNumber(10).exponentiatedBy(divisibility))
+        .times(new BigNumber(10).exponentiatedBy(decimals))
         .toFixed(0),
     );
   }

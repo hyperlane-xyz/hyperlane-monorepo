@@ -19,6 +19,7 @@ export type Account = {
 export interface RadixSDKOptions {
   networkId?: number;
   gasMultiplier?: number;
+  rpcUrls: string[];
 }
 
 export interface MultisigIsmReq {

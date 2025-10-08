@@ -182,13 +182,13 @@ export class RadixWarpPopulate {
     custom_hook_metadata: string;
     max_fee: { denom: string; amount: string };
   }) {
-    const { origin_denom, divisibility } = await this.query.getToken({ token });
+    const { denom, decimals } = await this.query.getToken({ token });
 
     const tokenAmount = new BigNumber(amount)
-      .dividedBy(new BigNumber(10).pow(divisibility))
-      .toFixed(divisibility);
+      .dividedBy(new BigNumber(10).pow(decimals))
+      .toFixed(decimals);
 
-    assert(origin_denom, `no origin_denom found on token ${token}`);
+    assert(denom, `no origin_denom found on token ${token}`);
     return getTransferRemoteManifest({
       from_address,
       token,
@@ -196,7 +196,7 @@ export class RadixWarpPopulate {
       recipient,
       tokenAmount,
       max_fee,
-      origin_denom,
+      origin_denom: denom,
     });
   }
 }
