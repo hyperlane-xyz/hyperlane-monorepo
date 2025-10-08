@@ -296,7 +296,6 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     const definedDecimals = Object.values(chainDecimals).filter(
       (decimals): decimals is number => decimals !== undefined,
     );
-    console.log('HERE: ', definedDecimals);
     const uniqueChainDecimals = new Set(definedDecimals);
 
     // Disallow partial specification: some chains define decimals while others don't
@@ -312,7 +311,6 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         ),
         tokenAddress: hypToken.address,
       };
-      console.log('added: ', violation);
       this.addViolation(violation);
       return;
     }
