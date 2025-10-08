@@ -19,6 +19,7 @@ import {
 import {
   Address,
   ProtocolType,
+  objFilter,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
@@ -65,7 +66,25 @@ export async function runWarpRouteRead({
     );
   }
 
-  return deriveWarpRouteConfigs(context, addresses, warpCoreConfig);
+  // Remove any unsupported chain to avoid crashing
+  const filteredAddresses = objFilter(
+    addresses,
+    (chain, _address): _address is string =>
+      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
+      context.altVmProvider.supports(context.multiProvider.getProtocol(chain)),
+  );
+  if (warpCoreConfig) {
+    warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
+      (config) =>
+        context.multiProvider.getProtocol(config.chainName) ===
+          ProtocolType.Ethereum ||
+        context.altVmProvider.supports(
+          context.multiProvider.getProtocol(config.chainName),
+        ),
+    );
+  }
+
+  return deriveWarpRouteConfigs(context, filteredAddresses, warpCoreConfig);
 }
 
 export async function getWarpRouteConfigsByCore({

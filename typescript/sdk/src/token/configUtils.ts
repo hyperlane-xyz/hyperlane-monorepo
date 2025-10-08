@@ -6,6 +6,7 @@ import {
   ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
+  assert,
   deepCopy,
   intersection,
   isAddressEvm,
@@ -49,9 +50,18 @@ import {
 const getGasConfig = (
   warpDeployConfig: WarpRouteDeployConfig,
   chain: string,
-): string =>
-  warpDeployConfig[chain].gas?.toString() ||
-  gasOverhead(warpDeployConfig[chain].type).toString();
+): string => {
+  const chainDeployConfig = warpDeployConfig[chain];
+  assert(
+    chainDeployConfig,
+    `Deploy config not found for chain ${chain}. Unable to get gas config`,
+  );
+
+  return (
+    chainDeployConfig.gas?.toString() ||
+    gasOverhead(chainDeployConfig.type).toString()
+  );
+};
 
 /**
  * Returns default router addresses and gas values for cross-chain communication.
@@ -68,15 +78,23 @@ export function getDefaultRemoteRouterAndDestinationGasConfig(
   const remoteRouters: RemoteRouters = {};
   const destinationGas: DestinationGas = {};
 
-  const otherChains = multiProvider
-    .getRemoteChains(chain)
-    .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
+  const otherChains = multiProvider.getRemoteChains(chain).filter(
+    (remoteChain) =>
+      // Include chains that specify foreignDeployment so that they can be enrolled
+      // in the current deployment/update
+      Object.keys(deployedRoutersAddresses).includes(remoteChain) ||
+      warpDeployConfig[remoteChain]?.foreignDeployment,
+  );
 
   for (const otherChain of otherChains) {
     const domainId = multiProvider.getDomainId(otherChain);
 
     remoteRouters[domainId] = {
-      address: deployedRoutersAddresses[otherChain],
+      address:
+        // Include chains that specify foreignDeployment so that the gas configuration
+        // can be in the current deployment/update
+        deployedRoutersAddresses[otherChain] ??
+        warpDeployConfig[otherChain].foreignDeployment,
     };
 
     destinationGas[domainId] = getGasConfig(warpDeployConfig, otherChain);

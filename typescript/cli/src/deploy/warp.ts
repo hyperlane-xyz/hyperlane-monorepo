@@ -368,7 +368,7 @@ export async function runWarpRouteApply(
   params: WarpApplyParams,
 ): Promise<void> {
   const { warpDeployConfig, warpCoreConfig, context } = params;
-  const { chainMetadata, skipConfirmation } = context;
+  const { chainMetadata, skipConfirmation, multiProvider } = context;
 
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
@@ -387,19 +387,19 @@ export async function runWarpRouteApply(
   // can leverage JSON RPC submitter on new chains
   const intermediateOwnerConfig = await promiseObjAll(
     objMap(params.warpDeployConfig, async (chain, config) => {
-      switch (context.multiProvider.getProtocol(chain)) {
-        case ProtocolType.Ethereum: {
-          return {
-            ...config,
-            owner: await context.multiProvider.getSignerAddress(chain),
-          };
-        }
-        default: {
-          return {
-            ...config,
-            owner: context.altVmSigner.get(chain).getSignerAddress(),
-          };
-        }
+      const protocolType = multiProvider.getProtocol(chain);
+      if (protocolType === ProtocolType.Ethereum) {
+        return {
+          ...config,
+          owner: await context.multiProvider.getSignerAddress(chain),
+        };
+      } else if (context.altVmSigner.supports(protocolType)) {
+        return {
+          ...config,
+          owner: context.altVmSigner.get(chain).getSignerAddress(),
+        };
+      } else {
+        return config;
       }
     }),
   );
@@ -635,6 +635,15 @@ async function updateExistingWarpRoute(
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
+        const protocolType = multiProvider.getProtocol(chain);
+        if (
+          protocolType !== ProtocolType.Ethereum &&
+          !altVmSigner.supports(protocolType)
+        ) {
+          logBlue(`Skipping non-compatible chain ${chain}`);
+          return;
+        }
+
         const deployedTokenRoute = deployedRoutersAddresses[chain];
         assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
         const configWithMailbox = {
@@ -642,7 +651,7 @@ async function updateExistingWarpRoute(
           mailbox: registryAddresses[chain].mailbox,
         };
 
-        switch (multiProvider.getProtocol(chain)) {
+        switch (protocolType) {
           case ProtocolType.Ethereum: {
             const evmERC20WarpModule = new EvmERC20WarpModule(
               multiProvider,
