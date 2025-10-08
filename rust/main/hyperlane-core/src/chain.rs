@@ -218,7 +218,6 @@ pub enum KnownHyperlaneDomain {
     Polygon = 137,
     PolygonZkEvm = 1101,
     Prom = 227,
-    ProofOfPlay = 70700,
     Rarichain = 1000012617,
     Ronin = 2020,
     Reactive = 1597,
@@ -528,7 +527,7 @@ impl KnownHyperlaneDomain {
         match self {
             ApeChain | AppChain | Arbitrum | ArbitrumNova | ArbitrumSepolia | CarrchainTestnet
             | Cheesechain | Corn | Everclear | Fluence | DegenChain | Galactica | Gravity
-            | InEvm | MiracleChain | Molten | Plume | PlumeTestnet | ProofOfPlay | Rarichain
+            | InEvm | MiracleChain | Molten | Plume | PlumeTestnet | Rarichain
             | SuperpositionMainnet | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
             Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Form | Fraxtal | Guru
             | Ink | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint | Mode
