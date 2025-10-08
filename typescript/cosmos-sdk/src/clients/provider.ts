@@ -11,7 +11,7 @@ import {
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
 import { isTypes, warpTypes } from '@hyperlane-xyz/cosmos-types';
-import { AltVM, assert } from '@hyperlane-xyz/utils';
+import { AltVM, assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
   MsgCreateMailboxEncodeObject,
@@ -128,7 +128,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
 
     const message = this.registry.encodeAsAny(req.transaction);
     const pubKey = encodeSecp256k1Pubkey(
-      new Uint8Array(Buffer.from(req.senderPubKey, 'hex')),
+      new Uint8Array(Buffer.from(strip0x(req.senderPubKey), 'hex')),
     );
 
     const queryClient = stargateClient['getQueryClient']();
@@ -168,7 +168,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
-  async isMessageDelivered(req: AltVM.ReqDelivered): Promise<boolean> {
+  async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
     const { delivered } = await this.query.core.Delivered({
       id: req.mailboxAddress,
       message_id: req.messageId,

@@ -31,7 +31,10 @@ export type ResGetMailbox = {
   nonce: number;
 };
 
-export type ReqDelivered = { mailboxAddress: string; messageId: string };
+export type ReqIsMessageDelivered = {
+  mailboxAddress: string;
+  messageId: string;
+};
 
 export enum IsmType {
   CUSTOM = 'custom',
@@ -438,7 +441,7 @@ export interface IProvider<T = any> {
 
   getMailbox(req: ReqGetMailbox): Promise<ResGetMailbox>;
 
-  isMessageDelivered(req: ReqDelivered): Promise<boolean>;
+  isMessageDelivered(req: ReqIsMessageDelivered): Promise<boolean>;
 
   getIsmType(req: ReqGetIsmType): Promise<IsmType>;
 

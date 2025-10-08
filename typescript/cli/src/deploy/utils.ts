@@ -157,24 +157,25 @@ export async function getBalances(
   for (const chain of chains) {
     const { nativeToken, protocol } = multiProvider.getChainMetadata(chain);
 
-    switch (protocol) {
-      case ProtocolType.Ethereum: {
-        const address =
-          userAddress ?? (await multiProvider.getSignerAddress(chain));
-        const provider = await multiProvider.getProvider(chain);
-        balances[chain] = await provider.getBalance(address);
-        break;
-      }
-      default: {
-        const signer = altVmSigner.get(chain);
-        const address = userAddress ?? signer.getSignerAddress();
-        balances[chain] = BigNumber.from(
-          await signer.getBalance({
-            address,
-            denom: nativeToken?.denom ?? '',
-          }),
-        );
-      }
+    if (protocol === ProtocolType.Ethereum) {
+      const address =
+        userAddress ?? (await multiProvider.getSignerAddress(chain));
+      const provider = await multiProvider.getProvider(chain);
+      balances[chain] = await provider.getBalance(address);
+    } else {
+      assert(
+        nativeToken?.denom,
+        `nativeToken.denom is required for ${chain} (AltVM)`,
+      );
+
+      const signer = altVmSigner.get(chain);
+      const address = userAddress ?? signer.getSignerAddress();
+      balances[chain] = BigNumber.from(
+        await signer.getBalance({
+          address,
+          denom: nativeToken?.denom ?? '',
+        }),
+      );
     }
   }
 
