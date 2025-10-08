@@ -9,8 +9,6 @@ import { readYamlOrJson } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
-$.verbose = true;
-
 export class HyperlaneE2ECoreTestCommands {
   protected cmdPrefix: string[];
 
