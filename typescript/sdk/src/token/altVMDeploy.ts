@@ -42,7 +42,8 @@ export class AltVMDeployer<PT extends ProtocolType> {
 
     const result: ChainMap<Address> = {};
 
-    const configMapToDeploy = objFilter(
+    type ConfigMap = WarpRouteDeployConfigMailboxRequired;
+    const configMapToDeploy: ConfigMap = objFilter(
       resolvedConfigMap,
       (_: string, config: any): config is any => !config.foreignDeployment,
     );
@@ -70,7 +71,6 @@ export class AltVMDeployer<PT extends ProtocolType> {
             config.mailbox,
             config.name,
             config.symbol,
-            config.description,
             config.decimals,
           );
           break;
@@ -82,7 +82,10 @@ export class AltVMDeployer<PT extends ProtocolType> {
         }
       }
 
-      if (config.interchainSecurityModule) {
+      if (
+        config.interchainSecurityModule &&
+        typeof config.interchainSecurityModule === 'string'
+      ) {
         this.logger.info(`Set ISM for token`);
 
         await this.signersMap[chain].setTokenIsm({
@@ -115,18 +118,16 @@ export class AltVMDeployer<PT extends ProtocolType> {
   private async deploySyntheticToken(
     chain: ChainName,
     originMailbox: Address,
-    name: string,
-    denom: string,
-    description: string,
-    decimals: number,
+    name: string | undefined,
+    denom: string | undefined,
+    decimals: number | undefined,
   ): Promise<Address> {
     this.logger.info(`Deploying synthetic token to ${chain}`);
     const { tokenAddress } = await this.signersMap[chain].createSyntheticToken({
       mailboxAddress: originMailbox,
-      name,
-      denom,
-      description,
-      decimals,
+      name: name || '',
+      denom: denom || '',
+      decimals: decimals || 0,
     });
     return tokenAddress;
   }

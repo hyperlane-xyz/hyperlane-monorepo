@@ -75,7 +75,6 @@ describe('4. cosmos sdk warp e2e tests', async function () {
       mailboxAddress,
       name: '',
       denom: '',
-      description: '',
       decimals: 0,
     });
 
@@ -137,7 +136,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     const remoteRouter = remoteRouters.remoteRouters[0];
 
     expect(remoteRouter.receiverDomainId).to.equal(domainId);
-    expect(remoteRouter.receiverContract).to.equal(mailboxAddress);
+    expect(remoteRouter.receiverAddress).to.equal(mailboxAddress);
     expect(remoteRouter.gas).to.equal(gas);
   });
 
@@ -237,7 +236,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     });
 
     // ASSERT
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.messageId))).to.be
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.tokenAddress))).to.be
       .true;
 
     let mailbox = await signer.getMailbox({ mailboxAddress });

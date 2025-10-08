@@ -81,7 +81,6 @@ export async function deploySyntheticToken(
     mailboxAddress: mailbox,
     name: '',
     denom: '',
-    description: '',
     decimals: 0,
   });
 
