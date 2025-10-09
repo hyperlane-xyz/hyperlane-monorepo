@@ -348,7 +348,7 @@ pub fn lander_metrics_invariants_met(
     )?
     .iter()
     .sum::<u32>();
-    let _dropped_transactions = fetch_metric(
+    let dropped_transactions = fetch_metric(
         relayer_port,
         "hyperlane_lander_dropped_transactions",
         filter_hashmap,
@@ -407,6 +407,15 @@ pub fn lander_metrics_invariants_met(
             "hyperlane_lander_dropped_payloads {} count, expected less than {}",
             dropped_payloads,
             params.total_messages_expected
+        );
+        return Ok(false);
+    }
+    // Dropped transactions should not exceed half of messages expected
+    if dropped_transactions > params.total_messages_expected.div_ceil(2) {
+        log!(
+            "hyperlane_lander_dropped_transactions {} count, expected less than {}",
+            dropped_transactions,
+            0
         );
         return Ok(false);
     }
