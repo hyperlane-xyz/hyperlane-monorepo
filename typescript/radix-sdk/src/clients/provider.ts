@@ -109,8 +109,10 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     return this.rpcUrls;
   }
 
+  // in RadixDLT there are no blocks, but we can use the ledger state version
+  // which has a similar concept
   async getHeight(): Promise<number> {
-    return this.base.getHeight();
+    return this.base.getStateVersion();
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {

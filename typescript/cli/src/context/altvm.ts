@@ -44,12 +44,6 @@ const ALT_VM_SUPPORTED_PROTOCOLS: AltVMProtocol = {
   [ProtocolType.Radix]: {
     provider: RadixProvider,
     signer: RadixSigner,
-    gas: {
-      CORE_DEPLOY_GAS: BigInt(0),
-      WARP_DEPLOY_GAS: BigInt(0),
-      TEST_SEND_GAS: BigInt(0),
-      AVS_GAS: BigInt(0),
-    },
   },
   // [NEW PROTOCOL]: {...}
 };
@@ -57,7 +51,7 @@ const ALT_VM_SUPPORTED_PROTOCOLS: AltVMProtocol = {
 type AltVMProtocol = ProtocolMap<{
   provider: AltVM.IProviderConnect;
   signer: AltVM.ISignerConnect<AnyProtocolTransaction, AnyProtocolReceipt>;
-  gas: MinimumRequiredGasByAction;
+  gas?: MinimumRequiredGasByAction;
 }>;
 
 class AltVMSupportedProtocols implements AltVM.ISupportedProtocols {
@@ -74,6 +68,15 @@ class AltVMSupportedProtocols implements AltVM.ISupportedProtocols {
 
     if (!protocolDefinition) {
       throw new Error(`Protocol type ${protocol} not supported in AltVM`);
+    }
+
+    if (!protocolDefinition.gas) {
+      return {
+        CORE_DEPLOY_GAS: BigInt(0),
+        WARP_DEPLOY_GAS: BigInt(0),
+        TEST_SEND_GAS: BigInt(0),
+        AVS_GAS: BigInt(0),
+      };
     }
 
     return protocolDefinition.gas;

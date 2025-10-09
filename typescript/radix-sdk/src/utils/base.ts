@@ -54,7 +54,7 @@ export class RadixBase {
     return status.ledger_state.state_version > 0;
   }
 
-  public async getHeight(): Promise<number> {
+  public async getStateVersion(): Promise<number> {
     const status = await this.gateway.status.getCurrent();
     return status.ledger_state.state_version;
   }
