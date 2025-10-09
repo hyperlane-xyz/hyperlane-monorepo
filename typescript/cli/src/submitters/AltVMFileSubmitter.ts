@@ -25,19 +25,15 @@ export class AltVMFileSubmitter<PT extends ProtocolType>
   txSubmitterType: TxSubmitterType =
     CustomTxSubmitterType.FILE as TxSubmitterType;
 
-  private signer: AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>;
-
   protected readonly logger: Logger;
 
   constructor(
-    public readonly altVmSigner: AltVM.ISignerFactory<
+    public readonly signer: AltVM.ISigner<
       ProtocolTransaction<PT>,
       ProtocolReceipt<PT>
     >,
     public readonly props: FileTxSubmitterProps,
   ) {
-    this.signer = this.altVmSigner.get(this.props.chain);
-
     this.logger = rootLogger.child({
       module: AltVMFileSubmitter.name,
     });

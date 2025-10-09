@@ -2,7 +2,6 @@ import { Logger } from 'pino';
 
 import { AltVM, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../../../MultiProvider.js';
 import {
   AnnotatedTypedTransaction,
   ProtocolReceipt,
@@ -16,20 +15,15 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
 {
   public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.JSON_RPC;
 
-  private signer: AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>;
-
   protected readonly logger: Logger;
 
   constructor(
-    public readonly multiProvider: MultiProvider,
-    public readonly altVmSigner: AltVM.ISignerFactory<
+    public readonly signer: AltVM.ISigner<
       ProtocolTransaction<PT>,
       ProtocolReceipt<PT>
     >,
     public readonly config: { chain: string },
   ) {
-    this.signer = this.altVmSigner.get(this.config.chain);
-
     this.logger = rootLogger.child({
       module: AltVMJsonRpcTxSubmitter.name,
     });

@@ -241,13 +241,16 @@ export class AltVMSignerFactory
     return new AltVMSignerFactory(metadataManager, signers);
   }
 
-  public submitterFactories(): ProtocolMap<Record<string, SubmitterFactory>> {
+  public submitterFactories(
+    chain: string,
+  ): ProtocolMap<Record<string, SubmitterFactory>> {
     const factories: ProtocolMap<Record<string, SubmitterFactory>> = {};
+    const signer = this.get(chain);
 
     for (const protocol of this.getSupportedProtocols()) {
       factories[protocol] = {
         [TxSubmitterType.JSON_RPC]: (
-          multiProvider: MultiProvider,
+          _multiProvider: MultiProvider,
           metadata: SubmitterMetadata,
         ) => {
           // Used to type narrow metadata
@@ -255,13 +258,13 @@ export class AltVMSignerFactory
             metadata.type === TxSubmitterType.JSON_RPC,
             `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
           );
-          return new AltVMJsonRpcTxSubmitter(multiProvider, this, metadata);
+          return new AltVMJsonRpcTxSubmitter(signer, metadata);
         },
         [CustomTxSubmitterType.FILE]: (
           _multiProvider: MultiProvider,
           metadata: any,
         ) => {
-          return new AltVMFileSubmitter(this, metadata);
+          return new AltVMFileSubmitter(signer, metadata);
         },
       };
     }
