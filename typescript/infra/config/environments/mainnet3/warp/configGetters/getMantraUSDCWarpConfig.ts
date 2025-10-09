@@ -16,12 +16,14 @@ type DeploymentChains<T> = {
   mantra: T;
 };
 
+const SAFE_OWNER_ADDRESS = '0x66B6FF38b988759E57509f00c7B9717b1a94DA4D';
+
 // SAFE wallets from the team
 const ownersByChain: DeploymentChains<Address> = {
-  arbitrum: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913',
-  base: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913',
-  ethereum: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913',
-  mantra: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913',
+  arbitrum: SAFE_OWNER_ADDRESS,
+  base: SAFE_OWNER_ADDRESS,
+  ethereum: SAFE_OWNER_ADDRESS,
+  mantra: SAFE_OWNER_ADDRESS,
 };
 
 const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
