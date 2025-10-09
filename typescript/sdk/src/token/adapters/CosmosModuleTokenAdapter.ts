@@ -6,6 +6,7 @@ import {
   Domain,
   ProtocolType,
   addressToBytes32,
+  assert,
   convertToProtocolAddress,
   isAddressCosmos,
 } from '@hyperlane-xyz/utils';
@@ -23,9 +24,6 @@ import {
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
-
-const COSMOS_TYPE_URL_SEND = '/cosmos.bank.v1beta1.MsgSend';
-const COSMOS_EMPTY_VALUE = '';
 
 class CosmosModuleTokenAdapter
   extends BaseCosmNativeAdapter
@@ -102,20 +100,17 @@ class CosmosModuleTokenAdapter
   async populateTransferTx(
     transferParams: TransferParams,
   ): Promise<MsgSendEncodeObject> {
+    const provider = await this.getProvider();
     const denom = await this.getDenom();
-    return {
-      typeUrl: COSMOS_TYPE_URL_SEND,
-      value: {
-        fromAddress: transferParams.fromAccountOwner,
-        toAddress: transferParams.recipient,
-        amount: [
-          {
-            denom,
-            amount: transferParams.weiAmountOrId.toString(),
-          },
-        ],
-      },
-    };
+
+    assert(transferParams.fromAccountOwner, `no sender in transfer params`);
+
+    return provider.getTransferTransaction({
+      signer: transferParams.fromAccountOwner,
+      recipient: transferParams.recipient,
+      denom,
+      amount: transferParams.weiAmountOrId.toString(),
+    });
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
@@ -207,8 +202,7 @@ export class CosmNativeHypCollateralAdapter
       await provider.quoteRemoteTransfer({
         tokenAddress: this.tokenAddress,
         destinationDomainId: destination,
-        customHookAddress: customHook || COSMOS_EMPTY_VALUE,
-        customHookMetadata: COSMOS_EMPTY_VALUE,
+        customHookAddress: customHook,
       });
 
     return {
@@ -268,11 +262,10 @@ export class CosmNativeHypCollateralAdapter
         destinationProtocol,
       ),
       amount: params.weiAmountOrId.toString(),
-      customHookAddress: params.customHook || '',
-      customHookMetadata: '',
+      customHookAddress: params.customHook,
       gasLimit: router.gas,
       maxFee: {
-        denom: params.interchainGas.addressOrDenom || '',
+        denom: params.interchainGas.addressOrDenom,
         amount: params.interchainGas.amount.toString(),
       },
     });

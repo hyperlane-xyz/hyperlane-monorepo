@@ -58,14 +58,12 @@ export class RadixWarpPopulate {
     mailbox,
     name,
     symbol,
-    description,
     divisibility,
   }: {
     from_address: string;
     mailbox: string;
     name: string;
     symbol: string;
-    description: string;
     divisibility: number;
   }) {
     return this.base.createCallFunctionManifest(
@@ -74,13 +72,7 @@ export class RadixWarpPopulate {
       'HypToken',
       INSTRUCTIONS.INSTANTIATE,
       [
-        enumeration(
-          1,
-          str(name),
-          str(symbol),
-          str(description),
-          u8(divisibility),
-        ),
+        enumeration(1, str(name), str(symbol), str(''), u8(divisibility)),
         address(mailbox),
       ],
     );
@@ -182,13 +174,13 @@ export class RadixWarpPopulate {
     custom_hook_metadata: string;
     max_fee: { denom: string; amount: string };
   }) {
-    const { origin_denom, divisibility } = await this.query.getToken({ token });
+    const { denom, decimals } = await this.query.getToken({ token });
 
     const tokenAmount = new BigNumber(amount)
-      .dividedBy(new BigNumber(10).pow(divisibility))
-      .toFixed(divisibility);
+      .dividedBy(new BigNumber(10).pow(decimals))
+      .toFixed(decimals);
 
-    assert(origin_denom, `no origin_denom found on token ${token}`);
+    assert(denom, `no origin_denom found on token ${token}`);
     return getTransferRemoteManifest({
       from_address,
       token,
@@ -196,7 +188,7 @@ export class RadixWarpPopulate {
       recipient,
       tokenAmount,
       max_fee,
-      origin_denom,
+      origin_denom: denom,
     });
   }
 }
