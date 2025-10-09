@@ -273,7 +273,7 @@ export class HyperlaneSmartProvider
     const providerResultErrors: unknown[] = [];
 
     // Phase 1: Trigger providers sequentially until success or blockchain error
-    while (pIndex < providers.length) {
+    providerLoop: while (pIndex < providers.length) {
       const provider = providers[pIndex];
       const isLastProvider = pIndex === providers.length - 1;
 
@@ -307,41 +307,44 @@ export class HyperlaneSmartProvider
         chainId: this.network.chainId,
       };
 
-      if (result.status === ProviderStatus.Success) {
-        return result.value;
-      } else if (result.status === ProviderStatus.Timeout) {
-        this.logger.debug(
-          { ...providerMetadata },
-          `Slow response from provider:`,
-          isLastProvider ? '' : 'Triggering next provider.',
-        );
-        providerResultPromises.push(resultPromise);
-        pIndex += 1;
-      } else if (result.status === ProviderStatus.Error) {
-        providerResultErrors.push(result.error);
-        // If this is a blockchain error, stop trying additional providers as it's a permanent failure
-        if (RPC_BLOCKCHAIN_ERRORS.includes((result.error as any)?.code)) {
+      switch (result.status) {
+        case ProviderStatus.Success:
+          return result.value;
+        case ProviderStatus.Timeout:
           this.logger.debug(
             { ...providerMetadata },
-            `${(result.error as any)?.code} detected - stopping provider fallback as this is a permanent failure`,
+            `Slow response from provider:`,
+            isLastProvider ? '' : 'Triggering next provider.',
           );
+          providerResultPromises.push(resultPromise);
+          pIndex += 1;
           break;
-        }
-        this.logger.debug(
-          {
-            error: result.error,
-            ...providerMetadata,
-          },
-          `Error from provider.`,
-          isLastProvider ? '' : 'Triggering next provider.',
-        );
-        pIndex += 1;
-      } else {
-        throw new Error(
-          `Unexpected result from provider: ${JSON.stringify(
-            providerMetadata,
-          )}`,
-        );
+        case ProviderStatus.Error:
+          providerResultErrors.push(result.error);
+          // If this is a blockchain error, stop trying additional providers as it's a permanent failure
+          if (RPC_BLOCKCHAIN_ERRORS.includes((result.error as any)?.code)) {
+            this.logger.debug(
+              { ...providerMetadata },
+              `${(result.error as any)?.code} detected - stopping provider fallback as this is a permanent failure`,
+            );
+            break providerLoop;
+          }
+          this.logger.debug(
+            {
+              error: result.error,
+              ...providerMetadata,
+            },
+            `Error from provider.`,
+            isLastProvider ? '' : 'Triggering next provider.',
+          );
+          pIndex += 1;
+          break;
+        default:
+          throw new Error(
+            `Unexpected result from provider: ${JSON.stringify(
+              providerMetadata,
+            )}`,
+          );
       }
     }
 
