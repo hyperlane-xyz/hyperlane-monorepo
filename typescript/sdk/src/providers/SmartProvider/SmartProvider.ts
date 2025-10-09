@@ -33,21 +33,21 @@ export function getSmartProviderErrorMessage(errorMsg: string): string {
 
 // This is a partial list. If needed, check the full list for more: https://docs.ethers.org/v5/api/utils/logger/#errors
 const RPC_SERVER_ERRORS = [
-  EthersError.NETWORK_ERROR,
-  EthersError.NOT_IMPLEMENTED,
   EthersError.SERVER_ERROR,
   EthersError.TIMEOUT,
   EthersError.UNKNOWN_ERROR,
-  EthersError.UNSUPPORTED_OPERATION,
 ];
 
 const RPC_BLOCKCHAIN_ERRORS = [
   EthersError.CALL_EXCEPTION,
   EthersError.INSUFFICIENT_FUNDS,
+  EthersError.NETWORK_ERROR,
   EthersError.NONCE_EXPIRED,
+  EthersError.NOT_IMPLEMENTED,
   EthersError.REPLACEMENT_UNDERPRICED,
   EthersError.TRANSACTION_REPLACED,
   EthersError.UNPREDICTABLE_GAS_LIMIT,
+  EthersError.UNSUPPORTED_OPERATION,
 ];
 const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
