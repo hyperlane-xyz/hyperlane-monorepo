@@ -3,6 +3,7 @@ import { Uint53 } from '@cosmjs/math';
 import { EncodeObject, Registry } from '@cosmjs/proto-signing';
 import {
   BankExtension,
+  MsgSendEncodeObject,
   QueryClient,
   StargateClient,
   defaultRegistryTypes,
@@ -64,7 +65,10 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly cometClient: CometClient;
   private readonly rpcUrls: string[];
 
-  static async connect(rpcUrls: string[]): Promise<CosmosNativeProvider> {
+  static async connect(
+    rpcUrls: string[],
+    _chainId: string | number,
+  ): Promise<CosmosNativeProvider> {
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
     const client = await connectComet(rpcUrls[0]);
@@ -122,6 +126,14 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     req: AltVM.ReqEstimateTransactionFee<EncodeObject>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
     assert(
+      req.estimatedGasPrice,
+      `Cosmos Native requires a estimatedGasPrice to estimate the transaction fee`,
+    );
+    assert(
+      req.senderAddress,
+      `Cosmos Native requires a senderAddress to estimate the transaction fee`,
+    );
+    assert(
       req.senderPubKey,
       `Cosmos Native requires a sender public key to estimate the transaction fee`,
     );
@@ -147,7 +159,11 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     ).toNumber();
 
     const gasPrice = parseFloat(req.estimatedGasPrice.toString());
-    return { gasUnits, gasPrice, fee: Math.floor(gasUnits * gasPrice) };
+    return {
+      gasUnits: BigInt(gasUnits),
+      gasPrice,
+      fee: BigInt(Math.floor(gasUnits * gasPrice)),
+    };
   }
 
   // ### QUERY CORE ###
@@ -408,8 +424,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     const { gas_payment } = await this.query.warp.QuoteRemoteTransfer({
       id: req.tokenAddress,
       destination_domain: req.destinationDomainId.toString(),
-      custom_hook_id: req.customHookAddress,
-      custom_hook_metadata: req.customHookMetadata,
+      custom_hook_id: req.customHookAddress || '',
+      custom_hook_metadata: req.customHookMetadata || '',
     });
     assert(
       gas_payment && gas_payment[0],
@@ -733,6 +749,24 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
         token_id: req.tokenAddress,
         receiver_domain: req.receiverDomainId,
       }),
+    };
+  }
+
+  async getTransferTransaction(
+    req: AltVM.ReqTransfer,
+  ): Promise<MsgSendEncodeObject> {
+    return {
+      typeUrl: '/cosmos.bank.v1beta1.MsgSend',
+      value: {
+        fromAddress: req.signer,
+        toAddress: req.recipient,
+        amount: [
+          {
+            denom: req.denom,
+            amount: req.amount,
+          },
+        ],
+      },
     };
   }
 

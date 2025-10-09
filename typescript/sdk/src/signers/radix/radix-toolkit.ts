@@ -1,8 +1,9 @@
 import {
-  RadixSigningSDK,
-  transactionManifestFromString,
+  RadixSDKReceipt,
+  RadixSDKTransaction,
+  RadixSigner,
 } from '@hyperlane-xyz/radix-sdk';
-import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { RadixTransaction } from '../../providers/ProviderType.js';
@@ -14,7 +15,10 @@ export class RadixMultiProtocolSignerAdapter
 {
   constructor(
     private readonly chainName: ChainName,
-    private readonly signer: RadixSigningSDK,
+    private readonly signer: AltVM.ISigner<
+      RadixSDKTransaction,
+      RadixSDKReceipt
+    >,
   ) {}
 
   static async init(
@@ -22,48 +26,32 @@ export class RadixMultiProtocolSignerAdapter
     privateKey: string,
     multiProtocolProvider: MultiProtocolProvider,
   ): Promise<RadixMultiProtocolSignerAdapter> {
-    const chainId = multiProtocolProvider.getChainId(chainName);
-    assert(
-      isNumeric(chainId),
-      `Expected chain id for chain "${chainName}" to be numeric but got "${chainId}"`,
-    );
+    const metadata = multiProtocolProvider.getChainMetadata(chainName);
 
-    const signer = await RadixSigningSDK.fromPrivateKey(privateKey, {
-      networkId: parseInt(chainId.toString()),
+    const signer = await RadixSigner.connectWithSigner([], privateKey, {
+      metadata,
     });
 
     return new RadixMultiProtocolSignerAdapter(chainName, signer);
   }
 
   async address(): Promise<string> {
-    return this.signer.getAddress();
+    return this.signer.getSignerAddress();
   }
 
   async sendAndConfirmTransaction(tx: RadixTransaction): Promise<string> {
     try {
-      let parsedManifest: Exclude<
-        RadixTransaction['transaction']['manifest'],
-        string
-      >;
-      if (typeof tx.transaction.manifest === 'string') {
-        parsedManifest = await transactionManifestFromString(
-          tx.transaction.manifest,
-          this.signer.getNetworkId(),
-        );
-      } else {
-        parsedManifest = tx.transaction.manifest;
-      }
-
-      await this.signer.base.estimateTransactionFee({
-        transactionManifest: parsedManifest,
+      await this.signer.estimateTransactionFee({
+        transaction: tx.transaction,
+        estimatedGasPrice: '',
+        senderAddress: '',
       });
 
-      const transactionHash =
-        await this.signer.signer.signAndBroadcast(parsedManifest);
+      const { transactionHash } = await this.signer.sendAndConfirmTransaction(
+        tx.transaction,
+      );
 
-      await this.signer.base.pollForCommit(transactionHash.id);
-
-      return transactionHash.id;
+      return transactionHash;
     } catch (err) {
       throw new Error(`Transaction failed on chain ${this.chainName}`, {
         cause: err,

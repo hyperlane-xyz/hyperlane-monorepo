@@ -1,23 +1,27 @@
 import { RadixBase } from '../utils/base.js';
-import { RadixSigner } from '../utils/signer.js';
+import { RadixBaseSigner } from '../utils/signer.js';
 import { Account } from '../utils/types.js';
+import { stringToTransactionManifest } from '../utils/utils.js';
 
 import { RadixWarpPopulate } from './populate.js';
 
 export class RadixWarpTx {
   private account: Account;
+  private networkId: number;
 
   protected base: RadixBase;
   protected populate: RadixWarpPopulate;
-  protected signer: RadixSigner;
+  protected signer: RadixBaseSigner;
 
   constructor(
     account: Account,
+    networkId: number,
     base: RadixBase,
-    signer: RadixSigner,
+    signer: RadixBaseSigner,
     populate: RadixWarpPopulate,
   ) {
     this.account = account;
+    this.networkId = networkId;
     this.base = base;
     this.signer = signer;
     this.populate = populate;
@@ -36,23 +40,20 @@ export class RadixWarpTx {
       origin_denom,
     });
 
-    const intentHashTransactionId =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(receipt);
   }
 
   public async createSyntheticToken({
     mailbox,
     name,
     symbol,
-    description,
     divisibility,
   }: {
     mailbox: string;
     name: string;
     symbol: string;
-    description: string;
     divisibility: number;
   }) {
     const transactionManifest = await this.populate.createSyntheticToken({
@@ -60,14 +61,12 @@ export class RadixWarpTx {
       mailbox,
       name,
       symbol,
-      description,
       divisibility,
     });
 
-    const intentHashTransactionId =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(intentHashTransactionId);
+    return this.base.getNewComponent(receipt);
   }
 
   public async setTokenOwner({
@@ -130,6 +129,45 @@ export class RadixWarpTx {
       token,
       receiver_domain,
     });
+
+    await this.signer.signAndBroadcast(transactionManifest);
+  }
+
+  public async remoteTransfer({
+    token,
+    destination_domain,
+    recipient,
+    amount,
+    custom_hook_id,
+    gas_limit,
+    custom_hook_metadata,
+    max_fee,
+  }: {
+    token: string;
+    destination_domain: number;
+    recipient: string;
+    amount: string;
+    custom_hook_id: string;
+    gas_limit: string;
+    custom_hook_metadata: string;
+    max_fee: { denom: string; amount: string };
+  }) {
+    const stringManifest = await this.populate.remoteTransfer({
+      from_address: this.account.address,
+      token,
+      destination_domain,
+      recipient,
+      amount,
+      custom_hook_id,
+      gas_limit,
+      custom_hook_metadata,
+      max_fee,
+    });
+
+    const transactionManifest = await stringToTransactionManifest(
+      stringManifest,
+      this.networkId,
+    );
 
     await this.signer.signAndBroadcast(transactionManifest);
   }

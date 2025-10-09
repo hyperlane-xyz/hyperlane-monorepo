@@ -4,6 +4,7 @@ import {
   CosmosNativeProvider,
   CosmosNativeSigner,
 } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixProvider, RadixSigner } from '@hyperlane-xyz/radix-sdk';
 import {
   AltVMJsonRpcTxSubmitter,
   AnyProtocolReceipt,
@@ -40,13 +41,17 @@ const ALT_VM_SUPPORTED_PROTOCOLS: AltVMProtocol = {
       AVS_GAS: BigInt(3e6),
     },
   },
+  [ProtocolType.Radix]: {
+    provider: RadixProvider,
+    signer: RadixSigner,
+  },
   // [NEW PROTOCOL]: {...}
 };
 
 type AltVMProtocol = ProtocolMap<{
   provider: AltVM.IProviderConnect;
   signer: AltVM.ISignerConnect<AnyProtocolTransaction, AnyProtocolReceipt>;
-  gas: MinimumRequiredGasByAction;
+  gas?: MinimumRequiredGasByAction;
 }>;
 
 class AltVMSupportedProtocols implements AltVM.ISupportedProtocols {
@@ -63,6 +68,15 @@ class AltVMSupportedProtocols implements AltVM.ISupportedProtocols {
 
     if (!protocolDefinition) {
       throw new Error(`Protocol type ${protocol} not supported in AltVM`);
+    }
+
+    if (!protocolDefinition.gas) {
+      return {
+        CORE_DEPLOY_GAS: BigInt(0),
+        WARP_DEPLOY_GAS: BigInt(0),
+        TEST_SEND_GAS: BigInt(0),
+        AVS_GAS: BigInt(0),
+      };
     }
 
     return protocolDefinition.gas;
@@ -93,6 +107,7 @@ export class AltVMProviderFactory
 
     return protocolDefinition.provider.connect(
       metadata.rpcUrls.map((rpc) => rpc.http),
+      metadata.chainId,
     );
   }
 }
