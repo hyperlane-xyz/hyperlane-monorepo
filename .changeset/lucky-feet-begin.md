@@ -1,5 +1,7 @@
 ---
 "@hyperlane-xyz/radix-sdk": major
+"@hyperlane-xyz/cli": major
+"@hyperlane-xyz/sdk": major
 ---
 
-feat: implement new AltVM interface for radix-sdk
+feat: radix support for the cli
