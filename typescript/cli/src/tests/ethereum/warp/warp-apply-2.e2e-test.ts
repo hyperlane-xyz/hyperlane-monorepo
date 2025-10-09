@@ -42,8 +42,6 @@ import {
   exportWarpConfigsToFilePaths,
   getDeployedWarpAddress,
 } from '../../utils.js';
-import { hyperlaneWarpApply, readWarpConfig } from '../commands/warp.js';
-import { WARP_CORE_CONFIG_PATH_2 } from '../consts.js';
 
 describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -120,7 +118,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     // This simulates the user updating the warp route id in the registry
     const warpRouteId = 'ETH/custom-warp-route-id-2';
     const warpCoreConfig: WarpCoreConfig = readYamlOrJson(
-      WARP_CORE_CONFIG_PATH_2,
+      DEFAULT_EVM_WARP_CORE_PATH,
     );
     const { warpCorePath: updatedWarpCorePath } = exportWarpConfigsToFilePaths({
       warpRouteId,
@@ -152,7 +150,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     // This simulates the user updating the warp route id in the registry
     const warpRouteId = 'ETH/custom-warp-route-id-2';
     const warpCoreConfig: WarpCoreConfig = readYamlOrJson(
-      WARP_CORE_CONFIG_PATH_2,
+      DEFAULT_EVM_WARP_CORE_PATH,
     );
     const { warpCorePath: updatedWarpCorePath } = exportWarpConfigsToFilePaths({
       warpRouteId,
@@ -285,15 +283,8 @@ describe('hyperlane warp apply owner update tests', async function () {
     });
   }
 
-  it.skip('should update the remote gas and routers configuration when specified using the domain name', async () => {
-    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-
-    // First read the existing config
-    const warpDeployConfig = await readWarpConfig(
-      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
-    );
+  it('should update the remote gas and routers configuration when specified using the domain name', async () => {
+    const updatedWarpDeployConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
 
     const expectedRemoteGasSetting = '30000';
     warpDeployConfig[
@@ -313,13 +304,17 @@ describe('hyperlane warp apply owner update tests', async function () {
     };
 
     // Write the updated config
-    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    await writeYamlOrJson(updatedWarpDeployConfigPath, warpDeployConfig);
 
-    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
-    const updatedConfig = await readWarpConfig(
+    await evmWarpCommands.applyRaw({
+      warpDeployPath: updatedWarpDeployConfigPath,
+      warpCorePath: DEFAULT_EVM_WARP_CORE_PATH,
+      hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
+
+    const updatedConfig = await evmWarpCommands.readConfig(
       TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
+      DEFAULT_EVM_WARP_CORE_PATH,
     );
 
     expect(
