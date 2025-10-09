@@ -6,10 +6,9 @@ import {
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
+  AltVMWarpRouteReader,
   ChainMap,
   ChainName,
-  CosmosNativeWarpRouteReader,
-  DerivedTokenRouterConfig,
   DerivedWarpRouteDeployConfig,
   EvmERC20WarpRouteReader,
   HypTokenRouterConfig,
@@ -20,12 +19,13 @@ import {
 import {
   Address,
   ProtocolType,
+  objFilter,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { logGray, logRed, logTable, warnYellow } from '../logger.js';
+import { logGray, logRed, logTable } from '../logger.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
 export async function runWarpRouteRead({
@@ -66,7 +66,25 @@ export async function runWarpRouteRead({
     );
   }
 
-  return deriveWarpRouteConfigs(context, addresses, warpCoreConfig);
+  // Remove any unsupported chain to avoid crashing
+  const filteredAddresses = objFilter(
+    addresses,
+    (chain, _address): _address is string =>
+      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
+      context.altVmProvider.supports(context.multiProvider.getProtocol(chain)),
+  );
+  if (warpCoreConfig) {
+    warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
+      (config) =>
+        context.multiProvider.getProtocol(config.chainName) ===
+          ProtocolType.Ethereum ||
+        context.altVmProvider.supports(
+          context.multiProvider.getProtocol(config.chainName),
+        ),
+    );
+  }
+
+  return deriveWarpRouteConfigs(context, filteredAddresses, warpCoreConfig);
 }
 
 export async function getWarpRouteConfigsByCore({
@@ -90,7 +108,11 @@ async function deriveWarpRouteConfigs(
 ): Promise<DerivedWarpRouteDeployConfig> {
   const { multiProvider } = context;
 
-  validateCompatibility(context.multiProvider, addresses);
+  validateCompatibility(
+    context.multiProvider,
+    context.supportedProtocols,
+    addresses,
+  );
 
   // Get XERC20 limits if warpCoreConfig is available
   if (warpCoreConfig) {
@@ -107,40 +129,31 @@ async function deriveWarpRouteConfigs(
             chain,
           ).deriveWarpRouteConfig(address);
         }
-        case ProtocolType.CosmosNative: {
-          const cosmosProvider =
-            await context.multiProtocolProvider!.getCosmJsNativeProvider(chain);
-          return new CosmosNativeWarpRouteReader(
+        default: {
+          const provider = await context.altVmProvider.get(chain);
+          return new AltVMWarpRouteReader(
             multiProvider,
             chain,
-            cosmosProvider,
+            provider,
           ).deriveWarpRouteConfig(address);
-        }
-        default: {
-          warnYellow(
-            `protocol type ${context.multiProvider.getProtocol(chain)} not supported`,
-          );
-          return {} as DerivedTokenRouterConfig;
         }
       }
     }),
   );
 }
 
-// Validate that all chains are EVM or Cosmos Native compatible
+// Validate that all chains are EVM or AltVM compatible
 // by token standard
 function validateCompatibility(
   multiProvider: MultiProvider,
+  supportedProtocols: ProtocolType[],
   addresses: ChainMap<string>,
 ): void {
   const nonCompatibleChains = Object.entries(addresses)
-    .filter(([chain]) => {
-      const protocol = multiProvider.getProtocol(chain);
-      return (
-        protocol !== ProtocolType.Ethereum &&
-        protocol !== ProtocolType.CosmosNative
-      );
-    })
+    .filter(
+      ([chain]) =>
+        !supportedProtocols.includes(multiProvider.getProtocol(chain)),
+    )
     .map(([chain]) => chain);
 
   if (nonCompatibleChains.length > 0) {
@@ -148,7 +161,7 @@ function validateCompatibility(
     logRed(
       `${chainList} ${
         nonCompatibleChains.length > 1 ? 'are' : 'is'
-      } non-EVM/Cosmos and not compatible with the cli`,
+      } not compatible with the cli, compatible protocols are: ${supportedProtocols.join(', ')}`,
     );
     process.exit(1);
   }

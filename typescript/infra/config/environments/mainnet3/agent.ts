@@ -164,7 +164,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
-    proofofplay: false,
     pulsechain: true,
     radix: true,
     rarichain: true,
@@ -181,6 +180,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    sovachain: true,
     starknet: true,
     story: true,
     stride: false,
@@ -306,7 +306,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
-    proofofplay: false,
     pulsechain: true,
     radix: true,
     rarichain: true,
@@ -323,6 +322,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    sovachain: true,
     starknet: true,
     story: true,
     stride: true,
@@ -448,7 +448,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     polygonzkevm: true,
     polynomialfi: true,
     prom: true,
-    proofofplay: false,
     pulsechain: true,
     radix: true,
     rarichain: true,
@@ -465,6 +464,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    sovachain: true,
     starknet: true,
     story: true,
     stride: true,
@@ -596,7 +596,15 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { originDomain: getDomainId('starknet') },
       { originDomain: getDomainId('paradex') },
       // Not a core chain
-      { originDomain: getDomainId('forma') },
+      {
+        originDomain: getDomainId('forma'),
+        destinationDomain: getDomainId('stride'),
+      },
+      // Not a core chain
+      {
+        originDomain: getDomainId('stride'),
+        destinationDomain: getDomainId('forma'),
+      },
     ],
   },
   {
@@ -855,7 +863,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c868da2-20251003-124948',
+      tag: 'ed05058-20251008-172529',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -875,7 +883,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'c868da2-20251003-124948',
+      tag: '7940322-20251007-112427',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -886,7 +894,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c868da2-20251003-124948',
+      tag: '7940322-20251007-112427',
     },
     resources: scraperResources,
   },
@@ -901,7 +909,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f81913d-20251006-144136',
+      tag: 'ed05058-20251008-172529',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -924,7 +932,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'f81913d-20251006-144136',
+      tag: '7940322-20251007-112427',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -945,7 +953,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c868da2-20251003-124948',
+      tag: 'ed05058-20251008-172529',
     },
     blacklist,
     gasPaymentEnforcement,

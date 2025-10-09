@@ -1836,18 +1836,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  proofofplay: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0xcda40baa71970a06e5f55e306474de5ca4e21c3b',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   pulsechain: {
     threshold: 2,
     validators: [
@@ -2173,6 +2161,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  sovachain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x5f9a044bbf460fb7236bfae24b5ca9090fff844d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
