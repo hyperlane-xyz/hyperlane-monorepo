@@ -17,8 +17,10 @@ export const LOW_URGENCY_KEY_FUNDER_FOOTER = `    # Mainnets that don't use key-
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"solanamainnet"}[1d]) - 27 or
     # Any ATA payer on Solana
     last_over_time(hyperlane_wallet_balance{wallet_name=~".*/ata-payer", chain=~"solanamainnet"}[1d]) - 0.2 or
-    # Any ATA payer on Solana
+    # USDC/eclipsemainnet-ethereum-solanamainnet
     last_over_time(hyperlane_wallet_balance{wallet_name=~"USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer", chain=~"solanamainnet"}[1d]) - 0.8 or
+    # TIA/celestia-solanamainnet
+    last_over_time(hyperlane_wallet_balance{wallet_name=~"TIA/celestia-solanamainnet/ata-payer", chain=~"solanamainnet"}[1d]) - 1 or
 
     # SOON
     last_over_time(hyperlane_wallet_balance{wallet_name="relayer", hyperlane_context="hyperlane", chain=~"soon"}[1d]) - 0.1 or

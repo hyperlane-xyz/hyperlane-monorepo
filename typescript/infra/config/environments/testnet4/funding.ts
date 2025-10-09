@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'e5e9700-20250909-164327',
+    tag: '878301a-20250923-145334',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -24,7 +24,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['hyperliquidevmtestnet', 'infinityvmmonza'],
+  chainsToSkip: ['hyperliquidevmtestnet', 'megaethtestnet'],
   // desired balance config
   desiredBalancePerChain: {
     arbitrumsepolia: '0.1',
@@ -41,10 +41,10 @@ export const keyFunderConfig: KeyFunderConfig<
     // no funding for solana
     eclipsetestnet: '0',
     fuji: '5',
+    giwasepolia: '0.1',
     holesky: '5',
     hyperliquidevmtestnet: '0.1',
     incentivtestnet: '1',
-    infinityvmmonza: '0',
     kyvetestnet: '0',
     megaethtestnet: '0.01',
     milkywaytestnet: '0',
@@ -86,6 +86,7 @@ export const keyFunderConfig: KeyFunderConfig<
     solanatestnet: '0',
     superpositiontestnet: '0',
   },
+  desiredRebalancerBalancePerChain: {},
   igpClaimThresholdPerChain: {
     arbitrumsepolia: '0.05',
     basesepolia: '0.05',

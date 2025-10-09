@@ -1,16 +1,17 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
-import { GasPrice } from '@cosmjs/stargate';
 import { expect } from 'chai';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
 import {
   ChainMetadata,
   CoreConfig,
   HookType,
   IgpConfig,
+  ProtocolReceipt,
+  ProtocolTransaction,
   randomCosmosAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, AltVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -42,7 +43,10 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
     CORE_READ_CONFIG_PATH_1,
   );
 
-  let signer: SigningHyperlaneModuleClient;
+  let signer: AltVM.ISigner<
+    ProtocolTransaction<ProtocolType.CosmosNative>,
+    ProtocolReceipt<ProtocolType.CosmosNative>
+  >;
   let initialOwnerAddress: Address;
   let chainMetadata: ChainMetadata;
 
@@ -52,21 +56,19 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
     assert(chainMetadata.gasPrice, 'gasPrice not defined in chain metadata');
 
     const wallet = await DirectSecp256k1Wallet.fromKey(
-      Buffer.from(HYP_KEY, 'hex'),
+      Uint8Array.from(Buffer.from(HYP_KEY, 'hex')),
       'hyp',
     );
 
-    signer = await SigningHyperlaneModuleClient.connectWithSigner(
-      chainMetadata.rpcUrls[0].http,
+    signer = await CosmosNativeSigner.connectWithSigner(
+      chainMetadata.rpcUrls.map((rpc) => rpc.http),
       wallet,
       {
-        gasPrice: GasPrice.fromString(
-          `${chainMetadata.gasPrice.amount}${chainMetadata.gasPrice.denom}`,
-        ),
+        metadata: chainMetadata,
       },
     );
 
-    initialOwnerAddress = signer.account.address;
+    initialOwnerAddress = signer.getSignerAddress();
   });
 
   describe('hyperlane cosmosnative core deploy', () => {
@@ -79,7 +81,6 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
           // Scroll down through the mainnet chains list and select hyp1
           input: `${KeyBoardKeys.ARROW_DOWN.repeat(1)}${KeyBoardKeys.ENTER}`,
         },
-        SETUP_CHAIN_SIGNER_MANUALLY_STEP(HYP_KEY),
         {
           // When running locally the e2e tests, the chains folder might already have the chain contracts
           check: (currentOutput) =>
@@ -254,6 +255,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
 
       coreConfig.owner = newOwner;
       writeYamlOrJson(CORE_READ_CONFIG_PATH_1, coreConfig);
+      hyperlaneCore.setCoreInputPath(CORE_READ_CONFIG_PATH_1);
 
       // Deploy the core contracts with the updated mailbox owner
       await hyperlaneCore.deploy(HYP_KEY);

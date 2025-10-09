@@ -1,12 +1,8 @@
-import {
-  ChainMap,
-  ChainName,
-  ProtocolAgnositicGasOracleConfig,
-} from '@hyperlane-xyz/sdk';
-import { objFilter, objMap, stringifyObject } from '@hyperlane-xyz/utils';
+import { ChainMap, ProtocolAgnositicGasOracleConfig } from '@hyperlane-xyz/sdk';
+import { stringifyObject } from '@hyperlane-xyz/utils';
 
-import { getChains, getWarpAddresses } from '../../config/registry.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
+import { getChains } from '../../config/registry.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withOutputFile } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -95,7 +91,7 @@ async function main() {
 
   if (outFile) {
     console.log(`Writing config to ${outFile}`);
-    writeJsonAtPath(outFile, gasOracles);
+    writeAndFormatJsonAtPath(outFile, gasOracles);
   }
 }
 

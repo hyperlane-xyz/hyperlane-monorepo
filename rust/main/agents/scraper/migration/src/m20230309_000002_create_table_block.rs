@@ -28,11 +28,7 @@ impl MigrationTrait for Migration {
                             .default("NOW()"),
                     )
                     .col(ColumnDef::new(Block::Domain).unsigned().not_null())
-                    .col(
-                        ColumnDef::new_with_type(Block::Hash, Hash)
-                            .unique_key()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new_with_type(Block::Hash, Hash).not_null())
                     .col(ColumnDef::new(Block::Height).big_unsigned().not_null())
                     .col(ColumnDef::new(Block::Timestamp).timestamp().not_null())
                     .foreign_key(
@@ -46,6 +42,7 @@ impl MigrationTrait for Migration {
                             .col(Block::Height)
                             .unique(),
                     )
+                    .index(Index::create().col(Block::Domain).col(Block::Hash).unique())
                     .to_owned(),
             )
             .await?;
