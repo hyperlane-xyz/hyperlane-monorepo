@@ -273,80 +273,75 @@ export class HyperlaneSmartProvider
     const providerResultErrors: unknown[] = [];
 
     // Phase 1: Trigger providers sequentially until success or blockchain error
-    while (true) {
-      // Trigger the next provider in line
-      if (pIndex < providers.length) {
-        const provider = providers[pIndex];
-        const isLastProvider = pIndex === providers.length - 1;
+    while (pIndex < providers.length) {
+      const provider = providers[pIndex];
+      const isLastProvider = pIndex === providers.length - 1;
 
-        // Skip the explorer provider if it's currently in a cooldown period
-        if (
-          this.isExplorerProvider(provider) &&
-          provider.getQueryWaitTime() > 0 &&
-          !isLastProvider &&
-          method !== ProviderMethod.GetLogs // never skip GetLogs
-        ) {
-          pIndex += 1;
-          continue;
-        }
+      // Skip the explorer provider if it's currently in a cooldown period
+      if (
+        this.isExplorerProvider(provider) &&
+        provider.getQueryWaitTime() > 0 &&
+        !isLastProvider &&
+        method !== ProviderMethod.GetLogs // never skip GetLogs
+      ) {
+        pIndex += 1;
+        continue;
+      }
 
-        const resultPromise = this.wrapProviderPerform(
-          provider,
-          pIndex,
-          method,
-          params,
-          reqId,
+      const resultPromise = this.wrapProviderPerform(
+        provider,
+        pIndex,
+        method,
+        params,
+        reqId,
+      );
+      const timeoutPromise = timeoutResult(
+        this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
+      );
+      const result = await Promise.race([resultPromise, timeoutPromise]);
+
+      const providerMetadata = {
+        providerIndex: pIndex,
+        rpcUrl: provider.getBaseUrl(),
+        method: `${method}(${JSON.stringify(params)})`,
+        chainId: this.network.chainId,
+      };
+
+      if (result.status === ProviderStatus.Success) {
+        return result.value;
+      } else if (result.status === ProviderStatus.Timeout) {
+        this.logger.debug(
+          { ...providerMetadata },
+          `Slow response from provider:`,
+          isLastProvider ? '' : 'Triggering next provider.',
         );
-        const timeoutPromise = timeoutResult(
-          this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
-        );
-        const result = await Promise.race([resultPromise, timeoutPromise]);
-
-        const providerMetadata = {
-          providerIndex: pIndex,
-          rpcUrl: provider.getBaseUrl(),
-          method: `${method}(${JSON.stringify(params)})`,
-          chainId: this.network.chainId,
-        };
-
-        if (result.status === ProviderStatus.Success) {
-          return result.value;
-        } else if (result.status === ProviderStatus.Timeout) {
+        providerResultPromises.push(resultPromise);
+        pIndex += 1;
+      } else if (result.status === ProviderStatus.Error) {
+        providerResultErrors.push(result.error);
+        // If this is a blockchain error, stop trying additional providers as it's a permanent failure
+        if (RPC_BLOCKCHAIN_ERRORS.includes((result.error as any)?.code)) {
           this.logger.debug(
             { ...providerMetadata },
-            `Slow response from provider:`,
-            isLastProvider ? '' : 'Triggering next provider.',
+            `${(result.error as any)?.code} detected - stopping provider fallback as this is a permanent failure`,
           );
-          providerResultPromises.push(resultPromise);
-          pIndex += 1;
-        } else if (result.status === ProviderStatus.Error) {
-          providerResultErrors.push(result.error);
-          // If this is a blockchain error, stop trying additional providers as it's a permanent failure
-          if (RPC_BLOCKCHAIN_ERRORS.includes((result.error as any)?.code)) {
-            this.logger.debug(
-              { ...providerMetadata },
-              `${(result.error as any)?.code} detected - stopping provider fallback as this is a permanent failure`,
-            );
-            break;
-          }
-          this.logger.debug(
-            {
-              error: result.error,
-              ...providerMetadata,
-            },
-            `Error from provider.`,
-            isLastProvider ? '' : 'Triggering next provider.',
-          );
-          pIndex += 1;
-        } else {
-          throw new Error(
-            `Unexpected result from provider: ${JSON.stringify(
-              providerMetadata,
-            )}`,
-          );
+          break;
         }
+        this.logger.debug(
+          {
+            error: result.error,
+            ...providerMetadata,
+          },
+          `Error from provider.`,
+          isLastProvider ? '' : 'Triggering next provider.',
+        );
+        pIndex += 1;
       } else {
-        break;
+        throw new Error(
+          `Unexpected result from provider: ${JSON.stringify(
+            providerMetadata,
+          )}`,
+        );
       }
     }
 
