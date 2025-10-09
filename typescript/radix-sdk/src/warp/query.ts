@@ -240,18 +240,13 @@ CALL_METHOD
     const output = (response.receipt as Receipt).output;
     assert(output.length, `found no output for quote_remote_transfer method`);
 
-    const entries = (
-      output[0].programmatic_json as {
-        entries: {
-          key: {
-            value: any;
-          };
-          value: {
-            value: any;
-          };
-        }[];
-      }
-    ).entries;
+    const programmaticJson = output[0].programmatic_json;
+    assert(
+      'entries' in programmaticJson,
+      'programmatic_json is not in the expected format',
+    );
+
+    const entries = programmaticJson.entries;
     assert(entries.length > 0, `quote_remote_transfer returned no resources`);
     assert(
       entries.length < 2,
