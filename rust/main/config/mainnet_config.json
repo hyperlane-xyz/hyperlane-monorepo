@@ -7766,7 +7766,10 @@
       "storageGasOracle": "0xEa2Bcee14eA30bbBe3018E5E7829F963230F71C3",
       "testRecipient": "0xcDD89f19b2d00DCB9510BB3fBd5eCeCa761fe5Ab",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0x8D8979F2C29bA49FAb259A826D0271c43F70288c"
+      "validatorAnnounce": "0x8D8979F2C29bA49FAb259A826D0271c43F70288c",
+      "index": {
+        "from": 4821250
+      }
     },
     "superpositionmainnet": {
       "blockExplorers": [
