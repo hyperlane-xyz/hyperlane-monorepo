@@ -5,8 +5,6 @@ import type {
 } from '@cosmjs/cosmwasm-stargate';
 import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
-import { TransactionCommittedDetailsResponse } from '@radixdlt/babylon-gateway-api-sdk';
-import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
 import type {
   Connection,
   Transaction as SolTransaction,
@@ -35,8 +33,12 @@ import {
   types as zkSyncTypes,
 } from 'zksync-ethers';
 
-import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
+import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
+import {
+  RadixProvider as RadixSDKProvider,
+  RadixSDKReceipt,
+  RadixSDKTransaction,
+} from '@hyperlane-xyz/radix-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
@@ -127,6 +129,18 @@ export type ProtocolTypedReceipt<T extends ProtocolType> = ProtocolTyped<
   'receipt'
 >;
 
+export type AnyProtocolTransaction = ProtocolTransaction<ProtocolType>;
+export type ProtocolTransaction<T extends ProtocolType> =
+  ProtocolTypedTransaction<T>['transaction'];
+
+export type AnyProtocolReceipt = ProtocolReceipt<ProtocolType>;
+export type ProtocolReceipt<T extends ProtocolType> =
+  ProtocolTypedReceipt<T>['receipt'];
+
+export type AnnotatedTypedTransaction<T extends ProtocolType> = Annotated<
+  ProtocolTransaction<T>
+>;
+
 /**
  * Providers with discriminated union of type
  */
@@ -165,9 +179,9 @@ export interface CosmJsWasmProvider
 }
 
 export interface CosmJsNativeProvider
-  extends TypedProviderBase<Promise<HyperlaneModuleClient>> {
+  extends TypedProviderBase<Promise<CosmosNativeProvider>> {
   type: ProviderType.CosmJsNative;
-  provider: Promise<HyperlaneModuleClient>;
+  provider: Promise<CosmosNativeProvider>;
 }
 
 export interface StarknetJsProvider
@@ -176,9 +190,9 @@ export interface StarknetJsProvider
   provider: StarknetProvider;
 }
 
-export interface RadixProvider extends TypedProviderBase<RadixSDK> {
+export interface RadixProvider extends TypedProviderBase<RadixSDKProvider> {
   type: ProviderType.Radix;
-  provider: RadixSDK;
+  provider: RadixSDKProvider;
 }
 
 export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
@@ -269,11 +283,6 @@ export interface EthersV5Transaction
   extends TypedTransactionBase<EV5Transaction> {
   type: ProviderType.EthersV5;
   transaction: EV5Transaction;
-}
-
-export interface RadixSDKTransaction {
-  networkId: number;
-  manifest: TransactionManifest | string;
 }
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
@@ -422,9 +431,9 @@ export interface ZKSyncTransactionReceipt
 }
 
 export interface RadixTransactionReceipt
-  extends TypedTransactionReceiptBase<TransactionCommittedDetailsResponse> {
+  extends TypedTransactionReceiptBase<RadixSDKReceipt> {
   type: ProviderType.Radix;
-  receipt: TransactionCommittedDetailsResponse & { transactionHash: string };
+  receipt: RadixSDKReceipt;
 }
 
 export type TypedTransactionReceipt =

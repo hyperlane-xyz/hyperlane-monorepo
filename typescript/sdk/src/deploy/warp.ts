@@ -2,7 +2,10 @@ import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
+  AltVM,
   ProtocolType,
+  addressToBytes32,
+  assert,
   isObjEmpty,
   objFilter,
   objKeys,
@@ -19,22 +22,27 @@ import {
 } from '../contracts/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
-import { CosmosNativeIsmModule } from '../ism/CosmosNativeIsmModule.js';
+import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
-import { CosmosNativeWarpModule } from '../token/CosmosNativeWarpModule.js';
+import {
+  AnyProtocolReceipt,
+  AnyProtocolTransaction,
+  TypedAnnotatedTransaction,
+} from '../providers/ProviderType.js';
+import { DestinationGas, RemoteRouters } from '../router/types.js';
+import { AltVMWarpModule } from '../token/AltVMWarpModule.js';
 import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
+import { AltVMDeployer } from '../token/altVMDeploy.js';
 import { gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
-import { CosmosNativeDeployer } from '../token/cosmosnativeDeploy.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
 import {
   HypTokenRouterConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
-import { ChainMap, IMultiProtocolSignerManager } from '../types.js';
+import { ChainMap } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
@@ -45,7 +53,7 @@ type ChainAddresses = Record<string, string>;
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  multiProtocolSigner: IMultiProtocolSignerManager,
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>,
   registryAddresses: ChainMap<ChainAddresses>,
   apiKeys: ChainMap<string>,
 ): Promise<ChainMap<Address>> {
@@ -66,13 +74,31 @@ export async function executeWarpDeploy(
   const modifiedConfig = await resolveWarpIsmAndHook(
     warpDeployConfig,
     multiProvider,
-    multiProtocolSigner,
+    altVmSigner,
     registryAddresses,
     ismFactoryDeployer,
     contractVerifier,
   );
 
-  let deployedContracts: ChainMap<Address> = {};
+  // Initialize with unsupported chains so that they are enrolled
+  let deployedContracts: ChainMap<Address> = objMap(
+    objFilter(
+      warpDeployConfig,
+      (
+        _chain,
+        config,
+      ): config is WarpRouteDeployConfigMailboxRequired[string] =>
+        !!config.foreignDeployment,
+    ),
+    (chain, config) => {
+      assert(
+        config.foreignDeployment,
+        `Expected foreignDeployment field to be defined on ${chain} after filtering`,
+      );
+
+      return config.foreignDeployment;
+    },
+  );
 
   // get unique list of protocols
   const protocols = Array.from(
@@ -112,22 +138,18 @@ export async function executeWarpDeploy(
 
         break;
       }
-      case ProtocolType.CosmosNative: {
-        const signersMap = objMap(
-          protocolSpecificConfig,
-          (chain, _) => multiProtocolSigner.getCosmosNativeSigner(chain)!,
+      default: {
+        const signersMap = objMap(protocolSpecificConfig, (chain, _) =>
+          altVmSigner.get(chain),
         );
 
-        const deployer = new CosmosNativeDeployer(multiProvider, signersMap);
+        const deployer = new AltVMDeployer(multiProvider, signersMap);
         deployedContracts = {
           ...deployedContracts,
           ...(await deployer.deploy(protocolSpecificConfig)),
         };
 
         break;
-      }
-      default: {
-        throw new Error(`Protocol type ${protocol} not supported`);
       }
     }
   }
@@ -138,7 +160,7 @@ export async function executeWarpDeploy(
 async function resolveWarpIsmAndHook(
   warpConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  multiProtocolSigner: IMultiProtocolSignerManager,
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>,
   registryAddresses: ChainMap<ChainAddresses>,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier: ContractVerifier,
@@ -157,7 +179,7 @@ async function resolveWarpIsmAndHook(
         chain,
         chainAddresses,
         multiProvider,
-        multiProtocolSigner,
+        altVmSigner,
         contractVerifier,
         ismFactoryDeployer,
         warpConfig: config,
@@ -187,7 +209,7 @@ async function createWarpIsm({
   chain,
   chainAddresses,
   multiProvider,
-  multiProtocolSigner,
+  altVmSigner,
   contractVerifier,
   warpConfig,
 }: {
@@ -195,7 +217,7 @@ async function createWarpIsm({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
-  multiProtocolSigner: IMultiProtocolSignerManager;
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -240,10 +262,10 @@ async function createWarpIsm({
       const { deployedIsm } = evmIsmModule.serialize();
       return deployedIsm;
     }
-    case ProtocolType.CosmosNative: {
-      const signer = multiProtocolSigner!.getCosmosNativeSigner(chain);
+    default: {
+      const signer = altVmSigner.get(chain);
 
-      const cosmosIsmModule = await CosmosNativeIsmModule.create({
+      const ismModule = await AltVMIsmModule.create({
         chain,
         multiProvider: multiProvider,
         addresses: {
@@ -252,11 +274,9 @@ async function createWarpIsm({
         config: interchainSecurityModule,
         signer,
       });
-      const { deployedIsm } = cosmosIsmModule.serialize();
+      const { deployedIsm } = ismModule.serialize();
       return deployedIsm;
     }
-    default:
-      throw new Error(`Protocol type ${protocolType} not supported`);
   }
 }
 
@@ -324,51 +344,66 @@ async function createWarpHook({
       const { deployedHook } = evmHookModule.serialize();
       return deployedHook;
     }
-    case ProtocolType.CosmosNative: {
-      rootLogger.info(
-        `No warp hooks for Cosmos Native chains, skipping deployment.`,
+    default:
+      rootLogger.warn(
+        `Skipping token hooks because they are not supported on protocol type ${protocolType}`,
       );
       return hook;
-    }
-    default:
-      throw new Error(`Protocol type ${protocolType} not supported`);
   }
 }
 
 export async function enrollCrossChainRouters(
   {
     multiProvider,
-    multiProtocolSigner,
+    altVmSigner,
     registryAddresses,
     warpDeployConfig,
   }: {
     multiProvider: MultiProvider;
-    multiProtocolSigner: IMultiProtocolSignerManager;
+    altVmSigner: AltVM.ISignerFactory<
+      AnyProtocolTransaction,
+      AnyProtocolReceipt
+    >;
     registryAddresses: ChainMap<ChainAddresses>;
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },
   deployedContracts: ChainMap<Address>,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   const resolvedConfigMap = objMap(warpDeployConfig, (_, config) => ({
-    gas: gasOverhead(config.type).toString(),
+    gas: gasOverhead(config.type),
     ...config,
   }));
 
-  const configMapToDeploy = objFilter(
-    resolvedConfigMap,
-    (_, config: any): config is any => !config.foreignDeployment,
-  );
-
-  const allChains = Object.keys(configMapToDeploy);
-
   const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
 
-  for (const chain of allChains) {
-    const protocol = multiProvider.getProtocol(chain);
+  const supportedChains = Object.keys(
+    objFilter(
+      resolvedConfigMap,
+      (_, config: any): config is any => !config.foreignDeployment,
+    ),
+  );
+  for (const currentChain of supportedChains) {
+    const protocol = multiProvider.getProtocol(currentChain);
 
-    const allRemoteChains = multiProvider
-      .getRemoteChains(chain)
-      .filter((c) => allChains.includes(c));
+    const remoteRouters: RemoteRouters = Object.fromEntries(
+      Object.entries(deployedContracts)
+        .filter(([chain, _address]) => chain !== currentChain)
+        .map(([chain, address]) => [
+          multiProvider.getDomainId(chain).toString(),
+          {
+            address: addressToBytes32(address),
+          },
+        ]),
+    );
+
+    const destinationGas: DestinationGas = Object.fromEntries(
+      Object.entries(deployedContracts)
+        .filter(([chain, _address]) => chain !== currentChain)
+        .map(([chain, _address]) => [
+          multiProvider.getDomainId(chain).toString(),
+          resolvedConfigMap[chain].gas.toString(),
+        ]),
+    );
 
     switch (protocol) {
       case ProtocolType.Ethereum: {
@@ -380,13 +415,13 @@ export async function enrollCrossChainRouters(
           staticAggregationHookFactory,
           staticMerkleRootWeightedMultisigIsmFactory,
           staticMessageIdWeightedMultisigIsmFactory,
-        } = registryAddresses[chain];
+        } = registryAddresses[currentChain];
 
         const evmWarpModule = new EvmERC20WarpModule(multiProvider, {
-          chain,
-          config: configMapToDeploy[chain],
+          chain: currentChain,
+          config: resolvedConfigMap[currentChain],
           addresses: {
-            deployedTokenRoute: deployedContracts[chain],
+            deployedTokenRoute: deployedContracts[currentChain],
             domainRoutingIsmFactory,
             staticMerkleRootMultisigIsmFactory,
             staticMessageIdMultisigIsmFactory,
@@ -398,84 +433,48 @@ export async function enrollCrossChainRouters(
         });
 
         const actualConfig = await evmWarpModule.read();
-        const expectedConfig = {
+        const expectedConfig: HypTokenRouterConfig = {
           ...actualConfig,
-          owner: configMapToDeploy[chain].owner,
-          remoteRouters: (() => {
-            const routers: Record<string, { address: string }> = {};
-            for (const c of allRemoteChains) {
-              routers[multiProvider.getDomainId(c).toString()] = {
-                address: deployedContracts[c],
-              };
-            }
-            return routers;
-          })(),
-          destinationGas: (() => {
-            const dGas: Record<string, string> = {};
-            for (const c of allRemoteChains) {
-              dGas[multiProvider.getDomainId(c).toString()] =
-                configMapToDeploy[c].gas;
-            }
-            return dGas;
-          })(),
+          owner: resolvedConfigMap[currentChain].owner,
+          remoteRouters,
+          destinationGas,
         };
 
         const transactions = await evmWarpModule.update(expectedConfig);
 
         if (transactions.length) {
-          updateTransactions[chain] = transactions;
-        }
-
-        break;
-      }
-      case ProtocolType.CosmosNative: {
-        const signer = multiProtocolSigner.getCosmosNativeSigner(chain);
-
-        const cosmosNativeWarpModule = new CosmosNativeWarpModule(
-          multiProvider,
-          {
-            chain,
-            config: configMapToDeploy[chain],
-            addresses: {
-              deployedTokenRoute: deployedContracts[chain],
-            },
-          },
-          signer,
-        );
-        const actualConfig = await cosmosNativeWarpModule.read();
-        const expectedConfig = {
-          ...actualConfig,
-          owner: configMapToDeploy[chain].owner,
-          remoteRouters: (() => {
-            const routers: Record<string, { address: string }> = {};
-            for (const c of allRemoteChains) {
-              routers[multiProvider.getDomainId(c).toString()] = {
-                address: deployedContracts[c],
-              };
-            }
-            return routers;
-          })(),
-          destinationGas: (() => {
-            const dGas: Record<string, string> = {};
-            for (const c of allRemoteChains) {
-              dGas[multiProvider.getDomainId(c).toString()] =
-                configMapToDeploy[c].gas;
-            }
-            return dGas;
-          })(),
-        };
-
-        const transactions =
-          await cosmosNativeWarpModule.update(expectedConfig);
-
-        if (transactions.length) {
-          updateTransactions[chain] = transactions;
+          updateTransactions[currentChain] = transactions;
         }
 
         break;
       }
       default: {
-        throw new Error(`Protocol type ${protocol} not supported`);
+        const signer = altVmSigner.get(currentChain);
+
+        const warpModule = new AltVMWarpModule(
+          multiProvider,
+          {
+            chain: currentChain,
+            config: resolvedConfigMap[currentChain],
+            addresses: {
+              deployedTokenRoute: deployedContracts[currentChain],
+            },
+          },
+          signer,
+        );
+        const actualConfig = await warpModule.read();
+        const expectedConfig: HypTokenRouterConfig = {
+          ...actualConfig,
+          owner: resolvedConfigMap[currentChain].owner,
+          remoteRouters,
+          destinationGas,
+        };
+
+        const transactions = await warpModule.update(expectedConfig);
+
+        if (transactions.length) {
+          updateTransactions[currentChain] = transactions;
+        }
       }
     }
   }

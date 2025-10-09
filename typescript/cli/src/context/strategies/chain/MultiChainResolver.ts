@@ -4,7 +4,6 @@ import {
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
-  MultiProvider,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -157,7 +156,7 @@ export class MultiChainResolver implements ChainResolver {
   private async resolveRelayerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    const { multiProvider } = argv.context;
+    const { multiProvider, supportedProtocols } = argv.context;
     const chains = new Set<ChainName>();
 
     if (argv.origin) {
@@ -175,12 +174,13 @@ export class MultiChainResolver implements ChainResolver {
       return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    // If no destination is specified, return all EVM and Cosmos Native chains
+    // If no destination is specified, return all EVM and AltVM chains
     if (!argv.destination) {
-      return [
-        ...this.getEvmChains(multiProvider),
-        ...this.getCosmosNativeChains(multiProvider),
-      ];
+      const chains = multiProvider.getKnownChainNames();
+
+      return chains.filter((chain: string) =>
+        supportedProtocols.includes(multiProvider.getProtocol(chain)),
+      );
     }
 
     chains.add(argv.destination);
@@ -220,11 +220,8 @@ export class MultiChainResolver implements ChainResolver {
             (chainId) => argv.context.multiProvider.getChainName(chainId),
           );
         }
-        case ProtocolType.CosmosNative: {
-          return [argv.chain];
-        }
         default: {
-          throw new Error(`Protocol type ${protocolType} not supported`);
+          return [argv.chain];
         }
       }
     } catch (error) {
@@ -266,22 +263,6 @@ export class MultiChainResolver implements ChainResolver {
         cause: error,
       });
     }
-  }
-
-  private getEvmChains(multiProvider: MultiProvider): ChainName[] {
-    const chains = multiProvider.getKnownChainNames();
-
-    return chains.filter(
-      (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-    );
-  }
-
-  private getCosmosNativeChains(multiProvider: MultiProvider): ChainName[] {
-    const chains = multiProvider.getKnownChainNames();
-
-    return chains.filter(
-      (chain) => multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
-    );
   }
 
   static forAgentKurtosis(): MultiChainResolver {
