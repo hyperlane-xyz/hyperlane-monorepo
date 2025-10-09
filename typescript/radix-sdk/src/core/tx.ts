@@ -58,10 +58,9 @@ export class RadixCoreTx {
       domain_id,
     });
 
-    const { transactionHash } =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(transactionHash);
+    return this.base.getNewComponent(receipt);
   }
 
   public async createMerkleTreeHook({ mailbox }: { mailbox: string }) {
@@ -70,10 +69,9 @@ export class RadixCoreTx {
       mailbox,
     });
 
-    const { transactionHash } =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(transactionHash);
+    return this.base.getNewComponent(receipt);
   }
 
   public async createMerkleRootMultisigIsm({
@@ -88,10 +86,9 @@ export class RadixCoreTx {
       },
     );
 
-    const { transactionHash } =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(transactionHash);
+    return this.base.getNewComponent(receipt);
   }
 
   public async createMessageIdMultisigIsm({
@@ -104,10 +101,9 @@ export class RadixCoreTx {
       threshold,
     });
 
-    const { transactionHash } =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(transactionHash);
+    return this.base.getNewComponent(receipt);
   }
 
   public async createRoutingIsm({
@@ -120,10 +116,9 @@ export class RadixCoreTx {
       routes,
     });
 
-    const { transactionHash } =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(transactionHash);
+    return this.base.getNewComponent(receipt);
   }
 
   public async setRoutingIsmRoute({
@@ -182,10 +177,9 @@ export class RadixCoreTx {
       from_address: this.account.address,
     });
 
-    const { transactionHash } =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(transactionHash);
+    return this.base.getNewComponent(receipt);
   }
 
   public async createIgp({ denom }: { denom: string }) {
@@ -194,10 +188,9 @@ export class RadixCoreTx {
       denom,
     });
 
-    const { transactionHash } =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(transactionHash);
+    return this.base.getNewComponent(receipt);
   }
 
   public async setIgpOwner({
@@ -261,10 +254,9 @@ export class RadixCoreTx {
       mailbox,
     });
 
-    const { transactionHash } =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(transactionHash);
+    return this.base.getNewComponent(receipt);
   }
 
   public async setRequiredHook({

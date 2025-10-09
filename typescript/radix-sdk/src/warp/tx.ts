@@ -40,10 +40,9 @@ export class RadixWarpTx {
       origin_denom,
     });
 
-    const { transactionHash } =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(transactionHash);
+    return this.base.getNewComponent(receipt);
   }
 
   public async createSyntheticToken({
@@ -65,10 +64,9 @@ export class RadixWarpTx {
       divisibility,
     });
 
-    const { transactionHash } =
-      await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(transactionHash);
+    return this.base.getNewComponent(receipt);
   }
 
   public async setTokenOwner({

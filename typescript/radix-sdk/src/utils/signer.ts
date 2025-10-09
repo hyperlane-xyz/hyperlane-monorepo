@@ -70,16 +70,7 @@ export class RadixBaseSigner {
         ).toString('hex'),
       },
     });
-    await this.base.pollForCommit(intentHashTransactionId.id);
-
-    const committedDetails = await this.gateway.transaction.getCommittedDetails(
-      intentHashTransactionId.id,
-    );
-
-    return {
-      ...committedDetails,
-      transactionHash: intentHashTransactionId.id,
-    };
+    return this.base.pollForCommit(intentHashTransactionId.id);
   }
 
   public async getTestnetXrd() {
