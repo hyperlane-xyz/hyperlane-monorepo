@@ -65,7 +65,7 @@ export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;
-  addressBlacklist?: string[];
+  addressBlacklist?: string;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
@@ -145,20 +145,19 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
     const relayerConfig: RelayerConfig = {
       relayChains: this.relayChains.join(','),
-      gasPaymentEnforcement: baseConfig.gasPaymentEnforcement,
+      gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
 
     if (baseConfig.whitelist) {
-      relayerConfig.whitelist = baseConfig.whitelist;
+      relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
     }
     if (baseConfig.blacklist) {
-      relayerConfig.blacklist = baseConfig.blacklist;
+      relayerConfig.blacklist = JSON.stringify(baseConfig.blacklist);
     }
 
-    relayerConfig.addressBlacklist = [
-      ...(baseConfig.addressBlacklist ?? []),
-      ...(await this.getSanctionedAddresses()),
-    ];
+    relayerConfig.addressBlacklist = (await this.getSanctionedAddresses()).join(
+      ',',
+    );
 
     if (baseConfig.transactionGasLimit) {
       relayerConfig.transactionGasLimit =

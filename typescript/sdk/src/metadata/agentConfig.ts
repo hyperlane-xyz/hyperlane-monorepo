@@ -425,9 +425,9 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
       'If no blacklist is provided ALL will be considered to not be on the blacklist.',
     ),
   addressBlacklist: z
-    .array(z.string())
+    .string()
     .optional()
-    .describe('List of addresses to blacklist.'),
+    .describe('Comma separated list of addresses to blacklist.'),
   transactionGasLimit: ZUWei.optional().describe(
     'This is optional. If not specified, any amount of gas will be valid, otherwise this is the max allowed gas in wei to relay a transaction.',
   ),
