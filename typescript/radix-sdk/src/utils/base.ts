@@ -455,7 +455,7 @@ export class RadixBase {
   ): Promise<ScryptoSborValue[]> {
     let cursor: string | null = null;
     let at_ledger_state: LedgerStateSelector | null = null;
-    let keys = [];
+    const keys = [];
 
     while (true) {
       const { items, next_cursor, ledger_state } =
