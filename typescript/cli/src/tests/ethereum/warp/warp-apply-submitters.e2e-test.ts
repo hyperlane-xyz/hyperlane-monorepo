@@ -6,10 +6,7 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import {
-  ChainAddresses,
-  createWarpRouteConfigId,
-} from '@hyperlane-xyz/registry';
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   CallData,
   ChainMetadata,
@@ -20,36 +17,27 @@ import {
   TxSubmitterType,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, Domain, assert } from '@hyperlane-xyz/utils';
+import { Address, Domain, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
+import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
-  deployOrUseExistingCore,
-  hyperlaneCoreApply,
-  readCoreConfig,
-} from '../commands/core.js';
-import {
-  hyperlaneWarpApplyRaw,
-  hyperlaneWarpDeploy,
-  readWarpConfig,
-} from '../commands/warp.js';
-import {
-  ANVIL_KEY,
-  CHAIN_2_METADATA_PATH,
-  CHAIN_3_METADATA_PATH,
-  CHAIN_NAME_2,
-  CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
-  CORE_READ_CONFIG_PATH_2,
-  CORE_READ_CONFIG_PATH_3,
+  CORE_CONFIG_PATH_BY_PROTOCOL,
+  CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
-  JSON_RPC_ICA_STRATEGY_CONFIG_PATH,
-  JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH,
+  DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
+  HYP_KEY_BY_PROTOCOL,
+  REGISTRY_PATH,
+  SUBMITTER_STRATEGY_FILE_PATHS_BY_PROTOCOL,
   TEMP_PATH,
-  WARP_CONFIG_PATH_2,
-  WARP_CONFIG_PATH_EXAMPLE,
-  getCombinedWarpRoutePath,
-} from '../consts.js';
+  TEST_CHAIN_METADATA_BY_PROTOCOL,
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
+  getWarpCoreConfigPath,
+  getWarpDeployConfigPath,
+  getWarpId,
+} from '../../constants.js';
+import { runEvmNode } from '../../nodes.js';
 
 describe('hyperlane warp apply with submitters', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -70,9 +58,35 @@ describe('hyperlane warp apply with submitters', async function () {
   let WARP_ROUTE_ID: string;
   const FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH = `${TEMP_PATH}/timelock-simple-strategy.yaml`;
 
+  const evmChain1Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+  );
+  const evmChain2Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+  );
+
+  const evmWarpCommands = new HyperlaneE2EWarpTestCommands(
+    ProtocolType.Ethereum,
+    REGISTRY_PATH,
+    DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
+  );
+
   before(async function () {
-    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    await runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2);
+    await runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3);
+
+    const chain2Metadata: ChainMetadata =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
+    const chain3Metadata: ChainMetadata =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
 
     const chain2Provider = new ethers.providers.JsonRpcProvider(
       chain2Metadata.rpcUrls[0].http,
@@ -82,31 +96,26 @@ describe('hyperlane warp apply with submitters', async function () {
     );
     chain2DomainId = chain2Metadata.domainId;
     chain3DomainId = chain3Metadata.domainId;
-    const wallet = new Wallet(ANVIL_KEY);
+    const wallet = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum);
     chain2Signer = wallet.connect(chain2Provider);
 
     chain3Signer = wallet.connect(chain3Provider);
     initialOwnerAddress = await chain2Signer.getAddress();
 
     [chain2Addresses, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      evmChain1Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
+      evmChain2Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
     ]);
 
-    // Create a new warp config using the example
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
-      WARP_CONFIG_PATH_EXAMPLE,
-    );
-
-    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
-    writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
-
-    WARP_ROUTE_ID = createWarpRouteConfigId('ETH', CHAIN_NAME_3);
-    WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [CHAIN_NAME_3]);
-    WARP_DEPLOY_CONFIG_PATH = WARP_CORE_CONFIG_PATH.replace(
-      '-config.yaml',
-      '-deploy.yaml',
-    );
+    WARP_ROUTE_ID = getWarpId('ETH', [
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+    ]);
+    WARP_CORE_CONFIG_PATH = getWarpCoreConfigPath('ETH', [
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+    ]);
+    WARP_DEPLOY_CONFIG_PATH = getWarpDeployConfigPath('ETH', [
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+    ]);
 
     const chain2IcaRouter = InterchainAccountRouter__factory.connect(
       chain2Addresses.interchainAccountRouter,
@@ -135,8 +144,8 @@ describe('hyperlane warp apply with submitters', async function () {
     // Configure ICA connections by enrolling the ICAs with each other
     const [coreConfigChain2, coreConfigChain3]: DerivedCoreConfig[] =
       await Promise.all([
-        readCoreConfig(CHAIN_NAME_2, CORE_READ_CONFIG_PATH_2),
-        readCoreConfig(CHAIN_NAME_3, CORE_READ_CONFIG_PATH_3),
+        evmChain1Core.readConfig(),
+        evmChain2Core.readConfig(),
       ]);
 
     const coreConfigChain2IcaConfig = coreConfigChain2.interchainAccountRouter!;
@@ -147,19 +156,22 @@ describe('hyperlane warp apply with submitters', async function () {
       },
     };
 
-    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfigChain2);
-    await hyperlaneCoreApply(CHAIN_NAME_2, CORE_READ_CONFIG_PATH_2);
+    writeYamlOrJson(
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      coreConfigChain2,
+    );
+    await evmChain1Core.apply(HYP_KEY_BY_PROTOCOL.ethereum);
   });
 
   beforeEach(async function () {
-    ownerAddress = new Wallet(ANVIL_KEY).address;
+    ownerAddress = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).address;
     warpDeployConfig = {
-      [CHAIN_NAME_2]: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
         type: TokenType.native,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
       },
-      [CHAIN_NAME_3]: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
         type: TokenType.synthetic,
         mailbox: chain3Addresses.mailbox,
         owner: ownerAddress,
@@ -174,10 +186,16 @@ describe('hyperlane warp apply with submitters', async function () {
   ) {
     // Update the submitter config to use the deployed timelock address
     const timelockSubmitterConfig = ChainSubmissionStrategySchema.parse(
-      readYamlOrJson(JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH),
+      readYamlOrJson(
+        SUBMITTER_STRATEGY_FILE_PATHS_BY_PROTOCOL.ethereum
+          .JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH,
+      ),
     );
 
-    const chain3SubmissionStrategy = timelockSubmitterConfig[CHAIN_NAME_3];
+    const chain3SubmissionStrategy =
+      timelockSubmitterConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ];
     assert(
       chain3SubmissionStrategy.submitter.type ===
         TxSubmitterType.TIMELOCK_CONTROLLER,
@@ -190,7 +208,9 @@ describe('hyperlane warp apply with submitters', async function () {
       chain3SubmissionStrategy.submitter.proposerSubmitter = proposerSubmitter;
     }
 
-    timelockSubmitterConfig[CHAIN_NAME_3] = chain3SubmissionStrategy;
+    timelockSubmitterConfig[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+    ] = chain3SubmissionStrategy;
 
     writeYamlOrJson(
       FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH,
@@ -202,7 +222,13 @@ describe('hyperlane warp apply with submitters', async function () {
     // currently warp deploy is not writing the deploy config to the registry
     // should remove this once the deploy config is written to the registry
     writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
-    await hyperlaneWarpDeploy(WARP_DEPLOY_CONFIG_PATH, WARP_ROUTE_ID);
+
+    await evmWarpCommands.deploy(
+      WARP_DEPLOY_CONFIG_PATH,
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      WARP_ROUTE_ID,
+    );
+    // await hyperlaneWarpDeploy(WARP_DEPLOY_CONFIG_PATH, WARP_ROUTE_ID);
 
     return warpDeployConfig;
   }
@@ -226,18 +252,23 @@ describe('hyperlane warp apply with submitters', async function () {
 
   describe(TxSubmitterType.TIMELOCK_CONTROLLER, () => {
     it('should be able to propose transactions to a timelock contract and execute them', async () => {
-      warpDeployConfig[CHAIN_NAME_3].owner = timelockInstance.address;
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = timelockInstance.address;
       await deployAndExportWarpRoute();
 
       const expectedUpdatedGasValue = '900';
-      warpDeployConfig[CHAIN_NAME_3].destinationGas = {
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
         [chain2DomainId]: expectedUpdatedGasValue,
       };
       writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
 
-      const res = await hyperlaneWarpApplyRaw({
-        strategyUrl: FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH,
+      const res = await evmWarpCommands.applyRaw({
         warpRouteId: WARP_ROUTE_ID,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+        strategyUrl: FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH,
       });
 
       // get the timelock output file from the logs
@@ -246,44 +277,48 @@ describe('hyperlane warp apply with submitters', async function () {
       const tx = await chain3Signer.sendTransaction(executeTransaction);
       await tx.wait();
 
-      const updatedWarpDeployConfig_3_2 = await readWarpConfig(
-        CHAIN_NAME_3,
+      const updatedWarpDeployConfig_3_2 = await evmWarpCommands.readConfig(
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
         WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_CONFIG_PATH,
       );
 
       expect(
-        updatedWarpDeployConfig_3_2[CHAIN_NAME_3].destinationGas![
-          chain2DomainId
-        ],
+        updatedWarpDeployConfig_3_2[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+        ].destinationGas![chain2DomainId],
       ).to.equal(expectedUpdatedGasValue);
     });
 
     it('should be able to propose transactions to a timelock contract using an ICA', async () => {
-      warpDeployConfig[CHAIN_NAME_3].owner = timelockInstance.address;
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = timelockInstance.address;
       await deployAndExportWarpRoute();
 
       // Set the timelock to use the ICA to propose txs
       formatTimelockStrategyFile({
         type: TxSubmitterType.INTERCHAIN_ACCOUNT,
-        chain: CHAIN_NAME_2,
-        destinationChain: CHAIN_NAME_3,
+        chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        destinationChain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
         owner: ownerAddress,
         internalSubmitter: {
           type: TxSubmitterType.JSON_RPC,
-          chain: CHAIN_NAME_2,
+          chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
         },
       });
 
       const expectedUpdatedGasValue = '900';
-      warpDeployConfig[CHAIN_NAME_3].destinationGas = {
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
         [chain2DomainId]: expectedUpdatedGasValue,
       };
       writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
 
-      const res = await hyperlaneWarpApplyRaw({
-        strategyUrl: FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH,
+      const res = await evmWarpCommands.applyRaw({
         warpRouteId: WARP_ROUTE_ID,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+        strategyUrl: FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH,
         relay: true,
       });
 
@@ -293,16 +328,15 @@ describe('hyperlane warp apply with submitters', async function () {
       const tx = await chain3Signer.sendTransaction(executeTransaction);
       await tx.wait();
 
-      const updatedWarpDeployConfig_3_2 = await readWarpConfig(
-        CHAIN_NAME_3,
+      const updatedWarpDeployConfig_3_2 = await evmWarpCommands.readConfig(
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
         WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_CONFIG_PATH,
       );
 
       expect(
-        updatedWarpDeployConfig_3_2[CHAIN_NAME_3].destinationGas![
-          chain2DomainId
-        ],
+        updatedWarpDeployConfig_3_2[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+        ].destinationGas![chain2DomainId],
       ).to.equal(expectedUpdatedGasValue);
     });
   });
@@ -310,32 +344,38 @@ describe('hyperlane warp apply with submitters', async function () {
   describe(TxSubmitterType.INTERCHAIN_ACCOUNT, () => {
     it('should relay the ICA transaction to update the warp on the destination chain', async () => {
       // Transfer ownership of the warp token on chain3 to the ICA account
-      warpDeployConfig[CHAIN_NAME_3].owner = chain3IcaAddress;
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = chain3IcaAddress;
       await deployAndExportWarpRoute();
 
       // Update the remote gas for chain2 on chain3 and run warp apply with an ICA strategy
       const expectedChain2Gas = '46000';
-      warpDeployConfig[CHAIN_NAME_3].destinationGas = {
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
         [chain2DomainId]: expectedChain2Gas,
       };
       writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
 
-      await hyperlaneWarpApplyRaw({
-        strategyUrl: JSON_RPC_ICA_STRATEGY_CONFIG_PATH,
+      await evmWarpCommands.applyRaw({
         warpRouteId: WARP_ROUTE_ID,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+        strategyUrl:
+          SUBMITTER_STRATEGY_FILE_PATHS_BY_PROTOCOL.ethereum
+            .JSON_RPC_ICA_STRATEGY_CONFIG_PATH,
         relay: true,
       });
 
-      const updatedWarpDeployConfig_3_2 = await readWarpConfig(
-        CHAIN_NAME_3,
+      const updatedWarpDeployConfig_3_2 = await evmWarpCommands.readConfig(
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
         WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_CONFIG_PATH,
       );
 
       expect(
-        updatedWarpDeployConfig_3_2[CHAIN_NAME_3].destinationGas![
-          chain2DomainId
-        ],
+        updatedWarpDeployConfig_3_2[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+        ].destinationGas![chain2DomainId],
       ).to.equal(expectedChain2Gas);
     });
   });

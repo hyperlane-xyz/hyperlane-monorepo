@@ -15,6 +15,7 @@ export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tes
 export const E2E_TEST_CONFIGS_PATH = './test-configs';
 export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/test-registry`;
 export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
+export const EXAMPLES_PATH = './examples';
 
 export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
@@ -219,3 +220,10 @@ export const DEFAULT_EVM_WARP_READ_OUTPUT_PATH = getWarpCoreConfigPath('ETH', [
 export const DEFAULT_EVM_WARP_DEPLOY_PATH = getWarpDeployConfigPath('ETH', [
   TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
 ]);
+
+export const SUBMITTER_STRATEGY_FILE_PATHS_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: {
+    JSON_RPC_ICA_STRATEGY_CONFIG_PATH: `${EXAMPLES_PATH}/submit/strategy/json-rpc-ica-strategy.yaml`,
+    JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH: `${EXAMPLES_PATH}/submit/strategy/json-rpc-timelock-strategy.yaml`,
+  },
+} as const satisfies ProtocolMap<Record<string, string>>;
