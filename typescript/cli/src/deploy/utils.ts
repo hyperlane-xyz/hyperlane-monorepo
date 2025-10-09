@@ -11,14 +11,12 @@ import {
   IsmConfig,
   IsmType,
   MultisigConfig,
-  TypedSigner,
   WarpRouteDeployConfig,
   isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { Address, GasAction, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
-import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
 import {
   log,
@@ -38,27 +36,23 @@ export async function runPreflightChecksForChains({
 }: {
   context: WriteCommandContext;
   chains: ChainName[];
-  minGas: typeof MINIMUM_WARP_DEPLOY_GAS;
+  minGas: GasAction;
   // Chains for which to assert a native balance
   // Defaults to all chains if not specified
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
-  const {
-    multiProvider,
-    skipConfirmation,
-    multiProtocolProvider,
-    multiProtocolSigner,
-  } = context;
-
-  assert(multiProtocolSigner, 'multiProtocolSigner not defined');
+  const { multiProvider, skipConfirmation, altVmSigner } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
 
-    const signer = multiProtocolSigner.getSpecificSigner<TypedSigner>(chain);
+    const signer =
+      metadata.protocol === ProtocolType.Ethereum
+        ? multiProvider.getSigner(chain)
+        : altVmSigner.get(chain);
 
     if (!signer) {
       throw new Error('signer is invalid');
@@ -70,8 +64,7 @@ export async function runPreflightChecksForChains({
 
   await nativeBalancesAreSufficient(
     multiProvider,
-    multiProtocolProvider,
-    multiProtocolSigner,
+    altVmSigner,
     chainsToGasCheck ?? chains,
     minGas,
     skipConfirmation,
@@ -89,9 +82,20 @@ export async function runDeployPlanStep({
     chainMetadata: chainMetadataMap,
     multiProvider,
     skipConfirmation,
+    altVmSigner,
   } = context;
 
-  const address = await multiProvider.getSigner(chain).getAddress();
+  let address: Address;
+
+  switch (context.multiProvider.getProtocol(chain)) {
+    case ProtocolType.Ethereum: {
+      address = await multiProvider.getSigner(chain).getAddress();
+      break;
+    }
+    default: {
+      address = altVmSigner.get(chain).getSignerAddress();
+    }
+  }
 
   logBlue('\nDeployment plan');
   logGray('===============');
@@ -142,26 +146,40 @@ export function isZODISMConfig(filepath: string): boolean {
   return parseIsmConfig(filepath).success;
 }
 
-export async function prepareDeploy(
+export async function getBalances(
   context: WriteCommandContext,
-  userAddress: Address | null,
   chains: ChainName[],
+  userAddress?: Address,
 ): Promise<Record<string, BigNumber>> {
-  const { multiProvider, multiProtocolSigner } = context;
-  const initialBalances: Record<string, BigNumber> = {};
+  const { multiProvider, altVmSigner } = context;
+  const balances: Record<string, BigNumber> = {};
 
   for (const chain of chains) {
-    const { nativeToken } = multiProvider.getChainMetadata(chain);
-    const address =
-      userAddress ?? (await multiProtocolSigner!.getSignerAddress(chain));
-    initialBalances[chain] = await multiProtocolSigner!.getBalance({
-      address,
-      chain,
-      denom: nativeToken?.denom,
-    });
+    const { nativeToken, protocol } = multiProvider.getChainMetadata(chain);
+
+    if (protocol === ProtocolType.Ethereum) {
+      const address =
+        userAddress ?? (await multiProvider.getSignerAddress(chain));
+      const provider = await multiProvider.getProvider(chain);
+      balances[chain] = await provider.getBalance(address);
+    } else {
+      assert(
+        nativeToken?.denom,
+        `nativeToken.denom is required for ${chain} (AltVM)`,
+      );
+
+      const signer = altVmSigner.get(chain);
+      const address = userAddress ?? signer.getSignerAddress();
+      balances[chain] = BigNumber.from(
+        await signer.getBalance({
+          address,
+          denom: nativeToken?.denom ?? '',
+        }),
+      );
+    }
   }
 
-  return initialBalances;
+  return balances;
 }
 
 export async function completeDeploy(
@@ -171,21 +189,13 @@ export async function completeDeploy(
   userAddress: Address | null,
   chains: ChainName[],
 ) {
-  const { multiProvider, multiProtocolSigner } = context;
-  assert(multiProtocolSigner, `multiProtocolSigner not defined`);
+  const { multiProvider } = context;
 
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
     const { nativeToken } = multiProvider.getChainMetadata(chain);
-    const address = userAddress
-      ? userAddress
-      : await multiProtocolSigner.getSignerAddress(chain);
-    const currentBalance = await multiProtocolSigner!.getBalance({
-      address,
-      chain,
-      denom: nativeToken?.denom,
-    });
-    const balanceDelta = initialBalances[chain].sub(currentBalance);
+    const currentBalances = await getBalances(context, [chain]);
+    const balanceDelta = initialBalances[chain].sub(currentBalances[chain]);
 
     logPink(
       `\t- Gas required for ${command} deploy on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${

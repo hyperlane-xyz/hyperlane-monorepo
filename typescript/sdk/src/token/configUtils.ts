@@ -2,9 +2,11 @@ import { zeroAddress } from 'viem';
 
 import {
   Address,
+  AltVM,
   ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
+  assert,
   deepCopy,
   intersection,
   isAddressEvm,
@@ -18,11 +20,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
-import { CosmosNativeHookReader } from '../hook/CosmosNativeHookReader.js';
+import { AltVMHookReader } from '../hook/AltVMHookReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import { CosmosNativeIsmReader } from '../ism/CosmosNativeIsmReader.js';
+import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
@@ -49,9 +50,18 @@ import {
 const getGasConfig = (
   warpDeployConfig: WarpRouteDeployConfig,
   chain: string,
-): string =>
-  warpDeployConfig[chain].gas?.toString() ||
-  gasOverhead(warpDeployConfig[chain].type).toString();
+): string => {
+  const chainDeployConfig = warpDeployConfig[chain];
+  assert(
+    chainDeployConfig,
+    `Deploy config not found for chain ${chain}. Unable to get gas config`,
+  );
+
+  return (
+    chainDeployConfig.gas?.toString() ||
+    gasOverhead(chainDeployConfig.type).toString()
+  );
+};
 
 /**
  * Returns default router addresses and gas values for cross-chain communication.
@@ -68,15 +78,23 @@ export function getDefaultRemoteRouterAndDestinationGasConfig(
   const remoteRouters: RemoteRouters = {};
   const destinationGas: DestinationGas = {};
 
-  const otherChains = multiProvider
-    .getRemoteChains(chain)
-    .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
+  const otherChains = multiProvider.getRemoteChains(chain).filter(
+    (remoteChain) =>
+      // Include chains that specify foreignDeployment so that they can be enrolled
+      // in the current deployment/update
+      Object.keys(deployedRoutersAddresses).includes(remoteChain) ||
+      warpDeployConfig[remoteChain]?.foreignDeployment,
+  );
 
   for (const otherChain of otherChains) {
     const domainId = multiProvider.getDomainId(otherChain);
 
     remoteRouters[domainId] = {
-      address: deployedRoutersAddresses[otherChain],
+      address:
+        // Include chains that specify foreignDeployment so that the gas configuration
+        // can be in the current deployment/update
+        deployedRoutersAddresses[otherChain] ??
+        warpDeployConfig[otherChain].foreignDeployment,
     };
 
     destinationGas[domainId] = getGasConfig(warpDeployConfig, otherChain);
@@ -113,14 +131,14 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  multiProtocolProvider: MultiProtocolProvider;
+  altVmProvider: AltVM.IProviderFactory;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
-    multiProtocolProvider,
+    altVmProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
@@ -252,16 +270,11 @@ export async function expandWarpDeployConfig(params: {
             chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
             break;
           }
-          case ProtocolType.CosmosNative: {
-            const provider =
-              await multiProtocolProvider.getCosmJsNativeProvider(chain);
-
-            const reader = new CosmosNativeHookReader(multiProvider, provider);
-            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
-            break;
-          }
           default: {
-            throw new Error(`Protocol type ${protocol} not supported`);
+            const provider = await altVmProvider.get(chain);
+
+            const reader = new AltVMHookReader(multiProvider, provider);
+            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
           }
         }
       }
@@ -280,18 +293,13 @@ export async function expandWarpDeployConfig(params: {
             );
             break;
           }
-          case ProtocolType.CosmosNative: {
-            const provider =
-              await multiProtocolProvider.getCosmJsNativeProvider(chain);
+          default: {
+            const provider = await altVmProvider.get(chain);
 
-            const reader = new CosmosNativeIsmReader(multiProvider, provider);
+            const reader = new AltVMIsmReader(multiProvider, provider);
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
               chainConfig.interchainSecurityModule,
             );
-            break;
-          }
-          default: {
-            throw new Error(`Protocol type ${protocol} not supported`);
           }
         }
       }
