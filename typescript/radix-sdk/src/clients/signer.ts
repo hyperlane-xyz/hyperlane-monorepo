@@ -13,6 +13,7 @@ import {
 import {
   generateNewEd25519VirtualAccount,
   stringToTransactionManifest,
+  transactionManifestToString,
 } from '../utils/utils.js';
 import { RadixWarpTx } from '../warp/tx.js';
 
@@ -87,6 +88,26 @@ export class RadixSigner
 
   supportsTransactionBatching(): boolean {
     return false;
+  }
+
+  async transactionToPrintableJson(
+    transaction: RadixSDKTransaction,
+  ): Promise<object> {
+    let manifest: string;
+
+    if (typeof transaction.manifest === 'string') {
+      manifest = transaction.manifest;
+    } else {
+      manifest = await transactionManifestToString(
+        transaction.manifest,
+        this.networkId,
+      );
+    }
+
+    return {
+      networkId: this.networkId,
+      manifest,
+    };
   }
 
   async sendAndConfirmTransaction(

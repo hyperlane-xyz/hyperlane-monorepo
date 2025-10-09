@@ -25,7 +25,11 @@ import {
   assert,
 } from '@hyperlane-xyz/utils';
 
-import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
+import { AltVMFileSubmitter } from '../submitters/AltVMFileSubmitter.js';
+import {
+  CustomTxSubmitterType,
+  ExtendedChainSubmissionStrategy,
+} from '../submitters/types.js';
 
 import { SignerKeyProtocolMap } from './types.js';
 
@@ -252,6 +256,12 @@ export class AltVMSignerFactory
             `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
           );
           return new AltVMJsonRpcTxSubmitter(multiProvider, this, metadata);
+        },
+        [CustomTxSubmitterType.FILE]: (
+          _multiProvider: MultiProvider,
+          metadata: any,
+        ) => {
+          return new AltVMFileSubmitter(this, metadata);
         },
       };
     }

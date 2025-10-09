@@ -12,7 +12,7 @@ import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
-  implements TxSubmitterInterface<any>
+  implements TxSubmitterInterface<PT>
 {
   public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.JSON_RPC;
 
