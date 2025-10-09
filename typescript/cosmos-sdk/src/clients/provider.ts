@@ -159,7 +159,11 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     ).toNumber();
 
     const gasPrice = parseFloat(req.estimatedGasPrice.toString());
-    return { gasUnits, gasPrice, fee: Math.floor(gasUnits * gasPrice) };
+    return {
+      gasUnits: BigInt(gasUnits),
+      gasPrice,
+      fee: BigInt(Math.floor(gasUnits * gasPrice)),
+    };
   }
 
   // ### QUERY CORE ###

@@ -13,9 +13,9 @@ export type ReqEstimateTransactionFee<T> = {
   senderPubKey?: string;
 };
 export type ResEstimateTransactionFee = {
-  gasUnits: number;
+  gasUnits: bigint;
   gasPrice: number;
-  fee: number;
+  fee: bigint;
 };
 
 // ### QUERY CORE ###

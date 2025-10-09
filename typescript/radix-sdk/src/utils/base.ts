@@ -63,7 +63,7 @@ export class RadixBase {
     transactionManifest,
   }: {
     transactionManifest: TransactionManifest | string;
-  }): Promise<{ gasUnits: number; gasPrice: number; fee: number }> {
+  }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
     const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
@@ -126,8 +126,8 @@ export class RadixBase {
       0.5; // average out the cost parameters to get a more accurate estimate
 
     return {
-      gasUnits: Number(gasUnits),
-      fee: Number(fee),
+      gasUnits,
+      fee,
       gasPrice,
     };
   }
