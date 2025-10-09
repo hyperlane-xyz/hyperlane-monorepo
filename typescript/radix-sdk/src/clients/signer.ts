@@ -87,6 +87,10 @@ export class RadixSigner
   async sendAndConfirmTransaction(
     transaction: RadixSDKTransaction,
   ): Promise<RadixSDKReceipt> {
+    assert(
+      transaction.networkId === this.networkId,
+      `Transaction networkId (${transaction.networkId}) does not match signer networkId (${this.networkId})`,
+    );
     return this.signer.signAndBroadcast(transaction.manifest);
   }
 

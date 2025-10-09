@@ -146,7 +146,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
       await this.base.pollForCommit(req.messageId);
       return true;
     } catch {
-      return true;
+      return false;
     }
   }
 

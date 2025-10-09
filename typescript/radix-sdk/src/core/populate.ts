@@ -124,7 +124,7 @@ export class RadixCorePopulate {
       [
         array(
           ValueKind.Tuple,
-          ...routes.map((r) => tuple(u32(r.ismAddress), address(r.domainId))),
+          ...routes.map((r) => tuple(u32(r.domainId), address(r.ismAddress))),
         ),
       ],
     );
