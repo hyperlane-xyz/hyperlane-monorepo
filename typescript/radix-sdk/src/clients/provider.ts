@@ -143,12 +143,10 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
-    try {
-      await this.base.pollForCommit(req.messageId);
-      return true;
-    } catch {
-      return false;
-    }
+    return this.query.core.isMessageDelivered({
+      mailbox: req.mailboxAddress,
+      message_id: req.messageId,
+    });
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {

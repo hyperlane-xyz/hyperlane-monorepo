@@ -98,16 +98,18 @@ export interface EntityDetails {
 
 export interface Receipt {
   output: {
-    programmatic_json: {
-      entries: {
-        key: {
-          value: any;
-        };
-        value: {
-          value: any;
-        };
-      }[];
-    };
+    programmatic_json:
+      | {
+          entries: {
+            key: {
+              value: any;
+            };
+            value: {
+              value: any;
+            };
+          }[];
+        }
+      | { kind: string; value: any };
   }[];
   error_message?: string;
 }
