@@ -144,15 +144,11 @@ export class RadixCoreQuery {
       fields.find((f) => f.field_name === 'routes')?.value ?? '';
     assert(routesKeyValueStore, `found no routes on RoutingIsm ${ism}`);
 
-    const { items } = await this.gateway.state.innerClient.keyValueStoreKeys({
-      stateKeyValueStoreKeysRequest: {
-        key_value_store_address: routesKeyValueStore,
-      },
-    });
+    const keys = await this.base.getKeysFromKeyValueStore(routesKeyValueStore);
 
     const routes = [];
 
-    for (const { key } of items) {
+    for (const key of keys) {
       const { entries } =
         await this.gateway.state.innerClient.keyValueStoreData({
           stateKeyValueStoreDataRequest: {
@@ -240,13 +236,11 @@ export class RadixCoreQuery {
 
     const destinationGasConfigs = {};
 
-    const { items } = await this.gateway.state.innerClient.keyValueStoreKeys({
-      stateKeyValueStoreKeysRequest: {
-        key_value_store_address: destinationGasConfigsKeyValueStore,
-      },
-    });
+    const keys = await this.base.getKeysFromKeyValueStore(
+      destinationGasConfigsKeyValueStore,
+    );
 
-    for (const { key } of items) {
+    for (const key of keys) {
       const { entries } =
         await this.gateway.state.innerClient.keyValueStoreData({
           stateKeyValueStoreDataRequest: {

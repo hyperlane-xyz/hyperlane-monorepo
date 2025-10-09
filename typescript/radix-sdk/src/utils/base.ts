@@ -1,6 +1,8 @@
 import { CostingParameters, FeeSummary } from '@radixdlt/babylon-core-api-sdk';
 import {
   GatewayApiClient,
+  LedgerStateSelector,
+  ScryptoSborValue,
   TransactionStatusResponse,
 } from '@radixdlt/babylon-gateway-api-sdk';
 import {
@@ -21,7 +23,7 @@ import { BigNumber } from 'bignumber.js';
 import { Decimal } from 'decimal.js';
 import { utils } from 'ethers';
 
-import { assert, retryAsync } from '@hyperlane-xyz/utils';
+import { assert, retryAsync, sleep } from '@hyperlane-xyz/utils';
 
 import { EntityDetails, INSTRUCTIONS } from './types.js';
 
@@ -446,5 +448,34 @@ export class RadixBase {
           ]),
       )
       .build();
+  }
+
+  public async getKeysFromKeyValueStore(
+    key_value_store_address: string,
+  ): Promise<ScryptoSborValue[]> {
+    let cursor: string | null = null;
+    let at_ledger_state: LedgerStateSelector | null = null;
+    let keys = [];
+
+    while (true) {
+      const { items, next_cursor, ledger_state } =
+        await this.gateway.state.innerClient.keyValueStoreKeys({
+          stateKeyValueStoreKeysRequest: {
+            key_value_store_address,
+            at_ledger_state,
+            cursor,
+          },
+        });
+
+      keys.push(...items.map((i) => i.key));
+
+      if (!next_cursor) {
+        return keys;
+      }
+
+      cursor = next_cursor;
+      at_ledger_state = { state_version: ledger_state.state_version };
+      await sleep(50);
+    }
   }
 }

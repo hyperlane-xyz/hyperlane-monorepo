@@ -135,13 +135,11 @@ export class RadixWarpQuery {
 
     const remoteRouters = [];
 
-    const { items } = await this.gateway.state.innerClient.keyValueStoreKeys({
-      stateKeyValueStoreKeysRequest: {
-        key_value_store_address: enrolledRoutersKeyValueStore,
-      },
-    });
+    const keys = await this.base.getKeysFromKeyValueStore(
+      enrolledRoutersKeyValueStore,
+    );
 
-    for (const { key } of items) {
+    for (const key of keys) {
       const { entries } =
         await this.gateway.state.innerClient.keyValueStoreData({
           stateKeyValueStoreDataRequest: {
