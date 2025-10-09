@@ -165,7 +165,7 @@ export function useRadixTransactionFns(
       assert(rdt, `radix dapp toolkit is not defined`);
       assert(gatewayApi, `gateway api is not defined`);
 
-      const transaction = tx.transaction as never as RadixSDKTransaction;
+      const transaction = tx.transaction as RadixSDKTransaction;
       const transactionManifest = await transactionManifestToString(
         transaction.manifest,
         transaction.networkId,

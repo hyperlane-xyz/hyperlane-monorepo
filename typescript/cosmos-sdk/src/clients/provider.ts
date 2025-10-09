@@ -126,6 +126,14 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     req: AltVM.ReqEstimateTransactionFee<EncodeObject>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
     assert(
+      req.estimatedGasPrice,
+      `Cosmos Native requires a estimatedGasPrice to estimate the transaction fee`,
+    );
+    assert(
+      req.senderAddress,
+      `Cosmos Native requires a senderAddress to estimate the transaction fee`,
+    );
+    assert(
       req.senderPubKey,
       `Cosmos Native requires a sender public key to estimate the transaction fee`,
     );
@@ -412,8 +420,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     const { gas_payment } = await this.query.warp.QuoteRemoteTransfer({
       id: req.tokenAddress,
       destination_domain: req.destinationDomainId.toString(),
-      custom_hook_id: req.customHookAddress,
-      custom_hook_metadata: req.customHookMetadata,
+      custom_hook_id: req.customHookAddress || '',
+      custom_hook_metadata: req.customHookMetadata || '',
     });
     assert(
       gas_payment && gas_payment[0],

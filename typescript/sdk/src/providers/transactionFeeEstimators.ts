@@ -274,8 +274,6 @@ export async function estimateTransactionFeeRadix({
 }): Promise<TransactionFeeEstimate> {
   return provider.provider.estimateTransactionFee({
     transaction: transaction.transaction,
-    estimatedGasPrice: '',
-    senderAddress: '',
   });
 }
 

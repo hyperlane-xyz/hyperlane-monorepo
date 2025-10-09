@@ -400,9 +400,9 @@ export class RadixSigner
       destination_domain: req.destinationDomainId,
       recipient: req.recipient,
       amount: req.amount,
-      custom_hook_id: req.customHookAddress,
+      custom_hook_id: req.customHookAddress || '',
       gas_limit: req.gasLimit,
-      custom_hook_metadata: req.customHookMetadata,
+      custom_hook_metadata: req.customHookMetadata || '',
       max_fee: req.maxFee,
     });
 

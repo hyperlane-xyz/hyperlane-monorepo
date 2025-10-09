@@ -8,8 +8,8 @@ export type ReqGetTotalSupply = { denom: string };
 
 export type ReqEstimateTransactionFee<T> = {
   transaction: T;
-  estimatedGasPrice: string;
-  senderAddress: string;
+  estimatedGasPrice?: string;
+  senderAddress?: string;
   senderPubKey?: string;
 };
 export type ResEstimateTransactionFee = {
@@ -176,8 +176,8 @@ export type ReqGetBridgedSupply = { tokenAddress: string };
 export type ReqQuoteRemoteTransfer = {
   tokenAddress: string;
   destinationDomainId: number;
-  customHookAddress: string;
-  customHookMetadata: string;
+  customHookAddress?: string;
+  customHookMetadata?: string;
 };
 export type ResQuoteRemoteTransfer = { denom: string; amount: bigint };
 
@@ -420,10 +420,10 @@ export type ReqRemoteTransfer = {
   destinationDomainId: number;
   recipient: string;
   amount: string;
-  customHookAddress: string;
   gasLimit: string;
-  customHookMetadata: string;
   maxFee: { denom: string; amount: string };
+  customHookAddress?: string;
+  customHookMetadata?: string;
 };
 export type ResRemoteTransfer = {
   tokenAddress: string;

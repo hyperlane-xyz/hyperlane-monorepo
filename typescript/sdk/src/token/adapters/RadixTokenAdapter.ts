@@ -194,8 +194,6 @@ export class RadixHypCollateralAdapter
       await this.provider.quoteRemoteTransfer({
         tokenAddress: this.tokenAddress,
         destinationDomainId: destination,
-        customHookAddress: '',
-        customHookMetadata: '',
       });
 
     return {
@@ -241,11 +239,10 @@ export class RadixHypCollateralAdapter
       destinationDomainId: params.destination,
       recipient: strip0x(addressToBytes32(params.recipient)),
       amount: params.weiAmountOrId.toString(),
-      customHookAddress: params.customHook || '',
-      customHookMetadata: '',
+      customHookAddress: params.customHook,
       gasLimit: router.gas,
       maxFee: {
-        denom: params.interchainGas.addressOrDenom || '',
+        denom: params.interchainGas.addressOrDenom,
         // convert the attos back to a Decimal with scale 18
         amount: new BigNumber(params.interchainGas.amount.toString())
           .div(new BigNumber(10).pow(18))

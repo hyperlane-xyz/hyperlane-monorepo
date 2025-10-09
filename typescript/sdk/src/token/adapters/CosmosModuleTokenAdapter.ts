@@ -25,8 +25,6 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
-const COSMOS_EMPTY_VALUE = '';
-
 class CosmosModuleTokenAdapter
   extends BaseCosmNativeAdapter
   implements ITokenAdapter<MsgSendEncodeObject>
@@ -204,8 +202,7 @@ export class CosmNativeHypCollateralAdapter
       await provider.quoteRemoteTransfer({
         tokenAddress: this.tokenAddress,
         destinationDomainId: destination,
-        customHookAddress: customHook || COSMOS_EMPTY_VALUE,
-        customHookMetadata: COSMOS_EMPTY_VALUE,
+        customHookAddress: customHook,
       });
 
     return {
@@ -265,11 +262,10 @@ export class CosmNativeHypCollateralAdapter
         destinationProtocol,
       ),
       amount: params.weiAmountOrId.toString(),
-      customHookAddress: params.customHook || '',
-      customHookMetadata: '',
+      customHookAddress: params.customHook,
       gasLimit: router.gas,
       maxFee: {
-        denom: params.interchainGas.addressOrDenom || '',
+        denom: params.interchainGas.addressOrDenom,
         amount: params.interchainGas.amount.toString(),
       },
     });
