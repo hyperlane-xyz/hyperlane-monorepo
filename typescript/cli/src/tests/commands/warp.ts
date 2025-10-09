@@ -194,4 +194,31 @@ export class HyperlaneE2EWarpTestCommands {
           ${extraArgs ? extraArgs : []}
           `;
   }
+
+  sendAndRelay({
+    relay = true,
+    destination,
+    origin,
+    value = 1,
+    warpCorePath,
+    privateKey,
+  }: {
+    origin: string;
+    destination: string;
+    warpCorePath: string;
+    relay?: boolean;
+    value?: number | string;
+    privateKey?: string;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp send \
+          ${relay ? '--relay' : []} \
+          --registry ${this.registryPath} \
+          --origin ${origin} \
+          --destination ${destination} \
+          --warp ${warpCorePath} \
+          ${privateKey ? [this.privateKeyFlag, privateKey] : []} \ \
+          --verbosity debug \
+          --yes \
+          --amount ${value}`;
+  }
 }
