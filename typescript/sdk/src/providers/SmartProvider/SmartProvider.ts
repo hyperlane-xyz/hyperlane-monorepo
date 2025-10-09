@@ -346,36 +346,8 @@ export class HyperlaneSmartProvider
     }
 
     // Phase 2: All providers already triggered, wait for one to complete or all to fail/timeout
-    if (providerResultPromises.length > 0) {
-      const timeoutPromise = timeoutResult(
-        this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
-        DEFAULT_PHASE2_WAIT_MULTIPLIER,
-      );
-      const resultPromise = this.waitForProviderSuccess(providerResultPromises);
-      const result = await Promise.race([resultPromise, timeoutPromise]);
-
-      if (result.status === ProviderStatus.Success) {
-        return result.value;
-      } else if (result.status === ProviderStatus.Timeout) {
-        const CombinedError = this.getCombinedProviderError(
-          [result, ...providerResultErrors],
-          `All providers timed out on chain ${this.network.name} for method ${method}`,
-        );
-        throw new CombinedError();
-      } else if (result.status === ProviderStatus.Error) {
-        const CombinedError = this.getCombinedProviderError(
-          [result.error, ...providerResultErrors],
-          `All providers failed on chain ${
-            this.network.name
-          } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
-        );
-        throw new CombinedError();
-      } else {
-        throw new Error('Unexpected result from provider');
-      }
-
-      // All providers have already failed, all hope is lost
-    } else {
+    // If no providers are left, all have already failed
+    if (providerResultPromises.length === 0) {
       const CombinedError = this.getCombinedProviderError(
         providerResultErrors,
         `All providers failed on chain ${
@@ -383,6 +355,37 @@ export class HyperlaneSmartProvider
         } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
       );
       throw new CombinedError();
+    }
+
+    // Wait for at least one provider to succeed or all to fail/timeout
+    const timeoutPromise = timeoutResult(
+      this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
+      DEFAULT_PHASE2_WAIT_MULTIPLIER,
+    );
+    const resultPromise = this.waitForProviderSuccess(providerResultPromises);
+    const result = await Promise.race([resultPromise, timeoutPromise]);
+
+    switch (result.status) {
+      case ProviderStatus.Success:
+        return result.value;
+      case ProviderStatus.Timeout: {
+        const CombinedError = this.getCombinedProviderError(
+          [result, ...providerResultErrors],
+          `All providers timed out on chain ${this.network.name} for method ${method}`,
+        );
+        throw new CombinedError();
+      }
+      case ProviderStatus.Error: {
+        const CombinedError = this.getCombinedProviderError(
+          [result.error, ...providerResultErrors],
+          `All providers failed on chain ${
+            this.network.name
+          } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+        );
+        throw new CombinedError();
+      }
+      default:
+        throw new Error('Unexpected result from provider');
     }
   }
 
