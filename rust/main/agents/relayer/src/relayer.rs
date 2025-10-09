@@ -145,6 +145,8 @@ impl BaseAgent for Relayer {
     {
         Self::reset_critical_errors(&settings, &chain_metrics);
 
+        tracing::debug!(?settings.metric_app_contexts, "metricAppContexts");
+
         let start = Instant::now();
 
         let core = settings.build_hyperlane_core(core_metrics.clone());
