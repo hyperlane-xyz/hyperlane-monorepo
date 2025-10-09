@@ -61,7 +61,10 @@ export class BlockchainError extends Error {
 
   constructor(message: string, options?: { cause?: Error }) {
     super(message, options);
-    this.name = 'BlockchainError';
+  }
+
+  static {
+    this.prototype.name = this.name;
   }
 }
 
