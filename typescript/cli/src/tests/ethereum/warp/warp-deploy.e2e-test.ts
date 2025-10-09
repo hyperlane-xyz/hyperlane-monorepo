@@ -27,47 +27,45 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, normalizeAddressEvm } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  normalizeAddressEvm,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,
   TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
-import { deployOrUseExistingCore } from '../commands/core.js';
+import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
-  GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH,
-  deploy4626Vault,
-  deployToken,
-} from '../commands/helpers.js';
-import {
-  hyperlaneWarpDeploy,
-  hyperlaneWarpDeployRaw,
-  hyperlaneWarpSendRelay,
-  readWarpConfig,
-} from '../commands/warp.js';
-import {
-  ANVIL_KEY,
-  CHAIN_2_METADATA_PATH,
-  CHAIN_3_METADATA_PATH,
-  CHAIN_NAME_2,
-  CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
+  CORE_CONFIG_PATH_BY_PROTOCOL,
+  CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
+  DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
+  HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
   TEMP_PATH,
+  TEST_CHAIN_METADATA_BY_PROTOCOL,
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
+  WARP_DEPLOY_DEFAULT_FILE_NAME,
   WARP_DEPLOY_OUTPUT_PATH,
-} from '../consts.js';
+  getWarpCoreConfigPath,
+  getWarpDeployConfigPath,
+} from '../../constants.js';
+import { deploy4626Vault, deployToken } from '../commands/helpers.js';
+import { readWarpConfig } from '../commands/warp.js';
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 chai.should();
 
-const WARP_CORE_CONFIG_PATH_2_3 = GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
-  WARP_DEPLOY_OUTPUT_PATH,
-  'VAULT',
-);
+const WARP_CORE_CONFIG_PATH_2_3 = getWarpCoreConfigPath('VAULT', [
+  WARP_DEPLOY_DEFAULT_FILE_NAME,
+]);
 
 describe('hyperlane warp deploy e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -80,18 +78,43 @@ describe('hyperlane warp deploy e2e tests', async function () {
   let walletChain2: Wallet;
   let providerChain2: JsonRpcProvider;
 
+  const evmChain1Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+  );
+  const evmChain2Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+  );
+
+  const evmWarpCommands = new HyperlaneE2EWarpTestCommands(
+    ProtocolType.Ethereum,
+    REGISTRY_PATH,
+    DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
+  );
+
   before(async function () {
-    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chain2Metadata: ChainMetadata =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
     providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
-    walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
+    walletChain2 = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).connect(
+      providerChain2,
+    );
     ownerAddress = walletChain2.address;
 
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    const chain3Metadata: ChainMetadata =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
     chain3DomainId = chain3Metadata.domainId;
 
     [chain2Addresses, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      evmChain1Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
+      evmChain2Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
     ]);
   });
 
@@ -101,10 +124,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
     chainName: ChainName,
     expectedMetadata: { decimals: number; symbol: string },
   ): Promise<void> {
-    const currentWarpDeployConfig = await readWarpConfig(
+    const currentWarpDeployConfig = await evmWarpCommands.readConfig(
       chainName,
       warpCoreConfigPath,
-      WARP_DEPLOY_OUTPUT_PATH,
     );
 
     expect(currentWarpDeployConfig[chainName].type).to.equal(
@@ -117,7 +139,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       warpDeployConfig[chainName].symbol ?? expectedMetadata.symbol,
     );
     expect(currentWarpDeployConfig[chainName].mailbox).to.equal(
-      chainName === CHAIN_NAME_2
+      chainName === TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
         ? chain2Addresses.mailbox
         : chain3Addresses.mailbox,
     );
@@ -143,9 +165,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: nonExistingFilePath,
-      })
+      const output = evmWarpCommands
+        .deployRaw({
+          warpDeployPath: nonExistingFilePath,
+        })
         .stdio('pipe')
         .nothrow();
 
@@ -159,22 +182,22 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     it(`should exit early when the provided scale is incorrect`, async function () {
       const tokenFiat = await deployToken(
-        ANVIL_KEY,
-        CHAIN_NAME_2,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
         9,
         'TOKEN.E',
         'FIAT TOKEN',
       );
       const token = await deployToken(
-        ANVIL_KEY,
-        CHAIN_NAME_3,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
         18,
         'TOKEN',
         'TOKEN',
       );
 
       const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateralFiat,
           token: tokenFiat.address,
           mailbox: chain2Addresses.mailbox,
@@ -182,7 +205,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           decimals: 9,
           scale: 1,
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.collateral,
           token: token.address,
           mailbox: chain3Addresses.mailbox,
@@ -198,12 +221,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+          input: `${HYP_KEY_BY_PROTOCOL.ethereum}${KeyBoardKeys.ENTER}`,
         },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+          input: `${HYP_KEY_BY_PROTOCOL.ethereum}${KeyBoardKeys.ENTER}`,
         },
         {
           check: (currentOutput) =>
@@ -213,9 +236,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ];
 
       // Deploy
-      const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
+      const output = evmWarpCommands
+        .deployRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        })
         .stdio('pipe')
         .nothrow();
 
@@ -230,26 +254,39 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
 
     it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
-      const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+      const token = await deployToken(
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      );
 
       const [expectedTokenSymbol, expectedTokenDecimals] = await Promise.all([
         token.symbol(),
         token.decimals(),
       ]);
-      const COMBINED_WARP_CORE_CONFIG_PATH =
-        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
-          WARP_DEPLOY_OUTPUT_PATH,
-          expectedTokenSymbol,
-        );
+      const COMBINED_WARP_CORE_CONFIG_PATH = getWarpCoreConfigPath(
+        expectedTokenSymbol,
+        [
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        ],
+      );
+
+      const WARP_DEPLOY_OUTPUT_PATH = getWarpDeployConfigPath(
+        expectedTokenSymbol,
+        [
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        ],
+      );
 
       const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateral,
           token: token.address,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.synthetic,
           mailbox: chain3Addresses.mailbox,
           owner: ownerAddress,
@@ -262,12 +299,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+          input: `${HYP_KEY_BY_PROTOCOL.ethereum}${KeyBoardKeys.ENTER}`,
         },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+          input: `${HYP_KEY_BY_PROTOCOL.ethereum}${KeyBoardKeys.ENTER}`,
         },
         {
           check: (currentOutput) =>
@@ -277,9 +314,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ];
 
       // Deploy
-      const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
+      const output = evmWarpCommands
+        .deployRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        })
         .stdio('pipe')
         .nothrow();
 
@@ -287,7 +325,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Assertions
       expect(finalOutput.exitCode).to.equal(0);
-      for (const chainName of [CHAIN_NAME_2, CHAIN_NAME_3]) {
+      for (const chainName of [
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      ]) {
         await assertWarpRouteConfig(
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
@@ -298,16 +339,19 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
 
     it(`should successfully deploy a warp route with a custom warp route id`, async function () {
-      const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+      const token = await deployToken(
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      );
 
       const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateral,
           token: token.address,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.synthetic,
           mailbox: chain3Addresses.mailbox,
           owner: ownerAddress,
@@ -321,12 +365,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+          input: `${HYP_KEY_BY_PROTOCOL.ethereum}${KeyBoardKeys.ENTER}`,
         },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+          input: `${HYP_KEY_BY_PROTOCOL.ethereum}${KeyBoardKeys.ENTER}`,
         },
         {
           check: (currentOutput) =>
@@ -336,9 +380,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ];
 
       // Deploy
-      const output = hyperlaneWarpDeployRaw({
-        warpRouteId,
-      })
+      const output = evmWarpCommands
+        .deployRaw({
+          warpRouteId,
+        })
         .stdio('pipe')
         .nothrow();
 
@@ -353,15 +398,15 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     it(`should successfully deploy a ${TokenType.collateralFiat} -> ${TokenType.collateral} warp route`, async function () {
       const tokenFiat = await deployToken(
-        ANVIL_KEY,
-        CHAIN_NAME_2,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
         9,
         'TOKEN.E',
         'FIAT TOKEN',
       );
       const token = await deployToken(
-        ANVIL_KEY,
-        CHAIN_NAME_3,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
         9,
         'TOKEN',
         'TOKEN',
@@ -377,20 +422,30 @@ describe('hyperlane warp deploy e2e tests', async function () {
         tokenFiat.symbol(),
       ]);
 
-      const COMBINED_WARP_CORE_CONFIG_PATH =
-        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
-          WARP_DEPLOY_OUTPUT_PATH,
-          expectedTokenSymbol,
-        );
+      const COMBINED_WARP_CORE_CONFIG_PATH = getWarpCoreConfigPath(
+        expectedTokenSymbol,
+        [
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        ],
+      );
+
+      const WARP_DEPLOY_OUTPUT_PATH = getWarpDeployConfigPath(
+        expectedTokenSymbol,
+        [
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        ],
+      );
 
       const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateralFiat,
           token: tokenFiat.address,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.collateral,
           token: token.address,
           mailbox: chain3Addresses.mailbox,
@@ -404,12 +459,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+          input: `${HYP_KEY_BY_PROTOCOL.ethereum}${KeyBoardKeys.ENTER}`,
         },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+          input: `${HYP_KEY_BY_PROTOCOL.ethereum}${KeyBoardKeys.ENTER}`,
         },
         {
           check: (currentOutput) =>
@@ -419,9 +474,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ];
 
       // Deploy
-      const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-      })
+      const output = evmWarpCommands
+        .deployRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        })
         .stdio('pipe')
         .nothrow();
 
@@ -430,43 +486,69 @@ describe('hyperlane warp deploy e2e tests', async function () {
       // Assertions
       expect(finalOutput.exitCode).to.equal(0);
 
-      const collateralFiatWarpDeployConfig = await readWarpConfig(
-        CHAIN_NAME_2,
+      const collateralFiatWarpDeployConfig = await evmWarpCommands.readConfig(
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
         COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
       );
 
-      const collateralWarpDeployConfig = await readWarpConfig(
-        CHAIN_NAME_3,
+      const collateralWarpDeployConfig = await evmWarpCommands.readConfig(
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
         COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
       );
 
       // Used collateral type to deploy, which is why this check is skipped
       // expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].type).to.equal(
       //   warpConfig[CHAIN_NAME_2].type,
       // );
-      expect(collateralWarpDeployConfig[CHAIN_NAME_3].type).to.equal(
-        warpConfig[CHAIN_NAME_3].type,
+      expect(
+        collateralWarpDeployConfig[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+        ].type,
+      ).to.equal(
+        warpConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3].type,
       );
-      expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].decimals).to.equal(
-        warpConfig[CHAIN_NAME_2].decimals ?? expectedTokenDecimals,
+      expect(
+        collateralFiatWarpDeployConfig[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+        ].decimals,
+      ).to.equal(
+        warpConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .decimals ?? expectedTokenDecimals,
       );
-      expect(collateralWarpDeployConfig[CHAIN_NAME_3].decimals).to.equal(
-        warpConfig[CHAIN_NAME_3].decimals ?? expectedTokenDecimals,
+      expect(
+        collateralWarpDeployConfig[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+        ].decimals,
+      ).to.equal(
+        warpConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .decimals ?? expectedTokenDecimals,
       );
-      expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].symbol).to.equal(
-        warpConfig[CHAIN_NAME_2].symbol ?? expectedCollateralFiatTokenSymbol,
+      expect(
+        collateralFiatWarpDeployConfig[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+        ].symbol,
+      ).to.equal(
+        warpConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2].symbol ??
+          expectedCollateralFiatTokenSymbol,
       );
-      expect(collateralWarpDeployConfig[CHAIN_NAME_3].symbol).to.equal(
-        warpConfig[CHAIN_NAME_3].symbol ?? expectedTokenSymbol,
+      expect(
+        collateralWarpDeployConfig[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+        ].symbol,
+      ).to.equal(
+        warpConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3].symbol ??
+          expectedTokenSymbol,
       );
-      expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].mailbox).to.equal(
-        chain2Addresses.mailbox,
-      );
-      expect(collateralWarpDeployConfig[CHAIN_NAME_3].mailbox).to.equal(
-        chain3Addresses.mailbox,
-      );
+      expect(
+        collateralFiatWarpDeployConfig[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+        ].mailbox,
+      ).to.equal(chain2Addresses.mailbox);
+      expect(
+        collateralWarpDeployConfig[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+        ].mailbox,
+      ).to.equal(chain3Addresses.mailbox);
     });
   });
 
@@ -490,10 +572,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: nonExistingFilePath,
-        skipConfirmationPrompts: true,
-      })
+      const output = evmWarpCommands
+        .deployRaw({
+          warpDeployPath: nonExistingFilePath,
+          skipConfirmationPrompts: true,
+        })
         .stdio('pipe')
         .nothrow();
 
@@ -506,27 +589,40 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
 
     it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
-      const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+      const token = await deployToken(
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      );
 
       const [expectedTokenSymbol, expectedTokenDecimals] = await Promise.all([
         token.symbol(),
         token.decimals(),
       ]);
-      console.log(expectedTokenDecimals);
-      const COMBINED_WARP_CORE_CONFIG_PATH =
-        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
-          WARP_DEPLOY_OUTPUT_PATH,
-          expectedTokenSymbol,
-        );
+
+      const COMBINED_WARP_CORE_CONFIG_PATH = getWarpCoreConfigPath(
+        expectedTokenSymbol,
+        [
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        ],
+      );
+
+      const WARP_DEPLOY_OUTPUT_PATH = getWarpDeployConfigPath(
+        expectedTokenSymbol,
+        [
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        ],
+      );
 
       const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateral,
           token: token.address,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.synthetic,
           mailbox: chain3Addresses.mailbox,
           owner: ownerAddress,
@@ -539,20 +635,21 @@ describe('hyperlane warp deploy e2e tests', async function () {
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+          input: `${HYP_KEY_BY_PROTOCOL.ethereum}${KeyBoardKeys.ENTER}`,
         },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+          input: `${HYP_KEY_BY_PROTOCOL.ethereum}${KeyBoardKeys.ENTER}`,
         },
       ];
 
       // Deploy
-      const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        skipConfirmationPrompts: true,
-      })
+      const output = evmWarpCommands
+        .deployRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+          skipConfirmationPrompts: true,
+        })
         .stdio('pipe')
         .nothrow();
 
@@ -561,7 +658,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
       // Assertions
       expect(finalOutput.exitCode).to.equal(0);
 
-      for (const chainName of [CHAIN_NAME_2, CHAIN_NAME_3]) {
+      for (const chainName of [
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      ]) {
         await assertWarpRouteConfig(
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
@@ -577,23 +677,26 @@ describe('hyperlane warp deploy e2e tests', async function () {
     let vaultChain2: ERC4626Test;
 
     before(async () => {
-      tokenChain2 = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+      tokenChain2 = await deployToken(
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      );
       vaultChain2 = await deploy4626Vault(
-        ANVIL_KEY,
-        CHAIN_NAME_2,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
         tokenChain2.address,
       );
     });
 
     it('should only allow rebasing yield route to be deployed with rebasing synthetic', async function () {
       const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,
           token: vaultChain2.address,
           mailbox: chain2Addresses.mailbox,
           owner: chain2Addresses.mailbox,
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.synthetic,
           mailbox: chain2Addresses.mailbox,
           owner: chain2Addresses.mailbox,
@@ -601,7 +704,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH).should.be.rejected; // TODO: revisit this to figure out how to parse the error.
+      await evmWarpCommands.deployRaw({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      }).should.be.rejected; // TODO: revisit this to figure out how to parse the error.
     });
 
     it('should deploy with an ISM config', async () => {
@@ -614,33 +719,36 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // 2. Create Warp configuration with ISM
       const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,
           token: vaultChain2.address,
           mailbox: chain2Addresses.mailbox,
           owner: chain2Addresses.mailbox,
           interchainSecurityModule: ism, // Add ISM config here
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.syntheticRebase,
           mailbox: chain3Addresses.mailbox,
           owner: chain3Addresses.mailbox,
-          collateralChainName: CHAIN_NAME_2,
+          collateralChainName:
+            TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
         },
       };
 
       // 3. Write config and deploy
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+      await evmWarpCommands.deploy(
+        WARP_DEPLOY_OUTPUT_PATH,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+      );
 
       // 4. Verify deployed ISM configuration
       const collateralRebaseConfig = (
-        await readWarpConfig(
-          CHAIN_NAME_2,
+        await evmWarpCommands.readConfig(
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
           WARP_CORE_CONFIG_PATH_2_3,
-          WARP_DEPLOY_OUTPUT_PATH,
         )
-      )[CHAIN_NAME_2];
+      )[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2];
 
       expect(
         normalizeConfig(collateralRebaseConfig.interchainSecurityModule),
@@ -656,32 +764,36 @@ describe('hyperlane warp deploy e2e tests', async function () {
         protocolFee: '1337',
       };
       const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,
           token: vaultChain2.address,
           mailbox: chain2Addresses.mailbox,
           owner: chain2Addresses.mailbox,
           hook,
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.syntheticRebase,
           mailbox: chain3Addresses.mailbox,
           owner: chain3Addresses.mailbox,
-          collateralChainName: CHAIN_NAME_2,
+          collateralChainName:
+            TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
         },
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+      await evmWarpCommands.deploy(
+        WARP_DEPLOY_OUTPUT_PATH,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+      );
 
       // Check collateralRebase
       const collateralRebaseConfig = (
         await readWarpConfig(
-          CHAIN_NAME_2,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
           WARP_CORE_CONFIG_PATH_2_3,
           WARP_DEPLOY_OUTPUT_PATH,
         )
-      )[CHAIN_NAME_2];
+      )[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2];
 
       expect(normalizeConfig(collateralRebaseConfig.hook)).to.deep.equal(
         normalizeConfig(hook),
@@ -690,47 +802,58 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     it('should send a message from origin to destination in the correct order', async function () {
       const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,
           token: vaultChain2.address,
           mailbox: chain2Addresses.mailbox,
           owner: chain2Addresses.mailbox,
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.syntheticRebase,
           mailbox: chain3Addresses.mailbox,
           owner: chain3Addresses.mailbox,
-          collateralChainName: CHAIN_NAME_2,
+          collateralChainName:
+            TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
         },
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+      await evmWarpCommands.deploy(
+        WARP_DEPLOY_OUTPUT_PATH,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+      );
 
       // Try to send a transaction with the origin destination
-      const { stdout: chain2Tochain3Stdout } = await hyperlaneWarpSendRelay(
-        CHAIN_NAME_2,
-        CHAIN_NAME_3,
-        WARP_CORE_CONFIG_PATH_2_3,
-      );
+      const { stdout: chain2Tochain3Stdout } =
+        await evmWarpCommands.sendAndRelay({
+          origin: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+          destination: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+          warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+          privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+        });
       expect(chain2Tochain3Stdout).to.include('anvil2 ➡️ anvil3');
 
       // Send another message with swapped origin destination
-      const { stdout: chain3Tochain2Stdout } = await hyperlaneWarpSendRelay(
-        CHAIN_NAME_3,
-        CHAIN_NAME_2,
-        WARP_CORE_CONFIG_PATH_2_3,
-      );
+      const { stdout: chain3Tochain2Stdout } =
+        await evmWarpCommands.sendAndRelay({
+          origin: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+          destination: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+          warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+          privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+        });
       expect(chain3Tochain2Stdout).to.include('anvil3 ➡️ anvil2');
 
       // Should throw if invalid origin or destination
-      await hyperlaneWarpSendRelay(
-        'anvil1',
-        CHAIN_NAME_3,
-        WARP_CORE_CONFIG_PATH_2_3,
-      ).should.be.rejectedWith(
-        'Error: Origin (anvil1) or destination (anvil3) are not part of the warp route.',
-      );
+      await evmWarpCommands
+        .sendAndRelay({
+          origin: 'anvil1',
+          destination: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+          warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+          privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+        })
+        .should.be.rejectedWith(
+          'Error: Origin (anvil1) or destination (anvil3) are not part of the warp route.',
+        );
     });
 
     it('should successfully output the filename without having the -deploy-config suffix when providing a deploy config file that ends in -deploy', async function () {
@@ -746,22 +869,27 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const expectedWarpCorePath = `${REGISTRY_PATH}/deployments/warp_routes/${expectedFileName}-config.yaml`;
 
       const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,
           token: vaultChain2.address,
           mailbox: chain2Addresses.mailbox,
           owner: chain2Addresses.mailbox,
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.syntheticRebase,
           mailbox: chain3Addresses.mailbox,
           owner: chain3Addresses.mailbox,
-          collateralChainName: CHAIN_NAME_2,
+          collateralChainName:
+            TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
         },
       };
 
       writeYamlOrJson(customDeployPathFileName, warpConfig);
-      const finalOutput = await hyperlaneWarpDeploy(customDeployPathFileName);
+
+      const finalOutput = await evmWarpCommands.deploy(
+        customDeployPathFileName,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+      );
 
       expect(finalOutput.exitCode).to.equal(0);
 
@@ -771,7 +899,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     it('should set the allowed bridges and the related token approvals', async function () {
       const bridges = [randomAddress(), randomAddress()];
       const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateral,
           token: tokenChain2.address,
           owner: ownerAddress,
@@ -782,27 +910,31 @@ describe('hyperlane warp deploy e2e tests', async function () {
             })),
           },
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.synthetic,
           owner: ownerAddress,
         },
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+      await evmWarpCommands.deploy(
+        WARP_DEPLOY_OUTPUT_PATH,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+      );
 
-      const COMBINED_WARP_CORE_CONFIG_PATH =
-        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
-          WARP_DEPLOY_OUTPUT_PATH,
-          await tokenChain2.symbol(),
-        );
+      const COMBINED_WARP_CORE_CONFIG_PATH = getWarpCoreConfigPath(
+        await tokenChain2.symbol(),
+        [WARP_DEPLOY_DEFAULT_FILE_NAME],
+      );
 
       const coreConfig: WarpCoreConfig = readYamlOrJson(
         COMBINED_WARP_CORE_CONFIG_PATH,
       );
 
       const [chain2TokenConfig] = coreConfig.tokens.filter(
-        (config) => config.chainName === CHAIN_NAME_2,
+        (config) =>
+          config.chainName ===
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       );
       expect(chain2TokenConfig).to.exist;
 
