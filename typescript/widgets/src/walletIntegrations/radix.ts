@@ -4,10 +4,7 @@ import {
 } from '@radixdlt/radix-dapp-toolkit';
 import { useCallback, useMemo } from 'react';
 
-import {
-  RadixSDKTransaction,
-  transactionManifestToString,
-} from '@hyperlane-xyz/radix-sdk';
+import { RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk';
 import {
   ChainName,
   IToken,
@@ -166,13 +163,13 @@ export function useRadixTransactionFns(
       assert(gatewayApi, `gateway api is not defined`);
 
       const transaction = tx.transaction as RadixSDKTransaction;
-      const transactionManifest = await transactionManifestToString(
-        transaction.manifest,
-        transaction.networkId,
+      assert(
+        typeof transaction.manifest === 'string',
+        `transaction manifests needs to be a string`,
       );
 
       const transactionResult = await rdt.walletApi.sendTransaction({
-        transactionManifest,
+        transactionManifest: transaction.manifest,
         version: 1,
       });
 

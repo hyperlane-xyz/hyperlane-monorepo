@@ -1,3 +1,5 @@
+import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
+
 import { AltVM, assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixCoreTx } from '../core/tx.js';
@@ -8,7 +10,10 @@ import {
   RadixSDKReceipt,
   RadixSDKTransaction,
 } from '../utils/types.js';
-import { generateNewEd25519VirtualAccount } from '../utils/utils.js';
+import {
+  generateNewEd25519VirtualAccount,
+  stringToTransactionManifest,
+} from '../utils/utils.js';
 import { RadixWarpTx } from '../warp/tx.js';
 
 import { RadixProvider } from './provider.js';
@@ -91,7 +96,19 @@ export class RadixSigner
       transaction.networkId === this.networkId,
       `Transaction networkId (${transaction.networkId}) does not match signer networkId (${this.networkId})`,
     );
-    return this.signer.signAndBroadcast(transaction.manifest);
+
+    let manifest: TransactionManifest;
+
+    if (typeof transaction.manifest === 'string') {
+      manifest = await stringToTransactionManifest(
+        transaction.manifest,
+        transaction.networkId,
+      );
+    } else {
+      manifest = transaction.manifest;
+    }
+
+    return this.signer.signAndBroadcast(manifest);
   }
 
   async sendAndConfirmBatchTransactions(

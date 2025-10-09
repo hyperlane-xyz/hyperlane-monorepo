@@ -12,7 +12,6 @@ import {
   RadixSDKOptions,
   RadixSDKTransaction,
 } from '../utils/types.js';
-import { stringToTransactionManifest } from '../utils/utils.js';
 import { RadixWarpPopulate } from '../warp/populate.js';
 import { RadixWarpQuery } from '../warp/query.js';
 
@@ -612,24 +611,22 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getRemoteTransferTransaction(
     req: AltVM.ReqRemoteTransfer,
   ): Promise<RadixSDKTransaction> {
-    const manifest = await this.populate.warp.remoteTransfer({
-      from_address: req.signer,
-      token: req.tokenAddress,
-      destination_domain: req.destinationDomainId,
-      recipient: req.recipient,
-      amount: req.amount,
-      custom_hook_id: req.customHookAddress || '',
-      gas_limit: req.gasLimit,
-      custom_hook_metadata: req.customHookMetadata || '',
-      max_fee: {
-        amount: req.maxFee.amount,
-        denom: req.maxFee.denom,
-      },
-    });
-
     return {
       networkId: this.networkId,
-      manifest: await stringToTransactionManifest(manifest, this.networkId),
+      manifest: await this.populate.warp.remoteTransfer({
+        from_address: req.signer,
+        token: req.tokenAddress,
+        destination_domain: req.destinationDomainId,
+        recipient: req.recipient,
+        amount: req.amount,
+        custom_hook_id: req.customHookAddress || '',
+        gas_limit: req.gasLimit,
+        custom_hook_metadata: req.customHookMetadata || '',
+        max_fee: {
+          amount: req.maxFee.amount,
+          denom: req.maxFee.denom,
+        },
+      }),
     };
   }
 }

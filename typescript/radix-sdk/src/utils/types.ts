@@ -7,7 +7,7 @@ import {
 
 export interface RadixSDKTransaction {
   networkId: number;
-  manifest: TransactionManifest;
+  manifest: TransactionManifest | string;
 }
 
 export interface RadixSDKReceipt extends TransactionCommittedDetailsResponse {
