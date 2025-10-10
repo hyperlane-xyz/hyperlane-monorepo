@@ -755,6 +755,17 @@ contract EverclearTokenBridgeForkTest is BaseEverclearTokenBridgeForkTest {
         uint256 initialBalance = weth.balanceOf(ALICE);
         uint256 initialBridgeBalance = weth.balanceOf(address(bridge));
 
+        // Get the gas payment quote
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+        uint256 gasPayment = quotes[0].amount;
+
+        // Give Alice ETH for gas payment
+        vm.deal(ALICE, gasPayment);
+
         // Test the transfer - it may succeed or fail depending on adapter state
         vm.prank(ALICE);
         // We don't want to check _intentId, as it's not used
@@ -769,7 +780,11 @@ contract EverclearTokenBridgeForkTest is BaseEverclearTokenBridgeForkTest {
             _tokenFee: FEE_AMOUNT,
             _nativeFee: 0
         });
-        bridge.transferRemote(OPTIMISM_DOMAIN, RECIPIENT, amount);
+        bridge.transferRemote{value: gasPayment}(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
 
         // Verify the balance changes
         // Alice should have lost the transfer amount and the fee
