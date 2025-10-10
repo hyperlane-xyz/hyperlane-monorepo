@@ -238,6 +238,83 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         );
     }
 
+    function testERC4626VaultDeposit_sweep_usesCeilingRounding() public {
+        // This test verifies that sweep() uses previewWithdraw (ceiling rounding)
+        // instead of convertToShares (floor rounding) to calculate excess shares.
+        // This ensures we don't accidentally leave behind vault shares that should be swept.
+
+        uint256 transferAmount = 100e18;
+        uint256 rewardAmount = 1e18;
+
+        // Setup: Transfer from Alice to Bob
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), transferAmount);
+        _performRemoteTransfer(0, transferAmount);
+
+        // Add yield to the vault (increases share value)
+        primaryToken.mintTo(address(vault), rewardAmount);
+
+        // Transfer back from Bob to Alice
+        vm.prank(BOB);
+        remoteToken.transferRemote(
+            ORIGIN,
+            BOB.addressToBytes32(),
+            transferAmount
+        );
+        _handleLocalTransfer(transferAmount);
+
+        // At this point, we have excess shares due to the yield
+        uint256 totalShares = vault.maxRedeem(
+            address(erc20CollateralVaultDeposit)
+        );
+        uint256 assetDeposited = erc20CollateralVaultDeposit.assetDeposited();
+
+        // Calculate what convertToShares (floor rounding) would give us
+        uint256 sharesFloor = vault.convertToShares(assetDeposited);
+
+        // Calculate what previewWithdraw (ceiling rounding) gives us
+        uint256 sharesCeiling = vault.previewWithdraw(assetDeposited);
+
+        // When there's rounding involved, ceiling should be >= floor
+        // and the excess shares should be: totalShares - sharesCeiling
+        uint256 excessSharesWithCeiling = totalShares - sharesCeiling;
+        uint256 excessSharesWithFloor = totalShares - sharesFloor;
+
+        // Verify the key difference: ceiling rounding calculates more shares to reserve
+        // for the deposited assets, which means fewer excess shares to sweep
+        assertLe(
+            excessSharesWithCeiling,
+            excessSharesWithFloor,
+            "Ceiling rounding should reserve more shares for deposits"
+        );
+
+        // Record owner balance before sweep
+        uint256 ownerBalanceBefore = primaryToken.balanceOf(
+            erc20CollateralVaultDeposit.owner()
+        );
+
+        // Call sweep() which should use previewWithdraw (ceiling rounding)
+        erc20CollateralVaultDeposit.sweep();
+
+        uint256 ownerBalanceAfter = primaryToken.balanceOf(
+            erc20CollateralVaultDeposit.owner()
+        );
+        uint256 sweptAmount = ownerBalanceAfter - ownerBalanceBefore;
+
+        // The swept amount should be positive (we did sweep excess shares)
+        assertGt(sweptAmount, 0, "Should have swept excess shares");
+
+        // After sweep, we should have no shares remaining (assetDeposited is 0)
+        uint256 remainingShares = vault.maxRedeem(
+            address(erc20CollateralVaultDeposit)
+        );
+        assertEq(
+            remainingShares,
+            0,
+            "Should have no shares remaining after sweep with no deposits"
+        );
+    }
+
     function testERC4626VaultDeposit_TransferFromSender_CorrectMetadata()
         public
     {
