@@ -436,7 +436,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
   }
 
-  // TODO: readd when we resolve issues with the inflight guard
+  // TODO: add when we resolve issues with the inflight guard
   // it('should successfully start the rebalancer', async () => {
   //   await startRebalancerAndExpectLog('Rebalancer started successfully 🚀');
   // });
