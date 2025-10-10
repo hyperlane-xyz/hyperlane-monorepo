@@ -64,6 +64,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM ubuntu:22.04
 WORKDIR /app
 COPY rust/main/config /app/config
+COPY rust/main/app-contexts /app/app-contexts
 COPY --from=builder /release/* .
 
 # Install runtime dependencies
