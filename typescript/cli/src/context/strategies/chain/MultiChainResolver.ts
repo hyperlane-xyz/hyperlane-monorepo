@@ -17,6 +17,7 @@ import {
 } from '../../../utils/chains.js';
 import { getWarpConfigs } from '../../../utils/warp.js';
 import { requestAndSaveApiKeys } from '../../context.js';
+import { readYamlOrJson } from '../../../utils/files.js';
 
 import { ChainResolver } from './types.js';
 
@@ -106,10 +107,10 @@ export class MultiChainResolver implements ChainResolver {
     // Load rebalancer config to get the warp route ID
     const rebalancerConfig = RebalancerConfig.load(argv.config);
 
-    // Get warp route config from registry using the warp route ID
-    const warpCoreConfig = await argv.context.registry.getWarpRoute(
-      rebalancerConfig.warpRouteId,
-    );
+    // If a local warp core file is provided, load that instead of registry
+    const warpCoreConfig = argv.warp
+      ? readYamlOrJson(argv.warp)
+      : await argv.context.registry.getWarpRoute(rebalancerConfig.warpRouteId);
     if (!warpCoreConfig) {
       throw new Error(
         `Warp route config for ${rebalancerConfig.warpRouteId} not found in registry`,

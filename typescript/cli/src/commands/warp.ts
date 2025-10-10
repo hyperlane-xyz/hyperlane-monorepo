@@ -1,4 +1,4 @@
-import util from 'util';
+import * as util from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
@@ -415,6 +415,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
   checkFrequency: number;
   withMetrics: boolean;
   monitorOnly: boolean;
+  warp?: string;
   manual?: boolean;
   origin?: string;
   destination?: string;
@@ -429,6 +430,12 @@ export const rebalancer: CommandModuleWithWriteContext<{
         'The path to a rebalancer configuration file (.json or .yaml)',
       demandOption: true,
       alias: ['rebalancerConfigFile', 'rebalancerConfig', 'configFile'],
+    },
+    warp: {
+      type: 'string',
+      description:
+        'Optional: path to a local Warp Core config file to override registry lookup',
+      demandOption: false,
     },
     checkFrequency: {
       type: 'number',
@@ -478,7 +485,10 @@ export const rebalancer: CommandModuleWithWriteContext<{
   handler: async (args) => {
     let runner: RebalancerRunner;
     try {
-      const { context, ...rest } = args;
+      const { context, warp, ...rest } = args as any;
+      if (warp) {
+        (context as any).warpCoreConfigOverride = readYamlOrJson(warp);
+      }
       runner = await RebalancerRunner.create(rest, context);
     } catch (e: any) {
       // exit on startup errors
@@ -494,6 +504,7 @@ export const rebalancer: CommandModuleWithWriteContext<{
     }
   },
 };
+
 
 export const verify: CommandModuleWithWriteContext<SelectWarpRouteBuilder> = {
   command: 'verify',
