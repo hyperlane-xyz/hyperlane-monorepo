@@ -10,6 +10,7 @@ import {
   deepEquals,
   intersection,
   rootLogger,
+  sleep,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -298,6 +299,16 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       const ismAddress = await this.deploy({
         config: expected.domains[origin],
       });
+
+      const { blocks } = this.metadataManager.getChainMetadata(this.chain);
+
+      if (blocks) {
+        // we assume at least one confirmation
+        const confirmations = blocks.confirmations ?? 1;
+        const estimateBlockTime = blocks.estimateBlockTime ?? 0;
+
+        await sleep(confirmations * estimateBlockTime);
+      }
 
       const domainId = this.metadataManager.getDomainId(origin);
       updateTxs.push({
