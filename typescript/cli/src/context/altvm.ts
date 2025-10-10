@@ -210,6 +210,10 @@ export class AltVMSignerFactory
         continue;
       }
 
+      if (metadata.protocol === ProtocolType.Starknet) {
+        continue;
+      }
+
       const protocol = ALT_VM_SUPPORTED_PROTOCOLS[metadata.protocol];
 
       if (!protocol) {
