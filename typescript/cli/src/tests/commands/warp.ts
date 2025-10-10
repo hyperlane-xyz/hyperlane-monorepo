@@ -195,6 +195,38 @@ export class HyperlaneE2EWarpTestCommands {
           `;
   }
 
+  public checkRaw({
+    warpDeployPath,
+    symbol,
+    warpCoreConfigPath,
+    warpRouteId,
+  }: {
+    symbol?: string;
+    warpDeployPath?: string;
+    warpCoreConfigPath?: string;
+    warpRouteId?: string;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp check \
+          --registry ${this.registryPath} \
+          ${symbol ? ['--symbol', symbol] : []} \
+          --verbosity debug \
+          ${warpDeployPath ? ['--config', warpDeployPath] : []} \
+          ${warpCoreConfigPath ? ['--warp', warpCoreConfigPath] : []} \
+          ${warpRouteId ? ['--warpRouteId', warpRouteId] : []}`;
+  }
+
+  public check(
+    warpDeployPath: string,
+    symbol: string,
+    warpCoreConfigPath?: string,
+  ): ProcessPromise {
+    return this.checkRaw({
+      warpDeployPath,
+      symbol,
+      warpCoreConfigPath,
+    });
+  }
+
   sendAndRelay({
     relay = true,
     destination,
