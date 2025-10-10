@@ -167,7 +167,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         ...(await this.signer.getEnrollRemoteRouterTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           tokenAddress: this.args.addresses.deployedTokenRoute,
           remoteRouter: {
             receiverDomainId: parseInt(domainId),
@@ -220,7 +220,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         ...(await this.signer.getUnenrollRemoteRouterTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           tokenAddress: this.args.addresses.deployedTokenRoute,
           receiverDomainId: parseInt(domainId),
         })),
@@ -295,7 +295,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
           updateTransactions.push({
             annotation: `Unenrolling ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
             ...(await this.signer.getUnenrollRemoteRouterTransaction({
-              signer: this.signer.getSignerAddress(),
+              signer: actualConfig.owner,
               tokenAddress: this.args.addresses.deployedTokenRoute,
               receiverDomainId: parseInt(domain),
             })),
@@ -305,7 +305,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
         updateTransactions.push({
           annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain} to ${gas}`,
           ...(await this.signer.getEnrollRemoteRouterTransaction({
-            signer: this.signer.getSignerAddress(),
+            signer: actualConfig.owner,
             tokenAddress: this.args.addresses.deployedTokenRoute,
             remoteRouter: {
               receiverDomainId: parseInt(domain),
@@ -377,7 +377,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
         ...(await this.signer.getSetTokenIsmTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           tokenAddress: this.args.addresses.deployedTokenRoute,
           ismAddress: expectedDeployedIsm,
         })),
@@ -417,7 +417,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       {
         annotation: `Transferring ownership of ${this.args.addresses.deployedTokenRoute} from ${actualConfig.owner} to ${expectedConfig.owner}`,
         ...(await this.signer.getSetTokenOwnerTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           tokenAddress: this.args.addresses.deployedTokenRoute,
           newOwner: expectedConfig.owner,
         })),

@@ -303,7 +303,7 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTxs.push({
         annotation: `Setting new ISM for origin ${origin}...`,
         ...(await this.signer.getSetRoutingIsmRouteTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actual.owner,
           ismAddress: this.args.addresses.deployedIsm,
           route: {
             ismAddress,
@@ -324,7 +324,7 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTxs.push({
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         ...(await this.signer.getRemoveRoutingIsmRouteTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actual.owner,
           ismAddress: this.args.addresses.deployedIsm,
           domainId,
         })),
@@ -338,7 +338,7 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
           actual.owner
         } to ${expected.owner}`,
         ...(await this.signer.getSetRoutingIsmOwnerTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actual.owner,
           ismAddress: this.args.addresses.deployedIsm,
           newOwner: expected.owner,
         })),
