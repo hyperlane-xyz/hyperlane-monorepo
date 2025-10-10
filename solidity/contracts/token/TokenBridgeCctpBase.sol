@@ -16,6 +16,7 @@ import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {MovableCollateralRouter, MovableCollateralRouterStorage} from "./libs/MovableCollateralRouter.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
+import {AbstractPostDispatchHook} from "../hooks/libs/AbstractPostDispatchHook.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -38,7 +39,7 @@ abstract contract TokenBridgeCctpBaseStorage is TokenRouter {
 abstract contract TokenBridgeCctpBase is
     TokenBridgeCctpBaseStorage,
     AbstractCcipReadIsm,
-    IPostDispatchHook
+    AbstractPostDispatchHook
 {
     using Message for bytes;
     using TypeCasts for bytes32;
@@ -284,26 +285,19 @@ abstract contract TokenBridgeCctpBase is
         return uint8(IPostDispatchHook.HookTypes.CCTP);
     }
 
-    /// @inheritdoc IPostDispatchHook
-    function supportsMetadata(
-        bytes calldata /*metadata*/
-    ) public pure override returns (bool) {
-        return true;
-    }
-
-    /// @inheritdoc IPostDispatchHook
-    function quoteDispatch(
-        bytes calldata,
-        bytes calldata
-    ) external pure override returns (uint256) {
+    /// @inheritdoc AbstractPostDispatchHook
+    function _quoteDispatch(
+        bytes calldata /*metadata*/,
+        bytes calldata /*message*/
+    ) internal pure override returns (uint256) {
         return 0;
     }
 
-    /// @inheritdoc IPostDispatchHook
-    function postDispatch(
-        bytes calldata /*metadata*/,
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(
+        bytes calldata metadata,
         bytes calldata message
-    ) external payable override {
+    ) internal override {
         bytes32 id = message.id();
         require(_isLatestDispatched(id), "Message not dispatched");
 
@@ -312,6 +306,8 @@ abstract contract TokenBridgeCctpBase is
         uint32 circleDestination = hyperlaneDomainToCircleDomain(destination);
 
         _sendMessageIdToIsm(circleDestination, ism, id);
+
+        _refund(metadata, message, address(this).balance);
     }
 
     /**
