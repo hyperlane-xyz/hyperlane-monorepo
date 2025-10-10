@@ -217,6 +217,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       validators: config.validators,
       threshold: config.threshold,
     });
+
+    this.logger.debug(`Deployed merkle root multisig ISM to ${ismAddress}`);
     return ismAddress;
   }
 
@@ -231,6 +233,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       validators: config.validators,
       threshold: config.threshold,
     });
+
+    this.logger.debug(`Deployed message id multisig ISM to ${ismAddress}`);
     return ismAddress;
   }
 
@@ -259,6 +263,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
     const { ismAddress } = await this.signer.createRoutingIsm({
       routes,
     });
+
+    this.logger.debug(`Deployed routing ISM to ${ismAddress}`);
     return ismAddress;
   }
 
@@ -271,6 +277,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
     expected: DomainRoutingIsmConfig;
     logger: Logger;
   }): Promise<AnnotatedTypedTransaction<PT>[]> {
+    this.logger.debug(`Start creating routing ISM update transactions`);
+
     const updateTxs: AnnotatedTypedTransaction<PT>[] = [];
 
     const knownChains = new Set(this.metadataManager.getKnownChainNames());
@@ -337,11 +345,17 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       });
     }
 
+    this.logger.debug(
+      `Created ${updateTxs.length} update routing ISM transactions.`,
+    );
+
     return updateTxs;
   }
 
   protected async deployNoopIsm(): Promise<Address> {
     const { ismAddress } = await this.signer.createNoopIsm({});
+
+    this.logger.debug(`Deployed noop ISM to ${ismAddress}`);
     return ismAddress;
   }
 }

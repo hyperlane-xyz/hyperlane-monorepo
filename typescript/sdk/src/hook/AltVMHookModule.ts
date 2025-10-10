@@ -287,6 +287,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
       });
     }
 
+    this.logger.debug(`Deployed IGP hook to ${hookAddress}`);
     return hookAddress;
   }
 
@@ -297,6 +298,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
       mailboxAddress: this.args.addresses.mailbox,
     });
 
+    this.logger.debug(`Deployed merkle tree hook to ${hookAddress}`);
     return hookAddress;
   }
 }
