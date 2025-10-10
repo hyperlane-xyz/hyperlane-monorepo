@@ -503,6 +503,14 @@ impl ValidatorSubmitterMetrics {
     }
 
     fn set_latest_checkpoint_observed(&self, checkpoint: &CheckpointAtBlock) {
+        let prev_checkpoint_index = self.latest_checkpoint_observed.get();
+
+        if prev_checkpoint_index > checkpoint.index as i64 {
+            tracing::warn!(
+                ?checkpoint,
+                prev_checkpoint_index,
+                checkpoint_index=checkpoint.index, "Observed a checkpoint with index that is lower than previous checkpoint. Did a reorg occur?");
+        }
         self.latest_checkpoint_observed.set(checkpoint.index as i64);
 
         if let Some(block_height) = checkpoint.block_height {
@@ -512,7 +520,7 @@ impl ValidatorSubmitterMetrics {
                 tracing::warn!(
                     ?checkpoint,
                     prev_block_height,
-                    block_height, "Observed a checkpoint with block height that is lower previous checkpoint. Did a reorg occur?");
+                    block_height, "Observed a checkpoint with block height that is lower than previous checkpoint. Did a reorg occur?");
             }
             self.latest_checkpoint_observed_block_height
                 .set(block_height);
