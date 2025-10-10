@@ -237,6 +237,21 @@ contract ProgressiveFeeTest is BaseFeeTest {
         assertGt(percentage1, percentage2, "Percentage should decrease");
         assertGt(percentage2, percentage3, "Percentage should decrease");
     }
+
+    function test_ProgressiveFee_ZeroAmount() public {
+        // Test that fee is zero when amount is zero
+        ProgressiveFee localProgressiveFee = new ProgressiveFee(
+            address(token),
+            1000,
+            10000,
+            OWNER
+        );
+
+        uint256 fee = localProgressiveFee
+        .quoteTransferRemote(destination, recipient, 0)[0].amount;
+
+        assertEq(fee, 0, "Fee should be zero for zero amount");
+    }
 }
 
 // --- RegressiveFee Tests ---
