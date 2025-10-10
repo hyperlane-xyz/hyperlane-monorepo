@@ -244,7 +244,17 @@ export class AltVMSignerFactory
   public submitterFactories(
     chain: string,
   ): ProtocolMap<Record<string, SubmitterFactory>> {
+    const protocol = this.metadataManager.getProtocol(chain);
+
     const factories: ProtocolMap<Record<string, SubmitterFactory>> = {};
+
+    if (
+      protocol === ProtocolType.Ethereum ||
+      protocol === ProtocolType.Sealevel
+    ) {
+      return factories;
+    }
+
     const signer = this.get(chain);
 
     for (const protocol of this.getSupportedProtocols()) {
