@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use ethers::signers::Signer;
 use ethers_core::types::Address;
@@ -9,6 +10,7 @@ use hyperlane_base::settings::{ChainConf, SignerConf};
 use hyperlane_core::U256;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, Signers};
 
+use crate::adapter::chains::ethereum::nonce::periodic_updater::{self, PeriodicNonceUpdater};
 use crate::dispatcher::TransactionDb;
 use crate::transaction::{Transaction, TransactionUuid};
 use crate::{LanderError, TransactionStatus};
@@ -41,8 +43,23 @@ impl NonceManager {
         let tx_db = db.clone() as Arc<dyn TransactionDb>;
         let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
-        let nonce_updater =
-            NonceUpdater::new(address, reorg_period, block_time, provider, state.clone());
+        let nonce_updater = NonceUpdater::new(
+            address,
+            reorg_period,
+            block_time,
+            provider.clone(),
+            state.clone(),
+        );
+
+        // if the block time is too short, we want to cap it at 5s because we don't want
+        // to query the nonce too much. 5s should be quick enough for a reorg
+        let poll_rate = chain_conf.estimated_block_time.max(Duration::from_secs(5));
+        let periodic_updater =
+            PeriodicNonceUpdater::new(address, reorg_period, poll_rate, provider, state.clone());
+
+        tokio::spawn(async move {
+            periodic_updater.run().await;
+        });
 
         let manager = Self {
             address,
