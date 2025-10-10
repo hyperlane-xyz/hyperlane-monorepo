@@ -116,7 +116,7 @@ contract HypERC4626Collateral is TokenRouter {
             _emitAndDispatch(
                 _destination,
                 _recipient,
-                _amount,
+                _outboundAmount,
                 msg.value,
                 _tokenMessage
             );
