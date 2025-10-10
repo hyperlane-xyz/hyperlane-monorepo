@@ -105,7 +105,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             token: address(0),
             amount: _quoteGasPayment(_destination, _recipient, _amount)
         });
-        (uint256 fee, ) = _feeRecipient(_destination, _recipient, _amount);
+        (, uint256 fee) = _feeRecipientAndAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
         quotes[1] = Quote({token: token(), amount: _amount + fee});
         quotes[2] = Quote({
             token: token(),
@@ -172,7 +176,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount,
         uint256 _msgValue
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
-        (uint256 feeAmount, address recipient) = _feeRecipient(
+        (address recipient, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
             _recipient,
             _amount
@@ -262,21 +266,21 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
-     * @return fee The fee recipient amount.
      * @return recipient The address of the fee recipient.
+     * @return amount The fee recipient amount.
      * @dev This function is is not intended to be overridden as storage and logic is contained in TokenRouter.
      */
-    function _feeRecipient(
+    function _feeRecipientAndAmount(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view returns (uint256 fee, address recipient) {
+    ) internal view returns (address recipient, uint256 amount) {
         recipient = feeRecipient();
         if (recipient == address(0)) {
-            return (0, recipient);
+            return (recipient, 0);
         }
 
-        fee = ITokenFee(recipient)
+        amount = ITokenFee(recipient)
             .quoteTransferRemote(_destination, _recipient, _amount)
             .extract(token());
     }
