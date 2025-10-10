@@ -845,7 +845,7 @@ contract HypERC20ScaledTest is HypTokenTest {
         emit SentTransferRemote(
             DESTINATION,
             BOB.addressToBytes32(),
-            TRANSFER_AMT * EFFECTIVE_SCALE
+            TRANSFER_AMT
         );
 
         vm.prank(ALICE);

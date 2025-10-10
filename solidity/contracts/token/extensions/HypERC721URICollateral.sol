@@ -38,13 +38,20 @@ contract HypERC721URICollateral is HypERC721Collateral {
             address(wrappedToken)
         ).tokenURI(_tokenId);
 
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            _tokenId,
+            bytes(_tokenURI)
+        );
+
+        // 3. Emit the SentTransferRemote event and 4. dispatch the message
         return
             _emitAndDispatch(
                 _destination,
                 _recipient,
                 _tokenId,
                 remainingNativeValue,
-                bytes(_tokenURI)
+                _tokenMessage
             );
     }
 }

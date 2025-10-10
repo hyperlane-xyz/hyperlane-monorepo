@@ -11,10 +11,6 @@ library TokenMessage {
         uint256 _amount,
         bytes memory _metadata
     ) internal pure returns (bytes memory) {
-        if (_metadata.length == 0) {
-            return format(_recipient, _amount);
-        }
-
         return abi.encodePacked(_recipient, _amount, _metadata);
     }
 

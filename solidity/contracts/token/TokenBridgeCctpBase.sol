@@ -135,7 +135,7 @@ abstract contract TokenBridgeCctpBase is
 
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
-        bytes memory metadata = _bridgeViaCircle(
+        bytes memory _message = _bridgeViaCircle(
             circleDomain,
             _recipient,
             _amount + externalFee
@@ -146,9 +146,9 @@ abstract contract TokenBridgeCctpBase is
             _emitAndDispatch(
                 _destination,
                 _recipient,
-                _amount + externalFee,
+                _amount, // no scaling needed for CCTP
                 remainingNativeValue,
-                metadata
+                _message
             );
     }
 
@@ -337,5 +337,5 @@ abstract contract TokenBridgeCctpBase is
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal virtual returns (bytes memory metadata);
+    ) internal virtual returns (bytes memory message);
 }

@@ -236,8 +236,18 @@ abstract contract EverclearBridge is TokenRouter {
         );
 
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
-        bytes memory metadata = abi.encode(
-            _createIntent(_destination, _recipient, _amount)
+        IEverclear.Intent memory intent = _createIntent(
+            _destination,
+            _recipient,
+            _amount
+        );
+
+        uint256 scaledAmount = _outboundAmount(_amount);
+
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            scaledAmount,
+            abi.encode(intent)
         );
 
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
@@ -245,9 +255,9 @@ abstract contract EverclearBridge is TokenRouter {
             _emitAndDispatch(
                 _destination,
                 _recipient,
-                _amount,
+                scaledAmount,
                 remainingNativeValue,
-                metadata
+                _tokenMessage
             );
     }
 

@@ -92,8 +92,8 @@ contract HypERC4626Collateral is TokenRouter {
             wrappedToken._transferTo(feeRecipient(), feeRecipientFee);
         }
 
-        // 2. Deposit the amount into the vault and get the shares for the TokenMessage amount
-        // Calculate new exchange rate, update nonce, and prepare the token metadata.
+        // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
+        // Deposit the amount into the vault and get the shares for the TokenMessage amount
         uint256 _shares = _depositIntoVault(_amount);
 
         uint256 _exchangeRate = vault.convertToAssets(PRECISION);
@@ -104,14 +104,21 @@ contract HypERC4626Collateral is TokenRouter {
             rateUpdateNonce
         );
 
+        uint256 _outboundAmount = _outboundAmount(_shares);
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            _outboundAmount,
+            _tokenMetadata
+        );
+
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
         return
             _emitAndDispatch(
                 _destination,
                 _recipient,
-                _shares,
+                _outboundAmount,
                 msg.value,
-                _tokenMetadata
+                _tokenMessage
             );
     }
 
