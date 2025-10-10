@@ -165,7 +165,6 @@ export class RebalancerContextFactory {
       throw new Error('rebalancer address is required');
     }
 
-    // Compose decorators: Inflight guard first, then semaphore, then core rebalancer
     const withSemaphore = new WithSemaphore(
       this.config,
       rebalancer,
