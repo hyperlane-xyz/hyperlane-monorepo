@@ -993,19 +993,23 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
 }> {
   const { multiProvider, altVmSigner, registry } = context;
 
-  const submissionStrategy: ExtendedSubmissionStrategy =
+  const defaultSubmitter: ExtendedSubmissionStrategy = {
+    submitter: {
+      chain,
+      type: TxSubmitterType.JSON_RPC,
+    },
+  };
+
+  // if the requested chain is not defined in the config, transaction submission will crash
+  const submissionStrategy: ExtendedSubmissionStrategy | undefined =
     strategyUrl && !isExtendedChain
       ? readChainSubmissionStrategy(strategyUrl)[chain]
-      : {
-          submitter: {
-            chain,
-            type: TxSubmitterType.JSON_RPC,
-          },
-        };
+      : defaultSubmitter;
 
+  const strategyToUse = submissionStrategy ?? defaultSubmitter;
   return {
     submitter: await getSubmitterBuilder<T>({
-      submissionStrategy: submissionStrategy as SubmissionStrategy, // TODO: fix this
+      submissionStrategy: strategyToUse as SubmissionStrategy, // TODO: fix this
       multiProvider,
       coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories: {
