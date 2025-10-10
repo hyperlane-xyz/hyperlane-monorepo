@@ -143,6 +143,8 @@ export async function runCoreApply(params: ApplyParams) {
 
   const transactions: AnyProtocolTransaction[] = [];
 
+  console.log('runCoreApply', chain);
+
   switch (multiProvider.getProtocol(chain)) {
     case ProtocolType.Ethereum: {
       const evmCoreModule = new EvmCoreModule(multiProvider, {
