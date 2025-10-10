@@ -82,8 +82,6 @@ export class EvmCoreModule extends HyperlaneModule<
     this.chainId = multiProvider.getEvmChainId(args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
 
-    console.log('EvmCoreModule', args.chain, this.chainId);
-
     if (args.config.interchainAccountRouter) {
       this.evmIcaModule = new EvmIcaModule(multiProvider, {
         chain: args.chain,

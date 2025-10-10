@@ -35,7 +35,7 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
         tx,
       );
       this.logger.debug(
-        `Submitted PopulatedTransaction on ${this.props.chain}: ${receipt.transactionHash}`,
+        `Submitted PopulatedTransaction on ${this.multiProvider.getChainName(tx.chainId)}: ${receipt.transactionHash}`,
       );
       receipts.push(receipt);
     }
