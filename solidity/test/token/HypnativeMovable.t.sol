@@ -12,7 +12,23 @@ import {LinearFee} from "contracts/token/fees/LinearFee.sol";
 import "forge-std/Test.sol";
 
 contract MockITokenBridgeEth is ITokenBridge {
-    constructor() {}
+    uint256 public quoteLength;
+    address public quoteToken;
+    uint256 public quoteAmount;
+
+    constructor() {
+        quoteLength = 0;
+    }
+
+    function setQuote(
+        uint256 _length,
+        address _token,
+        uint256 _amount
+    ) external {
+        quoteLength = _length;
+        quoteToken = _token;
+        quoteAmount = _amount;
+    }
 
     function transferRemote(
         uint32 destinationDomain,
@@ -27,7 +43,15 @@ contract MockITokenBridgeEth is ITokenBridge {
         bytes32 recipient,
         uint256 amountOut
     ) external view override returns (Quote[] memory) {
-        return new Quote[](0);
+        Quote[] memory quotes = new Quote[](quoteLength);
+        if (quoteLength == 1) {
+            quotes[0] = Quote({token: quoteToken, amount: quoteAmount});
+        } else if (quoteLength > 1) {
+            // Return multiple quotes for testing
+            quotes[0] = Quote({token: quoteToken, amount: quoteAmount});
+            quotes[1] = Quote({token: address(0), amount: 100});
+        }
+        return quotes;
     }
 }
 
@@ -131,5 +155,74 @@ contract HypNativeMovableTest is Test {
 
         router.setFeeRecipient(address(0));
         assertEq(router.feeRecipient(), address(0));
+    }
+
+    function test_feeRecipient_emptyQuotesReturnsZero() public {
+        MockITokenBridgeEth mockFeeRecipient = new MockITokenBridgeEth();
+        // Set to return empty quotes (length 0)
+        mockFeeRecipient.setQuote(0, address(0), 0);
+
+        router.setFeeRecipient(address(mockFeeRecipient));
+
+        // Should not revert and return 0 fee
+        Quote[] memory quotes = router.quoteTransferRemote(
+            destinationDomain,
+            bytes32(uint256(uint160(alice))),
+            1 ether
+        );
+
+        // quotes[1] is the internal fee (amount + fee)
+        assertEq(quotes[1].amount, 1 ether); // no fee added
+    }
+
+    function test_feeRecipient_multipleQuotesReverts() public {
+        MockITokenBridgeEth mockFeeRecipient = new MockITokenBridgeEth();
+        // Set to return 2 quotes (invalid)
+        mockFeeRecipient.setQuote(2, address(0), 0.1 ether);
+
+        router.setFeeRecipient(address(mockFeeRecipient));
+
+        // Should revert with the fee mismatch error
+        vm.expectRevert("FungibleTokenRouter: fee must match token");
+        router.quoteTransferRemote(
+            destinationDomain,
+            bytes32(uint256(uint160(alice))),
+            1 ether
+        );
+    }
+
+    function test_feeRecipient_wrongTokenReverts() public {
+        MockITokenBridgeEth mockFeeRecipient = new MockITokenBridgeEth();
+        // Set to return 1 quote but with wrong token (not address(0) which is the native token)
+        address wrongToken = address(0x456);
+        mockFeeRecipient.setQuote(1, wrongToken, 0.1 ether);
+
+        router.setFeeRecipient(address(mockFeeRecipient));
+
+        // Should revert with the fee mismatch error
+        vm.expectRevert("FungibleTokenRouter: fee must match token");
+        router.quoteTransferRemote(
+            destinationDomain,
+            bytes32(uint256(uint160(alice))),
+            1 ether
+        );
+    }
+
+    function test_feeRecipient_correctTokenSucceeds() public {
+        MockITokenBridgeEth mockFeeRecipient = new MockITokenBridgeEth();
+        // Set to return 1 quote with correct token (address(0) for native)
+        mockFeeRecipient.setQuote(1, address(0), 0.1 ether);
+
+        router.setFeeRecipient(address(mockFeeRecipient));
+
+        // Should succeed and return correct fee
+        Quote[] memory quotes = router.quoteTransferRemote(
+            destinationDomain,
+            bytes32(uint256(uint160(alice))),
+            1 ether
+        );
+
+        // quotes[1] is the internal fee (amount + fee)
+        assertEq(quotes[1].amount, 1.1 ether); // 1 ether + 0.1 ether fee
     }
 }

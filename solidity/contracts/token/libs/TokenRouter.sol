@@ -280,9 +280,20 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             return (recipient, 0);
         }
 
-        amount = ITokenFee(recipient)
-            .quoteTransferRemote(_destination, _recipient, _amount)
-            .extract(token());
+        Quote[] memory quotes = ITokenFee(recipient).quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount
+        );
+        if (quotes.length == 0) {
+            return (recipient, 0);
+        }
+
+        require(
+            quotes.length == 1 && quotes[0].token == token(),
+            "FungibleTokenRouter: fee must match token"
+        );
+        amount = quotes[0].amount;
     }
 
     /**
