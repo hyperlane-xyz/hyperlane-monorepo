@@ -155,6 +155,11 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
   }): Promise<AnnotatedTypedTransaction<PT>[]> {
     const updateTxs: AnnotatedTypedTransaction<PT>[] = [];
 
+    assert(
+      this.signer.getSignerAddress() === currentConfig.owner,
+      `Deployer key (${this.signer.getSignerAddress()}) is not the IGP owner (${currentConfig.owner}). Aborting`,
+    );
+
     for (const [remote, c] of Object.entries(targetConfig.oracleConfig)) {
       if (deepEquals(currentConfig.oracleConfig[remote], c)) {
         continue;
