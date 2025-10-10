@@ -105,7 +105,7 @@ export class RadixSigner
     }
 
     return {
-      networkId: this.networkId,
+      ...transaction,
       manifest,
     };
   }
