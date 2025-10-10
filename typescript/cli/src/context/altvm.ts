@@ -16,7 +16,6 @@ import {
   SubmitterFactory,
   SubmitterMetadata,
   TxSubmitterType,
-  isJsonRpcSubmitterConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   AltVM,
