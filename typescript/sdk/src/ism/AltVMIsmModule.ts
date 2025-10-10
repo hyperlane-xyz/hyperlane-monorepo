@@ -112,11 +112,6 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       'normalized expectedConfig should be an object',
     );
 
-    assert(
-      this.signer.getSignerAddress() === actualConfig.owner,
-      `Deployer key (${this.signer.getSignerAddress()}) is not the ISM owner (${actualConfig.owner}). Aborting`,
-    );
-
     // Update the config
     this.args.config = expectedConfig;
 

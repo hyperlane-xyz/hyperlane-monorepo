@@ -4,7 +4,6 @@ import {
   ChainId,
   Domain,
   ProtocolType,
-  assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -256,11 +255,6 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
   ): Promise<AnnotatedTypedTransaction<PT>[]> {
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
-
-    assert(
-      this.signer.getSignerAddress() === actualConfig.owner,
-      `Deployer key (${this.signer.getSignerAddress()}) is not the Mailbox owner (${actualConfig.owner}). Aborting`,
-    );
 
     const transactions: AnnotatedTypedTransaction<PT>[] = [];
     transactions.push(

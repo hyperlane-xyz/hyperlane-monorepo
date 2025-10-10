@@ -4,6 +4,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   AltVMCoreModule,
+  AnyProtocolTransaction,
   ChainName,
   ContractVerifier,
   CoreConfig,
@@ -25,6 +26,7 @@ import {
   runPreflightChecksForChains,
   validateCoreIsmCompatibility,
 } from './utils.js';
+import { getSubmitterByStrategy } from './warp.js';
 
 interface DeployParams {
   context: WriteCommandContext;
@@ -35,6 +37,7 @@ interface DeployParams {
 
 interface ApplyParams extends DeployParams {
   deployedCoreAddresses: DeployedCoreAddresses;
+  strategyUrl?: string;
 }
 
 /**
@@ -132,6 +135,14 @@ export async function runCoreApply(params: ApplyParams) {
   const { context, chain, deployedCoreAddresses, config } = params;
   const { multiProvider } = context;
 
+  const { submitter } = await getSubmitterByStrategy({
+    chain,
+    context: params.context,
+    strategyUrl: params.strategyUrl,
+  });
+
+  const transactions: AnyProtocolTransaction[] = [];
+
   switch (multiProvider.getProtocol(chain)) {
     case ProtocolType.Ethereum: {
       const evmCoreModule = new EvmCoreModule(multiProvider, {
@@ -140,24 +151,7 @@ export async function runCoreApply(params: ApplyParams) {
         addresses: deployedCoreAddresses,
       });
 
-      const transactions = await evmCoreModule.update(config);
-
-      if (transactions.length) {
-        logGray('Updating deployed core contracts');
-        for (const transaction of transactions) {
-          await multiProvider.sendTransaction(
-            // Using the provided chain id because there might be remote chain transactions included in the batch
-            transaction.chainId ?? chain,
-            transaction,
-          );
-        }
-
-        logGreen(`Core config updated on ${chain}.`);
-      } else {
-        logGreen(
-          `Core config on ${chain} is the same as target. No updates needed.`,
-        );
-      }
+      transactions.push(...(await evmCoreModule.update(config)));
       break;
     }
     default: {
@@ -169,25 +163,19 @@ export async function runCoreApply(params: ApplyParams) {
         addresses: deployedCoreAddresses,
       });
 
-      const transactions = await coreModule.update(config);
-
-      if (transactions.length) {
-        logGray('Updating deployed core contracts');
-
-        if (signer.supportsTransactionBatching()) {
-          await signer.sendAndConfirmBatchTransactions(transactions);
-        } else {
-          for (const tx of transactions) {
-            await signer.sendAndConfirmTransaction(tx);
-          }
-        }
-
-        logGreen(`Core config updated on ${chain}.`);
-      } else {
-        logGreen(
-          `Core config on ${chain} is the same as target. No updates needed.`,
-        );
-      }
+      transactions.push(...(await coreModule.update(config)));
     }
+  }
+
+  if (transactions.length) {
+    logGray('Updating deployed core contracts');
+
+    await submitter.submit(...transactions);
+
+    logGreen(`Core config updated on ${chain}.`);
+  } else {
+    logGreen(
+      `Core config on ${chain} is the same as target. No updates needed.`,
+    );
   }
 }

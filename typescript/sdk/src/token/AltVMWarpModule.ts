@@ -96,11 +96,6 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    assert(
-      this.signer.getSignerAddress() === actualConfig.owner,
-      `Deployer key (${this.signer.getSignerAddress()}) is not the Token owner (${actualConfig.owner}). Aborting`,
-    );
-
     const transactions = [];
 
     /**
