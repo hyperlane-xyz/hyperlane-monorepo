@@ -1,5 +1,17 @@
 # @hyperlane-xyz/radix-sdk
 
+## 19.0.0
+
+### Major Changes
+
+- e42a0e8e1: feat: radix support for the cli
+
+### Patch Changes
+
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/utils@19.0.0
+
 ## 18.3.0
 
 ### Minor Changes

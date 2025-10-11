@@ -1,5 +1,16 @@
 # @hyperlane-xyz/cli
 
+## 19.0.0
+
+### Major Changes
+
+- e42a0e8e1: feat: radix support for the cli
+- 32479e139: feat: register AltVM signer & provider factories
+
+### Patch Changes
+
+- 70354d6d9: Restore foreignDeployment field behaviour to allow enrollment of unsupported chains during deployment
+
 ## 18.3.0
 
 ### Minor Changes

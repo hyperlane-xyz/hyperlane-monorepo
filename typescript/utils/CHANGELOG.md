@@ -1,5 +1,15 @@
 # @hyperlane-xyz/utils
 
+## 19.0.0
+
+### Major Changes
+
+- 32479e139: feat: add AltVM interface
+
+### Minor Changes
+
+- e42a0e8e1: chore: updated AltVM interface
+
 ## 18.3.0
 
 ### Minor Changes

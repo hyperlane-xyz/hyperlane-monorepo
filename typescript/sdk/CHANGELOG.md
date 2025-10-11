@@ -1,5 +1,25 @@
 # @hyperlane-xyz/sdk
 
+## 19.0.0
+
+### Major Changes
+
+- e42a0e8e1: feat: radix support for the cli
+- 32479e139: feat: implement new AltVM modules and readers
+
+### Patch Changes
+
+- 70354d6d9: Restore foreignDeployment field behaviour to allow enrollment of unsupported chains during deployment
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [32479e139]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/cosmos-sdk@19.0.0
+  - @hyperlane-xyz/utils@19.0.0
+  - @hyperlane-xyz/radix-sdk@19.0.0
+  - @hyperlane-xyz/core@9.0.11
+  - @hyperlane-xyz/starknet-core@19.0.0
+
 ## 18.3.0
 
 ### Minor Changes
