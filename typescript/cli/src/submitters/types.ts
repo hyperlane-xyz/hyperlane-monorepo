@@ -14,13 +14,14 @@ export const CustomTxSubmitterType = {
   FILE: 'file',
 } as const;
 
-export const EV5FileTxSubmitterPropsSchema = z.object({
+export const FileTxSubmitterPropsSchema = z.object({
   filepath: z.string(),
+  chain: ZChainName,
 });
 
 const FileSubmitterMetadataSchema = z.object({
   type: z.literal(CustomTxSubmitterType.FILE),
-  ...EV5FileTxSubmitterPropsSchema.shape,
+  ...FileTxSubmitterPropsSchema.shape,
 });
 
 type FileSubmitterMetadata = z.infer<typeof FileSubmitterMetadataSchema>;
@@ -52,6 +53,4 @@ export type ExtendedChainSubmissionStrategy = z.infer<
   typeof ExtendedChainSubmissionStrategySchema
 >;
 
-export type EV5FileTxSubmitterProps = z.infer<
-  typeof EV5FileTxSubmitterPropsSchema
->;
+export type FileTxSubmitterProps = z.infer<typeof FileTxSubmitterPropsSchema>;

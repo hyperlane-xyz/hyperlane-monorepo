@@ -1,11 +1,14 @@
 import { Logger } from 'pino';
 
 import {
+  ProtocolReceipt,
+  ProtocolTransaction,
   ProtocolTypedTransaction,
   TxSubmitterInterface,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import {
+  AltVM,
   Annotated,
   ProtocolType,
   assert,
@@ -16,23 +19,36 @@ import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import { CustomTxSubmitterType, FileTxSubmitterProps } from './types.js';
 
-export class EV5FileSubmitter
-  implements TxSubmitterInterface<ProtocolType.Ethereum>
+export class AltVMFileSubmitter<PT extends ProtocolType>
+  implements TxSubmitterInterface<PT>
 {
   txSubmitterType: TxSubmitterType =
     CustomTxSubmitterType.FILE as TxSubmitterType;
-  protected readonly logger: Logger = rootLogger.child({
-    module: 'file-submitter',
-  });
-  constructor(public readonly props: FileTxSubmitterProps) {}
+
+  protected readonly logger: Logger;
+
+  constructor(
+    public readonly signer: AltVM.ISigner<
+      ProtocolTransaction<PT>,
+      ProtocolReceipt<PT>
+    >,
+    public readonly props: FileTxSubmitterProps,
+  ) {
+    this.logger = rootLogger.child({
+      module: AltVMFileSubmitter.name,
+    });
+  }
 
   async submit(
-    ...txs: Annotated<
-      ProtocolTypedTransaction<ProtocolType.Ethereum>['transaction']
-    >[]
+    ...txs: Annotated<ProtocolTypedTransaction<PT>['transaction']>[]
   ): Promise<[]> {
     const filepath = this.props.filepath.trim();
-    const allTxs = [...txs];
+    const allTxs = [];
+
+    // Convert raw transactions to printable ones which can later be signed
+    for (const tx of txs) {
+      allTxs.push(await this.signer.transactionToPrintableJson(tx));
+    }
 
     // Attempt to append transactions to existing filepath.
     try {

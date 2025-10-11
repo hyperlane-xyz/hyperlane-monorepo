@@ -369,6 +369,8 @@ export async function enrollCrossChainRouters(
   },
   deployedContracts: ChainMap<Address>,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
+  rootLogger.info(`Start enrolling cross chain routers`);
+
   const resolvedConfigMap = objMap(warpDeployConfig, (_, config) => ({
     gas: gasOverhead(config.type),
     ...config,
@@ -382,6 +384,7 @@ export async function enrollCrossChainRouters(
       (_, config: any): config is any => !config.foreignDeployment,
     ),
   );
+
   for (const currentChain of supportedChains) {
     const protocol = multiProvider.getProtocol(currentChain);
 
@@ -404,6 +407,12 @@ export async function enrollCrossChainRouters(
           resolvedConfigMap[chain].gas.toString(),
         ]),
     );
+
+    for (const domainId of Object.keys(remoteRouters)) {
+      rootLogger.debug(
+        `Creating enroll remote router transactions with remote domain id ${domainId} and address ${remoteRouters[domainId]} on chain ${currentChain}`,
+      );
+    }
 
     switch (protocol) {
       case ProtocolType.Ethereum: {
@@ -477,6 +486,10 @@ export async function enrollCrossChainRouters(
         }
       }
     }
+
+    rootLogger.debug(
+      `Created enroll router update transactions for chain ${currentChain}`,
+    );
   }
 
   return updateTransactions;

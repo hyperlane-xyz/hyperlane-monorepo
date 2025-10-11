@@ -1014,7 +1014,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
             return new EV5FileSubmitter(metadata);
           },
         },
-        ...altVmSigner.submitterFactories(),
+        ...altVmSigner.submitterFactories(chain),
       },
     }),
     config: submissionStrategy,

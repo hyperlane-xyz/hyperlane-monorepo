@@ -135,6 +135,8 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    this.logger.debug(`Start creating ISM update transactions`);
+
     const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
@@ -155,6 +157,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       .map(([domain]) => domain);
 
     if (routesToEnroll.length === 0) {
+      this.logger.debug(`No routes to enroll. No updates needed.`);
       return updateTransactions;
     }
 
@@ -164,7 +167,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         ...(await this.signer.getEnrollRemoteRouterTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           tokenAddress: this.args.addresses.deployedTokenRoute,
           remoteRouter: {
             receiverDomainId: parseInt(domainId),
@@ -177,6 +180,10 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       });
     }
 
+    this.logger.debug(
+      `Created ${updateTransactions.length} enroll router update transactions.`,
+    );
+
     return updateTransactions;
   }
 
@@ -184,8 +191,11 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    this.logger.debug(`Start creating remote router unenroll transactions`);
+
     const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
     if (!expectedConfig.remoteRouters) {
+      this.logger.debug(`No routes to unenroll. No updates needed.`);
       return [];
     }
 
@@ -210,12 +220,16 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         ...(await this.signer.getUnenrollRemoteRouterTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           tokenAddress: this.args.addresses.deployedTokenRoute,
           receiverDomainId: parseInt(domainId),
         })),
       });
     }
+
+    this.logger.debug(
+      `Created ${updateTransactions.length} unenroll router update transactions.`,
+    );
 
     return updateTransactions;
   }
@@ -231,8 +245,13 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    this.logger.debug(`Start creating set destination gas transactions`);
+
     const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
     if (!expectedConfig.destinationGas) {
+      this.logger.debug(
+        `No gas destination configs to set. No updates needed.`,
+      );
       return [];
     }
 
@@ -276,7 +295,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
           updateTransactions.push({
             annotation: `Unenrolling ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
             ...(await this.signer.getUnenrollRemoteRouterTransaction({
-              signer: this.signer.getSignerAddress(),
+              signer: actualConfig.owner,
               tokenAddress: this.args.addresses.deployedTokenRoute,
               receiverDomainId: parseInt(domain),
             })),
@@ -286,7 +305,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
         updateTransactions.push({
           annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain} to ${gas}`,
           ...(await this.signer.getEnrollRemoteRouterTransaction({
-            signer: this.signer.getSignerAddress(),
+            signer: actualConfig.owner,
             tokenAddress: this.args.addresses.deployedTokenRoute,
             remoteRouter: {
               receiverDomainId: parseInt(domain),
@@ -299,6 +318,10 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
         });
       }
     }
+
+    this.logger.debug(
+      `Created ${updateTransactions.length} set destination gas update transactions.`,
+    );
 
     return updateTransactions;
   }
@@ -314,12 +337,17 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    this.logger.debug(`Start creating token ISM update transactions`);
+
     const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
 
     if (
       actualConfig.interchainSecurityModule ===
       expectedConfig.interchainSecurityModule
     ) {
+      this.logger.debug(
+        `Token ISM config is the same as target. No updates needed.`,
+      );
       return updateTransactions;
     }
 
@@ -327,6 +355,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       !expectedConfig.interchainSecurityModule ||
       expectedConfig.interchainSecurityModule === zeroAddress
     ) {
+      this.logger.debug(`Token ISM config is empty. No updates needed.`);
       return updateTransactions;
     }
 
@@ -348,12 +377,16 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
         ...(await this.signer.getSetTokenIsmTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           tokenAddress: this.args.addresses.deployedTokenRoute,
           ismAddress: expectedDeployedIsm,
         })),
       });
     }
+
+    this.logger.debug(
+      `Created ${updateTransactions.length} update token ISM transactions.`,
+    );
 
     return updateTransactions;
   }
@@ -369,15 +402,22 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    this.logger.debug(`Start creating token owner update transactions`);
+
     if (actualConfig.owner === expectedConfig.owner) {
+      this.logger.debug(
+        `Token owner is the same as target. No updates needed.`,
+      );
       return [];
     }
+
+    this.logger.debug(`Created 1 update token owner update transaction.`);
 
     return [
       {
         annotation: `Transferring ownership of ${this.args.addresses.deployedTokenRoute} from ${actualConfig.owner} to ${expectedConfig.owner}`,
         ...(await this.signer.getSetTokenOwnerTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           tokenAddress: this.args.addresses.deployedTokenRoute,
           newOwner: expectedConfig.owner,
         })),
@@ -397,6 +437,8 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     deployedIsm: Address;
     updateTransactions: AnnotatedTypedTransaction<PT>[];
   }> {
+    this.logger.debug(`Start deploying token ISM`);
+
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
     const ismModule = new AltVMIsmModule(
@@ -414,7 +456,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       },
       this.signer,
     );
-    this.logger.info(
+    this.logger.debug(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
     const updateTransactions = await ismModule.update(
