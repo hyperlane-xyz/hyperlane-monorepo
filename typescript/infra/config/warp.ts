@@ -44,6 +44,7 @@ import {
   getCCTPStrategyConfig,
   getCCTPWarpConfig as getMainnetCCTPWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
+import { getCarrChainCARRWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainCARRWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
@@ -143,6 +144,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet]:
     getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig,
+  [WarpRouteIds.CarrChainCARR]: getCarrChainCARRWarpConfig,
   [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
   [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,
   [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig,
