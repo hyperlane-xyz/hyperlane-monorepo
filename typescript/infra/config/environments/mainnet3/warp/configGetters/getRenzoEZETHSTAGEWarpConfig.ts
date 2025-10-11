@@ -27,6 +27,7 @@ const ezEthStagingAddresses: Record<
   unichain: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
   berachain: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
   worldchain: '0xC33DdE0a44e3Bed87cc3Ff0325D3fcbA5279930E',
+  plasma: '0x49E91677063E71FE521044535Ef58a3B546a23Cf',
 };
 
 export const ezEthStagingSafes: Record<
@@ -49,6 +50,7 @@ export const ezEthStagingSafes: Record<
   unichain: '0x9D5FCF39FF17a67eB9CB4505f83920519EfEB01B',
   berachain: '0xf013c8Be28421b050cca5bD95cc57Af49568e8be',
   worldchain: '0x3DA9AE6359Ad3eFFD33Ad334ae12bE55904BE4eA',
+  plasma: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25',
 };
 
 const ezEthStagingLockbox = '0x74c8290836612e6251E49e8f3198fdD80C4DbEB8';
