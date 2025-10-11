@@ -1,17 +1,11 @@
 import { Logger } from 'pino';
 
-import {
-  type ChainMap,
-  ChainMetadataManager,
-  type Token,
-  WarpCore,
-} from '@hyperlane-xyz/sdk';
+import { type ChainMap, type Token, WarpCore } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../../context/types.js';
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { Rebalancer } from '../core/Rebalancer.js';
-import { WithInflightGuard } from '../core/WithInflightGuard.js';
 import { WithSemaphore } from '../core/WithSemaphore.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
@@ -19,7 +13,6 @@ import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
-import { ExplorerClient } from '../utils/ExplorerClient.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 
 export class RebalancerContextFactory {
@@ -167,30 +160,18 @@ export class RebalancerContextFactory {
       metrics,
     );
 
-    const explorerUrl =
-      process.env.EXPLORER_API_URL || 'https://api.hyperlane.xyz/v1/graphql';
-
     const rebalancerAddress = this.context.signerAddress;
     if (!rebalancerAddress) {
       throw new Error('rebalancer address is required');
     }
 
-    const explorer = new ExplorerClient(explorerUrl);
-    // Compose decorators: Inflight guard first, then semaphore, then core rebalancer
     const withSemaphore = new WithSemaphore(
       this.config,
       rebalancer,
       this.logger,
     );
-    const withInflight = new WithInflightGuard(
-      this.config,
-      withSemaphore,
-      explorer,
-      rebalancerAddress,
-      new ChainMetadataManager(this.context.chainMetadata),
-      this.logger,
-    );
-    return withInflight;
+
+    return withSemaphore;
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {
