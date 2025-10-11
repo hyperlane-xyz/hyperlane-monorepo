@@ -1,5 +1,22 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 19.0.0
+
+### Major Changes
+
+- 32479e139: feat: implement cosmos-sdk for new AltVM interface
+
+### Minor Changes
+
+- e42a0e8e1: chore: updated AltVM interface
+
+### Patch Changes
+
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/utils@19.0.0
+  - @hyperlane-xyz/cosmos-types@19.0.0
+
 ## 18.3.0
 
 ### Patch Changes

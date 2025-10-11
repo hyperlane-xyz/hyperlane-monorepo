@@ -1,5 +1,17 @@
 # @hyperlane-xyz/http-registry-server
 
+## 19.0.0
+
+### Patch Changes
+
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [70354d6d9]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [32479e139]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/utils@19.0.0
+  - @hyperlane-xyz/sdk@19.0.0
+
 ## 18.3.0
 
 ### Patch Changes
