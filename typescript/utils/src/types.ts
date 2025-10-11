@@ -75,6 +75,7 @@ export type S3CheckpointWithId = {
 export type S3Announcement = {
   value: Announcement;
   signature: SignatureLike;
+  serialized_signature: string;
 };
 
 export type S3Checkpoint = {
