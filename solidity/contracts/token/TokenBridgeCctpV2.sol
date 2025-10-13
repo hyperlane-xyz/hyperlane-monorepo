@@ -43,6 +43,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             _tokenMessenger
         )
     {
+        require(_maxFeeBps < 10_000, "maxFeeBps must be less than 100%");
         maxFeeBps = _maxFeeBps;
         minFinalityThreshold = _minFinalityThreshold;
     }
