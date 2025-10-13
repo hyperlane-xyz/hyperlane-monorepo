@@ -4,34 +4,35 @@ import {
   constants as ethersConstants,
 } from 'ethers';
 
-import { ERC20, ERC20__factory } from '@hyperlane-xyz/core';
+import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
-  Numberish,
   addressToBytes32,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
-import { TokenMetadata } from '../types.js';
 
+import { EvmTokenAdapter } from './EvmTokenAdapter.js';
 import {
   IHypTokenAdapter,
-  ITokenAdapter,
   InterchainGasQuote,
-  TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
 /**
- * M0PortalLiteTokenAdapter - Simplified adapter for M0 PortalLite token transfers
+ * M0PortalLiteTokenAdapter - Adapter for M0 PortalLite token transfers
  *
- * This adapter treats the M0 Portal as a bridge that handles cross-chain transfers
- * of M tokens. It does not handle index accounting or supply tracking - just basic
- * token operations and cross-chain transfers.
+ * This adapter extends EvmTokenAdapter for basic ERC20 operations and adds
+ * support for cross-chain transfers via the M0 Portal. The Portal handles
+ * bridging of M tokens (like mUSD) between chains.
+ *
+ * Key differences from standard ERC20:
+ * - Approvals are made to the Portal contract (not the recipient)
+ * - Cross-chain transfers use Portal's transferMLikeToken function
+ * - M tokens use index-based accounting which can cause rounding
  */
 
 const PORTAL_LITE_ABI = [
@@ -43,110 +44,36 @@ const PORTAL_LITE_ABI = [
 ];
 
 export class M0PortalLiteTokenAdapter
-  extends BaseEvmAdapter
-  implements
-    ITokenAdapter<PopulatedTransaction>,
-    IHypTokenAdapter<PopulatedTransaction>
+  extends EvmTokenAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
 {
   public readonly portalContract: Contract;
-  public readonly mTokenContract: ERC20;
 
   constructor(
     multiProvider: MultiProtocolProvider,
-    chain: ChainName,
+    chainName: ChainName,
     private readonly portalAddress: Address,
-    private readonly mTokenAddress: Address,
+    mTokenAddress: Address,
   ) {
-    super(chain, multiProvider, {
-      portal: portalAddress,
-      mToken: mTokenAddress,
-    });
-    const provider = this.getProvider();
+    // Initialize parent EvmTokenAdapter with the M token
+    super(chainName, multiProvider, { token: mTokenAddress }, ERC20__factory);
+
+    // Initialize the Portal contract for cross-chain transfers
     this.portalContract = new Contract(
       this.portalAddress,
       PORTAL_LITE_ABI,
-      provider,
+      this.getProvider(),
     );
-    this.mTokenContract = ERC20__factory.connect(this.mTokenAddress, provider);
   }
 
-  // ========== ITokenAdapter implementation ==========
+  // ========== ITokenAdapter overrides ==========
 
-  async getBalance(address: Address): Promise<bigint> {
-    const balance = await this.mTokenContract.balanceOf(address);
-    return BigInt(balance.toString());
-  }
-
-  async getTotalSupply(): Promise<bigint | undefined> {
-    try {
-      const totalSupply = await this.mTokenContract.totalSupply();
-      return BigInt(totalSupply.toString());
-    } catch {
-      return undefined;
-    }
-  }
-
-  async getMetadata(isNft?: boolean): Promise<TokenMetadata> {
-    const [name, symbol, decimals] = await Promise.all([
-      this.mTokenContract.name(),
-      this.mTokenContract.symbol(),
-      isNft ? 0 : this.mTokenContract.decimals(),
-    ]);
-
-    return {
-      name,
-      symbol,
-      decimals,
-    };
-  }
-
-  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+  override async getMinimumTransferAmount(
+    _recipient: Address,
+  ): Promise<bigint> {
     // M tokens use index-based accounting which can cause rounding
     // Return a small minimum to avoid rounding to 0
     return 1n;
-  }
-
-  async isApproveRequired(
-    owner: Address,
-    _spender: Address,
-    weiAmountOrId: Numberish,
-  ): Promise<boolean> {
-    // Check allowance against the Portal contract
-    const allowance = await this.mTokenContract.allowance(
-      owner,
-      this.portalAddress,
-    );
-    return BigInt(allowance.toString()) < BigInt(weiAmountOrId.toString());
-  }
-
-  async isRevokeApprovalRequired(
-    owner: Address,
-    _spender: Address,
-  ): Promise<boolean> {
-    const allowance = await this.mTokenContract.allowance(
-      owner,
-      this.portalAddress,
-    );
-    return BigInt(allowance.toString()) > 0n;
-  }
-
-  async populateApproveTx(
-    params: TransferParams,
-  ): Promise<PopulatedTransaction> {
-    return this.mTokenContract.populateTransaction.approve(
-      this.portalAddress,
-      params.weiAmountOrId,
-    );
-  }
-
-  async populateTransferTx(
-    params: TransferParams,
-  ): Promise<PopulatedTransaction> {
-    // For local (same-chain) transfers, use M token directly
-    return this.mTokenContract.populateTransaction.transfer(
-      params.recipient,
-      params.weiAmountOrId,
-    );
   }
 
   // ========== IHypTokenAdapter implementation ==========
@@ -223,9 +150,9 @@ export class M0PortalLiteTokenAdapter
     // Both source and destination use the same token address (mUSD on both chains)
     return this.portalContract.populateTransaction.transferMLikeToken(
       BigInt(params.weiAmountOrId.toString()),
-      this.mTokenAddress, // source token
+      this.addresses.token, // source token
       destinationChainId,
-      this.mTokenAddress, // destination token (same address on both chains for mUSD)
+      this.addresses.token, // destination token (same address on both chains for mUSD)
       params.recipient,
       params.fromAccountOwner || ethersConstants.AddressZero, // refundAddress
       {
