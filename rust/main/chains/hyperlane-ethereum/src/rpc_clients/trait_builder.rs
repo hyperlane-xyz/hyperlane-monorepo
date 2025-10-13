@@ -327,7 +327,8 @@ fn get_reqwest_client(url: &Url) -> ChainResult<Client> {
     if let Some(client) = client_cache.get(url) {
         return Ok(client.clone());
     }
-    let (headers, _) = parse_custom_rpc_headers(url)?;
+    let (headers, _) =
+        parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
     let client = Client::builder()
         .timeout(HTTP_CLIENT_TIMEOUT)
         .default_headers(headers)

@@ -48,9 +48,9 @@ use scrypto::{
 };
 
 use hyperlane_core::{
-    rpc_clients::FallbackProvider, BlockInfo, ChainInfo, ChainResult, ContractLocator, Encode,
-    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, LogMeta, ReorgPeriod, TxOutcome, TxnInfo,
-    TxnReceiptInfo, H256, H512, U256,
+    rpc_clients::FallbackProvider, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
+    ContractLocator, Encode, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, LogMeta,
+    ReorgPeriod, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 use serde::{Deserialize, Serialize};
 
@@ -83,7 +83,8 @@ impl RadixProvider {
     fn build_fallback_provider(conf: &ConnectionConf) -> ChainResult<RadixFallbackProvider> {
         let mut gateway_provider = Vec::with_capacity(conf.gateway.len());
         for url in conf.gateway.iter() {
-            let (headers, url) = parse_custom_rpc_headers(url)?;
+            let (headers, url) =
+                parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
             let client = Client::builder()
                 .default_headers(headers)
                 .build()
@@ -98,7 +99,8 @@ impl RadixProvider {
 
         let mut core_provider = Vec::with_capacity(conf.core.len());
         for url in conf.core.iter() {
-            let (headers, url) = parse_custom_rpc_headers(url)?;
+            let (headers, url) =
+                parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
             let client = Client::builder()
                 .default_headers(headers)
                 .build()

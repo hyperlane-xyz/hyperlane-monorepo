@@ -1,13 +1,21 @@
 use std::str::FromStr;
 
-use hyperlane_core::{ChainCommunicationError, ChainResult};
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, InvalidHeaderName, InvalidHeaderValue};
 use url::Url;
+
+/// Errors that can occur while parsing custom_rpc_header query parameters.
+#[derive(Debug, thiserror::Error)]
+pub enum ParseCustomRpcHeaderError {
+    #[error("invalid header name: {0}")]
+    InvalidHeaderName(InvalidHeaderName),
+    #[error("invalid header value: {0}")]
+    InvalidHeaderValue(InvalidHeaderValue),
+}
 
 /// Parse custom_rpc_header query params into a HeaderMap and
 /// return a new Url with those custom_rpc_header params removed
 /// while preserving order of all other query params.
-pub fn parse_custom_rpc_headers(url: &Url) -> ChainResult<(HeaderMap, Url)> {
+pub fn parse_custom_rpc_headers(url: &Url) -> Result<(HeaderMap, Url), ParseCustomRpcHeaderError> {
     let mut retained_queries: Vec<(String, String)> = Vec::new();
     let mut headers = HeaderMap::new();
 
@@ -16,27 +24,23 @@ pub fn parse_custom_rpc_headers(url: &Url) -> ChainResult<(HeaderMap, Url)> {
             retained_queries.push((key.into_owned(), value.into_owned()));
             continue;
         }
-        if let Some((header_name, header_value)) = value.split_once(':') {
-            let header_name =
-                HeaderName::from_str(header_name).map_err(ChainCommunicationError::from_other)?;
-            let mut header_value =
-                HeaderValue::from_str(header_value).map_err(ChainCommunicationError::from_other)?;
+        if let Some((header_name_raw, header_value_raw)) = value.split_once(':') {
+            let header_name = HeaderName::from_str(header_name_raw)
+                .map_err(ParseCustomRpcHeaderError::InvalidHeaderName)?;
+            let mut header_value = HeaderValue::from_str(header_value_raw)
+                .map_err(ParseCustomRpcHeaderError::InvalidHeaderValue)?;
             header_value.set_sensitive(true);
             headers.insert(header_name, header_value);
         }
     }
 
     let mut new_url = url.clone();
-    if retained_queries.is_empty() {
-        new_url.set_query(None);
-    } else {
-        // Clear then rebuild to preserve order exactly.
-        new_url.set_query(None);
-        {
-            let mut qp = new_url.query_pairs_mut();
-            for (k, v) in retained_queries {
-                qp.append_pair(&k, &v);
-            }
+    // Clear then rebuild to preserve order exactly.
+    new_url.set_query(None);
+    {
+        let mut qp = new_url.query_pairs_mut();
+        for (k, v) in retained_queries {
+            qp.append_pair(&k, &v);
         }
     }
 

@@ -8,6 +8,6 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-hyperlane-core = { path = "../../hyperlane-core" }
 reqwest.workspace = true
 url.workspace = true
+thiserror.workspace = true
