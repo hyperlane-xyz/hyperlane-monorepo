@@ -106,7 +106,7 @@ impl RadixProvider {
                 ..Default::default()
             });
             let provider =
-                RadixMetricGatewayProvider::new(provider, url, metrics.clone(), chain.clone());
+                RadixMetricGatewayProvider::new(provider, &url, metrics.clone(), chain.clone());
             gateway_provider.push(provider);
         }
 
@@ -127,7 +127,7 @@ impl RadixProvider {
                 conf.network.clone(),
             );
             let provider =
-                RadixMetricCoreProvider::new(provider, url, metrics.clone(), chain.clone());
+                RadixMetricCoreProvider::new(provider, &url, metrics.clone(), chain.clone());
             core_provider.push(provider);
         }
         Ok(RadixFallbackProvider::new(
