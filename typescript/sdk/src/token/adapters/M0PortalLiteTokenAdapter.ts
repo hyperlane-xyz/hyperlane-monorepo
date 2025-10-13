@@ -91,14 +91,7 @@ export class M0PortalLiteTokenAdapter
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
-    const domains = await this.getDomains();
-    return domains.map((domain) => ({
-      domain,
-      address: Buffer.from(
-        strip0x(addressToBytes32(this.portalAddress)),
-        'hex',
-      ),
-    }));
+    return [];
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
@@ -125,7 +118,6 @@ export class M0PortalLiteTokenAdapter
 
     return {
       amount: BigInt(gasQuote.toString()),
-      addressOrDenom: undefined, // Native token payment
     };
   }
 
