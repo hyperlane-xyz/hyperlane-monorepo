@@ -73,10 +73,10 @@ jobs:
         id: check_version
         working-directory: ./rust/main
         run: |
-          # Get current version from Cargo.toml
-          CURRENT_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          # Get current version from hyperlane-agents.version file
+          CURRENT_VERSION=$(cat hyperlane-agents.version | tr -d '[:space:]')
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "Current Cargo.toml version: $CURRENT_VERSION"
+          echo "Current hyperlane-agents.version: $CURRENT_VERSION"
 
           # Get latest agents-v* tag
           LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
@@ -200,32 +200,15 @@ jobs:
             echo "$CHANGELOG"
             echo 'EOF'
           } >> $GITHUB_OUTPUT
-      - name: Update Cargo.toml version
+      - name: Update version files
         working-directory: ./rust/main
         env:
           NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
         run: |
-          # Update only the workspace version (first occurrence under [workspace.package])
-          # Use awk to only replace the version in the [workspace.package] section
-          awk -v new_ver="$NEW_VERSION" '
-            /^\[workspace\.package\]/ { in_workspace=1 }
-            /^\[/ && !/^\[workspace\.package\]/ { in_workspace=0 }
-            in_workspace && /^version = / && !replaced {
-              print "version = \"" new_ver "\""
-              replaced=1
-              next
-            }
-            { print }
-          ' Cargo.toml > Cargo.toml.tmp
-          mv Cargo.toml.tmp Cargo.toml
+          # Update hyperlane-agents.version file
+          echo "$NEW_VERSION" > hyperlane-agents.version
+          echo "Updated hyperlane-agents.version to $NEW_VERSION"
 
-          echo "Updated Cargo.toml to version $NEW_VERSION"
-          git diff Cargo.toml
-      - name: Update CHANGELOG
-        working-directory: ./rust/main
-        env:
-          NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
-        run: |
           # Prepend new version to CHANGELOG.md
           if [ -f CHANGELOG.md ]; then
             CURRENT_CHANGELOG=$(cat CHANGELOG.md)
@@ -260,7 +243,7 @@ jobs:
           git checkout -B "$BRANCH_NAME"
 
           # Stage changes
-          git add rust/main/Cargo.toml rust/main/CHANGELOG.md
+          git add rust/main/CHANGELOG.md rust/main/hyperlane-agents.version
 
           # Commit changes
           git commit -m "release: agents v${NEW_VERSION}
