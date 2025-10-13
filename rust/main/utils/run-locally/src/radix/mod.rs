@@ -4,8 +4,10 @@ use std::path::{Path, PathBuf};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use hyperlane_core::ReorgPeriod;
-use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain, H256};
+use hyperlane_core::{
+    ContractLocator, HyperlaneDomain, HyperlaneProvider, KnownHyperlaneDomain, H256,
+};
+use hyperlane_core::{ReorgPeriod, SubmitterType};
 use hyperlane_radix::{ConnectionConf, RadixProvider, RadixSigner};
 
 use macro_rules_attribute::apply;
@@ -22,6 +24,7 @@ pub const KEY: (&str, &str) = (
 pub const CORE_API: &str = "http://localhost:3333/core";
 pub const GATEWAY_API: &str = "http://localhost:5308/";
 pub const NETWORK: NetworkDefinition = NetworkDefinition::localnet();
+pub const SUBMITTER_TYPE: SubmitterType = SubmitterType::Lander;
 
 const HYPERLANE_RADIX_GIT: &str = "https://github.com/hyperlane-xyz/hyperlane-radix";
 const HYPERLANE_RADIX_VERSION: &str = "1.0.0";
@@ -109,7 +112,7 @@ fn start_localnet() {
         .arg("profile", "fullnode")
         .arg("profile", "network-gateway-image")
         .cmd("up")
-        .cmd("-d")
+        .raw_arg("--detach")
         .filter_logs(|_| false)
         .run()
         .join();
@@ -211,6 +214,8 @@ fn launch_radix_relayer(agent_config_path: String, relay_chains: Vec<String>) ->
         .hyp_env("DEFAULTSIGNER_KEY", KEY.1)
         .hyp_env("DEFAULTSIGNER_TYPE", "radixKey")
         .hyp_env("DEFAULTSIGNER_SUFFIX", SUFFIX)
+        .hyp_env("CHAINS_RADIXTEST0_SUBMITTER", SUBMITTER_TYPE.to_string())
+        .hyp_env("CHAINS_RADIXTEST1_SUBMITTER", SUBMITTER_TYPE.to_string())
         .hyp_env(
             "GASPAYMENTENFORCEMENT",
             r#"[{
@@ -285,11 +290,17 @@ pub async fn run_locally() {
         H256::zero(),
     );
 
+    let encoded_address = signer.encoded_address.clone();
     let provider = RadixProvider::new(Some(signer), &config, &locator, &ReorgPeriod::None)
         .expect("Failed to create Radix provider");
 
-    let mut cli = RadixCli::new(provider, NETWORK);
+    let mut cli = RadixCli::new(provider.clone(), NETWORK);
     cli.fund_account().await;
+    let resp = provider
+        .get_balance(encoded_address.clone())
+        .await
+        .expect("Failed to get balance");
+    log!("Funding balance: {:?}", resp);
 
     let (code_path, rdp) = download_radix_contracts();
 
@@ -373,7 +384,6 @@ pub async fn run_locally() {
         .expect("Failed to convert agent config path to string");
 
     let hpl_rly = launch_radix_relayer(path.to_owned(), chains.clone());
-
     let hpl_scr = launch_radix_scraper(path.to_owned(), chains.clone());
 
     // give things a chance to fully start.

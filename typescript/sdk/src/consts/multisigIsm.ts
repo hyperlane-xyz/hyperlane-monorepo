@@ -429,6 +429,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  carrchain: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x7ed0a7582af75dc38ad82e7125b51e3eaa6ec33b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   carrchaintestnet: {
     threshold: 1,
     validators: [
@@ -796,7 +807,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   forma: {
-    threshold: 4,
+    threshold: 5,
     validators: [
       {
         address: '0x5B19F64F04f495D3958804Ec416c165F00f74898',
@@ -1011,6 +1022,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  incentiv: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x72669f47b6f119289f1a42641b02a9656cc8fecd',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   incentivtestnet: {
     threshold: 1,
     validators: [
@@ -1176,6 +1198,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  litchain: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xde5509be55483aa525e9b5cce6fe64d3e68d068d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   lukso: {
     threshold: 2,
     validators: [
@@ -1249,12 +1282,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mantra: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x89b8064e29f125e896f6081ebb77090c46bca9cd',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1467,6 +1501,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  monad: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xb4654795b2f1b17513ffde7d85c776e4cade366c',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   monadtestnet: {
     threshold: 1,
     validators: [
@@ -1671,6 +1716,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MITOSIS_VALIDATOR,
+      // TODO: enroll once announced onchain
+      // {
+      //   address: '0xc36fe08e2c06ca51f6c3523e54e33505b7aaba37',
+      //   alias: 'Luganodes',
+      // },
     ],
   },
 
@@ -1786,18 +1836,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  proofofplay: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0xcda40baa71970a06e5f55e306474de5ca4e21c3b',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   pulsechain: {
     threshold: 2,
     validators: [
@@ -1817,6 +1855,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MITOSIS_VALIDATOR,
+      {
+        address: '0xc61209c6b133791c729d0cbe49d6da96c30a515f',
+        alias: 'Luganodes',
+      },
     ],
   },
 
@@ -1951,18 +1993,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xfa33391ee38597cbeef72ccde8c9e13e01e78521',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  snaxchain: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x2c25829ae32a772d2a49f6c4b34f8b01fd03ef9e',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MERKLY_VALIDATOR,
@@ -2134,11 +2164,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  sova: {
+  sovachain: {
     threshold: 1,
     validators: [
       {
-        address: '0x1763d686c45df79f6d5f63564255546b08cb206c',
+        address: '0x5f9a044bbf460fb7236bfae24b5ca9090fff844d',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -2483,11 +2513,25 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   zerogravity: {
-    threshold: 1,
+    threshold: 4,
     validators: [
       {
         address: '0xc37e7dad064c11d7ecfc75813a4d8d649d797275',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
+      {
+        address: '0x25c5fc524ac7ef5e7868644fbe68793e5eb179ea',
+        alias: 'Luganodes',
+      },
+      {
+        address: '0x782ac2b5244b69779bd7214a2d60212fb35c3ae7',
+        alias: 'Enigma',
+      },
+      {
+        address: '0xd3e6a4e61b5d902a63df6dac9db5585d9f319b09',
+        alias: 'Substance Labs',
       },
     ],
   },

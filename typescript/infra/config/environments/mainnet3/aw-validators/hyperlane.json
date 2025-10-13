@@ -65,6 +65,9 @@
   "bsquared": {
     "validators": ["0xcadc90933c9fbe843358a4e70e46ad2db78e28aa"]
   },
+  "carrchain": {
+    "validators": ["0x7ed0a7582af75dc38ad82e7125b51e3eaa6ec33b"]
+  },
   "celestia": {
     "validators": ["0x6dbc192c06907784fb0af0c0c2d8809ea50ba675"]
   },
@@ -152,6 +155,9 @@
   "immutablezkevmmainnet": {
     "validators": ["0xbdda85b19a5efbe09e52a32db1a072f043dd66da"]
   },
+  "incentiv": {
+    "validators": ["0x72669f47b6f119289f1a42641b02a9656cc8fecd"]
+  },
   "inevm": {
     "validators": ["0xf9e35ee88e4448a3673b4676a4e153e3584a08eb"]
   },
@@ -175,6 +181,9 @@
   },
   "lisk": {
     "validators": ["0xc0b282aa5bac43fee83cf71dc3dd1797c1090ea5"]
+  },
+  "litchain": {
+    "validators": ["0xde5509be55483aa525e9b5cce6fe64d3e68d068d"]
   },
   "lukso": {
     "validators": ["0xa5e953701dcddc5b958b5defb677a829d908df6d"]
@@ -220,6 +229,9 @@
   },
   "molten": {
     "validators": ["0xad5aa33f0d67f6fa258abbe75458ea4908f1dc9f"]
+  },
+  "monad": {
+    "validators": ["0xb4654795b2f1b17513ffde7d85c776e4cade366c"]
   },
   "moonbeam": {
     "validators": ["0x2225e2f4e9221049456da93b71d2de41f3b6b2a8"]
@@ -275,9 +287,6 @@
   "prom": {
     "validators": ["0xb0c4042b7c9a95345be8913f4cdbf4043b923d98"]
   },
-  "proofofplay": {
-    "validators": ["0xcda40baa71970a06e5f55e306474de5ca4e21c3b"]
-  },
   "pulsechain": {
     "validators": ["0xa73fc7ebb2149d9c6992ae002cb1849696be895b"]
   },
@@ -305,9 +314,6 @@
   "shibarium": {
     "validators": ["0xfa33391ee38597cbeef72ccde8c9e13e01e78521"]
   },
-  "snaxchain": {
-    "validators": ["0x2c25829ae32a772d2a49f6c4b34f8b01fd03ef9e"]
-  },
   "solanamainnet": {
     "validators": ["0x28464752829b3ea59a497fca0bdff575c534c3ff"]
   },
@@ -328,9 +334,6 @@
   },
   "sophon": {
     "validators": ["0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b"]
-  },
-  "sova": {
-    "validators": ["0x1763d686c45df79f6d5f63564255546b08cb206c"]
   },
   "story": {
     "validators": ["0x501eda013378c60557d763df98d617b6ba55447a"]
@@ -400,5 +403,8 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "sovachain": {
+    "validators": ["0x5f9a044bbf460fb7236bfae24b5ca9090fff844d"]
   }
 }

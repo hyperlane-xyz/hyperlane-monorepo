@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   fullnode:
     image: 'radixdlt/babylon-node:v1.3.0.1'

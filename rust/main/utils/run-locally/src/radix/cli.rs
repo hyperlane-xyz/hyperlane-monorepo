@@ -108,7 +108,7 @@ impl RadixCli {
             notary_is_signatory: true,
             network_id: self.network.id,
             start_epoch_inclusive: Epoch::of(epoch),
-            end_epoch_exclusive: Epoch::of(epoch + 2), // ~5 minutes per epoch -> 10min timeout
+            end_epoch_exclusive: Epoch::of(epoch.saturating_add(2)), // ~5 minutes per epoch -> 10min timeout
             nonce: rand::random::<u32>(),
             tip_percentage: 0,
         });
@@ -192,7 +192,7 @@ impl RadixCli {
     }
 
     pub async fn fund_account(&self) {
-        log!("Funding account from faucet...");
+        log!("Funding account from faucet... {}", self.signer.to_hex());
         self.send_tx(|builder| builder.get_free_xrd_from_faucet())
             .await;
     }

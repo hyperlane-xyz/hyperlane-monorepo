@@ -3,7 +3,7 @@ export enum WarpRouteIds {
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
   RenzoEZETH = 'EZETH/renzo-prod',
   RenzoEZETHSTAGE = 'EZETHSTAGE/renzo-stage',
-  ArbitrumBaseEthereumRadixUSDC = 'USDC/arbitrum-base-ethereum-radix',
+  RadixUSDC = 'USDC/radix',
   ArbitrumBaseEnduranceUSDC = 'USDC/arbitrum-base-endurance',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
@@ -111,6 +111,10 @@ export enum WarpRouteIds {
   ElectroneumUSDC = 'USDC/electroneum',
 
   GalacticaGNET = 'GNET/galactica',
+
+  SolaxyUSDC = 'USDC/solaxy',
+
+  MantraUSDC = 'USDC/mantra',
 
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',

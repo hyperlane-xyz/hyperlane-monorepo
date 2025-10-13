@@ -218,7 +218,6 @@ pub enum KnownHyperlaneDomain {
     Polygon = 137,
     PolygonZkEvm = 1101,
     Prom = 227,
-    ProofOfPlay = 70700,
     Rarichain = 1000012617,
     Ronin = 2020,
     Reactive = 1597,
@@ -226,7 +225,6 @@ pub enum KnownHyperlaneDomain {
     Sei = 1329,
     Scroll = 534352,
     Shibarium = 109,
-    SnaxChain = 2192,
     SolanaMainnet = 1399811149,
     Solaxy = 1936682104,
     Sophon = 50104,
@@ -295,6 +293,7 @@ pub enum KnownHyperlaneDomain {
     PolynomialFi = 1000008008,
     PragmaDevnet = 6363709,
     Radix = 1633970780,
+    RadixTestnet = 1280787160,
     ScrollSepolia = 534351,
     Sepolia = 11155111,
     SolanaTestnet = 1399811150,
@@ -460,6 +459,7 @@ impl KnownHyperlaneDomain {
             | PlumeTestnet
             | Polygonamoy
             | PragmaDevnet
+            | RadixTestnet
             | ScrollSepolia
             | Sepolia
             | SolanaTestnet
@@ -517,6 +517,7 @@ impl KnownHyperlaneDomain {
             | Paradex
             | ParadexSepolia
             | PragmaDevnet => HyperlaneDomainProtocol::Starknet,
+            Radix | RadixTestnet => HyperlaneDomainProtocol::Radix,
             _ => HyperlaneDomainProtocol::Ethereum
         }
     }
@@ -526,12 +527,12 @@ impl KnownHyperlaneDomain {
         match self {
             ApeChain | AppChain | Arbitrum | ArbitrumNova | ArbitrumSepolia | CarrchainTestnet
             | Cheesechain | Corn | Everclear | Fluence | DegenChain | Galactica | Gravity
-            | InEvm | MiracleChain | Molten | Plume | PlumeTestnet | ProofOfPlay | Rarichain
+            | InEvm | MiracleChain | Molten | Plume | PlumeTestnet | Rarichain
             | SuperpositionMainnet | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
             Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Form | Fraxtal | Guru
             | Ink | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint | Mode
-            | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone | SnaxChain
-            | Soneium | Superseed | Swell | Unichain | Worldchain | Zircuit | ZoraMainnet => {
+            | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone | Soneium
+            | Superseed | Swell | Unichain | Worldchain | Zircuit | ZoraMainnet => {
                 HyperlaneDomainTechnicalStack::OpStack
             }
             DogeChain | LumiaPrism | Katana | Merlin | PolygonZkEvm | Prom | Xlayer => {

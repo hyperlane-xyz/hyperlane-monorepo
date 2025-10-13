@@ -144,7 +144,10 @@ export class AgentGCPKey extends CloudAgentKey {
     return this.remoteKey.address;
   }
 
-  addressForProtocol(protocol: ProtocolType): string | undefined {
+  addressForProtocol(
+    protocol: ProtocolType,
+    bech32Prefix?: string,
+  ): string | undefined {
     this.requireFetched();
     this.logger.debug(`Getting address for protocol: ${protocol}`);
 
@@ -167,9 +170,10 @@ export class AgentGCPKey extends CloudAgentKey {
         const encodedPubkey = encodeSecp256k1Pubkey(
           new Uint8Array(Buffer.from(strip0x(compressedPubkey), 'hex')),
         );
-        // TODO support other prefixes?
-        // https://cosmosdrops.io/en/tools/bech32-converter is useful for converting to other prefixes.
-        return pubkeyToAddress(encodedPubkey, 'celestia');
+        if (!bech32Prefix) {
+          throw new Error('Bech32 prefix is required for Cosmos address');
+        }
+        return pubkeyToAddress(encodedPubkey, bech32Prefix);
       }
       default:
         this.logger.debug(`Unsupported protocol: ${protocol}`);
@@ -187,16 +191,22 @@ export class AgentGCPKey extends CloudAgentKey {
     this.requireFetched();
 
     if (protocol === ProtocolType.Sealevel) {
-      // This assumes the key is stored as the base64 encoded
-      // string of the stringified version of the private key
-      // in array format (format used by the solana CLI).
-      // So we need to:
-      // - convert the base64 string to a buffer so we can get the stringified json string
-      // - get the the json array from its stringified representation
-      // - finally get the byte array from the parsed json array
-      return Uint8Array.from(
-        JSON.parse(String(Buffer.from(this.privateKey, 'base64'))),
-      );
+      if (this.role === Role.Deployer) {
+        // This assumes the key is stored as the base64 encoded
+        // string of the stringified version of the private key
+        // in array format (format used by the solana CLI).
+        // So we need to:
+        // - convert the base64 string to a buffer so we can get the stringified json string
+        // - get the the json array from its stringified representation
+        // - finally get the byte array from the parsed json array
+        return Uint8Array.from(
+          JSON.parse(String(Buffer.from(this.privateKey, 'base64'))),
+        );
+      }
+
+      // All other keys are stored as hex strings
+      return Keypair.fromSeed(Buffer.from(strip0x(this.privateKey), 'hex'))
+        .secretKey;
     } else if (protocol === ProtocolType.Starknet) {
       return ethers.utils.hexlify(ethers.utils.base58.decode(this.privateKey));
     } else {

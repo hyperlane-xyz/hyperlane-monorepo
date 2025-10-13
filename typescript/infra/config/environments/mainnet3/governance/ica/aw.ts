@@ -91,7 +91,6 @@ export const awIcas: ChainMap<Address> = {
   polygonzkevm: '0x00c9F4250836B58582e2B62aDA28AEbB2cF08D23',
   polynomialfi: '0x69D9a8412eB285d41b06763631fe7d734d3Fcec3',
   prom: '0x0A335686C1AdAD375feF9267dA235496E190991f',
-  proofofplay: '0x6729ffCD2DBFDf9C6495c2F8021A4216a8e1EE3F',
   rarichain: '0x1dB8093b1C0c79F6A85ecbd0423c6696df4C57EC',
   reactive: '0x9B56aBc4Fd0b01E143f5856607d261C5D871718F',
   redstone: '0x64A2F705Fe46d71120263C1c0d5A15fE35a198F4',
@@ -99,7 +98,6 @@ export const awIcas: ChainMap<Address> = {
   scroll: '0x4B0910867a52de380bc5f54481AF199B64bC46EF',
   sei: '0xd30AF4e3786995Aa89Ef58ec5f3280b73386a944',
   shibarium: '0x5aCE843FdFFDe09ff83a264e1a002A8981BbEa12',
-  snaxchain: '0x60021F107A32e7E747bDeca64e6FCC21DD45C4AC',
   soneium: '0x1472ab941e43D5D9Eadf33661D884F1A1ce0Ecb7',
   sonic: '0x888da4CDD0Af7c9BE436e31CE2Bb84b70447a22a',
   story: '0x25756750F44d433219e9F13373Cd26983130bf21',
@@ -128,5 +126,5 @@ export const awIcas: ChainMap<Address> = {
 
   // Sept 22, 2025
   // ----------------------------------------------------------
-  // zerogravity: '0x8d8703Ea7E7A129a581DCA59B916Cc4410a61D47',
+  zerogravity: '0x8d8703Ea7E7A129a581DCA59B916Cc4410a61D47',
 } as const;
