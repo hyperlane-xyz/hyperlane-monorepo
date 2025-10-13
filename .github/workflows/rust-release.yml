@@ -1,0 +1,139 @@
+name: Rust Agent Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'rust/main/**'
+      - '.github/workflows/rust-release.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
+jobs:
+  release-pr:
+    name: Update Release PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry/index
+          key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-registry-
+
+      - name: Install release-plz
+        run: cargo install release-plz --locked
+
+      - name: Run release-plz
+        id: release-plz
+        working-directory: ./rust/main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Run release-plz to create/update the release PR
+          release-plz release-pr \
+            --git-token "$GITHUB_TOKEN" \
+            --backend github \
+            --repo-url "${{ github.repository }}"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "Release PR workflow completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "If a release PR was created, it will appear in the Pull Requests tab." >> $GITHUB_STEP_SUMMARY
+          echo "Once merged, the release will be published automatically." >> $GITHUB_STEP_SUMMARY
+
+  release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    # Only run on main branch when a release PR is merged
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      contains(github.event.head_commit.message, 'chore: release')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry/index
+          key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-registry-
+
+      - name: Install release-plz
+        run: cargo install release-plz --locked
+
+      - name: Install git-cliff
+        run: cargo install git-cliff --locked
+
+      - name: Publish Release
+        working-directory: ./rust/main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Get the version from the workspace Cargo.toml
+          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "Detected version: $VERSION"
+
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 --match "agents-v*" 2>/dev/null || echo "")
+          echo "Previous tag: $PREV_TAG"
+
+          # Generate changelog from previous tag to HEAD
+          if [ -z "$PREV_TAG" ]; then
+            CHANGELOG=$(git-cliff --config cliff.toml --unreleased --strip all)
+          else
+            CHANGELOG=$(git-cliff --config cliff.toml --latest --strip all)
+          fi
+
+          # Create the tag
+          TAG_NAME="agents-v${VERSION}"
+          echo "Creating tag: $TAG_NAME"
+          git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
+          git push origin "$TAG_NAME"
+
+          # Create GitHub release with the changelog
+          gh release create "$TAG_NAME" \
+            --title "Agents $VERSION" \
+            --notes "$CHANGELOG" \
+            --repo "${{ github.repository }}"
+
+          echo "Release $TAG_NAME published successfully!" >> $GITHUB_STEP_SUMMARY
+
+      - name: Trigger artifact build
+        run: |
+          echo "The agent-release-artifacts workflow will be triggered automatically by the release event." >> $GITHUB_STEP_SUMMARY

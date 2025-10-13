@@ -1,0 +1,32 @@
+# release-plz configuration for Hyperlane Rust agents
+# Documentation: https://release-plz.ieni.dev/docs/config
+
+[workspace]
+# Use conventional commits to determine version bumps
+changelog_update = true
+# Generate changelog using git-cliff
+changelog_config = "cliff.toml"
+# Use agents-v prefix for tags
+git_tag_name = "agents-v{{ version }}"
+# Don't publish to crates.io - we only do GitHub releases
+publish = false
+# Release all packages in the workspace together with the same version
+release = true
+
+# Changelog generation for the entire workspace
+[changelog]
+# Disable individual package changelogs, we want one unified changelog
+commit_parsers = [
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Bug Fixes" },
+  { message = "^perf", group = "Performance" },
+  { message = "^chore", group = "Miscellaneous" },
+  { message = "^refactor", group = "Refactor" },
+  { message = "^doc", skip = true },
+  { message = "^test", skip = true },
+  { message = "^style", skip = true },
+]
+# Only include commits that touch the rust/main directory
+filter_commits = [
+  { path = "rust/main/.*" }
+]
