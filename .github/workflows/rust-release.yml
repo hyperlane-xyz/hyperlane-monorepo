@@ -1,6 +1,9 @@
 name: Rust Agent Release
 
 on:
+  pull_request:
+    branches:
+      - pb/rust-release-cargo # for testing
   push:
     branches:
       - main
@@ -329,9 +332,10 @@ jobs:
     runs-on: depot-ubuntu-latest
     needs: check-release-status
     if: |
-      github.ref == 'refs/heads/main' &&
+      github.ref != 'refs/remotes/origin/pb/rust-release-cargo' ||
+      (github.ref == 'refs/heads/main' &&
       ((github.event_name == 'workflow_dispatch' && inputs.prerelease) ||
-       (github.event_name == 'push' && needs.check-release-status.outputs.should_release == 'true'))
+       (github.event_name == 'push' && needs.check-release-status.outputs.should_release == 'true')))
     steps:
       - uses: actions/checkout@v4
         with:
@@ -344,8 +348,8 @@ jobs:
         working-directory: ./rust/main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IS_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease }}
-          PRERELEASE_SUFFIX: ${{ inputs.prerelease_suffix }}
+          IS_PRERELEASE: true
+          PRERELEASE_SUFFIX: pbio.rc1
           BASE_VERSION: ${{ needs.check-release-status.outputs.current_version }}
         run: |
           git config user.name "github-actions[bot]"
