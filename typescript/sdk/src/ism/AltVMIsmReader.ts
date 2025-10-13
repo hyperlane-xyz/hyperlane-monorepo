@@ -73,9 +73,7 @@ export class AltVMIsmReader {
 
     return {
       type: IsmType.MERKLE_ROOT_MULTISIG,
-      address,
-      validators: ism.validators,
-      threshold: ism.threshold,
+      ...ism,
     };
   }
 
@@ -88,9 +86,7 @@ export class AltVMIsmReader {
 
     return {
       type: IsmType.MESSAGE_ID_MULTISIG,
-      address,
-      validators: ism.validators,
-      threshold: ism.threshold,
+      ...ism,
     };
   }
 
@@ -128,9 +124,13 @@ export class AltVMIsmReader {
   }
 
   private async deriveTestConfig(address: Address): Promise<DerivedIsmConfig> {
+    const ism = await this.provider.getNoopIsm({
+      ismAddress: address,
+    });
+
     return {
       type: IsmType.TEST_ISM,
-      address,
+      ...ism,
     };
   }
 }
