@@ -242,9 +242,11 @@ abstract contract EverclearBridge is TokenRouter {
             _amount
         );
 
+        uint256 scaledAmount = _outboundAmount(_amount);
+
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
-            _outboundAmount(_amount),
+            scaledAmount,
             abi.encode(intent)
         );
 
@@ -253,7 +255,7 @@ abstract contract EverclearBridge is TokenRouter {
             _emitAndDispatch(
                 _destination,
                 _recipient,
-                _amount,
+                scaledAmount,
                 remainingNativeValue,
                 _tokenMessage
             );

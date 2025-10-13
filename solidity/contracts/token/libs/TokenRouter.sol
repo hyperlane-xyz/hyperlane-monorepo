@@ -150,10 +150,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             msg.value
         );
 
+        uint256 scaledAmount = _outboundAmount(_amount);
+
         // 2. Prepare the token message with the recipient and amount
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
-            _outboundAmount(_amount)
+            scaledAmount
         );
 
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
@@ -161,7 +163,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             _emitAndDispatch(
                 _destination,
                 _recipient,
-                _amount,
+                scaledAmount,
                 remainingNativeValue,
                 _tokenMessage
             );
