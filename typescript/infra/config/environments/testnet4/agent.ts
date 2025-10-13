@@ -359,7 +359,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ed05058-20251008-172529',
+      tag: '5847e5d-20251013-130711',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -380,7 +380,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '878301a-20250923-145330',
+      tag: '5847e5d-20251013-130711',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -389,7 +389,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '878301a-20250923-145330',
+      tag: '5847e5d-20251013-130711',
     },
     resources: scraperResources,
   },
@@ -404,7 +404,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ed05058-20251008-172529',
+      tag: '5847e5d-20251013-130711',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -425,7 +425,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e5e9700-20250909-164323',
+      tag: '5847e5d-20251013-130711',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
@@ -452,7 +452,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '62ec77a-20250827-085602',
+      tag: '5847e5d-20251013-130711',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -473,7 +473,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '62ec77a-20250827-085602',
+      tag: '5847e5d-20251013-130711',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
