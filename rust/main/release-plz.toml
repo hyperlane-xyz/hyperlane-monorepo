@@ -17,3 +17,5 @@ pr_draft = false
 pr_labels = ["release"]
 # Automatically determine next version from conventional commits
 semver_check = false
+# Allow running with uncommitted changes (e.g., generated test files in CI)
+allow_dirty = true
