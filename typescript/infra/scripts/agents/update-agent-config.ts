@@ -256,7 +256,6 @@ export async function writeAgentAppContexts(
 main()
   .then(() => process.exit(0))
   .catch((e) => {
-    console.error(e);
     rootLogger.error('Failed to update agent config', e);
     process.exit(1);
   });
