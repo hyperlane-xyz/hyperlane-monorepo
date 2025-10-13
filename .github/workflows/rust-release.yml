@@ -189,3 +189,21 @@ jobs:
           [ "$IS_PRERELEASE" = "true" ] && echo "This is marked as a pre-release on GitHub." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Binary artifacts will be built automatically by the agent-release-artifacts workflow." >> $GITHUB_STEP_SUMMARY
+      - name: Update CHANGELOG.md
+        if: steps.check_version.outputs.should_release == true
+        working-directory: ./rust/main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Generate full changelog from all tags
+          git-cliff --config cliff.toml --tag-pattern "agents-v*" -o CHANGELOG.md
+
+          # Commit and push the updated changelog
+          git add CHANGELOG.md
+          if git diff --staged --quiet; then
+            echo "No changes to CHANGELOG.md"
+          else
+            git commit -m "chore: update CHANGELOG.md for $(git describe --tags --abbrev=0)"
+            git push origin main
+            echo "CHANGELOG.md updated and pushed to main" >> $GITHUB_STEP_SUMMARY
+          fi
