@@ -130,6 +130,7 @@ async fn dispatch(deployments: &Vec<Deployment>, nonce: u32) -> u32 {
                 .cli
                 .remote_transfer(local.contracts.collateral, other.domain, nonce + 1)
                 .await;
+            sleep(Duration::from_secs(5));
             transfers += 1;
         }
     }
@@ -271,13 +272,8 @@ pub async fn run_locally() {
     let core = Url::parse(CORE_API).expect("Failed to parse URL");
     let gateway = Url::parse(GATEWAY_API).expect("Failed to parse URL");
 
-    let mut config = ConnectionConf::new(
-        vec![core],
-        vec![gateway],
-        NETWORK.logical_name.to_string(),
-        Vec::new(),
-        Vec::new(),
-    );
+    let mut config =
+        ConnectionConf::new(vec![core], vec![gateway], NETWORK.logical_name.to_string());
     config.network = NETWORK;
 
     let relayer_key = hex::decode(
@@ -295,8 +291,15 @@ pub async fn run_locally() {
     );
 
     let encoded_address = signer.encoded_address.clone();
-    let provider = RadixProvider::new(Some(signer), &config, &locator, &ReorgPeriod::None)
-        .expect("Failed to create Radix provider");
+    let provider = RadixProvider::new(
+        Some(signer),
+        &config,
+        &locator,
+        &ReorgPeriod::None,
+        Default::default(),
+        None,
+    )
+    .expect("Failed to create Radix provider");
 
     let mut cli = RadixCli::new(provider.clone(), NETWORK);
     cli.fund_account().await;

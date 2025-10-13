@@ -562,6 +562,8 @@ export interface ISigner<T, R> extends IProvider<T> {
 
   supportsTransactionBatching(): boolean;
 
+  transactionToPrintableJson(transaction: T): Promise<object>;
+
   sendAndConfirmTransaction(transaction: T): Promise<R>;
 
   sendAndConfirmBatchTransactions(transactions: T[]): Promise<R>;
