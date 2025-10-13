@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { Wallet, ethers } from 'ethers';
 import { parseEther } from 'ethers/lib/utils.js';
 
-import { ERC20Test, ERC20__factory } from '@hyperlane-xyz/core';
+import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
   ChainAddresses,
   createWarpRouteConfigId,
@@ -117,7 +117,7 @@ describe('hyperlane warp send e2e tests', async function () {
     expect(exitCode).to.equal(0);
     expect(stdout).to.include(WarpSendLogs.SUCCESS);
 
-    const [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
+    let [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
       await Promise.all([
         token.callStatic.balanceOf(walletChain2.address),
         synthetic.callStatic.balanceOf(walletChain3.address),
@@ -125,6 +125,35 @@ describe('hyperlane warp send e2e tests', async function () {
 
     expect(tokenBalanceOnChain2After.lt(tokenBalanceOnChain2Before)).to.be.true;
     expect(tokenBalanceOnChain3After.gt(tokenBalanceOnChain3Before)).to.be.true;
+
+    // Test with chains parameter
+    const { stdout: stdoutChains, exitCode: exitCodeChains } =
+      await hyperlaneWarpSendRelay({
+        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        chains: `${CHAIN_NAME_3},${CHAIN_NAME_2}`,
+      });
+    expect(exitCodeChains).to.equal(0);
+    expect(stdoutChains).to.include(WarpSendLogs.SUCCESS);
+
+    [tokenBalanceOnChain2After, tokenBalanceOnChain3After] = await Promise.all([
+      token.callStatic.balanceOf(walletChain2.address),
+      synthetic.callStatic.balanceOf(walletChain3.address),
+    ]);
+
+    // Test with roundTrip parameter
+    const { stdout: stdoutRoundTrip, exitCode: exitCodeRoundTrip } =
+      await hyperlaneWarpSendRelay({
+        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        chains: `${CHAIN_NAME_2},${CHAIN_NAME_3}`,
+        roundTrip: true,
+      });
+    expect(exitCodeRoundTrip).to.equal(0);
+    expect(stdoutRoundTrip).to.include(WarpSendLogs.SUCCESS);
+
+    expect(tokenBalanceOnChain2After.toBigInt()).eq(
+      tokenBalanceOnChain2Before.toBigInt(),
+    );
+    expect(tokenBalanceOnChain3After.toBigInt()).eq(0n);
   });
 
   const amountThreshold = randomInt(1, 1e4);
