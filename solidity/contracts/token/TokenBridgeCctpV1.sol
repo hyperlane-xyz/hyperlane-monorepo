@@ -157,7 +157,7 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
 
         _message = TokenMessage.format(
             _recipient,
-            _outboundAmount(_amount),
+            _amount,
             abi.encodePacked(nonce)
         );
         _validateTokenMessageLength(_message);

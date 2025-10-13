@@ -147,7 +147,7 @@ abstract contract TokenBridgeCctpBase is
             _emitAndDispatch(
                 _destination,
                 _recipient,
-                _amount,
+                _amount, // no scaling needed for CCTP
                 remainingNativeValue,
                 _message
             );

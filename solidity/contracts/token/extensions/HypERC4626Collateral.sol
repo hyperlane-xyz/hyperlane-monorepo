@@ -104,10 +104,10 @@ contract HypERC4626Collateral is TokenRouter {
             rateUpdateNonce
         );
 
-        uint256 _outboundAmount = _outboundAmount(_shares);
+        uint256 _scaledAmount = _outboundAmount(_shares);
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
-            _outboundAmount,
+            _scaledAmount,
             _tokenMetadata
         );
 
@@ -116,7 +116,7 @@ contract HypERC4626Collateral is TokenRouter {
             _emitAndDispatch(
                 _destination,
                 _recipient,
-                _amount,
+                _scaledAmount,
                 msg.value,
                 _tokenMessage
             );
