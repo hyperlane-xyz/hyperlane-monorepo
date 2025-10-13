@@ -35,12 +35,16 @@ pub fn parse_custom_rpc_headers(url: &Url) -> Result<(HeaderMap, Url), ParseCust
     }
 
     let mut new_url = url.clone();
-    // Clear then rebuild to preserve order exactly.
-    new_url.set_query(None);
-    {
-        let mut qp = new_url.query_pairs_mut();
-        for (k, v) in retained_queries {
-            qp.append_pair(&k, &v);
+    if retained_queries.is_empty() {
+        new_url.set_query(None);
+    } else {
+        // Clear then rebuild to preserve order exactly.
+        new_url.set_query(None);
+        {
+            let mut qp = new_url.query_pairs_mut();
+            for (k, v) in retained_queries {
+                qp.append_pair(&k, &v);
+            }
         }
     }
 
