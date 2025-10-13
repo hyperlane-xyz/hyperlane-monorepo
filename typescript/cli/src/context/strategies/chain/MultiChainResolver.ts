@@ -4,8 +4,6 @@ import {
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
-  MultiProvider,
-  WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -104,29 +102,14 @@ export class MultiChainResolver implements ChainResolver {
   private async resolveWarpRebalancerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    // Load rebalancer config to get the warp route ID
+    // Load rebalancer config to get the configured chains
     const rebalancerConfig = RebalancerConfig.load(argv.config);
 
-    // Get warp route config from registry using the warp route ID
-    const warpCoreConfig = await argv.context.registry.getWarpRoute(
-      rebalancerConfig.warpRouteId,
-    );
-    if (!warpCoreConfig) {
-      throw new Error(
-        `Warp route config for ${rebalancerConfig.warpRouteId} not found in registry`,
-      );
-    }
+    // Extract chain names from the rebalancer config's strategy.chains
+    // This ensures we only create signers for chains we can actually rebalance
+    const chains = Object.keys(rebalancerConfig.strategyConfig.chains);
 
-    // Create WarpCore instance to extract chain names from tokens
-    const warpCore = WarpCore.FromConfig(
-      argv.context.multiProvider,
-      warpCoreConfig,
-    );
-
-    // Extract chain names from the tokens in the warp core
-    const chains = warpCore.tokens.map((token) => token.chainName);
-
-    assert(chains.length !== 0, 'No chains found in warp route config');
+    assert(chains.length !== 0, 'No chains configured in rebalancer config');
 
     return chains;
   }
@@ -175,12 +158,14 @@ export class MultiChainResolver implements ChainResolver {
       return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    // If no destination is specified, return all EVM and Cosmos Native chains
+    // If no destination is specified, return all EVM chains only
     if (!argv.destination) {
-      return [
-        ...this.getEvmChains(multiProvider),
-        ...this.getCosmosNativeChains(multiProvider),
-      ];
+      const chains = multiProvider.getKnownChainNames();
+
+      return chains.filter(
+        (chain: string) =>
+          ProtocolType.Ethereum === multiProvider.getProtocol(chain),
+      );
     }
 
     chains.add(argv.destination);
@@ -220,11 +205,8 @@ export class MultiChainResolver implements ChainResolver {
             (chainId) => argv.context.multiProvider.getChainName(chainId),
           );
         }
-        case ProtocolType.CosmosNative: {
-          return [argv.chain];
-        }
         default: {
-          throw new Error(`Protocol type ${protocolType} not supported`);
+          return [argv.chain];
         }
       }
     } catch (error) {
@@ -266,22 +248,6 @@ export class MultiChainResolver implements ChainResolver {
         cause: error,
       });
     }
-  }
-
-  private getEvmChains(multiProvider: MultiProvider): ChainName[] {
-    const chains = multiProvider.getKnownChainNames();
-
-    return chains.filter(
-      (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-    );
-  }
-
-  private getCosmosNativeChains(multiProvider: MultiProvider): ChainName[] {
-    const chains = multiProvider.getKnownChainNames();
-
-    return chains.filter(
-      (chain) => multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
-    );
   }
 
   static forAgentKurtosis(): MultiChainResolver {
