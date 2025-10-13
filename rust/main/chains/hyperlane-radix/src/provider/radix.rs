@@ -33,7 +33,8 @@ use radix_transactions::{
     prelude::DetailedNotarizedTransactionV2,
     signing::PrivateKey,
 };
-use reqwest::ClientBuilder;
+use reqwest::Client;
+use reqwest_utils::parse_custom_rpc_headers;
 use scrypto::{
     address::AddressBech32Decoder,
     constants::XRD,
@@ -92,37 +93,31 @@ impl RadixProvider {
         chain: Option<ChainInfo>,
     ) -> ChainResult<RadixFallbackProvider> {
         let mut gateway_provider = Vec::with_capacity(conf.gateway.len());
-        for (index, url) in conf.gateway.iter().enumerate() {
-            let map = conf.gateway_header.get(index).cloned().unwrap_or_default();
-            let header = reqwest::header::HeaderMap::try_from(&map)
-                .map_err(ChainCommunicationError::from_other)?;
-
-            let client = ClientBuilder::new()
-                .default_headers(header)
+        for url in conf.gateway.iter() {
+            let (headers, url) =
+                parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
+            let client = Client::builder()
+                .default_headers(headers)
                 .build()
-                .map_err(ChainCommunicationError::from_other)?;
-
+                .map_err(HyperlaneRadixError::from)?;
             let provider = RadixBaseGatewayProvider::new(GatewayConfig {
                 client,
                 base_path: url.to_string().trim_end_matches('/').to_string(),
                 ..Default::default()
             });
             let provider =
-                RadixMetricGatewayProvider::new(provider, url, metrics.clone(), chain.clone());
+                RadixMetricGatewayProvider::new(provider, &url, metrics.clone(), chain.clone());
             gateway_provider.push(provider);
         }
 
         let mut core_provider = Vec::with_capacity(conf.core.len());
-        for (index, url) in conf.core.iter().enumerate() {
-            let map = conf.core_header.get(index).cloned().unwrap_or_default();
-            let header = reqwest::header::HeaderMap::try_from(&map)
-                .map_err(ChainCommunicationError::from_other)?;
-
-            let client = ClientBuilder::new()
-                .default_headers(header)
+        for url in conf.core.iter() {
+            let (headers, url) =
+                parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
+            let client = Client::builder()
+                .default_headers(headers)
                 .build()
-                .map_err(ChainCommunicationError::from_other)?;
-
+                .map_err(HyperlaneRadixError::from)?;
             let provider = RadixBaseCoreProvider::new(
                 CoreConfig {
                     client,
@@ -132,7 +127,7 @@ impl RadixProvider {
                 conf.network.clone(),
             );
             let provider =
-                RadixMetricCoreProvider::new(provider, url, metrics.clone(), chain.clone());
+                RadixMetricCoreProvider::new(provider, &url, metrics.clone(), chain.clone());
             core_provider.push(provider);
         }
         Ok(RadixFallbackProvider::new(
