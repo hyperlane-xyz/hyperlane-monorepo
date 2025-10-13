@@ -34,10 +34,78 @@ env:
   RUST_BACKTRACE: full
 
 jobs:
+  check-release-status:
+    name: Check Release Status
+    runs-on: depot-ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+      should_release: ${{ steps.check_version.outputs.should_release }}
+      current_version: ${{ steps.check_version.outputs.current_version }}
+      latest_version: ${{ steps.check_version.outputs.latest_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check if there are changes since last release
+        id: check_changes
+        working-directory: ./rust/main
+        run: |
+          # Get latest agents-v* tag
+          LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No previous release found"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            # Check if there are commits to rust/main since last release
+            COMMITS_SINCE=$(git log "$LATEST_TAG"..HEAD --oneline -- . | wc -l)
+            echo "Commits since $LATEST_TAG: $COMMITS_SINCE"
+
+            if [ "$COMMITS_SINCE" -gt 0 ]; then
+              echo "Found $COMMITS_SINCE commit(s) since last release"
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+            else
+              echo "No commits since last release"
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+      - name: Check if version changed (for publish decision)
+        id: check_version
+        working-directory: ./rust/main
+        run: |
+          # Get current version from Cargo.toml
+          CURRENT_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current Cargo.toml version: $CURRENT_VERSION"
+
+          # Get latest agents-v* tag
+          LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "latest_version=" >> $GITHUB_OUTPUT
+            echo "No previous release tag found, will create first release"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            LATEST_VERSION=$(echo "$LATEST_TAG" | sed 's/agents-v//')
+            echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+            echo "Latest released version: $LATEST_VERSION"
+
+            if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+              echo "Version has changed ($LATEST_VERSION -> $CURRENT_VERSION)"
+              echo "should_release=true" >> $GITHUB_OUTPUT
+            else
+              echo "Version unchanged"
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
   release-pr:
     name: Update Release PR
     runs-on: depot-ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.prerelease)
+    needs: check-release-status
+    if: |
+      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.prerelease)) &&
+      needs.check-release-status.outputs.has_changes == 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,66 +136,33 @@ jobs:
   publish:
     name: Publish Release
     runs-on: depot-ubuntu-latest
+    needs: [check-release-status, release-pr]
+    # Allow release-pr to be skipped (for prereleases)
     if: |
-      (github.event_name == 'push' &&
-       github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && inputs.prerelease)
+      always() &&
+      !failure() &&
+      !cancelled() &&
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.prerelease) ||
+       (github.event_name == 'push' && needs.check-release-status.outputs.should_release == 'true'))
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Check if should release
-        id: check_version
-        working-directory: ./rust/main
-        run: |
-          # For manual prereleases, always release
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "Manual prerelease triggered, will release"
-            echo "should_release=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # For push events, check if version changed
-          # Get current version from Cargo.toml
-          CURRENT_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          echo "Current Cargo.toml version: $CURRENT_VERSION"
-
-          # Get latest agents-v* tag
-          LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
-
-          if [ -z "$LATEST_TAG" ]; then
-            echo "No previous release tag found, will create first release"
-            echo "should_release=true" >> $GITHUB_OUTPUT
-          else
-            LATEST_VERSION=$(echo "$LATEST_TAG" | sed 's/agents-v//')
-            echo "Latest released version: $LATEST_VERSION"
-
-            if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
-              echo "Version has changed, proceeding with release"
-              echo "should_release=true" >> $GITHUB_OUTPUT
-            else
-              echo "Version unchanged, skipping release"
-              echo "should_release=false" >> $GITHUB_OUTPUT
-            fi
-          fi
       - name: Install git-cliff
-        if: steps.check_version.outputs.should_release == true
         uses: taiki-e/install-action@v2
         with:
           tool: git-cliff
       - name: Determine version and create release
-        if: steps.check_version.outputs.should_release == true
         working-directory: ./rust/main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IS_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease }}
           PRERELEASE_SUFFIX: ${{ inputs.prerelease_suffix }}
+          BASE_VERSION: ${{ needs.check-release-status.outputs.current_version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Get base version from Cargo.toml
-          BASE_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
 
           # Determine final version based on release type
           if [ "$IS_PRERELEASE" = "true" ]; then
