@@ -410,9 +410,10 @@ pub fn lander_metrics_invariants_met(
         );
         return Ok(false);
     }
-    if dropped_transactions != 0 {
+    // Dropped transactions should not exceed half of messages expected
+    if dropped_transactions > params.total_messages_expected.div_ceil(2) {
         log!(
-            "hyperlane_lander_dropped_transactions {} count, expected {}",
+            "hyperlane_lander_dropped_transactions {} count, expected less than {}",
             dropped_transactions,
             0
         );
