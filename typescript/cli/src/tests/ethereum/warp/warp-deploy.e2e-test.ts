@@ -729,7 +729,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         destination: CHAIN_NAME_3,
         warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
       }).should.be.rejectedWith(
-        'Error: Origin (anvil1) or destination (anvil3) are not part of the warp route.',
+        'Error: Chain(s) anvil1 are not part of the warp route.',
       );
     });
 

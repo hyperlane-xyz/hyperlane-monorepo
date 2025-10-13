@@ -9,7 +9,13 @@ import {
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, intersection, objFilter } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  difference,
+  intersection,
+  objFilter,
+} from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
@@ -299,18 +305,29 @@ const send: CommandModuleWithWriteContext<
       warp,
       context,
     });
-
-    let chains = chainsAsString?.split(',').map((_) => _.trim()) || [];
+    const chainsToSend = chainsAsString?.split(',').map((_) => _.trim());
+    let chains = chainsToSend || [];
 
     if (origin && destination) {
       chains.push(origin);
       chains.push(destination);
     }
 
-    const allowedChains = new Set(
+    const supportedChains = new Set(
       warpCoreConfig.tokens.map((t) => t.chainName),
     );
-    chains = [...intersection(new Set(chains), allowedChains)];
+
+    const unsupportedChains = difference(
+      new Set([...(chainsToSend || []), origin, destination].filter(Boolean)),
+      supportedChains,
+    );
+    assert(
+      unsupportedChains.size === 0,
+      `Chain(s) ${[...unsupportedChains].join(', ')} are not part of the warp route.`,
+    );
+
+    chains = [...intersection(new Set(chains), supportedChains)];
+    assert(chains.length > 1, `Not enough chains to send messages.`);
 
     if (roundTrip) {
       // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
