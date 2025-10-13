@@ -110,27 +110,214 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install release tools
+      - name: Install git-cliff
         uses: taiki-e/install-action@v2
         with:
-          tool: release-plz, git-cliff
-      - name: Run release-plz
+          tool: git-cliff
+      - name: Determine next version from conventional commits
+        id: next_version
         working-directory: ./rust/main
         env:
+          CURRENT_VERSION: ${{ needs.check-release-status.outputs.current_version }}
+        run: |
+          # Get commits since last release
+          LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            COMMITS=$(git log --oneline --no-merges -- .)
+          else
+            COMMITS=$(git log "${LATEST_TAG}..HEAD" --oneline --no-merges -- .)
+          fi
+
+          # Parse current version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+          # Analyze commits for conventional commit types
+          HAS_BREAKING=false
+          HAS_FEAT=false
+          HAS_FIX=false
+
+          while IFS= read -r commit; do
+            if echo "$commit" | grep -qE "^[a-f0-9]+ [a-z]+(\(.+\))?!:"; then
+              HAS_BREAKING=true
+            elif echo "$commit" | grep -qE "^[a-f0-9]+ feat(\(.+\))?:"; then
+              HAS_FEAT=true
+            elif echo "$commit" | grep -qE "^[a-f0-9]+ fix(\(.+\))?:"; then
+              HAS_FIX=true
+            fi
+
+            # Check commit body for BREAKING CHANGE
+            COMMIT_HASH=$(echo "$commit" | cut -d' ' -f1)
+            if git show -s --format=%B "$COMMIT_HASH" | grep -q "BREAKING CHANGE:"; then
+              HAS_BREAKING=true
+            fi
+          done <<< "$COMMITS"
+
+          # Determine version bump
+          if [ "$HAS_BREAKING" = true ]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+            BUMP_TYPE="major"
+          elif [ "$HAS_FEAT" = true ]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+            BUMP_TYPE="minor"
+          elif [ "$HAS_FIX" = true ]; then
+            PATCH=$((PATCH + 1))
+            BUMP_TYPE="patch"
+          else
+            # Default to patch for any other changes
+            PATCH=$((PATCH + 1))
+            BUMP_TYPE="patch"
+          fi
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "Next version: $NEW_VERSION ($BUMP_TYPE bump from $CURRENT_VERSION)"
+      - name: Generate changelog
+        id: changelog
+        working-directory: ./rust/main
+        env:
+          NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
+        run: |
+          # Generate changelog for commits since last release
+          LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            CHANGELOG=$(git-cliff --config cliff.toml --unreleased --strip all)
+          else
+            CHANGELOG=$(git-cliff --config cliff.toml "${LATEST_TAG}..HEAD" --strip all)
+          fi
+
+          # Save changelog to file for PR body
+          echo "$CHANGELOG" > /tmp/changelog.md
+
+          # Also output for GitHub Actions
+          {
+            echo 'changelog<<EOF'
+            echo "$CHANGELOG"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+      - name: Update Cargo.toml version
+        working-directory: ./rust/main
+        env:
+          NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
+        run: |
+          # Update workspace version
+          sed -i.bak "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+          rm Cargo.toml.bak
+
+          echo "Updated Cargo.toml to version $NEW_VERSION"
+          git diff Cargo.toml
+      - name: Update CHANGELOG
+        working-directory: ./rust/main
+        env:
+          NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
+        run: |
+          # Prepend new version to CHANGELOG.md
+          if [ -f CHANGELOG.md ]; then
+            CURRENT_CHANGELOG=$(cat CHANGELOG.md)
+          else
+            CURRENT_CHANGELOG=""
+          fi
+
+          cat > CHANGELOG.md <<EOF
+          # Changelog
+
+          ## [$NEW_VERSION] - $(date +%Y-%m-%d)
+
+          $(cat /tmp/changelog.md)
+
+          $CURRENT_CHANGELOG
+          EOF
+
+          echo "Updated CHANGELOG.md"
+      - name: Create or update release PR
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
+          BUMP_TYPE: ${{ steps.next_version.outputs.bump_type }}
+          CHANGELOG: ${{ steps.changelog.outputs.changelog }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Run release-plz to create/update the release PR
-          # It will automatically generate changelog and update Cargo.toml versions
-          release-plz release-pr --git-token "$GITHUB_TOKEN"
+          BRANCH_NAME="release-agents-v${NEW_VERSION}"
+
+          # Check if release PR branch already exists
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
+            echo "Branch $BRANCH_NAME already exists, updating it"
+            git fetch origin "$BRANCH_NAME"
+            git checkout "$BRANCH_NAME"
+            git reset --hard origin/main
+          else
+            echo "Creating new branch $BRANCH_NAME"
+            git checkout -b "$BRANCH_NAME"
+          fi
+
+          # Stage changes
+          git add rust/main/Cargo.toml rust/main/CHANGELOG.md
+
+          # Commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(release): prepare agents v${NEW_VERSION}
+
+          This is a $BUMP_TYPE version bump for the Hyperlane agents.
+
+          Changes will be released as agents-v${NEW_VERSION} after this PR is merged."
+
+            git push -f origin "$BRANCH_NAME"
+          fi
+
+          # Create or update PR
+          PR_BODY="## Release agents v${NEW_VERSION}
+
+          This PR prepares the release of Hyperlane agents version **${NEW_VERSION}** (${BUMP_TYPE} bump).
+
+          ### What's Changed
+
+          ${CHANGELOG}
+
+          ---
+
+          Once this PR is merged, the [\`rust-release.yml\`](https://github.com/${{ github.repository }}/blob/main/.github/workflows/rust-release.yml) workflow will automatically:
+          - Create a GitHub release with tag \`agents-v${NEW_VERSION}\`
+          - Trigger the build of release binaries
+
+          🤖 This PR was automatically created by the release workflow."
+
+          # Check if PR already exists
+          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Updating existing PR #$EXISTING_PR"
+            gh pr edit "$EXISTING_PR" \
+              --title "chore(release): agents v${NEW_VERSION}" \
+              --body "$PR_BODY"
+            echo "Updated PR: $(gh pr view $EXISTING_PR --json url --jq .url)"
+          else
+            echo "Creating new PR"
+            gh pr create \
+              --title "chore(release): agents v${NEW_VERSION}" \
+              --body "$PR_BODY" \
+              --base main \
+              --head "$BRANCH_NAME" \
+              --label "release"
+            PR_URL=$(gh pr list --head "$BRANCH_NAME" --json url --jq '.[0].url')
+            echo "Created PR: $PR_URL"
+          fi
       - name: Summary
         if: always()
+        env:
+          NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
         run: |
-          echo "Release PR workflow completed" >> $GITHUB_STEP_SUMMARY
+          echo "### Release PR for agents v${NEW_VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "If a release PR was created, it will appear in the Pull Requests tab." >> $GITHUB_STEP_SUMMARY
+          echo "The release PR has been created/updated." >> $GITHUB_STEP_SUMMARY
           echo "Once merged, the release will be published automatically." >> $GITHUB_STEP_SUMMARY
 
   publish:
