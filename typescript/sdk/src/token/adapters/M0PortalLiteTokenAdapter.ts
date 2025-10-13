@@ -160,7 +160,7 @@ export class M0PortalLiteTokenAdapter
   async getRouterAddress(_domain: Domain): Promise<Buffer> {
     // PortalLite doesn't use traditional routers
     // Return the portal address as the "router"
-    return Buffer.from(addressToBytes32(strip0x(this.portalAddress)), 'hex');
+    return Buffer.from(strip0x(addressToBytes32(this.portalAddress)), 'hex');
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
@@ -168,7 +168,7 @@ export class M0PortalLiteTokenAdapter
     return domains.map((domain) => ({
       domain,
       address: Buffer.from(
-        addressToBytes32(strip0x(this.portalAddress)),
+        strip0x(addressToBytes32(this.portalAddress)),
         'hex',
       ),
     }));

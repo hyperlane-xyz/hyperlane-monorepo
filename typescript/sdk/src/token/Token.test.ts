@@ -284,7 +284,8 @@ describe('Token', () => {
         adapter.mTokenContract = {
           balanceOf: async () => '100',
         };
-      } else {
+      } else if ('contract' in adapter) {
+        // @ts-ignore
         adapter.contract = {
           balanceOf: async () => '100',
         };
