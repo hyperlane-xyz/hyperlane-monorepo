@@ -136,12 +136,8 @@ jobs:
   publish:
     name: Publish Release
     runs-on: depot-ubuntu-latest
-    needs: [check-release-status, release-pr]
-    # Allow release-pr to be skipped (for prereleases)
+    needs: check-release-status
     if: |
-      always() &&
-      !failure() &&
-      !cancelled() &&
       github.ref == 'refs/heads/main' &&
       ((github.event_name == 'workflow_dispatch' && inputs.prerelease) ||
        (github.event_name == 'push' && needs.check-release-status.outputs.should_release == 'true'))
