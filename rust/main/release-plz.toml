@@ -12,6 +12,11 @@ git_tag_name = "agents-v{{ version }}"
 publish = false
 # Release all packages in the workspace together with the same version
 release = true
+# Update Cargo.toml versions in release PR
+pr_draft = false
+pr_labels = ["release"]
+# Automatically determine next version from conventional commits
+semver_check = false
 
 # Changelog generation for the entire workspace
 [changelog]

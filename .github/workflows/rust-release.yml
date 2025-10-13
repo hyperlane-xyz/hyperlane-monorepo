@@ -8,6 +8,17 @@ on:
       - 'rust/main/**'
       - '.github/workflows/rust-release.yml'
   workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Create a pre-release instead of a stable release'
+        required: false
+        type: boolean
+        default: false
+      prerelease_suffix:
+        description: 'Custom prerelease suffix (e.g., "beta.1", "rc.1", "alpha.2"). Leave empty to auto-generate.'
+        required: false
+        type: string
+        default: ''
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,6 +36,8 @@ jobs:
   release-pr:
     name: Update Release PR
     runs-on: ubuntu-latest
+    # Skip automated PR creation for manual prereleases
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.prerelease)
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -66,6 +79,92 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "If a release PR was created, it will appear in the Pull Requests tab." >> $GITHUB_STEP_SUMMARY
           echo "Once merged, the release will be published automatically." >> $GITHUB_STEP_SUMMARY
+
+  beta-release:
+    name: Create Pre-release
+    runs-on: ubuntu-latest
+    # Only run for manual prereleases
+    if: github.event_name == 'workflow_dispatch' && inputs.prerelease
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry/index
+          key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-registry-
+
+      - name: Install git-cliff
+        run: cargo install git-cliff --locked
+
+      - name: Create Pre-release
+        working-directory: ./rust/main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Get the current version from workspace Cargo.toml
+          BASE_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "Base version: $BASE_VERSION"
+
+          # Determine prerelease suffix
+          if [ -n "${{ inputs.prerelease_suffix }}" ]; then
+            PRERELEASE_SUFFIX="${{ inputs.prerelease_suffix }}"
+          else
+            # Auto-generate beta version based on existing beta tags
+            LAST_BETA=$(git tag -l "agents-v${BASE_VERSION}-beta.*" | sort -V | tail -1)
+            if [ -z "$LAST_BETA" ]; then
+              PRERELEASE_SUFFIX="beta.1"
+            else
+              BETA_NUM=$(echo "$LAST_BETA" | sed 's/.*beta\.\([0-9]*\)/\1/')
+              NEXT_NUM=$((BETA_NUM + 1))
+              PRERELEASE_SUFFIX="beta.${NEXT_NUM}"
+            fi
+          fi
+
+          VERSION="${BASE_VERSION}-${PRERELEASE_SUFFIX}"
+          TAG_NAME="agents-v${VERSION}"
+          echo "Creating pre-release: $TAG_NAME"
+
+          # Get the previous tag (either last prerelease or last stable)
+          PREV_TAG=$(git describe --tags --abbrev=0 --match "agents-v*" 2>/dev/null || echo "")
+          echo "Previous tag: $PREV_TAG"
+
+          # Generate changelog from previous tag to HEAD
+          if [ -z "$PREV_TAG" ]; then
+            CHANGELOG=$(git-cliff --config cliff.toml --unreleased --strip all)
+          else
+            CHANGELOG=$(git-cliff --config cliff.toml --latest --strip all)
+          fi
+
+          # Add prerelease warning to changelog
+          PRERELEASE_CHANGELOG="⚠️ **This is a pre-release version for testing purposes.**
+
+$CHANGELOG"
+
+          # Create the tag
+          git tag -a "$TAG_NAME" -m "Pre-release $TAG_NAME"
+          git push origin "$TAG_NAME"
+
+          # Create GitHub release with prerelease flag
+          gh release create "$TAG_NAME" \
+            --title "Agents $VERSION (Pre-release)" \
+            --notes "$PRERELEASE_CHANGELOG" \
+            --prerelease \
+            --repo "${{ github.repository }}"
+
+          echo "Pre-release $TAG_NAME published successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This is a pre-release and will be marked as such on GitHub." >> $GITHUB_STEP_SUMMARY
 
   release:
     name: Publish Release
