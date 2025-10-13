@@ -43,6 +43,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             _tokenMessenger
         )
     {
+        require(_maxFeeBps < 10_000, "maxFeeBps must be less than 100%");
         maxFeeBps = _maxFeeBps;
         minFinalityThreshold = _minFinalityThreshold;
     }
@@ -52,13 +53,34 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     /**
      * @inheritdoc TokenRouter
      * @dev Overrides to indicate v2 fees.
+     *
+     * Hyperlane uses a "minimum amount out" approach where users specify the exact amount
+     * they want the recipient to receive on the destination chain. This provides a better
+     * UX by guaranteeing predictable outcomes regardless of underlying bridge fee structures.
+     *
+     * However, some underlying bridges like CCTP charge fees as a percentage of the input
+     * amount (amountIn), not the output amount. This requires "reversing" the fee calculation:
+     * we need to determine what input amount (after fees are deducted) will result in the
+     * desired output amount reaching the recipient.
+     *
+     * The formula solves for the fee needed such that after Circle takes their percentage,
+     * the recipient receives exactly `amount`:
+     *
+     *   (amount + fee) * (10_000 - maxFeeBps) / 10_000 = amount
+     *
+     * Solving for fee:
+     *   fee = (amount * maxFeeBps) / (10_000 - maxFeeBps)
+     *
+     * Example: If amount = 100 USDC and maxFeeBps = 10 (0.1%):
+     *   fee = (100 * 10) / (10_000 - 10) = 1000 / 9990 ≈ 0.1001 USDC
+     *   We deposit 100.1001 USDC, Circle takes 0.1001 USDC, recipient gets exactly 100 USDC.
      */
     function _externalFeeAmount(
         uint32,
         bytes32,
         uint256 amount
     ) internal view override returns (uint256 feeAmount) {
-        return (amount * maxFeeBps) / 10_000;
+        return (amount * maxFeeBps) / (10_000 - maxFeeBps);
     }
 
     function _getCCTPVersion() internal pure override returns (uint32) {
