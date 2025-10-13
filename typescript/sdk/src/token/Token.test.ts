@@ -279,9 +279,16 @@ describe('Token', () => {
 
       const sandbox = stubMultiProtocolProvider(multiProvider);
       // @ts-ignore simple extra mock for the Ethers V5 token contract call
-      adapter.contract = {
-        balanceOf: async () => '100',
-      };
+      if ('mTokenContract' in adapter) {
+        // @ts-ignore For M0PortalLite adapter
+        adapter.mTokenContract = {
+          balanceOf: async () => '100',
+        };
+      } else {
+        adapter.contract = {
+          balanceOf: async () => '100',
+        };
+      }
 
       const balance = await adapter.getBalance(balanceCheckAddress);
       expect(typeof balance).to.eql('bigint');
