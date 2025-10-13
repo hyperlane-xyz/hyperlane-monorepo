@@ -54,14 +54,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Generate updated CHANGELOG.md before running release-plz
-          git-cliff --config cliff.toml --tag-pattern "agents-v*" -o CHANGELOG.md
-
-          # Stage CHANGELOG.md so release-plz includes it in the release PR
-          git add CHANGELOG.md
-          git commit -m "update changelog"
-
           # Run release-plz to create/update the release PR
+          # It will automatically generate changelog and update Cargo.toml versions
           release-plz release-pr --git-token "$GITHUB_TOKEN"
       - name: Summary
         if: always()
