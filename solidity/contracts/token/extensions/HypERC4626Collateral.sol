@@ -82,14 +82,14 @@ contract HypERC4626Collateral is TokenRouter {
     ) public payable override returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         // Don't use HypERC4626Collateral's implementation of _transferTo since it does a redemption.
-        (address recipient, uint256 fee) = _feeRecipientAndAmount(
+        (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
             _recipient,
             _amount
         );
-        _transferFromSender(_amount + fee);
-        if (fee > 0) {
-            wrappedToken._transferTo(recipient, fee);
+        _transferFromSender(_amount + feeAmount);
+        if (feeAmount > 0) {
+            wrappedToken._transferTo(_feeRecipient, feeAmount);
         }
 
         // Deposit the amount into the vault and get the shares for the TokenMessage amount
