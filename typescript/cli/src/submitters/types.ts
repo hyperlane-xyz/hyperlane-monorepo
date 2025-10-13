@@ -16,6 +16,7 @@ export const CustomTxSubmitterType = {
 
 export const FileTxSubmitterPropsSchema = z.object({
   filepath: z.string(),
+  chain: ZChainName,
 });
 
 const FileSubmitterMetadataSchema = z.object({
