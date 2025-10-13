@@ -8,9 +8,6 @@ import {
   ProtocolType,
   addressToBytes32,
   assert,
-  deepEquals,
-  difference,
-  objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -106,18 +103,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
      */
     transactions.push(
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
-      ...(await this.createEnrollRemoteRoutersUpdateTxs(
-        actualConfig,
-        expectedConfig,
-      )),
-      ...(await this.createUnenrollRemoteRoutersUpdateTxs(
-        actualConfig,
-        expectedConfig,
-      )),
-      ...(await this.createSetDestinationGasUpdateTxs(
-        actualConfig,
-        expectedConfig,
-      )),
+      ...(await this.createRemoteRouterUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createOwnershipUpdateTxs(actualConfig, expectedConfig)),
     );
 
@@ -125,13 +111,13 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
   }
 
   /**
-   * Create a transaction to update the remote routers for the Warp Route contract.
+   * Create transactions to update the remote routers for the Warp Route contract.
    *
    * @param actualConfig - The on-chain router configuration, including the remoteRouters array.
    * @param expectedConfig - The expected token router configuration.
    * @returns An array with transactions that need to be executed to enroll the routers
    */
-  async createEnrollRemoteRoutersUpdateTxs(
+  async createRemoteRouterUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedTypedTransaction<PT>[]> {
@@ -143,69 +129,80 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
     assert(expectedConfig.remoteRouters, 'expectedRemoteRouters is undefined');
 
-    const { remoteRouters: actualRemoteRouters } = actualConfig;
-    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
-
-    const routesToEnroll = Object.entries(expectedRemoteRouters)
-      .filter(([domain, expectedRouter]) => {
-        const actualRouter = actualRemoteRouters[domain];
-        // Enroll if router doesn't exist for domain or has different address
-        return !actualRouter || actualRouter.address !== expectedRouter.address;
-      })
-      .map(([domain]) => domain);
-
-    if (routesToEnroll.length === 0) {
-      return updateTransactions;
-    }
-
-    // we set the gas to zero for now and set the real value later during the
-    // createSetDestinationGasUpdateTxs step
-    for (const domainId of routesToEnroll) {
-      updateTransactions.push({
-        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        ...(await this.signer.getEnrollRemoteRouterTransaction({
-          signer: this.signer.getSignerAddress(),
-          tokenAddress: this.args.addresses.deployedTokenRoute,
-          remoteRouter: {
-            receiverDomainId: parseInt(domainId),
-            receiverAddress: addressToBytes32(
-              expectedRemoteRouters[domainId].address,
-            ),
-            gas: '0',
-          },
-        })),
-      });
-    }
-
-    return updateTransactions;
-  }
-
-  async createUnenrollRemoteRoutersUpdateTxs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
-    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
-    if (!expectedConfig.remoteRouters) {
-      return [];
-    }
-
-    assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
-    assert(expectedConfig.remoteRouters, 'expectedRemoteRouters is undefined');
-
-    const { remoteRouters: actualRemoteRouters } = actualConfig;
-    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
-
-    const routesToUnenroll = Array.from(
-      difference(
-        new Set(Object.keys(actualRemoteRouters)),
-        new Set(Object.keys(expectedRemoteRouters)),
-      ),
+    assert(actualConfig.destinationGas, 'actualDestinationGas is undefined');
+    assert(
+      expectedConfig.destinationGas,
+      'expectedDestinationGas is undefined',
     );
 
-    if (routesToUnenroll.length === 0) {
-      return updateTransactions;
+    const { remoteRouters: actualRemoteRouters } = actualConfig;
+    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
+
+    const { destinationGas: actualDestinationGas } = actualConfig;
+    const { destinationGas: expectedDestinationGas } = expectedConfig;
+
+    // perform checks if domain Ids match between remote router
+    // and destination gas configs
+    const actualRemoteRoutersString = Object.keys(actualRemoteRouters)
+      .sort()
+      .toString();
+    const actualDestinationGasString = Object.keys(actualDestinationGas)
+      .sort()
+      .toString();
+    const expectedRemoteRoutersString = Object.keys(expectedRemoteRouters)
+      .sort()
+      .toString();
+    const expectedDestinationGasString = Object.keys(expectedDestinationGas)
+      .sort()
+      .toString();
+
+    assert(
+      actualRemoteRoutersString === actualDestinationGasString,
+      `domain Ids from actual remote router config differ from actual destination gas config: ${actualRemoteRoutersString} : ${actualDestinationGasString}`,
+    );
+
+    assert(
+      expectedRemoteRoutersString === expectedDestinationGasString,
+      `domain Ids from expected remote router config differ from actual destination gas config: ${expectedRemoteRoutersString} : ${expectedDestinationGasString}`,
+    );
+
+    const routesToEnroll = [];
+    const routesToUnenroll = [];
+
+    // get domain Ids where we need to enroll, if the address
+    // or the gas updates inside a remote route we need to unenroll
+    // and enroll again
+    for (const domainId of Object.keys(expectedRemoteRouters)) {
+      if (!actualRemoteRouters[domainId]) {
+        routesToEnroll.push(domainId);
+        continue;
+      }
+
+      if (
+        actualRemoteRouters[domainId].address !==
+        expectedRemoteRouters[domainId].address
+      ) {
+        routesToEnroll.push(domainId);
+        routesToUnenroll.push(domainId);
+        continue;
+      }
+
+      if (actualDestinationGas[domainId] !== expectedDestinationGas[domainId]) {
+        routesToEnroll.push(domainId);
+        routesToUnenroll.push(domainId);
+        continue;
+      }
     }
 
+    // get domain Ids where we need to unenroll
+    for (const domainId of Object.keys(actualRemoteRouters)) {
+      if (!expectedRemoteRouters[domainId]) {
+        routesToUnenroll.push(domainId);
+      }
+    }
+
+    // first be unenroll all routes that need to be unenrolled,
+    // afterwards we enroll again
     for (const domainId of routesToUnenroll) {
       updateTransactions.push({
         annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
@@ -217,87 +214,21 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       });
     }
 
-    return updateTransactions;
-  }
-
-  /**
-   * Create a transaction to update the remote routers for the Warp Route contract.
-   *
-   * @param actualConfig - The on-chain router configuration, including the remoteRouters array.
-   * @param expectedConfig - The expected token router configuration.
-   * @returns A array with transactions that need to be executed to update the destination gas
-   */
-  async createSetDestinationGasUpdateTxs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
-    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
-    if (!expectedConfig.destinationGas) {
-      return [];
-    }
-
-    assert(actualConfig.destinationGas, 'actualDestinationGas is undefined');
-    assert(
-      expectedConfig.destinationGas,
-      'expectedDestinationGas is undefined',
-    );
-    assert(expectedConfig.remoteRouters, 'expectedRemoteRouters is undefined');
-
-    const { destinationGas: actualDestinationGas } = actualConfig;
-    const { destinationGas: expectedDestinationGas } = expectedConfig;
-    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
-
-    // refetch after routes have been previously enrolled without the "actualConfig"
-    // updating
-    const { remoteRouters: actualRemoteRouters } =
-      await this.signer.getRemoteRouters({
-        tokenAddress: this.args.addresses.deployedTokenRoute,
+    for (const domainId of routesToEnroll) {
+      updateTransactions.push({
+        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+        ...(await this.signer.getEnrollRemoteRouterTransaction({
+          signer: this.signer.getSignerAddress(),
+          tokenAddress: this.args.addresses.deployedTokenRoute,
+          remoteRouter: {
+            receiverDomainId: parseInt(domainId),
+            receiverAddress: addressToBytes32(
+              expectedRemoteRouters[domainId].address,
+            ),
+            gas: expectedDestinationGas[domainId],
+          },
+        })),
       });
-
-    const alreadyEnrolledDomains = actualRemoteRouters.map(
-      (router) => router.receiverDomainId,
-    );
-
-    if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
-      // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
-      const gasRouterConfigs: { domain: string; gas: string }[] = [];
-      objMap(expectedDestinationGas, (domain: string, gas: string) => {
-        gasRouterConfigs.push({
-          domain,
-          gas,
-        });
-      });
-
-      // to update the gas config we unenroll the router and then
-      // enrolling it with the updating value again
-
-      for (const { domain, gas } of gasRouterConfigs) {
-        if (alreadyEnrolledDomains.includes(parseInt(domain))) {
-          updateTransactions.push({
-            annotation: `Unenrolling ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-            ...(await this.signer.getUnenrollRemoteRouterTransaction({
-              signer: this.signer.getSignerAddress(),
-              tokenAddress: this.args.addresses.deployedTokenRoute,
-              receiverDomainId: parseInt(domain),
-            })),
-          });
-        }
-
-        updateTransactions.push({
-          annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain} to ${gas}`,
-          ...(await this.signer.getEnrollRemoteRouterTransaction({
-            signer: this.signer.getSignerAddress(),
-            tokenAddress: this.args.addresses.deployedTokenRoute,
-            remoteRouter: {
-              receiverDomainId: parseInt(domain),
-              receiverAddress: addressToBytes32(
-                expectedRemoteRouters[domain].address,
-              ),
-              gas,
-            },
-          })),
-        });
-      }
     }
 
     return updateTransactions;
