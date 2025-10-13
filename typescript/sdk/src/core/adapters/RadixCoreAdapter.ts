@@ -4,6 +4,7 @@ import {
   assert,
   ensure0x,
   messageId,
+  pollAsync,
 } from '@hyperlane-xyz/utils';
 
 import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
@@ -68,12 +69,28 @@ export class RadixCoreAdapter extends BaseRadixAdapter implements ICoreAdapter {
   async waitForMessageProcessed(
     messageId: HexString,
     destination: ChainName,
-    _delayMs?: number,
-    _maxAttempts?: number,
+    delayMs?: number,
+    maxAttempts?: number,
   ): Promise<boolean> {
     const provider = this.multiProvider.getRadixProvider(destination);
 
-    await provider.base.pollForCommit(messageId);
+    await pollAsync(
+      async () => {
+        this.logger.debug(`Checking if message ${messageId} was processed`);
+        const delivered = await provider.isMessageDelivered({
+          mailboxAddress: this.addresses.mailbox,
+          messageId: messageId,
+        });
+
+        assert(delivered, `Message ${messageId} not yet processed`);
+
+        this.logger.info(`Message ${messageId} was processed`);
+        return delivered;
+      },
+      delayMs,
+      maxAttempts,
+    );
+
     return true;
   }
 }

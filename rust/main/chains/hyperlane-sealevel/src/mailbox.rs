@@ -20,6 +20,7 @@ use hyperlane_sealevel_message_recipient_interface::{
 use lazy_static::lazy_static;
 use serializable_account_meta::SimulationReturnData;
 use solana_program::pubkey;
+use solana_sdk::account::Account;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     instruction::{AccountMeta, Instruction},
@@ -388,6 +389,27 @@ impl SealevelMailbox {
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)
     }
+
+    fn processed_message_account(&self, message_id: H256) -> Pubkey {
+        let (processed_message_account_key, _processed_message_account_bump) =
+            Pubkey::find_program_address(
+                mailbox_processed_message_pda_seeds!(message_id),
+                &self.program_id,
+            );
+        processed_message_account_key
+    }
+
+    async fn get_account(
+        &self,
+        processed_message_account_key: Pubkey,
+    ) -> Result<Option<Account>, ChainCommunicationError> {
+        let account = self
+            .provider
+            .rpc_client()
+            .get_account_option_with_finalized_commitment(processed_message_account_key)
+            .await?;
+        Ok(account)
+    }
 }
 
 impl HyperlaneContract for SealevelMailbox {
@@ -423,17 +445,8 @@ impl Mailbox for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let (processed_message_account_key, _processed_message_account_bump) =
-            Pubkey::find_program_address(
-                mailbox_processed_message_pda_seeds!(id),
-                &self.program_id,
-            );
-
-        let account = self
-            .provider
-            .rpc_client()
-            .get_account_option_with_finalized_commitment(processed_message_account_key)
-            .await?;
+        let processed_message_account_key = self.processed_message_account(id);
+        let account = self.get_account(processed_message_account_key).await?;
 
         Ok(account.is_some())
     }
@@ -566,7 +579,8 @@ impl Mailbox for SealevelMailbox {
         serde_json::to_vec(&process_instruction).map_err(Into::into)
     }
 
-    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
-        Ok(None)
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        let account = self.processed_message_account(message_id);
+        serde_json::to_vec(&account).map(Some).map_err(Into::into)
     }
 }

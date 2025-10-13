@@ -16,47 +16,52 @@ yarn add @hyperlane-xyz/cosmos-sdk
 ## Usage
 
 ```ts
-import { HyperlaneModuleClient, SigningHyperlaneModuleClient } from "@hyperlane-xyz/cosmos-sdk";
+import { CosmosNativeProvider, CosmosNativeSigner } from "@hyperlane-xyz/cosmos-sdk";
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 
 // using hyperlane queries without needing signers
-const client = await HyperlaneModuleClient.connect(
-  "https://rpc-endpoint:26657"
+const client = await CosmosNativeProvider.connect(
+  ["https://rpc-endpoint:26657"]
 );
 
-const mailboxes = await client.query.core.Mailboxes();
-const bridgedSupply = await client.query.warp.BridgedSupply({ id: "token-id" });
+const mailbox = await client.getMailbox('mailbox-id');
+const bridgedSupply = await client.getBridgedSupply({ id: "token-id" });
 ...
 
 // performing hyperlane transactions
 const wallet = await DirectSecp256k1Wallet.fromKey(PRIV_KEY);
 
-const signer = await SigningHyperlaneModuleClient.connectWithSigner(
-  "https://rpc-endpoint:26657",
+const signer = await CosmosNativeSigner.connectWithSigner(
+  ["https://rpc-endpoint:26657"],
   wallet,
+  {
+    metadata: {
+      gasPrice: {
+        amount: '0.2',
+        denom: 'denom'
+      },
+      bech32Prefix: 'test',
+    }
+  }
 );
 
-const { response: mailbox } = await signer.createMailbox({
+const { mailbox_id } = await signer.createMailbox({
   owner: '...',
-  local_domain: '...',
-  default_ism: '...',
-  default_hook: '...',
-  required_hook: '...',
+  localDomain: '...',
+  defaultIsm: '...',
 });
-
-const mailboxId = mailbox.id;
 
 await signer.remoteTransfer({
   sender: '...',
-  token_id: '...',
-  destination_domain: '...',
+  tokenAddress: '...',
+  destinationDomainId: '...',
   recipient: '...',
   amount: '...',
   ...
 });
 
 // sign and broadcast custom messages
-await signer.signAndBroadcast(signer.getAccounts()[0], [txs...]);
+await signer.signAndBroadcast([txs...]);
 ```
 
 ## Setup

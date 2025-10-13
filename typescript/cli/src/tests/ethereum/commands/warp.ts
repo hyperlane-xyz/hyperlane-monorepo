@@ -5,7 +5,6 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainName,
   HypTokenRouterConfig,
-  MultiProtocolProvider,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
@@ -15,12 +14,16 @@ import {
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
+import {
+  AltVMProviderFactory,
+  AltVMSignerFactory,
+} from '../../../context/altvm.js';
 import { getContext } from '../../../context/context.js';
-import { MultiProtocolSignerManager } from '../../../context/strategies/signer/MultiProtocolSignerManager.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
+  ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
@@ -258,8 +261,12 @@ export function hyperlaneWarpRebalancer(
   destination?: string,
   amount?: string,
   key?: string,
+  explorerUrl?: string,
 ): ProcessPromise {
-  return $`${localTestRunCmdPrefix()} hyperlane warp rebalancer \
+  const rebalancerAddress = key
+    ? new Wallet(key).address
+    : ANVIL_DEPLOYER_ADDRESS;
+  return $`${explorerUrl ? [`EXPLORER_API_URL=${explorerUrl}`] : []} REBALANCER=${rebalancerAddress} ${localTestRunCmdPrefix()} hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
         --checkFrequency ${checkFrequency} \
         --config ${config} \
@@ -578,21 +585,14 @@ export async function setupIncompleteWarpRouteExtension(
     ? await readChainSubmissionStrategyConfig(context.strategyPath)
     : {};
 
-  const multiProtocolProvider = new MultiProtocolProvider(
-    context.chainMetadata,
-  );
-  const multiProtocolSigner = await MultiProtocolSignerManager.init(
-    strategyConfig,
-    [CHAIN_NAME_2, CHAIN_NAME_3],
-    multiProtocolProvider,
-    {
-      key: {
-        [ProtocolType.Ethereum]: ANVIL_KEY,
-      },
-    },
-  );
+  context.altVmProvider = new AltVMProviderFactory(context.multiProvider);
 
-  context.multiProvider = await multiProtocolSigner.getMultiProvider();
+  const altVmSigner = await AltVMSignerFactory.createSigners(
+    context.multiProvider,
+    [],
+    {},
+    strategyConfig,
+  );
 
   await extendWarpRouteWithoutApplyTransactions(
     {
@@ -602,7 +602,7 @@ export async function setupIncompleteWarpRouteExtension(
         key: {
           [ProtocolType.Ethereum]: ANVIL_KEY,
         },
-        multiProtocolSigner,
+        altVmSigner,
       },
       warpCoreConfig,
       warpDeployConfig,

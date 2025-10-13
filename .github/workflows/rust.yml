@@ -18,7 +18,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  MIN_LANDERCOVERAGE_PERCENTAGE: 1
+  MIN_LANDERCOVERAGE_PERCENTAGE: 19
   RUSTC_WRAPPER: sccache
 
 jobs:
@@ -51,7 +51,7 @@ jobs:
         run: |
           COVERAGE=$(cat coverage.json | jq -r '.data[0].totals.lines.percent')
           echo "Coverage: $COVERAGE%"
-          if (( $(echo "$COVERAGE * 100 < $MIN_LANDERCOVERAGE_PERCENTAGE" | bc -l) )); then
+          if (( $(echo "$COVERAGE < $MIN_LANDERCOVERAGE_PERCENTAGE" | bc -l) )); then
             echo "Code coverage is below minimum threshold of $MIN_LANDERCOVERAGE_PERCENTAGE percent"
             exit 1
           fi

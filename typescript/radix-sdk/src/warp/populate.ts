@@ -58,14 +58,12 @@ export class RadixWarpPopulate {
     mailbox,
     name,
     symbol,
-    description,
     divisibility,
   }: {
     from_address: string;
     mailbox: string;
     name: string;
     symbol: string;
-    description: string;
     divisibility: number;
   }) {
     return this.base.createCallFunctionManifest(
@@ -74,13 +72,7 @@ export class RadixWarpPopulate {
       'HypToken',
       INSTRUCTIONS.INSTANTIATE,
       [
-        enumeration(
-          1,
-          str(name),
-          str(symbol),
-          str(description),
-          u8(divisibility),
-        ),
+        enumeration(1, str(name), str(symbol), str(''), u8(divisibility)),
         address(mailbox),
       ],
     );
@@ -182,54 +174,82 @@ export class RadixWarpPopulate {
     custom_hook_metadata: string;
     max_fee: { denom: string; amount: string };
   }) {
-    const { origin_denom, divisibility } = await this.query.getToken({ token });
+    const { denom, decimals } = await this.query.getToken({ token });
 
     const tokenAmount = new BigNumber(amount)
-      .dividedBy(new BigNumber(10).pow(divisibility))
-      .toFixed(divisibility);
+      .dividedBy(new BigNumber(10).pow(decimals))
+      .toFixed(decimals);
 
-    assert(origin_denom, `no origin_denom found on token ${token}`);
-    return `
+    assert(denom, `no origin_denom found on token ${token}`);
+    return getTransferRemoteManifest({
+      from_address,
+      token,
+      destination_domain,
+      recipient,
+      tokenAmount,
+      max_fee,
+      origin_denom: denom,
+    });
+  }
+}
+
+export function getTransferRemoteManifest({
+  from_address,
+  token,
+  destination_domain,
+  recipient,
+  tokenAmount,
+  max_fee,
+  origin_denom,
+}: {
+  from_address: string;
+  token: string;
+  origin_denom: string;
+  destination_domain: number;
+  recipient: string;
+  tokenAmount: string;
+  max_fee: { denom: string; amount: string };
+}): string {
+  return `
 CALL_METHOD
-    Address("${from_address}")
-    "withdraw"
-    Address("${origin_denom}")
-    Decimal("${tokenAmount}")
+  Address("${from_address}")
+  "withdraw"
+  Address("${origin_denom}")
+  Decimal("${tokenAmount}")
 ;
 CALL_METHOD
-    Address("${from_address}")
-    "withdraw"
-    Address("${max_fee.denom}")
-    Decimal("${max_fee.amount}")
+  Address("${from_address}")
+  "withdraw"
+  Address("${max_fee.denom}")
+  Decimal("${max_fee.amount}")
 ;
 TAKE_FROM_WORKTOP
-    Address("${origin_denom}")
-    Decimal("${tokenAmount}")
-    Bucket("bucket1")
+  Address("${origin_denom}")
+  Decimal("${tokenAmount}")
+  Bucket("bucket1")
 ;
 TAKE_FROM_WORKTOP
-    Address("${max_fee.denom}")
-    Decimal("${max_fee.amount}")
-    Bucket("bucket2")
+  Address("${max_fee.denom}")
+  Decimal("${max_fee.amount}")
+  Bucket("bucket2")
 ;
 CALL_METHOD
-    Address("${token}")
-    "transfer_remote"
-    ${destination_domain}u32
-    Bytes("${recipient}")
-    Bucket("bucket1")
-    Array<Bucket>(
-        Bucket("bucket2")
-    )
-    Enum<0u8>()
-    Enum<0u8>()
+  Address("${token}")
+  "transfer_remote"
+  ${destination_domain}u32
+  Bytes("${recipient}")
+  Bucket("bucket1")
+  Array<Bucket>(
+      Bucket("bucket2")
+  )
+  Enum<0u8>()
+  Enum<0u8>()
 ;
 CALL_METHOD
-    Address("${from_address}")
-    "try_deposit_batch_or_abort"
-    Expression("ENTIRE_WORKTOP")
-    Enum<0u8>()
+  Address("${from_address}")
+  "try_deposit_batch_or_abort"
+  Expression("ENTIRE_WORKTOP")
+  Enum<0u8>()
 ;
 `;
-  }
 }

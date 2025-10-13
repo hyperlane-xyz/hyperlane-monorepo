@@ -1,5 +1,6 @@
 import { Provider } from '@ethersproject/providers';
 import { ethers } from 'ethers';
+import path from 'path';
 
 import {
   ChainMap,
@@ -22,12 +23,15 @@ import {
   getSafeNumericValue,
   updatePriceIfNeeded,
 } from '../src/config/gas-oracle.js';
-import { writeJsonAtPath } from '../src/utils/utils.js';
+import { getInfraPath, writeJsonWithAppendMode } from '../src/utils/utils.js';
 
-import { getArgs, withWrite } from './agent-utils.js';
+import { getArgs, withAppend, withWrite } from './agent-utils.js';
 
 const gasPricesFilePath = (environment: DeployEnvironment) => {
-  return `config/environments/${environment}/gasPrices.json`;
+  return path.join(
+    getInfraPath(),
+    `config/environments/${environment}/gasPrices.json`,
+  );
 };
 
 // Helper function to extract numeric amount from GasPriceConfig
@@ -45,7 +49,8 @@ const createDefaultGasPrice = (
 });
 
 async function main() {
-  const { environment, write } = await withWrite(getArgs()).argv;
+  const { environment, write, append } = await withAppend(withWrite(getArgs()))
+    .argv;
   const { registry, supportedChainNames, gasPrices } =
     environment === 'mainnet3'
       ? {
@@ -94,10 +99,9 @@ async function main() {
     ),
   );
 
-  if (write) {
+  if (write || append) {
     const outFile = gasPricesFilePath(environment);
-    console.log(`Writing gas prices to ${outFile}`);
-    writeJsonAtPath(outFile, prices);
+    await writeJsonWithAppendMode(outFile, prices, append);
   } else {
     console.log(JSON.stringify(prices, null, 2));
   }

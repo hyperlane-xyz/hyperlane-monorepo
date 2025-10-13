@@ -27,8 +27,8 @@ import {
   portForwardPrometheusServer,
 } from '../../src/infrastructure/monitoring/prometheus.js';
 import { fetchLatestGCPSecret } from '../../src/utils/gcloud.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
-import { withSkipReview } from '../agent-utils.js';
+import { writeJsonWithAppendMode } from '../../src/utils/utils.js';
+import { withAppend, withSkipReview } from '../agent-utils.js';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 const currentDailyRelayerBurn: ChainMap<number> = rawDailyRelayerBurn;
@@ -44,8 +44,9 @@ const MIN_BURN_INCREASE_FACTOR = 0.05; // burn should be at least 5% higher than
 const LOW_PROPOSED_BURN_FACTOR = 0.5; // proposed burn should be at least 50% lower than current to initiate user review
 
 async function main() {
-  const { skipReview } = await withSkipReview(yargs(process.argv.slice(2)))
-    .argv;
+  const { skipReview, append } = await withAppend(
+    withSkipReview(yargs(process.argv.slice(2))),
+  ).argv;
 
   validateTokenPrices();
 
@@ -61,7 +62,7 @@ async function main() {
 
   burnData = sortThresholds(burnData);
 
-  writeBurnDataToFile(burnData);
+  writeBurnDataToFile(burnData, append);
 }
 
 function validateTokenPrices() {
@@ -326,10 +327,10 @@ async function getSealevelDomainIds(): Promise<ChainMap<string>> {
   return sealevelDomainIds;
 }
 
-function writeBurnDataToFile(burnData: ChainMap<number>) {
+function writeBurnDataToFile(burnData: ChainMap<number>, append: boolean) {
   try {
     rootLogger.info('Writing daily burn data to file..');
-    writeJsonAtPath(DAILY_BURN_PATH, burnData);
+    writeJsonWithAppendMode(DAILY_BURN_PATH, burnData, append);
     rootLogger.info('Daily burn data written to file.');
   } catch (err) {
     rootLogger.error('Error writing daily burn data to file:', err);

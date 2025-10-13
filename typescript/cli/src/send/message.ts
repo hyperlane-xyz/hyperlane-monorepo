@@ -1,9 +1,9 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
+import { GasAction, addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
-import { EXPLORER_URL, MINIMUM_TEST_SEND_GAS } from '../consts.js';
+import { EXPLORER_URL } from '../consts.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -48,7 +48,7 @@ export async function sendTestMessage({
     context,
     chains: [origin, destination],
     chainsToGasCheck: [origin],
-    minGas: MINIMUM_TEST_SEND_GAS,
+    minGas: GasAction.TEST_SEND_GAS,
   });
 
   await timeout(

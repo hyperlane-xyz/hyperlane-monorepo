@@ -29,6 +29,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { CCIPContractCache } from '../ccip/utils.js';
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
@@ -43,7 +44,6 @@ import {
   proxyAdminUpdateTxs,
 } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { ExplorerLicenseType } from '../deploy/verify/types.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';

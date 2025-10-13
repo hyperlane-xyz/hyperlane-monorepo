@@ -1,13 +1,12 @@
 import { password } from '@inquirer/prompts';
 import { Signer } from 'ethers';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { MultiProtocolProvider, TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 
-export type TypedSigner = Signer | SigningHyperlaneModuleClient;
+export type TypedSigner = Signer;
 
 export type SignerConfig = Omit<
   Extract<
