@@ -17,21 +17,3 @@ pr_draft = false
 pr_labels = ["release"]
 # Automatically determine next version from conventional commits
 semver_check = false
-
-# Changelog generation for the entire workspace
-[changelog]
-# Disable individual package changelogs, we want one unified changelog
-commit_parsers = [
-  { message = "^feat", group = "Features" },
-  { message = "^fix", group = "Bug Fixes" },
-  { message = "^perf", group = "Performance" },
-  { message = "^chore", group = "Miscellaneous" },
-  { message = "^refactor", group = "Refactor" },
-  { message = "^doc", skip = true },
-  { message = "^test", skip = true },
-  { message = "^style", skip = true },
-]
-# Only include commits that touch the rust/main directory
-filter_commits = [
-  { path = "rust/main/.*" }
-]

@@ -74,22 +74,59 @@ jobs:
     runs-on: depot-ubuntu-latest
     if: |
       (github.event_name == 'push' &&
-       github.ref == 'refs/heads/main' &&
-       contains(github.event.head_commit.message, 'chore: release')) ||
+       github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && inputs.prerelease)
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Check if should release
+        id: check_version
+        working-directory: ./rust/main
+        run: |
+          # For manual prereleases, always release
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual prerelease triggered, will release"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # For push events, check if version changed
+          # Get current version from Cargo.toml
+          CURRENT_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "Current Cargo.toml version: $CURRENT_VERSION"
+
+          # Get latest agents-v* tag
+          LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No previous release tag found, will create first release"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            LATEST_VERSION=$(echo "$LATEST_TAG" | sed 's/agents-v//')
+            echo "Latest released version: $LATEST_VERSION"
+
+            if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+              echo "Version has changed, proceeding with release"
+              echo "should_release=true" >> $GITHUB_OUTPUT
+            else
+              echo "Version unchanged, skipping release"
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            fi
+          fi
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.check_version.outputs.should_release == true
       - uses: actions/cache@v4
+        if: steps.check_version.outputs.should_release == true
         with:
           path: ~/.cargo/registry/index
           key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: cargo-registry-
       - name: Install git-cliff
+        if: steps.check_version.outputs.should_release == true
         run: cargo install git-cliff --locked
       - name: Determine version and create release
+        if: steps.check_version.outputs.should_release == true
         working-directory: ./rust/main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
