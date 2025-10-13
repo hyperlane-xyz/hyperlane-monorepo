@@ -27,6 +27,10 @@ import {
 import { Contexts } from '../../config/contexts.js';
 import mainnet3GasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
 import testnet4GasPrices from '../../config/environments/testnet4/gasPrices.json' with { type: 'json' };
+import {
+  RelayerAppContextConfig,
+  RelayerConfigHelper,
+} from '../../src/config/agent/relayer.js';
 import { getCombinedChainsToScrape } from '../../src/config/agent/scraper.js';
 import {
   DeployEnvironment,
@@ -42,6 +46,7 @@ import {
 import {
   Modules,
   getAddresses,
+  getAgentAppContextConfigJsonPath,
   getAgentConfig,
   getAgentConfigJsonPath,
   getArgs,
@@ -53,6 +58,7 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
   await writeAgentConfig(multiProvider, environment);
+  await writeAgentAppContexts(multiProvider, environment);
 }
 
 // Keep as a function in case we want to use it in the future
@@ -198,6 +204,7 @@ export async function writeAgentConfig(
   );
 
   const filepath = getAgentConfigJsonPath(envNameToAgentEnv[environment]);
+  console.log(`Writing config to ${filepath}`);
   if (fs.existsSync(filepath)) {
     const currentAgentConfig: AgentConfig = readJSONAtPath(filepath);
     // Remove transactionOverrides from each chain in the agent config
@@ -215,6 +222,34 @@ export async function writeAgentConfig(
     );
   } else {
     writeAndFormatJsonAtPath(filepath, agentConfig);
+  }
+}
+
+export async function writeAgentAppContexts(
+  multiProvider: MultiProvider,
+  environment: DeployEnvironment,
+) {
+  const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
+  const relayerConfig = await new RelayerConfigHelper(
+    envAgentConfig,
+  ).buildConfig();
+
+  const agentConfigMap: RelayerAppContextConfig = {
+    metricAppContexts: relayerConfig.metricAppContexts,
+  };
+
+  const filepath = getAgentAppContextConfigJsonPath(
+    envNameToAgentEnv[environment],
+  );
+  console.log(`Writing config to ${filepath}`);
+  if (fs.existsSync(filepath)) {
+    const currentAgentConfigMap = readJSONAtPath(filepath);
+    writeAndFormatJsonAtPath(
+      filepath,
+      objMerge(currentAgentConfigMap, agentConfigMap),
+    );
+  } else {
+    writeAndFormatJsonAtPath(filepath, agentConfigMap);
   }
 }
 

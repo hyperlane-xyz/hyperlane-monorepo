@@ -23,6 +23,10 @@ export class MockSigner
     throw new Error(`not implemented`);
   }
 
+  transactionToPrintableJson(_transaction: MockTransaction): Promise<object> {
+    throw new Error(`not implemented`);
+  }
+
   async sendAndConfirmTransaction(
     _transaction: MockTransaction,
   ): Promise<MockReceipt> {
