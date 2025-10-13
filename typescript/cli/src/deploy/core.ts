@@ -4,7 +4,6 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   AltVMCoreModule,
-  AnyProtocolTransaction,
   ChainName,
   ContractVerifier,
   CoreConfig,
