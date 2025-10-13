@@ -156,7 +156,7 @@ export class MultiChainResolver implements ChainResolver {
   private async resolveRelayerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    const { multiProvider, supportedProtocols } = argv.context;
+    const { multiProvider } = argv.context;
     const chains = new Set<ChainName>();
 
     if (argv.origin) {
@@ -174,12 +174,13 @@ export class MultiChainResolver implements ChainResolver {
       return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    // If no destination is specified, return all EVM and AltVM chains
+    // If no destination is specified, return all EVM chains only
     if (!argv.destination) {
       const chains = multiProvider.getKnownChainNames();
 
-      return chains.filter((chain: string) =>
-        supportedProtocols.includes(multiProvider.getProtocol(chain)),
+      return chains.filter(
+        (chain: string) =>
+          ProtocolType.Ethereum === multiProvider.getProtocol(chain),
       );
     }
 
