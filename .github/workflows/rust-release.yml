@@ -42,10 +42,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install release-plz
+      - name: Install release tools
         uses: taiki-e/install-action@v2
         with:
-          tool: release-plz
+          tool: release-plz, git-cliff
       - name: Run release-plz
         working-directory: ./rust/main
         env:
@@ -53,6 +53,14 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Generate updated CHANGELOG.md before running release-plz
+          git-cliff --config cliff.toml --tag-pattern "agents-v*" -o CHANGELOG.md
+
+          # Stage CHANGELOG.md so release-plz includes it in the release PR
+          git add CHANGELOG.md
+
+          # Run release-plz to create/update the release PR
           release-plz release-pr --git-token "$GITHUB_TOKEN"
       - name: Summary
         if: always()
@@ -107,17 +115,11 @@ jobs:
               echo "should_release=false" >> $GITHUB_OUTPUT
             fi
           fi
-      - uses: dtolnay/rust-toolchain@stable
-        if: steps.check_version.outputs.should_release == true
-      - uses: actions/cache@v4
-        if: steps.check_version.outputs.should_release == true
-        with:
-          path: ~/.cargo/registry/index
-          key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: cargo-registry-
       - name: Install git-cliff
         if: steps.check_version.outputs.should_release == true
-        run: cargo install git-cliff --locked
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
       - name: Determine version and create release
         if: steps.check_version.outputs.should_release == true
         working-directory: ./rust/main
@@ -189,21 +191,3 @@ jobs:
           [ "$IS_PRERELEASE" = "true" ] && echo "This is marked as a pre-release on GitHub." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Binary artifacts will be built automatically by the agent-release-artifacts workflow." >> $GITHUB_STEP_SUMMARY
-      - name: Update CHANGELOG.md
-        if: steps.check_version.outputs.should_release == true
-        working-directory: ./rust/main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Generate full changelog from all tags
-          git-cliff --config cliff.toml --tag-pattern "agents-v*" -o CHANGELOG.md
-
-          # Commit and push the updated changelog
-          git add CHANGELOG.md
-          if git diff --staged --quiet; then
-            echo "No changes to CHANGELOG.md"
-          else
-            git commit -m "chore: update CHANGELOG.md for $(git describe --tags --abbrev=0)"
-            git push origin main
-            echo "CHANGELOG.md updated and pushed to main" >> $GITHUB_STEP_SUMMARY
-          fi
