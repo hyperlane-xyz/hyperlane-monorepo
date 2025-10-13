@@ -82,7 +82,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     /**
      * @inheritdoc ITokenFee
      * @notice Implements the standardized fee quoting interface for token transfers based on
-     * overridable internal functions of _quoteGasPayment, _feeRecipient, and _externalFeeAmount.
+     * overridable internal functions of _quoteGasPayment, _feeRecipientAndAmount, and _externalFeeAmount.
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
@@ -105,12 +105,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             token: address(0),
             amount: _quoteGasPayment(_destination, _recipient, _amount)
         });
-        (, uint256 fee) = _feeRecipientAndAmount(
+        (, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
             _recipient,
             _amount
         );
-        quotes[1] = Quote({token: token(), amount: _amount + fee});
+        quotes[1] = Quote({token: token(), amount: _amount + feeAmount});
         quotes[2] = Quote({
             token: token(),
             amount: _externalFeeAmount(_destination, _recipient, _amount)
@@ -176,7 +176,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount,
         uint256 _msgValue
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
-        (address recipient, uint256 feeAmount) = _feeRecipientAndAmount(
+        (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
             _recipient,
             _amount
@@ -187,7 +187,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         if (feeAmount > 0) {
             // transfer atomically so we don't need to keep track of collateral
             // and fee balances separately
-            _transferTo(recipient, feeAmount);
+            _transferTo(_feeRecipient, feeAmount);
         }
         remainingNativeValue = token() != address(0)
             ? _msgValue
@@ -266,34 +266,34 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
-     * @return recipient The address of the fee recipient.
-     * @return amount The fee recipient amount.
+     * @return _feeRecipient The address of the fee recipient.
+     * @return feeAmount The fee recipient amount.
      * @dev This function is is not intended to be overridden as storage and logic is contained in TokenRouter.
      */
     function _feeRecipientAndAmount(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view returns (address recipient, uint256 amount) {
-        recipient = feeRecipient();
-        if (recipient == address(0)) {
-            return (recipient, 0);
+    ) internal view returns (address _feeRecipient, uint256 feeAmount) {
+        _feeRecipient = feeRecipient();
+        if (_feeRecipient == address(0)) {
+            return (_feeRecipient, 0);
         }
 
-        Quote[] memory quotes = ITokenFee(recipient).quoteTransferRemote(
+        Quote[] memory quotes = ITokenFee(_feeRecipient).quoteTransferRemote(
             _destination,
             _recipient,
             _amount
         );
         if (quotes.length == 0) {
-            return (recipient, 0);
+            return (_feeRecipient, 0);
         }
 
         require(
             quotes.length == 1 && quotes[0].token == token(),
             "FungibleTokenRouter: fee must match token"
         );
-        amount = quotes[0].amount;
+        feeAmount = quotes[0].amount;
     }
 
     /**
