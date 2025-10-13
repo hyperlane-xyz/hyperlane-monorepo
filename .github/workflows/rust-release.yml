@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - pb/rust-release-cargo # for testing
     paths:
       - 'rust/main/**'
       - 'rust/scripts/generate-workspace-changelog.sh'
