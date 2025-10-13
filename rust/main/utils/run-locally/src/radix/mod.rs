@@ -291,8 +291,15 @@ pub async fn run_locally() {
     );
 
     let encoded_address = signer.encoded_address.clone();
-    let provider = RadixProvider::new(Some(signer), &config, &locator, &ReorgPeriod::None)
-        .expect("Failed to create Radix provider");
+    let provider = RadixProvider::new(
+        Some(signer),
+        &config,
+        &locator,
+        &ReorgPeriod::None,
+        Default::default(),
+        None,
+    )
+    .expect("Failed to create Radix provider");
 
     let mut cli = RadixCli::new(provider.clone(), NETWORK);
     cli.fund_account().await;

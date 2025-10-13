@@ -1334,9 +1334,18 @@ fn build_cosmos_native_provider(
 fn build_radix_provider(
     chain_conf: &ChainConf,
     connection_conf: &h_radix::ConnectionConf,
-    _metrics: &CoreMetrics,
+    metrics: &CoreMetrics,
     locator: &ContractLocator,
     signer: Option<h_radix::RadixSigner>,
 ) -> ChainResult<RadixProvider> {
-    RadixProvider::new(signer, connection_conf, locator, &chain_conf.reorg_period)
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    RadixProvider::new(
+        signer,
+        connection_conf,
+        locator,
+        &chain_conf.reorg_period,
+        metrics,
+        middleware_metrics.chain,
+    )
 }
