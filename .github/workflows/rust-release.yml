@@ -42,14 +42,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Run release-plz
-        uses: release-plz/action@v0.5
+      - name: Install release-plz
+        uses: taiki-e/install-action@v2
         with:
-          command: release-pr
-          manifest_path: rust/main/Cargo.toml
-          config: rust/main/release-plz.toml
+          tool: release-plz
+      - name: Run release-plz
+        working-directory: ./rust/main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          release-plz release-pr --git-token "$GITHUB_TOKEN"
       - name: Summary
         if: always()
         run: |
