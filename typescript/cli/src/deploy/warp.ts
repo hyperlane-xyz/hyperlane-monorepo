@@ -69,6 +69,7 @@ import {
 import { WarpSendLogs } from '../send/transfer.js';
 import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
 import {
+  CustomTxSubmitterType,
   ExtendedChainSubmissionStrategy,
   ExtendedChainSubmissionStrategySchema,
   ExtendedSubmissionStrategy,
@@ -1003,15 +1004,17 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
           },
         };
 
-  // we make sure to append the chain because not every submitter
-  // strategy provides the chain
-  submissionStrategy = {
-    ...submissionStrategy,
-    submitter: {
-      ...submissionStrategy.submitter,
-      chain,
-    },
-  } as ExtendedSubmissionStrategy;
+  // we make sure to append the chain because the file submitter config
+  // does not provide it
+  if (submissionStrategy.submitter.type === CustomTxSubmitterType.FILE) {
+    submissionStrategy = {
+      ...submissionStrategy,
+      submitter: {
+        ...submissionStrategy.submitter,
+        chain,
+      },
+    } as ExtendedSubmissionStrategy;
+  }
 
   return {
     submitter: await getSubmitterBuilder<T>({
