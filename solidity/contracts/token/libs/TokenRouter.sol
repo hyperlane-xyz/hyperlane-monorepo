@@ -6,6 +6,7 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {GasRouter} from "../../client/GasRouter.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 import {Quote, ITokenBridge, ITokenFee} from "../../interfaces/ITokenBridge.sol";
+import {Quotes} from "./Quotes.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 /**
@@ -24,6 +25,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     using TypeCasts for address;
     using TokenMessage for bytes;
     using StorageSlot for bytes32;
+    using Quotes for Quote[];
 
     /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
@@ -80,7 +82,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     /**
      * @inheritdoc ITokenFee
      * @notice Implements the standardized fee quoting interface for token transfers based on
-     * overridable internal functions of _quoteGasPayment, _feeRecipientAmount, and _externalFeeAmount.
+     * overridable internal functions of _quoteGasPayment, _feeRecipientAndAmount, and _externalFeeAmount.
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
@@ -103,11 +105,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             token: address(0),
             amount: _quoteGasPayment(_destination, _recipient, _amount)
         });
-        quotes[1] = Quote({
-            token: token(),
-            amount: _amount +
-                _feeRecipientAmount(_destination, _recipient, _amount)
-        });
+        (, uint256 feeAmount) = _feeRecipientAndAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        quotes[1] = Quote({token: token(), amount: _amount + feeAmount});
         quotes[2] = Quote({
             token: token(),
             amount: _externalFeeAmount(_destination, _recipient, _amount)
@@ -175,18 +178,18 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount,
         uint256 _msgValue
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
-        uint256 feeRecipientFee = _feeRecipientAmount(
+        (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
             _recipient,
             _amount
         );
         externalFee = _externalFeeAmount(_destination, _recipient, _amount);
-        uint256 charge = _amount + feeRecipientFee + externalFee;
+        uint256 charge = _amount + feeAmount + externalFee;
         _transferFromSender(charge);
-        if (feeRecipientFee > 0) {
+        if (feeAmount > 0) {
             // transfer atomically so we don't need to keep track of collateral
             // and fee balances separately
-            _transferTo(feeRecipient(), feeRecipientFee);
+            _transferTo(_feeRecipient, feeAmount);
         }
         remainingNativeValue = token() != address(0)
             ? _msgValue
@@ -221,11 +224,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     /**
      * @notice Sets the fee recipient for the router.
      * @dev Allows for address(0) to be set, which disables fees.
-     * @param _feeRecipient The address of the fee recipient.
+     * @param recipient The address that receives fees.
      */
-    function setFeeRecipient(address _feeRecipient) public onlyOwner {
-        FEE_RECIPIENT_SLOT.getAddressSlot().value = _feeRecipient;
-        emit FeeRecipientSet(_feeRecipient);
+    function setFeeRecipient(address recipient) public onlyOwner {
+        require(recipient != address(this), "Fee recipient cannot be self");
+        FEE_RECIPIENT_SLOT.getAddressSlot().value = recipient;
+        emit FeeRecipientSet(recipient);
     }
 
     /**
@@ -264,32 +268,34 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
+     * @return _feeRecipient The address of the fee recipient.
      * @return feeAmount The fee recipient amount.
      * @dev This function is is not intended to be overridden as storage and logic is contained in TokenRouter.
      */
-    function _feeRecipientAmount(
+    function _feeRecipientAndAmount(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal view returns (uint256 feeAmount) {
-        if (feeRecipient() == address(0)) {
-            return 0;
+    ) internal view returns (address _feeRecipient, uint256 feeAmount) {
+        _feeRecipient = feeRecipient();
+        if (_feeRecipient == address(0)) {
+            return (_feeRecipient, 0);
         }
 
-        Quote[] memory quotes = ITokenFee(feeRecipient()).quoteTransferRemote(
+        Quote[] memory quotes = ITokenFee(_feeRecipient).quoteTransferRemote(
             _destination,
             _recipient,
             _amount
         );
         if (quotes.length == 0) {
-            return 0;
+            return (_feeRecipient, 0);
         }
 
         require(
             quotes.length == 1 && quotes[0].token == token(),
             "FungibleTokenRouter: fee must match token"
         );
-        return quotes[0].amount;
+        feeAmount = quotes[0].amount;
     }
 
     /**
