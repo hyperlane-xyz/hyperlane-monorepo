@@ -24801,6 +24801,131 @@
       ]
     },
     {
+      "name": "USDC/mantra",
+      "matchingList": [
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x00000000000000000000000082b0d43efe1aa9877b8c35319006af2916203e52"
+          ],
+          "destinationDomain": 8453,
+          "recipientAddress": [
+            "0x000000000000000000000000c898fb26eb0bb3144964e15f544f3c68495b00d6"
+          ]
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x00000000000000000000000082b0d43efe1aa9877b8c35319006af2916203e52"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x00000000000000000000000011a483d69cc67140fb98a0082837aec11246a0ba"
+          ]
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x00000000000000000000000082b0d43efe1aa9877b8c35319006af2916203e52"
+          ],
+          "destinationDomain": 5888,
+          "recipientAddress": [
+            "0x0000000000000000000000005e76be0f4e09057d75140216f70fd4ce3365bb29"
+          ]
+        },
+        {
+          "originDomain": 8453,
+          "senderAddress": [
+            "0x000000000000000000000000c898fb26eb0bb3144964e15f544f3c68495b00d6"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x00000000000000000000000082b0d43efe1aa9877b8c35319006af2916203e52"
+          ]
+        },
+        {
+          "originDomain": 8453,
+          "senderAddress": [
+            "0x000000000000000000000000c898fb26eb0bb3144964e15f544f3c68495b00d6"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x00000000000000000000000011a483d69cc67140fb98a0082837aec11246a0ba"
+          ]
+        },
+        {
+          "originDomain": 8453,
+          "senderAddress": [
+            "0x000000000000000000000000c898fb26eb0bb3144964e15f544f3c68495b00d6"
+          ],
+          "destinationDomain": 5888,
+          "recipientAddress": [
+            "0x0000000000000000000000005e76be0f4e09057d75140216f70fd4ce3365bb29"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x00000000000000000000000011a483d69cc67140fb98a0082837aec11246a0ba"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x00000000000000000000000082b0d43efe1aa9877b8c35319006af2916203e52"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x00000000000000000000000011a483d69cc67140fb98a0082837aec11246a0ba"
+          ],
+          "destinationDomain": 8453,
+          "recipientAddress": [
+            "0x000000000000000000000000c898fb26eb0bb3144964e15f544f3c68495b00d6"
+          ]
+        },
+        {
+          "originDomain": 1,
+          "senderAddress": [
+            "0x00000000000000000000000011a483d69cc67140fb98a0082837aec11246a0ba"
+          ],
+          "destinationDomain": 5888,
+          "recipientAddress": [
+            "0x0000000000000000000000005e76be0f4e09057d75140216f70fd4ce3365bb29"
+          ]
+        },
+        {
+          "originDomain": 5888,
+          "senderAddress": [
+            "0x0000000000000000000000005e76be0f4e09057d75140216f70fd4ce3365bb29"
+          ],
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x00000000000000000000000082b0d43efe1aa9877b8c35319006af2916203e52"
+          ]
+        },
+        {
+          "originDomain": 5888,
+          "senderAddress": [
+            "0x0000000000000000000000005e76be0f4e09057d75140216f70fd4ce3365bb29"
+          ],
+          "destinationDomain": 8453,
+          "recipientAddress": [
+            "0x000000000000000000000000c898fb26eb0bb3144964e15f544f3c68495b00d6"
+          ]
+        },
+        {
+          "originDomain": 5888,
+          "senderAddress": [
+            "0x0000000000000000000000005e76be0f4e09057d75140216f70fd4ce3365bb29"
+          ],
+          "destinationDomain": 1,
+          "recipientAddress": [
+            "0x00000000000000000000000011a483d69cc67140fb98a0082837aec11246a0ba"
+          ]
+        }
+      ]
+    },
+    {
       "name": "USDC/mainnet-cctp",
       "matchingList": [
         {
