@@ -53,10 +53,10 @@ impl NonceManager {
         Ok(manager)
     }
 
-    pub(crate) async fn assign_nonce(&self, tx: &mut Transaction) -> eyre::Result<(), LanderError> {
-        use NonceAction::{Assign, Noop};
-        use NonceStatus::{Committed, Freed, Taken};
-
+    pub(crate) async fn calculate_next_nonce(
+        &self,
+        tx: &Transaction,
+    ) -> eyre::Result<U256, LanderError> {
         let tx_uuid = tx.uuid.clone();
         let precursor = tx.precursor();
 
@@ -75,40 +75,29 @@ impl NonceManager {
             .await
             .map_err(|e| eyre::eyre!("Failed to update boundary nonces: {}", e))?;
 
-        let (action, nonce) = self
+        let nonce_action = self
             .state
             .validate_assigned_nonce(tx)
             .await
             .map_err(|e| eyre::eyre!("Failed to validate assigned nonce: {}", e))?;
 
-        if matches!(action, Noop) {
-            return Ok(());
+        match nonce_action {
+            NonceAction::Assign { nonce } => Ok(nonce),
+            NonceAction::AssignNext { old_nonce } => {
+                let next_nonce = self
+                    .state
+                    .assign_next_nonce(&tx_uuid, &old_nonce)
+                    .await
+                    .map_err(|e| {
+                        eyre::eyre!(
+                            "Failed to assign next nonce for transaction {}: {}",
+                            tx_uuid,
+                            e
+                        )
+                    })?;
+                Ok(next_nonce)
+            }
         }
-
-        let next_nonce = self
-            .state
-            .assign_next_nonce(&tx_uuid, &nonce)
-            .await
-            .map_err(|e| {
-                eyre::eyre!(
-                    "Failed to assign next nonce for transaction {}: {}",
-                    tx_uuid,
-                    e
-                )
-            })?;
-
-        let precursor = tx.precursor_mut();
-        precursor.tx.set_nonce(next_nonce);
-
-        info!(
-            nonce = ?next_nonce,
-            address = ?from,
-            ?tx_uuid,
-            precursor = ?precursor,
-            "Set nonce for transaction"
-        );
-
-        Ok(())
     }
 
     async fn address(chain_conf: &ChainConf) -> eyre::Result<Address> {

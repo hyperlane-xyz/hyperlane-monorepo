@@ -28,10 +28,9 @@ pub struct BuildingStage {
 }
 
 impl BuildingStage {
-    #[instrument(skip(self), name = "BuildingStage::run")]
+    #[instrument(skip(self), name = "BuildingStage::run", fields(domain=%self.domain))]
     pub async fn run(&self) {
         loop {
-            self.update_metrics().await;
             // event-driven by the Building queue
             let payloads = self
                 .queue
@@ -39,9 +38,12 @@ impl BuildingStage {
                 .await;
             if payloads.is_empty() {
                 // wait for more payloads to arrive
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
                 continue;
             }
+            // note: this will set the queue length metric to `length - payloads.len()`,
+            // so worst case this will be lower by `max_batch_size`
+            self.update_metrics().await;
 
             info!(?payloads, "Building transactions from payloads");
             let tx_building_results = self.state.adapter.build_transactions(&payloads).await;

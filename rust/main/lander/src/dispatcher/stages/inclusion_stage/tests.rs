@@ -22,7 +22,7 @@ async fn test_processing_included_txs() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
         .expect_estimated_block_time()
-        .return_const(Duration::from_millis(10));
+        .return_const(Duration::from_millis(400));
 
     mock_adapter
         .expect_tx_status()
@@ -49,7 +49,7 @@ async fn test_unincluded_txs_reach_mempool() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
         .expect_estimated_block_time()
-        .return_const(Duration::from_millis(10));
+        .return_const(Duration::from_millis(400));
 
     mock_adapter
         .expect_tx_ready_for_resubmission()
@@ -90,7 +90,7 @@ async fn test_failed_simulation() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
         .expect_estimated_block_time()
-        .return_const(Duration::from_millis(10));
+        .return_const(Duration::from_millis(400));
 
     mock_adapter
         .expect_tx_ready_for_resubmission()
@@ -127,7 +127,7 @@ async fn test_failed_estimation() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
         .expect_estimated_block_time()
-        .return_const(Duration::from_millis(10));
+        .return_const(Duration::from_millis(400));
 
     mock_adapter
         .expect_tx_status()
@@ -181,8 +181,18 @@ async fn test_channel_closed_before_any_tx() {
     drop(building_stage_sender);
 
     // Should return error due to closed channel
-    let result = tokio::time::timeout(Duration::from_millis(100), inclusion_stage.run()).await;
-    assert!(result.is_ok()); // run() should not panic
+    let result = tokio::time::timeout(
+        Duration::from_millis(100),
+        InclusionStage::receive_txs(
+            inclusion_stage.tx_receiver,
+            inclusion_stage.pool.clone(),
+            inclusion_stage.state.clone(),
+            inclusion_stage.domain.clone(),
+        ),
+    )
+    .await
+    .unwrap();
+    assert!(matches!(result, Err(LanderError::ChannelClosed))); // run() should not panic
 }
 
 #[tokio::test]
@@ -190,7 +200,7 @@ async fn test_transaction_status_dropped() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
         .expect_estimated_block_time()
-        .return_const(Duration::from_millis(10));
+        .return_const(Duration::from_millis(400));
     mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::Dropped(TxDropReason::FailedSimulation)));
@@ -214,7 +224,7 @@ async fn test_transaction_not_ready_for_resubmission() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
         .expect_estimated_block_time()
-        .return_const(Duration::from_millis(10));
+        .return_const(Duration::from_millis(400));
     mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::PendingInclusion));
@@ -241,7 +251,7 @@ async fn test_failed_submission_after_simulation_and_estimation() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
         .expect_estimated_block_time()
-        .return_const(Duration::from_millis(10));
+        .return_const(Duration::from_millis(400));
     mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::PendingInclusion));
@@ -275,7 +285,7 @@ async fn test_transaction_included_immediately() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
         .expect_estimated_block_time()
-        .return_const(Duration::from_millis(10));
+        .return_const(Duration::from_millis(400));
     mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::Included));
@@ -299,7 +309,7 @@ async fn test_transaction_pending_then_included() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
         .expect_estimated_block_time()
-        .return_const(Duration::from_millis(10));
+        .return_const(Duration::from_millis(400));
     let mut call_count = 0;
     mock_adapter.expect_tx_status().returning(move |_| {
         call_count += 1;
@@ -399,7 +409,8 @@ async fn run_stage(
 
     let stage = tokio::spawn(async move { stage.run().await });
 
-    // give the inclusion stage 100ms to send the transaction(s) to the receiver
+    // give the inclusion stage more time to send the transaction(s) to the receiver
+    // with adaptive polling, we need at least 2 polling cycles (200ms minimum)
     let _ = tokio::select! {
         // this arm runs indefinitely
         res = stage => res,
@@ -407,8 +418,8 @@ async fn run_stage(
         received = receiving_closure => {
             return received;
         },
-        // this arm is the timeout
-        _ = sleep(Duration::from_millis(100)) => {
+        // this arm is the timeout - increased to accommodate adaptive polling
+        _ = sleep(Duration::from_millis(500)) => {
             return vec![]
         },
     };
@@ -442,4 +453,108 @@ async fn assert_tx_status(
             );
         }
     }
+}
+
+#[tokio::test]
+async fn test_reasonable_receipt_query_frequency() {
+    // This test enforces reasonable eth_getTransactionReceipt query frequency
+    // It will FAIL with the current 10ms polling implementation
+    // and PASS once we implement adaptive polling based on block time
+
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc as StdArc;
+
+    let call_counter = StdArc::new(AtomicU32::new(0));
+    let call_counter_clone = call_counter.clone();
+
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(12000)); // Ethereum block time ~12s
+
+    // Track how many times tx_status is called (which triggers get_transaction_receipt)
+    mock_adapter.expect_tx_status().returning(move |_| {
+        call_counter_clone.fetch_add(1, Ordering::SeqCst);
+        Ok(TransactionStatus::PendingInclusion) // Always pending to keep it in the pool
+    });
+
+    mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .returning(|_| false); // Don't resubmit to avoid extra complexity
+
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(5);
+    let (finality_stage_sender, _finality_stage_receiver) = mpsc::channel(5);
+
+    let state = DispatcherState::new(
+        payload_db.clone(),
+        tx_db.clone(),
+        Arc::new(mock_adapter),
+        DispatcherMetrics::dummy_instance(),
+        "test".to_string(),
+    );
+
+    let inclusion_stage = InclusionStage::new(
+        building_stage_receiver,
+        finality_stage_sender,
+        state,
+        "test".to_string(),
+    );
+
+    // Create 3 transactions that will stay pending
+    const NUM_TXS: usize = 3;
+    let txs_created = create_random_txs_and_store_them(
+        NUM_TXS,
+        &payload_db,
+        &tx_db,
+        TransactionStatus::PendingInclusion,
+    )
+    .await;
+
+    // Send transactions to inclusion stage
+    for tx in txs_created.iter() {
+        building_stage_sender.send(tx.clone()).await.unwrap();
+    }
+
+    // Let the inclusion stage run for 1 second to get a good sample
+    let stage_handle = tokio::spawn(async move { inclusion_stage.run().await });
+
+    sleep(Duration::from_millis(1000)).await;
+    stage_handle.abort();
+
+    let total_calls = call_counter.load(Ordering::SeqCst);
+    let queries_per_second = total_calls as f64 / 1.0;
+    let queries_per_second_per_tx = queries_per_second / NUM_TXS as f64;
+
+    println!(
+        "Total tx_status calls (receipt queries) in 1 second: {}",
+        total_calls
+    );
+    println!(
+        "Queries per second per transaction: {:.2}",
+        queries_per_second_per_tx
+    );
+
+    // REASONABLE EXPECTATIONS FOR ETHEREUM (12s block time):
+    // - New transactions: Check every 3s (1/4 block time) = 0.33 queries/sec/tx
+    // - Older transactions: Exponential backoff, average ~0.1 queries/sec/tx
+    // - For 3 transactions: Maximum ~1 query/sec total
+
+    // This test will FAIL with current 10ms implementation (making ~80 queries/sec/tx)
+    // but PASS with adaptive polling (making ~0.1-0.3 queries/sec/tx)
+
+    assert!(
+        queries_per_second <= 5.0,
+        "Too many receipt queries! Expected ≤5 queries/sec total, got {:.1}. \
+        Current implementation makes {:.1} queries/sec/tx but should make ≤0.5 queries/sec/tx",
+        queries_per_second,
+        queries_per_second_per_tx
+    );
+
+    assert!(
+        queries_per_second_per_tx <= 1.0,
+        "Receipt queries per transaction too high! Expected ≤1.0 queries/sec/tx, got {:.2}. \
+        With 12s Ethereum blocks, should check at most every 3s (0.33 queries/sec/tx)",
+        queries_per_second_per_tx
+    );
 }

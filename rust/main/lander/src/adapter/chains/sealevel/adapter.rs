@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, ops::Sub, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -39,6 +39,7 @@ use crate::{
     adapter::{
         chains::sealevel::{
             conf::{create_keypair, get_connection_conf},
+            payload::processed_account,
             transaction::{Precursor, TransactionFactory, Update},
             SealevelTxPrecursor,
         },
@@ -53,7 +54,7 @@ use crate::{
     DispatcherMetrics, TransactionDropReason,
 };
 
-const TX_RESUBMISSION_MIN_DELAY_SECS: u64 = 15;
+const TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER: f32 = 3.0;
 
 #[derive(Default, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum EstimateFreshnessCache {
@@ -66,10 +67,10 @@ pub struct SealevelAdapter {
     estimated_block_time: Duration,
     max_batch_size: u32,
     keypair: SealevelKeypair,
-    client: Box<dyn SubmitSealevelRpc>,
-    provider: Box<dyn SealevelProviderForLander>,
-    oracle: Box<dyn PriorityFeeOracle>,
-    submitter: Box<dyn TransactionSubmitter>,
+    client: Arc<dyn SubmitSealevelRpc>,
+    provider: Arc<dyn SealevelProviderForLander>,
+    oracle: Arc<dyn PriorityFeeOracle>,
+    submitter: Arc<dyn TransactionSubmitter>,
     estimate_freshness_cache: Arc<Mutex<HashMap<TransactionUuid, EstimateFreshnessCache>>>,
 }
 
@@ -110,8 +111,8 @@ impl SealevelAdapter {
         Self::new_internal(
             conf,
             raw_conf,
-            Box::new(client),
-            Box::new(provider),
+            Arc::new(client),
+            Arc::new(provider),
             oracle,
             submitter,
         )
@@ -120,10 +121,10 @@ impl SealevelAdapter {
     fn new_internal(
         conf: ChainConf,
         _raw_conf: RawChainConf,
-        client: Box<dyn SubmitSealevelRpc>,
-        provider: Box<dyn SealevelProviderForLander>,
-        oracle: Box<dyn PriorityFeeOracle>,
-        submitter: Box<dyn TransactionSubmitter>,
+        client: Arc<dyn SubmitSealevelRpc>,
+        provider: Arc<dyn SealevelProviderForLander>,
+        oracle: Arc<dyn PriorityFeeOracle>,
+        submitter: Arc<dyn TransactionSubmitter>,
     ) -> eyre::Result<Self> {
         let estimated_block_time = conf.estimated_block_time;
         let max_batch_size = Self::batch_size(&conf)?;
@@ -145,13 +146,31 @@ impl SealevelAdapter {
     #[allow(unused)]
     #[cfg(test)]
     fn new_internal_default(
-        client: Box<dyn SubmitSealevelRpc>,
-        provider: Box<dyn SealevelProviderForLander>,
-        oracle: Box<dyn PriorityFeeOracle>,
-        submitter: Box<dyn TransactionSubmitter>,
+        client: Arc<dyn SubmitSealevelRpc>,
+        provider: Arc<dyn SealevelProviderForLander>,
+        oracle: Arc<dyn PriorityFeeOracle>,
+        submitter: Arc<dyn TransactionSubmitter>,
+    ) -> Self {
+        Self::new_internal_with_block_time(
+            Duration::from_secs(1),
+            client,
+            provider,
+            oracle,
+            submitter,
+        )
+    }
+
+    #[allow(unused)]
+    #[cfg(test)]
+    pub fn new_internal_with_block_time(
+        estimated_block_time: Duration,
+        client: Arc<dyn SubmitSealevelRpc>,
+        provider: Arc<dyn SealevelProviderForLander>,
+        oracle: Arc<dyn PriorityFeeOracle>,
+        submitter: Arc<dyn TransactionSubmitter>,
     ) -> Self {
         Self {
-            estimated_block_time: Duration::from_secs(1),
+            estimated_block_time,
             max_batch_size: 1,
             keypair: SealevelKeypair::default(),
             provider,
@@ -179,8 +198,8 @@ impl SealevelAdapter {
             .get_estimated_costs_for_instruction(
                 precursor.instruction.clone(),
                 &self.keypair,
-                &*self.submitter,
-                &*self.oracle,
+                self.submitter.clone(),
+                self.oracle.clone(),
             )
             .await?;
         Ok(SealevelTxPrecursor::new(
@@ -219,7 +238,7 @@ impl SealevelAdapter {
                 estimate.compute_unit_price_micro_lamports,
                 instruction.clone(),
                 &self.keypair,
-                &*self.submitter,
+                self.submitter.clone(),
                 sign,
             )
             .await
@@ -232,25 +251,47 @@ impl SealevelAdapter {
         // query the tx hash from most to least finalized to learn what level of finality it has
         // the calls below can be parallelized if needed, but for now avoid rate limiting
 
-        if self
+        let tx_resp = self
             .client
             .get_transaction_with_commitment(signature, CommitmentConfig::finalized())
-            .await
-            .is_ok()
-        {
-            info!("transaction finalized");
-            return Ok(TransactionStatus::Finalized);
+            .await;
+
+        if let Ok(tx) = tx_resp {
+            if let Some(meta) = tx.transaction.meta {
+                // It is possible for a failed transaction to be finalized.
+                // In this case, we need to re-submit.
+                if meta.err.is_some() {
+                    warn!(?signature, ?tx_hash, "Transaction finalized, but failed");
+                    return Ok(TransactionStatus::Dropped(
+                        TransactionDropReason::DroppedByChain,
+                    ));
+                } else {
+                    info!(?tx_hash, "transaction finalized");
+                    return Ok(TransactionStatus::Finalized);
+                }
+            }
         }
 
-        // the "confirmed" commitment is equivalent to being "included" in a block on evm
-        if self
+        let tx_resp = self
             .client
             .get_transaction_with_commitment(signature, CommitmentConfig::confirmed())
-            .await
-            .is_ok()
-        {
-            info!("transaction included");
-            return Ok(TransactionStatus::Included);
+            .await;
+
+        // the "confirmed" commitment is equivalent to being "included" in a block on evm
+        if let Ok(tx) = tx_resp {
+            if let Some(meta) = tx.transaction.meta {
+                // It is possible for a failed transaction to be confirmed.
+                // In this case, we need to re-submit.
+                if meta.err.is_some() {
+                    warn!(?signature, ?tx_hash, "Transaction included, but failed");
+                    return Ok(TransactionStatus::Dropped(
+                        TransactionDropReason::DroppedByChain,
+                    ));
+                } else {
+                    info!(?tx_hash, "transaction included");
+                    return Ok(TransactionStatus::Included);
+                }
+            }
         }
 
         match self
@@ -267,6 +308,12 @@ impl SealevelAdapter {
                 return Err(LanderError::TxHashNotFound(err.to_string()));
             }
         }
+    }
+
+    /// wait some blocks before resubmitting a transaction
+    fn time_before_resubmission(&self) -> Duration {
+        self.estimated_block_time
+            .mul_f32(TX_RESUBMISSION_BLOCK_TIME_MULTIPLIER)
     }
 }
 
@@ -367,12 +414,6 @@ impl AdaptsChain for SealevelAdapter {
 
         info!(?tx, "submitted transaction");
 
-        self.submitter
-            .wait_for_transaction_confirmation(&svm_transaction)
-            .await?;
-
-        info!(?tx, "confirmed transaction by signature status");
-
         Ok(())
     }
 
@@ -384,12 +425,44 @@ impl AdaptsChain for SealevelAdapter {
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
+        let time_before_resubmission = self.time_before_resubmission();
         if let Some(ref last_submission_time) = tx.last_submission_attempt {
             let seconds_since_last_submission =
-                (Utc::now() - last_submission_time).num_seconds() as u64;
-            return seconds_since_last_submission >= TX_RESUBMISSION_MIN_DELAY_SECS;
+                Utc::now().sub(last_submission_time).num_milliseconds() as u64;
+            return seconds_since_last_submission >= time_before_resubmission.as_millis() as u64;
         }
         true
+    }
+
+    async fn reverted_payloads(
+        &self,
+        tx: &Transaction,
+    ) -> Result<Vec<PayloadDetails>, LanderError> {
+        if tx.status != TransactionStatus::Finalized {
+            // if transaction is not finalized, we cannot know if any payloads were reverted
+            // since the processed account should not exist on the chain yet
+            return Ok(Vec::new());
+        }
+
+        let processed_accounts = tx
+            .payload_details
+            .iter()
+            .filter_map(|d| processed_account(d).map(|a| (d, a)))
+            .collect::<Vec<_>>();
+
+        let mut reverted = Vec::new();
+        for (detail, processed_account) in processed_accounts {
+            let account = self.provider.get_account(processed_account).await?;
+            if account.is_none() {
+                reverted.push(detail.clone());
+            }
+        }
+
+        if !reverted.is_empty() {
+            warn!(?tx, ?reverted, "reverted payloads");
+        }
+
+        Ok(reverted)
     }
 
     fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics) {}
@@ -404,4 +477,4 @@ impl AdaptsChain for SealevelAdapter {
 }
 
 #[cfg(test)]
-mod tests;
+pub mod tests;

@@ -275,6 +275,7 @@ where
             .map(Into::into)
     }
 
+    #[instrument(skip(self), ret)]
     async fn fee_history(
         &self,
         block_count: U256,
@@ -479,15 +480,22 @@ where
             return Ok(None);
         };
 
+        let block_hash = block
+            .hash
+            .ok_or_else(|| ChainCommunicationError::CustomError("Block hash missing".into()))?;
+        let block_number = block
+            .number
+            .ok_or_else(|| ChainCommunicationError::CustomError("Block number missing".into()))?;
+
         // Given the block is queried with `BlockNumber::Latest` rather than `BlockNumber::Pending`,
         // if `block` is Some at this point, we're guaranteed to have its `hash` and `number` defined,
         // so it's safe to unwrap below
         // more info at <https://docs.rs/ethers/latest/ethers/core/types/struct.Block.html#structfield.number>
         let chain_metrics = ChainInfo::new(
             BlockInfo {
-                hash: block.hash.unwrap().into(),
+                hash: block_hash.into(),
                 timestamp: block.timestamp.as_u64(),
-                number: block.number.unwrap().as_u64(),
+                number: block_number.as_u64(),
             },
             block.base_fee_per_gas.map(Into::into),
         );

@@ -1,5 +1,97 @@
 # @hyperlane-xyz/core
 
+## 9.0.10
+
+### Patch Changes
+
+- a5728818f: Updated import statements for ProxyAdmin and TransparentUpgradeableProxy contracts as they weren't included in the build artifacts used for verification with the old import
+- Updated dependencies [c41bc3b93]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [6b8419370]
+  - @hyperlane-xyz/utils@18.3.0
+
+## 9.0.9
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@18.2.0
+
+## 9.0.8
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@18.1.0
+
+## 9.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfc0eb2a7]
+  - @hyperlane-xyz/utils@18.0.0
+
+## 9.0.6
+
+### Patch Changes
+
+- Updated dependencies [8c15edc67]
+- Updated dependencies [e0bda316a]
+  - @hyperlane-xyz/utils@17.0.0
+
+## 9.0.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.2.0
+
+## 9.0.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.1.1
+
+## 9.0.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.1.0
+
+## 9.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.0.0
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [a33c8abd4]
+  - @hyperlane-xyz/utils@15.0.0
+
+## 9.0.0
+
+### Major Changes
+
+- 155f5a5e8: Remove old liquidity layer contracts
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@14.4.0
+
+## 8.1.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@14.3.0
+
+## 8.1.1
+
+### Patch Changes
+
+- c177c4733: Remove absolute imports. Fixes compilation for users who import from files under `solidity/contracts`.
+  - @hyperlane-xyz/utils@14.2.0
+
 ## 8.1.0
 
 ### Minor Changes

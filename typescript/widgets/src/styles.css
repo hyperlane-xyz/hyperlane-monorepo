@@ -14,3 +14,39 @@
     scrollbar-width: none; /* Firefox */
   }
 }
+
+.RadixWalletPopupOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #00000078;
+  z-index: 999;
+}
+
+.RadixWalletPopup {
+  position: fixed;
+
+  top: 50vh;
+  left: 50vw;
+  transform: translate(-50%, -50%);
+
+  width: 500px;
+  padding: 20px;
+
+  border: 1px solid black;
+  border-radius: 1em;
+  box-shadow: -1px 5px 5px black;
+
+  background-color: white;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+
+  color: #011627;
+
+  z-index: 1000;
+}

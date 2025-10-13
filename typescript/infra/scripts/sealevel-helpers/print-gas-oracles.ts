@@ -13,7 +13,7 @@ import {
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { getChain, getWarpAddresses } from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withOutputFile } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -79,7 +79,7 @@ async function main() {
 
   if (outFile) {
     console.log(`Writing config to ${outFile}`);
-    writeJsonAtPath(outFile, gasOracles);
+    writeAndFormatJsonAtPath(outFile, gasOracles);
   }
 }
 
@@ -101,14 +101,16 @@ function getChainConnections(
   if (environment === 'mainnet3') {
     // All the mainnet3 warp route chains
     connectedChains = [
-      // For the Rivalz team building out their own warp route
-      ['solanamainnet', 'rivalz'],
       ['solanamainnet', 'everclear'],
-      ['solanamainnet', 'infinityvmmainnet'],
       ['solanamainnet', 'sophon'],
       ['solanamainnet', 'abstract'],
       ['solanamainnet', 'apechain'],
       ['solanamainnet', 'subtensor'],
+      ['solanamainnet', 'pulsechain'],
+      ['solanamainnet', 'electroneum'],
+      ['solanamainnet', 'galactica'],
+      ['solanamainnet', 'radix'],
+      ['solanamainnet', 'carrchain'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
@@ -126,6 +128,9 @@ function getChainConnections(
       // for solaxy routes
       ['solaxy', 'solanamainnet'],
       ['solaxy', 'ethereum'],
+      // for celestia svm routes
+      ['celestia', 'solanamainnet'],
+      ['celestia', 'eclipsemainnet'],
       // All warp routes
       ...Object.values(WarpRouteIds).map(getWarpChains),
     ];
@@ -135,7 +140,6 @@ function getChainConnections(
       // For SOL/solanatestnet-sonicsvmtestnet
       ['solanatestnet', 'sonicsvmtestnet'],
       ['solanatestnet', 'connextsepolia'],
-      ['solanatestnet', 'infinityvmmonza'],
       ['solanatestnet', 'basesepolia'],
     ];
   } else {

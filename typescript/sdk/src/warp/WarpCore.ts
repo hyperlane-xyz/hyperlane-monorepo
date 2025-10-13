@@ -8,6 +8,7 @@ import {
   assert,
   convertDecimalsToIntegerString,
   convertToProtocolAddress,
+  convertToScaledAmount,
   isValidAddress,
   isZeroishAddress,
   rootLogger,
@@ -23,6 +24,7 @@ import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
+  LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
@@ -30,6 +32,7 @@ import {
 } from '../token/TokenStandard.js';
 import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
+  EvmHypCollateralFiatAdapter,
   EvmHypXERC20LockboxAdapter,
 } from '../token/adapters/EvmTokenAdapter.js';
 import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
@@ -533,10 +536,7 @@ export class WarpCore {
   }
 
   async getTokenCollateral(token: IToken): Promise<bigint> {
-    if (
-      token.standard === TokenStandard.EvmHypXERC20Lockbox ||
-      token.standard === TokenStandard.EvmHypVSXERC20Lockbox
-    ) {
+    if (LOCKBOX_STANDARDS.includes(token.standard)) {
       const adapter = token.getAdapter(
         this.multiProvider,
       ) as EvmHypXERC20LockboxAdapter;
@@ -583,6 +583,26 @@ export class WarpCore {
       originToken.decimals,
       destinationBalance.toString(),
     );
+
+    // check for scaling factor
+    if (
+      originToken.scale &&
+      destinationToken.scale &&
+      originToken.scale !== destinationToken.scale
+    ) {
+      const precisionFactor = 100_000;
+      const scaledAmount = convertToScaledAmount({
+        fromScale: originToken.scale,
+        toScale: destinationToken.scale,
+        amount,
+        precisionFactor,
+      });
+
+      return (
+        BigInt(destinationBalanceInOriginDecimals) * BigInt(precisionFactor) >=
+        scaledAmount
+      );
+    }
 
     const isSufficient = BigInt(destinationBalanceInOriginDecimals) >= amount;
     this.logger.debug(
@@ -909,6 +929,13 @@ export class WarpCore {
           destinationMintLimit = max;
         }
       }
+    } else if (
+      destinationToken.standard === TokenStandard.EvmHypCollateralFiat
+    ) {
+      const adapter = destinationToken.getAdapter(
+        this.multiProvider,
+      ) as EvmHypCollateralFiatAdapter;
+      destinationMintLimit = await adapter.getMintLimit();
     }
 
     const destinationMintLimitInOriginDecimals = convertDecimalsToIntegerString(

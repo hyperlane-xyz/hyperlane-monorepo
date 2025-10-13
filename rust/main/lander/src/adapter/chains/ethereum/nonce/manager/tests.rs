@@ -55,8 +55,7 @@ async fn test_assign_nonce_sets_nonce_when_none_present() {
     );
 
     // Should assign nonce 1, since mock provider returns 1
-    manager.assign_nonce(&mut tx).await.unwrap();
-    let nonce: U256 = tx.precursor().tx.nonce().map(Into::into).unwrap();
+    let nonce = manager.calculate_next_nonce(&mut tx).await.unwrap();
     assert_eq!(nonce, U256::one());
 }
 
@@ -82,7 +81,7 @@ async fn test_assign_nonce_error_when_from_address_missing() {
         None,
     );
 
-    let err = manager.assign_nonce(&mut tx).await.unwrap_err();
+    let err = manager.calculate_next_nonce(&mut tx).await.unwrap_err();
     assert!(err.to_string().contains("Transaction missing address"));
 }
 
@@ -109,7 +108,7 @@ async fn test_assign_nonce_error_when_from_address_mismatch() {
         Some(other_address),
     );
 
-    let err = manager.assign_nonce(&mut tx).await.unwrap_err();
+    let err = manager.calculate_next_nonce(&mut tx).await.unwrap_err();
     assert!(err
         .to_string()
         .contains("Transaction from address does not match nonce manager address"));

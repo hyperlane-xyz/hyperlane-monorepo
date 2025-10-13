@@ -4,15 +4,13 @@ import {
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
-  MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readCoreDeployConfigs } from '../../../config/core.js';
-import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
+import { RebalancerConfig } from '../../../rebalancer/config/RebalancerConfig.js';
 import {
-  extractChainsFromObj,
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
@@ -25,6 +23,7 @@ enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
   WARP_APPLY,
+  WARP_REBALANCER,
   STRATEGY,
   CORE_APPLY,
   CORE_DEPLOY,
@@ -42,14 +41,15 @@ export class MultiChainResolver implements ChainResolver {
 
   async resolveChains(argv: ChainMap<any>): Promise<ChainName[]> {
     switch (this.mode) {
+      case ChainSelectionMode.STRATEGY:
       case ChainSelectionMode.WARP_CONFIG:
         return this.resolveWarpRouteConfigChains(argv);
       case ChainSelectionMode.WARP_APPLY:
         return this.resolveWarpApplyChains(argv);
+      case ChainSelectionMode.WARP_REBALANCER:
+        return this.resolveWarpRebalancerChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
-      case ChainSelectionMode.STRATEGY:
-        return this.resolveStrategyChains(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
       case ChainSelectionMode.CORE_DEPLOY:
@@ -99,6 +99,21 @@ export class MultiChainResolver implements ChainResolver {
     return argv.context.chains;
   }
 
+  private async resolveWarpRebalancerChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    // Load rebalancer config to get the configured chains
+    const rebalancerConfig = RebalancerConfig.load(argv.config);
+
+    // Extract chain names from the rebalancer config's strategy.chains
+    // This ensures we only create signers for chains we can actually rebalance
+    const chains = Object.keys(rebalancerConfig.strategyConfig.chains);
+
+    assert(chains.length !== 0, 'No chains configured in rebalancer config');
+
+    return chains;
+  }
+
   private async resolveAgentChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
@@ -122,13 +137,6 @@ export class MultiChainResolver implements ChainResolver {
     return [argv.origin, ...argv.targets];
   }
 
-  private async resolveStrategyChains(
-    argv: Record<string, any>,
-  ): Promise<ChainName[]> {
-    const strategy = await readChainSubmissionStrategyConfig(argv.strategy);
-    return extractChainsFromObj(strategy);
-  }
-
   private async resolveRelayerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
@@ -150,12 +158,14 @@ export class MultiChainResolver implements ChainResolver {
       return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    // If no destination is specified, return all EVM and Cosmos Native chains
+    // If no destination is specified, return all EVM chains only
     if (!argv.destination) {
-      return [
-        ...this.getEvmChains(multiProvider),
-        ...this.getCosmosNativeChains(multiProvider),
-      ];
+      const chains = multiProvider.getKnownChainNames();
+
+      return chains.filter(
+        (chain: string) =>
+          ProtocolType.Ethereum === multiProvider.getProtocol(chain),
+      );
     }
 
     chains.add(argv.destination);
@@ -195,11 +205,8 @@ export class MultiChainResolver implements ChainResolver {
             (chainId) => argv.context.multiProvider.getChainName(chainId),
           );
         }
-        case ProtocolType.CosmosNative: {
-          return [argv.chain];
-        }
         default: {
-          throw new Error(`Protocol type ${protocolType} not supported`);
+          return [argv.chain];
         }
       }
     } catch (error) {
@@ -213,15 +220,12 @@ export class MultiChainResolver implements ChainResolver {
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     try {
-      const { chainMetadata, dryRunChain, registry, skipConfirmation } =
-        argv.context;
+      const { chainMetadata, registry, skipConfirmation } = argv.context;
 
       let chain: string;
 
       if (argv.chain) {
         chain = argv.chain;
-      } else if (dryRunChain) {
-        chain = dryRunChain;
       } else {
         if (skipConfirmation) throw new Error('No chain provided');
         chain = await runSingleChainSelectionStep(
@@ -246,22 +250,6 @@ export class MultiChainResolver implements ChainResolver {
     }
   }
 
-  private getEvmChains(multiProvider: MultiProvider): ChainName[] {
-    const chains = multiProvider.getKnownChainNames();
-
-    return chains.filter(
-      (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-    );
-  }
-
-  private getCosmosNativeChains(multiProvider: MultiProvider): ChainName[] {
-    const chains = multiProvider.getKnownChainNames();
-
-    return chains.filter(
-      (chain) => multiProvider.getProtocol(chain) === ProtocolType.CosmosNative,
-    );
-  }
-
   static forAgentKurtosis(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.AGENT_KURTOSIS);
   }
@@ -279,6 +267,10 @@ export class MultiChainResolver implements ChainResolver {
   }
   static forWarpApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_APPLY);
+  }
+
+  static forWarpRebalancer(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.WARP_REBALANCER);
   }
 
   static forCoreApply(): MultiChainResolver {

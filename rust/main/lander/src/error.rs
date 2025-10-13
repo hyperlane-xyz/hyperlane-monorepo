@@ -8,6 +8,8 @@ pub enum LanderError {
     NetworkError(String),
     #[error("Transaction error: {0}")]
     TxSubmissionError(String),
+    /// This error means that a transaction was already submitted
+    /// For EVM, it may mean that nonce got clashed on the chain.
     #[error("This transaction has already been broadcast")]
     TxAlreadyExists,
     #[error("The transaction reverted")]
@@ -38,26 +40,28 @@ pub enum LanderError {
 
 impl LanderError {
     pub fn to_metrics_label(&self) -> String {
+        use LanderError::*;
+
         match self {
-            LanderError::NetworkError(_) => "NetworkError".to_string(),
-            LanderError::TxSubmissionError(_) => "TxSubmissionError".to_string(),
-            LanderError::TxAlreadyExists => "TxAlreadyExists".to_string(),
-            LanderError::TxReverted => "TxReverted".to_string(),
-            LanderError::ChannelSendFailure(_) => "ChannelSendFailure".to_string(),
-            LanderError::ChannelClosed => "ChannelClosed".to_string(),
-            LanderError::EyreError(_) => "EyreError".to_string(),
-            LanderError::PayloadNotFound => "PayloadNotFound".to_string(),
-            LanderError::SimulationFailed(_) => "SimulationFailed".to_string(),
-            LanderError::EstimationFailed => "EstimationFailed".to_string(),
-            LanderError::NonRetryableError(_) => "NonRetryableError".to_string(),
-            LanderError::DbError(_) => "DbError".to_string(),
-            LanderError::ChainCommunicationError(_) => "ChainCommunicationError".to_string(),
-            LanderError::TxHashNotFound(_) => "TxHashNotFound".to_string(),
+            NetworkError(_) => "NetworkError".to_string(),
+            TxSubmissionError(_) => "TxSubmissionError".to_string(),
+            TxAlreadyExists => "TxAlreadyExists".to_string(),
+            TxReverted => "TxReverted".to_string(),
+            ChannelSendFailure(_) => "ChannelSendFailure".to_string(),
+            ChannelClosed => "ChannelClosed".to_string(),
+            EyreError(_) => "EyreError".to_string(),
+            PayloadNotFound => "PayloadNotFound".to_string(),
+            SimulationFailed(_) => "SimulationFailed".to_string(),
+            EstimationFailed => "EstimationFailed".to_string(),
+            NonRetryableError(_) => "NonRetryableError".to_string(),
+            DbError(_) => "DbError".to_string(),
+            ChainCommunicationError(_) => "ChainCommunicationError".to_string(),
+            TxHashNotFound(_) => "TxHashNotFound".to_string(),
         }
     }
 }
 
-const GAS_UNDERPRICED_ERRORS: [&str; 4] = [
+const EVM_GAS_UNDERPRICED_ERRORS: [&str; 4] = [
     "replacement transaction underpriced",
     "already known",
     "Fair pubdata price too high",
@@ -65,51 +69,69 @@ const GAS_UNDERPRICED_ERRORS: [&str; 4] = [
     "insufficient fee",
 ];
 
-pub trait IsRetryable {
-    fn is_retryable(&self) -> bool;
-}
+const SVM_BLOCKHASH_NOT_FOUND_ERROR: &str = "Blockhash not found";
+
+// Add constant for block gas limit error
+const EVM_EXCEEDS_BLOCK_GAS_LIMIT_ERROR: &str = "exceeds block gas limit";
 
 // this error is returned randomly by the `TestTokenRecipient`,
 // to simulate delivery errors
 const SIMULATED_DELIVERY_FAILURE_ERROR: &str = "block hash ends in 0";
 
+pub trait IsRetryable {
+    fn is_retryable(&self) -> bool;
+}
+
 impl IsRetryable for LanderError {
     fn is_retryable(&self) -> bool {
+        use LanderError::*;
+
         match self {
-            LanderError::TxSubmissionError(_) => true,
-            LanderError::NetworkError(_) => {
+            TxSubmissionError(_) => true,
+            NetworkError(_) => {
                 // TODO: add logic to classify based on the error message
                 false
             }
-            LanderError::ChainCommunicationError(err) => {
-                if err.to_string().contains(SIMULATED_DELIVERY_FAILURE_ERROR) {
+            ChainCommunicationError(err) => {
+                let err_str = err.to_string();
+                // If error contains block gas limit, always non-retryable
+                if err_str.contains(EVM_EXCEEDS_BLOCK_GAS_LIMIT_ERROR) {
+                    return false;
+                }
+                if err_str.contains(SIMULATED_DELIVERY_FAILURE_ERROR) {
                     return true;
                 }
-                if GAS_UNDERPRICED_ERRORS
+                if EVM_GAS_UNDERPRICED_ERRORS
                     .iter()
-                    .any(|&e| err.to_string().contains(e))
+                    .any(|&e| err_str.contains(e))
                 {
                     return true;
                 }
+                if err_str.contains(SVM_BLOCKHASH_NOT_FOUND_ERROR) {
+                    return true;
+                }
                 // TODO: add logic to classify based on the error message
                 false
             }
-            LanderError::EyreError(_) => {
+            EyreError(_) => {
                 // TODO: add logic to classify based on the error message
                 false
             }
-            LanderError::ChannelSendFailure(_) => false,
-            LanderError::NonRetryableError(_) => false,
-            LanderError::TxReverted => false,
-            LanderError::SimulationFailed(reasons) => reasons
+            SimulationFailed(reasons) => reasons
                 .iter()
                 .all(|r| r.contains(SIMULATED_DELIVERY_FAILURE_ERROR)),
-            LanderError::EstimationFailed => false,
-            LanderError::ChannelClosed => false,
-            LanderError::PayloadNotFound => false,
-            LanderError::TxAlreadyExists => false,
-            LanderError::DbError(_) => false,
-            LanderError::TxHashNotFound(_) => false,
+            ChannelSendFailure(_)
+            | NonRetryableError(_)
+            | TxReverted
+            | EstimationFailed
+            | ChannelClosed
+            | PayloadNotFound
+            | TxAlreadyExists
+            | DbError(_)
+            | TxHashNotFound(_) => false,
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

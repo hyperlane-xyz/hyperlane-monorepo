@@ -1,10 +1,10 @@
-import { IRegistry } from '@hyperlane-xyz/registry';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   InterchainAccount,
   buildInterchainAccountApp,
 } from '../../../middleware/account/InterchainAccount.js';
+import { ChainMap } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 import {
   AnnotatedEV5Transaction,
@@ -14,8 +14,8 @@ import { CallData } from '../types.js';
 
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
+import { EvmIcaTxSubmitterProps } from './ethersV5/types.js';
 import { getSubmitter } from './submitterBuilderGetter.js';
-import { EvmIcaTxSubmitterProps } from './types.js';
 
 type EvmIcaTxSubmitterConstructorConfig = Omit<
   EvmIcaTxSubmitterProps,
@@ -40,13 +40,11 @@ export class EvmIcaTxSubmitter
   static async fromConfig(
     config: EvmIcaTxSubmitterProps,
     multiProvider: MultiProvider,
-    registry: Readonly<IRegistry>,
+    coreAddressesByChain: Readonly<ChainMap<Record<string, string>>>,
   ): Promise<EvmIcaTxSubmitter> {
-    const chainAddresses = await registry.getChainAddresses(config.chain);
-
     const interchainAccountRouterAddress: Address | undefined =
       config.originInterchainAccountRouter ??
-      chainAddresses?.interchainAccountRouter;
+      coreAddressesByChain[config.chain].interchainAccountRouter;
     assert(
       interchainAccountRouterAddress,
       `Origin chain InterchainAccountRouter address not supplied and none found in the registry metadata for chain ${config.chain}`,
@@ -55,7 +53,7 @@ export class EvmIcaTxSubmitter
     const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
       config.internalSubmitter,
-      registry,
+      coreAddressesByChain,
     );
 
     const interchainAccountApp: InterchainAccount =
@@ -68,7 +66,7 @@ export class EvmIcaTxSubmitter
           localRouter: interchainAccountRouterAddress,
           ismOverride: config.interchainSecurityModule,
         },
-        registry,
+        coreAddressesByChain,
       );
 
     return new EvmIcaTxSubmitter(
@@ -102,17 +100,21 @@ export class EvmIcaTxSubmitter
       );
     }
 
-    const [domainId] = transactionChains.values();
-    if (!domainId) {
+    const [chainId] = transactionChains.values();
+    if (!chainId) {
       throw new Error(
         'Destination domain for ICA transactions should be defined',
       );
     }
 
-    const chainName = this.multiProvider.getChainName(domainId);
-    if (chainName !== this.config.destinationChain) {
+    const { chainId: destinationEvmChainId, domainId: destinationDomainId } =
+      this.multiProvider.getChainMetadata(this.config.destinationChain);
+
+    // On the EVM chains the id and domain id might be different so we match either against the
+    // EVM chain id or the Hyperlane domain id
+    if (chainId !== destinationDomainId && chainId !== destinationEvmChainId) {
       throw new Error(
-        `Destination chain mismatch expected ${this.config.destinationChain} but received ${chainName}`,
+        `Destination chain mismatch. Expected EVM chain id ${destinationEvmChainId} or Hyperlane domain id ${destinationDomainId} but received ${chainId}.`,
       );
     }
 

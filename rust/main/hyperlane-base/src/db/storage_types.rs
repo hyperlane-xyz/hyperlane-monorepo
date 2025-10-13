@@ -59,7 +59,11 @@ impl Encode for InterchainGasPaymentData {
     where
         W: Write,
     {
-        Ok(self.payment.write_to(writer)? + self.gas_amount.write_to(writer)?)
+        let written = self
+            .payment
+            .write_to(writer)?
+            .saturating_add(self.gas_amount.write_to(writer)?);
+        Ok(written)
     }
 }
 
@@ -110,7 +114,11 @@ impl Encode for InterchainGasExpenditureData {
     where
         W: Write,
     {
-        Ok(self.tokens_used.write_to(writer)? + self.gas_used.write_to(writer)?)
+        let written = self
+            .tokens_used
+            .write_to(writer)?
+            .saturating_add(self.gas_used.write_to(writer)?);
+        Ok(written)
     }
 }
 

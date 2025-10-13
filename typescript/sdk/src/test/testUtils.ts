@@ -1,4 +1,7 @@
+import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+import { Keypair } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
+import { bytesToHex } from 'viem';
 
 import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
@@ -28,6 +31,23 @@ export function randomInt(max: number, min = 0): number {
 
 export function randomAddress(): Address {
   return ethers.utils.hexlify(ethers.utils.randomBytes(20)).toLowerCase();
+}
+
+export function randomSvmAddress(): Address {
+  return Keypair.generate().publicKey.toBase58();
+}
+
+export function randomStarknetAddress(): Address {
+  return bytesToHex(ethers.utils.randomBytes(32));
+}
+
+export async function randomCosmosAddress(prefix: string): Promise<Address> {
+  const wallet = await DirectSecp256k1Wallet.fromKey(
+    ethers.utils.randomBytes(32),
+    prefix,
+  );
+  const accounts = await wallet.getAccounts();
+  return accounts[0].address;
 }
 
 export function createRouterConfigMap(

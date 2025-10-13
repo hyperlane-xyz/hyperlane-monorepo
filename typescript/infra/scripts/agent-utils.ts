@@ -58,7 +58,7 @@ import {
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
-const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
+const logger = rootLogger.child({ module: 'infra:scripts:agent-utils' });
 
 export enum Modules {
   // TODO: change
@@ -68,7 +68,6 @@ export enum Modules {
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
-  LIQUIDITY_LAYER = 'll',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
   HELLO_WORLD = 'helloworld',
@@ -172,6 +171,13 @@ export function withWrite<T>(args: Argv<T>) {
     .describe('write', 'Write output to file')
     .boolean('write')
     .default('write', false);
+}
+
+export function withAppend<T>(args: Argv<T>) {
+  return args
+    .describe('append', 'Write only new keys to file (preserves existing keys)')
+    .boolean('append')
+    .default('append', false);
 }
 
 export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
@@ -558,7 +564,7 @@ export function getKeyForRole(
   chain?: ChainName,
   index?: number,
 ): CloudAgentKey {
-  debugLog(`Getting key for ${role} role`);
+  logger.debug({ chain }, `Getting key for ${role} role`);
   const agentConfig = getAgentConfig(context, environment);
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
@@ -579,10 +585,10 @@ export async function getMultiProviderForRole(
   index?: number,
 ): Promise<MultiProvider> {
   const chainMetadata = await registry.getMetadata();
-  debugLog(`Getting multiprovider for ${role} role`);
+  logger.debug(`Getting multiprovider for ${role} role`);
   const multiProvider = new MultiProvider(chainMetadata);
   if (inCIMode()) {
-    debugLog('Running in CI, returning multiprovider without secret keys');
+    logger.debug('Running in CI, returning multiprovider without secret keys');
     return multiProvider;
   }
   await promiseObjAll(
@@ -596,7 +602,11 @@ export async function getMultiProviderForRole(
       async (chain, _) => {
         if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
           const key = getKeyForRole(environment, context, role, chain, index);
-          const signer = await key.getSigner();
+          const provider = multiProvider.tryGetProvider(chain);
+          if (!provider) {
+            throw new Error(`Provider not found for chain ${chain}`);
+          }
+          const signer = await key.getSigner(provider);
           multiProvider.setSigner(chain, signer);
         }
       },
@@ -616,7 +626,7 @@ export async function getKeysForRole(
   index?: number,
 ): Promise<ChainMap<CloudAgentKey>> {
   if (inCIMode()) {
-    debugLog('No keys to return in CI');
+    logger.debug('No keys to return in CI');
     return {};
   }
 
@@ -643,8 +653,6 @@ export function getModuleDirectory(
         return 'middleware/accounts';
       case Modules.INTERCHAIN_QUERY_SYSTEM:
         return 'middleware/queries';
-      case Modules.LIQUIDITY_LAYER:
-        return 'middleware/liquidity-layer';
       case Modules.HELLO_WORLD:
         return `helloworld/${context}`;
       default:
@@ -696,7 +704,14 @@ export function writeAddresses(
   environment: DeployEnvironment,
   module: Modules,
   addressesMap: ChainMap<Record<string, Address>>,
+  targetNetworks?: ChainName[],
 ) {
+  if (targetNetworks && targetNetworks.length > 0) {
+    addressesMap = objFilter(addressesMap, (chain, _): _ is ChainAddresses => {
+      return targetNetworks.includes(chain as ChainName);
+    });
+  }
+
   addressesMap = filterRemoteDomainMetadata(addressesMap);
 
   if (isRegistryModule(environment, module)) {
@@ -717,6 +732,19 @@ export function getAgentConfigDirectory() {
 
 export function getAgentConfigJsonPath(environment: AgentEnvironment) {
   return path.join(getAgentConfigDirectory(), `${environment}_config.json`);
+}
+
+export function getAgentAppContextConfigDirectory() {
+  return path.join('../../', 'rust', 'main', 'app-contexts');
+}
+
+export function getAgentAppContextConfigJsonPath(
+  environment: AgentEnvironment,
+) {
+  return path.join(
+    getAgentAppContextConfigDirectory(),
+    `${environment}_config.json`,
+  );
 }
 
 export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {

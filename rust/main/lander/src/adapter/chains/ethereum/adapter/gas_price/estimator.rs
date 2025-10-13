@@ -1,5 +1,6 @@
 use std::{str::FromStr, sync::Arc};
 
+use ethers::contract::Lazy;
 use ethers::{
     abi::Detokenize,
     contract::builders::ContractCall,
@@ -14,6 +15,8 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneDomain, U256
 use hyperlane_ethereum::{EvmProviderForLander, TransactionOverrides, ZksyncEstimateFeeResponse};
 use tracing::{debug, warn};
 
+use crate::{adapter::EthereumTxPrecursor, LanderError};
+use ethers_core::types::FeeHistory;
 use ethers_core::{
     types::{BlockNumber, U256 as EthersU256},
     utils::{
@@ -21,12 +24,21 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
+use futures_util::future::join_all;
 
-use crate::{adapter::EthereumTxPrecursor, LanderError};
+use super::price::GasPrice;
 
 type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU256);
 
 const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
+
+// We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
+static PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
+    (2..5)
+        .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
+        .filter(|p| *p <= 100.0)
+        .collect::<Vec<_>>()
+});
 
 pub type Eip1559Fee = (
     EthersU256, // base fee
@@ -36,11 +48,11 @@ pub type Eip1559Fee = (
 
 pub async fn estimate_gas_price(
     provider: &Arc<dyn EvmProviderForLander>,
-    tx_precursor: &mut EthereumTxPrecursor,
+    tx_precursor: &EthereumTxPrecursor,
     transaction_overrides: &TransactionOverrides,
     domain: &HyperlaneDomain,
-) -> Result<(), LanderError> {
-    let tx = tx_precursor.tx.clone();
+) -> GasPrice {
+    let tx = &tx_precursor.tx;
 
     if let Some(gas_price) = transaction_overrides.gas_price {
         // If the gas price is set, we treat as a non-EIP-1559 chain.
@@ -48,11 +60,10 @@ pub async fn estimate_gas_price(
             ?gas_price,
             "Using gas price override for transaction, which assumes a non-EIP-1559 chain",
         );
-        tx_precursor.tx.set_gas_price(gas_price);
-        return Ok(());
+        return GasPrice::NonEip1559 { gas_price };
     }
 
-    let eip1559_fee_result = estimate_eip1559_fees(provider, None, domain, &tx).await;
+    let eip1559_fee_result = estimate_eip1559_fees(provider, None, domain, tx).await;
     let ((base_fee, max_fee, max_priority_fee), _) = match eip1559_fee_result {
         Ok(result) => result,
         Err(err) => {
@@ -60,8 +71,8 @@ pub async fn estimate_gas_price(
                 ?err,
                 "Failed to estimate EIP-1559 fees, assuming non-EIP-1559 chain"
             );
-            apply_legacy_overrides(tx_precursor, transaction_overrides);
-            return Ok(());
+            let gas_price = apply_legacy_overrides(tx_precursor, transaction_overrides);
+            return gas_price;
         }
     };
 
@@ -72,53 +83,28 @@ pub async fn estimate_gas_price(
     // producers that have a lower priority fee.
     if base_fee.is_zero() {
         debug!("Base fee is zero, assuming non-EIP-1559 chain",);
-        apply_legacy_overrides(tx_precursor, transaction_overrides);
-        return Ok(());
+        let gas_price = apply_legacy_overrides(tx_precursor, transaction_overrides);
+        return gas_price;
     }
 
     // Apply overrides for EIP 1559 tx params if they exist.
     let (max_fee, max_priority_fee) =
         apply_1559_overrides(max_fee, max_priority_fee, transaction_overrides);
 
-    // Is EIP 1559 chain
-    let mut request = Eip1559TransactionRequest::new();
-    if let Some(from) = tx.from() {
-        request = request.from(*from);
+    GasPrice::Eip1559 {
+        max_fee: max_fee.into(),
+        max_priority_fee: max_priority_fee.into(),
     }
-    if let Some(to) = tx.to() {
-        request = request.to(to.clone());
-    }
-    if let Some(data) = tx.data() {
-        request = request.data(data.clone());
-    }
-    if let Some(value) = tx.value() {
-        request = request.value(*value);
-    }
-    if let Some(nonce) = tx.nonce() {
-        request = request.nonce(*nonce);
-    }
-    if let Some(gas_limit) = tx.gas() {
-        request = request.gas(*gas_limit);
-    }
-    if let Some(chain_id) = tx.chain_id() {
-        request = request.chain_id(chain_id);
-    }
-    request = request.max_fee_per_gas(max_fee);
-    request = request.max_priority_fee_per_gas(max_priority_fee);
-
-    let eip_1559_tx = TypedTransaction::Eip1559(request);
-    tx_precursor.tx = eip_1559_tx.clone();
-    Ok(())
 }
 
 fn apply_legacy_overrides(
-    tx_precursor: &mut EthereumTxPrecursor,
+    tx_precursor: &EthereumTxPrecursor,
     transaction_overrides: &TransactionOverrides,
-) {
+) -> GasPrice {
     let gas_price = tx_precursor.tx.gas_price();
     // if no gas price was set in the tx, leave the tx as is and return early
     let Some(mut gas_price) = gas_price else {
-        return;
+        return GasPrice::None;
     };
 
     let min_price_override = transaction_overrides
@@ -127,7 +113,10 @@ fn apply_legacy_overrides(
         .unwrap_or(0.into());
     gas_price = gas_price.max(min_price_override);
     gas_price = apply_gas_price_cap(gas_price, transaction_overrides);
-    tx_precursor.tx.set_gas_price(gas_price);
+
+    GasPrice::NonEip1559 {
+        gas_price: gas_price.into(),
+    }
 }
 
 fn apply_1559_overrides(
@@ -211,12 +200,14 @@ async fn zksync_estimate_fee(
     tx: &TypedTransaction,
 ) -> ChainResult<ZksyncEstimateFeeResponse> {
     let mut tx = tx.clone();
-    tx.set_from(
-        // use the sender in the provider if one is set, otherwise default to the EVM relayer address
-        provider
-            .get_signer()
-            .unwrap_or(H160::from_str(EVM_RELAYER_ADDRESS).unwrap()),
-    );
+
+    // use the sender in the provider if one is set, otherwise default to the EVM relayer address
+    let signer = match provider.get_signer() {
+        Some(s) => s,
+        None => H160::from_str(EVM_RELAYER_ADDRESS)
+            .map_err(|err| ChainCommunicationError::CustomError(err.to_string()))?,
+    };
+    tx.set_from(signer);
 
     let result = provider.zk_estimate_fee(&tx).await?;
     Ok(result)
@@ -240,6 +231,8 @@ async fn estimate_eip1559_fees_default(
     );
 
     let (latest_block, fee_history) = try_join!(latest_block, fee_history)?;
+
+    let fee_history = ensure_non_empty_rewards(provider, fee_history).await?;
 
     let base_fee_per_gas = latest_block
         .base_fee_per_gas
@@ -265,4 +258,66 @@ async fn latest_block(provider: &Arc<dyn EvmProviderForLander>) -> ChainResult<B
         .map_err(ChainCommunicationError::from_other)?
         .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
     Ok(latest_block)
+}
+
+async fn ensure_non_empty_rewards(
+    provider: &Arc<dyn EvmProviderForLander>,
+    default_fee_history: FeeHistory,
+) -> ChainResult<FeeHistory> {
+    if has_rewards(&default_fee_history) {
+        debug!(?default_fee_history, "default rewards non zero");
+        return Ok(default_fee_history);
+    }
+
+    let fee_history_futures = PERCENTILES
+        .clone()
+        .into_iter()
+        .map(|p| {
+            let provider = provider.clone();
+            async move {
+                provider
+                    .fee_history(
+                        EIP1559_FEE_ESTIMATION_PAST_BLOCKS.into(),
+                        BlockNumber::Latest,
+                        &[p],
+                    )
+                    .await
+                    .map_err(ChainCommunicationError::from_other)
+            }
+        })
+        .collect::<Vec<_>>();
+
+    // Results will be ordered by percentile, so we can just take the first non-empty one.
+    let fee_histories = join_all(fee_history_futures).await;
+
+    debug!(
+        ?fee_histories,
+        ?PERCENTILES,
+        "fee history for each percentile"
+    );
+
+    // We return the first non-empty fee history.
+    // If all are empty, we return the default fee history which is empty at this point.
+    let mut chosen_fee_history = default_fee_history;
+    for fee_history in fee_histories {
+        let Ok(fee_history) = fee_history else {
+            continue;
+        };
+        if has_rewards(&fee_history) {
+            chosen_fee_history = fee_history;
+            break;
+        }
+    }
+
+    debug!(?chosen_fee_history, "chosen fee history");
+
+    Ok(chosen_fee_history)
+}
+
+fn has_rewards(fee_history: &FeeHistory) -> bool {
+    fee_history
+        .reward
+        .iter()
+        .filter_map(|r| r.first())
+        .any(|r| !r.is_zero())
 }

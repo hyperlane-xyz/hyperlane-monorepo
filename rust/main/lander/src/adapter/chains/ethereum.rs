@@ -15,6 +15,8 @@ pub use adapter::apply_estimate_buffer_to_ethers;
 pub(crate) use nonce::{NonceDb, NonceManager, NonceManagerState, NonceUpdater};
 #[cfg(test)]
 pub use transaction::Precursor;
+#[cfg(test)]
+pub use transaction::TransactionFactory;
 
 #[cfg(test)]
 pub mod tests;

@@ -38,6 +38,7 @@ const METHODS_TO_NOT_RETRY_ON_INSUFFICIENT_FUNDS: &[&str] =
 ///
 /// Caller is responsible for adding a log span with additional context.
 fn categorize_client_response<R>(
+    provider_host: &str,
     method: &str,
     resp: Result<R, HttpClientError>,
 ) -> CategorizedResponse<R> {
@@ -45,19 +46,19 @@ fn categorize_client_response<R>(
     use HttpClientError::*;
     match resp {
         Ok(res) => {
-            trace!("Received Ok response from http client");
+            trace!(provider_host, "Received Ok response from http client");
             IsOk(res)
         }
         Err(ReqwestError(e)) => {
-            warn!(error=%e, "ReqwestError in http provider");
+            warn!(provider_host, error=%e, "ReqwestError in http provider");
             RetryableErr(ReqwestError(e))
         }
         Err(SerdeJson { err, text }) => {
             if text.contains("429") {
-                warn!(error=%err, text, "Received rate limit request SerdeJson error in http provider");
+                warn!(provider_host, error=%err, text, "Received rate limit request SerdeJson error in http provider");
                 RateLimitErr(SerdeJson { err, text })
             } else {
-                warn!(error=%err, text, "SerdeJson error in http provider");
+                warn!(provider_host, error=%err, text, "SerdeJson error in http provider");
                 RetryableErr(SerdeJson { err, text })
             }
         }
@@ -68,7 +69,7 @@ fn categorize_client_response<R>(
                 || msg.contains("rate limit")
                 || msg.contains("too many requests")
             {
-                info!(error=%e, "Received rate limit request JsonRpcError in http provider");
+                info!(provider_host, error=%e, "Received rate limit request JsonRpcError in http provider");
                 RateLimitErr(JsonRpcError(e))
             } else if METHODS_TO_NOT_RETRY.contains(&method)
                 || (METHOD_TO_NOT_RETRY_WHEN_NOT_SUPPORTED.contains(&method)
@@ -88,12 +89,12 @@ fn categorize_client_response<R>(
                 // We don't want to retry errors that are probably not going to work if we keep
                 // retrying them or that indicate an error in higher-order logic and not
                 // transient provider (connection or other) errors.
-                error!(error=%e, "Non-retryable JsonRpcError in http provider");
+                error!(provider_host, error=%e, "Non-retryable JsonRpcError in http provider");
                 NonRetryableErr(JsonRpcError(e))
             } else {
                 // the assumption is this is not a "provider error" but rather an invalid
                 // request, e.g. nonce too low, not enough gas, ...
-                warn!(error=%e, "Retryable JsonRpcError in http provider");
+                warn!(provider_host, error=%e, "Retryable JsonRpcError in http provider");
                 RetryableErr(JsonRpcError(e))
             }
         }

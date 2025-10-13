@@ -1,35 +1,16 @@
-use std::collections::HashMap;
-
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    routing::get,
-    Router,
 };
-use derive_new::new;
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::{
-    db::HyperlaneRocksDB,
-    server::{
-        messages::fetch_messages,
-        utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
-    },
+use hyperlane_base::server::{
+    messages::fetch_messages,
+    utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
 };
 use hyperlane_core::HyperlaneMessage;
 
-#[derive(Clone, Debug, new)]
-pub struct ServerState {
-    pub dbs: HashMap<u32, HyperlaneRocksDB>,
-}
-
-impl ServerState {
-    pub fn router(self) -> Router {
-        Router::new()
-            .route("/messages", get(handler))
-            .with_state(self)
-    }
-}
+use crate::server::messages::ServerState;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
@@ -38,9 +19,15 @@ pub struct QueryParams {
     pub nonce_end: u32,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct MessageResponse {
+    pub message_id: String,
+    pub message: HyperlaneMessage,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ResponseBody {
-    pub messages: Vec<HyperlaneMessage>,
+    pub messages: Vec<MessageResponse>,
 }
 
 /// Fetch merkle tree insertion into the database
@@ -80,20 +67,31 @@ pub async fn handler(
 
     let messages = fetch_messages(db, nonce_start, nonce_end).await?;
 
+    let messages: Vec<_> = messages
+        .into_iter()
+        .map(|m| MessageResponse {
+            message_id: format!("{:x}", m.id()),
+            message: m,
+        })
+        .collect();
+
     let resp = ResponseBody { messages };
     Ok(ServerSuccessResponse::new(resp))
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use axum::{
         body::{self, Body},
         http::{header::CONTENT_TYPE, Request, Response, StatusCode},
+        Router,
     };
     use tower::ServiceExt;
 
-    use hyperlane_base::db::DB;
-    use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, H256};
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, H256};
 
     use crate::test_utils::request::parse_body_to_json;
 
@@ -245,7 +243,14 @@ mod tests {
 
         assert_eq!(resp_status, StatusCode::OK);
 
-        let expected_list: Vec<_> = insertions.into_iter().take(2).map(|(_, msg)| msg).collect();
+        let expected_list: Vec<_> = insertions
+            .into_iter()
+            .take(2)
+            .map(|(_, msg)| MessageResponse {
+                message_id: format!("{:x}", msg.id()),
+                message: msg,
+            })
+            .collect();
 
         assert_eq!(resp_body.messages.len(), expected_list.len());
         for (actual, expected) in resp_body.messages.iter().zip(expected_list.iter()) {

@@ -135,3 +135,30 @@ export function proxyAdminUpdateTxs(
 
   return transactions;
 }
+
+const requiredProxyAdminFunctionSelectors = [
+  'owner()',
+  'getProxyAdmin(address)',
+  'getProxyImplementation(address)',
+  'upgrade(address,address)',
+  'upgradeAndCall(address,address,bytes)',
+  'changeProxyAdmin(address,address)',
+].map((func) => ethers.utils.id(func).substring(2, 10));
+
+/**
+ * Check if contract bytecode matches ProxyAdmin patterns
+ * This is more efficient than function calls but less reliable
+ * @param provider The provider to use
+ * @param address The contract address
+ * @returns true if the bytecode suggests it's a ProxyAdmin
+ */
+export async function isProxyAdminFromBytecode(
+  provider: EthersLikeProvider,
+  address: Address,
+): Promise<boolean> {
+  const code = await provider.getCode(address);
+  if (code === '0x') return false;
+  return requiredProxyAdminFunctionSelectors.every((selector) =>
+    code.includes(selector),
+  );
+}

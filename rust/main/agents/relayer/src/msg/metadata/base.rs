@@ -44,6 +44,8 @@ pub enum MetadataBuildError {
     AggregationThresholdNotMet(u32),
     #[error("Fast path error ({0})")]
     FastPathError(String),
+    #[error("Merkle root mismatch ({root}, {canonical_root})")]
+    MerkleRootMismatch { root: H256, canonical_root: H256 },
 }
 
 #[derive(Clone, Debug, new)]
@@ -298,7 +300,7 @@ impl IsmCachePolicyClassifier {
                 }
                 IsmCacheSelector::AppContext {
                     context: selector_app_context,
-                } => app_context.map_or(false, |app_context| app_context == selector_app_context),
+                } => app_context == Some(selector_app_context),
             };
 
             if matches_module

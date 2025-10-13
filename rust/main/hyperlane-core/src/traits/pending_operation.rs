@@ -3,6 +3,7 @@ use std::{
     env,
     fmt::{Debug, Display},
     io::Write,
+    ops::Mul,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -25,8 +26,7 @@ use crate::{
 /// Boxed operation that can be stored in an operation queue
 pub type QueueOperation = Box<dyn PendingOperation>;
 
-/// A pending operation that will be run by the submitter and cause a
-/// transaction to be sent.
+/// A pending operation that will be processed by the MessageProcessor.
 ///
 /// There are three stages to the lifecycle of a pending operation:
 ///
@@ -71,6 +71,9 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 
     /// The recipient address of this operation.
     fn recipient_address(&self) -> &H256;
+
+    /// The message body of this operation.
+    fn body(&self) -> &[u8];
 
     /// Label to use for metrics granularity.
     fn app_context(&self) -> Option<String>;
@@ -138,7 +141,7 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     async fn confirm(&mut self) -> PendingOperationResult;
 
     /// Record the outcome of the operation
-    fn set_operation_outcome(
+    async fn set_operation_outcome(
         &mut self,
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,
@@ -232,6 +235,9 @@ impl Decode for PendingOperationStatus {
 /// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
 /// Adding new variants is fine.
 pub enum ReprepareReason {
+    #[strum(to_string = "Manual retry")]
+    /// Failed to create payload success criteria
+    Manual,
     #[strum(to_string = "Error checking message delivery status")]
     /// Error checking message delivery status
     ErrorCheckingDeliveryStatus,
@@ -334,7 +340,8 @@ pub fn gas_used_by_operation(
     let gas_used_by_tx = FixedPointNumber::try_from(tx_outcome.gas_used)?;
     let operation_gas_estimate = FixedPointNumber::try_from(operation_estimated_cost)?;
     let tx_gas_estimate = FixedPointNumber::try_from(tx_estimated_cost)?;
-    let gas_used_by_operation = (gas_used_by_tx * operation_gas_estimate)
+    let gas_used_by_operation = gas_used_by_tx
+        .mul(operation_gas_estimate)
         .checked_div(&tx_gas_estimate)
         .ok_or(eyre::eyre!("Division by zero"))?;
     gas_used_by_operation.try_into()
@@ -367,6 +374,7 @@ impl PartialEq for QueueOperation {
 
 impl Eq for QueueOperation {}
 
+#[allow(clippy::unnecessary_map_or)] // can't use `.is_ok_and` because it still unstables in `sbf`
 impl Ord for QueueOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         use Ordering::*;

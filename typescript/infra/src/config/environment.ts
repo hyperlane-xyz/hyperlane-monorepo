@@ -1,6 +1,5 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
-  BridgeAdapterConfig,
   ChainMap,
   ChainName,
   CoreConfig,
@@ -14,7 +13,7 @@ import { mustGet, objKeys, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { environments } from '../../config/environments/index.js';
-import { awIcas } from '../../config/environments/mainnet3/governance/ica/aw.js';
+import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_awLegacy.js';
 import { awSafes } from '../../config/environments/mainnet3/governance/safe/aw.js';
 import {
   DEPLOYER,
@@ -28,7 +27,6 @@ import { RootAgentConfig } from './agent/agent.js';
 import { CheckWarpDeployConfig, KeyFunderConfig } from './funding.js';
 import { HelloWorldConfig } from './helloworld/types.js';
 import { InfrastructureConfig } from './infrastructure.js';
-import { LiquidityLayerRelayerConfig } from './middleware.js';
 
 export type DeployEnvironment = keyof typeof environments;
 export type EnvironmentChain<E extends DeployEnvironment> = Extract<
@@ -70,10 +68,6 @@ export type EnvironmentConfig = {
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig<string[]>;
   checkWarpDeployConfig?: CheckWarpDeployConfig;
-  liquidityLayerConfig?: {
-    bridgeAdapters: ChainMap<BridgeAdapterConfig>;
-    relayer: LiquidityLayerRelayerConfig;
-  };
 };
 
 export function assertEnvironment(env: string): DeployEnvironment {
@@ -101,7 +95,7 @@ export async function getRouterConfigsForAllVms(
   const ownerConfigs: ChainMap<OwnableConfig> = objMap(
     envConfig.owners,
     (chain, _) => {
-      const owner = awIcas[chain] ?? awSafes[chain] ?? DEPLOYER;
+      const owner = awIcasLegacy[chain] ?? awSafes[chain] ?? DEPLOYER;
       return {
         owner,
         ownerOverrides: {
@@ -110,7 +104,7 @@ export async function getRouterConfigsForAllVms(
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,
           ...(awSafes[chain] && { _safeAddress: awSafes[chain] }),
-          ...(awIcas[chain] && { _icaAddress: awIcas[chain] }),
+          ...(awIcasLegacy[chain] && { _icaAddress: awIcasLegacy[chain] }),
         },
       };
     },

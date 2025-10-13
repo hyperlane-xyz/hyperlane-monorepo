@@ -66,6 +66,15 @@ export function MultiProtocolWalletModal({
             Starknet
           </ProtocolButton>
         )}
+        {includesProtocol(ProtocolType.Radix) && (
+          <ProtocolButton
+            protocol={ProtocolType.Radix}
+            onClick={onClickProtocol}
+            subTitle="a Radix"
+          >
+            Radix
+          </ProtocolButton>
+        )}
       </div>
     </Modal>
   );

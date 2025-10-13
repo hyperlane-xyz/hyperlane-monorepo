@@ -44,6 +44,22 @@ pub enum ModuleType {
     CcipRead,
 }
 
+impl ModuleType {
+    /// as a str
+    pub const fn as_str(&self) -> &str {
+        match self {
+            Self::Unused => "invalid",
+            Self::Routing => "routing",
+            Self::Aggregation => "aggregation",
+            Self::LegacyMultisig => "legacy_multisig",
+            Self::MerkleRootMultisig => "merkle_root_multisig",
+            Self::MessageIdMultisig => "message_id_multisig",
+            Self::Null => "null",
+            Self::CcipRead => "ccip_read",
+        }
+    }
+}
+
 /// Interface for the InterchainSecurityModule chain contract. Allows abstraction over
 /// different chains
 #[async_trait]

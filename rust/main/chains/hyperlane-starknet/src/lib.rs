@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![deny(warnings)]
+#![deny(clippy::arithmetic_side_effects)]
 
 pub use error::*;
 pub use indexer::*;
@@ -16,21 +17,35 @@ pub use trait_builder::*;
 pub use utils::*;
 pub use validator_announce::*;
 
-#[allow(clippy::all)]
 #[rustfmt::skip]
+#[allow(clippy::all)]
+#[allow(clippy::arithmetic_side_effects)]
 pub mod contracts;
 
 /// Application specific functionality
+#[deny(clippy::unwrap_used, clippy::panic)]
 pub mod application;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod error;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod indexer;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod interchain_gas;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod ism;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod mailbox;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod merkle_tree_hook;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod provider;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod signers;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod trait_builder;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod types;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod utils;
+#[deny(clippy::unwrap_used, clippy::panic)]
 mod validator_announce;

@@ -1,5 +1,75 @@
 # @hyperlane-xyz/cli
 
+## 18.3.0
+
+### Minor Changes
+
+- 2b16904f8: Dont check for token collateralAddressOrDenom to enable HypNative router collateral balance reads
+- 571901a6d: Fix warp read crashing when providing the `--warpRouteId` flag
+
+### Patch Changes
+
+- a5728818f: Fixed pre deploy balance check logic that attempted to convert to bignumber decimal numbers
+
+## 18.2.0
+
+### Minor Changes
+
+- dfa9d368c: updated command context initialization logic to simplify signer configuration and remove private usage assumption
+
+## 18.1.0
+
+## 18.0.0
+
+### Major Changes
+
+- 552b253b9: deprecated dry-run support in the cli in favour of `hyperlane warp fork` and `hyperlane fork` commands
+
+## 17.0.0
+
+### Minor Changes
+
+- dfa883e24: Fixes chain resolver for `hyperlane submit` by adding the STRATEGY enum into the chain resolver switch.
+
+## 16.2.0
+
+### Patch Changes
+
+- db55c3e00: fix: parse private keys as string instead of number
+
+## 16.1.1
+
+## 16.1.0
+
+## 16.0.0
+
+### Minor Changes
+
+- 3fac22334: Fix FileSubmitterStrategy to correctly append a transaction file
+- a2596f0d9: Add GET `warp-route/core` to HTTP Registry Server
+
+## 15.0.0
+
+### Minor Changes
+
+- 2bc17e200: Update submit command to be able to handle transaction file of multiple chains
+- 87213a66d: Update `warp fork` to start up an HttpRegistry
+- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additional updates to types related to these changes.
+
+### Patch Changes
+
+- e407e8bae: Gracefully continue checking delivery of all messages even if one delivery check fails.
+
+## 14.4.0
+
+## 14.3.0
+
+### Patch Changes
+
+- b5174ada7: Fix strategy flag propagation
+
+## 14.2.0
+
 ## 14.1.0
 
 ## 14.0.0

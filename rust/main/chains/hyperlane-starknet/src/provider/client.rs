@@ -147,7 +147,7 @@ impl HyperlaneProvider for StarknetProvider {
             max_priority_fee_per_gas: None,
             max_fee_per_gas: None,
             gas_price: Some(gas_paid),
-            nonce: nonce.unwrap_or(Felt::ZERO).try_into().unwrap(), // safe to unwrap because we know the nonce fits in a u64
+            nonce: nonce.unwrap_or(Felt::ZERO).try_into().unwrap_or(0), // safe to unwrap because we know the nonce fits in a u64
             sender: HyH256::from(sender).0,
             recipient,
             raw_input_data: Some(calldata.into_iter().flat_map(|f| f.to_bytes_be()).collect()),
@@ -166,19 +166,19 @@ impl HyperlaneProvider for StarknetProvider {
 
     #[instrument(err, skip(self))]
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        let call_result = self
-            .rpc_client()
-            .call(
-                FunctionCall {
-                    contract_address: self.fee_token_address,
-                    entry_point_selector: selector!("balanceOf"),
-                    calldata: vec![Felt::from_dec_str(&address)
-                        .map_err(Into::<HyperlaneStarknetError>::into)?],
-                },
-                BlockId::Tag(BlockTag::Latest),
-            )
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+        let call_result =
+            self.rpc_client()
+                .call(
+                    FunctionCall {
+                        contract_address: self.fee_token_address,
+                        entry_point_selector: selector!("balanceOf"),
+                        calldata: vec![Felt::from_hex(&address)
+                            .map_err(Into::<HyperlaneStarknetError>::into)?],
+                    },
+                    BlockId::Tag(BlockTag::Latest),
+                )
+                .await
+                .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         let balance: HyU256 = (call_result[0], call_result[1])
             .try_into()

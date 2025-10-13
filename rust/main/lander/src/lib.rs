@@ -1,3 +1,6 @@
+#![deny(clippy::unwrap_used, clippy::panic)]
+#![deny(clippy::arithmetic_side_effects)]
+
 pub use dispatcher::entrypoint::{DispatcherEntrypoint, Entrypoint};
 pub use dispatcher::{DatabaseOrPath, Dispatcher, DispatcherMetrics, DispatcherSettings};
 pub use error::LanderError;
