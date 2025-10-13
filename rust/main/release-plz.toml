@@ -17,3 +17,8 @@ pr_draft = false
 pr_labels = ["release"]
 # Automatically determine next version from conventional commits
 semver_check = false
+# Ignore generated test files and keys that may be present in CI
+git_allow_list = [
+  "!**/chains/hyperlane-starknet/src/contracts/mod.rs",
+  "!**/sealevel/environments/local-e2e/**/keys/*.json"
+]
