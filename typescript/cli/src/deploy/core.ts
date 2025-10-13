@@ -135,14 +135,6 @@ export async function runCoreApply(params: ApplyParams) {
   const { context, chain, deployedCoreAddresses, config } = params;
   const { multiProvider } = context;
 
-  const { submitter } = await getSubmitterByStrategy({
-    chain,
-    context: params.context,
-    strategyUrl: params.strategyUrl,
-  });
-
-  const transactions: AnyProtocolTransaction[] = [];
-
   switch (multiProvider.getProtocol(chain)) {
     case ProtocolType.Ethereum: {
       const evmCoreModule = new EvmCoreModule(multiProvider, {
@@ -151,11 +143,34 @@ export async function runCoreApply(params: ApplyParams) {
         addresses: deployedCoreAddresses,
       });
 
-      transactions.push(...(await evmCoreModule.update(config)));
+      const transactions = await evmCoreModule.update(config);
+
+      if (transactions.length) {
+        logGray('Updating deployed core contracts');
+        for (const transaction of transactions) {
+          await multiProvider.sendTransaction(
+            // Using the provided chain id because there might be remote chain transactions included in the batch
+            transaction.chainId ?? chain,
+            transaction,
+          );
+        }
+
+        logGreen(`Core config updated on ${chain}.`);
+      } else {
+        logGreen(
+          `Core config on ${chain} is the same as target. No updates needed.`,
+        );
+      }
       break;
     }
     default: {
       const signer = context.altVmSigner.get(chain);
+
+      const { submitter } = await getSubmitterByStrategy({
+        chain,
+        context: params.context,
+        strategyUrl: params.strategyUrl,
+      });
 
       const coreModule = new AltVMCoreModule(multiProvider, signer, {
         chain,
@@ -163,19 +178,19 @@ export async function runCoreApply(params: ApplyParams) {
         addresses: deployedCoreAddresses,
       });
 
-      transactions.push(...(await coreModule.update(config)));
+      const transactions = await coreModule.update(config);
+
+      if (transactions.length) {
+        logGray('Updating deployed core contracts');
+
+        await submitter.submit(...transactions);
+
+        logGreen(`Core config updated on ${chain}.`);
+      } else {
+        logGreen(
+          `Core config on ${chain} is the same as target. No updates needed.`,
+        );
+      }
     }
-  }
-
-  if (transactions.length) {
-    logGray('Updating deployed core contracts');
-
-    await submitter.submit(...transactions);
-
-    logGreen(`Core config updated on ${chain}.`);
-  } else {
-    logGreen(
-      `Core config on ${chain} is the same as target. No updates needed.`,
-    );
   }
 }
