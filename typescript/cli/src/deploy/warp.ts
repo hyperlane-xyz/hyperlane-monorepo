@@ -993,7 +993,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
 }> {
   const { multiProvider, altVmSigner, registry } = context;
 
-  const submissionStrategy: ExtendedSubmissionStrategy =
+  let submissionStrategy: ExtendedSubmissionStrategy =
     strategyUrl && !isExtendedChain
       ? readChainSubmissionStrategy(strategyUrl)[chain]
       : {
@@ -1002,6 +1002,16 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
             type: TxSubmitterType.JSON_RPC,
           },
         };
+
+  // we make sure to append the chain because not every submitter
+  // strategy provides the chain
+  submissionStrategy = {
+    ...submissionStrategy,
+    submitter: {
+      ...submissionStrategy.submitter,
+      chain,
+    },
+  } as ExtendedSubmissionStrategy;
 
   return {
     submitter: await getSubmitterBuilder<T>({
