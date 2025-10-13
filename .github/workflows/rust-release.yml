@@ -177,13 +177,20 @@ jobs:
         env:
           NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
         run: |
-          # Generate workspace-grouped changelog using custom script
+          # Get commit range for changelog generation
           LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
 
           if [ -z "$LATEST_TAG" ]; then
-            CHANGELOG=$(./rust/scripts/generate-workspace-changelog.sh)
+            COMMIT_RANGE=""
           else
-            CHANGELOG=$(./rust/scripts/generate-workspace-changelog.sh "${LATEST_TAG}..HEAD")
+            COMMIT_RANGE="${LATEST_TAG}..HEAD"
+          fi
+
+          # Generate unified changelog for PR body
+          if [ -z "$COMMIT_RANGE" ]; then
+            CHANGELOG=$(./rust/scripts/generate-workspace-changelog.sh --no-header)
+          else
+            CHANGELOG=$(./rust/scripts/generate-workspace-changelog.sh "$COMMIT_RANGE" --no-header)
           fi
 
           # Save changelog to file for PR body
@@ -195,6 +202,9 @@ jobs:
             echo "$CHANGELOG"
             echo 'EOF'
           } >> $GITHUB_OUTPUT
+
+          # Generate per-workspace CHANGELOG.md files
+          ./rust/scripts/generate-workspace-changelog.sh "$COMMIT_RANGE" "" --write-to-workspace "$NEW_VERSION"
       - name: Update version files
         working-directory: ./rust/main
         env:
@@ -222,26 +232,6 @@ jobs:
           cd ../sealevel
           cargo update --workspace --offline 2>/dev/null || cargo update --workspace
           echo "Updated rust/sealevel/Cargo.lock"
-          cd ../main
-
-          # Prepend new version to CHANGELOG.md
-          if [ -f CHANGELOG.md ]; then
-            CURRENT_CHANGELOG=$(cat CHANGELOG.md)
-          else
-            CURRENT_CHANGELOG=""
-          fi
-
-          cat > CHANGELOG.md <<EOF
-          # Changelog
-
-          ## [$NEW_VERSION] - $(date +%Y-%m-%d)
-
-          $(cat /tmp/changelog.md)
-
-          $CURRENT_CHANGELOG
-          EOF
-
-          echo "Updated CHANGELOG.md"
       - name: Create or update release PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -257,8 +247,9 @@ jobs:
           # Create branch from current HEAD (which is main)
           git checkout -B "$BRANCH_NAME"
 
-          # Stage changes
-          git add rust/main/CHANGELOG.md rust/main/Cargo.toml rust/main/Cargo.lock rust/sealevel/Cargo.lock
+          # Stage changes (Cargo files and all workspace CHANGELOG.md files)
+          git add rust/main/Cargo.toml rust/main/Cargo.lock rust/sealevel/Cargo.lock
+          git add rust/main/*/CHANGELOG.md rust/main/*/*/CHANGELOG.md 2>/dev/null || true
 
           # Commit changes
           git commit -m "release: agents v${NEW_VERSION}
