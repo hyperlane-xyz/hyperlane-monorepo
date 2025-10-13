@@ -993,7 +993,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
 }> {
   const { multiProvider, altVmSigner, registry } = context;
 
-  let submissionStrategy: ExtendedSubmissionStrategy =
+  const submissionStrategy: ExtendedSubmissionStrategy =
     strategyUrl && !isExtendedChain
       ? readChainSubmissionStrategy(strategyUrl)[chain]
       : {
