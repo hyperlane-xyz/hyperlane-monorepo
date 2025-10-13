@@ -3,14 +3,13 @@ import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import {
-  ChainName,
   RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
+import { ProtocolType, intersection, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
@@ -33,7 +32,6 @@ import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { RebalancerRunner } from '../rebalancer/runner.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -258,6 +256,7 @@ const send: CommandModuleWithWriteContext<
       router?: string;
       amount: string;
       recipient?: string;
+      chains?: string;
     }
 > = {
   command: 'send',
@@ -274,6 +273,12 @@ const send: CommandModuleWithWriteContext<
       type: 'string',
       description: 'Token recipient address (defaults to sender)',
     },
+    chains: {
+      type: 'string',
+      description: 'Comma separated list of chains to send messages to',
+      demandOption: false,
+      conflicts: ['origin', 'destination'],
+    },
   },
   handler: async ({
     context,
@@ -287,6 +292,7 @@ const send: CommandModuleWithWriteContext<
     amount,
     recipient,
     roundTrip,
+    chains: chainsAsString,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
@@ -294,36 +300,24 @@ const send: CommandModuleWithWriteContext<
       context,
     });
 
-    let chains: ChainName[] = warpCoreConfig.tokens.map((t) => t.chainName);
+    // Start with the chains in warp core
+    let chains = warpCoreConfig.tokens.map((t) => t.chainName);
+    const allowedChainSet = new Set(chains);
+
+    const chainsAsSet = new Set(
+      chainsAsString?.split(',').map((_) => _.trim()),
+    );
+
+    if (origin && destination) {
+      chainsAsSet.add(origin);
+      chainsAsSet.add(destination);
+    }
+    chains = [...intersection(chainsAsSet, allowedChainSet)];
+
     if (roundTrip) {
       // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
-      const reversed = [...chains].reverse().slice(1, chains.length + 1); // We make a copy because .reverse() is mutating
-      chains.push(...reversed);
-    } else {
-      // Assume we want to use use `--origin` and `--destination` params, prompt as needed.
-      const chainMetadata = objFilter(
-        context.chainMetadata,
-        (key, _metadata): _metadata is any => chains.includes(key),
-      );
-
-      if (!origin)
-        origin = await runSingleChainSelectionStep(
-          chainMetadata,
-          'Select the origin chain:',
-        );
-
-      if (!destination)
-        destination = await runSingleChainSelectionStep(
-          chainMetadata,
-          'Select the destination chain:',
-        );
-
-      chains = [origin, destination].filter((c) => chains.includes(c));
-
-      assert(
-        chains.length === 2,
-        `Origin (${origin}) or destination (${destination}) are not part of the warp route.`,
-      );
+      const reversed = [...chains].reverse().slice(1, chains.length + 1);
+      chains = [...chains, ...reversed];
     }
 
     logBlue(`🚀 Sending a message for chains: ${chains.join(' ➡️ ')}`);
