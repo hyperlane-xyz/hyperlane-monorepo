@@ -302,7 +302,6 @@ const send: CommandModuleWithWriteContext<
 
     // Start with the chains in warp core
     let chains = warpCoreConfig.tokens.map((t) => t.chainName);
-    const allowedChainSet = new Set(chains);
 
     const chainsAsSet = new Set(
       chainsAsString?.split(',').map((_) => _.trim()),
@@ -312,7 +311,7 @@ const send: CommandModuleWithWriteContext<
       chainsAsSet.add(origin);
       chainsAsSet.add(destination);
     }
-    chains = [...intersection(chainsAsSet, allowedChainSet)];
+    chains = [...intersection(chainsAsSet, new Set(chains))];
 
     if (roundTrip) {
       // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])

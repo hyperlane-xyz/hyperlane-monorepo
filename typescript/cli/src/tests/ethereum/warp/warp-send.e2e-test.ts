@@ -140,7 +140,7 @@ describe('hyperlane warp send e2e tests', async function () {
       synthetic.callStatic.balanceOf(walletChain3.address),
     ]);
 
-    // Test with roundTrip parameter
+    // Test with --round-trip parameter with --chains
     const { stdout: stdoutRoundTrip, exitCode: exitCodeRoundTrip } =
       await hyperlaneWarpSendRelay({
         warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
@@ -149,6 +149,19 @@ describe('hyperlane warp send e2e tests', async function () {
       });
     expect(exitCodeRoundTrip).to.equal(0);
     expect(stdoutRoundTrip).to.include(WarpSendLogs.SUCCESS);
+
+    // Test with --round-trip parameter with --origin and --destination
+    const {
+      stdout: stdoutRoundTripOriginDestination,
+      exitCode: exitCodeRoundTripOriginDestination,
+    } = await hyperlaneWarpSendRelay({
+      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      origin: CHAIN_NAME_2,
+      destination: CHAIN_NAME_3,
+      roundTrip: true,
+    });
+    expect(exitCodeRoundTripOriginDestination).to.equal(0);
+    expect(stdoutRoundTripOriginDestination).to.include(WarpSendLogs.SUCCESS);
 
     expect(tokenBalanceOnChain2After.toBigInt()).eq(
       tokenBalanceOnChain2Before.toBigInt(),
