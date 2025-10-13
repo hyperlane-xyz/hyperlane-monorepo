@@ -70,7 +70,7 @@ describe('AltVMWarpModule', () => {
   beforeEach(async () => {
     signer = await MockSigner.connectWithSigner();
 
-    Sinon.stub(signer, 'getSignerAddress').resolves(actualConfig.owner);
+    Sinon.stub(signer, 'getSignerAddress').returns(actualConfig.owner);
 
     warpModule = new AltVMWarpModule(
       multiProvider,
@@ -128,7 +128,7 @@ describe('AltVMWarpModule', () => {
         tokenAddress,
         newOwner,
       }),
-    );
+    ).to.be.true;
   });
 
   it('new remote router with invalid config', async () => {
@@ -195,7 +195,7 @@ describe('AltVMWarpModule', () => {
         tokenAddress,
         remoteRouter: newRemoteRouter,
       }),
-    );
+    ).to.be.true;
   });
 
   it('multiple new remote routers', async () => {
@@ -250,7 +250,7 @@ describe('AltVMWarpModule', () => {
         tokenAddress,
         remoteRouter: newRemoteRouter1,
       }),
-    );
+    ).to.be.true;
 
     expect(
       enrollRouter.calledWith({
@@ -258,7 +258,7 @@ describe('AltVMWarpModule', () => {
         tokenAddress,
         remoteRouter: newRemoteRouter2,
       }),
-    );
+    ).to.be.true;
   });
 
   it('remove existing remote router', async () => {
@@ -286,7 +286,7 @@ describe('AltVMWarpModule', () => {
         tokenAddress,
         receiverDomainId: 1234,
       }),
-    );
+    ).to.be.true;
   });
 
   it('update existing router address', async () => {
@@ -330,7 +330,7 @@ describe('AltVMWarpModule', () => {
           gas: '200000',
         },
       }),
-    );
+    ).to.be.true;
 
     expect(
       unenrollRouter.calledOnceWith({
@@ -338,7 +338,7 @@ describe('AltVMWarpModule', () => {
         tokenAddress,
         receiverDomainId: 1234,
       }),
-    );
+    ).to.be.true;
   });
 
   it('update existing router gas', async () => {
@@ -380,7 +380,7 @@ describe('AltVMWarpModule', () => {
           gas: newGas,
         },
       }),
-    );
+    ).to.be.true;
 
     expect(
       unenrollRouter.calledOnceWith({
@@ -388,7 +388,7 @@ describe('AltVMWarpModule', () => {
         tokenAddress,
         receiverDomainId: 1234,
       }),
-    );
+    ).to.be.true;
   });
 
   it('remove and add remote router at the same time', async () => {
@@ -434,7 +434,7 @@ describe('AltVMWarpModule', () => {
           gas: '300000',
         },
       }),
-    );
+    ).to.be.true;
 
     expect(
       unenrollRouter.calledOnceWith({
@@ -442,7 +442,7 @@ describe('AltVMWarpModule', () => {
         tokenAddress,
         receiverDomainId: 1234,
       }),
-    );
+    ).to.be.true;
   });
 
   it('new ISM', async () => {
@@ -485,14 +485,14 @@ describe('AltVMWarpModule', () => {
         validators: newIsm.validators,
         threshold: newIsm.threshold,
       }),
-    );
+    ).to.be.true;
     expect(
       updateIsm.calledOnceWith({
         signer: actualConfig.owner,
         tokenAddress,
         ismAddress: newIsmAddress,
       }),
-    );
+    ).to.be.true;
   });
 
   it('update existing ISM', async () => {
@@ -548,13 +548,13 @@ describe('AltVMWarpModule', () => {
         validators: newIsm.validators,
         threshold: newIsm.threshold,
       }),
-    );
+    ).to.be.true;
     expect(
       updateIsm.calledOnceWith({
         signer: actualConfig.owner,
         tokenAddress,
         ismAddress: newIsmAddress,
       }),
-    );
+    ).to.be.true;
   });
 });
