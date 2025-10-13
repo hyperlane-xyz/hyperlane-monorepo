@@ -238,10 +238,11 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         );
     }
 
-    function testERC4626VaultDeposit_sweep_usesCeilingRounding() public {
-        // This test verifies that sweep() uses previewWithdraw (ceiling rounding)
-        // instead of convertToShares (floor rounding) to calculate excess shares.
-        // This ensures we don't accidentally leave behind vault shares that should be swept.
+    function testERC4626VaultDeposit_ceilingRounding_reservesMoreShares()
+        public
+    {
+        // This test verifies the mathematical difference between convertToShares (floor)
+        // and previewWithdraw (ceiling) rounding when calculating shares for deposits.
 
         uint256 transferAmount = 100e18;
         uint256 rewardAmount = 1e18;
@@ -288,7 +289,64 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
             "Ceiling rounding should reserve more shares for deposits"
         );
 
-        // Record owner balance before sweep
+        // Perform sweep and verify the amount swept is <= excessSharesWithFloor
+        // Record logs to capture the event
+        vm.recordLogs();
+        erc20CollateralVaultDeposit.sweep();
+
+        // Get the logs and extract the ExcessSharesSwept event
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool foundEvent = false;
+        uint256 sweptShares;
+
+        for (uint256 i = 0; i < logs.length; i++) {
+            // ExcessSharesSwept event signature: ExcessSharesSwept(uint256,uint256)
+            if (
+                logs[i].topics[0] ==
+                keccak256("ExcessSharesSwept(uint256,uint256)")
+            ) {
+                foundEvent = true;
+                // Decode the event data (amount is first parameter, assetsRedeemed is second)
+                (sweptShares, ) = abi.decode(logs[i].data, (uint256, uint256));
+                break;
+            }
+        }
+
+        assertTrue(
+            foundEvent,
+            "ExcessSharesSwept event should have been emitted"
+        );
+        assertLe(
+            sweptShares,
+            excessSharesWithFloor,
+            "Swept amount should be <= excessSharesWithFloor"
+        );
+    }
+
+    function testERC4626VaultDeposit_sweep_usesCeilingRounding() public {
+        // This test verifies that sweep() correctly sweeps excess shares after yield accrual
+        // and leaves no shares behind when assetDeposited is 0.
+
+        uint256 transferAmount = 100e18;
+        uint256 rewardAmount = 1e18;
+
+        // Setup: Transfer from Alice to Bob
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), transferAmount);
+        _performRemoteTransfer(0, transferAmount);
+
+        // Add yield to the vault (increases share value)
+        primaryToken.mintTo(address(vault), rewardAmount);
+
+        // Transfer back from Bob to Alice
+        vm.prank(BOB);
+        remoteToken.transferRemote(
+            ORIGIN,
+            BOB.addressToBytes32(),
+            transferAmount
+        );
+        _handleLocalTransfer(transferAmount);
+
         uint256 ownerBalanceBefore = primaryToken.balanceOf(
             erc20CollateralVaultDeposit.owner()
         );
