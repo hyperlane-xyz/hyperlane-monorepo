@@ -35,6 +35,7 @@ import {
  * - M tokens use index-based accounting which can cause rounding
  */
 
+// From https://github.com/m0-foundation/m-portal-lite/blob/main/src/Portal.sol
 const PORTAL_LITE_ABI = [
   'function transfer(uint256 amount, uint256 destinationChainId, address recipient, address refundAddress) external payable returns (bytes32)',
   'function transferMLikeToken(uint256 amount, address sourceToken, uint256 destinationChainId, address destinationToken, address recipient, address refundAddress) external payable returns (bytes32)',
