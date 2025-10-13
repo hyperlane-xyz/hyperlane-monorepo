@@ -13,6 +13,7 @@ export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
     public readonly strategyConfig: StrategyConfig,
+    public readonly oft?: any,
   ) {}
 
   /**
@@ -34,6 +35,9 @@ export class RebalancerConfig {
       throw new Error('No chains configured');
     }
 
-    return new RebalancerConfig(warpRouteId, strategy);
+    // Also load oft config if present (not validated by schema)
+    const oft = (config as any).oft;
+
+    return new RebalancerConfig(warpRouteId, strategy, oft);
   }
 }

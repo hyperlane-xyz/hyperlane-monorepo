@@ -1,0 +1,9 @@
+{
+  "bridge": "oft",
+  "layerzero": {
+    "chains": {
+      "1": { "lzChainId": 101, "dstVault": "0x", "adapterParams": "0x" },
+      "10": { "lzChainId": 111, "dstVault": "0x", "adapterParams": "0x" }
+    }
+  }
+}
