@@ -141,9 +141,7 @@ jobs:
 
           # Add warning for pre-releases
           if [ "$IS_PRERELEASE" = "true" ]; then
-            CHANGELOG="⚠️ **This is a pre-release version for testing purposes.**
-
-$CHANGELOG"
+            CHANGELOG="⚠️ **This is a pre-release version.**"$'\n\n'"${CHANGELOG}"
           fi
 
           # Create tag and GitHub release
