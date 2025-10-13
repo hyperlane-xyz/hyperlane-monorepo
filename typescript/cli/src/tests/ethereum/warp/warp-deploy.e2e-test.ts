@@ -708,27 +708,27 @@ describe('hyperlane warp deploy e2e tests', async function () {
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
       // Try to send a transaction with the origin destination
-      const { stdout: chain2Tochain3Stdout } = await hyperlaneWarpSendRelay(
-        CHAIN_NAME_2,
-        CHAIN_NAME_3,
-        WARP_CORE_CONFIG_PATH_2_3,
-      );
+      const { stdout: chain2Tochain3Stdout } = await hyperlaneWarpSendRelay({
+        origin: CHAIN_NAME_2,
+        destination: CHAIN_NAME_3,
+        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      });
       expect(chain2Tochain3Stdout).to.include('anvil2 ➡️ anvil3');
 
       // Send another message with swapped origin destination
-      const { stdout: chain3Tochain2Stdout } = await hyperlaneWarpSendRelay(
-        CHAIN_NAME_3,
-        CHAIN_NAME_2,
-        WARP_CORE_CONFIG_PATH_2_3,
-      );
+      const { stdout: chain3Tochain2Stdout } = await hyperlaneWarpSendRelay({
+        origin: CHAIN_NAME_3,
+        destination: CHAIN_NAME_2,
+        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      });
       expect(chain3Tochain2Stdout).to.include('anvil3 ➡️ anvil2');
 
       // Should throw if invalid origin or destination
-      await hyperlaneWarpSendRelay(
-        'anvil1',
-        CHAIN_NAME_3,
-        WARP_CORE_CONFIG_PATH_2_3,
-      ).should.be.rejectedWith(
+      await hyperlaneWarpSendRelay({
+        origin: 'anvil1',
+        destination: CHAIN_NAME_3,
+        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      }).should.be.rejectedWith(
         'Error: Origin (anvil1) or destination (anvil3) are not part of the warp route.',
       );
     });

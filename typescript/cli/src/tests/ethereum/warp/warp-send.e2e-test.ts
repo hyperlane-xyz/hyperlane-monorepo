@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { Wallet, ethers } from 'ethers';
 import { parseEther } from 'ethers/lib/utils.js';
 
-import { ERC20__factory } from '@hyperlane-xyz/core';
+import { ERC20Test, ERC20__factory } from '@hyperlane-xyz/core';
 import {
   ChainAddresses,
   createWarpRouteConfigId,
