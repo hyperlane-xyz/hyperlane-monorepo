@@ -10,7 +10,6 @@ use hyperlane_base::settings::{ChainConf, SignerConf};
 use hyperlane_core::U256;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander, Signers};
 
-use crate::adapter::chains::ethereum::nonce::periodic_updater::{self, PeriodicNonceUpdater};
 use crate::dispatcher::TransactionDb;
 use crate::transaction::{Transaction, TransactionUuid};
 use crate::{LanderError, TransactionStatus};
@@ -18,6 +17,7 @@ use crate::{LanderError, TransactionStatus};
 use super::super::metrics::EthereumAdapterMetrics;
 use super::super::transaction::Precursor;
 use super::db::NonceDb;
+use super::periodic_updater::{self, PeriodicNonceUpdater};
 use super::state::{NonceAction, NonceManagerState};
 use super::status::NonceStatus;
 use super::updater::NonceUpdater;

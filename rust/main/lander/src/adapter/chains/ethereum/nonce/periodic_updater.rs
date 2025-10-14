@@ -5,8 +5,6 @@ use hyperlane_core::U256;
 use hyperlane_ethereum::{EthereumReorgPeriod, EvmProviderForLander};
 
 use ethers_core::types::Address;
-use tokio::sync::Mutex;
-use tokio::time::Instant;
 
 use super::error::{NonceError, NonceResult};
 use super::state::NonceManagerState;
@@ -15,8 +13,8 @@ pub struct PeriodicNonceUpdater {
     address: Address,
     reorg_period: EthereumReorgPeriod,
     poll_rate: Duration,
-    state: Arc<NonceManagerState>,
     provider: Arc<dyn EvmProviderForLander>,
+    state: Arc<NonceManagerState>,
 }
 
 impl PeriodicNonceUpdater {
