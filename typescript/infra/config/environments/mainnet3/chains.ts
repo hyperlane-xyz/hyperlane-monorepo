@@ -15,7 +15,7 @@ export const ethereumChainNames = supportedChainNames.filter(
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsc: {
     transactionOverrides: {
-      gasPrice: 3 * 10 ** 9, // 3 gwei
+      gasPrice: 1 * 10 ** 8, // 0.1 gwei
     },
   },
   polygonzkevm: {
