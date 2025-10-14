@@ -9,13 +9,8 @@ on:
       - '.github/workflows/rust-release.yml'
   workflow_dispatch:
     inputs:
-      prerelease:
-        description: 'Create a pre-release instead of a stable release'
-        required: false
-        type: boolean
-        default: false
       prerelease_suffix:
-        description: 'Custom prerelease suffix (e.g., "beta.1", "rc.1", "alpha.2"). Leave empty to auto-generate.'
+        description: 'Prerelease suffix (e.g., "beta.1", "rc.1", "alpha.2"). Leave empty to auto-generate "beta.N".'
         required: false
         type: string
         default: ''
@@ -103,7 +98,7 @@ jobs:
     runs-on: depot-ubuntu-latest
     needs: check-release-status
     if: |
-      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.prerelease)) &&
+      github.event_name == 'push' &&
       needs.check-release-status.outputs.has_changes == 'true'
     steps:
       - uses: actions/checkout@v4
@@ -315,7 +310,7 @@ jobs:
     needs: check-release-status
     if: |
       github.ref == 'refs/heads/main' &&
-      ((github.event_name == 'workflow_dispatch' && inputs.prerelease) ||
+      (github.event_name == 'workflow_dispatch' ||
        (github.event_name == 'push' && needs.check-release-status.outputs.should_release == 'true'))
     steps:
       - uses: actions/checkout@v4
@@ -324,7 +319,7 @@ jobs:
       - name: Determine version and create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IS_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease }}
+          IS_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' }}
           PRERELEASE_SUFFIX: ${{ inputs.prerelease_suffix }}
           BASE_VERSION: ${{ needs.check-release-status.outputs.current_version }}
         run: |
@@ -332,6 +327,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Determine final version based on release type
+          # workflow_dispatch always creates pre-releases
           if [ "$IS_PRERELEASE" = "true" ]; then
             # Pre-release: append suffix
             if [ -n "$PRERELEASE_SUFFIX" ]; then
