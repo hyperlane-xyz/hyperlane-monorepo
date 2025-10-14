@@ -23,6 +23,7 @@ import {
 import {
   Address,
   Domain,
+  ProtocolType,
   addressToBytes32,
   bytes32ToAddress,
   sleep,
@@ -30,33 +31,28 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { deployOrUseExistingCore } from '../commands/core.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
+import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
+import {
+  CORE_CONFIG_PATH_BY_PROTOCOL,
+  CORE_READ_CONFIG_PATH_BY_PROTOCOL,
+  DEFAULT_E2E_TEST_TIMEOUT,
+  DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
+  DEPLOYER_ADDRESS_BY_PROTOCOL,
+  HYP_KEY_BY_PROTOCOL,
+  REGISTRY_PATH,
+  TEMP_PATH,
+  TEST_CHAIN_METADATA_BY_PROTOCOL,
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
+} from '../../constants.js';
 import {
   createSnapshot,
   deployToken,
   getTokenAddressFromWarpConfig,
-  hyperlaneRelayer,
   restoreSnapshot,
 } from '../commands/helpers.js';
-import {
-  hyperlaneWarpDeploy,
-  hyperlaneWarpRebalancer,
-  hyperlaneWarpSendRelay,
-} from '../commands/warp.js';
-import {
-  ANVIL_DEPLOYER_ADDRESS,
-  ANVIL_KEY,
-  CHAIN_2_METADATA_PATH,
-  CHAIN_3_METADATA_PATH,
-  CHAIN_4_METADATA_PATH,
-  CHAIN_NAME_2,
-  CHAIN_NAME_3,
-  CHAIN_NAME_4,
-  CORE_CONFIG_PATH,
-  DEFAULT_E2E_TEST_TIMEOUT,
-  REBALANCER_CONFIG_PATH,
-  REGISTRY_PATH,
-} from '../consts.js';
+
+const REBALANCER_CONFIG_PATH = `${TEMP_PATH}/rebalancer-config.json`;
 
 chai.use(chaiAsPromised);
 chai.should();
@@ -94,23 +90,63 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   let warpRouteDeployConfig: WarpRouteDeployConfig;
 
+  const evmChain2Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+  );
+
+  const evmChain3Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+  );
+
+  const evmChain4Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_4,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_4,
+  );
+
+  const evmWarpCommands = new HyperlaneE2EWarpTestCommands(
+    ProtocolType.Ethereum,
+    REGISTRY_PATH,
+    DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
+  );
+
+  let ANVIL_DEPLOYER_ADDRESS: string;
+
   before(async () => {
     ogVerbose = $.verbose;
     $.verbose = false;
 
+    ANVIL_DEPLOYER_ADDRESS = await DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum();
+
     console.log('Deploying core contracts on all chains...');
 
     [chain2Addresses, chain3Addresses, chain4Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, ANVIL_KEY),
+      evmChain2Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
+      evmChain3Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
+      evmChain4Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
     ]);
 
     console.log('Deploying ERC20s...');
 
     [tokenChain2, tokenChain3] = await Promise.all([
-      deployToken(ANVIL_KEY, CHAIN_NAME_2),
-      deployToken(ANVIL_KEY, CHAIN_NAME_3),
+      deployToken(
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      ),
+      deployToken(
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      ),
     ]);
     tokenSymbol = await tokenChain2.symbol();
 
@@ -119,7 +155,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Generate the base path for warp configs
     warpRouteId = createWarpRouteConfigId(
       tokenSymbol,
-      [CHAIN_NAME_2, CHAIN_NAME_3, CHAIN_NAME_4].sort().join('-'),
+      [
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_4,
+      ]
+        .sort()
+        .join('-'),
     );
     const basePath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}`;
 
@@ -128,53 +170,59 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     warpCoreConfigPath = `${basePath}-config.yaml`;
 
     warpRouteDeployConfig = {
-      [CHAIN_NAME_2]: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
         type: TokenType.collateral,
         token: tokenChain2.address,
         mailbox: chain2Addresses.mailbox,
         owner: ANVIL_DEPLOYER_ADDRESS,
         allowedRebalancers: [ANVIL_DEPLOYER_ADDRESS],
       },
-      [CHAIN_NAME_3]: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
         type: TokenType.collateral,
         token: tokenChain3.address,
         mailbox: chain3Addresses.mailbox,
         owner: ANVIL_DEPLOYER_ADDRESS,
         allowedRebalancers: [ANVIL_DEPLOYER_ADDRESS],
       },
-      [CHAIN_NAME_4]: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_4]: {
         type: TokenType.synthetic,
         mailbox: chain4Addresses.mailbox,
         owner: ANVIL_DEPLOYER_ADDRESS,
       },
     };
     writeYamlOrJson(warpDeploymentPath, warpRouteDeployConfig);
-    await hyperlaneWarpDeploy(warpDeploymentPath, warpRouteId);
+    await evmWarpCommands.deploy(
+      warpDeploymentPath,
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      warpRouteId,
+    );
 
     // After deployment, read the core config that was generated
     warpCoreConfig = readYamlOrJson(warpCoreConfigPath);
-    chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    chain3Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
-    chain4Metadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
+    chain2Metadata = TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
+    chain3Metadata = TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
+    chain4Metadata = TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_4;
 
     console.log('Bridging tokens...');
 
     await Promise.all([
-      hyperlaneWarpSendRelay(
-        CHAIN_NAME_2,
-        CHAIN_NAME_4,
-        warpCoreConfigPath,
-        true,
-        toWei(10),
-      ),
+      evmWarpCommands.sendAndRelay({
+        origin: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        destination: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_4,
+        warpCorePath: warpCoreConfigPath,
+        relay: true,
+        value: toWei(10),
+        privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      }),
       sleep(2000).then(() =>
-        hyperlaneWarpSendRelay(
-          CHAIN_NAME_3,
-          CHAIN_NAME_4,
-          warpCoreConfigPath,
-          true,
-          toWei(10),
-        ),
+        evmWarpCommands.sendAndRelay({
+          origin: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+          destination: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_4,
+          warpCorePath: warpCoreConfigPath,
+          relay: true,
+          value: toWei(10),
+          privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+        }),
       ),
     ]);
   });
@@ -189,12 +237,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     writeYamlOrJson(warpDeploymentPath, warpRouteDeployConfig);
     writeYamlOrJson(warpCoreConfigPath, warpCoreConfig);
 
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
+    const rebalancerConfig: RebalancerConfigFileInput = {
       warpRouteId,
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '100',
               tolerance: '0',
@@ -202,7 +250,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '100',
               tolerance: '0',
@@ -212,7 +260,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           },
         },
       },
-    });
+    };
+
+    writeYamlOrJson(REBALANCER_CONFIG_PATH, rebalancerConfig);
 
     const chain2RpcUrl = chain2Metadata.rpcUrls[0].http;
     const chain3RpcUrl = chain3Metadata.rpcUrls[0].http;
@@ -269,7 +319,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       explorerUrl,
     } = options;
 
-    return hyperlaneWarpRebalancer(
+    return evmWarpCommands.hyperlaneWarpRebalancer(
       checkFrequency,
       REBALANCER_CONFIG_PATH,
       withMetrics,
@@ -453,12 +503,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         strategy: {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            [CHAIN_NAME_2]: {
+            [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
               weighted: { weight: '25', tolerance: '0' },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
             },
-            [CHAIN_NAME_3]: {
+            [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
               weighted: { weight: '75', tolerance: '0' },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
@@ -489,9 +539,15 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       const chain3Provider = new ethers.providers.JsonRpcProvider(
         chain3Metadata.rpcUrls[0].http,
       );
-      const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+      const chain3Signer = new Wallet(
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        chain3Provider,
+      );
       const chain3CollateralContract = HypERC20Collateral__factory.connect(
-        getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
+        getTokenAddressFromWarpConfig(
+          warpCoreConfig,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        ),
         chain3Signer,
       );
 
@@ -510,12 +566,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         strategy: {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            [CHAIN_NAME_2]: {
+            [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
               weighted: { weight: '75', tolerance: '0' },
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
             },
-            [CHAIN_NAME_3]: {
+            [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
               weighted: { weight: '25', tolerance: '0' },
               bridge: bridgeContract.address,
               bridgeLockTime: 1,
@@ -560,7 +616,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             minAmount: {
               min: 9,
               target: 10,
@@ -569,7 +625,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             minAmount: {
               min: 0.5,
               target: 0.55,
@@ -593,7 +649,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: 'weight',
               tolerance: 0,
@@ -601,7 +657,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: 100,
               tolerance: 0,
@@ -624,7 +680,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: 100,
               tolerance: 0,
@@ -632,7 +688,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: 100,
               tolerance: 'tolerance',
@@ -655,7 +711,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: 100,
               tolerance: 0,
@@ -663,7 +719,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: 'bridge',
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: 100,
               tolerance: 0,
@@ -692,7 +748,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -700,7 +756,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -724,7 +780,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -732,7 +788,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -755,7 +811,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -763,7 +819,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -771,7 +827,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_4]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_4]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -794,7 +850,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -802,7 +858,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -829,7 +885,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -837,7 +893,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -853,9 +909,15 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const chain3Provider = new ethers.providers.JsonRpcProvider(
       chain3Metadata.rpcUrls[0].http,
     );
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Signer = new Wallet(
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      chain3Provider,
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
-      getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
+      getTokenAddressFromWarpConfig(
+        warpCoreConfig,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      ),
       chain3Signer,
     );
 
@@ -876,7 +938,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -884,7 +946,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -907,7 +969,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -915,7 +977,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -931,9 +993,15 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const chain3Provider = new ethers.providers.JsonRpcProvider(
       chain3Metadata.rpcUrls[0].http,
     );
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Signer = new Wallet(
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      chain3Provider,
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
-      getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
+      getTokenAddressFromWarpConfig(
+        warpCoreConfig,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      ),
       chain3Signer,
     );
 
@@ -951,9 +1019,15 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const chain3Provider = new ethers.providers.JsonRpcProvider(
       chain3Metadata.rpcUrls[0].http,
     );
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Signer = new Wallet(
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      chain3Provider,
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
-      getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
+      getTokenAddressFromWarpConfig(
+        warpCoreConfig,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      ),
       chain3Signer,
     );
 
@@ -973,7 +1047,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             minAmount: {
               min: 7,
               target: 11,
@@ -982,7 +1056,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             minAmount: {
               min: 8,
               target: 12,
@@ -1005,9 +1079,15 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const chain3Provider = new ethers.providers.JsonRpcProvider(
       chain3Metadata.rpcUrls[0].http,
     );
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Signer = new Wallet(
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      chain3Provider,
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
-      getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
+      getTokenAddressFromWarpConfig(
+        warpCoreConfig,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      ),
       chain3Signer,
     );
 
@@ -1027,7 +1107,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -1035,7 +1115,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -1055,9 +1135,15 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const chain3Provider = new ethers.providers.JsonRpcProvider(
       chain3Metadata.rpcUrls[0].http,
     );
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Signer = new Wallet(
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      chain3Provider,
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
-      getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
+      getTokenAddressFromWarpConfig(
+        warpCoreConfig,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      ),
       chain3Signer,
     );
 
@@ -1077,7 +1163,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -1085,7 +1171,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -1110,19 +1196,19 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // For this test, rebalance will consist of sending tokens from chain 3 to chain 2
     const originContractAddress = getTokenAddressFromWarpConfig(
       warpCoreConfig,
-      CHAIN_NAME_3,
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
     );
     const destContractAddress = getTokenAddressFromWarpConfig(
       warpCoreConfig,
-      CHAIN_NAME_2,
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     );
 
     // Addresses of the wrapped collateral tokens
     const originTknAddress = wccTokens.find(
-      (t) => t.chainName === CHAIN_NAME_3,
+      (t) => t.chainName === TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
     )!.collateralAddressOrDenom!;
     const destTknAddress = wccTokens.find(
-      (t) => t.chainName === CHAIN_NAME_2,
+      (t) => t.chainName === TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     )!.collateralAddressOrDenom!;
 
     // Domain IDs
@@ -1130,8 +1216,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const destDomain = chain2Metadata.domainId;
 
     // Chain names
-    const originName = CHAIN_NAME_3;
-    const destName = CHAIN_NAME_2;
+    const originName = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
+    const destName = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
 
     // RPC URLs
     const originRpc = chain3Metadata.rpcUrls[0].http;
@@ -1141,7 +1227,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // We need to assign to the contract who is able to send the rebalance transaction
     const originProvider = new ethers.providers.JsonRpcProvider(originRpc);
     const destProvider = new ethers.providers.JsonRpcProvider(destRpc);
-    const originSigner = new Wallet(ANVIL_KEY, originProvider);
+    const originSigner = new Wallet(
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      originProvider,
+    );
     const originContract = HypERC20Collateral__factory.connect(
       originContractAddress,
       originSigner,
@@ -1166,7 +1255,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -1174,7 +1263,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -1234,13 +1323,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // This process locks tokens on the destination chain and unlocks them on the origin,
     // effectively increasing collateral on the destination while decreasing it on the origin,
     // which achieves the desired rebalancing effect.
-    await hyperlaneWarpSendRelay(
-      destName,
-      originName,
-      warpCoreConfigPath,
-      true,
-      sentTransferRemote.amount.toString(),
-    );
+    await evmWarpCommands.sendAndRelay({
+      origin: destName,
+      destination: originName,
+      warpCorePath: warpCoreConfigPath,
+      relay: true,
+      value: sentTransferRemote.amount.toString(),
+      privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
 
     originBalance = await originTkn.balanceOf(originContractAddress);
     destBalance = await destTkn.balanceOf(destContractAddress);
@@ -1261,13 +1351,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   it('should throw when the semaphore timer has not expired', async () => {
     const originContractAddress = getTokenAddressFromWarpConfig(
       warpCoreConfig,
-      CHAIN_NAME_3,
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
     );
     const destDomain = chain2Metadata.domainId;
     const originRpc = chain3Metadata.rpcUrls[0].http;
 
     const originProvider = new ethers.providers.JsonRpcProvider(originRpc);
-    const originSigner = new Wallet(ANVIL_KEY, originProvider);
+    const originSigner = new Wallet(
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      originProvider,
+    );
     const originContract = HypERC20Collateral__factory.connect(
       originContractAddress,
       originSigner,
@@ -1290,7 +1383,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -1298,7 +1391,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 100,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -1328,7 +1421,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -1336,7 +1429,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridge: ethers.constants.AddressZero,
             bridgeLockTime: 1,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -1419,19 +1512,24 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     const otherWarpRouteId = createWarpRouteConfigId(
       tokenSymbol,
-      [CHAIN_NAME_2, CHAIN_NAME_3].sort().join('-'),
+      [
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      ]
+        .sort()
+        .join('-'),
     );
     const otherWarpDeployConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-deploy.yaml`;
     const otherWarpCoreConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-config.yaml`;
 
     const otherWarpRouteDeployConfig: WarpRouteDeployConfig = {
-      [CHAIN_NAME_2]: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
         type: TokenType.collateral,
         token: tokenChain2.address,
         mailbox: chain2Addresses.mailbox,
         owner: ANVIL_DEPLOYER_ADDRESS,
       },
-      [CHAIN_NAME_3]: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
         type: TokenType.collateral,
         token: tokenChain3.address,
         mailbox: chain3Addresses.mailbox,
@@ -1439,7 +1537,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     };
     writeYamlOrJson(otherWarpDeployConfigPath, otherWarpRouteDeployConfig);
-    await hyperlaneWarpDeploy(otherWarpDeployConfigPath, otherWarpRouteId);
+    await evmWarpCommands.deploy(
+      otherWarpDeployConfigPath,
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      otherWarpRouteId,
+    );
 
     const otherWarpCoreConfig: WarpCoreConfig = readYamlOrJson(
       otherWarpCoreConfigPath,
@@ -1447,30 +1549,36 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     const chain2BridgeAddress = getTokenAddressFromWarpConfig(
       otherWarpCoreConfig,
-      CHAIN_NAME_2,
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     );
     const chain3BridgeAddress = getTokenAddressFromWarpConfig(
       otherWarpCoreConfig,
-      CHAIN_NAME_3,
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
     );
 
     const chain2Signer = new Wallet(
-      ANVIL_KEY,
+      HYP_KEY_BY_PROTOCOL.ethereum,
       new ethers.providers.JsonRpcProvider(chain2Metadata.rpcUrls[0].http),
     );
 
     const chain3Signer = new Wallet(
-      ANVIL_KEY,
+      HYP_KEY_BY_PROTOCOL.ethereum,
       new ethers.providers.JsonRpcProvider(chain3Metadata.rpcUrls[0].http),
     );
 
     const chain2Contract = HypERC20Collateral__factory.connect(
-      getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_2),
+      getTokenAddressFromWarpConfig(
+        warpCoreConfig,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      ),
       chain2Signer,
     );
 
     const chain3Contract = HypERC20Collateral__factory.connect(
-      getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
+      getTokenAddressFromWarpConfig(
+        warpCoreConfig,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      ),
       chain3Signer,
     );
 
@@ -1504,7 +1612,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
         chains: {
-          [CHAIN_NAME_2]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
             weighted: {
               weight: '25',
               tolerance: '0',
@@ -1513,7 +1621,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             bridgeLockTime: 60,
             bridgeIsWarp: true,
           },
-          [CHAIN_NAME_3]: {
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
             weighted: {
               weight: '75',
               tolerance: '0',
@@ -1527,8 +1635,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     // --- Start relayer ---
-    const relayer = hyperlaneRelayer(
-      [CHAIN_NAME_2, CHAIN_NAME_3],
+    const relayer = evmWarpCommands.hyperlaneRelayer(
+      [
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      ],
       otherWarpCoreConfigPath,
     );
 
@@ -1564,19 +1675,21 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // For this test, rebalance will consist of sending tokens from chain 3 to chain 2
       const originContractAddress = getTokenAddressFromWarpConfig(
         warpCoreConfig,
-        CHAIN_NAME_3,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
       );
       const destContractAddress = getTokenAddressFromWarpConfig(
         warpCoreConfig,
-        CHAIN_NAME_2,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       );
 
       // Addresses of the wrapped collateral tokens
       const originTknAddress = wccTokens.find(
-        (t) => t.chainName === CHAIN_NAME_3,
+        (t) =>
+          t.chainName === TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
       )!.collateralAddressOrDenom!;
       const destTknAddress = wccTokens.find(
-        (t) => t.chainName === CHAIN_NAME_2,
+        (t) =>
+          t.chainName === TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       )!.collateralAddressOrDenom!;
 
       // Domain IDs
@@ -1584,8 +1697,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       const destDomain = chain2Metadata.domainId;
 
       // Chain names
-      const originName = CHAIN_NAME_3;
-      const destName = CHAIN_NAME_2;
+      const originName = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
+      const destName = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
 
       // RPC URLs
       const originRpc = chain3Metadata.rpcUrls[0].http;
@@ -1595,7 +1708,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // We need to assign to the contract who is able to send the rebalance transaction
       const originProvider = new ethers.providers.JsonRpcProvider(originRpc);
       const destProvider = new ethers.providers.JsonRpcProvider(destRpc);
-      const originSigner = new Wallet(ANVIL_KEY, originProvider);
+      const originSigner = new Wallet(
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        originProvider,
+      );
       const originContract = HypERC20Collateral__factory.connect(
         originContractAddress,
         originSigner,
@@ -1620,7 +1736,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         strategy: {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            [CHAIN_NAME_2]: {
+            [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
               weighted: {
                 weight: '75',
                 tolerance: '0',
@@ -1628,7 +1744,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               bridge: ethers.constants.AddressZero,
               bridgeLockTime: 1,
             },
-            [CHAIN_NAME_3]: {
+            [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
               weighted: {
                 weight: '25',
                 tolerance: '0',
@@ -1700,13 +1816,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // This process locks tokens on the destination chain and unlocks them on the origin,
       // effectively increasing collateral on the destination while decreasing it on the origin,
       // which achieves the desired rebalancing effect.
-      await hyperlaneWarpSendRelay(
-        destName,
-        originName,
-        warpCoreConfigPath,
-        true,
-        sentTransferRemote.amount.toString(),
-      );
+      await evmWarpCommands.sendAndRelay({
+        origin: destName,
+        destination: originName,
+        warpCorePath: warpCoreConfigPath,
+        relay: true,
+        value: sentTransferRemote.amount.toString(),
+        privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
 
       originBalance = await originTkn.balanceOf(originContractAddress);
       destBalance = await destTkn.balanceOf(destContractAddress);
@@ -1733,19 +1850,24 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       const otherWarpRouteId = createWarpRouteConfigId(
         tokenSymbol,
-        [CHAIN_NAME_2, CHAIN_NAME_3].sort().join('-'),
+        [
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        ]
+          .sort()
+          .join('-'),
       );
       const otherWarpDeployConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-deploy.yaml`;
       const otherWarpCoreConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-config.yaml`;
 
       const otherWarpRouteDeployConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.collateral,
           token: tokenChain2.address,
           mailbox: chain2Addresses.mailbox,
           owner: ANVIL_DEPLOYER_ADDRESS,
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           type: TokenType.collateral,
           token: tokenChain3.address,
           mailbox: chain3Addresses.mailbox,
@@ -1753,7 +1875,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         },
       };
       writeYamlOrJson(otherWarpDeployConfigPath, otherWarpRouteDeployConfig);
-      await hyperlaneWarpDeploy(otherWarpDeployConfigPath, otherWarpRouteId);
+      await evmWarpCommands.deploy(
+        otherWarpDeployConfigPath,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        otherWarpRouteId,
+      );
 
       const otherWarpCoreConfig: WarpCoreConfig = readYamlOrJson(
         otherWarpCoreConfigPath,
@@ -1761,30 +1887,36 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       const chain2BridgeAddress = getTokenAddressFromWarpConfig(
         otherWarpCoreConfig,
-        CHAIN_NAME_2,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       );
       const chain3BridgeAddress = getTokenAddressFromWarpConfig(
         otherWarpCoreConfig,
-        CHAIN_NAME_3,
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
       );
 
       const chain2Signer = new Wallet(
-        ANVIL_KEY,
+        HYP_KEY_BY_PROTOCOL.ethereum,
         new ethers.providers.JsonRpcProvider(chain2Metadata.rpcUrls[0].http),
       );
 
       const chain3Signer = new Wallet(
-        ANVIL_KEY,
+        HYP_KEY_BY_PROTOCOL.ethereum,
         new ethers.providers.JsonRpcProvider(chain3Metadata.rpcUrls[0].http),
       );
 
       const chain2Contract = HypERC20Collateral__factory.connect(
-        getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_2),
+        getTokenAddressFromWarpConfig(
+          warpCoreConfig,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        ),
         chain2Signer,
       );
 
       const chain3Contract = HypERC20Collateral__factory.connect(
-        getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
+        getTokenAddressFromWarpConfig(
+          warpCoreConfig,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        ),
         chain3Signer,
       );
 
@@ -1818,7 +1950,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         strategy: {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            [CHAIN_NAME_2]: {
+            [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
               weighted: {
                 weight: '25',
                 tolerance: '0',
@@ -1827,7 +1959,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               bridgeLockTime: 60,
               bridgeIsWarp: true,
             },
-            [CHAIN_NAME_3]: {
+            [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
               weighted: {
                 weight: '75',
                 tolerance: '0',
@@ -1841,8 +1973,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       });
 
       // --- Start relayer ---
-      const relayer = hyperlaneRelayer(
-        [CHAIN_NAME_2, CHAIN_NAME_3],
+      const relayer = evmWarpCommands.hyperlaneRelayer(
+        [
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        ],
         otherWarpCoreConfigPath,
       );
 
@@ -1861,16 +1996,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
         await startRebalancerAndExpectLog(
           [
-            `Manual rebalance strategy selected. Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: ${manualRebalanceAmount}`,
+            `Manual rebalance strategy selected. Origin: ${TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2}, Destination: ${TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3}, Amount: ${manualRebalanceAmount}`,
             'Rebalance initiated',
             'Preparing all rebalance transactions.',
-            `✅ Manual rebalance from ${CHAIN_NAME_2} to ${CHAIN_NAME_3} for amount ${manualRebalanceAmount} submitted successfully.`,
+            `✅ Manual rebalance from ${TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2} to ${TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3} for amount ${manualRebalanceAmount} submitted successfully.`,
           ],
           {
             timeout: 30000,
             manual: true,
-            origin: CHAIN_NAME_2,
-            destination: CHAIN_NAME_3,
+            origin: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+            destination: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
             amount: manualRebalanceAmount,
           },
         );

@@ -1,3 +1,4 @@
+import { Wallet } from 'ethers';
 import { $, ProcessPromise } from 'zx';
 
 import {
@@ -8,6 +9,7 @@ import {
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../utils/files.js';
+import { HYP_KEY_BY_PROTOCOL } from '../constants.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
@@ -284,5 +286,52 @@ export class HyperlaneE2EWarpTestCommands {
           --verbosity debug \
           --yes \
           --amount ${value}`;
+  }
+
+  public hyperlaneRelayer(
+    chains: string[],
+    warp?: string,
+    privateKey?: string,
+  ) {
+    const keyToUse = privateKey ?? HYP_KEY_BY_PROTOCOL.ethereum;
+
+    return $`${localTestRunCmdPrefix()} hyperlane relayer \
+          --registry ${this.registryPath} \
+          --chains ${chains.join(',')} \
+          --warp ${warp ?? ''} \
+          --key ${keyToUse} \
+          --verbosity debug \
+          --yes`;
+  }
+
+  hyperlaneWarpRebalancer(
+    checkFrequency: number,
+    config: string,
+    withMetrics: boolean,
+    monitorOnly?: boolean,
+    manual?: boolean,
+    origin?: string,
+    destination?: string,
+    amount?: string,
+    key?: string,
+    explorerUrl?: string,
+  ): ProcessPromise {
+    const keyToUse = key ?? HYP_KEY_BY_PROTOCOL.ethereum;
+    const rebalancerAddress = new Wallet(keyToUse).address;
+
+    return $`${explorerUrl ? [`EXPLORER_API_URL=${explorerUrl}`] : []} \
+          REBALANCER=${rebalancerAddress} ${localTestRunCmdPrefix()} \
+          hyperlane warp rebalancer \
+          --registry ${this.registryPath} \
+          --checkFrequency ${checkFrequency} \
+          --config ${config} \
+          --key ${keyToUse} \
+          --verbosity debug \
+          --withMetrics ${withMetrics ? ['true'] : ['false']} \
+          --monitorOnly ${monitorOnly ? ['true'] : ['false']} \
+          ${manual ? ['--manual'] : []} \
+          ${origin ? ['--origin', origin] : []} \
+          ${destination ? ['--destination', destination] : []} \
+          ${amount ? ['--amount', amount] : []}`;
   }
 }
