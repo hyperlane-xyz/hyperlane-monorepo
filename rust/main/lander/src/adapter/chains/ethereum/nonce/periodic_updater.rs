@@ -8,6 +8,7 @@ use ethers_core::types::Address;
 
 use super::error::{NonceError, NonceResult};
 use super::state::NonceManagerState;
+use super::NonceUpdater;
 
 pub struct PeriodicNonceUpdater {
     address: Address,
@@ -36,23 +37,14 @@ impl PeriodicNonceUpdater {
 
     pub async fn run(&self) {
         loop {
-            let _ = self.update_latest_finalized_nonce().await;
+            let _ = NonceUpdater::update_state_boundaries_immediately(
+                &self.provider,
+                &self.state,
+                &self.address,
+                &self.reorg_period,
+            )
+            .await;
             tokio::time::sleep(self.poll_rate).await;
         }
-    }
-
-    pub async fn update_latest_finalized_nonce(&self) -> NonceResult<()> {
-        let next_nonce = self
-            .provider
-            .get_next_nonce_on_finalized_block(&self.address, &self.reorg_period)
-            .await
-            .map_err(NonceError::ProviderError)?;
-
-        let finalized_nonce = next_nonce.checked_sub(U256::one());
-
-        if let Some(finalized_nonce) = finalized_nonce {
-            self.state.update_boundary_nonces(&finalized_nonce).await?;
-        }
-        Ok(())
     }
 }

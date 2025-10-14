@@ -59,16 +59,30 @@ impl NonceUpdater {
     }
 
     async fn update_boundaries_immediately(&self) -> NonceResult<()> {
-        let next_nonce = self
-            .provider
-            .get_next_nonce_on_finalized_block(&self.address, &self.reorg_period)
+        NonceUpdater::update_state_boundaries_immediately(
+            &self.provider,
+            &self.state,
+            &self.address,
+            &self.reorg_period,
+        )
+        .await
+    }
+
+    pub async fn update_state_boundaries_immediately(
+        provider: &Arc<dyn EvmProviderForLander>,
+        state: &Arc<NonceManagerState>,
+        address: &Address,
+        reorg_period: &EthereumReorgPeriod,
+    ) -> NonceResult<()> {
+        let next_nonce = provider
+            .get_next_nonce_on_finalized_block(address, reorg_period)
             .await
             .map_err(NonceError::ProviderError)?;
 
         let finalized_nonce = next_nonce.checked_sub(U256::one());
 
         if let Some(finalized_nonce) = finalized_nonce {
-            self.state.update_boundary_nonces(&finalized_nonce).await?;
+            state.update_boundary_nonces(&finalized_nonce).await?;
         }
 
         Ok(())
