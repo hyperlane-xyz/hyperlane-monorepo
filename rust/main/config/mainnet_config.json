@@ -533,7 +533,7 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x058C7458193f1b28e2bF7547E3f7a6A719Fc0f59",
       "technicalStack": "other",
       "transactionOverrides": {
-        "gasPrice": 3000000000
+        "gasPrice": 100000000
       }
     },
     "celo": {
