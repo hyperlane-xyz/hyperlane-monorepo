@@ -48,13 +48,19 @@ jobs:
       - name: Generate tag data
         id: taggen
         run: |
+          set -euo pipefail
           echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
           echo "TAG_SHA=$(echo '${{ github.event.pull_request.head.sha || github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
-          # Strip 'agents-v' prefix from tag for semver parsing (e.g., agents-v1.2.3 -> 1.2.3)
-          # Only set SEMVER if ref starts with agents-v, otherwise leave empty
-          if [[ "${{ github.ref_name }}" =~ ^agents-v ]]; then
-            SEMVER="$(echo "${{ github.ref_name }}" | sed -E 's/^agents-v//')"
-            echo "SEMVER=$SEMVER" >> $GITHUB_OUTPUT
+          # For tag events, derive pure semver:
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            NAME="${{ github.ref_name }}"
+            # Strip agents- prefix and any leading v
+            NAME="${NAME#agents-}"
+            NAME="${NAME#v}"
+            # Basic semver guard (allows prerelease/build metadata)
+            if echo "$NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'; then
+              echo "SEMVER=$NAME" >> $GITHUB_OUTPUT
+            fi
           fi
       - name: Docker meta
         id: meta
@@ -68,8 +74,8 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=ref,event=tag
-            type=semver,pattern={{version}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ startsWith(github.ref_name, 'agents-v') }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ startsWith(github.ref_name, 'agents-v') }}
+            type=semver,pattern={{version}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ github.ref_type == 'tag' && steps.taggen.outputs.SEMVER != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ github.ref_type == 'tag' && steps.taggen.outputs.SEMVER != '' }}
             type=raw,value=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
       - name: Set up Depot CLI
         uses: depot/setup-action@v1
