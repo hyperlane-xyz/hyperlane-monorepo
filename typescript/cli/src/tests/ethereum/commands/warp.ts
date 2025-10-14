@@ -21,7 +21,7 @@ import {
 import { getContext } from '../../../context/context.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJson } from '../../../utils/files.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
@@ -451,87 +451,12 @@ export function generateWarpConfigs(
 }
 
 /**
- * Updates the owner of the Warp route deployment config, and then output to a file
- */
-export async function updateWarpOwnerConfig(
-  chain: string,
-  owner: Address,
-  warpCorePath: string,
-  warpDeployPath: string,
-): Promise<string> {
-  const warpDeployConfig = await readWarpConfig(
-    chain,
-    warpCorePath,
-    warpDeployPath,
-  );
-  warpDeployConfig[chain].owner = owner;
-  await writeYamlOrJson(warpDeployPath, warpDeployConfig);
-
-  return warpDeployPath;
-}
-
-/**
- * Updates the Warp route deployment configuration with a new owner, and then applies the changes.
- */
-export async function updateOwner(
-  owner: Address,
-  chain: string,
-  warpConfigPath: string,
-  warpCoreConfigPath: string,
-) {
-  await updateWarpOwnerConfig(chain, owner, warpCoreConfigPath, warpConfigPath);
-  return hyperlaneWarpApply(warpConfigPath, warpCoreConfigPath);
-}
-
-/**
- * Extends the Warp route deployment with a new warp config
- */
-export async function extendWarpConfig(params: {
-  chain: string;
-  chainToExtend: string;
-  extendedConfig: HypTokenRouterConfig;
-  warpCorePath: string;
-  warpDeployPath: string;
-  strategyUrl?: string;
-  warpRouteId?: string;
-}): Promise<string> {
-  const {
-    chain,
-    chainToExtend,
-    extendedConfig,
-    warpCorePath,
-    warpDeployPath,
-    strategyUrl,
-    warpRouteId,
-  } = params;
-  const warpDeployConfig = await readWarpConfig(
-    chain,
-    warpCorePath,
-    warpDeployPath,
-  );
-  warpDeployConfig[chainToExtend] = extendedConfig;
-  // Remove remoteRouters and destinationGas as they are written in readWarpConfig
-  delete warpDeployConfig[chain].remoteRouters;
-  delete warpDeployConfig[chain].destinationGas;
-
-  writeYamlOrJson(warpDeployPath, warpDeployConfig);
-  await hyperlaneWarpApplyRaw({
-    warpDeployPath,
-    warpCorePath,
-    strategyUrl,
-    warpRouteId,
-  });
-
-  return warpDeployPath;
-}
-
-/**
  * Sets up an incomplete warp route extension for testing purposes.
  *
  * This function creates a new warp route configuration for the second chain.
  */
 export async function setupIncompleteWarpRouteExtension(
-  chain2Addresses: ChainAddresses,
+  coreDeploymentAddressesOfChainToExtend: ChainAddresses,
 ): Promise<{
   chain2DomainId: string;
   chain3DomainId: string;
@@ -547,7 +472,7 @@ export async function setupIncompleteWarpRouteExtension(
 
   const configToExtend: HypTokenRouterConfig = {
     decimals: 18,
-    mailbox: chain2Addresses!.mailbox,
+    mailbox: coreDeploymentAddressesOfChainToExtend!.mailbox,
     name: 'Ether',
     owner: new Wallet(ANVIL_KEY).address,
     symbol: 'ETH',
