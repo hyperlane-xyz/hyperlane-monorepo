@@ -227,6 +227,38 @@ export class HyperlaneE2EWarpTestCommands {
     });
   }
 
+  public initRaw({
+    privateKey,
+    hypKey,
+    skipConfirmationPrompts,
+    advanced,
+    outputPath,
+  }: {
+    privateKey?: string;
+    hypKey?: string;
+    skipConfirmationPrompts?: boolean;
+    outputPath?: string;
+    advanced?: boolean;
+  }): ProcessPromise {
+    return $`${
+      hypKey ? ['HYP_KEY=' + hypKey] : []
+    } ${localTestRunCmdPrefix()} hyperlane warp init \
+          --registry ${this.registryPath} \
+          ${outputPath ? ['--out', outputPath] : []} \
+          ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
+          ${advanced ? ['--advanced'] : []} \
+          --verbosity debug \
+          ${skipConfirmationPrompts ? ['--yes'] : []}`;
+  }
+
+  public init(outputPath: string, privateKey?: string): ProcessPromise {
+    return this.initRaw({
+      outputPath,
+      privateKey,
+      skipConfirmationPrompts: true,
+    });
+  }
+
   sendAndRelay({
     relay = true,
     destination,
