@@ -310,6 +310,7 @@ jobs:
           - core-read
           # Other commands
           - relay
+          - submit
           # Warp Commands
           - warp-apply-1
           - warp-apply-2
