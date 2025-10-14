@@ -160,21 +160,21 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     console.log('Bridging tokens...');
 
     await Promise.all([
-      hyperlaneWarpSendRelay(
-        CHAIN_NAME_2,
-        CHAIN_NAME_4,
-        warpCoreConfigPath,
-        true,
-        toWei(10),
-      ),
+      hyperlaneWarpSendRelay({
+        origin: CHAIN_NAME_2,
+        destination: CHAIN_NAME_4,
+        warpCorePath: warpCoreConfigPath,
+        relay: true,
+        value: toWei(10),
+      }),
       sleep(2000).then(() =>
-        hyperlaneWarpSendRelay(
-          CHAIN_NAME_3,
-          CHAIN_NAME_4,
-          warpCoreConfigPath,
-          true,
-          toWei(10),
-        ),
+        hyperlaneWarpSendRelay({
+          origin: CHAIN_NAME_3,
+          destination: CHAIN_NAME_4,
+          warpCorePath: warpCoreConfigPath,
+          relay: true,
+          value: toWei(10),
+        }),
       ),
     ]);
   });
@@ -1235,13 +1235,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // This process locks tokens on the destination chain and unlocks them on the origin,
     // effectively increasing collateral on the destination while decreasing it on the origin,
     // which achieves the desired rebalancing effect.
-    await hyperlaneWarpSendRelay(
-      destName,
-      originName,
-      warpCoreConfigPath,
-      true,
-      sentTransferRemote.amount.toString(),
-    );
+    await hyperlaneWarpSendRelay({
+      origin: destName,
+      destination: originName,
+      warpCorePath: warpCoreConfigPath,
+      relay: true,
+      value: sentTransferRemote.amount.toString(),
+    });
 
     originBalance = await originTkn.balanceOf(originContractAddress);
     destBalance = await destTkn.balanceOf(destContractAddress);
@@ -1701,13 +1701,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // This process locks tokens on the destination chain and unlocks them on the origin,
       // effectively increasing collateral on the destination while decreasing it on the origin,
       // which achieves the desired rebalancing effect.
-      await hyperlaneWarpSendRelay(
-        destName,
-        originName,
-        warpCoreConfigPath,
-        true,
-        sentTransferRemote.amount.toString(),
-      );
+      await hyperlaneWarpSendRelay({
+        origin: destName,
+        destination: originName,
+        warpCorePath: warpCoreConfigPath,
+        relay: true,
+        value: sentTransferRemote.amount.toString(),
+      });
 
       originBalance = await originTkn.balanceOf(originContractAddress);
       destBalance = await destTkn.balanceOf(destContractAddress);
