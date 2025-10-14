@@ -108,7 +108,6 @@ should_include_workspace() {
 git log --no-merges --format="%H" $COMMIT_RANGE -- rust/main | while read -r commit_hash; do
     # Get commit message
     commit_msg=$(git log -1 --format="%s" "$commit_hash")
-    short_hash=$(echo "$commit_hash" | cut -c1-7)
 
     # Get files changed in this commit (within rust/main)
     files=$(git diff-tree --no-commit-id --name-only -r "$commit_hash" -- rust/main)
@@ -136,8 +135,8 @@ git log --no-merges --format="%H" $COMMIT_RANGE -- rust/main | while read -r com
     # Sanitize workspace name for file system (replace / with __)
     workspace_file=$(echo "$workspace" | tr '/' '_')
 
-    # Store commit in workspace category file
-    echo "$workspace|$commit_msg|$short_hash" >> "$TEMP_DIR/$workspace_file"
+    # Store commit in workspace category file (just message, PR# already in message)
+    echo "$workspace|$commit_msg" >> "$TEMP_DIR/$workspace_file"
 done
 
 # Function to generate changelog for a specific workspace
@@ -151,8 +150,8 @@ generate_workspace_changelog() {
             echo "### $workspace"
             echo ""
         fi
-        sort -u "$TEMP_DIR/$workspace_file" | while IFS='|' read -r ws msg hash; do
-            echo "* $msg (#$hash)"
+        sort -u "$TEMP_DIR/$workspace_file" | while IFS='|' read -r ws msg; do
+            echo "* $msg"
         done
     fi
 }
