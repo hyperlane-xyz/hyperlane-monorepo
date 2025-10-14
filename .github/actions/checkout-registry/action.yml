@@ -17,7 +17,7 @@ runs:
         fi
 
     - name: Checkout hyperlane-registry
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: hyperlane-xyz/hyperlane-registry
         ref: ${{ env.REGISTRY_VERSION }}
