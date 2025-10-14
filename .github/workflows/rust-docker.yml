@@ -60,6 +60,12 @@ jobs:
             # Basic semver guard (allows prerelease/build metadata)
             if echo "$NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'; then
               echo "SEMVER=$NAME" >> $GITHUB_OUTPUT
+              # Check if this is a stable release (no prerelease suffix like -beta, -rc, -alpha)
+              if echo "$NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                echo "IS_STABLE=true" >> $GITHUB_OUTPUT
+              else
+                echo "IS_STABLE=false" >> $GITHUB_OUTPUT
+              fi
             fi
           fi
       - name: Docker meta
@@ -75,7 +81,7 @@ jobs:
             type=ref,event=pr
             type=ref,event=tag
             type=semver,pattern={{version}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ github.ref_type == 'tag' && steps.taggen.outputs.SEMVER != '' }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ github.ref_type == 'tag' && steps.taggen.outputs.SEMVER != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ github.ref_type == 'tag' && steps.taggen.outputs.IS_STABLE == 'true' }}
             type=raw,value=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
       - name: Set up Depot CLI
         uses: depot/setup-action@v1
