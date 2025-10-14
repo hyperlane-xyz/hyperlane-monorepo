@@ -130,16 +130,16 @@ jobs:
 
           # Analyze commits for conventional commit types
           HAS_BREAKING=false
-          HAS_FEAT=false
-          HAS_FIX=false
+          HAS_MINOR=false
+          HAS_PATCH=false
 
           while IFS= read -r commit; do
             if echo "$commit" | grep -qE "^[a-f0-9]+ [a-z]+(\(.+\))?!:"; then
               HAS_BREAKING=true
-            elif echo "$commit" | grep -qE "^[a-f0-9]+ feat(\(.+\))?:"; then
-              HAS_FEAT=true
-            elif echo "$commit" | grep -qE "^[a-f0-9]+ fix(\(.+\))?:"; then
-              HAS_FIX=true
+            elif echo "$commit" | grep -qE "^[a-f0-9]+ (feat|refactor|perf|chore)(\(.+\))?:"; then
+              HAS_MINOR=true
+            elif echo "$commit" | grep -qE "^[a-f0-9]+ (fix|docs|test|ci|style|build)(\(.+\))?:"; then
+              HAS_PATCH=true
             fi
 
             # Check commit body for BREAKING CHANGE
@@ -155,11 +155,11 @@ jobs:
             MINOR=0
             PATCH=0
             BUMP_TYPE="major"
-          elif [ "$HAS_FEAT" = true ]; then
+          elif [ "$HAS_MINOR" = true ]; then
             MINOR=$((MINOR + 1))
             PATCH=0
             BUMP_TYPE="minor"
-          elif [ "$HAS_FIX" = true ]; then
+          elif [ "$HAS_PATCH" = true ]; then
             PATCH=$((PATCH + 1))
             BUMP_TYPE="patch"
           else
