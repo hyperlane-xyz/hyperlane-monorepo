@@ -378,10 +378,33 @@ jobs:
             CHANGELOG=$(./rust/scripts/generate-workspace-changelog.sh "${PREV_TAG}..${COMMIT_RANGE_END}")
           fi
 
+          # Generate new contributors section using GitHub's auto-generated notes
+          NEW_CONTRIBUTORS=""
+          if [ -n "$PREV_TAG" ]; then
+            # Use GitHub API to generate release notes and extract new contributors
+            AUTO_NOTES=$(gh api --method POST "/repos/${{ github.repository }}/releases/generate-notes" \
+              -f tag_name="$TAG_NAME" \
+              -f target_commitish="$COMMIT_RANGE_END" \
+              -f previous_tag_name="$PREV_TAG" \
+              --jq '.body' 2>/dev/null || echo "")
+
+            # Extract the "New Contributors" section if it exists
+            if [ -n "$AUTO_NOTES" ]; then
+              NEW_CONTRIBUTORS=$(echo "$AUTO_NOTES" | sed -n '/^## New Contributors$/,/^## /p' | sed '$d')
+              # If we got the section, add proper spacing
+              if [ -n "$NEW_CONTRIBUTORS" ]; then
+                NEW_CONTRIBUTORS=$'\n\n'"${NEW_CONTRIBUTORS}"
+              fi
+            fi
+          fi
+
           # Add warning for pre-releases
           if [ "$IS_PRERELEASE" = "true" ]; then
             CHANGELOG="⚠️ **This is a pre-release version.**"$'\n\n'"${CHANGELOG}"
           fi
+
+          # Append new contributors section
+          CHANGELOG="${CHANGELOG}${NEW_CONTRIBUTORS}"
 
           # Create tag and GitHub release
           git tag -a "$TAG_NAME" -m "$RELEASE_TYPE $TAG_NAME"
