@@ -20,37 +20,38 @@ import {
   handlePrompts,
 } from '../../commands/helpers.js';
 import {
-  ANVIL_KEY,
-  CHAIN_2_METADATA_PATH,
-  CHAIN_NAME_2,
-  CORE_CONFIG_PATH,
-  CORE_READ_CONFIG_PATH_2,
+  CORE_CONFIG_PATH_BY_PROTOCOL,
+  CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
+  HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
-} from '../consts.js';
+  TEST_CHAIN_METADATA_BY_PROTOCOL,
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
+} from '../../constants.js';
 
 describe('hyperlane core deploy e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
   const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
-    CHAIN_NAME_2,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     REGISTRY_PATH,
-    CORE_CONFIG_PATH,
-    CORE_READ_CONFIG_PATH_2,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
   );
 
   let signer: Signer;
   let initialOwnerAddress: Address;
 
   before(async () => {
-    const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chainMetadata: ChainMetadata =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
 
     const provider = new ethers.providers.JsonRpcProvider(
       chainMetadata.rpcUrls[0].http,
     );
 
-    const wallet = new Wallet(ANVIL_KEY);
+    const wallet = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum);
     signer = wallet.connect(provider);
 
     initialOwnerAddress = await signer.getAddress();
@@ -66,7 +67,7 @@ describe('hyperlane core deploy e2e tests', async function () {
           // Scroll down through the mainnet chains list and select anvil2
           input: `${KeyBoardKeys.ARROW_DOWN.repeat(2)}}${KeyBoardKeys.ENTER}`,
         },
-        SETUP_CHAIN_SIGNER_MANUALLY_STEP(ANVIL_KEY),
+        SETUP_CHAIN_SIGNER_MANUALLY_STEP(HYP_KEY_BY_PROTOCOL.ethereum),
         {
           // When running locally the e2e tests, the chains folder might already have the chain contracts
           check: (currentOutput) =>
@@ -105,7 +106,7 @@ describe('hyperlane core deploy e2e tests', async function () {
   describe('hyperlane core deploy --yes', () => {
     it('should fail if the --chain flag is not provided but the --yes flag is', async () => {
       const steps: TestPromptAction[] = [
-        SETUP_CHAIN_SIGNER_MANUALLY_STEP(ANVIL_KEY),
+        SETUP_CHAIN_SIGNER_MANUALLY_STEP(HYP_KEY_BY_PROTOCOL.ethereum),
       ];
 
       const output = hyperlaneCore
@@ -144,7 +145,9 @@ describe('hyperlane core deploy e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCore.deployRaw(ANVIL_KEY).stdio('pipe');
+      const output = hyperlaneCore
+        .deployRaw(HYP_KEY_BY_PROTOCOL.ethereum)
+        .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -190,7 +193,7 @@ describe('hyperlane core deploy e2e tests', async function () {
       ];
 
       const output = hyperlaneCore
-        .deployRaw(undefined, ANVIL_KEY, undefined)
+        .deployRaw(undefined, HYP_KEY_BY_PROTOCOL.ethereum, undefined)
         .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
@@ -214,7 +217,7 @@ describe('hyperlane core deploy e2e tests', async function () {
 
   describe('hyperlane core deploy --yes --key ...', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
-      await hyperlaneCore.deploy(ANVIL_KEY);
+      await hyperlaneCore.deploy(HYP_KEY_BY_PROTOCOL.ethereum);
 
       const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
 
@@ -227,16 +230,23 @@ describe('hyperlane core deploy e2e tests', async function () {
     });
 
     it('should create a core deployment with the mailbox owner set to the address in the config', async () => {
-      const coreConfig: CoreConfig = await readYamlOrJson(CORE_CONFIG_PATH);
+      const coreConfig: CoreConfig = await readYamlOrJson(
+        CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+      );
 
       const newOwner = randomAddress().toLowerCase();
 
       coreConfig.owner = newOwner;
-      writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
+      writeYamlOrJson(
+        CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        coreConfig,
+      );
 
       // Deploy the core contracts with the updated mailbox owner
-      hyperlaneCore.setCoreInputPath(CORE_READ_CONFIG_PATH_2);
-      await hyperlaneCore.deploy(ANVIL_KEY);
+      hyperlaneCore.setCoreInputPath(
+        CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      );
+      await hyperlaneCore.deploy(HYP_KEY_BY_PROTOCOL.ethereum);
 
       // Verify that the owner has been set correctly without modifying any other owner values
       const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
@@ -250,15 +260,20 @@ describe('hyperlane core deploy e2e tests', async function () {
     });
 
     it('should create a core deployment with ProxyAdmin owner of the mailbox set to the address in the config', async () => {
-      const coreConfig: CoreConfig = await readYamlOrJson(CORE_CONFIG_PATH);
+      const coreConfig: CoreConfig = await readYamlOrJson(
+        CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+      );
 
       const newOwner = randomAddress().toLowerCase();
 
       coreConfig.proxyAdmin = { owner: newOwner };
-      writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
+      writeYamlOrJson(
+        CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        coreConfig,
+      );
 
       // Deploy the core contracts with the updated mailbox owner
-      await hyperlaneCore.deploy(ANVIL_KEY);
+      await hyperlaneCore.deploy(HYP_KEY_BY_PROTOCOL.ethereum);
 
       // Verify that the owner has been set correctly without modifying any other owner values
       const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
