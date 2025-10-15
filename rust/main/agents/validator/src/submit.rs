@@ -168,6 +168,12 @@ impl ValidatorSubmitter {
                     "Updating latest seen checkpoint index"
                 );
                 latest_seen_checkpoint_index = latest_checkpoint.index;
+                if let Err(err) = self
+                    .db
+                    .store_latest_checkpoint_index(latest_seen_checkpoint_index as u64)
+                {
+                    tracing::error!(?err, "Failed to store latest_checkpoint_index");
+                };
                 if let Some(block_height) = latest_checkpoint.block_height {
                     if block_height < latest_seen_checkpoint_block_height {
                         tracing::warn!(
@@ -178,6 +184,12 @@ impl ValidatorSubmitter {
                         );
                     }
                     latest_seen_checkpoint_block_height = block_height;
+                    if let Err(err) = self
+                        .db
+                        .store_latest_checkpoint_block_height(latest_seen_checkpoint_block_height)
+                    {
+                        tracing::error!(?err, "Failed to store latest_checkpoint_block_height");
+                    }
                 }
             }
 
