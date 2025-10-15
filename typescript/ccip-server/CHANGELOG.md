@@ -1,5 +1,13 @@
 # @hyperlane-xyz/ccip-server
 
+## 19.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@19.1.1
+- @hyperlane-xyz/utils@19.1.1
+- @hyperlane-xyz/core@9.0.13
+
 ## 19.1.0
 
 ### Patch Changes
