@@ -259,19 +259,9 @@ abstract contract TokenBridgeCctpBase is
             revert("Invalid circle recipient");
         }
 
-        bytes32 nonce = _getCircleNonce(cctpMessage);
-        // Receive only if the nonce hasn't been used before
-        if (messageTransmitter.usedNonces(nonce) == 0) {
-            require(
-                messageTransmitter.receiveMessage(
-                    cctpMessageBytes,
-                    attestation
-                ),
-                "Failed to receive message"
-            );
-        }
-
-        return true;
+        // This will revert after the first successful call,
+        // so the ISM will only return true once for this message
+        return messageTransmitter.receiveMessage(cctpMessageBytes, attestation);
     }
 
     function _offchainLookupCalldata(
