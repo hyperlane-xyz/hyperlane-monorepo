@@ -40,6 +40,8 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 const PAYLOAD_UUIDS_BY_MESSAGE_ID: &str = "payload_uuids_by_message_id_";
+const LATEST_CHECKPOINT_BLOCK_HEIGHT: &str = "latest_checkpoint_block_height";
+const LATEST_CHECKPOINT_INDEX: &str = "latest_checkpoint_index";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -697,6 +699,24 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>> {
         self.retrieve_value_by_key(PAYLOAD_UUIDS_BY_MESSAGE_ID, message_id)
+    }
+
+    fn store_latest_checkpoint_block_height(&self, checkpoint_block_height: u64) -> DbResult<()> {
+        self.store_value_by_key(
+            LATEST_CHECKPOINT_BLOCK_HEIGHT,
+            &bool::default(),
+            &checkpoint_block_height,
+        )
+    }
+    fn retrieve_latest_checkpoint_block_height(&self) -> DbResult<Option<u64>> {
+        self.retrieve_value_by_key(LATEST_CHECKPOINT_BLOCK_HEIGHT, &bool::default())
+    }
+
+    fn store_latest_checkpoint_index(&self, checkpoint_index: u64) -> DbResult<()> {
+        self.store_value_by_key(LATEST_CHECKPOINT_INDEX, &bool::default(), &checkpoint_index)
+    }
+    fn retrieve_latest_checkpoint_index(&self) -> DbResult<Option<u64>> {
+        self.retrieve_value_by_key(LATEST_CHECKPOINT_INDEX, &bool::default())
     }
 }
 

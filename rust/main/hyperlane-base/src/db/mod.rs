@@ -173,4 +173,14 @@ pub trait HyperlaneDb: Send + Sync {
         &self,
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+
+    /// Store latest seen checkpoint block height
+    fn store_latest_checkpoint_block_height(&self, checkpoint_index: u64) -> DbResult<()>;
+    /// Retrieve latest seen checkpoint block height
+    fn retrieve_latest_checkpoint_block_height(&self) -> DbResult<Option<u64>>;
+
+    /// Store latest seen checkpoint index
+    fn store_latest_checkpoint_index(&self, checkpoint_index: u64) -> DbResult<()>;
+    /// Store latest seen checkpoint index
+    fn retrieve_latest_checkpoint_index(&self) -> DbResult<Option<u64>>;
 }

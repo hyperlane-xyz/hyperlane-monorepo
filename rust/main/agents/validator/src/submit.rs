@@ -16,7 +16,7 @@ use hyperlane_core::{
     HyperlaneSignerExt, IncrementalMerkleAtBlock,
 };
 use hyperlane_core::{
-    ChainResult, HyperlaneSigner, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType,
+    ChainResult, HyperlaneSigner, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType, H256,
 };
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
 
@@ -118,6 +118,17 @@ impl ValidatorSubmitter {
             true
         };
 
+        let mut latest_seen_checkpoint_index = self
+            .db
+            .retrieve_latest_checkpoint_index()
+            .unwrap_or_default()
+            .unwrap_or_default() as u32;
+        let mut latest_seen_checkpoint_block_height = self
+            .db
+            .retrieve_latest_checkpoint_block_height()
+            .unwrap_or_default()
+            .unwrap_or_default();
+
         loop {
             // Lag by reorg period because this is our correctness checkpoint.
             let latest_checkpoint = call_and_retry_indefinitely(|| {
@@ -126,6 +137,49 @@ impl ValidatorSubmitter {
                 Box::pin(async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await })
             })
             .await;
+
+            if latest_checkpoint.index < latest_seen_checkpoint_index {
+                if let Some(block_height) = latest_checkpoint.block_height {
+                    if block_height >= latest_seen_checkpoint_block_height {
+                        tracing::error!(
+                            ?latest_checkpoint,
+                            ?latest_seen_checkpoint_index,
+                            ?latest_seen_checkpoint_block_height,
+                            "Latest checkpoint index is lower than previously seen, but has a block height equal or greater.");
+
+                        let checkpoint = self.checkpoint(&tree);
+                        Self::panic_with_reorg(
+                            &self.reorg_reporter,
+                            &self.reorg_period,
+                            &self.checkpoint_syncer,
+                            tree.root(),
+                            &latest_checkpoint,
+                            &checkpoint,
+                        )
+                        .await;
+                    }
+                }
+            }
+
+            if latest_checkpoint.index > latest_seen_checkpoint_index {
+                tracing::debug!(
+                    old_index = latest_seen_checkpoint_index,
+                    new_index = latest_checkpoint.index,
+                    "Updating latest seen checkpoint index"
+                );
+                latest_seen_checkpoint_index = latest_checkpoint.index;
+                if let Some(block_height) = latest_checkpoint.block_height {
+                    if block_height < latest_seen_checkpoint_block_height {
+                        tracing::warn!(
+                            checkpoint_index = latest_checkpoint.index,
+                            checkpoint_block_height = block_height,
+                            latest_seen_checkpoint_block_height,
+                            "Receive a checkpoint with a higher index, but lower block height"
+                        );
+                    }
+                    latest_seen_checkpoint_block_height = block_height;
+                }
+            }
 
             self.metrics
                 .set_latest_checkpoint_observed(&latest_checkpoint);
@@ -238,41 +292,15 @@ impl ValidatorSubmitter {
         // If the tree's checkpoint doesn't match the correctness checkpoint, something went wrong
         // and we bail loudly.
         if checkpoint != correctness_checkpoint.checkpoint {
-            let reorg_event = ReorgEvent::new(
+            Self::panic_with_reorg(
+                &self.reorg_reporter,
+                &self.reorg_period,
+                &self.checkpoint_syncer,
                 tree.root(),
-                correctness_checkpoint.root,
-                checkpoint.index,
-                chrono::Utc::now().timestamp() as u64,
-                self.reorg_period.clone(),
-            );
-            error!(
-                ?checkpoint,
-                ?correctness_checkpoint,
-                ?reorg_event,
-                "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support."
-            );
-
-            if let Some(height) = correctness_checkpoint.block_height {
-                self.reorg_reporter.report_at_block(height).await;
-            } else {
-                info!("Blockchain does not support block height, reporting with reorg period");
-                self.reorg_reporter
-                    .report_with_reorg_period(&self.reorg_period)
-                    .await;
-            }
-
-            let mut panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support.".to_owned();
-            if let Err(e) = self
-                .checkpoint_syncer
-                .write_reorg_status(&reorg_event)
-                .await
-            {
-                panic_message.push_str(&format!(
-                    " Reorg troubleshooting details couldn't be written to checkpoint storage: {}",
-                    e
-                ));
-            }
-            panic!("{panic_message}");
+                correctness_checkpoint,
+                &checkpoint,
+            )
+            .await;
         }
 
         tracing::info!(
@@ -293,6 +321,54 @@ impl ValidatorSubmitter {
                 index = checkpoint.index,
                 "Signed all queued checkpoints until index"
             );
+        }
+    }
+
+    async fn panic_with_reorg(
+        reorg_reporter: &Arc<dyn ReorgReporter>,
+        reorg_period: &ReorgPeriod,
+        checkpoint_syncer: &Arc<dyn CheckpointSyncer>,
+        tree_root: H256,
+        correctness_checkpoint: &CheckpointAtBlock,
+        incorrect_checkpoint: &Checkpoint,
+    ) {
+        let reorg_event = ReorgEvent::new(
+            tree_root,
+            correctness_checkpoint.root,
+            incorrect_checkpoint.index,
+            chrono::Utc::now().timestamp() as u64,
+            reorg_period.clone(),
+        );
+        error!(
+            ?incorrect_checkpoint,
+            ?correctness_checkpoint,
+            ?reorg_event,
+            "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support."
+        );
+
+        Self::report_reorg_with_checkpoint(reorg_reporter, reorg_period, correctness_checkpoint)
+            .await;
+
+        let mut panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support.".to_owned();
+        if let Err(e) = checkpoint_syncer.write_reorg_status(&reorg_event).await {
+            panic_message.push_str(&format!(
+                " Reorg troubleshooting details couldn't be written to checkpoint storage: {}",
+                e
+            ));
+        }
+        panic!("{panic_message}");
+    }
+
+    async fn report_reorg_with_checkpoint(
+        reorg_reporter: &Arc<dyn ReorgReporter>,
+        reorg_period: &ReorgPeriod,
+        correctness_checkpoint: &CheckpointAtBlock,
+    ) {
+        if let Some(height) = correctness_checkpoint.block_height {
+            reorg_reporter.report_at_block(height).await;
+        } else {
+            info!("Blockchain does not support block height, reporting with reorg period");
+            reorg_reporter.report_with_reorg_period(reorg_period).await;
         }
     }
 

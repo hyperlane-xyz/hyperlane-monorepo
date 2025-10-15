@@ -736,6 +736,17 @@ pub mod test {
             fn store_payload_uuids_by_message_id(&self, message_id: &H256, payload_uuids: Vec<UniqueIdentifier>) -> DbResult<()>;
 
             fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+
+            fn store_latest_checkpoint_block_height(
+                &self,
+                checkpoint_index: u64,
+            ) -> DbResult<()>;
+            fn retrieve_latest_checkpoint_block_height(
+                &self,
+            ) -> DbResult<Option<u64>>;
+
+            fn store_latest_checkpoint_index(&self, checkpoint_index: u64) -> DbResult<()>;
+            fn retrieve_latest_checkpoint_index(&self) -> DbResult<Option<u64>>;
         }
     }
 
