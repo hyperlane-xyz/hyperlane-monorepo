@@ -21,6 +21,8 @@ export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
 export const WARP_READ_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}-read.yaml`;
 
+export const REBALANCER_CONFIG_PATH = `${TEMP_PATH}/rebalancer-config.json`;
+
 export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   [ProtocolType.Ethereum]: {
     CHAIN_NAME_2: 'anvil2',

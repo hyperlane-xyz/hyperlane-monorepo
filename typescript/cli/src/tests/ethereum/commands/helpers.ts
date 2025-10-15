@@ -22,10 +22,10 @@ import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { KeyBoardKeys, TestPromptAction } from '../../commands/helpers.js';
 import {
-  ANVIL_KEY,
+  HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
-  getCombinedWarpRoutePath,
-} from '../consts.js';
+  getWarpCoreConfigPath,
+} from '../../constants.js';
 
 export const GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH = (
   originalDeployConfigPath: string,
@@ -33,7 +33,7 @@ export const GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH = (
 ): string => {
   const fileName = path.parse(originalDeployConfigPath).name;
 
-  return getCombinedWarpRoutePath(symbol, [fileName]);
+  return getWarpCoreConfigPath(symbol, [fileName]);
 };
 
 export function exportWarpConfigsToFilePaths({
@@ -119,7 +119,7 @@ export const CONFIRM_DETECTED_TRUSTED_ISM_STEP: Readonly<TestPromptAction> = {
 export const SETUP_CHAIN_SIGNER_MANUALLY_STEP: Readonly<TestPromptAction> = {
   check: (currentOutput) =>
     currentOutput.includes('Please enter the private key for chain'),
-  input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+  input: `${HYP_KEY_BY_PROTOCOL.ethereum}${KeyBoardKeys.ENTER}`,
 };
 
 /**
@@ -280,7 +280,7 @@ export async function hyperlaneSendMessage(
         --registry ${REGISTRY_PATH} \
         --origin ${origin} \
         --destination ${destination} \
-        --key ${ANVIL_KEY} \
+        --key ${HYP_KEY_BY_PROTOCOL.ethereum} \
         --verbosity debug \
         --yes`;
 }
@@ -290,7 +290,7 @@ export function hyperlaneRelayer(chains: string[], warp?: string) {
         --registry ${REGISTRY_PATH} \
         --chains ${chains.join(',')} \
         --warp ${warp ?? ''} \
-        --key ${ANVIL_KEY} \
+        --key ${HYP_KEY_BY_PROTOCOL.ethereum} \
         --verbosity debug \
         --yes`;
 }
@@ -344,7 +344,7 @@ export async function hyperlaneSubmit({
   } ${localTestRunCmdPrefix()} hyperlane submit \
         --registry ${REGISTRY_PATH} \
         --transactions ${transactionsPath} \
-        --key ${ANVIL_KEY} \
+        --key ${HYP_KEY_BY_PROTOCOL.ethereum} \
         --verbosity debug \
         ${strategyPath ? ['--strategy', strategyPath] : []} \
         --yes`;
