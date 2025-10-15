@@ -132,7 +132,7 @@ mockall::mock! {
         fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         fn store_latest_checkpoint_block_height(
             &self,
-            checkpoint_index: u64,
+            checkpoint_block_height: u64,
         ) -> DbResult<()>;
         fn retrieve_latest_checkpoint_block_height(
             &self,

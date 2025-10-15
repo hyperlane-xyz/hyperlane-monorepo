@@ -739,7 +739,7 @@ pub mod test {
 
             fn store_latest_checkpoint_block_height(
                 &self,
-                checkpoint_index: u64,
+                checkpoint_block_height: u64,
             ) -> DbResult<()>;
             fn retrieve_latest_checkpoint_block_height(
                 &self,
