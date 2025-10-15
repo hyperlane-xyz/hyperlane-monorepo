@@ -22,18 +22,18 @@ type DeploymentChains<T> = {
 
 // SAFE wallets from the team
 
-const SAFE_OWNER = '0x9adBd244557F59eE8F5633D2d2e2c0abec8FCCC2';
+const DEFAULT_SAFE_OWNER = '0x9adBd244557F59eE8F5633D2d2e2c0abec8FCCC2';
 
 const ownersByChain: DeploymentChains<Address> = {
-  arbitrum: SAFE_OWNER,
-  base: SAFE_OWNER,
-  polygon: SAFE_OWNER,
-  ethereum: SAFE_OWNER,
+  arbitrum: DEFAULT_SAFE_OWNER,
+  base: DEFAULT_SAFE_OWNER,
+  polygon: DEFAULT_SAFE_OWNER,
+  ethereum: DEFAULT_SAFE_OWNER,
   // It is still a safe but a different address
   pulsechain: '0x703cf58975B14142eD0Ba272555789610c85520c',
-  avalanche: SAFE_OWNER,
-  optimism: SAFE_OWNER,
-  unichain: SAFE_OWNER,
+  avalanche: DEFAULT_SAFE_OWNER,
+  optimism: DEFAULT_SAFE_OWNER,
+  unichain: DEFAULT_SAFE_OWNER,
 };
 
 const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
