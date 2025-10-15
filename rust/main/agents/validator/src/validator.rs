@@ -140,9 +140,18 @@ impl BaseAgent for Validator {
 
         // Be extra sure to panic when checkpoint syncer fails, which indicates
         // a fatal startup error.
-        let checkpoint_syncer = checkpoint_syncer_result
+        let checkpoint_syncer: Arc<dyn CheckpointSyncer> = checkpoint_syncer_result
             .expect("Failed to build checkpoint syncer")
             .into();
+
+        let arg = checkpoint_syncer.clone();
+        let reorg_reporter = LatestCheckpointReorgReporter::from_settings_with_storage_writer(
+            &settings,
+            &metrics,
+            Some(arg),
+        )
+        .await?;
+        let reorg_reporter = Arc::new(reorg_reporter) as Arc<dyn ReorgReporter>;
 
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
 

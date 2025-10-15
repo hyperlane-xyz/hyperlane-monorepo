@@ -3,14 +3,16 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use ethers::utils::keccak256;
 use futures_util::future::join_all;
-use tracing::info;
+use serde::Serialize;
+use tracing::{info, warn};
 use url::Url;
 
 use hyperlane_base::settings::ChainConnectionConf;
-use hyperlane_base::CoreMetrics;
+use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{HyperlaneDomain, MerkleTreeHook, ReorgPeriod};
+use hyperlane_core::{CheckpointAtBlock, HyperlaneDomain, MerkleTreeHook, ReorgPeriod, H256};
 use hyperlane_ethereum::RpcConnectionConf;
 
 use crate::settings::ValidatorSettings;
@@ -24,6 +26,44 @@ pub trait ReorgReporter: Send + Sync + Debug {
 #[derive(Debug)]
 pub struct LatestCheckpointReorgReporter {
     merkle_tree_hooks: HashMap<Url, Arc<dyn MerkleTreeHook>>,
+    /// In some cases, it is desirable for the `LatestCheckpointReorgReporter` to also write RPC
+    /// responses to a storage location. If a storage location is provided during initialization,
+    /// the `LatestCheckpointReorgReporter` will write to the specified location in addition to its
+    /// default behavior.
+    ///
+    /// Currently, the storage abstraction is tied to the checkpoint syncer, which is why
+    /// it is used here.
+    storage_writer: Option<Arc<dyn CheckpointSyncer>>,
+}
+
+#[derive(Serialize)]
+struct ReorgReportRpcResponse {
+    rpc_url_hash: H256,
+    rpc_host_hash: H256,
+    height: Option<u64>,
+    reorg_period: Option<ReorgPeriod>,
+    merkle_root_index: u32,
+    merkle_root_hash: H256,
+    timestamp: String,
+}
+
+impl ReorgReportRpcResponse {
+    fn new(
+        url: Url,
+        latest_checkpoint: CheckpointAtBlock,
+        height: Option<u64>,
+        reorg_period: Option<ReorgPeriod>,
+    ) -> Self {
+        ReorgReportRpcResponse {
+            rpc_host_hash: H256::from_slice(&keccak256(&url.domain().unwrap().as_bytes())),
+            rpc_url_hash: H256::from_slice(&keccak256(&url.as_str().as_bytes())),
+            height,
+            reorg_period,
+            merkle_root_hash: latest_checkpoint.checkpoint.root,
+            merkle_root_index: latest_checkpoint.checkpoint.index,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        }
+    }
 }
 
 #[async_trait]
@@ -42,12 +82,14 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
                 .await;
 
                 info!(url = ?url.clone(), ?height, ?latest_checkpoint, "Report latest checkpoint on reorg");
+                ReorgReportRpcResponse::new(url.clone(), latest_checkpoint, Some(height), None)
             };
 
             futures.push(future);
         }
 
-        join_all(futures).await;
+        let storage_logs = join_all(futures).await;
+        self.submit_to_storage_writer(&storage_logs).await;
     }
 
     async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod) {
@@ -63,12 +105,19 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
                 .await;
 
                 info!(url = ?url.clone(), ?reorg_period, ?latest_checkpoint, "Report latest checkpoint on reorg");
+                ReorgReportRpcResponse::new(
+                    url.clone(),
+                    latest_checkpoint,
+                    None,
+                    Some(reorg_period.clone()),
+                )
             };
 
             futures.push(future);
         }
 
-        join_all(futures).await;
+        let storage_logs = join_all(futures).await;
+        self.submit_to_storage_writer(&storage_logs).await;
     }
 }
 
@@ -76,6 +125,14 @@ impl LatestCheckpointReorgReporter {
     pub(crate) async fn from_settings(
         settings: &ValidatorSettings,
         metrics: &CoreMetrics,
+    ) -> eyre::Result<Self> {
+        Self::from_settings_with_storage_writer(settings, metrics, None).await
+    }
+
+    pub(crate) async fn from_settings_with_storage_writer(
+        settings: &ValidatorSettings,
+        metrics: &CoreMetrics,
+        storage_writer: Option<Arc<dyn CheckpointSyncer>>,
     ) -> eyre::Result<Self> {
         let origin = &settings.origin_chain;
 
@@ -87,7 +144,10 @@ impl LatestCheckpointReorgReporter {
             merkle_tree_hooks.insert(url, merkle_tree_hook.into());
         }
 
-        let reporter = LatestCheckpointReorgReporter { merkle_tree_hooks };
+        let reporter = LatestCheckpointReorgReporter {
+            merkle_tree_hooks,
+            storage_writer,
+        };
 
         Ok(reporter)
     }
@@ -142,13 +202,11 @@ impl LatestCheckpointReorgReporter {
                     Starknet(updated_conn)
                 })
             }
-            Radix(conn) => {
-                Self::map_urls_to_connections(conn.gateway.clone(), conn, |conn, url| {
-                    let mut updated_conn = conn.clone();
-                    updated_conn.gateway = vec![url];
-                    Radix(updated_conn)
-                })
-            }
+            Radix(conn) => Self::map_urls_to_connections(conn.core.clone(), conn, |conn, url| {
+                let mut updated_conn = conn.clone();
+                updated_conn.core = vec![url];
+                Radix(updated_conn)
+            }),
         };
 
         chain_conn_confs
@@ -165,6 +223,22 @@ impl LatestCheckpointReorgReporter {
                 (url, updated_settings)
             })
             .collect::<Vec<_>>()
+    }
+
+    async fn submit_to_storage_writer(&self, storage_logs_entries: &Vec<ReorgReportRpcResponse>) {
+        if let Some(storage_writer) = &self.storage_writer {
+            let json_string =
+                serde_json::to_string_pretty(storage_logs_entries).unwrap_or_else(|e| {
+                    warn!("Error serializing json: {}", e);
+                    String::from("{\"error\": \"Error formatting the string\"}")
+                });
+            storage_writer
+                .write_reorg_log(json_string)
+                .await
+                .unwrap_or_else(|e| {
+                    warn!("Error writing checkpoint syncer to reorg log: {}", e);
+                });
+        }
     }
 
     fn map_urls_to_connections<T, F>(
