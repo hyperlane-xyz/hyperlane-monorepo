@@ -179,4 +179,10 @@ export const blacklistedMessageIds = [
   // 09/09/2025
   // Our own message on SVM that references our own relayer address
   '0x337d60f17842a6b152f52f41ead0fc6c5f944543a7f15b1c7d31e35dcb943309',
+
+  // CARR/carrchain
+  // warp messages with 32 byte recipients and EVM destination domains
+  '0x877abbed278c80fc9a343a0614ab253237d065846bc18a94863b0b9232ddcdde',
+  '0xb583224a1cf26a7538d1c9ab411d7943462854a90e7d4d04503f77ff7666957e',
+  '0x15a8a6a62dd4e2e7e4375726ffdb267f4c33a429f6cc94de40b32c9fe34b42ff',
 ];

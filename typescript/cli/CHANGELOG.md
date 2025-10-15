@@ -1,5 +1,25 @@
 # @hyperlane-xyz/cli
 
+## 19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- e42a0e8e1: feat: radix support for the cli
+- 8eab305bd: feat: add altvm file submitter
+- 32479e139: feat: register AltVM signer & provider factories
+
+### Minor Changes
+
+- 9e5dbfdf1: Update `hyperlane warp send` to include `--chains` parameter to input which chains to send to
+- 6c97a305d: Use only rebalancer config chains when resolving warp rebalance command
+- b076393b5: Remove inflight guard from rebalancer
+
+### Patch Changes
+
+- 70354d6d9: Restore foreignDeployment field behaviour to allow enrollment of unsupported chains during deployment
+
 ## 18.3.0
 
 ### Minor Changes

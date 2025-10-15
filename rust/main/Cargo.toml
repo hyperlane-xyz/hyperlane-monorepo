@@ -22,6 +22,7 @@ members = [
   "utils/backtrace-oneline",
   "utils/crypto",
   "utils/hex",
+  "utils/reqwest-utils",
   "utils/run-locally",
 ]
 resolver = "2"
@@ -190,8 +191,8 @@ radix-engine-interface = { git = "https://github.com/hyperlane-xyz/radixdlt-scry
 scrypto = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
   "serde",
 ] }
-core-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
-gateway-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
+core-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", rev = "2d284dad4ef48cab302cfa0435c548b54923b7e1" }
+gateway-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", rev = "2d284dad4ef48cab302cfa0435c548b54923b7e1" }
 scrypto-derive = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
 sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
   "serde",

@@ -166,6 +166,10 @@ export class CosmosNativeSigner
     return true;
   }
 
+  async transactionToPrintableJson(transaction: EncodeObject): Promise<object> {
+    return transaction;
+  }
+
   async sendAndConfirmTransaction(
     transaction: EncodeObject,
   ): Promise<DeliverTxResponse> {

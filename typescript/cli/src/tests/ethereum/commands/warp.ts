@@ -232,23 +232,35 @@ export function hyperlaneWarpCheck(
   });
 }
 
-export function hyperlaneWarpSendRelay(
-  origin: string,
-  destination: string,
-  warpCorePath: string,
+export function hyperlaneWarpSendRelay({
+  origin,
+  destination,
+  warpCorePath,
   relay = true,
-  value: number | string = 1,
-): ProcessPromise {
+  value = 1,
+  chains,
+  roundTrip,
+}: {
+  origin?: string;
+  destination?: string;
+  warpCorePath: string;
+  relay?: boolean;
+  value?: number | string;
+  chains?: string;
+  roundTrip?: boolean;
+}): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
         ${relay ? '--relay' : []} \
         --registry ${REGISTRY_PATH} \
-        --origin ${origin} \
-        --destination ${destination} \
+        ${origin ? ['--origin', origin] : []} \
+        ${destination ? ['--destination', destination] : []} \
         --warp ${warpCorePath} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes \
-        --amount ${value}`;
+        --amount ${value} \
+        ${chains ? ['--chains', chains] : []} \
+        ${roundTrip ? ['--round-trip'] : []} `;
 }
 
 export function hyperlaneWarpRebalancer(
@@ -640,6 +652,14 @@ export async function sendWarpRouteMessageRoundTrip(
   chain2: string,
   warpCoreConfigPath: string,
 ) {
-  await hyperlaneWarpSendRelay(chain1, chain2, warpCoreConfigPath);
-  return hyperlaneWarpSendRelay(chain2, chain1, warpCoreConfigPath);
+  await hyperlaneWarpSendRelay({
+    origin: chain1,
+    destination: chain2,
+    warpCorePath: warpCoreConfigPath,
+  });
+  return hyperlaneWarpSendRelay({
+    origin: chain2,
+    destination: chain1,
+    warpCorePath: warpCoreConfigPath,
+  });
 }
