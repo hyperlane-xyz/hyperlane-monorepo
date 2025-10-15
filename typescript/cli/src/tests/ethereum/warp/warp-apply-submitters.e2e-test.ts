@@ -37,7 +37,6 @@ import {
   getWarpDeployConfigPath,
   getWarpId,
 } from '../../constants.js';
-import { runEvmNode } from '../../nodes.js';
 
 describe('hyperlane warp apply with submitters', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -80,9 +79,6 @@ describe('hyperlane warp apply with submitters', async function () {
   );
 
   before(async function () {
-    await runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2);
-    await runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3);
-
     const chain2Metadata: ChainMetadata =
       TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
     const chain3Metadata: ChainMetadata =
@@ -228,7 +224,6 @@ describe('hyperlane warp apply with submitters', async function () {
       HYP_KEY_BY_PROTOCOL.ethereum,
       WARP_ROUTE_ID,
     );
-    // await hyperlaneWarpDeploy(WARP_DEPLOY_CONFIG_PATH, WARP_ROUTE_ID);
 
     return warpDeployConfig;
   }

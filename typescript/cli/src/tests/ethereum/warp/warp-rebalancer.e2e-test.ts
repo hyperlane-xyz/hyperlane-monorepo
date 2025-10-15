@@ -319,7 +319,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       explorerUrl,
     } = options;
 
-    return evmWarpCommands.hyperlaneWarpRebalancer(
+    return evmWarpCommands.warpRebalancer(
       checkFrequency,
       REBALANCER_CONFIG_PATH,
       withMetrics,

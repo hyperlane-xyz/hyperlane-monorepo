@@ -37,7 +37,6 @@ import {
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../../constants.js';
-import { runEvmNode } from '../../nodes.js';
 import {
   exportWarpConfigsToFilePaths,
   getDeployedWarpAddress,
@@ -74,9 +73,6 @@ describe('hyperlane warp apply owner update tests', async function () {
   let warpDeployConfig: WarpRouteDeployConfig;
 
   before(async function () {
-    await runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2);
-    await runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3);
-
     DEPLOYER_ADDRESS = await DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum();
 
     [, chain3Addresses] = await Promise.all([

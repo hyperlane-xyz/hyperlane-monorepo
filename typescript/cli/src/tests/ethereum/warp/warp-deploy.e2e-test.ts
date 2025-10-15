@@ -57,7 +57,6 @@ import {
   getWarpDeployConfigPath,
 } from '../../constants.js';
 import { deploy4626Vault, deployToken } from '../commands/helpers.js';
-import { readWarpConfig } from '../commands/warp.js';
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
@@ -788,10 +787,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Check collateralRebase
       const collateralRebaseConfig = (
-        await readWarpConfig(
+        await evmWarpCommands.readConfig(
           TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
           WARP_CORE_CONFIG_PATH_2_3,
-          WARP_DEPLOY_OUTPUT_PATH,
         )
       )[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2];
 

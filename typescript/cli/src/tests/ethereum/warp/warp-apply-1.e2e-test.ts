@@ -24,10 +24,8 @@ import {
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
   TEMP_PATH,
-  TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../../constants.js';
-import { runEvmNode } from '../../nodes.js';
 
 describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -50,8 +48,6 @@ describe('hyperlane warp apply owner update tests', async function () {
   let warpDeployConfig: WarpRouteDeployConfig;
 
   before(async function () {
-    await runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2);
-
     DEPLOYER_ADDRESS = await DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum();
 
     await evmChain1Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum);
