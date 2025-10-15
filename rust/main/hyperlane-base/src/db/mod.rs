@@ -181,6 +181,6 @@ pub trait HyperlaneDb: Send + Sync {
 
     /// Store latest seen checkpoint index
     fn store_latest_checkpoint_index(&self, checkpoint_index: u64) -> DbResult<()>;
-    /// Store latest seen checkpoint index
+    /// Retrieve latest seen checkpoint index
     fn retrieve_latest_checkpoint_index(&self) -> DbResult<Option<u64>>;
 }
