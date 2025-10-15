@@ -3,22 +3,33 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use ethers::utils::keccak256;
 use futures_util::future::join_all;
+use serde_json::json;
 use tracing::info;
+use tracing::warn;
 use url::Url;
 
 use hyperlane_base::settings::ChainConnectionConf;
-use hyperlane_base::CoreMetrics;
+use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{HyperlaneDomain, MerkleTreeHook, ReorgPeriod};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, MerkleTreeHook, ReorgPeriod, H256};
 use hyperlane_ethereum::RpcConnectionConf;
 
 use crate::settings::ValidatorSettings;
 
 #[async_trait]
 pub trait ReorgReporter: Send + Sync + Debug {
-    async fn report_at_block(&self, height: u64);
-    async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod);
+    async fn report_at_block(
+        &self,
+        height: u64,
+        checkpoint_syncer: Option<Arc<dyn CheckpointSyncer>>,
+    );
+    async fn report_with_reorg_period(
+        &self,
+        reorg_period: &ReorgPeriod,
+        checkpoint_syncer: Option<Arc<dyn CheckpointSyncer>>,
+    );
 }
 
 #[derive(Debug)]
@@ -28,11 +39,18 @@ pub struct LatestCheckpointReorgReporter {
 
 #[async_trait]
 impl ReorgReporter for LatestCheckpointReorgReporter {
-    async fn report_at_block(&self, height: u64) {
+    async fn report_at_block(
+        &self,
+        height: u64,
+        checkpoint_syncer: Option<Arc<dyn CheckpointSyncer>>,
+    ) {
         info!(?height, "Reporting latest checkpoint on reorg");
         let mut futures = vec![];
-        for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
-            let future = async {
+
+        for (index, (url, merkle_tree_hook)) in self.merkle_tree_hooks.iter().enumerate() {
+            let checkpoint_syncer = checkpoint_syncer.clone();
+
+            let future = async move {
                 let latest_checkpoint = call_and_retry_indefinitely(|| {
                     let merkle_tree_hook = merkle_tree_hook.clone();
                     Box::pin(
@@ -42,6 +60,23 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
                 .await;
 
                 info!(url = ?url.clone(), ?height, ?latest_checkpoint, "Report latest checkpoint on reorg");
+                let message = json!({
+                    "rpc": {
+                        "url_hash": H256::from_slice(&keccak256(&url.as_str().as_bytes())),
+                        "host_hash": H256::from_slice(&keccak256(&url.domain().unwrap().as_bytes())),
+                    },
+                    "height": height,
+                    "latest_checkpoint": format!("{:?}", latest_checkpoint),
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                });
+                if let Some(checkpoint_syncer) = checkpoint_syncer {
+                    checkpoint_syncer
+                        .write_log(format!("reorg_log_{}.json", index), message.to_string())
+                        .await
+                        .unwrap_or_else(|e| {
+                            warn!("Error writing checkpoint syncer to reorg log: {}", e);
+                        });
+                }
             };
 
             futures.push(future);
@@ -50,11 +85,17 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
         join_all(futures).await;
     }
 
-    async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod) {
+    async fn report_with_reorg_period(
+        &self,
+        reorg_period: &ReorgPeriod,
+        checkpoint_syncer: Option<Arc<dyn CheckpointSyncer>>,
+    ) {
         info!(?reorg_period, "Reporting latest checkpoint on reorg");
         let mut futures = vec![];
-        for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
-            let future = async {
+        for (index, (url, merkle_tree_hook)) in self.merkle_tree_hooks.iter().enumerate() {
+            let checkpoint_syncer = checkpoint_syncer.clone();
+
+            let future = async move {
                 let latest_checkpoint = call_and_retry_indefinitely(|| {
                     let merkle_tree_hook = merkle_tree_hook.clone();
                     let period = reorg_period.clone();
@@ -63,6 +104,23 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
                 .await;
 
                 info!(url = ?url.clone(), ?reorg_period, ?latest_checkpoint, "Report latest checkpoint on reorg");
+                let message = json!({
+                    "rpc": {
+                        "url_hash": H256::from_slice(&keccak256(&url.as_str().as_bytes())),
+                        "host_hash": H256::from_slice(&keccak256(&url.domain().unwrap().as_bytes())),
+                    },
+                    "reorg_period": reorg_period,
+                    "latest_checkpoint": format!("{:?}", latest_checkpoint),
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                });
+                if let Some(checkpoint_syncer) = checkpoint_syncer {
+                    checkpoint_syncer
+                        .write_log(format!("reorg_log_{}.json", index), message.to_string())
+                        .await
+                        .unwrap_or_else(|e| {
+                            warn!("Error writing checkpoint syncer to reorg log: {}", e);
+                        });
+                }
             };
 
             futures.push(future);
@@ -142,13 +200,11 @@ impl LatestCheckpointReorgReporter {
                     Starknet(updated_conn)
                 })
             }
-            Radix(conn) => {
-                Self::map_urls_to_connections(conn.gateway.clone(), conn, |conn, url| {
-                    let mut updated_conn = conn.clone();
-                    updated_conn.gateway = vec![url];
-                    Radix(updated_conn)
-                })
-            }
+            Radix(conn) => Self::map_urls_to_connections(conn.core.clone(), conn, |conn, url| {
+                let mut updated_conn = conn.clone();
+                updated_conn.core = vec![url];
+                Radix(updated_conn)
+            }),
         };
 
         chain_conn_confs

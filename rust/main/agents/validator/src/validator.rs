@@ -494,7 +494,7 @@ impl Validator {
             checkpoint_syncer_result.as_ref()
         {
             reorg_reporter
-                .report_with_reorg_period(&reorg_event.reorg_period)
+                .report_with_reorg_period(&reorg_event.reorg_period, None)
                 .await;
         }
     }

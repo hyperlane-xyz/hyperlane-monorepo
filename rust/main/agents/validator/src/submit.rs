@@ -253,11 +253,16 @@ impl ValidatorSubmitter {
             );
 
             if let Some(height) = correctness_checkpoint.block_height {
-                self.reorg_reporter.report_at_block(height).await;
+                self.reorg_reporter
+                    .report_at_block(height, Some(self.checkpoint_syncer.clone()))
+                    .await;
             } else {
                 info!("Blockchain does not support block height, reporting with reorg period");
                 self.reorg_reporter
-                    .report_with_reorg_period(&self.reorg_period)
+                    .report_with_reorg_period(
+                        &self.reorg_period,
+                        Some(self.checkpoint_syncer.clone()),
+                    )
                     .await;
             }
 

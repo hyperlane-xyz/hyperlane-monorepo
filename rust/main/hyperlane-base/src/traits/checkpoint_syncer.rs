@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{Report, Result};
 
 use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 
@@ -45,4 +45,9 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()>;
     /// Read the reorg status of the chain being validated
     async fn reorg_status(&self) -> Result<Option<ReorgEvent>>;
+    /// Writes the provided log message to the storage destination
+    /// This log is publicly available. It must not contain sensitive information
+    async fn write_log(&self, destination_path: String, log: String) -> Result<()> {
+        Err(Report::msg("Destination does not support log writing."))
+    }
 }

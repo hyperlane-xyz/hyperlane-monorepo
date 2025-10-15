@@ -136,4 +136,12 @@ impl CheckpointSyncer for LocalStorage {
         let reorg = serde_json::from_slice(&data)?;
         Ok(Some(reorg))
     }
+
+    async fn write_log(&self, destination_path: String, log: String) -> Result<()> {
+        let path = self.path.join(destination_path);
+        tokio::fs::write(&path, &log)
+            .await
+            .with_context(|| format!("Writing log to {path:?}"))?;
+        Ok(())
+    }
 }
