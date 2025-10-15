@@ -8797,7 +8797,17 @@
         "type": "radixKey",
         "suffix": "rdx"
       },
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "domainRoutingIsmFactory": "",
+      "interchainAccountRouter": "",
+      "proxyAdmin": "",
+      "staticAggregationHookFactory": "",
+      "staticAggregationIsmFactory": "",
+      "staticMerkleRootMultisigIsmFactory": "",
+      "staticMerkleRootWeightedMultisigIsmFactory": "",
+      "staticMessageIdMultisigIsmFactory": "",
+      "staticMessageIdWeightedMultisigIsmFactory": "",
+      "testRecipient": ""
     },
     "pulsechain": {
       "blockExplorers": [
