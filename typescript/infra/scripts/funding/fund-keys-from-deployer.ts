@@ -53,7 +53,7 @@ import L1ScrollMessenger from './utils/L1ScrollMessenger.json' with { type: 'jso
 const logger = rootLogger.child({ module: 'fund-keys' });
 
 // Default sweep configuration
-const DEFAULT_SWEEP_SAFE_ADDRESS = '0x478be6076f31E9666123B9721D0B6631baD944AF';
+const DEFAULT_SWEEP_ADDRESS = '0x478be6076f31E9666123B9721D0B6631baD944AF';
 const DEFAULT_TARGET_MULTIPLIER = 1.5; // Leave 1.5x threshold after sweep
 const DEFAULT_TRIGGER_MULTIPLIER = 2.0; // Sweep when balance > 2x threshold
 
@@ -683,8 +683,8 @@ class ContextFunder {
     // Get override config for this chain, if any
     const override = this.sweepOverrides?.[chain];
 
-    // Use override or default Safe address
-    const safeAddress = override?.sweepAddress ?? DEFAULT_SWEEP_SAFE_ADDRESS;
+    // Use override or default sweep address
+    const sweepAddress = override?.sweepAddress ?? DEFAULT_SWEEP_ADDRESS;
 
     // Use override or default multipliers
     const targetMultiplier =
@@ -728,15 +728,15 @@ class ContextFunder {
         {
           chain,
           sweepAmount: ethers.utils.formatEther(sweepAmount),
-          safeAddress,
+          sweepAddress,
           funderBalance: ethers.utils.formatEther(funderBalance),
           remainingBalance: ethers.utils.formatEther(targetBalance),
         },
-        'Sweeping excess funds to Safe',
+        'Sweeping excess funds',
       );
 
       // const tx = await this.multiProvider.sendTransaction(chain, {
-      //   to: safeAddress,
+      //   to: sweepAddress,
       //   value: sweepAmount,
       // });
 
@@ -747,9 +747,9 @@ class ContextFunder {
           //   hash: tx.transactionHash,
           // }),
           sweepAmount: ethers.utils.formatEther(sweepAmount),
-          safeAddress,
+          sweepAddress,
         },
-        'DRYRUN: Successfully swept excess funds to Safe',
+        'DRYRUN: Successfully swept excess funds',
       );
     } else {
       logger.info(
