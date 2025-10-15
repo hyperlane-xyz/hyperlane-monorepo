@@ -60,6 +60,7 @@ import type {
   IHypTokenAdapter,
   ITokenAdapter,
 } from './adapters/ITokenAdapter.js';
+import { M0PortalLiteTokenAdapter } from './adapters/M0PortalLiteTokenAdapter.js';
 import {
   RadixHypCollateralAdapter,
   RadixHypSyntheticAdapter,
@@ -337,6 +338,17 @@ export class Token implements IToken {
       return new RadixHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
+    } else if (standard === TokenStandard.EvmM0PortalLite) {
+      assert(
+        collateralAddressOrDenom,
+        'collateralAddressOrDenom (mToken address) required for M0PortalLite',
+      );
+      return new M0PortalLiteTokenAdapter(
+        multiProvider,
+        chainName,
+        addressOrDenom, // portal address
+        collateralAddressOrDenom, // mToken address
+      );
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
     }
