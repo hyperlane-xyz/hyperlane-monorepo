@@ -15,8 +15,6 @@ import {
 } from '../../constants.js';
 import { deployXERC20VSToken, hyperlaneSubmit } from '../commands/helpers.js';
 
-$.verbose = true;
-
 async function getMintOnlyOwnerTransaction(
   xerc20: XERC20VSTest,
   address: Address,
