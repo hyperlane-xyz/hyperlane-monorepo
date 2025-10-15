@@ -45,21 +45,26 @@ impl BuildingStage {
             // so worst case this will be lower by `max_batch_size`
             self.update_metrics().await;
 
-            info!(?payloads, "Building transactions from payloads");
-            let tx_building_results = self.state.adapter.build_transactions(&payloads).await;
+            self.build_transactions(&payloads).await;
+        }
+    }
 
-            for tx_building_result in tx_building_results {
-                // push payloads that failed to be processed (but didn't fail simulation)
-                // to the back of the queue
-                if let Err(err) = self
-                    .handle_tx_building_result(tx_building_result.clone())
-                    .await
-                {
-                    error!(?err, payloads=?tx_building_result.payloads, "Error handling tx building result");
-                    let full_payloads =
-                        get_full_payloads_from_details(&payloads, &tx_building_result.payloads);
-                    self.queue.extend(full_payloads).await;
-                }
+    #[instrument(skip_all, fields(payload_and_message_ids = ?payloads.iter().map(|p| (p.details.uuid.to_string(), p.details.metadata.clone())).collect::<Vec<_>>()))]
+    async fn build_transactions(&self, payloads: &Vec<FullPayload>) {
+        info!(?payloads, "Building transactions from payloads");
+        let tx_building_results = self.state.adapter.build_transactions(payloads).await;
+
+        for tx_building_result in tx_building_results {
+            // push payloads that failed to be processed (but didn't fail simulation)
+            // to the back of the queue
+            if let Err(err) = self
+                .handle_tx_building_result(tx_building_result.clone())
+                .await
+            {
+                error!(?err, payloads=?tx_building_result.payloads, "Error handling tx building result");
+                let full_payloads =
+                    get_full_payloads_from_details(payloads, &tx_building_result.payloads);
+                self.queue.extend(full_payloads).await;
             }
         }
     }
