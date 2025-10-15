@@ -7246,6 +7246,7 @@
       "validatorAnnounce": "0xbE58F200ffca4e1cE4D2F4541E94Ae18370fC405"
     },
     "forma": {
+      "batchContractAddress": "0x5ff205935F5b01859466B6b47A3aDD0d2C0E3310",
       "blockExplorers": [
         {
           "apiUrl": "https://explorer.forma.art/api",
