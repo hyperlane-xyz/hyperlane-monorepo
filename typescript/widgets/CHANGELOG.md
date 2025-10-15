@@ -1,5 +1,14 @@
 # @hyperlane-xyz/widgets
 
+## 19.1.0
+
+### Patch Changes
+
+- Updated dependencies [554ff1a66]
+  - @hyperlane-xyz/sdk@19.1.0
+  - @hyperlane-xyz/cosmos-sdk@19.1.0
+  - @hyperlane-xyz/utils@19.1.0
+
 ## 19.0.0
 
 ### Major Changes
