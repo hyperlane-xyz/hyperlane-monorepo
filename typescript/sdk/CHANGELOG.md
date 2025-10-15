@@ -1,5 +1,15 @@
 # @hyperlane-xyz/sdk
 
+## 19.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@19.1.1
+- @hyperlane-xyz/cosmos-sdk@19.1.1
+- @hyperlane-xyz/radix-sdk@19.1.1
+- @hyperlane-xyz/utils@19.1.1
+- @hyperlane-xyz/core@9.0.13
+
 ## 19.1.0
 
 ### Minor Changes
