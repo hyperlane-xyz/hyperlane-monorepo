@@ -8,47 +8,47 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
-  ANVIL_KEY,
-  CHAIN_2_METADATA_PATH,
-  CHAIN_NAME_2,
-  CORE_CONFIG_PATH,
-  CORE_READ_CONFIG_PATH_2,
+  CORE_CONFIG_PATH_BY_PROTOCOL,
+  CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
+  HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
-} from '../consts.js';
+  TEST_CHAIN_METADATA_BY_PROTOCOL,
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
+} from '../../constants.js';
 
 describe('hyperlane core read e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
   const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
-    CHAIN_NAME_2,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     REGISTRY_PATH,
-    CORE_CONFIG_PATH,
-    CORE_READ_CONFIG_PATH_2,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
   );
 
   let signer: Signer;
   let initialOwnerAddress: Address;
 
   before(async () => {
-    const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chainMetadata: ChainMetadata =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
 
     const provider = new ethers.providers.JsonRpcProvider(
       chainMetadata.rpcUrls[0].http,
     );
 
-    const wallet = new Wallet(ANVIL_KEY);
+    const wallet = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum);
     signer = wallet.connect(provider);
 
     initialOwnerAddress = await signer.getAddress();
   });
 
   it('should read a core deployment', async () => {
-    await hyperlaneCore.deploy(ANVIL_KEY);
+    await hyperlaneCore.deploy(HYP_KEY_BY_PROTOCOL.ethereum);
 
     const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
 
