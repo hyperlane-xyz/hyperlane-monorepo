@@ -1,5 +1,13 @@
 # @hyperlane-xyz/infra
 
+## 19.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@19.1.1
+- @hyperlane-xyz/sdk@19.1.1
+- @hyperlane-xyz/utils@19.1.1
+
 ## 19.1.0
 
 ### Patch Changes

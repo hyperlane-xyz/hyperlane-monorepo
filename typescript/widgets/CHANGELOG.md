@@ -1,5 +1,14 @@
 # @hyperlane-xyz/widgets
 
+## 19.1.1
+
+### Patch Changes
+
+- 0781b7947: chore: update naming in wallet modal from ethereum to evm
+  - @hyperlane-xyz/cosmos-sdk@19.1.1
+  - @hyperlane-xyz/sdk@19.1.1
+  - @hyperlane-xyz/utils@19.1.1
+
 ## 19.1.0
 
 ### Patch Changes
