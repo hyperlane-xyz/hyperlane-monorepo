@@ -600,16 +600,19 @@ class ContextFunder {
     }
 
     // Attempt to sweep excess funds after all claim/funding operations are complete
-    try {
-      await this.attemptToSweepExcessFunds(chain);
-    } catch (err) {
-      logger.error(
-        {
-          chain,
-          error: err,
-        },
-        `Error sweeping excess funds on chain ${chain}`,
-      );
+    // Only sweep when processing the Hyperlane context to avoid duplicate sweeps
+    if (this.context === Contexts.Hyperlane) {
+      try {
+        await this.attemptToSweepExcessFunds(chain);
+      } catch (err) {
+        logger.error(
+          {
+            chain,
+            error: err,
+          },
+          `Error sweeping excess funds on chain ${chain}`,
+        );
+      }
     }
 
     if (failedKeys.length > 0) {
