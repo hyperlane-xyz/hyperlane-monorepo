@@ -23,9 +23,4 @@ module.exports = {
     bail: true,
     import: 'tsx',
   },
-  networks: {
-    hardhat: {
-      allowUnlimitedContractSize: true,
-    },
-  },
 };

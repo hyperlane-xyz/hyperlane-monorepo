@@ -531,14 +531,24 @@ abstract class TokenDeployer<
           this.multiProvider.getSigner(chain),
         );
 
-        await this.multiProvider.handleTx(
-          chain,
-          everclearTokenBridge.setFeeParams(
-            config.everclearFeeParams.fee,
-            config.everclearFeeParams.deadline,
-            config.everclearFeeParams.signature,
-          ),
+        const resolvedFeeParamsConfig = resolveRouterMapConfig(
+          this.multiProvider,
+          config.everclearFeeParams,
         );
+
+        for (const [domainId, feeConfig] of Object.entries(
+          resolvedFeeParamsConfig,
+        )) {
+          await this.multiProvider.handleTx(
+            chain,
+            everclearTokenBridge.setFeeParams(
+              domainId,
+              feeConfig.fee,
+              feeConfig.deadline,
+              feeConfig.signature,
+            ),
+          );
+        }
       }),
     );
   }

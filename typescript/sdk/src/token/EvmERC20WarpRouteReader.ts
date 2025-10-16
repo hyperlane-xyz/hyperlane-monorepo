@@ -335,7 +335,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
                 this.provider,
               );
 
-            await maybeEverclearTokenBridge.callStatic.feeParams();
+            await maybeEverclearTokenBridge.callStatic.everclearAdapter();
 
             let everclearTokenType = TokenType.collateralEverclear;
             try {
@@ -718,17 +718,28 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       'everclearBridgeAddress' | 'outputAssets' | 'everclearFeeParams'
     >
   > {
-    const [[fee, deadline, signature], everclearBridgeAddress, domains] =
-      await Promise.all([
-        everclearTokenbridgeInstance.feeParams(),
-        everclearTokenbridgeInstance.everclearAdapter(),
-        everclearTokenbridgeInstance.domains(),
-      ]);
+    const [everclearBridgeAddress, domains] = await Promise.all([
+      everclearTokenbridgeInstance.everclearAdapter(),
+      everclearTokenbridgeInstance.domains(),
+    ]);
 
     const outputAssets = await promiseObjAll(
       objMap(arrayToObject(domains.map(String)), async (domainId, _) =>
         everclearTokenbridgeInstance.outputAssets(domainId),
       ),
+    );
+
+    const feeParamsByDomain = await promiseObjAll(
+      objMap(arrayToObject(domains.map(String)), async (domainId, _) => {
+        const [fee, deadline, signature] =
+          await everclearTokenbridgeInstance.feeParams(domainId);
+
+        return {
+          deadline: deadline.toNumber(),
+          fee: fee.toNumber(),
+          signature,
+        };
+      }),
     );
 
     return {
@@ -739,11 +750,22 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         (_domainId, assetAddress): assetAddress is string =>
           !isZeroish(assetAddress),
       ),
-      everclearFeeParams: {
-        deadline: deadline.toNumber(),
-        fee: fee.toNumber(),
-        signature,
-      },
+      // Remove unset fee params from the output
+      everclearFeeParams: objFilter(
+        feeParamsByDomain,
+        (
+          _domainId,
+          feeConfig,
+        ): feeConfig is EverclearEthBridgeTokenConfig['everclearFeeParams'][number] => {
+          // if all the fields have their default value then the fee config for the
+          // current domain is unset
+          return (
+            feeConfig.deadline !== 0 &&
+            feeConfig.fee !== 0 &&
+            feeConfig.signature !== ''
+          );
+        },
+      ),
     };
   }
 
