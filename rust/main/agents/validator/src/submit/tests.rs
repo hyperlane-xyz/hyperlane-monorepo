@@ -9,10 +9,11 @@ use hyperlane_base::db::{
     DbResult, HyperlaneDb, InterchainGasExpenditureData, InterchainGasPaymentData,
 };
 use hyperlane_core::{
-    identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainGasPayment,
-    InterchainGasPaymentMeta, MerkleTreeHook, MerkleTreeInsertion, PendingOperationStatus,
-    ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId, H160, H256,
+    identifiers::UniqueIdentifier, test_utils::dummy_domain, CheckpointInfo, GasPaymentKey,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeHook, MerkleTreeInsertion,
+    PendingOperationStatus, ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId, H160,
+    H256,
 };
 
 use super::*;
@@ -130,15 +131,9 @@ mockall::mock! {
         fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
         fn store_payload_uuids_by_message_id(&self, message_id: &H256, payload_uuids: Vec<UniqueIdentifier>) -> DbResult<()>;
         fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
-        fn store_latest_checkpoint_block_height(
-            &self,
-            checkpoint_block_height: u64,
-        ) -> DbResult<()>;
-        fn retrieve_latest_checkpoint_block_height(
-            &self,
-        ) -> DbResult<Option<u64>>;
-        fn store_latest_checkpoint_index(&self, checkpoint_index: u64) -> DbResult<()>;
-        fn retrieve_latest_checkpoint_index(&self) -> DbResult<Option<u64>>;
+
+        fn store_latest_checkpoint_info(&self, checkpoint_info: &CheckpointInfo) -> DbResult<()>;
+        fn retrieve_latest_checkpoint_info(&self) -> DbResult<Option<CheckpointInfo>>;
     }
 }
 
@@ -228,11 +223,15 @@ fn reorg_event_is_correct(
         mock_onchain_merkle_tree.root()
     );
     assert_eq!(
+        reorg_event.canonical_checkpoint_index,
+        mock_onchain_merkle_tree.index()
+    );
+    assert_eq!(
         reorg_event.local_merkle_root,
         expected_local_merkle_tree.root()
     );
     assert_eq!(
-        reorg_event.checkpoint_index,
+        reorg_event.local_checkpoint_index,
         expected_local_merkle_tree.index()
     );
     // timestamp diff should be less than 1 second

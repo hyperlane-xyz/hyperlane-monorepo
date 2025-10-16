@@ -118,14 +118,9 @@ impl ValidatorSubmitter {
             true
         };
 
-        let mut latest_seen_checkpoint_index = self
+        let mut latest_seen_checkpoint = self
             .db
-            .retrieve_latest_checkpoint_index()
-            .unwrap_or_default()
-            .unwrap_or_default() as u32;
-        let mut latest_seen_checkpoint_block_height = self
-            .db
-            .retrieve_latest_checkpoint_block_height()
+            .retrieve_latest_checkpoint_info()
             .unwrap_or_default()
             .unwrap_or_default();
 
@@ -138,59 +133,40 @@ impl ValidatorSubmitter {
             })
             .await;
 
-            if latest_checkpoint.index < latest_seen_checkpoint_index {
-                if let Some(block_height) = latest_checkpoint.block_height {
-                    if block_height >= latest_seen_checkpoint_block_height {
-                        tracing::error!(
-                            ?latest_checkpoint,
-                            ?latest_seen_checkpoint_index,
-                            ?latest_seen_checkpoint_block_height,
-                            "Latest checkpoint index is lower than previously seen, but has a block height equal or greater.");
+            if let Some(block_height) = latest_checkpoint.block_height {
+                if latest_checkpoint.index < latest_seen_checkpoint.checkpoint_index
+                    && block_height >= latest_seen_checkpoint.block_height
+                {
+                    tracing::error!(
+                        ?latest_checkpoint,
+                        ?latest_seen_checkpoint,
+                        "Latest checkpoint index is lower than previously seen, but has a block height equal or greater.");
 
-                        let checkpoint = self.checkpoint(&tree);
-                        Self::panic_with_reorg(
-                            &self.reorg_reporter,
-                            &self.reorg_period,
-                            &self.checkpoint_syncer,
-                            tree.root(),
-                            &latest_checkpoint,
-                            &checkpoint,
-                        )
-                        .await;
-                    }
+                    let checkpoint = self.checkpoint(&tree);
+                    Self::panic_with_reorg(
+                        &self.reorg_reporter,
+                        &self.reorg_period,
+                        &self.checkpoint_syncer,
+                        tree.root(),
+                        &latest_checkpoint,
+                        &checkpoint,
+                    )
+                    .await;
                 }
-            }
-
-            if latest_checkpoint.index > latest_seen_checkpoint_index {
                 tracing::debug!(
-                    old_index = latest_seen_checkpoint_index,
-                    new_index = latest_checkpoint.index,
+                    ?latest_checkpoint,
+                    ?latest_seen_checkpoint,
                     "Updating latest seen checkpoint index"
                 );
-                latest_seen_checkpoint_index = latest_checkpoint.index;
-                if let Err(err) = self
-                    .db
-                    .store_latest_checkpoint_index(latest_seen_checkpoint_index as u64)
-                {
-                    tracing::error!(?err, "Failed to store latest_checkpoint_index");
-                };
-                if let Some(block_height) = latest_checkpoint.block_height {
-                    if block_height < latest_seen_checkpoint_block_height {
-                        tracing::warn!(
-                            checkpoint_index = latest_checkpoint.index,
-                            checkpoint_block_height = block_height,
-                            latest_seen_checkpoint_block_height,
-                            "Receive a checkpoint with a higher index, but lower block height"
-                        );
-                    }
-                    latest_seen_checkpoint_block_height = block_height;
-                    if let Err(err) = self
-                        .db
-                        .store_latest_checkpoint_block_height(latest_seen_checkpoint_block_height)
-                    {
-                        tracing::error!(?err, "Failed to store latest_checkpoint_block_height");
-                    }
+                if block_height < latest_seen_checkpoint.block_height {
+                    tracing::warn!(
+                        ?latest_checkpoint,
+                        ?latest_seen_checkpoint,
+                        "Receive a checkpoint with a higher index, but lower block height"
+                    );
                 }
+                latest_seen_checkpoint.block_height = block_height;
+                latest_seen_checkpoint.checkpoint_index = latest_checkpoint.index;
             }
 
             self.metrics
@@ -344,13 +320,14 @@ impl ValidatorSubmitter {
         correctness_checkpoint: &CheckpointAtBlock,
         incorrect_checkpoint: &Checkpoint,
     ) {
-        let reorg_event = ReorgEvent::new(
-            tree_root,
-            correctness_checkpoint.root,
-            incorrect_checkpoint.index,
-            chrono::Utc::now().timestamp() as u64,
-            reorg_period.clone(),
-        );
+        let reorg_event = ReorgEvent {
+            local_merkle_root: tree_root,
+            local_checkpoint_index: incorrect_checkpoint.index,
+            canonical_merkle_root: correctness_checkpoint.root,
+            canonical_checkpoint_index: correctness_checkpoint.index,
+            unix_timestamp: chrono::Utc::now().timestamp() as u64,
+            reorg_period: reorg_period.clone(),
+        };
         error!(
             ?incorrect_checkpoint,
             ?correctness_checkpoint,

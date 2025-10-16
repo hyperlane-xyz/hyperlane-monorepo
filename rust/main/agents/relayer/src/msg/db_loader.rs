@@ -422,7 +422,7 @@ pub mod test {
         },
     };
     use hyperlane_core::{
-        identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey,
+        identifiers::UniqueIdentifier, test_utils::dummy_domain, CheckpointInfo, GasPaymentKey,
         InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion,
         PendingOperationStatus, H256,
     };
@@ -737,16 +737,8 @@ pub mod test {
 
             fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
 
-            fn store_latest_checkpoint_block_height(
-                &self,
-                checkpoint_block_height: u64,
-            ) -> DbResult<()>;
-            fn retrieve_latest_checkpoint_block_height(
-                &self,
-            ) -> DbResult<Option<u64>>;
-
-            fn store_latest_checkpoint_index(&self, checkpoint_index: u64) -> DbResult<()>;
-            fn retrieve_latest_checkpoint_index(&self) -> DbResult<Option<u64>>;
+            fn store_latest_checkpoint_info(&self, checkpoint_info: &CheckpointInfo) -> DbResult<()>;
+            fn retrieve_latest_checkpoint_info(&self) -> DbResult<Option<CheckpointInfo>>;
         }
     }
 
