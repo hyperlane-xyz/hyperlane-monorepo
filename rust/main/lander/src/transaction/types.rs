@@ -102,6 +102,8 @@ pub enum DropReason {
     DroppedByChain,
     /// dropped by the submitter
     FailedSimulation,
+    /// tx reverted
+    RevertedByChain,
 }
 
 // add nested enum entries as we add VMs

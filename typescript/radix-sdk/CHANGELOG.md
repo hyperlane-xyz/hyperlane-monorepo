@@ -1,5 +1,34 @@
 # @hyperlane-xyz/radix-sdk
 
+## 19.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.1.1
+
+## 19.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- e42a0e8e1: feat: radix support for the cli
+
+### Minor Changes
+
+- 8eab305bd: chore: add transactionToPrintableJson to altvm interface
+
+### Patch Changes
+
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/utils@19.0.0
+
 ## 18.3.0
 
 ### Minor Changes

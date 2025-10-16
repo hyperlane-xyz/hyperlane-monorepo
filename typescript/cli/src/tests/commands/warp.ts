@@ -268,23 +268,29 @@ export class HyperlaneE2EWarpTestCommands {
     value = 1,
     warpCorePath,
     privateKey,
+    chains,
+    roundTrip,
   }: {
-    origin: string;
-    destination: string;
+    origin?: string;
+    destination?: string;
     warpCorePath: string;
     relay?: boolean;
     value?: number | string;
     privateKey?: string;
+    chains?: string;
+    roundTrip?: boolean;
   }): ProcessPromise {
     return $`${localTestRunCmdPrefix()} hyperlane warp send \
           ${relay ? '--relay' : []} \
           --registry ${this.registryPath} \
-          --origin ${origin} \
-          --destination ${destination} \
+          ${origin ? ['--origin', origin] : []} \
+        ${destination ? ['--destination', destination] : []} \
           --warp ${warpCorePath} \
           ${privateKey ? [this.privateKeyFlag, privateKey] : []} \ \
           --verbosity debug \
           --yes \
+                ${chains ? ['--chains', chains] : []} \
+        ${roundTrip ? ['--round-trip'] : []} \
           --amount ${value}`;
   }
 

@@ -166,6 +166,10 @@ export class CosmosNativeSigner
     return true;
   }
 
+  async transactionToPrintableJson(transaction: EncodeObject): Promise<object> {
+    return transaction;
+  }
+
   async sendAndConfirmTransaction(
     transaction: EncodeObject,
   ): Promise<DeliverTxResponse> {
@@ -510,6 +514,20 @@ export class CosmosNativeSigner
     await this.submitTx(msg);
     return {
       receiverDomainId: req.receiverDomainId,
+    };
+  }
+
+  async transfer(
+    req: Omit<AltVM.ReqTransfer, 'signer'>,
+  ): Promise<AltVM.ResTransfer> {
+    const msg = await this.getTransferTransaction({
+      ...req,
+      signer: this.account.address,
+    });
+
+    await this.submitTx(msg);
+    return {
+      recipient: req.recipient,
     };
   }
 

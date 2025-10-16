@@ -802,7 +802,6 @@ const blacklist: MatchingList = [
     recipientAddress: [
       '0x4ca56fbecfe8431996c6b4ec8da140d4201338e8',
       '0x0a5c7d4ee3d65b2581d5606f8081fc8d8be22319',
-      '0x832d26b6904ba7539248db4d58614251fd63dc05',
       '0x74a26075fa2eec77936a56b0f9645d32a79b28af',
       '0xfcee86f472d0c19fccdd3aedb89aa9cc0a1fb0d1',
     ],
@@ -863,7 +862,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7940322-20251007-112427',
+      tag: '02db74b-20251013-232420',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -883,7 +882,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '7940322-20251007-112427',
+      tag: '3472d11-20251013-154821',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -894,7 +893,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7940322-20251007-112427',
+      tag: '3472d11-20251013-154821',
     },
     resources: scraperResources,
   },
@@ -909,7 +908,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7940322-20251007-112427',
+      tag: '02db74b-20251013-232420',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -932,7 +931,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '7940322-20251007-112427',
+      tag: '3472d11-20251013-154821',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -953,7 +952,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3d13493-20251007-100258',
+      tag: '3472d11-20251013-154821',
     },
     blacklist,
     gasPaymentEnforcement,

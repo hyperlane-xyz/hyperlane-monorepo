@@ -9,6 +9,7 @@ bech32 = { workspace = true }
 chrono = { workspace = true }
 core-api-client = { workspace = true }
 crypto = { path = "../../utils/crypto" }
+reqwest-utils = { path = "../../utils/reqwest-utils" }
 derive-new = { workspace = true }
 futures = { workspace = true }
 gateway-api-client = { workspace = true }
@@ -26,7 +27,7 @@ radix-common = { workspace = true }
 radix-engine-interface = { workspace = true }
 radix-transactions = { workspace = true }
 regex = { workspace = true }
-reqwest = "0.12.15"
+reqwest = { workspace = true }
 ripemd = { workspace = true }
 sbor = { workspace = true, features = ["serde"] }
 scrypto = { workspace = true, features = ["serde"] }

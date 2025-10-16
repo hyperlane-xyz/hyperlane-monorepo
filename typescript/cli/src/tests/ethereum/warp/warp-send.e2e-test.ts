@@ -28,7 +28,6 @@ import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
-  DEFAULT_E2E_TEST_TIMEOUT,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
   TEMP_PATH,
@@ -38,8 +37,8 @@ import {
 } from '../../constants.js';
 import { deployToken } from '../commands/helpers.js';
 
-describe('hyperlane warp deploy e2e tests', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+describe('hyperlane warp send e2e tests', async function () {
+  this.timeout(200_000);
 
   const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/warp-route-deployment.yaml`;
   const CHAIN_2_METADATA_PATH = `${REGISTRY_PATH}/chains/${TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2}/metadata.yaml`;
@@ -155,7 +154,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     expect(exitCode).to.equal(0);
     expect(stdout).to.include(WarpSendLogs.SUCCESS);
 
-    const [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
+    let [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
       await Promise.all([
         token.callStatic.balanceOf(walletChain2.address),
         synthetic.callStatic.balanceOf(walletChain3.address),
@@ -163,6 +162,51 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     expect(tokenBalanceOnChain2After.lt(tokenBalanceOnChain2Before)).to.be.true;
     expect(tokenBalanceOnChain3After.gt(tokenBalanceOnChain3Before)).to.be.true;
+
+    // Test with chains parameter
+    const { stdout: stdoutChains, exitCode: exitCodeChains } =
+      await evmWarpCommands.sendAndRelay({
+        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        chains: `${TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3},${TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2}`,
+        privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+    expect(exitCodeChains).to.equal(0);
+    expect(stdoutChains).to.include(WarpSendLogs.SUCCESS);
+
+    [tokenBalanceOnChain2After, tokenBalanceOnChain3After] = await Promise.all([
+      token.callStatic.balanceOf(walletChain2.address),
+      synthetic.callStatic.balanceOf(walletChain3.address),
+    ]);
+
+    // Test with --round-trip parameter with --chains
+    const { stdout: stdoutRoundTrip, exitCode: exitCodeRoundTrip } =
+      await evmWarpCommands.sendAndRelay({
+        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        chains: `${TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2},${TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3}`,
+        roundTrip: true,
+        privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+    expect(exitCodeRoundTrip).to.equal(0);
+    expect(stdoutRoundTrip).to.include(WarpSendLogs.SUCCESS);
+
+    // Test with --round-trip parameter with --origin and --destination
+    const {
+      stdout: stdoutRoundTripOriginDestination,
+      exitCode: exitCodeRoundTripOriginDestination,
+    } = await evmWarpCommands.sendAndRelay({
+      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      origin: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      destination: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      roundTrip: true,
+      privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
+    expect(exitCodeRoundTripOriginDestination).to.equal(0);
+    expect(stdoutRoundTripOriginDestination).to.include(WarpSendLogs.SUCCESS);
+
+    expect(tokenBalanceOnChain2After.toBigInt()).eq(
+      tokenBalanceOnChain2Before.toBigInt(),
+    );
+    expect(tokenBalanceOnChain3After.toBigInt()).eq(0n);
   });
 
   const amountThreshold = randomInt(1, 1e4);

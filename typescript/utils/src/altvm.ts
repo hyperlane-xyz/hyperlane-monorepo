@@ -8,14 +8,14 @@ export type ReqGetTotalSupply = { denom: string };
 
 export type ReqEstimateTransactionFee<T> = {
   transaction: T;
-  estimatedGasPrice: string;
-  senderAddress: string;
+  estimatedGasPrice?: string;
+  senderAddress?: string;
   senderPubKey?: string;
 };
 export type ResEstimateTransactionFee = {
-  gasUnits: number;
+  gasUnits: bigint;
   gasPrice: number;
-  fee: number;
+  fee: bigint;
 };
 
 // ### QUERY CORE ###
@@ -176,8 +176,8 @@ export type ReqGetBridgedSupply = { tokenAddress: string };
 export type ReqQuoteRemoteTransfer = {
   tokenAddress: string;
   destinationDomainId: number;
-  customHookAddress: string;
-  customHookMetadata: string;
+  customHookAddress?: string;
+  customHookMetadata?: string;
 };
 export type ResQuoteRemoteTransfer = { denom: string; amount: bigint };
 
@@ -404,16 +404,26 @@ export type ResUnenrollRemoteRouter = {
   receiverDomainId: number;
 };
 
+export type ReqTransfer = {
+  signer: string;
+  recipient: string;
+  denom: string;
+  amount: string;
+};
+export type ResTransfer = {
+  recipient: string;
+};
+
 export type ReqRemoteTransfer = {
   signer: string;
   tokenAddress: string;
   destinationDomainId: number;
   recipient: string;
   amount: string;
-  customHookAddress: string;
   gasLimit: string;
-  customHookMetadata: string;
   maxFee: { denom: string; amount: string };
+  customHookAddress?: string;
+  customHookMetadata?: string;
 };
 export type ResRemoteTransfer = {
   tokenAddress: string;
@@ -542,6 +552,8 @@ export interface IProvider<T = any> {
 
   getUnenrollRemoteRouterTransaction(req: ReqUnenrollRemoteRouter): Promise<T>;
 
+  getTransferTransaction(req: ReqTransfer): Promise<T>;
+
   getRemoteTransferTransaction(req: ReqRemoteTransfer): Promise<T>;
 }
 
@@ -549,6 +561,8 @@ export interface ISigner<T, R> extends IProvider<T> {
   getSignerAddress(): string;
 
   supportsTransactionBatching(): boolean;
+
+  transactionToPrintableJson(transaction: T): Promise<object>;
 
   sendAndConfirmTransaction(transaction: T): Promise<R>;
 
@@ -648,13 +662,15 @@ export interface ISigner<T, R> extends IProvider<T> {
     req: Omit<ReqUnenrollRemoteRouter, 'signer'>,
   ): Promise<ResUnenrollRemoteRouter>;
 
+  transfer(req: Omit<ReqTransfer, 'signer'>): Promise<ResTransfer>;
+
   remoteTransfer(
     req: Omit<ReqRemoteTransfer, 'signer'>,
   ): Promise<ResRemoteTransfer>;
 }
 
 export interface IProviderConnect {
-  connect(_rpcs: string[]): Promise<IProvider>;
+  connect(_rpcs: string[], _chainId: string | number): Promise<IProvider>;
 }
 
 export interface ISignerConnect<T, R> {

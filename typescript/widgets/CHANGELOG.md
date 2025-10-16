@@ -1,5 +1,47 @@
 # @hyperlane-xyz/widgets
 
+## 19.1.1
+
+### Patch Changes
+
+- 0781b7947: chore: update naming in wallet modal from ethereum to evm
+  - @hyperlane-xyz/cosmos-sdk@19.1.1
+  - @hyperlane-xyz/sdk@19.1.1
+  - @hyperlane-xyz/utils@19.1.1
+
+## 19.1.0
+
+### Patch Changes
+
+- Updated dependencies [554ff1a66]
+  - @hyperlane-xyz/sdk@19.1.0
+  - @hyperlane-xyz/cosmos-sdk@19.1.0
+  - @hyperlane-xyz/utils@19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- 32479e139: feat: use new AltVM providers
+
+### Minor Changes
+
+- e42a0e8e1: chore: updated AltVM interface
+
+### Patch Changes
+
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [70354d6d9]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [dd4928b1c]
+- Updated dependencies [32479e139]
+- Updated dependencies [32479e139]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/cosmos-sdk@19.0.0
+  - @hyperlane-xyz/utils@19.0.0
+  - @hyperlane-xyz/sdk@19.0.0
+
 ## 18.3.0
 
 ### Patch Changes
