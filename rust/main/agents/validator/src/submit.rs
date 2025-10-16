@@ -165,8 +165,6 @@ impl ValidatorSubmitter {
                         "Receive a checkpoint with a higher index, but lower block height"
                     );
                 }
-                latest_seen_checkpoint.block_height = block_height;
-                latest_seen_checkpoint.checkpoint_index = latest_checkpoint.index;
             }
 
             self.metrics
@@ -203,6 +201,12 @@ impl ValidatorSubmitter {
 
             // Set that initial consistency has been reached on first loop run. Subsequent runs are idempotent.
             self.metrics.reached_initial_consistency.set(1);
+
+            // Update latest seen valid checkpoint
+            if let Some(block_height) = latest_checkpoint.block_height {
+                latest_seen_checkpoint.block_height = block_height;
+                latest_seen_checkpoint.checkpoint_index = latest_checkpoint.index;
+            }
 
             sleep(self.interval).await;
         }
