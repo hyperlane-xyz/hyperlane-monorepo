@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
@@ -19,15 +21,6 @@ export interface CronJobConfig {
   prometheusPushGateway: string;
 }
 
-export interface SweepOverrideConfig {
-  // Address to sweep funds to (overrides default)
-  sweepAddress?: string;
-  // Multiplier for the target balance to leave after sweeping (overrides default 1.5)
-  targetMultiplier?: number;
-  // Multiplier for the trigger threshold to initiate sweep (overrides default 2.0)
-  triggerMultiplier?: number;
-}
-
 export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]>
   extends CronJobConfig {
   contextFundingFrom: Contexts;
@@ -47,4 +40,47 @@ export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]>
 
 export interface CheckWarpDeployConfig extends CronJobConfig {
   registryCommit?: string;
+}
+
+// Zod validation schema for sweep override configuration
+export type SweepOverrideConfig = z.infer<typeof SweepOverrideConfigSchema>;
+const SweepOverrideConfigSchema = z
+  .object({
+    sweepAddress: z.string().optional(),
+    targetMultiplier: z
+      .number()
+      .gt(1, 'Target multiplier must be greater than 1.0')
+      .optional(),
+    triggerMultiplier: z
+      .number()
+      .gt(1.1, 'Trigger multiplier must be greater than 1.1')
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      // Enforce: trigger multiplier must be greater than target multiplier
+      if (
+        typeof data.targetMultiplier === 'number' &&
+        typeof data.triggerMultiplier === 'number'
+      ) {
+        return data.triggerMultiplier > data.targetMultiplier;
+      }
+      return true;
+    },
+    {
+      message: 'Trigger multiplier must be greater than target multiplier',
+      path: ['triggerMultiplier'],
+    },
+  );
+
+/**
+ * Validates a single sweep override configuration using Zod schema.
+ * Ensures multipliers are within reasonable bounds and trigger > target.
+ *
+ * @param config - The sweep override configuration to validate
+ * @returns Validated SweepOverrideConfig
+ * @throws Error if validation fails with formatted error message
+ */
+export function validateSweepConfig(config: unknown): SweepOverrideConfig {
+  return SweepOverrideConfigSchema.parse(config);
 }

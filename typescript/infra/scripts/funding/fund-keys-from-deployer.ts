@@ -30,6 +30,7 @@ import {
   ContextAndRolesMap,
   KeyFunderConfig,
   SweepOverrideConfig,
+  validateSweepConfig,
 } from '../../src/config/funding.js';
 import { FundableRole, Role } from '../../src/roles.js';
 import {
@@ -694,6 +695,29 @@ class ContextFunder {
       override?.targetMultiplier ?? DEFAULT_TARGET_MULTIPLIER;
     const triggerMultiplier =
       override?.triggerMultiplier ?? DEFAULT_TRIGGER_MULTIPLIER;
+
+    // If we have overrides, validate the full config with all overrides applied.
+    if (override) {
+      try {
+        validateSweepConfig({
+          sweepAddress,
+          targetMultiplier,
+          triggerMultiplier,
+        });
+      } catch (error) {
+        logger.error(
+          {
+            chain,
+            override,
+            error: format(error),
+          },
+          'Invalid sweep override configuration',
+        );
+        throw new Error(
+          `Invalid sweep override configuration for chain ${chain}: ${error}`,
+        );
+      }
+    }
 
     // Calculate threshold amounts
     const targetBalance = lowUrgencyBalance
