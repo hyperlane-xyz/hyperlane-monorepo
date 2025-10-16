@@ -44,28 +44,24 @@ export interface CheckWarpDeployConfig extends CronJobConfig {
 
 // Zod validation schema for sweep override configuration
 export type SweepOverrideConfig = z.infer<typeof SweepOverrideConfigSchema>;
-const MIN_TARGET = 1.01;
+
+const MIN_TRIGGER_DIFFERENCE = 0.05;
+const MIN_TARGET = 1.05;
+const MIN_TRIGGER = 1.1;
 const MAX_TARGET = 10.0;
-const MIN_TRIGGER = 1.06;
-const MAX_TRIGGER = 20.0;
-const MIN_TRIGGER_DIFFERENCE = 0.05; // 5% greater than target
+const MAX_TRIGGER = 200.0;
+
 const SweepOverrideConfigSchema = z
   .object({
     sweepAddress: z.string().optional(),
     targetMultiplier: z
       .number()
-      .min(
-        MIN_TARGET,
-        `Target multiplier must be at least ${MIN_TARGET} (i.e. > 1.0)`,
-      )
+      .min(MIN_TARGET, `Target multiplier must be at least ${MIN_TARGET}`)
       .max(MAX_TARGET, `Target multiplier must be at most ${MAX_TARGET}`)
       .optional(),
     triggerMultiplier: z
       .number()
-      .min(
-        MIN_TRIGGER,
-        `Trigger multiplier must be at least ${MIN_TRIGGER} (i.e. > 1.05)`,
-      )
+      .min(MIN_TRIGGER, `Trigger multiplier must be at least ${MIN_TRIGGER}`)
       .max(MAX_TRIGGER, `Trigger multiplier must be at most ${MAX_TRIGGER}`)
       .optional(),
   })
@@ -76,7 +72,7 @@ const SweepOverrideConfigSchema = z
         typeof data.targetMultiplier === 'number' &&
         typeof data.triggerMultiplier === 'number'
       ) {
-        // Enforce: trigger multiplier at least 5% greater than target
+        // Enforce: trigger multiplier must be at least MIN_TRIGGER_DIFFERENCE greater than target
         return (
           data.triggerMultiplier >=
           data.targetMultiplier + MIN_TRIGGER_DIFFERENCE
@@ -85,7 +81,7 @@ const SweepOverrideConfigSchema = z
       return true;
     },
     {
-      message: `Trigger multiplier must be at least 5% greater than target multiplier`,
+      message: `Trigger multiplier must be at least ${MIN_TRIGGER_DIFFERENCE} greater than target multiplier`,
       path: ['triggerMultiplier'],
     },
   );
