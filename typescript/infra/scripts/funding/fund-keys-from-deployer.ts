@@ -762,22 +762,22 @@ class ContextFunder {
         'Sweeping excess funds',
       );
 
-      const tx = await this.multiProvider.sendTransaction(chain, {
-        to: sweepAddress,
-        value: sweepAmount,
-      });
+      // const tx = await this.multiProvider.sendTransaction(chain, {
+      //   to: sweepAddress,
+      //   value: sweepAmount,
+      // });
 
       logger.info(
         {
           chain,
-          tx:
-            this.multiProvider.tryGetExplorerTxUrl(chain, {
-              hash: tx.transactionHash,
-            }) ?? tx.transactionHash,
+          // tx:
+          //   this.multiProvider.tryGetExplorerTxUrl(chain, {
+          //     hash: tx.transactionHash,
+          //   }) ?? tx.transactionHash,
           sweepAmount: ethers.utils.formatEther(sweepAmount),
           sweepAddress,
         },
-        'Successfully swept excess funds',
+        'DRYRUN: Successfully swept excess funds',
       );
     } else {
       logger.info(
