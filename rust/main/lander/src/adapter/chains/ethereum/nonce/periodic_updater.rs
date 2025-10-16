@@ -37,6 +37,7 @@ impl PeriodicNonceUpdater {
 
     pub async fn run(&self) {
         loop {
+            tracing::debug!("Updating finalized nonce");
             let _ = NonceUpdater::update_state_boundaries_immediately(
                 &self.provider,
                 &self.state,
