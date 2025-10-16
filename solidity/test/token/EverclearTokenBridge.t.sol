@@ -611,7 +611,7 @@ contract BaseEverclearTokenBridgeForkTest is Test {
 
     // Test addresses
     address internal ALICE = makeAddr("alice");
-    address internal BOB = makeAddr("bob");
+    address internal BOB = makeAddr("bob2");
     address internal OWNER = makeAddr("owner");
     address internal PROXY_ADMIN = makeAddr("proxyAdmin");
 
