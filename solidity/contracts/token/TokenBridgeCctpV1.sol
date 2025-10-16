@@ -48,15 +48,6 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         return cctpMessage._recipient().bytes32ToAddress();
     }
 
-    function _getCircleNonce(
-        bytes29 cctpMessage
-    ) internal pure override returns (bytes32) {
-        bytes32 sourceAndNonceHash = keccak256(
-            abi.encodePacked(cctpMessage._sourceDomain(), cctpMessage._nonce())
-        );
-        return sourceAndNonceHash;
-    }
-
     function _getCircleSource(
         bytes29 cctpMessage
     ) internal pure override returns (uint32) {
@@ -117,6 +108,8 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         bytes32 /*sender*/,
         bytes calldata /*body*/
     ) external pure override returns (bool) {
+        // No-op: all validation is done in verify()
+        // This callback is required by CCTP's IMessageHandler interface
         return true;
     }
 

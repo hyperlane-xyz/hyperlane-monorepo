@@ -378,6 +378,13 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
+        // Mock processedAt to return current block number for defense-in-depth check
+        vm.mockCall(
+            address(mailboxDestination),
+            abi.encodeWithSelector(IMailbox.processedAt.selector),
+            abi.encode(uint48(block.number))
+        );
+
         vm.expectCall(
             address(messageTransmitterDestination),
             abi.encodeCall(
@@ -386,6 +393,34 @@ contract TokenBridgeCctpV1Test is Test {
             )
         );
         assertEq(tbDestination.verify(metadata, message), true);
+    }
+
+    function test_verify_revertsWhen_messageNotBeingProcessed() public {
+        (
+            bytes memory message,
+            uint64 cctpNonce,
+            bytes32 recipient
+        ) = _setupAndDispatch();
+
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
+            cctpNonce,
+            cctpOrigin,
+            recipient,
+            amount
+        );
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        // Mock processedAt to return 0 (message not being processed)
+        // This simulates calling verify() directly without going through mailbox.process()
+        vm.mockCall(
+            address(mailboxDestination),
+            abi.encodeWithSelector(IMailbox.processedAt.selector),
+            abi.encode(uint48(0))
+        );
+
+        vm.expectRevert(bytes("Message not being processed"));
+        tbDestination.verify(metadata, message);
     }
 
     function _upgrade(TokenBridgeCctpBase bridge) internal virtual {
@@ -422,6 +457,14 @@ contract TokenBridgeCctpV1Test is Test {
         recipient.verify(metadata, message);
 
         _upgrade(recipient);
+
+        // Mock processedAt to return current block number for defense-in-depth check
+        vm.mockCall(
+            address(recipient.mailbox()),
+            abi.encodeWithSelector(IMailbox.processedAt.selector),
+            abi.encode(uint48(block.number))
+        );
+
         assert(recipient.verify(metadata, message));
     }
 
@@ -758,6 +801,13 @@ contract TokenBridgeCctpV1Test is Test {
         address deployer = 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba;
         vm.prank(ism.owner());
         ism.enrollRemoteRouter(origin, deployer.addressToBytes32());
+
+        // Mock processedAt to return current block number for defense-in-depth check
+        vm.mockCall(
+            address(ism.mailbox()),
+            abi.encodeWithSelector(IMailbox.processedAt.selector),
+            abi.encode(uint48(block.number))
+        );
 
         vm.expectCall(
             address(ism),
@@ -1122,6 +1172,13 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             memory attestation = hex"fdaca657526b164d6b09678297565d40e1e68cad3bfb0786470b0e8bce013ee340a985970d69629af69599f3deff5cc975b3df46d2efeadfebd867d049e5e5641cba6f5e720dc86c90d8d51747619fbe2b24246e36fa0603792cb86ad88bdc06136663d6211a8d5d134cf94cf8197892a460b24a5e21715642d338530b472a325d1c";
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
+        // Mock processedAt to return current block number for defense-in-depth check
+        vm.mockCall(
+            address(ism.mailbox()),
+            abi.encodeWithSelector(IMailbox.processedAt.selector),
+            abi.encode(uint48(block.number))
+        );
+
         vm.expectCall(
             address(ism),
             abi.encode(
@@ -1225,6 +1282,13 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             ism.localDomain(),
             address(ism).addressToBytes32(),
             abi.encode(hook, amount)
+        );
+
+        // Mock processedAt to return current block number for defense-in-depth check
+        vm.mockCall(
+            address(ism.mailbox()),
+            abi.encodeWithSelector(IMailbox.processedAt.selector),
+            abi.encode(uint48(block.number))
         );
 
         vm.expectEmit(true, true, true, true, address(ism.tokenMessenger()));

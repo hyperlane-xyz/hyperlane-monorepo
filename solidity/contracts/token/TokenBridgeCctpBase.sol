@@ -204,10 +204,6 @@ abstract contract TokenBridgeCctpBase is
         bytes29 cctpMessage
     ) internal pure virtual returns (uint32);
 
-    function _getCircleNonce(
-        bytes29 cctpMessage
-    ) internal pure virtual returns (bytes32);
-
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
@@ -224,7 +220,26 @@ abstract contract TokenBridgeCctpBase is
         bytes32 messageId
     ) internal virtual;
 
-    // @dev Enforces that the CCTP message source domain and nonce matches the Hyperlane message origin and nonce.
+    /**
+     * @dev Verifies that the CCTP message matches the Hyperlane message.
+     *
+     * Ensures this ISM is only being called during legitimate
+     * message delivery by checking that processedAt(messageId) == block.number.
+     * This prevents direct calls to ISM.verify()
+     * that would deliver the CCTP message without delivering the Hyperlane message.
+     *
+     * For token messages:
+     * - Validates that CCTP burn message fields match Hyperlane message fields
+     * - Attempts to process the CCTP message via receiveMessage()
+     * - If nonce already used (e.g., by Circle's relayer), receiveMessage() will revert
+     * - This is acceptable because tokens were already delivered
+     * - WARNING: this means the Mailbox delivery will not reflect token delivery
+     *
+     * For GMP messages:
+     * - Validates that CCTP message body contains the Hyperlane message ID
+     * - Processes the CCTP message (protected by destinationCaller=ISM)
+     * - Must succeed because ISM is the only valid caller
+     */
     function verify(
         bytes calldata _metadata,
         bytes calldata _hyperlaneMessage
@@ -259,9 +274,25 @@ abstract contract TokenBridgeCctpBase is
             revert("Invalid circle recipient");
         }
 
-        // This will revert after the first successful call,
-        // so the ISM will only return true once for this message
-        return messageTransmitter.receiveMessage(cctpMessageBytes, attestation);
+        bytes32 messageId = _hyperlaneMessage.id();
+
+        // Ensures that the Hyperlane message is being processed "right now" (current block).
+        // Prevents someone from calling ISM.verify() directly and making the message undeliverable.
+        require(
+            mailbox.processedAt(messageId) == block.number,
+            "Message not being processed"
+        );
+
+        // Process the CCTP message
+        // For token messages: may revert if nonce already used by another relayer
+        //   (acceptable because tokens already delivered)
+        // For GMP messages: must succeed (protected by destinationCaller)
+        require(
+            messageTransmitter.receiveMessage(cctpMessageBytes, attestation),
+            "Failed to receive message"
+        );
+
+        return true;
     }
 
     function _offchainLookupCalldata(
