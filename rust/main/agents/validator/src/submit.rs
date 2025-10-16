@@ -325,13 +325,13 @@ impl ValidatorSubmitter {
             ?latest_seen_checkpoint,
             "Latest checkpoint index is lower than previously seen, but has a block height equal or greater.");
 
-        let checkpoint = self.checkpoint(&tree);
+        let checkpoint = self.checkpoint(tree);
         Self::panic_with_reorg(
             &self.reorg_reporter,
             &self.reorg_period,
             &self.checkpoint_syncer,
             tree.root(),
-            &latest_checkpoint,
+            latest_checkpoint,
             &checkpoint,
         )
         .await;
