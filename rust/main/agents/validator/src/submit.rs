@@ -16,7 +16,8 @@ use hyperlane_core::{
     HyperlaneSignerExt, IncrementalMerkleAtBlock,
 };
 use hyperlane_core::{
-    ChainResult, HyperlaneSigner, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType, H256,
+    ChainResult, CheckpointInfo, HyperlaneSigner, MerkleTreeHook, ReorgEvent, ReorgPeriod,
+    SignedType, H256,
 };
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
 
@@ -133,40 +134,8 @@ impl ValidatorSubmitter {
             })
             .await;
 
-            if let Some(block_height) = latest_checkpoint.block_height {
-                if latest_checkpoint.index < latest_seen_checkpoint.checkpoint_index
-                    && block_height >= latest_seen_checkpoint.block_height
-                {
-                    tracing::error!(
-                        ?latest_checkpoint,
-                        ?latest_seen_checkpoint,
-                        "Latest checkpoint index is lower than previously seen, but has a block height equal or greater.");
-
-                    let checkpoint = self.checkpoint(&tree);
-                    Self::panic_with_reorg(
-                        &self.reorg_reporter,
-                        &self.reorg_period,
-                        &self.checkpoint_syncer,
-                        tree.root(),
-                        &latest_checkpoint,
-                        &checkpoint,
-                    )
-                    .await;
-                }
-                tracing::debug!(
-                    ?latest_checkpoint,
-                    ?latest_seen_checkpoint,
-                    "Updating latest seen checkpoint index"
-                );
-                if block_height < latest_seen_checkpoint.block_height {
-                    tracing::warn!(
-                        ?latest_checkpoint,
-                        ?latest_seen_checkpoint,
-                        "Receive a checkpoint with a higher index, but lower block height"
-                    );
-                }
-            }
-
+            self.verify_checkpoint(&tree, &latest_checkpoint, &latest_seen_checkpoint)
+                .await;
             self.metrics
                 .set_latest_checkpoint_observed(&latest_checkpoint);
 
@@ -204,6 +173,18 @@ impl ValidatorSubmitter {
 
             // Update latest seen valid checkpoint
             if let Some(block_height) = latest_checkpoint.block_height {
+                tracing::debug!(
+                    ?latest_checkpoint,
+                    ?latest_seen_checkpoint,
+                    "Updating latest seen checkpoint index"
+                );
+                if block_height < latest_seen_checkpoint.block_height {
+                    tracing::warn!(
+                        ?latest_checkpoint,
+                        ?latest_seen_checkpoint,
+                        "Receive a checkpoint with a higher index, but lower block height"
+                    );
+                }
                 latest_seen_checkpoint.block_height = block_height;
                 latest_seen_checkpoint.checkpoint_index = latest_checkpoint.index;
             }
@@ -314,6 +295,46 @@ impl ValidatorSubmitter {
                 "Signed all queued checkpoints until index"
             );
         }
+    }
+
+    /// Verify checkpoint is valid
+    async fn verify_checkpoint(
+        &self,
+        tree: &IncrementalMerkle,
+        latest_checkpoint: &CheckpointAtBlock,
+        latest_seen_checkpoint: &CheckpointInfo,
+    ) {
+        // if checkpoint has an index greater than last seen, then it is valid
+        if latest_seen_checkpoint.checkpoint_index < latest_checkpoint.index {
+            return;
+        }
+
+        let block_height = match latest_checkpoint.block_height {
+            Some(s) => s,
+            None => return,
+        };
+        // if checkpoint has a block height greater than last seen, then it is valid
+        if latest_seen_checkpoint.block_height < block_height {
+            return;
+        }
+
+        // otherwise, a reorg occurred when checkpoint has a lower index
+        // but has the same or higher block height
+        tracing::error!(
+            ?latest_checkpoint,
+            ?latest_seen_checkpoint,
+            "Latest checkpoint index is lower than previously seen, but has a block height equal or greater.");
+
+        let checkpoint = self.checkpoint(&tree);
+        Self::panic_with_reorg(
+            &self.reorg_reporter,
+            &self.reorg_period,
+            &self.checkpoint_syncer,
+            tree.root(),
+            &latest_checkpoint,
+            &checkpoint,
+        )
+        .await;
     }
 
     async fn panic_with_reorg(
