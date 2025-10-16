@@ -56,11 +56,14 @@ const MovableTokenRebalancingBridgeConfigSchema = z.object({
 const BaseEverclearTokenBridgeConfigSchema = z.object({
   everclearBridgeAddress: ZHash,
   outputAssets: z.record(RemoteRouterDomainOrChainNameSchema, ZHash),
-  everclearFeeParams: z.object({
-    fee: z.number().int(),
-    deadline: z.number().int(),
-    signature: z.string(),
-  }),
+  everclearFeeParams: z.record(
+    RemoteRouterDomainOrChainNameSchema,
+    z.object({
+      fee: z.number().int(),
+      deadline: z.number().int(),
+      signature: z.string(),
+    }),
+  ),
 });
 
 export const isEverclearTokenBridgeConfig = isCompliant(

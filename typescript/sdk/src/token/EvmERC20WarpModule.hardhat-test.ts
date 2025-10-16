@@ -95,6 +95,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
   const chain = TestChainName.test4;
+  const domainId = 31337;
   let mailbox: Mailbox;
   let ismAddress: string;
   let ismFactory: HyperlaneIsmFactory;
@@ -220,10 +221,21 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     EverclearTokenBridgeTokenType,
     Extract<HypTokenRouterConfig, { type: EverclearTokenBridgeTokenType }>
   > => {
+    const chainId = multiProvider.getChainId(chain);
+
     const everclearFeeParams = {
-      deadline: Date.now(),
-      fee: randomInt(1000),
-      signature: '0x',
+      [chainId]: {
+        deadline: Date.now(),
+        fee: randomInt(1000),
+        signature: '0x',
+      },
+    };
+
+    // Need to "enroll" otherwise the fee won't be set
+    const remoteRouters = {
+      [chainId]: {
+        address: randomAddress(),
+      },
     };
 
     return {
@@ -234,6 +246,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         everclearBridgeAddress: everclearBridgeAdapterMock.address,
         everclearFeeParams,
         outputAssets: {},
+        remoteRouters,
       },
       [TokenType.ethEverclear]: {
         type: TokenType.ethEverclear,
@@ -242,6 +255,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         everclearBridgeAddress: everclearBridgeAdapterMock.address,
         everclearFeeParams,
         outputAssets: {},
+        remoteRouters,
       },
     };
   };
@@ -1003,7 +1017,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       it(`should add the specified addresses as rebalancing bridges for tokens of type "${tokenType}"`, async () => {
         const movableTokenConfigs = getMovableTokenConfig();
 
-        const domainId = 31337;
         const config: HypTokenRouterConfig = {
           ...movableTokenConfigs[tokenType],
           remoteRouters: {
@@ -1055,7 +1068,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       });
 
       it(`should remove rebalancing bridges for tokens of type "${tokenType}"`, async () => {
-        const domainId = 31337;
         const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
         const config = HypTokenRouterConfigSchema.parse({
           ...getMovableTokenConfig()[tokenType],
@@ -1107,7 +1119,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       it(`should not generate update transactions for the allowed rebalancing bridges if the address is in a different casing when token is of type "${tokenType}"`, async () => {
         const movableTokenConfigs = getMovableTokenConfig();
 
-        const domainId = 31337;
         const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
         const config = HypTokenRouterConfigSchema.parse({
           ...movableTokenConfigs[tokenType],
@@ -1160,7 +1171,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           config: {
             ...config,
             remoteRouters: {
-              31337: {
+              [domainId]: {
                 address: remoteRouter,
               },
             },
@@ -1199,21 +1210,11 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
     for (const tokenType of everclearTokenBridgeTypes) {
       it(`should add destination outputAssets if the token is of type ${tokenType}`, async () => {
-        const config = deepCopy(
-          getEverclearTokenBridgeTokenConfig()[tokenType],
-        );
+        const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
-        const domainId = 31337;
         const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
-          config: {
-            ...config,
-            remoteRouters: {
-              [domainId]: {
-                address: randomAddress(),
-              },
-            },
-          },
+          config,
           multiProvider,
           proxyFactoryFactories: ismFactoryAddresses,
         });
@@ -1221,7 +1222,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         const remoteToken = randomAddress();
         const txs = await evmERC20WarpModule.update({
           ...config,
-
           outputAssets: {
             [domainId]: remoteToken,
           },
@@ -1242,20 +1242,12 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       });
 
       it(`should overwrite a destination outputAssets if the token is of type ${tokenType} and a destination token already exists for the given destination`, async () => {
-        const config = deepCopy(
-          getEverclearTokenBridgeTokenConfig()[tokenType],
-        );
+        const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
-        const domainId = 31337;
         const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
           config: {
             ...config,
-            remoteRouters: {
-              [domainId]: {
-                address: randomAddress(),
-              },
-            },
             outputAssets: {
               [domainId]: randomAddress(),
             },
@@ -1287,20 +1279,12 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       });
 
       it(`should remove destination outputAssets if the token is of type ${tokenType} and a config is set`, async () => {
-        const config = deepCopy(
-          getEverclearTokenBridgeTokenConfig()[tokenType],
-        );
+        const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
-        const domainId = 31337;
         const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
           config: {
             ...config,
-            remoteRouters: {
-              [domainId]: {
-                address: randomAddress(),
-              },
-            },
             outputAssets: {
               [domainId]: randomAddress(),
             },
@@ -1327,11 +1311,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       });
 
       it(`should remove 1 outputAsset and leave the others if the token is of type ${tokenType}`, async () => {
-        const config = deepCopy(
-          getEverclearTokenBridgeTokenConfig()[tokenType],
-        );
+        const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
-        const domainId = 31337;
         const numOfRouters = randomInt(10, 0);
         const remoteRoutersToKeep = randomRemoteRouters(numOfRouters);
         const initialRemoteRouters = {
@@ -1383,9 +1364,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       });
 
       it(`should update the fee params if the token is of type ${tokenType}`, async () => {
-        const config = deepCopy(
-          getEverclearTokenBridgeTokenConfig()[tokenType],
-        );
+        const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
         const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
@@ -1395,9 +1374,11 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         });
 
         const expectedEverclearFeeParams = {
-          deadline: Date.now(),
-          fee: randomInt(100000000, 100),
-          signature: '0x42',
+          [domainId]: {
+            deadline: Date.now(),
+            fee: randomInt(100000000, 100),
+            signature: '0x42',
+          },
         };
         const txs = await evmERC20WarpModule.update({
           ...config,
@@ -1419,29 +1400,18 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       });
 
       it(`should not generate any update transactions for the fee params if the config did not change and the token is of type ${tokenType}`, async () => {
-        const config = deepCopy(
-          getEverclearTokenBridgeTokenConfig()[tokenType],
-        );
+        const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
-        const expectedEverclearFeeParams = {
-          deadline: Date.now(),
-          fee: randomInt(100000000, 100),
-          signature: '0x42',
-        };
-
-        const formattedConfig = {
-          ...config,
-          everclearFeeParams: expectedEverclearFeeParams,
-        };
+        const expectedEverclearFeeParams = config.everclearFeeParams;
 
         const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
-          config: formattedConfig,
+          config,
           multiProvider,
           proxyFactoryFactories: ismFactoryAddresses,
         });
 
-        const txs = await evmERC20WarpModule.update(formattedConfig);
+        const txs = await evmERC20WarpModule.update(config);
 
         expect(txs.length).to.equal(0);
 

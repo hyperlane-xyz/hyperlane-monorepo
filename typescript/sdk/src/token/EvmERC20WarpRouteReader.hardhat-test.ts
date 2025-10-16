@@ -517,9 +517,11 @@ describe('ERC20WarpRouterReader', async () => {
         wethAddress: weth.address,
         everclearBridgeAddress: everclearBridgeAdapterMock.address,
         everclearFeeParams: {
-          deadline: Date.now(),
-          fee: randomInt(10000000),
-          signature: '0x',
+          [chain]: {
+            deadline: Date.now(),
+            fee: randomInt(10000000),
+            signature: '0x',
+          },
         },
         outputAssets: {},
         ...baseConfig,
@@ -529,9 +531,11 @@ describe('ERC20WarpRouterReader', async () => {
         token: token.address,
         everclearBridgeAddress: everclearBridgeAdapterMock.address,
         everclearFeeParams: {
-          deadline: Date.now(),
-          fee: randomInt(10000000),
-          signature: '0x',
+          [chain]: {
+            deadline: Date.now(),
+            fee: randomInt(10000000),
+            signature: '0x',
+          },
         },
         outputAssets: {},
         ...baseConfig,

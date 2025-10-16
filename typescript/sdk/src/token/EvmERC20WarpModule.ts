@@ -24,10 +24,12 @@ import {
   deepEquals,
   difference,
   eqAddress,
+  isNullish,
   isObjEmpty,
   isZeroishAddress,
   normalizeAddressEvm,
   objDiff,
+  objFilter,
   objKeys,
   objMap,
   promiseObjAll,
@@ -64,6 +66,7 @@ import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   DerivedTokenRouterConfig,
+  EverclearCollateralTokenConfig,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   MovableTokenConfig,
@@ -595,7 +598,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       (address, address2) =>
         !!address &&
         !!address2 &&
-        addressToBytes32(address) !== addressToBytes32(address2),
+        addressToBytes32(address) === addressToBytes32(address2),
     );
     if (isObjEmpty(outputAssetsToAdd)) {
       return [];
@@ -700,18 +703,44 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    const { deadline, fee, signature } = expectedConfig.everclearFeeParams;
-    return [
-      {
+    const resolvedEverclearExpectedFeeConfig = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.everclearFeeParams,
+    );
+    const resolvedActualEverclearFeeConfig = resolveRouterMapConfig(
+      this.multiProvider,
+      actualConfig.everclearFeeParams,
+    );
+
+    const feesToSet = objFilter(
+      resolvedEverclearExpectedFeeConfig,
+      (
+        domainId,
+        currentDomainConfig,
+      ): currentDomainConfig is EverclearCollateralTokenConfig['everclearFeeParams'][number] => {
+        return (
+          isNullish(resolvedActualEverclearFeeConfig[Number(domainId)]) ||
+          !deepEquals(
+            currentDomainConfig,
+            resolvedActualEverclearFeeConfig[Number(domainId)],
+          )
+        );
+      },
+    );
+
+    return Object.entries(feesToSet).map(([domainId, feeConfig]) => {
+      const { deadline, fee, signature } = feeConfig;
+
+      return {
         annotation: `Updating Everclear fee params for token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
         chainId: this.multiProvider.getEvmChainId(this.chainName),
         to: this.args.addresses.deployedTokenRoute,
         data: EverclearTokenBridge__factory.createInterface().encodeFunctionData(
           'setFeeParams',
-          [fee, deadline, signature],
+          [domainId, fee, deadline, signature],
         ),
-      },
-    ];
+      };
+    });
   }
 
   /**
