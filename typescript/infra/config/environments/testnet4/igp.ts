@@ -55,16 +55,6 @@ function getOracleConfigWithOverrides(origin: ChainName) {
     );
   }
 
-  if (origin === 'infinityvmmonza') {
-    // For InfinityVM Monza, override all remote chain gas configs to use 0 gas
-    for (const remoteConfig of Object.values(oracleConfig)) {
-      remoteConfig.gasPrice = '0';
-    }
-  }
-  // Solana Testnet -> InfinityVM Monza, similarly don't charge gas
-  if (origin === 'solanatestnet') {
-    oracleConfig['infinityvmmonza'].gasPrice = '0';
-  }
   return oracleConfig;
 }
 

@@ -36,7 +36,10 @@ export const core: ChainMap<CoreConfig> = objMap(
   (local, owner) => {
     const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
       supportedChainNames
+        // no reflexivity
         .filter((chain) => chain !== local)
+        // exclude forma as it's not a core chain
+        .filter((chain) => chain !== 'forma')
         .map((origin) => [origin, defaultMultisigConfigs[origin]]),
     );
 
@@ -107,7 +110,7 @@ export const core: ChainMap<CoreConfig> = objMap(
 
     const pausableHook: PausableHookConfig = {
       type: HookType.PAUSABLE,
-      paused: local === 'zircuit',
+      paused: false,
       owner: DEPLOYER, // keep pausable hot
     };
 

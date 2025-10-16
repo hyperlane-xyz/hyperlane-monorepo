@@ -2,15 +2,14 @@ import {
   DataRequestBuilder,
   generateRolaChallenge,
 } from '@radixdlt/radix-dapp-toolkit';
-import { RadixEngineToolkit } from '@radixdlt/radix-engine-toolkit';
 import { useCallback, useMemo } from 'react';
 
+import { RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk';
 import {
   ChainName,
   IToken,
   MultiProtocolProvider,
   ProviderType,
-  RadixSDKTransaction,
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
@@ -163,18 +162,14 @@ export function useRadixTransactionFns(
       assert(rdt, `radix dapp toolkit is not defined`);
       assert(gatewayApi, `gateway api is not defined`);
 
-      const transaction = tx.transaction as never as RadixSDKTransaction;
-
-      const transactionManifest = (
-        await RadixEngineToolkit.Instructions.convert(
-          transaction.manifest.instructions,
-          transaction.networkId,
-          'String',
-        )
-      ).value as string;
+      const transaction = tx.transaction as RadixSDKTransaction;
+      assert(
+        typeof transaction.manifest === 'string',
+        `transaction manifests needs to be a string`,
+      );
 
       const transactionResult = await rdt.walletApi.sendTransaction({
-        transactionManifest,
+        transactionManifest: transaction.manifest,
         version: 1,
       });
 

@@ -18,6 +18,7 @@ import type { IToken, TokenArgs } from './IToken.js';
 import { TokenAmount } from './TokenAmount.js';
 import { TokenConnection, TokenConnectionType } from './TokenConnection.js';
 import {
+  PROTOCOL_TO_HYP_NATIVE_STANDARD,
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_HYP_STANDARDS,
@@ -59,6 +60,7 @@ import type {
   IHypTokenAdapter,
   ITokenAdapter,
 } from './adapters/ITokenAdapter.js';
+import { M0PortalLiteTokenAdapter } from './adapters/M0PortalLiteTokenAdapter.js';
 import {
   RadixHypCollateralAdapter,
   RadixHypSyntheticAdapter,
@@ -336,6 +338,17 @@ export class Token implements IToken {
       return new RadixHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
+    } else if (standard === TokenStandard.EvmM0PortalLite) {
+      assert(
+        collateralAddressOrDenom,
+        'collateralAddressOrDenom (mToken address) required for M0PortalLite',
+      );
+      return new M0PortalLiteTokenAdapter(
+        multiProvider,
+        chainName,
+        addressOrDenom, // portal address
+        collateralAddressOrDenom, // mToken address
+      );
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
     }
@@ -404,6 +417,12 @@ export class Token implements IToken {
 
   isNative(): boolean {
     return Object.values(PROTOCOL_TO_NATIVE_STANDARD).includes(this.standard);
+  }
+
+  isHypNative(): boolean {
+    return Object.values(PROTOCOL_TO_HYP_NATIVE_STANDARD).includes(
+      this.standard,
+    );
   }
 
   isCollateralized(): boolean {
@@ -486,7 +505,10 @@ export class Token implements IToken {
         return true;
       }
 
-      if (!this.collateralAddressOrDenom && token.isNative()) {
+      if (
+        !this.collateralAddressOrDenom &&
+        (token.isNative() || token.isHypNative())
+      ) {
         return true;
       }
     }

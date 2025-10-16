@@ -1,6 +1,8 @@
 import { CostingParameters, FeeSummary } from '@radixdlt/babylon-core-api-sdk';
 import {
   GatewayApiClient,
+  LedgerStateSelector,
+  ScryptoSborValue,
   TransactionStatusResponse,
 } from '@radixdlt/babylon-gateway-api-sdk';
 import {
@@ -8,7 +10,6 @@ import {
   ManifestBuilder,
   PrivateKey,
   RadixEngineToolkit,
-  TransactionHash,
   TransactionManifest,
   Value,
   address,
@@ -22,9 +23,9 @@ import { BigNumber } from 'bignumber.js';
 import { Decimal } from 'decimal.js';
 import { utils } from 'ethers';
 
-import { assert, retryAsync } from '@hyperlane-xyz/utils';
+import { assert, sleep } from '@hyperlane-xyz/utils';
 
-import { EntityDetails, INSTRUCTIONS } from './types.js';
+import { EntityDetails, INSTRUCTIONS, RadixSDKReceipt } from './types.js';
 
 export class RadixBase {
   protected networkId: number;
@@ -53,22 +54,30 @@ export class RadixBase {
     return status.ledger_state.state_version > 0;
   }
 
+  public async getStateVersion(): Promise<number> {
+    const status = await this.gateway.status.getCurrent();
+    return status.ledger_state.state_version;
+  }
+
   public async estimateTransactionFee({
     transactionManifest,
   }: {
-    transactionManifest: TransactionManifest;
+    transactionManifest: TransactionManifest | string;
   }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
     const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
 
-    const manifest = (
-      await RadixEngineToolkit.Instructions.convert(
-        transactionManifest.instructions,
-        this.networkId,
-        'String',
-      )
-    ).value as string;
+    const manifest =
+      typeof transactionManifest === 'string'
+        ? transactionManifest
+        : ((
+            await RadixEngineToolkit.Instructions.convert(
+              transactionManifest.instructions,
+              this.networkId,
+              'String',
+            )
+          ).value as string);
 
     const response =
       await this.gateway.transaction.innerClient.transactionPreview({
@@ -127,7 +136,7 @@ export class RadixBase {
     name: string;
     symbol: string;
     description: string;
-    divisibility: number;
+    decimals: number;
   }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(resource);
@@ -148,7 +157,7 @@ export class RadixBase {
           details.metadata.items.find((i) => i.key === 'description')?.value
             .typed as any
         ).value ?? '',
-      divisibility: (details.details as any).divisibility as number,
+      decimals: (details.details as any).divisibility as number,
     };
 
     return result;
@@ -158,7 +167,7 @@ export class RadixBase {
     name: string;
     symbol: string;
     description: string;
-    divisibility: number;
+    decimals: number;
   }> {
     const xrdAddress = await this.getXrdAddress();
     return this.getMetadata({ resource: xrdAddress });
@@ -186,11 +195,11 @@ export class RadixBase {
       return BigInt(0);
     }
 
-    const { divisibility } = await this.getMetadata({ resource });
+    const { decimals } = await this.getMetadata({ resource });
 
     return BigInt(
       new BigNumber(fungibleResource.vaults.items[0].amount)
-        .times(new BigNumber(10).exponentiatedBy(divisibility))
+        .times(new BigNumber(10).exponentiatedBy(decimals))
         .toFixed(0),
     );
   }
@@ -212,11 +221,11 @@ export class RadixBase {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(resource);
 
-    const { divisibility } = await this.getMetadata({ resource });
+    const { decimals } = await this.getMetadata({ resource });
 
     return BigInt(
       new BigNumber((details.details as any).total_supply)
-        .times(new BigNumber(10).exponentiatedBy(divisibility))
+        .times(new BigNumber(10).exponentiatedBy(decimals))
         .toFixed(0),
     );
   }
@@ -226,9 +235,12 @@ export class RadixBase {
     return this.getTotalSupply({ resource: xrdAddress });
   }
 
-  public async pollForCommit(intentHashTransactionId: string): Promise<void> {
-    const pollAttempts = 500;
-    const pollDelayMs = 10000;
+  public async pollForCommit(
+    intentHashTransactionId: string,
+  ): Promise<RadixSDKReceipt> {
+    // we try to poll for 2 minutes
+    const pollAttempts = 120;
+    const pollDelayMs = 1000;
 
     for (let i = 0; i < pollAttempts; i++) {
       let statusOutput: TransactionStatusResponse;
@@ -244,14 +256,43 @@ export class RadixBase {
       }
 
       switch (statusOutput.intent_status) {
-        case 'CommittedSuccess':
-          return;
-        case 'CommittedFailure':
+        case 'Pending': {
+          await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
+          continue;
+        }
+        case 'LikelyButNotCertainRejection': {
+          if (statusOutput.error_message) {
+            throw new Error(
+              `Transaction ${intentHashTransactionId} was not committed successfully - instead it resulted in: ${statusOutput.intent_status} with description: ${statusOutput.error_message}`,
+            );
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
+          continue;
+        }
+        case 'CommittedSuccess': {
+          try {
+            const committedDetails =
+              await this.gateway.transaction.getCommittedDetails(
+                intentHashTransactionId,
+              );
+
+            return {
+              ...committedDetails,
+              transactionHash: intentHashTransactionId,
+            };
+          } catch {
+            await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
+            continue;
+          }
+        }
+        case 'CommittedFailure': {
           // You will typically wish to build a new transaction and try again.
           throw new Error(
             `Transaction ${intentHashTransactionId} was not committed successfully - instead it resulted in: ${statusOutput.intent_status} with description: ${statusOutput.error_message}`,
           );
-        case 'CommitPendingOutcomeUnknown':
+        }
+        case 'CommitPendingOutcomeUnknown': {
           // We keep polling
           if (i < pollAttempts) {
             await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
@@ -264,29 +305,26 @@ export class RadixBase {
               } DESCRIPTION: ${statusOutput.intent_status_description}`,
             );
           }
+        }
       }
     }
+
+    throw new Error(`reached poll limit of ${pollAttempts} attempts`);
   }
 
-  public async getNewComponent(transaction: TransactionHash): Promise<string> {
-    const transactionReceipt = await retryAsync(
-      () => this.gateway.transaction.getCommittedDetails(transaction.id),
-      5,
-      5000,
-    );
-
-    const receipt = transactionReceipt.transaction.receipt;
-    assert(receipt, `found no receipt on transaction: ${transaction.id}`);
+  public async getNewComponent(receipt: RadixSDKReceipt): Promise<string> {
+    const r = receipt.transaction.receipt;
+    assert(r, `found no receipt on transaction: ${receipt.transactionHash}`);
 
     const newGlobalGenericComponent = (
-      receipt.state_updates as any
+      r.state_updates as any
     ).new_global_entities.find(
       (entity: { entity_type: string }) =>
         entity.entity_type === 'GlobalGenericComponent',
     );
     assert(
       newGlobalGenericComponent,
-      `found no newly created component on transaction: ${transaction.id}`,
+      `found no newly created component on transaction: ${receipt.transactionHash}`,
     );
 
     return newGlobalGenericComponent.entity_address;
@@ -390,6 +428,9 @@ export class RadixBase {
     from_address: string;
     to_address: string;
     resource_address: string;
+    /**
+     * The amount MUST be in decimal representation
+     */
     amount: string;
   }) {
     const simulationManifest = new ManifestBuilder()
@@ -436,5 +477,39 @@ export class RadixBase {
           ]),
       )
       .build();
+  }
+
+  public async getKeysFromKeyValueStore(
+    key_value_store_address: string,
+  ): Promise<ScryptoSborValue[]> {
+    let cursor: string | null = null;
+    let at_ledger_state: LedgerStateSelector | null = null;
+    const keys = [];
+    const request_limit = 50;
+
+    for (let i = 0; i < request_limit; i++) {
+      const { items, next_cursor, ledger_state } =
+        await this.gateway.state.innerClient.keyValueStoreKeys({
+          stateKeyValueStoreKeysRequest: {
+            key_value_store_address,
+            at_ledger_state,
+            cursor,
+          },
+        });
+
+      keys.push(...items.map((i) => i.key));
+
+      if (!next_cursor) {
+        return keys;
+      }
+
+      cursor = next_cursor;
+      at_ledger_state = { state_version: ledger_state.state_version };
+      await sleep(50);
+    }
+
+    throw new Error(
+      `Failed to fetch keys from key value store ${key_value_store_address}, reached request limit of ${request_limit}`,
+    );
   }
 }

@@ -64,18 +64,18 @@ describe('hyperlane relayer e2e tests', async function () {
         WARP_DEPLOY_OUTPUT,
       );
 
-      await hyperlaneWarpSendRelay(
-        CHAIN_NAME_2,
-        CHAIN_NAME_3,
-        WARP_DEPLOY_OUTPUT,
-        false,
-      );
-      await hyperlaneWarpSendRelay(
-        CHAIN_NAME_3,
-        CHAIN_NAME_2,
-        WARP_DEPLOY_OUTPUT,
-        false,
-      );
+      await hyperlaneWarpSendRelay({
+        origin: CHAIN_NAME_2,
+        destination: CHAIN_NAME_3,
+        warpCorePath: WARP_DEPLOY_OUTPUT,
+        relay: false,
+      });
+      await hyperlaneWarpSendRelay({
+        origin: CHAIN_NAME_3,
+        destination: CHAIN_NAME_2,
+        warpCorePath: WARP_DEPLOY_OUTPUT,
+        relay: false,
+      });
 
       await process.kill('SIGINT');
     });

@@ -1,5 +1,5 @@
 import { confirm } from '@inquirer/prompts';
-import { Signer, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -11,27 +11,25 @@ import {
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { isSignCommand, isValidKey } from '../commands/signCommands.js';
+import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
+import { AltVMProviderFactory, AltVMSignerFactory } from './altvm.js';
 import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
-import { CommandContext, ContextSettings } from './types.js';
+import {
+  CommandContext,
+  ContextSettings,
+  SignerKeyProtocolMap,
+  SignerKeyProtocolMapSchema,
+} from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
   const requiresKey = isSignCommand(argv);
-
-  // if a key was provided, check if it has a valid format
-  if (argv.key) {
-    assert(
-      isValidKey(argv.key),
-      `Key inputs not valid, make sure to use --key.{protocol} or the legacy flag --key but not both at the same time`,
-    );
-  }
 
   const settings: ContextSettings = {
     registryUris: [...argv.registry],
@@ -47,13 +45,8 @@ export async function contextMiddleware(argv: Record<string, any>) {
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const {
-    key,
-    requiresKey,
-    multiProvider,
-    strategyPath,
-    multiProtocolProvider,
-  } = argv.context;
+  const { key, requiresKey, strategyPath, multiProtocolProvider } =
+    argv.context;
 
   if (!requiresKey) return argv;
 
@@ -74,21 +67,27 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * Extracts signer config
    */
-  const multiProtocolSigner = new MultiProtocolSignerManager(
+  const multiProtocolSigner = await MultiProtocolSignerManager.init(
     strategyConfig,
     chains,
-    multiProvider,
     multiProtocolProvider,
     { key },
   );
-
-  await multiProtocolSigner.initAllSigners();
 
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
   argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
-  argv.context.multiProtocolSigner = multiProtocolSigner;
+
+  /**
+   * Creates AltVM signers
+   */
+  argv.context.altVmSigner = await AltVMSignerFactory.createSigners(
+    argv.context.multiProvider,
+    chains,
+    key,
+    strategyConfig,
+  );
 
   return argv;
 }
@@ -113,16 +112,18 @@ export async function getContext({
     authToken,
   });
 
-  //Just for backward compatibility
-  let signerAddress: string | undefined = undefined;
-  if (key && typeof key === 'string') {
-    let signer: Signer;
-    ({ key, signer } = await getSigner({ key, skipConfirmation }));
-    signerAddress = await signer.getAddress();
-  }
+  const { keyMap, ethereumSignerAddress } = await getSignerKeyMap(
+    key,
+    !!skipConfirmation,
+  );
 
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
+  const altVmProvider = new AltVMProviderFactory(multiProvider);
+  const supportedProtocols = [
+    ProtocolType.Ethereum,
+    ...altVmProvider.getSupportedProtocols(),
+  ];
 
   return {
     registry,
@@ -130,10 +131,56 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
-    key,
+    altVmProvider,
+    supportedProtocols,
+    key: keyMap,
     skipConfirmation: !!skipConfirmation,
-    signerAddress,
+    signerAddress: ethereumSignerAddress,
     strategyPath,
+  };
+}
+
+/**
+ * Resolves private keys by protocol type by reading either the key
+ * argument passed to the CLI or falling back to reading from env
+ */
+async function getSignerKeyMap(
+  rawKeyMap: ContextSettings['key'],
+  skipConfirmation: boolean,
+): Promise<{ keyMap: SignerKeyProtocolMap; ethereumSignerAddress?: Address }> {
+  const keyMap: SignerKeyProtocolMap = SignerKeyProtocolMapSchema.parse(
+    rawKeyMap ?? {},
+  );
+
+  Object.values(ProtocolType).forEach((protocol) => {
+    if (keyMap[protocol]) {
+      return;
+    }
+
+    if (process.env[`HYP_KEY_${protocol.toUpperCase()}`]) {
+      keyMap[protocol] = process.env[`HYP_KEY_${protocol.toUpperCase()}`];
+      return;
+    }
+
+    if (protocol === ProtocolType.Ethereum && process.env.HYP_KEY) {
+      keyMap[protocol] = process.env.HYP_KEY;
+      return;
+    }
+  });
+
+  // Just for backward compatibility
+  let signerAddress: string | undefined = undefined;
+  if (keyMap[ProtocolType.Ethereum]) {
+    const { signer } = await getSigner({
+      key: keyMap[ProtocolType.Ethereum],
+      skipConfirmation,
+    });
+    signerAddress = await signer.getAddress();
+  }
+
+  return {
+    keyMap,
+    ethereumSignerAddress: signerAddress,
   };
 }
 

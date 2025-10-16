@@ -22,6 +22,7 @@ import {
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
 
+import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
@@ -52,10 +53,7 @@ import {
 } from './proxy.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 import { ZKSyncContractVerifier } from './verify/ZKSyncContractVerifier.js';
-import {
-  ContractVerificationInput,
-  ExplorerLicenseType,
-} from './verify/types.js';
+import { ContractVerificationInput } from './verify/types.js';
 import {
   buildVerificationInput,
   getContractVerificationInput,

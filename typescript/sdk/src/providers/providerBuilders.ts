@@ -6,8 +6,8 @@ import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
 
-import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
-import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
+import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
@@ -119,12 +119,15 @@ export function defaultCosmJsWasmProviderBuilder(
 
 export function defaultCosmJsNativeProviderBuilder(
   rpcUrls: RpcUrl[],
-  _network: number | string,
+  network: number | string,
 ): CosmJsNativeProvider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
   return {
     type: ProviderType.CosmJsNative,
-    provider: HyperlaneModuleClient.connect(rpcUrls[0].http),
+    provider: CosmosNativeProvider.connect(
+      rpcUrls.map((rpc) => rpc.http),
+      network,
+    ),
   };
 }
 
@@ -148,12 +151,13 @@ export function defaultZKSyncProviderBuilder(
 }
 
 export function defaultRadixProviderBuilder(
-  _rpcUrls: RpcUrl[],
+  rpcUrls: RpcUrl[],
   network: string | number,
 ): RadixProvider {
   assert(isNumeric(network), 'Radix requires a numeric network id');
   const networkId = parseInt(network.toString(), 10);
-  const provider = new RadixSDK({
+  const provider = new RadixSDKProvider({
+    rpcUrls: rpcUrls.map((rpc) => rpc.http),
     networkId,
   });
   return { provider, type: ProviderType.Radix };

@@ -817,10 +817,17 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
+                let signer = self.sealevel_signer().await.context(ctx)?;
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let tx_submitter =
+                    build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
                 let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(
-                    provider, &locator,
+                    provider,
+                    tx_submitter,
+                    conf.clone(),
+                    &locator,
+                    signer.map(h_sealevel::SealevelKeypair::new),
                 ));
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
@@ -1350,11 +1357,20 @@ fn build_cosmos_native_provider(
 fn build_radix_provider(
     chain_conf: &ChainConf,
     connection_conf: &h_radix::ConnectionConf,
-    _metrics: &CoreMetrics,
+    metrics: &CoreMetrics,
     locator: &ContractLocator,
     signer: Option<h_radix::RadixSigner>,
 ) -> ChainResult<RadixProvider> {
-    RadixProvider::new(signer, connection_conf, locator, &chain_conf.reorg_period)
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    RadixProvider::new(
+        signer,
+        connection_conf,
+        locator,
+        &chain_conf.reorg_period,
+        metrics,
+        middleware_metrics.chain,
+    )
 }
 
 fn build_starknet_provider(
