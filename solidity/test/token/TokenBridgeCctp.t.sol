@@ -411,14 +411,6 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        // Mock processedAt to return 0 (message not being processed)
-        // This simulates calling verify() directly without going through mailbox.process()
-        vm.mockCall(
-            address(mailboxDestination),
-            abi.encodeWithSelector(IMailbox.processedAt.selector),
-            abi.encode(uint48(0))
-        );
-
         vm.expectRevert(bytes("Message not being processed"));
         tbDestination.verify(metadata, message);
     }
