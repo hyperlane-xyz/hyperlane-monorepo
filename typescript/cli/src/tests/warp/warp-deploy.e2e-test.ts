@@ -852,7 +852,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
           token: tokenChain2.address,
           owner: ownerAddress,
           everclearBridgeAddress: everclearBridgeAdapterMock.address,
-          everclearFeeParams: expectedFeeSettings,
+          everclearFeeParams: {
+            [CHAIN_NAME_3]: expectedFeeSettings,
+          },
           outputAssets: {
             [CHAIN_NAME_3]: expectedOutputAssetAddress,
           },
@@ -892,7 +894,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
         everclearBridgeAdapterMock.address,
       );
 
-      const [fee, deadline, signature] = await movableToken.feeParams();
+      const [fee, deadline, signature] =
+        await movableToken.feeParams(chain3DomainId);
       expect(deadline.toNumber()).to.equal(expectedFeeSettings.deadline);
       expect(fee.toNumber()).to.equal(expectedFeeSettings.fee);
       expect(signature).to.equal(expectedFeeSettings.signature);

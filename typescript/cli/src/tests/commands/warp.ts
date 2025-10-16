@@ -351,9 +351,11 @@ function getWarpTokenConfigForType({
         everclearBridgeAddress: everclearBridgeAdapter,
         outputAssets: {},
         everclearFeeParams: {
-          deadline: Date.now(),
-          fee: randomInt(10000000),
-          signature: '0x42',
+          [10]: {
+            deadline: Date.now(),
+            fee: randomInt(10000000),
+            signature: '0x42',
+          },
         },
       };
       break;
