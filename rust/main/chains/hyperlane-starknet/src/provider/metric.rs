@@ -100,7 +100,7 @@ impl JsonRpcTransport for MetricProvider {
                 serde_json::to_value(req)
                     .ok()
                     .and_then(|v| v.get("method").cloned())
-                    .and_then(|m| Some(m.to_string()))
+                    .map(|m| m.to_string())
             })
             .collect();
         let start = Instant::now();
