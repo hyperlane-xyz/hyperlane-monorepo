@@ -11,10 +11,6 @@ import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
 import {ITokenMessengerV1} from "../interfaces/cctp/ITokenMessenger.sol";
 import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
 
-// TokenMessage.metadata := uint8 cctpNonce
-uint256 constant CCTP_TOKEN_BRIDGE_MESSAGE_LEN = TokenMessage.METADATA_OFFSET +
-    8;
-
 // @dev Supports only CCTP V1
 contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
     using CctpMessageV1 for bytes29;
@@ -48,12 +44,6 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         return cctpMessage._recipient().bytes32ToAddress();
     }
 
-    function _getCircleSource(
-        bytes29 cctpMessage
-    ) internal pure override returns (uint32) {
-        return cctpMessage._sourceDomain();
-    }
-
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
@@ -68,13 +58,6 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         );
 
         bytes calldata tokenMessage = hyperlaneMessage.body();
-        _validateTokenMessageLength(tokenMessage);
-
-        require(
-            uint64(bytes8(TokenMessage.metadata(tokenMessage))) ==
-                cctpMessage._nonce(),
-            "Invalid nonce"
-        );
 
         require(
             TokenMessage.amount(tokenMessage) == burnMessage._getAmount(),
@@ -91,26 +74,24 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
     function _validateHookMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
-    ) internal view override {
-        bytes32 circleSender = cctpMessage._sender();
-        require(
-            circleSender == _mustHaveRemoteRouter(hyperlaneMessage.origin()),
-            "Invalid circle sender"
-        );
-
+    ) internal pure override {
         bytes32 circleMessageId = cctpMessage._messageBody().index(0, 32);
         require(circleMessageId == hyperlaneMessage.id(), "Invalid message id");
     }
 
     /// @inheritdoc IMessageHandler
     function handleReceiveMessage(
-        uint32 /*sourceDomain*/,
-        bytes32 /*sender*/,
-        bytes calldata /*body*/
-    ) external pure override returns (bool) {
-        // No-op: all validation is done in verify()
-        // This callback is required by CCTP's IMessageHandler interface
+        uint32 sourceDomain,
+        bytes32 sender,
+        bytes calldata body
+    ) external override returns (bool) {
+        _authenticateCircleSender(sourceDomain, sender);
+        preVerifyMessage(_messageId(body), 0);
         return true;
+    }
+
+    function _messageId(bytes calldata body) internal pure returns (bytes32) {
+        return bytes32(body[0:32]);
     }
 
     function _sendMessageIdToIsm(
@@ -118,20 +99,10 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         bytes32 ism,
         bytes32 messageId
     ) internal override {
-        IMessageTransmitter(messageTransmitter).sendMessageWithCaller(
+        IMessageTransmitter(messageTransmitter).sendMessage(
             destinationDomain,
             ism,
-            ism,
             abi.encode(messageId)
-        );
-    }
-
-    function _validateTokenMessageLength(
-        bytes memory _tokenMessage
-    ) internal pure {
-        require(
-            _tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
-            "Invalid message body length"
         );
     }
 
@@ -139,22 +110,12 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         uint32 circleDomain,
         bytes32 _recipient,
         uint256 _amount
-    ) internal override returns (bytes memory _message) {
-        uint64 nonce = ITokenMessengerV1(address(tokenMessenger))
-            .depositForBurn(
-                _amount,
-                circleDomain,
-                _recipient,
-                address(wrappedToken)
-            );
-
-        _message = TokenMessage.format(
-            _recipient,
+    ) internal override {
+        ITokenMessengerV1(address(tokenMessenger)).depositForBurn(
             _amount,
-            abi.encodePacked(nonce)
+            circleDomain,
+            _recipient,
+            address(wrappedToken)
         );
-        _validateTokenMessageLength(_message);
-
-        return _message;
     }
 }

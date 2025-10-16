@@ -3,12 +3,24 @@ pragma solidity ^0.8.13;
 
 import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
 import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
+import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
+import {IMessageHandlerV2} from "../interfaces/cctp/IMessageHandlerV2.sol";
 import {MockToken} from "./MockToken.sol";
+import {TypedMemView} from "../libs/TypedMemView.sol";
+import {CctpMessageV1} from "../libs/CctpMessageV1.sol";
+import {CctpMessageV2} from "../libs/CctpMessageV2.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 
 contract MockCircleMessageTransmitter is
     IMessageTransmitter,
     IMessageTransmitterV2
 {
+    using TypedMemView for bytes;
+    using TypedMemView for bytes29;
+    using CctpMessageV1 for bytes29;
+    using CctpMessageV2 for bytes29;
+    using TypeCasts for address;
+
     mapping(bytes32 => bool) processedNonces;
     MockToken token;
     uint32 public version;
@@ -26,10 +38,52 @@ contract MockCircleMessageTransmitter is
     }
 
     function receiveMessage(
-        bytes memory,
+        bytes memory message,
         bytes calldata
-    ) external pure returns (bool success) {
-        success = true;
+    ) external returns (bool success) {
+        bytes29 cctpMessage = TypedMemView.ref(message, 0);
+
+        // Extract recipient based on version
+        address recipient;
+        bytes32 sender;
+        uint32 sourceDomain;
+        bytes memory messageBody;
+
+        if (version == 0) {
+            // V1
+            recipient = _bytes32ToAddress(cctpMessage._recipient());
+            sender = cctpMessage._sender();
+            sourceDomain = cctpMessage._sourceDomain();
+            messageBody = cctpMessage._messageBody().clone();
+        } else {
+            // V2
+            recipient = _bytes32ToAddress(cctpMessage._getRecipient());
+            sender = cctpMessage._getSender();
+            sourceDomain = cctpMessage._getSourceDomain();
+            messageBody = cctpMessage._getMessageBody().clone();
+        }
+
+        if (version == 0) {
+            // V1: Call handleReceiveMessage
+            success = IMessageHandler(recipient).handleReceiveMessage(
+                sourceDomain,
+                sender,
+                messageBody
+            );
+        } else {
+            // V2: Call handleReceiveUnfinalizedMessage
+            success = IMessageHandlerV2(recipient)
+                .handleReceiveUnfinalizedMessage(
+                    sourceDomain,
+                    sender,
+                    1000, // mock finality threshold
+                    messageBody
+                );
+        }
+    }
+
+    function _bytes32ToAddress(bytes32 _buf) internal pure returns (address) {
+        return address(uint160(uint256(_buf)));
     }
 
     function hashSourceAndNonce(
@@ -70,11 +124,36 @@ contract MockCircleMessageTransmitter is
     }
 
     function sendMessage(
-        uint32,
-        bytes32,
-        bytes calldata message
+        uint32 destinationDomain,
+        bytes32 recipient,
+        bytes calldata messageBody
     ) public returns (uint64) {
-        emit MessageSent(message);
+        // Format a complete CCTP message for the event based on version
+        bytes memory cctpMessage;
+        if (version == 0) {
+            cctpMessage = CctpMessageV1._formatMessage(
+                version,
+                0, // sourceDomain (mock localDomain returns 0)
+                destinationDomain,
+                0, // nonce
+                address(this).addressToBytes32(),
+                recipient,
+                bytes32(0), // destinationCaller (anyone can relay)
+                messageBody
+            );
+        } else {
+            cctpMessage = CctpMessageV2._formatMessageForRelay(
+                version,
+                0, // sourceDomain (mock localDomain returns 0)
+                destinationDomain,
+                address(this).addressToBytes32(),
+                recipient,
+                bytes32(0), // destinationCaller (anyone can relay)
+                1000, // mock finality threshold
+                messageBody
+            );
+        }
+        emit MessageSent(cctpMessage);
         return 0;
     }
 
@@ -90,10 +169,21 @@ contract MockCircleMessageTransmitter is
     function sendMessage(
         uint32 destinationDomain,
         bytes32 recipient,
-        bytes32,
-        uint32,
+        bytes32 destinationCaller,
+        uint32 minFinalityThreshold,
         bytes calldata messageBody
     ) external {
-        sendMessage(destinationDomain, recipient, messageBody);
+        // V2 sendMessage: format a complete CCTP V2 message
+        bytes memory cctpMessage = CctpMessageV2._formatMessageForRelay(
+            version,
+            0, // sourceDomain (mock localDomain returns 0)
+            destinationDomain,
+            address(this).addressToBytes32(),
+            recipient,
+            destinationCaller,
+            minFinalityThreshold,
+            messageBody
+        );
+        emit MessageSent(cctpMessage);
     }
 }

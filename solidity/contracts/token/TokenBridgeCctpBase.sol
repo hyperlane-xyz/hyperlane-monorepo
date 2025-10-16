@@ -17,7 +17,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {MovableCollateralRouter, MovableCollateralRouterStorage} from "./libs/MovableCollateralRouter.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {AbstractPostDispatchHook} from "../hooks/libs/AbstractPostDispatchHook.sol";
-
+import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -39,7 +39,8 @@ abstract contract TokenBridgeCctpBaseStorage is TokenRouter {
 abstract contract TokenBridgeCctpBase is
     TokenBridgeCctpBaseStorage,
     AbstractCcipReadIsm,
-    AbstractPostDispatchHook
+    AbstractPostDispatchHook,
+    AbstractMessageIdAuthorizedIsm
 {
     using Message for bytes;
     using TypeCasts for bytes32;
@@ -60,9 +61,13 @@ abstract contract TokenBridgeCctpBase is
         uint32 circle;
     }
 
-    /// @notice Hyperlane domain => Circle domain.
+    /// @notice Hyperlane domain => Domain struct.
     /// We use a struct to avoid ambiguity with domain 0 being unknown.
-    mapping(uint32 hypDomain => Domain circleDomain) internal _domainMap;
+    mapping(uint32 hypDomain => Domain domain) internal _hyperlaneDomainMap;
+
+    /// @notice Circle domain => Domain struct.
+    // We use a struct to avoid ambiguity with domain 0 being unknown.
+    mapping(uint32 circleDomain => Domain domain) internal _circleDomainMap;
 
     /**
      * @notice Emitted when the Hyperlane domain to Circle domain mapping is updated.
@@ -136,12 +141,10 @@ abstract contract TokenBridgeCctpBase is
 
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
-        bytes memory _message = _bridgeViaCircle(
-            circleDomain,
-            _recipient,
-            _amount + externalFee
-        );
+        uint256 burnAmount = _amount + externalFee;
+        _bridgeViaCircle(circleDomain, _recipient, burnAmount);
 
+        bytes memory _message = TokenMessage.format(_recipient, burnAmount);
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
         return
             _emitAndDispatch(
@@ -171,7 +174,14 @@ abstract contract TokenBridgeCctpBase is
         uint32 _hyperlaneDomain,
         uint32 _circleDomain
     ) public onlyOwner {
-        _domainMap[_hyperlaneDomain] = Domain(_hyperlaneDomain, _circleDomain);
+        _hyperlaneDomainMap[_hyperlaneDomain] = Domain(
+            _hyperlaneDomain,
+            _circleDomain
+        );
+        _circleDomainMap[_circleDomain] = Domain(
+            _hyperlaneDomain,
+            _circleDomain
+        );
 
         emit DomainAdded(_hyperlaneDomain, _circleDomain);
     }
@@ -185,7 +195,7 @@ abstract contract TokenBridgeCctpBase is
     function hyperlaneDomainToCircleDomain(
         uint32 _hyperlaneDomain
     ) public view returns (uint32) {
-        Domain memory domain = _domainMap[_hyperlaneDomain];
+        Domain memory domain = _hyperlaneDomainMap[_hyperlaneDomain];
         require(
             domain.hyperlane == _hyperlaneDomain,
             "Circle domain not configured"
@@ -194,15 +204,23 @@ abstract contract TokenBridgeCctpBase is
         return domain.circle;
     }
 
+    function circleDomainToHyperlaneDomain(
+        uint32 _circleDomain
+    ) public view returns (uint32) {
+        Domain memory domain = _circleDomainMap[_circleDomain];
+        require(
+            domain.circle == _circleDomain,
+            "Hyperlane domain not configured"
+        );
+
+        return domain.hyperlane;
+    }
+
     function _getCCTPVersion() internal pure virtual returns (uint32);
 
     function _getCircleRecipient(
         bytes29 cctpMessage
     ) internal pure virtual returns (address);
-
-    function _getCircleSource(
-        bytes29 cctpMessage
-    ) internal pure virtual returns (uint32);
 
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
@@ -212,7 +230,7 @@ abstract contract TokenBridgeCctpBase is
     function _validateHookMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
-    ) internal view virtual;
+    ) internal pure virtual;
 
     function _sendMessageIdToIsm(
         uint32 destinationDomain,
@@ -222,28 +240,20 @@ abstract contract TokenBridgeCctpBase is
 
     /**
      * @dev Verifies that the CCTP message matches the Hyperlane message.
-     *
-     * Ensures this ISM is only being called during legitimate
-     * message delivery by checking that processedAt(messageId) == block.number.
-     * This prevents direct calls to ISM.verify()
-     * that would deliver the CCTP message without delivering the Hyperlane message.
-     *
-     * For token messages:
-     * - Validates that CCTP burn message fields match Hyperlane message fields
-     * - Attempts to process the CCTP message via receiveMessage()
-     * - If nonce already used (e.g., by Circle's relayer), receiveMessage() will revert
-     * - This is acceptable because tokens were already delivered
-     * - WARNING: this means the Mailbox delivery will not reflect token delivery
-     *
-     * For GMP messages:
-     * - Validates that CCTP message body contains the Hyperlane message ID
-     * - Processes the CCTP message (protected by destinationCaller=ISM)
-     * - Must succeed because ISM is the only valid caller
      */
     function verify(
         bytes calldata _metadata,
         bytes calldata _hyperlaneMessage
-    ) external returns (bool) {
+    )
+        external
+        override(AbstractMessageIdAuthorizedIsm, IInterchainSecurityModule)
+        returns (bool)
+    {
+        // check if hyperlane message has already been verified by CCTP
+        if (isVerified(_hyperlaneMessage)) {
+            return true;
+        }
+
         // decode return type of CctpService.getCCTPAttestation
         (bytes memory cctpMessageBytes, bytes memory attestation) = abi.decode(
             _metadata,
@@ -251,15 +261,6 @@ abstract contract TokenBridgeCctpBase is
         );
 
         bytes29 cctpMessage = TypedMemView.ref(cctpMessageBytes, 0);
-
-        // check if CCTP message source matches the hyperlane message origin
-        uint32 origin = _hyperlaneMessage.origin();
-        uint32 sourceDomain = _getCircleSource(cctpMessage);
-        require(
-            sourceDomain == hyperlaneDomainToCircleDomain(origin),
-            "Invalid source domain"
-        );
-
         address circleRecipient = _getCircleRecipient(cctpMessage);
         // check if CCTP message is a USDC burn message
         if (circleRecipient == address(tokenMessenger)) {
@@ -274,25 +275,22 @@ abstract contract TokenBridgeCctpBase is
             revert("Invalid circle recipient");
         }
 
-        bytes32 messageId = _hyperlaneMessage.id();
+        return messageTransmitter.receiveMessage(cctpMessageBytes, attestation);
+    }
 
-        // Ensures that the Hyperlane message is being processed "right now" (current block).
-        // Prevents someone from calling ISM.verify() directly and making the message undeliverable.
+    function _authenticateCircleSender(
+        uint32 sourceDomain,
+        bytes32 sender
+    ) internal view {
+        uint32 hyperlaneDomain = circleDomainToHyperlaneDomain(sourceDomain);
         require(
-            mailbox.processedAt(messageId) == block.number,
-            "Message not being processed"
+            _mustHaveRemoteRouter(hyperlaneDomain) == sender,
+            "Unauthorized circle sender"
         );
+    }
 
-        // Process the CCTP message
-        // For token messages: may revert if nonce already used by another relayer
-        //   (acceptable because tokens already delivered)
-        // For GMP messages: must succeed (protected by destinationCaller)
-        require(
-            messageTransmitter.receiveMessage(cctpMessageBytes, attestation),
-            "Failed to receive message"
-        );
-
-        return true;
+    function _isAuthorized() internal view override returns (bool) {
+        return msg.sender == address(messageTransmitter);
     }
 
     function _offchainLookupCalldata(
@@ -315,6 +313,8 @@ abstract contract TokenBridgeCctpBase is
     }
 
     /// @inheritdoc AbstractPostDispatchHook
+    /// @dev Mirrors the logic in AbstractMessageIdAuthHook._postDispatch
+    // but using Router table instead of hook <> ISM coupling
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
@@ -354,5 +354,5 @@ abstract contract TokenBridgeCctpBase is
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) internal virtual returns (bytes memory message);
+    ) internal virtual;
 }

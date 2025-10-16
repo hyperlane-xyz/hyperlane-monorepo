@@ -378,13 +378,6 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        // Mock processedAt to return current block number for defense-in-depth check
-        vm.mockCall(
-            address(mailboxDestination),
-            abi.encodeWithSelector(IMailbox.processedAt.selector),
-            abi.encode(uint48(block.number))
-        );
-
         vm.expectCall(
             address(messageTransmitterDestination),
             abi.encodeCall(
@@ -393,26 +386,6 @@ contract TokenBridgeCctpV1Test is Test {
             )
         );
         assertEq(tbDestination.verify(metadata, message), true);
-    }
-
-    function test_verify_revertsWhen_messageNotBeingProcessed() public {
-        (
-            bytes memory message,
-            uint64 cctpNonce,
-            bytes32 recipient
-        ) = _setupAndDispatch();
-
-        bytes memory cctpMessage = _encodeCctpBurnMessage(
-            cctpNonce,
-            cctpOrigin,
-            recipient,
-            amount
-        );
-        bytes memory attestation = bytes("");
-        bytes memory metadata = abi.encode(cctpMessage, attestation);
-
-        vm.expectRevert(bytes("Message not being processed"));
-        tbDestination.verify(metadata, message);
     }
 
     function _upgrade(TokenBridgeCctpBase bridge) internal virtual {
@@ -450,13 +423,6 @@ contract TokenBridgeCctpV1Test is Test {
 
         _upgrade(recipient);
 
-        // Mock processedAt to return current block number for defense-in-depth check
-        vm.mockCall(
-            address(recipient.mailbox()),
-            abi.encodeWithSelector(IMailbox.processedAt.selector),
-            abi.encode(uint48(block.number))
-        );
-
         assert(recipient.verify(metadata, message));
     }
 
@@ -478,7 +444,8 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid nonce"));
+        // Nonce validation happens inside Circle's receiveMessage
+        vm.expectRevert();
         tbDestination.verify(metadata, message);
     }
 
@@ -500,7 +467,8 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid source domain"));
+        // Source domain validation happens inside Circle's receiveMessage
+        vm.expectRevert();
         tbDestination.verify(metadata, message);
     }
 
@@ -688,10 +656,9 @@ contract TokenBridgeCctpV1Test is Test {
         vm.expectCall(
             address(messageTransmitterOrigin),
             abi.encodeCall(
-                IRelayer.sendMessageWithCaller,
+                IRelayer.sendMessage,
                 (
                     cctpDestination,
-                    address(tbDestination).addressToBytes32(),
                     address(tbDestination).addressToBytes32(),
                     abi.encode(id)
                 )
@@ -785,7 +752,13 @@ contract TokenBridgeCctpV1Test is Test {
         TokenBridgeCctpV1 ism = TokenBridgeCctpV1(router.bytes32ToAddress());
         _upgrade(ism);
 
-        vm.expectRevert(bytes("Invalid circle sender"));
+        // Add domain mapping for circle domain 6 -> hyperlane origin domain
+        // The CCTP message has source domain 6, so we need to configure this mapping
+        vm.prank(ism.owner());
+        ism.addDomain(origin, 6);
+
+        // Sender validation happens inside receiveMessage via callback to _authenticateCircleSender
+        vm.expectRevert(bytes("Unauthorized circle sender"));
         ism.verify(metadata, message);
 
         // CCTP message was sent by deployer on origin chain
@@ -793,13 +766,6 @@ contract TokenBridgeCctpV1Test is Test {
         address deployer = 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba;
         vm.prank(ism.owner());
         ism.enrollRemoteRouter(origin, deployer.addressToBytes32());
-
-        // Mock processedAt to return current block number for defense-in-depth check
-        vm.mockCall(
-            address(ism.mailbox()),
-            abi.encodeWithSelector(IMailbox.processedAt.selector),
-            abi.encode(uint48(block.number))
-        );
 
         vm.expectCall(
             address(ism),
@@ -913,13 +879,14 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory cctpMessage = _encodeCctpHookMessage(
             badSender,
             address(tbDestination).addressToBytes32(),
-            message
+            abi.encode(Message.id(message))
         );
 
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid circle sender"));
+        // Sender validation happens inside receiveMessage via callback to _authenticateCircleSender
+        vm.expectRevert(bytes("Unauthorized circle sender"));
         tbDestination.verify(metadata, message);
     }
 
@@ -1164,13 +1131,6 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             memory attestation = hex"fdaca657526b164d6b09678297565d40e1e68cad3bfb0786470b0e8bce013ee340a985970d69629af69599f3deff5cc975b3df46d2efeadfebd867d049e5e5641cba6f5e720dc86c90d8d51747619fbe2b24246e36fa0603792cb86ad88bdc06136663d6211a8d5d134cf94cf8197892a460b24a5e21715642d338530b472a325d1c";
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        // Mock processedAt to return current block number for defense-in-depth check
-        vm.mockCall(
-            address(ism.mailbox()),
-            abi.encodeWithSelector(IMailbox.processedAt.selector),
-            abi.encode(uint48(block.number))
-        );
-
         vm.expectCall(
             address(ism),
             abi.encode(
@@ -1274,13 +1234,6 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             ism.localDomain(),
             address(ism).addressToBytes32(),
             abi.encode(hook, amount)
-        );
-
-        // Mock processedAt to return current block number for defense-in-depth check
-        vm.mockCall(
-            address(ism.mailbox()),
-            abi.encodeWithSelector(IMailbox.processedAt.selector),
-            abi.encode(uint48(block.number))
         );
 
         vm.expectEmit(true, true, true, true, address(ism.tokenMessenger()));
@@ -1444,7 +1397,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                 (
                     cctpDestination,
                     address(tbDestination).addressToBytes32(),
-                    address(tbDestination).addressToBytes32(),
+                    address(0).addressToBytes32(),
                     minFinalityThreshold,
                     abi.encode(id)
                 )

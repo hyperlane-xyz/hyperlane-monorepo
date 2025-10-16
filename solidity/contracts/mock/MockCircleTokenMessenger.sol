@@ -3,9 +3,16 @@ pragma solidity ^0.8.13;
 
 import {ITokenMessenger, ITokenMessengerV1} from "../interfaces/cctp/ITokenMessenger.sol";
 import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
+import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
+import {IMessageHandlerV2} from "../interfaces/cctp/IMessageHandlerV2.sol";
 import {MockToken} from "./MockToken.sol";
 
-contract MockCircleTokenMessenger is ITokenMessengerV1, ITokenMessengerV2 {
+contract MockCircleTokenMessenger is
+    ITokenMessengerV1,
+    ITokenMessengerV2,
+    IMessageHandler,
+    IMessageHandlerV2
+{
     uint64 public nextNonce = 0;
     MockToken token;
     uint32 public version;
@@ -55,5 +62,33 @@ contract MockCircleTokenMessenger is ITokenMessengerV1, ITokenMessengerV2 {
         uint32
     ) external {
         depositForBurn(_amount, 0, 0, _burnToken);
+    }
+
+    // V1 handler
+    function handleReceiveMessage(
+        uint32,
+        bytes32,
+        bytes calldata
+    ) external pure override returns (bool) {
+        return true;
+    }
+
+    // V2 handlers
+    function handleReceiveFinalizedMessage(
+        uint32,
+        bytes32,
+        uint32,
+        bytes calldata
+    ) external pure override returns (bool) {
+        return true;
+    }
+
+    function handleReceiveUnfinalizedMessage(
+        uint32,
+        bytes32,
+        uint32,
+        bytes calldata
+    ) external pure override returns (bool) {
+        return true;
     }
 }
