@@ -53,7 +53,13 @@ const MAX_TRIGGER = 200.0;
 
 const SweepOverrideConfigSchema = z
   .object({
-    sweepAddress: z.string().optional(),
+    sweepAddress: z
+      .string()
+      .regex(
+        /^0x[a-fA-F0-9]{40}$/,
+        'sweepAddress must be a valid Ethereum address (0x-prefixed, 40 hex characters)',
+      )
+      .optional(),
     targetMultiplier: z
       .number()
       .min(MIN_TARGET, `Target multiplier must be at least ${MIN_TARGET}`)
