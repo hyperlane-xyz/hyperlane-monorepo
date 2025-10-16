@@ -36,7 +36,7 @@ export function MultiProtocolWalletModal({
             onClick={onClickProtocol}
             subTitle="an EVM"
           >
-            Ethereum
+            EVM
           </ProtocolButton>
         )}
         {includesProtocol(ProtocolType.Sealevel) && (

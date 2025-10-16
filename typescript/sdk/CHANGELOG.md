@@ -1,5 +1,34 @@
 # @hyperlane-xyz/sdk
 
+## 19.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@19.1.1
+- @hyperlane-xyz/cosmos-sdk@19.1.1
+- @hyperlane-xyz/radix-sdk@19.1.1
+- @hyperlane-xyz/utils@19.1.1
+- @hyperlane-xyz/core@9.0.13
+
+## 19.1.0
+
+### Minor Changes
+
+- 554ff1a66: Add M0 PortalLite token adapter support for bridging M tokens
+
+  - Add new TokenStandard.EvmM0PortalLite for M0 Portal integration
+  - Implement M0PortalLiteTokenAdapter for handling M0 token transfers
+  - Support for M0's transferMLikeToken function to bridge wrapped M tokens (e.g., mUSD)
+  - Built-in gas estimation via Portal's quoteTransfer function
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@19.1.0
+- @hyperlane-xyz/cosmos-sdk@19.1.0
+- @hyperlane-xyz/radix-sdk@19.1.0
+- @hyperlane-xyz/utils@19.1.0
+- @hyperlane-xyz/core@9.0.12
+
 ## 19.0.0
 
 ### Major Changes

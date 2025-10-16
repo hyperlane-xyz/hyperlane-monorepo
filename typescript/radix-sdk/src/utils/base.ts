@@ -260,6 +260,16 @@ export class RadixBase {
           await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
           continue;
         }
+        case 'LikelyButNotCertainRejection': {
+          if (statusOutput.error_message) {
+            throw new Error(
+              `Transaction ${intentHashTransactionId} was not committed successfully - instead it resulted in: ${statusOutput.intent_status} with description: ${statusOutput.error_message}`,
+            );
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
+          continue;
+        }
         case 'CommittedSuccess': {
           try {
             const committedDetails =

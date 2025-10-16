@@ -35,6 +35,7 @@ export const ezEthChainsToDeploy = [
   'unichain',
   'berachain',
   'worldchain',
+  'plasma',
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
@@ -56,6 +57,7 @@ export const renzoTokenPrices: ChainMap<string> = {
   unichain: '2602.66',
   berachain: '10',
   worldchain: '1599.53',
+  plasma: '0.90',
 };
 export function getProtocolFee(chain: ChainName) {
   const price = renzoTokenPrices[chain];
@@ -75,7 +77,7 @@ const chainProtocolFee: Record<ChainName, string> = {
   mode: '400000000000000',
   optimism: '400000000000000',
   sei: '798889224400000000',
-  swell: '129871800000000',
+  swell: '400000000000000',
   taiko: '400000000000000',
   unichain: '400000000000000',
   worldchain: '400000000000000',
@@ -127,6 +129,7 @@ const ezEthAddresses: Record<(typeof ezEthChainsToDeploy)[number], string> = {
   unichain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   berachain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   worldchain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  plasma: '0x2416092f143378750bb29b79eD961ab195CcEea5',
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
@@ -290,6 +293,16 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
       { address: '0x650a1bcb489BE2079d82602c10837780ef6dADA8', alias: 'Renzo' },
     ],
   },
+  plasma: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x8516146068f7de5df6d65a54a631c968121df782',
+        alias: 'Luganodes',
+      },
+      { address: '0x9A336232b3cc7399b500D09821AB14Caed008b7e', alias: 'Renzo' },
+    ],
+  },
 };
 
 export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
@@ -310,6 +323,7 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     unichain: '0x70aF964829DA7F3f51973EE806AEeAB9225F2661',
     berachain: '0x865BA5789D82F2D4C5595a3968dad729A8C3daE6',
     worldchain: '0x7Be36310285cA4e809C296526745DA983c8F8e0f',
+    plasma: '0x76Cd13F5Bfb73f501795988Ef5d017606Bb16DBd',
   };
 
 const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
