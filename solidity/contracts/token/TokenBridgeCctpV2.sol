@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenBridgeCctpBase} from "./TokenBridgeCctpBase.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
 import {TypedMemView} from "./../libs/TypedMemView.sol";
 import {Message} from "./../libs/Message.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
@@ -42,8 +43,44 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             _tokenMessenger
         )
     {
+        require(_maxFeeBps < 10_000, "maxFeeBps must be less than 100%");
         maxFeeBps = _maxFeeBps;
         minFinalityThreshold = _minFinalityThreshold;
+    }
+
+    // ============ TokenRouter overrides ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to indicate v2 fees.
+     *
+     * Hyperlane uses a "minimum amount out" approach where users specify the exact amount
+     * they want the recipient to receive on the destination chain. This provides a better
+     * UX by guaranteeing predictable outcomes regardless of underlying bridge fee structures.
+     *
+     * However, some underlying bridges like CCTP charge fees as a percentage of the input
+     * amount (amountIn), not the output amount. This requires "reversing" the fee calculation:
+     * we need to determine what input amount (after fees are deducted) will result in the
+     * desired output amount reaching the recipient.
+     *
+     * The formula solves for the fee needed such that after Circle takes their percentage,
+     * the recipient receives exactly `amount`:
+     *
+     *   (amount + fee) * (10_000 - maxFeeBps) / 10_000 = amount
+     *
+     * Solving for fee:
+     *   fee = (amount * maxFeeBps) / (10_000 - maxFeeBps)
+     *
+     * Example: If amount = 100 USDC and maxFeeBps = 10 (0.1%):
+     *   fee = (100 * 10) / (10_000 - 10) = 1000 / 9990 ≈ 0.1001 USDC
+     *   We deposit 100.1001 USDC, Circle takes 0.1001 USDC, recipient gets exactly 100 USDC.
+     */
+    function _externalFeeAmount(
+        uint32,
+        bytes32,
+        uint256 amount
+    ) internal view override returns (uint256 feeAmount) {
+        return (amount * maxFeeBps) / (10_000 - maxFeeBps);
     }
 
     function _getCCTPVersion() internal pure override returns (uint32) {
@@ -153,43 +190,24 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         );
     }
 
-    function _feeAmount(
-        uint32 destination,
-        bytes32 recipient,
-        uint256 amount
-    ) internal view override returns (uint256 feeAmount) {
-        return (amount * maxFeeBps) / 10_000;
-    }
-
-    function _beforeDispatch(
-        uint32 destination,
-        bytes32 recipient,
-        uint256 amount
-    )
-        internal
-        virtual
-        override
-        returns (uint256 dispatchValue, bytes memory message)
-    {
-        uint256 burnAmount = amount +
-            _feeAmount(destination, recipient, amount);
-
-        _transferFromSender(burnAmount);
-
-        uint32 circleDomain = hyperlaneDomainToCircleDomain(destination);
-
+    function _bridgeViaCircle(
+        uint32 circleDomain,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal override returns (bytes memory message) {
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
-            burnAmount,
+            _amount,
             circleDomain,
-            recipient,
+            _recipient,
             address(wrappedToken),
             bytes32(0), // allow anyone to relay
             maxFeeBps,
             minFinalityThreshold
         );
 
-        dispatchValue = msg.value;
-        message = TokenMessage.format(recipient, burnAmount);
+        message = TokenMessage.format(_recipient, _amount);
         _validateTokenMessageLength(message);
+
+        return message;
     }
 }

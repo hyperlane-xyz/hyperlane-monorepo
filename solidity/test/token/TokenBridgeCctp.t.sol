@@ -31,6 +31,9 @@ import {IMessageTransmitter} from "../../contracts/interfaces/cctp/IMessageTrans
 import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
 import {ISpecifiesInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 
 contract TokenBridgeCctpV1Test is Test {
     using TypeCasts for address;
@@ -231,7 +234,11 @@ contract TokenBridgeCctpV1Test is Test {
         );
 
         vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+        // approve internal and external fees
+        tokenOrigin.approve(
+            address(tbOrigin),
+            quote[1].amount + quote[2].amount
+        );
 
         cctpNonce = tokenMessengerOrigin.nextNonce();
         tbOrigin.transferRemote{value: quote[0].amount}(
@@ -262,7 +269,7 @@ contract TokenBridgeCctpV1Test is Test {
             amount
         );
 
-        assertEq(quotes.length, 2);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
         assertEq(
             quotes[0].amount,
@@ -270,17 +277,22 @@ contract TokenBridgeCctpV1Test is Test {
         );
         assertEq(quotes[1].token, address(tokenOrigin));
         assertEq(quotes[1].amount, amount);
+        // external fee
+        assertEq(quotes[2].token, address(tokenOrigin));
+        assertEq(quotes[2].amount, 0);
     }
 
     function test_transferRemoteCctp() public virtual {
-        Quote[] memory quote = tbOrigin.quoteTransferRemote(
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
             destination,
             user.addressToBytes32(),
             amount
         );
 
+        uint256 charge = quotes[1].amount + quotes[2].amount;
+
         vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), quote[1].amount);
+        tokenOrigin.approve(address(tbOrigin), charge);
 
         uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
 
@@ -289,14 +301,58 @@ contract TokenBridgeCctpV1Test is Test {
             abi.encodeCall(
                 ITokenMessengerV1.depositForBurn,
                 (
-                    amount,
+                    charge,
                     cctpDestination,
                     user.addressToBytes32(),
                     address(tokenOrigin)
                 )
             )
         );
-        tbOrigin.transferRemote{value: quote[0].amount}(
+        tbOrigin.transferRemote{value: quotes[0].amount}(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+    }
+
+    function test_transferRemoteCctp_withFeeRecipient() public virtual {
+        LinearFee feeContract = new LinearFee(
+            address(tokenOrigin),
+            1e6,
+            amount / 2,
+            address(this)
+        );
+        tbOrigin.setFeeRecipient(address(feeContract));
+        uint256 feeRecipientFee = feeContract
+        .quoteTransferRemote(destination, user.addressToBytes32(), amount)[0]
+            .amount;
+
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+
+        uint256 charge = quotes[1].amount + quotes[2].amount;
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), charge);
+
+        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
+
+        vm.expectCall(
+            address(tokenMessengerOrigin),
+            abi.encodeCall(
+                ITokenMessengerV1.depositForBurn,
+                (
+                    charge - feeRecipientFee,
+                    cctpDestination,
+                    user.addressToBytes32(),
+                    address(tokenOrigin)
+                )
+            )
+        );
+        tbOrigin.transferRemote{value: quotes[0].amount}(
             destination,
             user.addressToBytes32(),
             amount
@@ -616,6 +672,9 @@ contract TokenBridgeCctpV1Test is Test {
         assertEq(actualId, id);
     }
 
+    // needed for hook refunds
+    receive() external payable {}
+
     function testFork_postDispatch(
         bytes32 recipient,
         bytes calldata body
@@ -670,6 +729,7 @@ contract TokenBridgeCctpV1Test is Test {
         TokenBridgeCctpV1 hook = TokenBridgeCctpV1(
             0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975
         );
+
         bytes32 router = hook.routers(1);
         uint32 origin = hook.localDomain();
 
@@ -721,6 +781,53 @@ contract TokenBridgeCctpV1Test is Test {
         );
         vm.expectRevert(bytes("Message not dispatched"));
         tbOrigin.postDispatch(bytes(""), message);
+    }
+
+    function test_hookType() public {
+        assertEq(tbOrigin.hookType(), uint8(IPostDispatchHook.HookTypes.CCTP));
+    }
+
+    function test_supportsMetadata() public {
+        assertEq(tbOrigin.supportsMetadata(bytes("")), true);
+        assertEq(
+            tbOrigin.supportsMetadata(
+                StandardHookMetadata.format(0, 100_000, address(this))
+            ),
+            true
+        );
+    }
+
+    function test_quoteDispatch() public {
+        assertEq(tbOrigin.quoteDispatch(bytes(""), bytes("")), 0);
+    }
+
+    function test_postDispatch_refundsExcessValue(
+        bytes32 recipient,
+        bytes calldata body
+    ) public virtual {
+        address refundAddress = makeAddr("refundAddress");
+        uint256 refundBalanceBefore = refundAddress.balance;
+
+        // Create metadata with refund address using standard hook metadata format
+        bytes memory metadata = abi.encodePacked(
+            uint16(1), // variant
+            uint256(0), // msgValue
+            uint256(0), // gasLimit
+            refundAddress // refundAddress
+        );
+
+        uint256 excessValue = 1 ether;
+
+        mailboxOrigin.dispatch{value: excessValue}(
+            destination,
+            recipient,
+            body,
+            metadata,
+            tbOrigin
+        );
+
+        // Verify refund was sent
+        assertEq(refundAddress.balance, refundBalanceBefore + excessValue);
     }
 
     function test_verify_hookMessage(bytes calldata body) public {
@@ -909,7 +1016,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             version,
             address(tokenOrigin).addressToBytes32(),
             recipient,
-            amount + (amount * maxFee) / 10_000,
+            amount + (amount * maxFee) / (10_000 - maxFee),
             sender.addressToBytes32(),
             maxFee,
             bytes("")
@@ -1025,6 +1132,9 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
     }
 
     function testFork_transferRemote(bytes32 recipient, uint32 amount) public {
+        // recipient cannot be bytes32(0) in CCTP
+        vm.assume(recipient != bytes32(0));
+
         // depositForBurn will revert if amount is less than maxFee
         vm.assume(amount > maxFee);
         vm.createSelectFork(vm.rpcUrl("base"), 32_739_842);
@@ -1047,13 +1157,16 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         assertEq(quotes[1].token, usdc);
         uint256 usdcQuote = quotes[1].amount;
 
-        deal(usdc, address(this), usdcQuote);
-        IERC20(usdc).approve(address(router), usdcQuote);
+        assertEq(quotes[2].token, usdc);
+        uint256 fastFee = quotes[2].amount;
+
+        deal(usdc, address(this), usdcQuote + fastFee);
+        IERC20(usdc).approve(address(router), usdcQuote + fastFee);
 
         vm.expectEmit(true, true, true, true, address(router.tokenMessenger()));
         emit ITokenMessengerV2.DepositForBurn(
             usdc,
-            usdcQuote,
+            usdcQuote + fastFee,
             address(router),
             recipient,
             circleDestination,
@@ -1177,15 +1290,16 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
 
         uint256 tokenQuote = quote[1].amount;
+        uint256 fastFee = quote[2].amount;
         vm.startPrank(user);
-        tokenOrigin.approve(address(tbOrigin), tokenQuote);
+        tokenOrigin.approve(address(tbOrigin), tokenQuote + fastFee);
 
         vm.expectCall(
             address(tokenMessengerOrigin),
             abi.encodeCall(
                 ITokenMessengerV2.depositForBurn,
                 (
-                    tokenQuote,
+                    tokenQuote + fastFee,
                     cctpDestination,
                     user.addressToBytes32(),
                     address(tokenOrigin),
@@ -1196,6 +1310,54 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             )
         );
         tbOrigin.transferRemote{value: quote[0].amount}(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+    }
+
+    function test_transferRemoteCctp_withFeeRecipient() public override {
+        LinearFee feeContract = new LinearFee(
+            address(tokenOrigin),
+            1e6,
+            amount / 2,
+            address(this)
+        );
+        tbOrigin.setFeeRecipient(address(feeContract));
+        uint256 feeRecipientFee = feeContract
+        .quoteTransferRemote(destination, user.addressToBytes32(), amount)[0]
+            .amount;
+
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+
+        uint256 tokenQuote = quotes[1].amount;
+        uint256 fastFee = quotes[2].amount;
+
+        vm.startPrank(user);
+        tokenOrigin.approve(address(tbOrigin), tokenQuote + fastFee);
+
+        uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
+
+        vm.expectCall(
+            address(tokenMessengerOrigin),
+            abi.encodeCall(
+                ITokenMessengerV2.depositForBurn,
+                (
+                    tokenQuote + fastFee - feeRecipientFee,
+                    cctpDestination,
+                    user.addressToBytes32(),
+                    address(tokenOrigin),
+                    bytes32(0),
+                    maxFee,
+                    minFinalityThreshold
+                )
+            )
+        );
+        tbOrigin.transferRemote{value: quotes[0].amount}(
             destination,
             user.addressToBytes32(),
             amount
@@ -1283,14 +1445,16 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             amount
         );
 
-        assertEq(quotes.length, 2);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
         assertEq(
             quotes[0].amount,
             igpOrigin.quoteGasPayment(destination, gasLimit)
         );
         assertEq(quotes[1].token, address(tokenOrigin));
-        uint256 fastFee = (amount * maxFee) / 10_000;
-        assertEq(quotes[1].amount, amount + fastFee);
+        assertEq(quotes[1].amount, amount);
+        uint256 fastFee = (amount * maxFee) / (10_000 - maxFee);
+        assertEq(quotes[2].token, address(tokenOrigin));
+        assertEq(quotes[2].amount, fastFee);
     }
 }

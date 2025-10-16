@@ -14,8 +14,9 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
+import {MovableCollateralRouter, MovableCollateralRouterStorage} from "./libs/MovableCollateralRouter.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
+import {AbstractPostDispatchHook} from "../hooks/libs/AbstractPostDispatchHook.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -29,10 +30,16 @@ interface CctpService {
         returns (bytes memory cctpMessage, bytes memory attestation);
 }
 
+// need intermediate contract to insert slots between TokenRouter and AbstractCcipReadIsm
+abstract contract TokenBridgeCctpBaseStorage is TokenRouter {
+    /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
+    MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
+}
+
 abstract contract TokenBridgeCctpBase is
-    MovableCollateralRouter,
+    TokenBridgeCctpBaseStorage,
     AbstractCcipReadIsm,
-    IPostDispatchHook
+    AbstractPostDispatchHook
 {
     using Message for bytes;
     using TypeCasts for bytes32;
@@ -69,7 +76,7 @@ abstract contract TokenBridgeCctpBase is
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
         ITokenMessenger _tokenMessenger
-    ) FungibleTokenRouter(_SCALE, _mailbox) {
+    ) TokenRouter(_SCALE, _mailbox) {
         require(
             _messageTransmitter.version() == _getCCTPVersion(),
             "Invalid messageTransmitter CCTP version"
@@ -87,7 +94,10 @@ abstract contract TokenBridgeCctpBase is
         _disableInitializers();
     }
 
-    function token() public view virtual override returns (address) {
+    /**
+     * @inheritdoc TokenRouter
+     */
+    function token() public view override returns (address) {
         return address(wrappedToken);
     }
 
@@ -95,13 +105,52 @@ abstract contract TokenBridgeCctpBase is
         address _hook,
         address _owner,
         string[] memory __urls
-    ) external virtual initializer {
+    ) external initializer {
         // ISM should not be set
         _MailboxClient_initialize(_hook, address(0), _owner);
 
         // Setup urls for offchain lookup and do token approval
         setUrls(__urls);
         wrappedToken.approve(address(tokenMessenger), type(uint256).max);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to bridge the tokens via Circle.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public payable override returns (bytes32 messageId) {
+        // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
+        (
+            uint256 externalFee,
+            uint256 remainingNativeValue
+        ) = _calculateFeesAndCharge(
+                _destination,
+                _recipient,
+                _amount,
+                msg.value
+            );
+
+        // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
+        uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
+        bytes memory _message = _bridgeViaCircle(
+            circleDomain,
+            _recipient,
+            _amount + externalFee
+        );
+
+        // 3. Emit the SentTransferRemote event and 4. dispatch the message
+        return
+            _emitAndDispatch(
+                _destination,
+                _recipient,
+                _amount, // no scaling needed for CCTP
+                remainingNativeValue,
+                _message
+            );
     }
 
     function interchainSecurityModule()
@@ -236,26 +285,19 @@ abstract contract TokenBridgeCctpBase is
         return uint8(IPostDispatchHook.HookTypes.CCTP);
     }
 
-    /// @inheritdoc IPostDispatchHook
-    function supportsMetadata(
-        bytes calldata metadata
-    ) public pure override returns (bool) {
-        return true;
-    }
-
-    /// @inheritdoc IPostDispatchHook
-    function quoteDispatch(
-        bytes calldata,
-        bytes calldata
-    ) external pure override returns (uint256) {
+    /// @inheritdoc AbstractPostDispatchHook
+    function _quoteDispatch(
+        bytes calldata /*metadata*/,
+        bytes calldata /*message*/
+    ) internal pure override returns (uint256) {
         return 0;
     }
 
-    /// @inheritdoc IPostDispatchHook
-    function postDispatch(
-        bytes calldata /*metadata*/,
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(
+        bytes calldata metadata,
         bytes calldata message
-    ) external payable override {
+    ) internal override {
         bytes32 id = message.id();
         require(_isLatestDispatched(id), "Message not dispatched");
 
@@ -264,17 +306,32 @@ abstract contract TokenBridgeCctpBase is
         uint32 circleDestination = hyperlaneDomainToCircleDomain(destination);
 
         _sendMessageIdToIsm(circleDestination, ism, id);
+
+        _refund(metadata, message, address(this).balance);
     }
 
-    // @dev Copied from HypERC20Collateral._transferFromSender
-    function _transferFromSender(uint256 _amount) internal virtual override {
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to transfer the tokens from the sender to this contract (like HypERC20Collateral).
+     */
+    function _transferFromSender(uint256 _amount) internal override {
         wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to not transfer the tokens to the recipient, as the CCTP transfer will do it.
+     */
     function _transferTo(
         address _recipient,
         uint256 _amount
     ) internal override {
         // do not transfer to recipient as the CCTP transfer will do it
     }
+
+    function _bridgeViaCircle(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal virtual returns (bytes memory message);
 }

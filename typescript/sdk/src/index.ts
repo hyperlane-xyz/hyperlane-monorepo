@@ -318,16 +318,6 @@ export {
   GetCallRemoteSettings,
   GetCallRemoteSettingsSchema,
 } from './middleware/account/types.js';
-export { liquidityLayerFactories } from './middleware/liquidity-layer/contracts.js';
-export { LiquidityLayerApp } from './middleware/liquidity-layer/LiquidityLayerApp.js';
-export {
-  BridgeAdapterConfig,
-  BridgeAdapterType,
-  CircleBridgeAdapterConfig,
-  LiquidityLayerConfig,
-  LiquidityLayerDeployer,
-  PortalAdapterConfig,
-} from './middleware/liquidity-layer/LiquidityLayerRouterDeployer.js';
 export { interchainQueryFactories } from './middleware/query/contracts.js';
 export { InterchainQuery } from './middleware/query/InterchainQuery.js';
 export { InterchainQueryChecker } from './middleware/query/InterchainQueryChecker.js';
@@ -549,6 +539,7 @@ export {
 } from './token/adapters/CosmWasmTokenAdapter.js';
 export {
   EvmHypCollateralAdapter,
+  EvmMovableCollateralAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
   EvmHypVSXERC20Adapter,
