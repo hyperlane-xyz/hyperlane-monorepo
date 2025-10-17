@@ -663,7 +663,7 @@ impl AdaptsChain for EthereumAdapter {
             return Ok(Vec::new());
         }
 
-        tracing::warn!(
+        warn!(
             ?old_finalized_nonce,
             ?new_finalized_nonce,
             "New finalized nonce is lower than old finalized nonce"
@@ -674,22 +674,18 @@ impl AdaptsChain for EthereumAdapter {
         while nonce <= old_finalized_nonce {
             let tx_uuid = self.nonce_manager.state.get_tracked_tx_uuid(&nonce).await?;
             if tx_uuid == TransactionUuid::default() {
-                tracing::debug!(
+                debug!(
                     ?nonce,
                     "No tracked transaction UUID for nonce in reorg range"
                 );
             } else if let Some(tx) = self.nonce_manager.state.get_tracked_tx(&tx_uuid).await? {
                 txs.push(tx);
             } else {
-                tracing::debug!(
+                debug!(
                     ?nonce,
                     ?tx_uuid,
                     "No transaction found for nonce in reorg range"
                 );
-            }
-            // Avoid infinite loop when old_finalized_nonce == U256::MAX.
-            if nonce == old_finalized_nonce {
-                break;
             }
             nonce = nonce.saturating_add(U256::one());
         }

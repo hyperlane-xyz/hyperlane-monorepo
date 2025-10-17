@@ -196,6 +196,11 @@ impl InclusionStage {
             None => return Ok(()),
         };
         loop {
+            state.metrics.update_liveness_metric(
+                format!("{}::receive_reprocess_txs", STAGE_NAME).as_str(),
+                &domain,
+            );
+
             tokio::time::sleep(poll_rate).await;
             tracing::debug!(
                 domain,

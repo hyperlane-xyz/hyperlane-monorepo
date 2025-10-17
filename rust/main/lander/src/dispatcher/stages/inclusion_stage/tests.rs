@@ -558,3 +558,68 @@ async fn test_reasonable_receipt_query_frequency() {
         queries_per_second_per_tx
     );
 }
+
+#[tokio::test]
+async fn test_processing_reprocess_txs() {
+    let txs_to_process = 4;
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let (_sender, building_stage_receiver) = mpsc::channel(txs_to_process);
+    let (finality_stage_sender, _receiver) = mpsc::channel(txs_to_process);
+    let txs_created = create_random_txs_and_store_them(
+        txs_to_process,
+        &payload_db,
+        &tx_db,
+        TransactionStatus::PendingInclusion,
+    )
+    .await;
+
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(400));
+    mock_adapter
+        .expect_tx_status()
+        .returning(|_| Ok(TransactionStatus::PendingInclusion));
+    mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .returning(|_| false);
+
+    mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .return_const(Some(Duration::from_millis(50)));
+    let mut txs_created_option = Some(txs_created.clone());
+    mock_adapter.expect_get_reprocess_txs().returning(move || {
+        if let Some(txs) = txs_created_option.take() {
+            Ok(txs)
+        } else {
+            Ok(Vec::new())
+        }
+    });
+
+    let state = DispatcherState::new(
+        payload_db.clone(),
+        tx_db.clone(),
+        Arc::new(mock_adapter),
+        DispatcherMetrics::dummy_instance(),
+        "test".to_string(),
+    );
+    let inclusion_stage = InclusionStage::new(
+        building_stage_receiver,
+        finality_stage_sender,
+        state,
+        "test".to_string(),
+    );
+    let pool = inclusion_stage.pool.clone();
+
+    let stage = tokio::spawn(async move { inclusion_stage.run().await });
+    let _ = tokio::select! {
+        // this arm runs indefinitely
+        _ = stage => {
+        },
+        // this arm is the timeout - increased to accommodate adaptive polling
+        _ = sleep(Duration::from_millis(500)) => {
+        }
+    };
+
+    assert!(are_all_txs_in_pool(txs_created.clone(), &pool).await);
+}
