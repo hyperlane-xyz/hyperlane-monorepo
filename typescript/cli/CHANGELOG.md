@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 19.2.0
+
+### Minor Changes
+
+- 3181c49c7: fix bug related to cli throwing error after trying to retrieve a submitter config for a chain where it wasn't defined if the chain was not an extension
+
 ## 19.1.1
 
 ## 19.1.0
