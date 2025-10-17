@@ -508,7 +508,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     ).to.deep.equal(addressToBytes32(expectedRemoteRouter));
   });
 
-  it.only('should update the Everclear fee params and output asset addresses', async () => {
+  it('should update the Everclear fee params and output asset addresses', async () => {
     const COMBINED_WARP_CORE_CONFIG_PATH =
       GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
         WARP_DEPLOY_OUTPUT_PATH,
