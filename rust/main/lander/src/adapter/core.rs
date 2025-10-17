@@ -115,12 +115,12 @@ pub trait AdaptsChain: Send + Sync {
         todo!()
     }
 
-    /// How often to poll for txs that need to be reprocessed
+    /// How often to poll for payloads that need to be reprocessed
     fn reprocess_payloads_poll_rate(&self) -> Option<Duration> {
         None
     }
 
-    /// Get a list of txs that need to be reprocessed
+    /// Get a list of payloads that need to be reprocessed
     async fn get_reprocess_payloads(&self) -> Result<Vec<FullPayload>, LanderError> {
         Ok(Vec::new())
     }
