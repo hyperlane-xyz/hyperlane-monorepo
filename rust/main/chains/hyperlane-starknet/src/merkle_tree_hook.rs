@@ -15,10 +15,7 @@ use tracing::instrument;
 use crate::contracts::merkle_tree_hook::MerkleTreeHookReader;
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
-use crate::{
-    build_json_provider, get_block_height_for_reorg_period, ConnectionConf, JsonProvider,
-    StarknetProvider,
-};
+use crate::{get_block_height_for_reorg_period, ConnectionConf, JsonProvider, StarknetProvider};
 
 /// A reference to a Merkle Tree Hook contract on some Starknet chain
 #[derive(Debug)]
@@ -32,14 +29,17 @@ pub struct StarknetMerkleTreeHook {
 impl StarknetMerkleTreeHook {
     /// Create a reference to a merkle tree hook at a specific Starknet address on some
     /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
-        let provider = build_json_provider(conn);
+    pub fn new(
+        provider: StarknetProvider,
+        conn: &ConnectionConf,
+        locator: &ContractLocator<'_>,
+    ) -> ChainResult<Self> {
         let hook_address: Felt = HyH256(locator.address).into();
-        let contract = MerkleTreeHookReader::new(hook_address, provider);
+        let contract = MerkleTreeHookReader::new(hook_address, provider.rpc_client().clone());
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider,
             conn: conn.clone(),
         })
     }
