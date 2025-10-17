@@ -97,8 +97,8 @@ impl BuildingStage {
         };
         info!(?tx, "Transaction built successfully");
         self.state.store_tx(&tx).await;
-        // Only send tx to inclusino stage after we stored it
-        // This prevents TX to drop in case the send over fails
+        // Only send tx to inclusion stage after we stored it
+        // This prevents TX from dropping in case the send operation fails
         call_until_success_or_nonretryable_error(
             || self.send_tx_to_inclusion_stage(tx.clone()),
             "Sending transaction to inclusion stage",
