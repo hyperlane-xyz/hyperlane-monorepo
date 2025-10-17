@@ -670,8 +670,8 @@ impl AdaptsChain for EthereumAdapter {
         );
 
         let mut txs = Vec::new();
-        let mut nonce = new_finalized_nonce;
-        while nonce < old_finalized_nonce {
+        let mut nonce = new_finalized_nonce.saturating_add(U256::one());
+        while nonce <= old_finalized_nonce {
             let tx_uuid = self.nonce_manager.state.get_tracked_tx_uuid(&nonce).await?;
             if let Some(tx) = self.nonce_manager.state.get_tracked_tx(&tx_uuid).await? {
                 txs.push(tx);
