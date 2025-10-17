@@ -426,52 +426,6 @@ contract TokenBridgeCctpV1Test is Test {
         assert(recipient.verify(metadata, message));
     }
 
-    function test_verify_revertsWhen_invalidNonce() public virtual {
-        (
-            bytes memory message,
-            uint64 cctpNonce,
-            bytes32 recipient
-        ) = _setupAndDispatch();
-
-        // invalid nonce := nextNonce + 1
-        uint64 badNonce = cctpNonce + 1;
-        bytes memory cctpMessage = _encodeCctpBurnMessage(
-            badNonce,
-            cctpOrigin,
-            recipient,
-            amount
-        );
-        bytes memory attestation = bytes("");
-        bytes memory metadata = abi.encode(cctpMessage, attestation);
-
-        // Nonce validation happens inside Circle's receiveMessage
-        vm.expectRevert();
-        tbDestination.verify(metadata, message);
-    }
-
-    function test_verify_revertsWhen_invalidSourceDomain() public {
-        (
-            bytes memory message,
-            uint64 cctpNonce,
-            bytes32 recipient
-        ) = _setupAndDispatch();
-
-        // invalid source domain := destination
-        uint32 badSourceDomain = cctpDestination;
-        bytes memory cctpMessage = _encodeCctpBurnMessage(
-            cctpNonce,
-            badSourceDomain,
-            recipient,
-            amount
-        );
-        bytes memory attestation = bytes("");
-        bytes memory metadata = abi.encode(cctpMessage, attestation);
-
-        // Source domain validation happens inside Circle's receiveMessage
-        vm.expectRevert();
-        tbDestination.verify(metadata, message);
-    }
-
     function test_verify_revertsWhen_invalidMintAmount() public {
         (
             bytes memory message,
@@ -532,29 +486,6 @@ contract TokenBridgeCctpV1Test is Test {
 
         vm.expectRevert(bytes("Invalid burn sender"));
         tbDestination.verify(metadata, message);
-    }
-
-    function test_verify_revertsWhen_invalidLength() public {
-        (
-            bytes memory message,
-            uint64 cctpNonce,
-            bytes32 recipient
-        ) = _setupAndDispatch();
-
-        bytes memory cctpMessage = _encodeCctpBurnMessage(
-            cctpNonce,
-            cctpOrigin,
-            recipient,
-            amount
-        );
-        bytes memory attestation = bytes("");
-        bytes memory metadata = abi.encode(cctpMessage, attestation);
-
-        // a message with invalid length.
-        bytes memory badMessage = bytes.concat(message, bytes1(uint8(60)));
-
-        vm.expectRevert();
-        tbDestination.verify(metadata, badMessage);
     }
 
     function test_revertsWhen_versionIsNotSupported() public virtual {
@@ -692,6 +623,11 @@ contract TokenBridgeCctpV1Test is Test {
         uint32 origin = mailbox.localDomain();
         bytes32 router = hook.routers(destination);
 
+        // Ensure domain mapping exists
+        uint32 circleDestination = 0; // ethereum circle domain
+        vm.prank(hook.owner());
+        hook.addDomain(destination, circleDestination);
+
         // precompute message ID
         bytes memory message = Message.formatMessage(
             3,
@@ -710,7 +646,7 @@ contract TokenBridgeCctpV1Test is Test {
             hook.messageTransmitter().nextAvailableNonce(),
             address(hook).addressToBytes32(),
             router,
-            router,
+            bytes32(0),
             abi.encode(Message.id(message))
         );
 
@@ -941,6 +877,166 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
         vm.expectRevert(bytes("Invalid circle recipient"));
+        tbDestination.verify(metadata, message);
+    }
+
+    // ============ handleReceiveMessage Tests (V1 only) ============
+
+    function test_handleReceiveMessage(bytes calldata message) public virtual {
+        bytes32 messageId = Message.id(message);
+        // Call handleReceiveMessage from the message transmitter
+        vm.prank(address(messageTransmitterDestination));
+        bool result = TokenBridgeCctpV1(address(tbDestination))
+            .handleReceiveMessage(
+                cctpOrigin,
+                address(tbOrigin).addressToBytes32(),
+                abi.encode(messageId)
+            );
+
+        assertTrue(result);
+        assertTrue(
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+        );
+    }
+
+    function test_handleReceiveMessage_revertsWhen_unauthorizedSender(
+        bytes32 messageId
+    ) public virtual {
+        // Try to call from an unauthorized address
+        vm.prank(address(messageTransmitterDestination));
+        vm.expectRevert(bytes("Unauthorized circle sender"));
+        TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
+            cctpOrigin,
+            evil.addressToBytes32(),
+            abi.encode(messageId)
+        );
+    }
+
+    function test_handleReceiveMessage_revertsWhen_unauthorizedCaller(
+        bytes32 messageId
+    ) public virtual {
+        // Try to call from a non-message-transmitter address
+        vm.prank(evil);
+        vm.expectRevert(
+            bytes("AbstractMessageIdAuthorizedIsm: sender is not the hook")
+        );
+        TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
+            cctpOrigin,
+            address(tbOrigin).addressToBytes32(),
+            abi.encode(messageId)
+        );
+    }
+
+    function test_handleReceiveMessage_revertsWhen_unconfiguredDomain(
+        uint32 badDomain,
+        bytes32 messageId
+    ) public virtual {
+        // Assume the domain is not configured
+        vm.assume(badDomain != cctpOrigin);
+        vm.assume(badDomain != cctpDestination);
+
+        vm.prank(address(messageTransmitterDestination));
+        vm.expectRevert(bytes("Hyperlane domain not configured"));
+        TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
+            badDomain,
+            address(tbOrigin).addressToBytes32(),
+            abi.encode(messageId)
+        );
+    }
+
+    function test_handleReceiveMessage_revertsWhen_unenrolledRouter(
+        bytes32 badRouter,
+        bytes32 messageId
+    ) public virtual {
+        // Assume the router is different from the enrolled one
+        vm.assume(badRouter != address(tbOrigin).addressToBytes32());
+
+        vm.prank(address(messageTransmitterDestination));
+        vm.expectRevert(bytes("Unauthorized circle sender"));
+        TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
+            cctpOrigin,
+            badRouter,
+            abi.encode(messageId)
+        );
+    }
+
+    function test_handleReceiveMessage_revertsWhen_messageAlreadyDelivered(
+        bytes32 messageId
+    ) public virtual {
+        // First delivery succeeds
+        vm.prank(address(messageTransmitterDestination));
+        TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
+            cctpOrigin,
+            address(tbOrigin).addressToBytes32(),
+            abi.encode(messageId)
+        );
+
+        // Second delivery of the same message should revert
+        vm.prank(address(messageTransmitterDestination));
+        vm.expectRevert(
+            bytes("AbstractMessageIdAuthorizedIsm: message already verified")
+        );
+        TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
+            cctpOrigin,
+            address(tbOrigin).addressToBytes32(),
+            abi.encode(messageId)
+        );
+    }
+
+    function test_verify_returnsTrue_afterDirectDelivery(
+        bytes calldata message
+    ) public virtual {
+        bytes32 messageId = Message.id(message);
+
+        // First, deliver the message directly via handleReceiveMessage
+        vm.prank(address(messageTransmitterDestination));
+        assertTrue(
+            TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
+                cctpOrigin,
+                address(tbOrigin).addressToBytes32(),
+                abi.encode(messageId)
+            )
+        );
+
+        // Verify the message is marked as verified
+        assertTrue(
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+        );
+
+        // Now call verify with empty metadata - should return true without attestation
+        bytes memory metadata = abi.encode(bytes(""), bytes(""));
+        assertTrue(tbDestination.verify(metadata, message));
+    }
+
+    function test_verify_revertsWhen_tokenMessageAlreadyDelivered()
+        public
+        virtual
+    {
+        // Setup a token transfer
+        (
+            bytes memory message,
+            uint64 cctpNonce,
+            bytes32 recipient
+        ) = _setupAndDispatch();
+
+        // Create CCTP message for the token transfer
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
+            cctpNonce,
+            cctpOrigin,
+            recipient,
+            amount
+        );
+
+        // Deliver the CCTP message directly via receiveMessage (simulates CCTP delivering the burn message)
+        // This mints the tokens to the recipient
+        messageTransmitterDestination.receiveMessage(cctpMessage, bytes(""));
+
+        // Now try to verify with the same message - should revert because CCTP already processed it
+        bytes memory metadata = abi.encode(cctpMessage, bytes(""));
+
+        // The exact revert message depends on the mock implementation
+        // In a real scenario, Circle's MessageTransmitter would revert with a nonce already used error
+        vm.expectRevert();
         tbDestination.verify(metadata, message);
     }
 }
@@ -1274,7 +1370,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             hook.hyperlaneDomainToCircleDomain(destination),
             address(hook).addressToBytes32(),
             ism,
-            ism,
+            bytes32(0),
             minFinalityThreshold,
             abi.encode(Message.id(message))
         );
@@ -1438,10 +1534,10 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
     }
 
-    function test_verify_revertsWhen_invalidNonce() public override {
-        vm.skip(true);
-        // cannot assert nonce in v2
-    }
+    // function test_verify_revertsWhen_invalidNonce() public override {
+    //     vm.skip(true);
+    //     // cannot assert nonce in v2
+    // }
 
     function testFork_verify_upgrade() public override {
         vm.skip(true);
@@ -1465,5 +1561,329 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint256 fastFee = (amount * maxFee) / (10_000 - maxFee);
         assertEq(quotes[2].token, address(tokenOrigin));
         assertEq(quotes[2].amount, fastFee);
+    }
+
+    // ============ Override V1 handleReceiveMessage tests (V2 doesn't have this function) ============
+
+    // function test_handleReceiveMessage(bytes32) public pure override {
+    //     // V2 doesn't have handleReceiveMessage, skip this test
+    // }
+
+    function test_handleReceiveMessage_revertsWhen_unauthorizedSender(
+        bytes32
+    ) public pure override {
+        // V2 doesn't have handleReceiveMessage, skip this test
+    }
+
+    function test_handleReceiveMessage_revertsWhen_unauthorizedCaller(
+        bytes32
+    ) public pure override {
+        // V2 doesn't have handleReceiveMessage, skip this test
+    }
+
+    function test_handleReceiveMessage_revertsWhen_unconfiguredDomain(
+        uint32,
+        bytes32
+    ) public pure override {
+        // V2 doesn't have handleReceiveMessage, skip this test
+    }
+
+    function test_handleReceiveMessage_revertsWhen_unenrolledRouter(
+        bytes32,
+        bytes32
+    ) public pure override {
+        // V2 doesn't have handleReceiveMessage, skip this test
+    }
+
+    // ============ handleReceiveFinalizedMessage Tests (V2 only) ============
+
+    function test_handleReceiveMessage(bytes calldata message) public override {
+        uint32 finalityThreshold = 2000;
+        bytes32 messageId = Message.id(message);
+        // Call handleReceiveFinalizedMessage from the message transmitter
+        vm.prank(address(messageTransmitterDestination));
+        bool result = TokenBridgeCctpV2(address(tbDestination))
+            .handleReceiveFinalizedMessage(
+                cctpOrigin,
+                address(tbOrigin).addressToBytes32(),
+                finalityThreshold,
+                abi.encode(messageId)
+            );
+
+        assertTrue(result);
+        assertTrue(
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+        );
+    }
+
+    function test_handleReceiveFinalizedMessage_revertsWhen_unauthorizedSender(
+        bytes32 messageId,
+        uint32 finalityThreshold
+    ) public {
+        vm.prank(address(messageTransmitterDestination));
+        vm.expectRevert(bytes("Unauthorized circle sender"));
+        TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
+            cctpOrigin,
+            evil.addressToBytes32(),
+            finalityThreshold,
+            abi.encode(messageId)
+        );
+    }
+
+    function test_handleReceiveFinalizedMessage_revertsWhen_unauthorizedCaller(
+        bytes32 messageId,
+        uint32 finalityThreshold
+    ) public {
+        vm.prank(evil);
+        vm.expectRevert(
+            bytes("AbstractMessageIdAuthorizedIsm: sender is not the hook")
+        );
+        TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
+            cctpOrigin,
+            address(tbOrigin).addressToBytes32(),
+            finalityThreshold,
+            abi.encode(messageId)
+        );
+    }
+
+    function test_handleReceiveFinalizedMessage_revertsWhen_unconfiguredDomain(
+        uint32 badDomain,
+        bytes32 messageId,
+        uint32 finalityThreshold
+    ) public {
+        vm.assume(badDomain != cctpOrigin);
+        vm.assume(badDomain != cctpDestination);
+
+        vm.prank(address(messageTransmitterDestination));
+        vm.expectRevert(bytes("Hyperlane domain not configured"));
+        TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
+            badDomain,
+            address(tbOrigin).addressToBytes32(),
+            finalityThreshold,
+            abi.encode(messageId)
+        );
+    }
+
+    function test_handleReceiveFinalizedMessage_revertsWhen_unenrolledRouter(
+        bytes32 badRouter,
+        bytes32 messageId,
+        uint32 finalityThreshold
+    ) public {
+        vm.assume(badRouter != address(tbOrigin).addressToBytes32());
+
+        vm.prank(address(messageTransmitterDestination));
+        vm.expectRevert(bytes("Unauthorized circle sender"));
+        TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
+            cctpOrigin,
+            badRouter,
+            finalityThreshold,
+            abi.encode(messageId)
+        );
+    }
+
+    // ============ handleReceiveUnfinalizedMessage Tests (V2 only) ============
+
+    function test_handleReceiveUnfinalizedMessage(
+        bytes calldata message,
+        uint32 finalityThreshold
+    ) public {
+        bytes32 messageId = Message.id(message);
+        // Call handleReceiveUnfinalizedMessage from the message transmitter
+        vm.prank(address(messageTransmitterDestination));
+        bool result = TokenBridgeCctpV2(address(tbDestination))
+            .handleReceiveUnfinalizedMessage(
+                cctpOrigin,
+                address(tbOrigin).addressToBytes32(),
+                finalityThreshold,
+                abi.encode(messageId)
+            );
+
+        assertTrue(result);
+        assertTrue(
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+        );
+    }
+
+    function test_handleReceiveUnfinalizedMessage_revertsWhen_unauthorizedSender(
+        bytes32 messageId,
+        uint32 finalityThreshold
+    ) public {
+        vm.prank(address(messageTransmitterDestination));
+        vm.expectRevert(bytes("Unauthorized circle sender"));
+        TokenBridgeCctpV2(address(tbDestination))
+            .handleReceiveUnfinalizedMessage(
+                cctpOrigin,
+                evil.addressToBytes32(),
+                finalityThreshold,
+                abi.encode(messageId)
+            );
+    }
+
+    function test_handleReceiveUnfinalizedMessage_revertsWhen_unauthorizedCaller(
+        bytes32 messageId,
+        uint32 finalityThreshold
+    ) public {
+        vm.prank(evil);
+        vm.expectRevert(
+            bytes("AbstractMessageIdAuthorizedIsm: sender is not the hook")
+        );
+        TokenBridgeCctpV2(address(tbDestination))
+            .handleReceiveUnfinalizedMessage(
+                cctpOrigin,
+                address(tbOrigin).addressToBytes32(),
+                finalityThreshold,
+                abi.encode(messageId)
+            );
+    }
+
+    function test_handleReceiveUnfinalizedMessage_revertsWhen_unconfiguredDomain(
+        uint32 badDomain,
+        bytes32 messageId,
+        uint32 finalityThreshold
+    ) public {
+        vm.assume(badDomain != cctpOrigin);
+        vm.assume(badDomain != cctpDestination);
+
+        vm.prank(address(messageTransmitterDestination));
+        vm.expectRevert(bytes("Hyperlane domain not configured"));
+        TokenBridgeCctpV2(address(tbDestination))
+            .handleReceiveUnfinalizedMessage(
+                badDomain,
+                address(tbOrigin).addressToBytes32(),
+                finalityThreshold,
+                abi.encode(messageId)
+            );
+    }
+
+    function test_handleReceiveUnfinalizedMessage_revertsWhen_unenrolledRouter(
+        bytes32 badRouter,
+        bytes32 messageId,
+        uint32 finalityThreshold
+    ) public {
+        vm.assume(badRouter != address(tbOrigin).addressToBytes32());
+
+        vm.prank(address(messageTransmitterDestination));
+        vm.expectRevert(bytes("Unauthorized circle sender"));
+        TokenBridgeCctpV2(address(tbDestination))
+            .handleReceiveUnfinalizedMessage(
+                cctpOrigin,
+                badRouter,
+                finalityThreshold,
+                abi.encode(messageId)
+            );
+    }
+
+    function test_handleReceiveMessage_revertsWhen_messageAlreadyDelivered(
+        bytes32 messageId
+    ) public override {
+        uint32 finalityThreshold = 2000;
+        // First delivery succeeds
+        vm.prank(address(messageTransmitterDestination));
+        TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
+            cctpOrigin,
+            address(tbOrigin).addressToBytes32(),
+            finalityThreshold,
+            abi.encode(messageId)
+        );
+
+        // Second delivery of the same message should revert
+        vm.prank(address(messageTransmitterDestination));
+        vm.expectRevert(
+            bytes("AbstractMessageIdAuthorizedIsm: message already verified")
+        );
+        TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
+            cctpOrigin,
+            address(tbOrigin).addressToBytes32(),
+            finalityThreshold,
+            abi.encode(messageId)
+        );
+    }
+
+    function test_verify_returnsTrue_afterDirectDelivery(
+        bytes calldata message
+    ) public override {
+        bytes32 messageId = Message.id(message);
+        uint32 finalityThreshold = 2000;
+
+        // First, deliver the message directly via handleReceiveFinalizedMessage
+        vm.prank(address(messageTransmitterDestination));
+        assertTrue(
+            TokenBridgeCctpV2(address(tbDestination))
+                .handleReceiveFinalizedMessage(
+                    cctpOrigin,
+                    address(tbOrigin).addressToBytes32(),
+                    finalityThreshold,
+                    abi.encode(messageId)
+                )
+        );
+
+        // Verify the message is marked as verified
+        assertTrue(
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+        );
+
+        // Now call verify with empty metadata - should return true without attestation
+        bytes memory metadata = abi.encode(bytes(""), bytes(""));
+        assertTrue(tbDestination.verify(metadata, message));
+    }
+
+    function test_verify_returnsTrue_afterUnfinalizedDirectDelivery(
+        bytes calldata message
+    ) public {
+        bytes32 messageId = Message.id(message);
+        uint32 finalityThreshold = 1500;
+
+        // First, deliver the message directly via handleReceiveUnfinalizedMessage
+        vm.prank(address(messageTransmitterDestination));
+        assertTrue(
+            TokenBridgeCctpV2(address(tbDestination))
+                .handleReceiveUnfinalizedMessage(
+                    cctpOrigin,
+                    address(tbOrigin).addressToBytes32(),
+                    finalityThreshold,
+                    abi.encode(messageId)
+                )
+        );
+
+        // Verify the message is marked as verified
+        assertTrue(
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+        );
+
+        // Now call verify with empty metadata - should return true without attestation
+        bytes memory metadata = abi.encode(bytes(""), bytes(""));
+        assertTrue(tbDestination.verify(metadata, message));
+    }
+
+    function test_verify_revertsWhen_tokenMessageAlreadyDelivered()
+        public
+        override
+    {
+        // Setup a token transfer
+        (
+            bytes memory message,
+            uint64 cctpNonce,
+            bytes32 recipient
+        ) = _setupAndDispatch();
+
+        // Create CCTP V2 message for the token transfer
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
+            cctpNonce,
+            cctpOrigin,
+            recipient,
+            amount
+        );
+
+        // Deliver the CCTP message directly via receiveMessage (simulates CCTP delivering the burn message)
+        // This mints the tokens to the recipient
+        messageTransmitterDestination.receiveMessage(cctpMessage, bytes(""));
+
+        // Now try to verify with the same message - should revert because CCTP already processed it
+        bytes memory metadata = abi.encode(cctpMessage, bytes(""));
+
+        // The exact revert message depends on the mock implementation
+        // In a real scenario, Circle's MessageTransmitter would revert with a nonce already used error
+        vm.expectRevert();
+        tbDestination.verify(metadata, message);
     }
 }

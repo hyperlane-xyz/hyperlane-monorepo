@@ -278,15 +278,21 @@ abstract contract TokenBridgeCctpBase is
         return messageTransmitter.receiveMessage(cctpMessageBytes, attestation);
     }
 
-    function _authenticateCircleSender(
+    function _receiveCircleMessage(
         uint32 sourceDomain,
-        bytes32 sender
-    ) internal view {
+        bytes32 sender,
+        bytes calldata body
+    ) internal returns (bool) {
         uint32 hyperlaneDomain = circleDomainToHyperlaneDomain(sourceDomain);
         require(
             _mustHaveRemoteRouter(hyperlaneDomain) == sender,
             "Unauthorized circle sender"
         );
+
+        // body is abi encoded message ID
+        preVerifyMessage(bytes32(body[0:32]), 0);
+
+        return true;
     }
 
     function _isAuthorized() internal view override returns (bool) {

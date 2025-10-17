@@ -132,9 +132,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         uint32 /*finalityThresholdExecuted*/,
         bytes calldata messageBody
     ) external override returns (bool) {
-        _authenticateCircleSender(sourceDomain, sender);
-        preVerifyMessage(_messageId(messageBody), 0);
-        return true;
+        return _receiveCircleMessage(sourceDomain, sender, messageBody);
     }
 
     // @inheritdoc IMessageHandlerV2
@@ -144,13 +142,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         uint32 /*finalityThresholdExecuted*/,
         bytes calldata messageBody
     ) external override returns (bool) {
-        _authenticateCircleSender(sourceDomain, sender);
-        preVerifyMessage(_messageId(messageBody), 0);
-        return true;
-    }
-
-    function _messageId(bytes calldata body) internal pure returns (bytes32) {
-        return bytes32(body[0:32]);
+        return _receiveCircleMessage(sourceDomain, sender, messageBody);
     }
 
     function _sendMessageIdToIsm(

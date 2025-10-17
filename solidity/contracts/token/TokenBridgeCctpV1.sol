@@ -85,13 +85,7 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         bytes32 sender,
         bytes calldata body
     ) external override returns (bool) {
-        _authenticateCircleSender(sourceDomain, sender);
-        preVerifyMessage(_messageId(body), 0);
-        return true;
-    }
-
-    function _messageId(bytes calldata body) internal pure returns (bytes32) {
-        return bytes32(body[0:32]);
+        return _receiveCircleMessage(sourceDomain, sender, body);
     }
 
     function _sendMessageIdToIsm(

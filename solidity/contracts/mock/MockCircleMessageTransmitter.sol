@@ -43,23 +43,37 @@ contract MockCircleMessageTransmitter is
     ) external returns (bool success) {
         bytes29 cctpMessage = TypedMemView.ref(message, 0);
 
+        // Extract nonce and source domain to check if message was already processed
+        uint32 sourceDomain;
+        bytes32 nonceId;
+        if (version == 0) {
+            sourceDomain = cctpMessage._sourceDomain();
+            uint64 nonce = cctpMessage._nonce();
+            nonceId = hashSourceAndNonce(sourceDomain, nonce);
+        } else {
+            sourceDomain = cctpMessage._getSourceDomain();
+            bytes32 nonce = cctpMessage._getNonce();
+            // For V2, use the nonce directly as the nonceId (it's already a bytes32)
+            nonceId = keccak256(abi.encodePacked(sourceDomain, nonce));
+        }
+
+        require(!processedNonces[nonceId], "Message already processed");
+        processedNonces[nonceId] = true;
+
         // Extract recipient based on version
         address recipient;
         bytes32 sender;
-        uint32 sourceDomain;
         bytes memory messageBody;
 
         if (version == 0) {
             // V1
             recipient = _bytes32ToAddress(cctpMessage._recipient());
             sender = cctpMessage._sender();
-            sourceDomain = cctpMessage._sourceDomain();
             messageBody = cctpMessage._messageBody().clone();
         } else {
             // V2
             recipient = _bytes32ToAddress(cctpMessage._getRecipient());
             sender = cctpMessage._getSender();
-            sourceDomain = cctpMessage._getSourceDomain();
             messageBody = cctpMessage._getMessageBody().clone();
         }
 
