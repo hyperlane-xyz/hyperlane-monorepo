@@ -116,12 +116,12 @@ pub trait AdaptsChain: Send + Sync {
     }
 
     /// How often to poll for txs that need to be reprocessed
-    fn reprocess_txs_poll_rate(&self) -> Option<Duration> {
+    fn reprocess_payloads_poll_rate(&self) -> Option<Duration> {
         None
     }
 
     /// Get a list of txs that need to be reprocessed
-    async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
+    async fn get_reprocess_payloads(&self) -> Result<Vec<FullPayload>, LanderError> {
         Ok(Vec::new())
     }
 }

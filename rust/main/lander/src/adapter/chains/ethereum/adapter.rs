@@ -638,13 +638,13 @@ impl AdaptsChain for EthereumAdapter {
         Ok(reverted)
     }
 
-    fn reprocess_txs_poll_rate(&self) -> Option<Duration> {
+    fn reprocess_payloads_poll_rate(&self) -> Option<Duration> {
         // if the block time is too short, we want to cap it at 5s because we don't want
         // to query the nonce too much. 5s should be quick enough for a reorg
         Some((*self.estimated_block_time()).max(Duration::from_secs(5)))
     }
 
-    async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
+    async fn get_reprocess_payloads(&self) -> Result<Vec<FullPayload>, LanderError> {
         let old_finalized_nonce = self
             .nonce_manager
             .state
@@ -663,17 +663,22 @@ impl AdaptsChain for EthereumAdapter {
             return Ok(Vec::new());
         }
 
-        let old_finalized_nonce = old_finalized_nonce.as_u64();
-        let new_finalized_nonce = new_finalized_nonce.as_u64();
         tracing::warn!(
-            old_finalized_nonce,
-            new_finalized_nonce,
+            ?old_finalized_nonce,
+            ?new_finalized_nonce,
             "New finalized nonce is lower than old finalized nonce"
         );
 
-        // TODO
-        for _ in new_finalized_nonce..old_finalized_nonce {}
-        Ok(Vec::new())
+        let mut payloads = Vec::new();
+        let mut nonce = new_finalized_nonce;
+        while nonce < old_finalized_nonce {
+            let tx_uuid = self.nonce_manager.state.get_tracked_tx_uuid(&nonce).await?;
+            if let Some(full_payload) = self.payload_db.retrieve_payload_by_uuid(&tx_uuid).await? {
+                payloads.push(full_payload);
+            };
+            nonce = nonce.saturating_add(U256::one());
+        }
+        Ok(payloads)
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {
