@@ -12,7 +12,7 @@ async fn block_number_result_to_tx_status(
     reorg_period: &EthereumReorgPeriod,
 ) -> TransactionStatus {
     let Some(block_number) = block_number else {
-        return TransactionStatus::PendingInclusion;
+        return TransactionStatus::Mempool;
     };
     let block_number = block_number.as_u64();
     match provider.get_finalized_block_number(reorg_period).await {
@@ -26,9 +26,9 @@ async fn block_number_result_to_tx_status(
         Err(err) => {
             warn!(
                 ?err,
-                "Error checking block finality. Assuming tx is pending inclusion"
+                "Error checking block finality. Assuming tx is in mempool since we got tx receipt"
             );
-            TransactionStatus::PendingInclusion
+            TransactionStatus::Mempool
         }
     }
 }

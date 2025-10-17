@@ -1,5 +1,3 @@
-use std::{str::FromStr, sync::Arc};
-
 use ethers::contract::Lazy;
 use ethers::{
     abi::Detokenize,
@@ -13,6 +11,8 @@ use ethers::{
 use futures_util::try_join;
 use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneDomain, U256};
 use hyperlane_ethereum::{EvmProviderForLander, TransactionOverrides, ZksyncEstimateFeeResponse};
+use std::iter::once;
+use std::{str::FromStr, sync::Arc};
 use tracing::{debug, warn};
 
 use crate::{adapter::EthereumTxPrecursor, LanderError};
@@ -33,10 +33,12 @@ type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU
 const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
 
 // We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
+// We add 100% percentile so that we increase the chance to get fee history with non-zero rewards.
 static PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
     (2..5)
         .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
-        .filter(|p| *p <= 100.0)
+        .filter(|p| *p < 100.0)
+        .chain(once(100.0))
         .collect::<Vec<_>>()
 });
 
