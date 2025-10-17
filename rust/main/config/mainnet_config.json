@@ -9260,6 +9260,11 @@
       "validatorAnnounce": "0x5B7a808CaA2C3F1378B07cDd46eB8ccA52F67e3B",
       "index": {
         "from": 82206
+      },
+      "transactionOverrides": {
+        "minGasPrice": 1000000000,
+        "minFeePerGas": 1000000000,
+        "minPriorityFeePerGas": 1000000000
       }
     },
     "monad": {
