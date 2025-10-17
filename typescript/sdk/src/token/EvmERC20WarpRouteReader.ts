@@ -606,6 +606,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
     return {
       ...erc20TokenMetadata,
+      token: await HypERC4626OwnerCollateral__factory.connect(
+        hypToken,
+        this.provider,
+      ).vault(),
       type: TokenType.collateralVault,
     };
   }
@@ -618,6 +622,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
     return {
       ...erc20TokenMetadata,
+      token: await HypERC4626Collateral__factory.connect(
+        hypToken,
+        this.provider,
+      ).vault(),
       type: TokenType.collateralVaultRebase,
     };
   }
