@@ -6004,6 +6004,7 @@ dependencies = [
  "cainome",
  "derive-new",
  "hyperlane-core",
+ "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
  "serde",
