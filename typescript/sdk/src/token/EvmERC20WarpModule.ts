@@ -1227,11 +1227,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     if (isEverclearTokenBridgeConfig(config)) {
-      const updateEverclearFeeParams =
+      const updateEverclearFeeParamsTxs =
         warpModule.createUpdateEverclearFeeParamsTx(actualConfig, config);
 
-      if (updateEverclearFeeParams.length !== 0) {
-        await multiProvider.sendTransaction(chain, updateEverclearFeeParams[0]);
+      for (const tx of updateEverclearFeeParamsTxs) {
+        await multiProvider.sendTransaction(chain, tx);
       }
     }
 

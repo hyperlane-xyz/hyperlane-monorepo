@@ -482,7 +482,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
                 data: IWETH__factory.createInterface().encodeFunctionData(
                   'deposit',
                 ),
-                value: 1,
+                value: 0,
               });
 
               everclearTokenType = TokenType.ethEverclear;
