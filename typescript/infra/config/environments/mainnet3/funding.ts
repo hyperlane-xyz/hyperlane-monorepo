@@ -6,6 +6,7 @@ import { Contexts } from '../../contexts.js';
 
 import desiredRebalancerBalances from './balances/desiredRebalancerBalances.json' with { type: 'json' };
 import desiredRelayerBalances from './balances/desiredRelayerBalances.json' with { type: 'json' };
+import lowUrgencyKeyFunderBalances from './balances/lowUrgencyKeyFunderBalance.json' with { type: 'json' };
 import { environment } from './chains.js';
 import { mainnet3SupportedChainNames } from './supportedChainNames.js';
 
@@ -22,6 +23,13 @@ const desiredRebalancerBalancePerChain = objMap(
   desiredRebalancerBalances,
   (_, balance) => balance.toString(),
 ) as Record<DesiredRebalancerBalanceChains, string>;
+
+type LowUrgencyKeyFunderBalanceChains =
+  keyof typeof lowUrgencyKeyFunderBalances;
+const lowUrgencyKeyFunderBalancePerChain = objMap(
+  lowUrgencyKeyFunderBalances,
+  (_, balance) => balance.toString(),
+) as Record<LowUrgencyKeyFunderBalanceChains, string>;
 
 export const keyFunderConfig: KeyFunderConfig<
   typeof mainnet3SupportedChainNames
@@ -153,4 +161,10 @@ export const keyFunderConfig: KeyFunderConfig<
     soon: '0',
     sonicsvm: '0',
   },
+  // Low urgency key funder balance thresholds for sweep calculations
+  // Automatic sweep enabled by default for all chains with these thresholds
+  // Defaults: sweep to 0x478be6076f31E9666123B9721D0B6631baD944AF when balance > 2x threshold, leave 1.5x threshold
+  lowUrgencyKeyFunderBalances: lowUrgencyKeyFunderBalancePerChain,
+  // Per-chain overrides for sweep (optional)
+  sweepOverrides: {},
 };
