@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
 
 import {
   CoreConfig,
@@ -19,24 +18,33 @@ import {
   handlePrompts,
 } from '../../commands/helpers.js';
 import {
-  ANVIL_KEY,
-  CHAIN_NAME_2,
-  CORE_CONFIG_PATH,
-  CORE_CONFIG_PATH_2,
+  CORE_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
+  DEPLOYER_ADDRESS_BY_PROTOCOL,
+  HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
-} from '../consts.js';
+  TEMP_PATH,
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
+} from '../../constants.js';
+
+const CORE_CONFIG_PATH_2 = `${TEMP_PATH}/${TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2}/core-config.yaml`;
 
 describe('hyperlane core init e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
-    CHAIN_NAME_2,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     REGISTRY_PATH,
-    CORE_CONFIG_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
     CORE_CONFIG_PATH_2,
   );
+
+  let owner: Address;
+
+  before(async function () {
+    owner = await DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum();
+  });
 
   function assertCoreInitConfig(
     coreConfig: CoreConfig,
@@ -103,7 +111,6 @@ describe('hyperlane core init e2e tests', async function () {
 
   describe('HYP_KEY=... hyperlane core init', () => {
     it('should successfully generate the core contract deployment config when confirming owner prompts', async () => {
-      const owner = new Wallet(ANVIL_KEY).address;
       const steps: TestPromptAction[] = [
         CONFIRM_DETECTED_OWNER_STEP,
         {
@@ -113,7 +120,9 @@ describe('hyperlane core init e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCore.init(undefined, ANVIL_KEY).stdio('pipe');
+      const output = hyperlaneCore
+        .init(undefined, HYP_KEY_BY_PROTOCOL.ethereum)
+        .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -125,7 +134,6 @@ describe('hyperlane core init e2e tests', async function () {
     });
 
     it('should successfully generate the core contract deployment config when not confirming owner prompts', async () => {
-      const owner = new Wallet(ANVIL_KEY).address;
       const feeHookOwner = normalizeAddress(randomAddress());
       const steps: TestPromptAction[] = [
         CONFIRM_DETECTED_OWNER_STEP,
@@ -141,7 +149,9 @@ describe('hyperlane core init e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCore.init(undefined, ANVIL_KEY).stdio('pipe');
+      const output = hyperlaneCore
+        .init(undefined, HYP_KEY_BY_PROTOCOL.ethereum)
+        .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -160,7 +170,6 @@ describe('hyperlane core init e2e tests', async function () {
 
   describe('hyperlane core init --key ...', () => {
     it('should successfully generate the core contract deployment config when confirming owner prompts', async () => {
-      const owner = new Wallet(ANVIL_KEY).address;
       const steps: TestPromptAction[] = [
         CONFIRM_DETECTED_OWNER_STEP,
         {
@@ -170,7 +179,9 @@ describe('hyperlane core init e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCore.init(ANVIL_KEY).stdio('pipe');
+      const output = hyperlaneCore
+        .init(HYP_KEY_BY_PROTOCOL.ethereum)
+        .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -182,7 +193,6 @@ describe('hyperlane core init e2e tests', async function () {
     });
 
     it('should successfully generate the core contract deployment config when not confirming owner prompts', async () => {
-      const owner = new Wallet(ANVIL_KEY).address;
       const feeHookOwner = normalizeAddress(randomAddress());
       const steps: TestPromptAction[] = [
         CONFIRM_DETECTED_OWNER_STEP,
@@ -198,7 +208,9 @@ describe('hyperlane core init e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCore.init(ANVIL_KEY).stdio('pipe');
+      const output = hyperlaneCore
+        .init(HYP_KEY_BY_PROTOCOL.ethereum)
+        .stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 

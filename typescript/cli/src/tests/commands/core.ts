@@ -167,13 +167,7 @@ export class HyperlaneE2ECoreTestCommands {
    * Deploys the Hyperlane core contracts to the specified chain using the provided config.
    */
   public deploy(privateKey: string): ProcessPromise {
-    return $`${this.cmdPrefix} hyperlane core deploy \
-        --registry ${this.registryPath} \
-        --config ${this.coreInputPath} \
-        --chain ${this.chain} \
-        ${this.privateKeyFlag} ${privateKey} \
-        --verbosity debug \
-        --yes`;
+    return this.deployRaw(privateKey, undefined, true, this.chain);
   }
 
   /**

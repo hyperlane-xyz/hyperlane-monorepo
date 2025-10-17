@@ -18,24 +18,22 @@ import {
   randomHookConfig,
   randomIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, deepCopy } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert, deepCopy } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../../utils/files.js';
-import { deployOrUseExistingCore } from '../commands/core.js';
-import { deployToken } from '../commands/helpers.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
+import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
-  hyperlaneWarpCheckRaw,
-  hyperlaneWarpDeploy,
-} from '../commands/warp.js';
-import {
-  ANVIL_KEY,
-  CHAIN_NAME_2,
-  CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
+  CORE_CONFIG_PATH_BY_PROTOCOL,
+  CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
+  HYP_KEY_BY_PROTOCOL,
+  REGISTRY_PATH,
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
   WARP_DEPLOY_OUTPUT_PATH,
-  getCombinedWarpRoutePath,
-} from '../consts.js';
+  getWarpCoreConfigPath,
+} from '../../constants.js';
+import { deployToken } from '../commands/helpers.js';
 
 describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -48,17 +46,41 @@ describe('hyperlane warp check e2e tests', async function () {
   let combinedWarpCoreConfigPath: string;
   let warpConfig: WarpRouteDeployConfig;
 
+  const evmChain2Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+  );
+  const evmChain3Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+  );
+
+  const evmWarpCommands = new HyperlaneE2EWarpTestCommands(
+    ProtocolType.Ethereum,
+    REGISTRY_PATH,
+    WARP_DEPLOY_OUTPUT_PATH,
+  );
+
   before(async function () {
     [chain2Addresses, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      evmChain2Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
+      evmChain3Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
     ]);
 
-    token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+    token = await deployToken(
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    );
     tokenSymbol = await token.symbol();
 
-    combinedWarpCoreConfigPath = getCombinedWarpRoutePath(tokenSymbol, [
-      CHAIN_NAME_3,
+    combinedWarpCoreConfigPath = getWarpCoreConfigPath(tokenSymbol, [
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
     ]);
   });
 
@@ -73,25 +95,29 @@ describe('hyperlane warp check e2e tests', async function () {
 
     const currentWarpId = createWarpRouteConfigId(
       await token.symbol(),
-      CHAIN_NAME_3,
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
     );
 
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, currentWarpId);
+    await evmWarpCommands.deploy(
+      WARP_DEPLOY_OUTPUT_PATH,
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      currentWarpId,
+    );
 
     return warpConfig;
   }
 
   // Reset config before each test to avoid test changes intertwining
   beforeEach(async function () {
-    ownerAddress = new Wallet(ANVIL_KEY).address;
+    ownerAddress = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).address;
     warpConfig = {
-      [CHAIN_NAME_2]: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
         type: TokenType.collateral,
         token: token.address,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
       },
-      [CHAIN_NAME_3]: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
         type: TokenType.synthetic,
         mailbox: chain3Addresses.mailbox,
         owner: ownerAddress,
@@ -101,7 +127,8 @@ describe('hyperlane warp check e2e tests', async function () {
 
   for (const hookType of MUTABLE_HOOK_TYPE) {
     it(`should find owner differences between the local config and the on chain config for hook of type ${hookType}`, async function () {
-      warpConfig[CHAIN_NAME_3].hook = randomHookConfig(0, 2, hookType);
+      warpConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3].hook =
+        randomHookConfig(0, 2, hookType);
       await deployAndExportWarpRoute();
 
       const mutatedWarpConfig = deepCopy(warpConfig);
@@ -109,7 +136,9 @@ describe('hyperlane warp check e2e tests', async function () {
       const hookConfig: Extract<
         HookConfig,
         { type: (typeof MUTABLE_HOOK_TYPE)[number]; owner: string }
-      > = mutatedWarpConfig[CHAIN_NAME_3].hook!;
+      > =
+        mutatedWarpConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .hook!;
       const actualOwner = hookConfig.owner;
       const wrongOwner = randomAddress();
       assert(actualOwner !== wrongOwner, 'Random owner matches actualOwner');
@@ -119,10 +148,12 @@ describe('hyperlane warp check e2e tests', async function () {
       const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
       const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
 
-      const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
-      }).nothrow();
+      const output = await evmWarpCommands
+        .checkRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+          warpCoreConfigPath: combinedWarpCoreConfigPath,
+        })
+        .nothrow();
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;
       expect(output.text().includes(expectedActualText)).to.be.true;
@@ -135,7 +166,9 @@ describe('hyperlane warp check e2e tests', async function () {
   )) {
     it(`should find owner differences between the local config and the on chain config for ism of type ${ismType}`, async function () {
       // Create a Pausable because randomIsmConfig() cannot generate it (reason: NULL type Isms)
-      warpConfig[CHAIN_NAME_3].interchainSecurityModule =
+      warpConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].interchainSecurityModule =
         ismType === IsmType.PAUSABLE
           ? {
               type: IsmType.PAUSABLE,
@@ -150,7 +183,9 @@ describe('hyperlane warp check e2e tests', async function () {
       const ismConfig: Extract<
         IsmConfig,
         { type: (typeof MUTABLE_ISM_TYPE)[number]; owner: string }
-      > = mutatedWarpConfig[CHAIN_NAME_3].interchainSecurityModule;
+      > =
+        mutatedWarpConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .interchainSecurityModule;
       const actualOwner = ismConfig.owner;
       const wrongOwner = randomAddress();
       assert(actualOwner !== wrongOwner, 'Random owner matches actualOwner');
@@ -160,10 +195,12 @@ describe('hyperlane warp check e2e tests', async function () {
       const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
       const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
 
-      const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
-      }).nothrow();
+      const output = await evmWarpCommands
+        .checkRaw({
+          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+          warpCoreConfigPath: combinedWarpCoreConfigPath,
+        })
+        .nothrow();
 
       expect(output.exitCode).to.equal(1);
       expect(output.text().includes(expectedDiffText)).to.be.true;
