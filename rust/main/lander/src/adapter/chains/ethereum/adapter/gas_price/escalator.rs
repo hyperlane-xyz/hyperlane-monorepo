@@ -7,7 +7,7 @@ use hyperlane_ethereum::TransactionOverrides;
 
 use crate::adapter::EthereumTxPrecursor;
 
-use super::price::GasPrice;
+use super::super::super::gas_price::GasPrice;
 
 const ESCALATION_MULTIPLIER_NUMERATOR: u32 = 110;
 const ESCALATION_MULTIPLIER_DENOMINATOR: u32 = 100;
@@ -153,7 +153,6 @@ fn apply_escalation_multiplier(gas_price: &U256) -> U256 {
 mod tests {
     use hyperlane_core::U256;
 
-    use crate::adapter::chains::ethereum::adapter::gas_price::GasPrice;
     use hyperlane_ethereum::TransactionOverrides;
 
     use super::*;

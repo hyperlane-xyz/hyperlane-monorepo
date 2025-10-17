@@ -1,32 +1,30 @@
-use ethers::contract::Lazy;
+use std::{iter::once, str::FromStr, sync::Arc};
+
 use ethers::{
     abi::Detokenize,
-    contract::builders::ContractCall,
+    contract::{builders::ContractCall, Lazy},
     providers::{Middleware, ProviderError},
     types::{
         transaction::eip2718::TypedTransaction, Block, Eip1559TransactionRequest, H160,
         H256 as TxHash,
     },
 };
-use futures_util::try_join;
-use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneDomain, U256};
-use hyperlane_ethereum::{EvmProviderForLander, TransactionOverrides, ZksyncEstimateFeeResponse};
-use std::iter::once;
-use std::{str::FromStr, sync::Arc};
-use tracing::{debug, warn};
-
-use crate::{adapter::EthereumTxPrecursor, LanderError};
-use ethers_core::types::FeeHistory;
 use ethers_core::{
-    types::{BlockNumber, U256 as EthersU256},
+    types::{BlockNumber, FeeHistory, U256 as EthersU256},
     utils::{
         eip1559_default_estimator, EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
-use futures_util::future::join_all;
+use futures_util::{future::join_all, try_join};
+use tracing::{debug, warn};
 
-use super::price::GasPrice;
+use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneDomain, U256};
+use hyperlane_ethereum::{EvmProviderForLander, TransactionOverrides, ZksyncEstimateFeeResponse};
+
+use crate::{adapter::EthereumTxPrecursor, LanderError};
+
+use super::super::super::gas_price::GasPrice;
 
 type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU256);
 
