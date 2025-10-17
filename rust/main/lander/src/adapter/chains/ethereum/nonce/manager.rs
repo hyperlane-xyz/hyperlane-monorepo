@@ -17,7 +17,6 @@ use crate::{LanderError, TransactionStatus};
 use super::super::metrics::EthereumAdapterMetrics;
 use super::super::transaction::Precursor;
 use super::db::NonceDb;
-use super::periodic_updater::{self, PeriodicNonceUpdater};
 use super::state::{NonceAction, NonceManagerState};
 use super::status::NonceStatus;
 use super::updater::NonceUpdater;
@@ -50,16 +49,6 @@ impl NonceManager {
             provider.clone(),
             state.clone(),
         );
-
-        // if the block time is too short, we want to cap it at 5s because we don't want
-        // to query the nonce too much. 5s should be quick enough for a reorg
-        let poll_rate = chain_conf.estimated_block_time.max(Duration::from_secs(5));
-        let periodic_updater =
-            PeriodicNonceUpdater::new(address, reorg_period, poll_rate, provider, state.clone());
-
-        tokio::spawn(async move {
-            periodic_updater.run().await;
-        });
 
         let manager = Self {
             address,

@@ -65,7 +65,7 @@ impl NonceManagerState {
         Ok(())
     }
 
-    pub(super) async fn get_finalized_nonce(&self) -> NonceResult<Option<U256>> {
+    pub async fn get_finalized_nonce(&self) -> NonceResult<Option<U256>> {
         let finalized_nonce = self
             .nonce_db
             .retrieve_finalized_nonce_by_signer_address(&self.address)

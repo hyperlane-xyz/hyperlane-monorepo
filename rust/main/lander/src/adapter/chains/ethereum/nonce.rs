@@ -4,7 +4,6 @@ pub(crate) use updater::NonceUpdater;
 mod db;
 mod error;
 mod manager;
-mod periodic_updater;
 mod state;
 mod status;
 mod updater;

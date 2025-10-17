@@ -114,4 +114,14 @@ pub trait AdaptsChain: Send + Sync {
     async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError> {
         todo!()
     }
+
+    /// How often to poll for txs that need to be reprocessed
+    fn reprocess_txs_poll_rate(&self) -> Option<Duration> {
+        None
+    }
+
+    /// Get a list of txs that need to be reprocessed
+    async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
+        Ok(Vec::new())
+    }
 }
