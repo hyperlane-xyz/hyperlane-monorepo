@@ -905,10 +905,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         ): feeConfig is EverclearEthBridgeTokenConfig['everclearFeeParams'][number] => {
           // if all the fields have their default value then the fee config for the
           // current domain is unset
-          return (
-            feeConfig.deadline !== 0 &&
-            feeConfig.fee !== 0 &&
-            feeConfig.signature !== ''
+          return !(
+            feeConfig.deadline === 0 &&
+            feeConfig.fee === 0 &&
+            feeConfig.signature === '0x'
           );
         },
       ),

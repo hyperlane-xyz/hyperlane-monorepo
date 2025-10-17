@@ -12,6 +12,7 @@ import {
   ERC20Test__factory,
   ERC4626Test,
   ERC4626Test__factory,
+  EverclearTokenBridge__factory,
   GasRouter,
   HypERC20__factory,
   HypERC4626Collateral__factory,
@@ -1480,6 +1481,163 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         );
         expect(currentConfig.everclearFeeParams).to.deep.equal(
           expectedEverclearFeeParams,
+        );
+      });
+
+      it(`should remove everclear fee params if the token is of type ${tokenType}`, async () => {
+        const config = getEverclearTokenBridgeTokenConfig()[tokenType];
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        // Remove the fee params for the enrolled domain
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          everclearFeeParams: {},
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearTokenBridgeConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.everclearFeeParams).to.deep.equal({});
+      });
+
+      it(`should remove 1 everclear fee param and leave the others if the token is of type ${tokenType}`, async () => {
+        const config = getEverclearTokenBridgeTokenConfig()[tokenType];
+
+        const numOfRouters = randomInt(10, 0);
+        const remoteRoutersToKeep = randomRemoteRouters(numOfRouters);
+        const initialRemoteRouters = {
+          [domainId]: {
+            address: randomAddress(),
+          },
+          ...remoteRoutersToKeep,
+        };
+
+        const feeParamsToKeep = objMap(remoteRoutersToKeep, (_domainId, _) => ({
+          deadline: Date.now(),
+          fee: randomInt(1000),
+          signature: '0x',
+        }));
+
+        const initialFeeParams = {
+          [domainId]: {
+            deadline: Date.now(),
+            fee: randomInt(1000),
+            signature: '0x',
+          },
+          ...feeParamsToKeep,
+        };
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            remoteRouters: initialRemoteRouters,
+            everclearFeeParams: initialFeeParams,
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          remoteRouters: initialRemoteRouters,
+          everclearFeeParams: feeParamsToKeep,
+        });
+
+        expect(txs.length).to.equal(1);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearTokenBridgeConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.everclearFeeParams).to.deep.equal(feeParamsToKeep);
+      });
+
+      it(`should remove all everclear fee params except for explicitly kept domains if the token is of type ${tokenType}`, async () => {
+        const config = getEverclearTokenBridgeTokenConfig()[tokenType];
+
+        const domainId1 = randomInt(100, 10);
+        const domainId2 = randomInt(1000, 100);
+        const domainId3 = randomInt(10000, 1000);
+
+        const initialRemoteRouters = {
+          [domainId1]: {
+            address: randomAddress(),
+          },
+          [domainId2]: {
+            address: randomAddress(),
+          },
+          [domainId3]: {
+            address: randomAddress(),
+          },
+        };
+
+        const initialFeeParams = {
+          [domainId1]: {
+            deadline: Date.now(),
+            fee: randomInt(1000),
+            signature: '0x10',
+          },
+          [domainId2]: {
+            deadline: Date.now(),
+            fee: randomInt(1000),
+            signature: '0x20',
+          },
+          [domainId3]: {
+            deadline: Date.now(),
+            fee: randomInt(1000),
+            signature: '0x30',
+          },
+        };
+
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config: {
+            ...config,
+            remoteRouters: initialRemoteRouters,
+            everclearFeeParams: initialFeeParams,
+          },
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+
+        // Keep only domainId2
+        const expectedFeeParams = {
+          [domainId2]: initialFeeParams[domainId2],
+        };
+
+        const txs = await evmERC20WarpModule.update({
+          ...config,
+          remoteRouters: initialRemoteRouters,
+          everclearFeeParams: expectedFeeParams,
+        });
+
+        expect(txs.length).to.equal(2);
+        await sendTxs(txs);
+
+        const currentConfig = await evmERC20WarpModule.read();
+
+        assert(
+          isEverclearTokenBridgeConfig(currentConfig),
+          `Expected token of type ${tokenType}`,
+        );
+        expect(currentConfig.everclearFeeParams).to.deep.equal(
+          expectedFeeParams,
         );
       });
     }
