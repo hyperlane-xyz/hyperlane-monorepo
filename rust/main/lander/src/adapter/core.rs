@@ -114,4 +114,23 @@ pub trait AdaptsChain: Send + Sync {
     async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError> {
         todo!()
     }
+
+    /// Returns the polling interval for checking if transactions need reprocessing.
+    ///
+    /// Returns `None` if the adapter does not support transaction reprocessing,
+    /// or `Some(Duration)` specifying how frequently to poll.
+    fn reprocess_txs_poll_rate(&self) -> Option<Duration> {
+        None
+    }
+
+    /// Get a list of transactions that need to be reprocessed.
+    ///
+    /// Returns an empty vector if no transactions need reprocessing or if the adapter
+    /// does not support reprocessing.
+    ///
+    /// Note: Implementations may update internal state (e.g., finalized nonce boundaries)
+    /// as part of determining which transactions need reprocessing.
+    async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
+        Ok(Vec::new())
+    }
 }

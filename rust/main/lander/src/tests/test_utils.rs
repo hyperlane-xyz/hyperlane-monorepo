@@ -35,6 +35,8 @@ mockall::mock! {
         fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics);
         async fn nonce_gap_exists(&self) -> bool;
         async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError>;
+        fn reprocess_txs_poll_rate(&self) -> Option<std::time::Duration>;
+        async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError>;
     }
 }
 
