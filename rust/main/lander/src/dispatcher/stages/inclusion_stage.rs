@@ -197,7 +197,10 @@ impl InclusionStage {
         };
         loop {
             tokio::time::sleep(poll_rate).await;
-            tracing::debug!(domain, "Checking for any payloads needs reprocessing");
+            tracing::debug!(
+                domain,
+                "Checking for any transactions that needs reprocessing"
+            );
 
             let txs = match state.adapter.get_reprocess_txs().await {
                 Ok(s) => s,
@@ -207,8 +210,8 @@ impl InclusionStage {
                 continue;
             }
 
+            tracing::debug!(?txs, "Reprocessing transactions");
             let mut locked_pool = pool.lock().await;
-
             for tx in txs {
                 locked_pool.insert(tx.uuid.clone(), tx);
             }
