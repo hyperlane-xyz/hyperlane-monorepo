@@ -190,7 +190,7 @@ impl InclusionStage {
         pool: InclusionStagePool,
         state: DispatcherState,
     ) -> Result<(), LanderError> {
-        let poll_rate = match state.adapter.reprocess_payloads_poll_rate() {
+        let poll_rate = match state.adapter.reprocess_txs_poll_rate() {
             Some(s) => s,
             // if no poll rate, then that means we don't worry about reprocessing txs
             None => return Ok(()),
@@ -199,22 +199,18 @@ impl InclusionStage {
             tokio::time::sleep(poll_rate).await;
             tracing::debug!(domain, "Checking for any payloads needs reprocessing");
 
-            let payloads = match state.adapter.get_reprocess_payloads().await {
+            let txs = match state.adapter.get_reprocess_txs().await {
                 Ok(s) => s,
                 _ => continue,
             };
-            if payloads.is_empty() {
+            if txs.is_empty() {
                 continue;
             }
 
-            let txs_results = state.adapter.build_transactions(&payloads).await;
-
             let mut locked_pool = pool.lock().await;
 
-            for res in txs_results {
-                if let Some(tx) = res.maybe_tx {
-                    locked_pool.insert(tx.uuid.clone(), tx);
-                }
+            for tx in txs {
+                locked_pool.insert(tx.uuid.clone(), tx);
             }
         }
     }

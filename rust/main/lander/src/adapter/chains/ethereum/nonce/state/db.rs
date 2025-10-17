@@ -12,7 +12,7 @@ impl NonceManagerState {
         Ok((finalized_nonce, upper_nonce))
     }
 
-    pub(super) async fn get_tracked_tx(
+    pub async fn get_tracked_tx(
         &self,
         tx_uuid: &TransactionUuid,
     ) -> NonceResult<Option<Transaction>> {
