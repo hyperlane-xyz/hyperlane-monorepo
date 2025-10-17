@@ -10,7 +10,6 @@ import {
   ERC20Test__factory,
   ERC4626Test,
   ERC4626Test__factory,
-  EverclearTokenBridge__factory,
   GasRouter,
   HypERC20__factory,
   HypERC4626Collateral__factory,
