@@ -70,7 +70,7 @@ import {
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   derivedHookAddress,
-  isEverclearCollateralTokenConfig,
+  isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
 } from './types.js';
 
@@ -429,7 +429,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const currentConfig = await evmERC20WarpModule.read();
 
       assert(
-        isEverclearCollateralTokenConfig(currentConfig),
+        isEverclearTokenBridgeConfig(currentConfig),
         `Expected token of type ${tokenType}`,
       );
       expect(currentConfig.everclearBridgeAddress).to.deep.equal(
@@ -484,7 +484,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const currentConfig = await evmERC20WarpModule.read();
 
       assert(
-        isEverclearCollateralTokenConfig(currentConfig),
+        isEverclearTokenBridgeConfig(currentConfig),
         `Expected token of type ${tokenType}`,
       );
       expect(currentConfig.everclearBridgeAddress).to.deep.equal(
@@ -1286,7 +1286,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         const currentConfig = await evmERC20WarpModule.read();
 
         assert(
-          isEverclearCollateralTokenConfig(currentConfig),
+          isEverclearTokenBridgeConfig(currentConfig),
           `Expected token of type ${tokenType}`,
         );
         expect(currentConfig.outputAssets[domainId]).to.equal(
@@ -1323,7 +1323,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         const currentConfig = await evmERC20WarpModule.read();
 
         assert(
-          isEverclearCollateralTokenConfig(currentConfig),
+          isEverclearTokenBridgeConfig(currentConfig),
           `Expected token of type ${tokenType}`,
         );
         expect(currentConfig.outputAssets[domainId]).to.equal(
@@ -1357,7 +1357,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         const currentConfig = await evmERC20WarpModule.read();
 
         assert(
-          isEverclearCollateralTokenConfig(currentConfig),
+          isEverclearTokenBridgeConfig(currentConfig),
           `Expected token of type ${tokenType}`,
         );
         expect(currentConfig.outputAssets).to.deep.equal({});
@@ -1410,7 +1410,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         const currentConfig = await evmERC20WarpModule.read();
 
         assert(
-          isEverclearCollateralTokenConfig(currentConfig),
+          isEverclearTokenBridgeConfig(currentConfig),
           `Expected token of type ${tokenType}`,
         );
         expect(currentConfig.outputAssets).to.deep.equal(expectedOutputAssets);
@@ -1444,7 +1444,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         const currentConfig = await evmERC20WarpModule.read();
 
         assert(
-          isEverclearCollateralTokenConfig(currentConfig),
+          isEverclearTokenBridgeConfig(currentConfig),
           `Expected token of type ${tokenType}`,
         );
         expect(currentConfig.everclearFeeParams).to.deep.equal(
@@ -1470,7 +1470,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
         const currentConfig = await evmERC20WarpModule.read();
         assert(
-          isEverclearCollateralTokenConfig(currentConfig),
+          isEverclearTokenBridgeConfig(currentConfig),
           `Expected token of type ${tokenType}`,
         );
         expect(currentConfig.everclearFeeParams).to.deep.equal(
