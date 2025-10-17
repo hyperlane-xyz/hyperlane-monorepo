@@ -675,6 +675,12 @@ impl AdaptsChain for EthereumAdapter {
             let tx_uuid = self.nonce_manager.state.get_tracked_tx_uuid(&nonce).await?;
             if let Some(tx) = self.nonce_manager.state.get_tracked_tx(&tx_uuid).await? {
                 txs.push(tx);
+            } else {
+                tracing::debug!(
+                    ?nonce,
+                    ?tx_uuid,
+                    "No transaction found for nonce in reorg range"
+                );
             }
             nonce = nonce.saturating_add(U256::one());
         }
