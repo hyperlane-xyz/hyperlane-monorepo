@@ -15,14 +15,17 @@ impl NonceManagerState {
         old_nonce: &Option<U256>,
     ) -> NonceResult<U256> {
         if let Some(nonce) = old_nonce {
-            // If the different nonce was assigned to the transaction,
-            // we clear the tracked nonce for the transaction first.
-            warn!(
-                ?nonce,
-                "Reassigning nonce to transaction, clearing currently tracked nonce"
-            );
-            self.clear_tracked_tx_uuid(nonce).await?;
-            self.clear_tracked_tx_nonce(tx_uuid).await?;
+            // Only clear nonce and tx_uuid linkage if the old_nonce is indeed associated with the tx_uuid in question
+            if *tx_uuid == self.get_tracked_tx_uuid(&nonce).await? {
+                // If the different nonce was assigned to the transaction,
+                // we clear the tracked nonce for the transaction first.
+                warn!(
+                    ?nonce,
+                    "Reassigning nonce to transaction, clearing currently tracked nonce"
+                );
+                self.clear_tracked_tx_uuid(nonce).await?;
+                self.clear_tracked_tx_nonce(tx_uuid).await?;
+            }
         }
 
         let (finalized_nonce, upper_nonce) = self.get_boundary_nonces().await?;
