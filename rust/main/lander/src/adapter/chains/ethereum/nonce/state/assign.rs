@@ -16,7 +16,7 @@ impl NonceManagerState {
     ) -> NonceResult<U256> {
         if let Some(nonce) = old_nonce {
             // Only clear nonce and tx_uuid linkage if the old_nonce is indeed associated with the tx_uuid in question
-            if *tx_uuid == self.get_tracked_tx_uuid(&nonce).await? {
+            if *tx_uuid == self.get_tracked_tx_uuid(nonce).await? {
                 // If the different nonce was assigned to the transaction,
                 // we clear the tracked nonce for the transaction first.
                 warn!(
