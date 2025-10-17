@@ -16,6 +16,40 @@ fn create_tx(uuid: TransactionUuid, status: TransactionStatus) -> Transaction {
 }
 
 #[tokio::test]
+async fn test_assign_next_nonce_and_keep_old_linkage() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let other_tx_uuid = TransactionUuid::random();
+
+    // Assign nonce and build linkage for other tx
+    let nonce = state
+        .assign_next_nonce(&other_tx_uuid, &None)
+        .await
+        .unwrap();
+    state
+        .set_tracked_tx_uuid(&nonce, &other_tx_uuid)
+        .await
+        .unwrap();
+
+    let tx_uuid = TransactionUuid::random();
+    // Now assign a new nonce to a new tx but with an old nonce of the other tx
+    let new_nonce = state
+        .assign_next_nonce(&tx_uuid, &Some(nonce))
+        .await
+        .unwrap();
+
+    let tracked_tx_uuid = state.get_tracked_tx_uuid(&nonce).await.unwrap();
+    let tracked_nonce = state.get_tx_nonce(&other_tx_uuid).await.unwrap();
+    // Assert that linkage of the old tx id & nonce was not removed
+    assert_eq!(tracked_tx_uuid, other_tx_uuid);
+    assert_eq!(tracked_nonce, Some(nonce));
+    assert_eq!(nonce + 1, new_nonce);
+}
+
+#[tokio::test]
 async fn test_assign_next_nonce_no_previous_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
