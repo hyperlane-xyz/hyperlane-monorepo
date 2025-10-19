@@ -138,6 +138,9 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.hyperlane.relayer.attachServiceAccount }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- end }}
   volumeClaimTemplates:
   - metadata:
       name: {{ .Values.hyperlane.relayer.storage.name | default "state" }}
