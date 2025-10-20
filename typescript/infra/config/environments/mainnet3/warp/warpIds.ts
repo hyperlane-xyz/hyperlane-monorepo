@@ -3,13 +3,15 @@ export enum WarpRouteIds {
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
   RenzoEZETH = 'EZETH/renzo-prod',
   RenzoEZETHSTAGE = 'EZETHSTAGE/renzo-stage',
+  RadixUSDC = 'USDC/radix',
   ArbitrumBaseEnduranceUSDC = 'USDC/arbitrum-base-endurance',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
-  ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
+  ArbitrumNeutronTIA = 'TIA/arbitrum-celestia-neutron',
   ArtelaBaseSolanaART = 'ART/artela-base-solanamainnet',
   BscEthereumLumiaPrismPNDR = 'PNDR/bsc-ethereum-lumiaprism',
   BaseSolanamainnetTONY = 'TONY/base-solanamainnet',
+  CarrChainCARR = 'CARR/carrchain',
   ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP = 'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
   EclipseEthereumSolanaUSDC = 'USDC/eclipsemainnet-ethereum-solanamainnet',
@@ -100,8 +102,23 @@ export enum WarpRouteIds {
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
   LumiaUSDC = 'USDC/lumia',
+<<<<<<< HEAD
+=======
+  MatchainUSDC = 'USDC/matchain',
+>>>>>>> main
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
+
+  SonicSVMMoney = 'MONEY/sonicsvm',
+
+  PulsechainUSDC = 'USDC/pulsechain',
+  ElectroneumUSDC = 'USDC/electroneum',
+
+  GalacticaGNET = 'GNET/galactica',
+
+  SolaxyUSDC = 'USDC/solaxy',
+
+  MantraUSDC = 'USDC/mantra',
 
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',

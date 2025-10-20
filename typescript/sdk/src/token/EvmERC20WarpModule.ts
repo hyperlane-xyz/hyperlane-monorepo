@@ -43,7 +43,7 @@ import {
   proxyAdminUpdateTxs,
 } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { ExplorerLicenseType } from '../deploy/verify/types.js';
+import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';

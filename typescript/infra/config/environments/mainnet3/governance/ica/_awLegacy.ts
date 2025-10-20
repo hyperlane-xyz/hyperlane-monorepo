@@ -23,7 +23,10 @@ export const awIcasLegacy: ChainMap<Address> = {
   merlin: '0xCf867cEaeeE8CBe65C680c734D29d26440931D5b',
   metis: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
   mint: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
+<<<<<<< HEAD
   proofofplay: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
+=======
+>>>>>>> main
   tangle: '0xCC2aeb692197C7894E561d31ADFE8F79746f7d9F',
   xai: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
   // taiko: '0x483D218D2FEe7FC7204ba15F00C7901acbF9697D', // renzo chain
@@ -62,10 +65,13 @@ export const awIcasLegacy: ChainMap<Address> = {
   endurance: '0x470E04D8a3b7938b385093B93CeBd8Db7A1E557C',
   // sei: '0xabad187003EdeDd6C720Fc633f929EA632996567', // renzo chain
 
+<<<<<<< HEAD
   // Oct 16, 2024 batch
   // ----------------------------------------------------------
   // lumia: '0x418E10Ac9e0b84022d0636228d05bc74172e0e41',
 
+=======
+>>>>>>> main
   // Oct 30, 2024 batch
   // ----------------------------------------------------------
   apechain: '0xe68b0aB6BB8c11D855556A5d3539524f6DB3bdc6',
@@ -77,11 +83,17 @@ export const awIcasLegacy: ChainMap<Address> = {
   kaia: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
   morph: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
   orderly: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
+<<<<<<< HEAD
   snaxchain: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
 
   // Nov 8, 2024 batch
   // ----------------------------------------------------------
   alephzeroevmmainnet: '0xDE91AC081E12107a033728A287b06B1Fc640A637',
+=======
+
+  // Nov 8, 2024 batch
+  // ----------------------------------------------------------
+>>>>>>> main
   chilizmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
   flowmainnet: '0x65528D447C93CC1A1A7186CB4449d9fE0d5C1928',
   immutablezkevmmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',

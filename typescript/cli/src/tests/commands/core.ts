@@ -9,9 +9,17 @@ import { readYamlOrJson } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
+<<<<<<< HEAD
 export class HyperlaneE2ECoreTestCommands {
   protected cmdPrefix: string[];
 
+=======
+$.verbose = true;
+
+export class HyperlaneE2ECoreTestCommands {
+  protected cmdPrefix: string[];
+
+>>>>>>> main
   protected protocol: ProtocolType;
   protected chain: ChainName;
   protected registryPath: string;
@@ -133,6 +141,10 @@ export class HyperlaneE2ECoreTestCommands {
     privateKey?: string,
     privateKeyEnv?: string,
     skipConfirmationPrompts?: boolean,
+<<<<<<< HEAD
+=======
+    chain?: string,
+>>>>>>> main
   ): ProcessPromise {
     const flags = [
       '--registry',
@@ -151,6 +163,13 @@ export class HyperlaneE2ECoreTestCommands {
       flags.push('--yes');
     }
 
+<<<<<<< HEAD
+=======
+    if (chain) {
+      flags.push('--chain', chain);
+    }
+
+>>>>>>> main
     return $`${
       privateKeyEnv ? [`${this.hypKeyEnvName}=${privateKeyEnv}`] : []
     } ${this.cmdPrefix} hyperlane core deploy ${flags}`;

@@ -1,4 +1,8 @@
 #![deny(clippy::unwrap_used, clippy::panic)]
+<<<<<<< HEAD
+=======
+#![deny(clippy::arithmetic_side_effects)]
+>>>>>>> main
 
 pub use dispatcher::entrypoint::{DispatcherEntrypoint, Entrypoint};
 pub use dispatcher::{DatabaseOrPath, Dispatcher, DispatcherMetrics, DispatcherSettings};

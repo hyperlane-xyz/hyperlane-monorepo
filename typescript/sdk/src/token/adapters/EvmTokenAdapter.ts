@@ -10,9 +10,10 @@ import {
   ERC4626__factory,
   GasRouter__factory,
   HypERC20,
+  HypERC20Collateral,
+  HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626,
-  HypERC4626Collateral,
   HypERC4626Collateral__factory,
   HypERC4626__factory,
   HypXERC20,
@@ -24,11 +25,7 @@ import {
   IXERC20,
   IXERC20VS,
   IXERC20VS__factory,
-  IXERC20__factory,
-  MovableCollateralRouter,
-  MovableCollateralRouter__factory,
-  TokenRouter,
-  TokenRouter__factory,
+  IXERC20__factory
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -37,18 +34,13 @@ import {
   ZERO_ADDRESS_HEX_32,
   addressToByteHexString,
   addressToBytes32,
-  assert,
   bytes32ToAddress,
-  isNullish,
-  isZeroishAddress,
-  normalizeAddress,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
-import { isValidContractVersion } from '../../utils/contract.js';
 import { TokenMetadata } from '../types.js';
 
 import {
@@ -61,7 +53,6 @@ import {
   IXERC20Adapter,
   IXERC20VSAdapter,
   InterchainGasQuote,
-  Quote,
   QuoteTransferRemoteParams,
   RateLimitMidPoint,
   TransferParams,
@@ -72,13 +63,11 @@ import {
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
-const QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION = '10.0.0-beta';
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
   extends BaseEvmAdapter
-  implements ITokenAdapter<PopulatedTransaction>
-{
+  implements ITokenAdapter<PopulatedTransaction> {
   async getBalance(address: Address): Promise<bigint> {
     const balance = await this.getProvider().getBalance(address);
     return BigInt(balance.toString());
@@ -131,8 +120,7 @@ export class EvmNativeTokenAdapter
 // Interacts with ERC20/721 contracts
 export class EvmTokenAdapter<T extends ERC20 = ERC20>
   extends EvmNativeTokenAdapter
-  implements ITokenAdapter<PopulatedTransaction>
-{
+  implements ITokenAdapter<PopulatedTransaction> {
   public readonly contract: T;
 
   constructor(
@@ -209,8 +197,7 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
 // Interacts with Hyp Synthetic token contracts (aka 'HypTokens')
 export class EvmHypSyntheticAdapter
   extends EvmTokenAdapter<HypERC20>
-  implements IHypTokenAdapter<PopulatedTransaction>
-{
+  implements IHypTokenAdapter<PopulatedTransaction> {
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
@@ -267,56 +254,14 @@ export class EvmHypSyntheticAdapter
 
   async quoteTransferRemoteGas({
     destination,
-    recipient,
-    amount,
   }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
-    const contractVersion = await this.contract.PACKAGE_VERSION();
-
-    const hasQuoteTransferRemote = isValidContractVersion(
-      contractVersion,
-      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
-    );
-
-    // Version does not support quoteTransferRemote defaulting to quoteGasPayment
-    if (!hasQuoteTransferRemote) {
-      const gasPayment = await this.contract.quoteGasPayment(destination);
-      return { igpQuote: { amount: BigInt(gasPayment.toString()) } };
-    }
-
-    assert(
-      !isNullish(amount),
-      'Amount must be defined for quoteTransferRemoteGas',
-    );
-    assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
-
-    const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    const [igpQuote, ...feeQuotes] = await this.contract.quoteTransferRemote(
-      destination,
-      recipBytes32,
-      amount.toString(),
-    );
-    const [, igpAmount] = igpQuote;
-
-    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote) => ({
-      addressOrDenom: quote[0],
-      amount: BigInt(quote[1].toString()),
-    }));
-
-    // Because the amount is added on  the fees, we need to subtract it from the actual fees
-    const tokenFeeQuote: Quote | undefined =
-      tokenFeeQuotes.length > 0
-        ? {
-            addressOrDenom: tokenFeeQuotes[0].addressOrDenom, // the contract enforces the token address to be the same as the route
-            amount:
-              tokenFeeQuotes.reduce((sum, q) => sum + q.amount, 0n) - amount,
-          }
-        : undefined;
-
+    const gasPayment = await this.contract.quoteGasPayment(destination);
+    // If EVM hyp contracts eventually support alternative IGP tokens,
+    // this would need to determine the correct token address
     return {
       igpQuote: {
-        amount: BigInt(igpAmount.toString()),
+        amount: BigInt(gasPayment.toString()),
       },
-      tokenFeeQuote,
     };
   }
 
@@ -327,11 +272,7 @@ export class EvmHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas({
-        destination,
-        recipient,
-        amount: BigInt(weiAmountOrId),
-      });
+      interchainGas = await this.quoteTransferRemoteGas({ destination });
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
     return this.contract.populateTransaction[
@@ -345,9 +286,10 @@ export class EvmHypSyntheticAdapter
 // Interacts with HypCollateral contracts
 export class EvmHypCollateralAdapter
   extends EvmHypSyntheticAdapter
-  implements IHypTokenAdapter<PopulatedTransaction>
-{
-  public readonly collateralContract: TokenRouter;
+  implements
+  IHypTokenAdapter<PopulatedTransaction>,
+  IMovableCollateralRouterAdapter<PopulatedTransaction> {
+  public readonly collateralContract: HypERC20Collateral;
   protected wrappedTokenAddress?: Address;
 
   constructor(
@@ -356,7 +298,7 @@ export class EvmHypCollateralAdapter
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
-    this.collateralContract = TokenRouter__factory.connect(
+    this.collateralContract = HypERC20Collateral__factory.connect(
       addresses.token,
       this.getProvider(),
     );
@@ -364,7 +306,7 @@ export class EvmHypCollateralAdapter
 
   async getWrappedTokenAddress(): Promise<Address> {
     if (!this.wrappedTokenAddress) {
-      this.wrappedTokenAddress = await this.collateralContract.token();
+      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
     }
     return this.wrappedTokenAddress!;
   }
@@ -373,11 +315,6 @@ export class EvmHypCollateralAdapter
     return new EvmTokenAdapter(this.chainName, this.multiProvider, {
       token: await this.getWrappedTokenAddress(),
     });
-  }
-
-  override async getBalance(address: Address): Promise<bigint> {
-    const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
-    return wrappedTokenAdapter.getBalance(address);
   }
 
   override getBridgedSupply(): Promise<bigint | undefined> {
@@ -422,34 +359,22 @@ export class EvmHypCollateralAdapter
       t.populateTransferTx(params),
     );
   }
-}
-
-export class EvmMovableCollateralAdapter
-  extends EvmHypCollateralAdapter
-  implements IMovableCollateralRouterAdapter<PopulatedTransaction>
-{
-  movableCollateral(): MovableCollateralRouter {
-    return MovableCollateralRouter__factory.connect(
-      this.addresses.token,
-      this.getProvider(),
-    );
-  }
 
   async isRebalancer(account: Address): Promise<boolean> {
-    const rebalancers = await this.movableCollateral().allowedRebalancers();
+    const rebalancers = await this.collateralContract.allowedRebalancers();
 
     return rebalancers.includes(account);
   }
 
   async getAllowedDestination(domain: Domain): Promise<Address> {
     const allowedDestinationBytes32 =
-      await this.movableCollateral().allowedRecipient(domain);
+      await this.collateralContract.allowedRecipient(domain);
 
     // If allowedRecipient is not set (returns bytes32(0)),
     // fall back to the enrolled remote router for that domain,
     // matching the contract's fallback logic in MovableCollateralRouter.sol
     if (allowedDestinationBytes32 === ZERO_ADDRESS_HEX_32) {
-      const routerBytes32 = await this.movableCollateral().routers(domain);
+      const routerBytes32 = await this.collateralContract.routers(domain);
       return bytes32ToAddress(routerBytes32);
     }
 
@@ -457,12 +382,9 @@ export class EvmMovableCollateralAdapter
   }
 
   async isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean> {
-    const allowedBridges =
-      await this.movableCollateral().allowedBridges(domain);
+    const allowedBridges = await this.collateralContract.allowedBridges(domain);
 
-    return allowedBridges
-      .map((bridgeAddress) => normalizeAddress(bridgeAddress))
-      .includes(normalizeAddress(bridge));
+    return allowedBridges.includes(bridge);
   }
 
   async getRebalanceQuotes(
@@ -481,7 +403,9 @@ export class EvmMovableCollateralAdapter
 
       return [
         {
-          igpQuote: { amount: BigInt(gasPayment.toString()) },
+          igpQuote: {
+            amount: BigInt(gasPayment.toString()),
+          },
         },
       ];
     }
@@ -518,11 +442,13 @@ export class EvmMovableCollateralAdapter
     // Obtains the trx value by adding the amount of all quotes with no addressOrDenom (native tokens)
     const value = quotes.reduce(
       (value, quote) =>
-        !quote.igpQuote.addressOrDenom ? value + quote.igpQuote.amount : value,
+        !quote.igpQuote.addressOrDenom
+          ? value + quote.igpQuote.amount
+          : value,
       0n,
     );
 
-    return this.movableCollateral().populateTransaction.rebalance(
+    return this.collateralContract.populateTransaction.rebalance(
       domain,
       amount,
       bridge,
@@ -535,8 +461,7 @@ export class EvmMovableCollateralAdapter
 
 export class EvmHypCollateralFiatAdapter
   extends EvmHypCollateralAdapter
-  implements IHypCollateralFiatAdapter<PopulatedTransaction>
-{
+  implements IHypCollateralFiatAdapter<PopulatedTransaction> {
   /**
    * Note this may be inaccurate, as this returns the total supply
    * of the fiat token, which may be used by other bridges.
@@ -561,25 +486,14 @@ export class EvmHypCollateralFiatAdapter
 
 export class EvmHypRebaseCollateralAdapter
   extends EvmHypCollateralAdapter
-  implements IHypTokenAdapter<PopulatedTransaction>
-{
-  public override collateralContract: HypERC4626Collateral;
-
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { token: Address },
-  ) {
-    super(chainName, multiProvider, addresses);
-    this.collateralContract = HypERC4626Collateral__factory.connect(
-      addresses.token,
-      this.getProvider(),
-    );
-  }
-
+  implements IHypTokenAdapter<PopulatedTransaction> {
   override async getBridgedSupply(): Promise<bigint> {
+    const hypERC4626 = HypERC4626Collateral__factory.connect(
+      this.collateralContract.address,
+      this.collateralContract.provider,
+    );
     const vault = ERC4626__factory.connect(
-      await this.collateralContract.vault(),
+      await hypERC4626.vault(),
       this.getProvider(),
     );
     const balance = await vault.balanceOf(this.addresses.token);
@@ -589,8 +503,7 @@ export class EvmHypRebaseCollateralAdapter
 
 export class EvmHypSyntheticRebaseAdapter
   extends EvmHypSyntheticAdapter
-  implements IHypTokenAdapter<PopulatedTransaction>
-{
+  implements IHypTokenAdapter<PopulatedTransaction> {
   declare public contract: HypERC4626;
 
   constructor(
@@ -609,8 +522,7 @@ export class EvmHypSyntheticRebaseAdapter
 
 abstract class BaseEvmHypXERC20Adapter<X extends IXERC20 | IXERC20VS>
   extends EvmHypCollateralAdapter
-  implements IHypXERC20Adapter<PopulatedTransaction>
-{
+  implements IHypXERC20Adapter<PopulatedTransaction> {
   public readonly hypXERC20: HypXERC20;
 
   constructor(
@@ -666,8 +578,7 @@ abstract class BaseEvmHypXERC20Adapter<X extends IXERC20 | IXERC20VS>
 
 abstract class BaseEvmHypXERC20LockboxAdapter<X extends IXERC20 | IXERC20VS>
   extends EvmHypCollateralAdapter
-  implements IHypXERC20Adapter<PopulatedTransaction>
-{
+  implements IHypXERC20Adapter<PopulatedTransaction> {
   protected readonly hypXERC20Lockbox: HypXERC20Lockbox;
 
   constructor(
@@ -734,8 +645,7 @@ export class EvmHypXERC20LockboxAdapter extends BaseEvmHypXERC20LockboxAdapter<I
 
 export class EvmHypVSXERC20LockboxAdapter
   extends BaseEvmHypXERC20LockboxAdapter<IXERC20VS>
-  implements IHypVSXERC20Adapter<PopulatedTransaction>
-{
+  implements IHypVSXERC20Adapter<PopulatedTransaction> {
   protected connectXERC20(xERC20Addr: Address): IXERC20VS {
     return IXERC20VS__factory.connect(xERC20Addr, this.getProvider());
   }
@@ -795,8 +705,7 @@ export class EvmHypXERC20Adapter extends BaseEvmHypXERC20Adapter<IXERC20> {
 
 export class EvmHypVSXERC20Adapter
   extends BaseEvmHypXERC20Adapter<IXERC20VS>
-  implements IHypVSXERC20Adapter<PopulatedTransaction>
-{
+  implements IHypVSXERC20Adapter<PopulatedTransaction> {
   protected connectXERC20(xerc20Addr: string): IXERC20VS {
     return IXERC20VS__factory.connect(xerc20Addr, this.getProvider());
   }
@@ -849,16 +758,8 @@ export class EvmHypVSXERC20Adapter
 
 // Interacts HypNative contracts
 export class EvmHypNativeAdapter
-  extends EvmMovableCollateralAdapter
-  implements IHypTokenAdapter<PopulatedTransaction>
-{
-  override async getBalance(address: Address): Promise<bigint> {
-    const provider = this.getProvider();
-    const balance = await provider.getBalance(address);
-
-    return BigInt(balance.toString());
-  }
-
+  extends EvmHypCollateralAdapter
+  implements IHypTokenAdapter<PopulatedTransaction> {
   override async isApproveRequired(): Promise<boolean> {
     return false;
   }
@@ -870,84 +771,23 @@ export class EvmHypNativeAdapter
     return false;
   }
 
-  override async quoteTransferRemoteGas({
-    destination,
-    recipient,
-    amount,
-  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
-    const contractVersion = await this.contract.PACKAGE_VERSION();
-
-    const hasQuoteTransferRemote = isValidContractVersion(
-      contractVersion,
-      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
-    );
-    const igpQuote = await this.contract.quoteGasPayment(destination);
-    const igpQuoteBigInt = BigInt(igpQuote.toString());
-
-    // Version does not support quoteTransferRemote defaulting to quoteGasPayment
-    if (!hasQuoteTransferRemote) {
-      return { igpQuote: { amount: igpQuoteBigInt } };
-    }
-
-    assert(
-      !isNullish(amount),
-      'Amount must be defined for quoteTransferRemoteGas',
-    );
-    assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
-
-    const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-
-    // quoteTransferRemote returns igp + fee + amount for native routes
-    const [combinedQuote] = await this.contract.quoteTransferRemote(
-      destination,
-      recipBytes32,
-      amount.toString(),
-    );
-    const [tokenAddressOrDenom, combinedAmount] = combinedQuote;
-    const fee = BigInt(combinedAmount.toString()) - amount - igpQuoteBigInt;
-
-    return {
-      igpQuote: {
-        amount: igpQuoteBigInt,
-      },
-      tokenFeeQuote: {
-        amount: fee,
-        addressOrDenom: tokenAddressOrDenom,
-      },
-    };
-  }
-
   override async populateTransferRemoteTx({
     weiAmountOrId,
     destination,
     recipient,
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
-    const amount = BigInt(weiAmountOrId);
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas({
-        destination,
-        amount,
-        recipient,
-      });
+      interchainGas = await this.quoteTransferRemoteGas({ destination });
 
-    let txValue = amount;
-    const {
-      igpQuote: { addressOrDenom: igpAddressOrDenom, amount: igpAmount },
-      tokenFeeQuote,
-    } = interchainGas;
-
+    let txValue: bigint | undefined = undefined;
+    const { addressOrDenom: igpAddressOrDenom, amount: igpAmount } =
+      interchainGas.igpQuote;
     // If the igp token is native Eth
-    if (!igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)) {
-      txValue += igpAmount;
-    }
-
-    if (
-      tokenFeeQuote &&
-      (!tokenFeeQuote.addressOrDenom ||
-        isZeroishAddress(tokenFeeQuote.addressOrDenom))
-    ) {
-      txValue += tokenFeeQuote.amount;
+    if (!igpAddressOrDenom) {
+      txValue = igpAmount + BigInt(weiAmountOrId);
+    } else {
+      txValue = igpAmount;
     }
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
@@ -968,12 +808,14 @@ export class EvmHypNativeAdapter
     // Obtains the trx value by adding the amount of all quotes with no addressOrDenom (native tokens)
     const value = quotes.reduce(
       (value, quote) =>
-        !quote.igpQuote.addressOrDenom ? value + quote.igpQuote.amount : value,
+        !quote.igpQuote.addressOrDenom
+          ? value + quote.igpQuote.amount
+          : value,
       // Uses the amount to transfer as base value given that the amount is defined in native tokens for this adapter
       BigInt(amount),
     );
 
-    return this.movableCollateral().populateTransaction.rebalance(
+    return this.collateralContract.populateTransaction.rebalance(
       domain,
       amount,
       bridge,
@@ -982,12 +824,16 @@ export class EvmHypNativeAdapter
       },
     );
   }
+
+  override async getBridgedSupply(): Promise<bigint | undefined> {
+    const balance = await this.getProvider().getBalance(this.addresses.token);
+    return BigInt(balance.toString());
+  }
 }
 
 export class EvmXERC20Adapter
   extends EvmTokenAdapter
-  implements IXERC20Adapter<PopulatedTransaction>
-{
+  implements IXERC20Adapter<PopulatedTransaction> {
   xERC20: IXERC20;
 
   constructor(
@@ -1025,8 +871,7 @@ export class EvmXERC20Adapter
 
 export class EvmXERC20VSAdapter
   extends EvmTokenAdapter
-  implements IXERC20VSAdapter<PopulatedTransaction>
-{
+  implements IXERC20VSAdapter<PopulatedTransaction> {
   xERC20VS: IXERC20VS;
 
   constructor(

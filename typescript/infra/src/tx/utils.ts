@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+import { confirm } from '@inquirer/prompts';
+>>>>>>> main
 import chalk from 'chalk';
 
 import { rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
@@ -32,3 +36,43 @@ export function processGovernorReaderResult(
     process.exit(1);
   }
 }
+<<<<<<< HEAD
+=======
+
+export async function executePendingTransactions<T>(
+  executableTxs: T[],
+  txId: (tx: T) => string,
+  txChain: (tx: T) => string,
+  executeTx: (tx: T) => Promise<any>,
+) {
+  // Ask if user wants to execute all transactions at once
+  const confirmExecuteAll = await confirm({
+    message: `Execute ALL ${executableTxs.length} transactions without further prompts?`,
+    default: false,
+  });
+
+  for (const tx of executableTxs) {
+    const id = txId(tx);
+    const chain = txChain(tx);
+
+    const confirmExecuteTx =
+      confirmExecuteAll ||
+      (await confirm({
+        message: `Execute transaction ${id} on chain ${chain}?`,
+        default: false,
+      }));
+
+    if (!confirmExecuteTx) {
+      continue;
+    }
+
+    rootLogger.info(`Executing transaction ${id} on chain ${chain}`);
+    try {
+      await executeTx(tx);
+    } catch (error) {
+      rootLogger.error(chalk.red(`Error executing transaction: ${error}`));
+      return;
+    }
+  }
+}
+>>>>>>> main

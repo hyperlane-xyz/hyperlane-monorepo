@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
 use crate::{
-    adapter::{EthereumTxPrecursor, SealevelTxPrecursor},
+    adapter::{EthereumTxPrecursor, RadixTxPrecursor, SealevelTxPrecursor},
     payload::PayloadDetails,
     LanderError,
 };
@@ -63,7 +63,8 @@ impl TransactionStatus {
 
         // count the occurrences of each successfully queried hash status
         for status in statuses.iter().flatten() {
-            *status_counts.entry(status.clone()).or_insert(0) += 1;
+            let entry = status_counts.entry(status.clone()).or_insert(0);
+            *entry = entry.saturating_add(1);
         }
 
         let finalized_count = status_counts
@@ -101,14 +102,17 @@ pub enum DropReason {
     DroppedByChain,
     /// dropped by the submitter
     FailedSimulation,
+    /// tx reverted
+    RevertedByChain,
 }
 
 // add nested enum entries as we add VMs
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
-    Evm(EthereumTxPrecursor),
-    Svm(SealevelTxPrecursor),
     CosmWasm,
+    Evm(EthereumTxPrecursor),
+    Radix(Box<RadixTxPrecursor>),
+    Svm(SealevelTxPrecursor),
 }
 
 #[cfg(test)]

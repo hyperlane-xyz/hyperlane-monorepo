@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 use std::fmt::Debug;
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
@@ -21,6 +22,12 @@ use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
 use crate::HyperlaneCosmosError;
 
 type FutureChainResults<T> = Vec<JoinHandle<(ChainResult<Vec<(T, LogMeta)>>, u32)>>;
+=======
+use base64::{
+    engine::general_purpose::STANDARD as BASE64, prelude::BASE64_STANDARD_NO_PAD, Engine,
+};
+use once_cell::sync::Lazy;
+>>>>>>> main
 
 /// The event attribute key for the contract address.
 pub(crate) const CONTRACT_ADDRESS_ATTRIBUTE_KEY: &str = "_contract_address";
@@ -28,6 +35,7 @@ pub(crate) const CONTRACT_ADDRESS_ATTRIBUTE_KEY: &str = "_contract_address";
 pub(crate) static CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(CONTRACT_ADDRESS_ATTRIBUTE_KEY));
 
+<<<<<<< HEAD
 /// Given a `reorg_period`, returns the block height at the moment.
 /// If the `reorg_period` is None, a block height of None is given,
 /// indicating that the tip directly can be used.
@@ -107,18 +115,39 @@ pub(crate) async fn execute_and_parse_log_futures<T: Into<Indexed<T>>>(
     Ok(result)
 }
 
+=======
+>>>>>>> main
 #[cfg(test)]
 /// Helper function to create a Vec<EventAttribute> from a JSON string -
 /// crate::payloads::general::EventAttribute has a Deserialize impl while
 /// cosmrs::tendermint::abci::EventAttribute does not.
 pub(crate) fn event_attributes_from_str(attrs_str: &str) -> Vec<cometbft::abci::EventAttribute> {
+<<<<<<< HEAD
     serde_json::from_str::<Vec<crate::payloads::general::EventAttribute>>(attrs_str)
+=======
+    serde_json::from_str::<Vec<crate::cw::payloads::general::EventAttribute>>(attrs_str)
+>>>>>>> main
         .unwrap()
         .into_iter()
         .map(|attr| attr.into())
         .collect()
 }
 
+<<<<<<< HEAD
+=======
+use cometbft_rpc::endpoint::broadcast::tx_commit::Response;
+use cosmrs::{crypto::PublicKey, proto, tx::SignerPublicKey, Any};
+use crypto::decompress_public_key;
+use serde::{Deserialize, Serialize};
+use tracing::warn;
+
+use hyperlane_core::{AccountAddressType, ChainResult, FixedPointNumber, TxOutcome, H256};
+
+const INJECTIVE_PUBLIC_KEY_TYPE_URL: &str = "/injective.crypto.v1beta1.ethsecp256k1.PubKey";
+
+use crate::HyperlaneCosmosError;
+
+>>>>>>> main
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct CosmosKeyJsonFormat {
     #[serde(rename = "@type")]
@@ -126,6 +155,64 @@ struct CosmosKeyJsonFormat {
     pub key: String,
 }
 
+<<<<<<< HEAD
+=======
+pub fn normalize_public_key(
+    signer_public_key: SignerPublicKey,
+) -> ChainResult<(SignerPublicKey, AccountAddressType)> {
+    let public_key_and_account_address_type = match signer_public_key {
+        SignerPublicKey::Single(pk) => (SignerPublicKey::from(pk), AccountAddressType::Bitcoin),
+        SignerPublicKey::LegacyAminoMultisig(pk) => {
+            (SignerPublicKey::from(pk), AccountAddressType::Bitcoin)
+        }
+        SignerPublicKey::Any(pk) => {
+            if pk.type_url != PublicKey::ED25519_TYPE_URL
+                && pk.type_url != PublicKey::SECP256K1_TYPE_URL
+                && pk.type_url != INJECTIVE_PUBLIC_KEY_TYPE_URL
+            {
+                let msg = format!(
+                    "can only normalize public keys with a known TYPE_URL: {}, {}, {}",
+                    PublicKey::ED25519_TYPE_URL,
+                    PublicKey::SECP256K1_TYPE_URL,
+                    INJECTIVE_PUBLIC_KEY_TYPE_URL
+                );
+                warn!(pk.type_url, msg);
+                Err(HyperlaneCosmosError::PublicKeyError(msg.to_owned()))?
+            }
+
+            let (pub_key, account_address_type) = if pk.type_url == INJECTIVE_PUBLIC_KEY_TYPE_URL {
+                let any = Any {
+                    type_url: PublicKey::SECP256K1_TYPE_URL.to_owned(),
+                    value: pk.value,
+                };
+
+                let proto: proto::cosmos::crypto::secp256k1::PubKey =
+                    any.to_msg().map_err(Into::<HyperlaneCosmosError>::into)?;
+
+                let decompressed = decompress_public_key(&proto.key)
+                    .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+
+                let cometbft_key = cometbft::PublicKey::from_raw_secp256k1(&decompressed)
+                    .ok_or_else(|| {
+                        HyperlaneCosmosError::PublicKeyError(
+                            "cannot create cometbft public key".to_owned(),
+                        )
+                    })?;
+
+                let cosm_key = cometbft_pubkey_to_cosmrs_pubkey(&cometbft_key)?;
+                (cosm_key, AccountAddressType::Ethereum)
+            } else {
+                (PublicKey::try_from(pk)?, AccountAddressType::Bitcoin)
+            };
+
+            (SignerPublicKey::Single(pub_key), account_address_type)
+        }
+    };
+
+    Ok(public_key_and_account_address_type)
+}
+
+>>>>>>> main
 pub fn cometbft_pubkey_to_cosmrs_pubkey(
     cometbft_key: &cometbft::PublicKey,
 ) -> ChainResult<cosmrs::crypto::PublicKey> {
@@ -155,6 +242,7 @@ pub fn cometbft_pubkey_to_cosmrs_pubkey(
     Ok(cosm_key)
 }
 
+<<<<<<< HEAD
 #[cfg(test)]
 mod tests {
 
@@ -183,5 +271,13 @@ mod tests {
         let cosmos_key = cometbft_pubkey_to_cosmrs_pubkey(&key).expect("Failed to parse key");
 
         println!("{:?}", cosmos_key);
+=======
+pub(crate) fn tx_response_to_outcome(response: Response, gas_price: FixedPointNumber) -> TxOutcome {
+    TxOutcome {
+        transaction_id: H256::from_slice(response.hash.as_bytes()).into(),
+        executed: response.check_tx.code.is_ok() && response.tx_result.code.is_ok(),
+        gas_used: response.tx_result.gas_used.into(),
+        gas_price,
+>>>>>>> main
     }
 }

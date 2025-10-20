@@ -15,7 +15,7 @@ export const ethereumChainNames = supportedChainNames.filter(
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsc: {
     transactionOverrides: {
-      gasPrice: 3 * 10 ** 9, // 3 gwei
+      gasPrice: 1 * 10 ** 8, // 0.1 gwei
     },
   },
   polygonzkevm: {
@@ -48,6 +48,13 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   morph: {
     transactionOverrides: {
       gasPrice: 1 * 10 ** 6, // 0.001 gwei
+    },
+  },
+  incentiv: {
+    transactionOverrides: {
+      minGasPrice: 1 * 10 ** 9, // 1 gwei
+      minFeePerGas: 1 * 10 ** 9, // 1 gwei
+      minPriorityFeePerGas: 1 * 10 ** 9, // 1 gwei
     },
   },
   // Deploy-only overrides, set when deploying contracts

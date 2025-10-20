@@ -10,15 +10,30 @@ import {
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
+<<<<<<< HEAD
 const mitosisOwner = '0x8f51e8e0Ce90CC1B6E60a3E434c7E63DeaD13612';
+=======
+// TODO: update with new owners once they are updated
+const mitosisOwner = '0x8f51e8e0Ce90CC1B6E60a3E434c7E63DeaD13612';
+const mitosisTimelockOwner = '0x1248163200964459971c7cC9631909132AD28C27';
+const bscTimelockOwner = '0x1248163214D9A0D6F02932A245370D3fD9613A82';
+>>>>>>> main
 
 export const getMitosisMITOWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const mitosis: HypTokenRouterConfig = {
     ...routerConfig.mitosis,
+<<<<<<< HEAD
     owner: mitosisOwner,
     type: TokenType.native,
+=======
+    owner: mitosisTimelockOwner,
+    type: TokenType.native,
+    ownerOverrides: {
+      proxyAdmin: mitosisOwner,
+    },
+>>>>>>> main
     hook: {
       type: HookType.AGGREGATION,
       hooks: [
@@ -27,7 +42,11 @@ export const getMitosisMITOWarpConfig = async (
         },
         {
           type: HookType.PAUSABLE,
+<<<<<<< HEAD
           owner: mitosisOwner,
+=======
+          owner: mitosisTimelockOwner,
+>>>>>>> main
           paused: false,
         },
       ],
@@ -52,7 +71,14 @@ export const getMitosisMITOWarpConfig = async (
 
   const bsc: HypTokenRouterConfig = {
     ...routerConfig.bsc,
+<<<<<<< HEAD
     owner: mitosisOwner,
+=======
+    owner: bscTimelockOwner,
+    ownerOverrides: {
+      proxyAdmin: mitosisOwner,
+    },
+>>>>>>> main
     type: TokenType.synthetic,
     symbol: 'MITO',
     hook: {
@@ -63,7 +89,11 @@ export const getMitosisMITOWarpConfig = async (
         },
         {
           type: HookType.PAUSABLE,
+<<<<<<< HEAD
           owner: mitosisOwner,
+=======
+          owner: bscTimelockOwner,
+>>>>>>> main
           paused: false,
         },
       ],

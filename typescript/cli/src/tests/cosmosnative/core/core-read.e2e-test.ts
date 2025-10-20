@@ -1,10 +1,24 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+<<<<<<< HEAD
 import { GasPrice } from '@cosmjs/stargate';
 import { expect } from 'chai';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
 import { ChainMetadata, CoreConfig, IgpConfig } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+=======
+import { expect } from 'chai';
+
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
+import {
+  ChainMetadata,
+  CoreConfig,
+  IgpConfig,
+  ProtocolReceipt,
+  ProtocolTransaction,
+} from '@hyperlane-xyz/sdk';
+import { Address, AltVM, ProtocolType, assert } from '@hyperlane-xyz/utils';
+>>>>>>> main
 
 import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -29,19 +43,31 @@ describe('hyperlane cosmosnative core read e2e tests', async function () {
     CORE_READ_CONFIG_PATH_1,
   );
 
+<<<<<<< HEAD
   let signer: SigningHyperlaneModuleClient;
+=======
+  let signer: AltVM.ISigner<
+    ProtocolTransaction<ProtocolType.CosmosNative>,
+    ProtocolReceipt<ProtocolType.CosmosNative>
+  >;
+>>>>>>> main
   let initialOwnerAddress: Address;
 
   before(async () => {
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_1_METADATA_PATH);
 
     const wallet = await DirectSecp256k1Wallet.fromKey(
+<<<<<<< HEAD
       Buffer.from(HYP_KEY, 'hex'),
+=======
+      Uint8Array.from(Buffer.from(HYP_KEY, 'hex')),
+>>>>>>> main
       'hyp',
     );
 
     assert(chainMetadata.gasPrice, 'gasPrice not defined in chain metadata');
 
+<<<<<<< HEAD
     signer = await SigningHyperlaneModuleClient.connectWithSigner(
       chainMetadata.rpcUrls[0].http,
       wallet,
@@ -53,6 +79,17 @@ describe('hyperlane cosmosnative core read e2e tests', async function () {
     );
 
     initialOwnerAddress = signer.account.address;
+=======
+    signer = await CosmosNativeSigner.connectWithSigner(
+      chainMetadata.rpcUrls.map((rpc) => rpc.http),
+      wallet,
+      {
+        metadata: chainMetadata,
+      },
+    );
+
+    initialOwnerAddress = signer.getSignerAddress();
+>>>>>>> main
   });
 
   it('should read a core deployment', async () => {

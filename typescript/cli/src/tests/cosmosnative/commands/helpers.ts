@@ -1,8 +1,14 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
+<<<<<<< HEAD
 import { GasPrice } from '@cosmjs/stargate';
 import path from 'path';
 
 import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+=======
+import path from 'path';
+
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
+>>>>>>> main
 import { Address } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
@@ -30,6 +36,7 @@ export async function deployCollateralToken(
   const metadata = multiProvider.getChainMetadata(chain);
 
   const wallet = await DirectSecp256k1Wallet.fromKey(
+<<<<<<< HEAD
     Buffer.from(privateKey, 'hex'),
     metadata.bech32Prefix,
   );
@@ -50,6 +57,29 @@ export async function deployCollateralToken(
   });
 
   return response.id;
+=======
+    Uint8Array.from(Buffer.from(privateKey, 'hex')),
+    metadata.bech32Prefix,
+  );
+
+  if (!metadata.gasPrice)
+    throw new Error(`Missing gasPrice for chain ${chain}`);
+
+  const signer = await CosmosNativeSigner.connectWithSigner(
+    metadata.rpcUrls.map((rpc) => rpc.http),
+    wallet,
+    {
+      metadata,
+    },
+  );
+
+  const { tokenAddress } = await signer.createCollateralToken({
+    mailboxAddress: mailbox,
+    collateralDenom: metadata.nativeToken?.denom ?? '',
+  });
+
+  return tokenAddress;
+>>>>>>> main
 }
 
 export async function deploySyntheticToken(
@@ -65,6 +95,7 @@ export async function deploySyntheticToken(
   const metadata = multiProvider.getChainMetadata(chain);
 
   const wallet = await DirectSecp256k1Wallet.fromKey(
+<<<<<<< HEAD
     Buffer.from(privateKey, 'hex'),
     metadata.bech32Prefix,
   );
@@ -84,4 +115,26 @@ export async function deploySyntheticToken(
   });
 
   return response.id;
+=======
+    Uint8Array.from(Buffer.from(privateKey, 'hex')),
+    metadata.bech32Prefix,
+  );
+
+  const signer = await CosmosNativeSigner.connectWithSigner(
+    metadata.rpcUrls.map((rpc) => rpc.http),
+    wallet,
+    {
+      metadata,
+    },
+  );
+
+  const { tokenAddress } = await signer.createSyntheticToken({
+    mailboxAddress: mailbox,
+    name: '',
+    denom: '',
+    decimals: 0,
+  });
+
+  return tokenAddress;
+>>>>>>> main
 }

@@ -30,11 +30,11 @@ import {
   IsmType,
   RouterConfig,
   TestChainName,
-  TokenFeeType,
   proxyAdmin,
   proxyImplementation,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
+import { TokenFeeType } from '../fee/types.js';
 import {
   Address,
   addressToBytes32,

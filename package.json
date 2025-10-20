@@ -26,7 +26,7 @@
   "packageManager": "yarn@4.5.1",
   "private": true,
   "scripts": {
-    "agent-configs": "yarn --cwd typescript/infra/ update-agent-config:mainnet3 && yarn --cwd typescript/infra/ update-agent-config:testnet4 && yarn prettier",
+    "agent-configs": "yarn --cwd typescript/infra/ update-agent-config:mainnet3 && yarn --cwd typescript/infra/ update-agent-config:testnet4",
     "build": "turbo run build",
     "clean": "turbo run clean",
     "prettier": "turbo run prettier",

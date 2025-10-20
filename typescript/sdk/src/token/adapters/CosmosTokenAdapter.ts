@@ -1,4 +1,4 @@
-import { MsgTransferEncodeObject } from '@cosmjs/stargate';
+import { MsgSendEncodeObject, MsgTransferEncodeObject } from '@cosmjs/stargate';
 
 import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
@@ -22,7 +22,7 @@ const COSMOS_IBC_TRANSFER_TIMEOUT = 600_000; // 10 minutes
 // Interacts with native tokens on a Cosmos chain (e.g TIA on Celestia)
 export class CosmNativeTokenAdapter
   extends BaseCosmosAdapter
-  implements ITokenAdapter<MsgTransferEncodeObject>
+  implements ITokenAdapter<MsgTransferEncodeObject | MsgSendEncodeObject>
 {
   constructor(
     public readonly chainName: ChainName,
@@ -69,9 +69,21 @@ export class CosmNativeTokenAdapter
   }
 
   async populateTransferTx(
-    _transferParams: TransferParams,
-  ): Promise<MsgTransferEncodeObject> {
-    throw new Error('TODO not yet implemented');
+    transferParams: TransferParams,
+  ): Promise<MsgSendEncodeObject | MsgTransferEncodeObject> {
+    return {
+      typeUrl: '/cosmos.bank.v1beta1.MsgSend',
+      value: {
+        fromAddress: transferParams.fromAccountOwner,
+        toAddress: transferParams.recipient,
+        amount: [
+          {
+            amount: transferParams.weiAmountOrId.toString(),
+            denom: this.properties.ibcDenom,
+          },
+        ],
+      },
+    };
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
@@ -132,6 +144,12 @@ export class CosmIbcTokenAdapter
     return {
       igpQuote: { amount: 0n, addressOrDenom: this.properties.ibcDenom },
     };
+  }
+
+  override async populateTransferTx(
+    _transferParams: TransferParams,
+  ): Promise<MsgTransferEncodeObject> {
+    throw new Error('TODO not yet implemented');
   }
 
   async populateTransferRemoteTx(

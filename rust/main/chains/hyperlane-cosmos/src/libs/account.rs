@@ -4,7 +4,6 @@ use cosmrs::{crypto::PublicKey, AccountId};
 use hyperlane_cosmwasm_interface::types::keccak256_hash;
 
 use crypto::decompress_public_key;
-use hyperlane_core::Error::Overflow;
 use hyperlane_core::{AccountAddressType, ChainCommunicationError, ChainResult, H256};
 
 use crate::HyperlaneCosmosError;

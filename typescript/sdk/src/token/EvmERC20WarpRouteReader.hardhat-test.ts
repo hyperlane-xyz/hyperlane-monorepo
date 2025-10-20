@@ -27,13 +27,13 @@ import {
   HyperlaneContractsMap,
   RouterConfig,
   TestChainName,
-  TokenFeeType,
   WarpRouteDeployConfigMailboxRequired,
   normalizeConfig,
   proxyAdmin,
   proxyImplementation,
   test3,
 } from '@hyperlane-xyz/sdk';
+import { TokenFeeType } from '../fee/types.js';
 import { addressToBytes32, assert, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
@@ -432,7 +432,7 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.type).to.equal(config[chain].type);
     expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
     expect(derivedConfig.owner).to.equal(config[chain].owner);
-    expect(derivedConfig.token).to.equal(token.address);
+    expect(derivedConfig.token).to.equal(vault.address);
   });
 
   it('should derive rebase collateral vault config correctly', async () => {
@@ -458,7 +458,7 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.type).to.equal(config[chain].type);
     expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
     expect(derivedConfig.owner).to.equal(config[chain].owner);
-    expect(derivedConfig.token).to.equal(token.address);
+    expect(derivedConfig.token).to.equal(vault.address);
   });
 
   // FiatTokenTest

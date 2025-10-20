@@ -44,11 +44,13 @@ import {
   getCCTPStrategyConfig,
   getCCTPWarpConfig as getMainnetCCTPWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
+import { getCarrChainCARRWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainCARRWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
+import { getElectroneumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getElectroneumUSDCWarpConfig.js';
 import { getEthereumFormFORMWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormFORMWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
@@ -62,9 +64,16 @@ import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getLumiaUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getLumiaUSDCWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
+import { getMantraUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getMantraUSDCWarpConfig.js';
+import {
+  getMatchainUSDCStrategyConfig,
+  getMatchainUSDCWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getMatchainUSDCWarpConfig.js';
 import { getMintSolanaMintWarpConfig } from './environments/mainnet3/warp/configGetters/getMintSolanaMintWarpConfig.js';
 import { getMitosisMITOWarpConfig } from './environments/mainnet3/warp/configGetters/getMitosisMITOWarpConfig.js';
 import { getParadexUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getParadexUSDCWarpConfig.js';
+import { getPulsechainUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getPulsechainUSDCWarpConfig.js';
+import { getRadixUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getRadixUSDCWarpConfig.js';
 import {
   getEZETHSTAGEGnosisSafeBuilderStrategyConfig,
   getRenzoEZETHSTAGEWarpConfig,
@@ -135,6 +144,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDCWarpConfig,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet]:
     getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig,
+  [WarpRouteIds.CarrChainCARR]: getCarrChainCARRWarpConfig,
   [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
   [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,
   [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig,
@@ -162,7 +172,12 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.TestnetCCTP]: getTestnetCCTPWarpConfig,
   [WarpRouteIds.MainnetCCTP]: getMainnetCCTPWarpConfig,
   [WarpRouteIds.LumiaUSDC]: getLumiaUSDCWarpConfig,
+  [WarpRouteIds.MatchainUSDC]: getMatchainUSDCWarpConfig,
   [WarpRouteIds.MitosisMITO]: getMitosisMITOWarpConfig,
+  [WarpRouteIds.RadixUSDC]: getRadixUSDCWarpConfig,
+  [WarpRouteIds.PulsechainUSDC]: getPulsechainUSDCWarpConfig,
+  [WarpRouteIds.ElectroneumUSDC]: getElectroneumUSDCWarpConfig,
+  [WarpRouteIds.MantraUSDC]: getMantraUSDCWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
@@ -182,6 +197,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
   [WarpRouteIds.MainnetCCTP]: getCCTPStrategyConfig,
+  [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
 };
 

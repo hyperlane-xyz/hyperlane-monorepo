@@ -216,7 +216,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_batch_result_succeeds() {
         let mut mock_mailbox = MockMailboxContract::new();
-        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
+        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Sepolia.into();
 
         mock_mailbox.expect_supports_batching().return_const(true);
         mock_mailbox.expect_process_batch().returning(move |_ops| {
@@ -241,7 +241,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_batch_result_fails() {
         let mut mock_mailbox = MockMailboxContract::new();
-        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
+        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Sepolia.into();
 
         mock_mailbox.expect_supports_batching().return_const(true);
         mock_mailbox
@@ -265,7 +265,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_batch_succeeds_eventually() {
         let mut mock_mailbox = MockMailboxContract::new();
-        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
+        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Sepolia.into();
 
         let mut counter = 0;
         mock_mailbox.expect_supports_batching().return_const(true);
@@ -295,7 +295,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_batch_result_fails_if_not_supported() {
         let mut mock_mailbox = MockMailboxContract::new();
-        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Alfajores.into();
+        let dummy_domain: HyperlaneDomain = KnownHyperlaneDomain::Sepolia.into();
 
         mock_mailbox.expect_supports_batching().return_const(false);
         mock_mailbox.expect_process_batch().returning(move |_ops| {

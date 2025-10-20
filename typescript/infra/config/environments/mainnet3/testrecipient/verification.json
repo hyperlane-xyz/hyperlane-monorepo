@@ -47,6 +47,7 @@
       "name": "TestRecipient"
     }
   ],
+<<<<<<< HEAD
   "proofofplay": [
     {
       "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
@@ -55,6 +56,8 @@
       "name": "TestRecipient"
     }
   ],
+=======
+>>>>>>> main
   "tangle": [
     {
       "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
@@ -69,14 +72,6 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "TestRecipient"
-    }
-  ],
-  "lumia": [
-    {
-      "name": "TestRecipient",
-      "address": "0xf7D882A816D4845BB221Ceb03CE531d1e7645F60",
-      "constructorArguments": "",
-      "isProxy": false
     }
   ]
 }

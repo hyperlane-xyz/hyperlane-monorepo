@@ -1,5 +1,9 @@
 import chalk from 'chalk';
+<<<<<<< HEAD
 import { ethers } from 'ethers';
+=======
+import { BigNumber, ethers } from 'ethers';
+>>>>>>> main
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
 import {
@@ -183,6 +187,10 @@ export enum TimelockOperationStatus {
 type TimelockTransactionStatus = {
   chain: ChainName;
   id: string;
+<<<<<<< HEAD
+=======
+  earliestExecution: BigNumber;
+>>>>>>> main
   executeTransactionData: HexString;
   predecessorId: HexString;
   salt: HexString;
@@ -236,6 +244,7 @@ async function getPendingTimelockTxsOnChain(
     reader.canExecuteOperations(await multiProvider.getSignerAddress(chain)),
   ]);
 
+<<<<<<< HEAD
   return Object.values(scheduledTxs).map((tx): TimelockTransactionStatus => {
     return {
       chain,
@@ -250,6 +259,32 @@ async function getPendingTimelockTxsOnChain(
       timelockAddress,
     };
   });
+=======
+  return Promise.all(
+    Object.values(scheduledTxs).map(
+      async (tx): Promise<TimelockTransactionStatus> => {
+        const timelockController = TimelockController__factory.connect(
+          timelockAddress,
+          multiProvider.getProvider(chain),
+        );
+        const earliestExecution = await timelockController.getTimestamp(tx.id);
+        return {
+          chain,
+          earliestExecution,
+          canSignerExecute,
+          executeTransactionData: getTimelockExecutableTransactionFromBatch(tx),
+          id: tx.id,
+          predecessorId: tx.predecessor,
+          salt: tx.salt,
+          status: !readyTransactionIds.has(tx.id)
+            ? TimelockOperationStatus.PENDING
+            : TimelockOperationStatus.READY_TO_EXECUTE,
+          timelockAddress,
+        };
+      },
+    ),
+  );
+>>>>>>> main
 }
 
 export async function getPendingTimelockTxs(

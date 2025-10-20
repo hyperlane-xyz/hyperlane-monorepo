@@ -37,13 +37,11 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { isAddressActive } from '../contracts/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import {
-  ExplorerLicenseType,
-  VerifyContractTypes,
-} from '../deploy/verify/types.js';
+import { VerifyContractTypes } from '../deploy/verify/types.js';
 import { EvmTokenFeeReader } from '../fee/EvmTokenFeeReader.js';
 import { TokenFeeConfig } from '../fee/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
@@ -686,24 +684,32 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
   private async deriveHypCollateralVaultTokenConfig(
     hypToken: Address,
   ): Promise<HypTokenConfig> {
-    const erc20TokenMetadata =
-      await this.deriveHypCollateralTokenConfig(hypToken);
+    const hypCollateralVault = HypERC4626OwnerCollateral__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const vaultAddress = await hypCollateralVault.vault();
 
     return {
-      ...erc20TokenMetadata,
       type: TokenType.collateralVault,
+      token: vaultAddress,
     };
   }
 
   private async deriveHypCollateralVaultRebaseTokenConfig(
     hypToken: Address,
   ): Promise<HypTokenConfig> {
-    const erc20TokenMetadata =
-      await this.deriveHypCollateralTokenConfig(hypToken);
+    const hypCollateralVault = HypERC4626Collateral__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const vaultAddress = await hypCollateralVault.vault();
 
     return {
-      ...erc20TokenMetadata,
       type: TokenType.collateralVaultRebase,
+      token: vaultAddress,
     };
   }
 

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mockall::mock;
 use solana_client::rpc_response::RpcSimulateTransactionResult;
+use solana_sdk::account::Account;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
@@ -13,8 +14,9 @@ use solana_sdk::{
     transaction::Transaction as SealevelTransaction,
 };
 use solana_transaction_status::{
-    EncodedConfirmedTransactionWithStatusMeta, EncodedTransaction,
-    EncodedTransactionWithStatusMeta, UiConfirmedBlock,
+    option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
+    EncodedTransaction, EncodedTransactionWithStatusMeta, UiConfirmedBlock,
+    UiTransactionStatusMeta,
 };
 
 use hyperlane_base::settings::{ChainConf, RawChainConf};
@@ -114,9 +116,8 @@ mock! {
             signature: Signature,
             commitment: CommitmentConfig,
         ) -> ChainResult<bool>;
-    }
-}
 
+<<<<<<< HEAD
 // used for localized tests for estimating, simulating, submitting txs etc
 struct MockProvider {}
 
@@ -164,6 +165,9 @@ impl SealevelProviderForLander for MockProvider {
         _commitment: CommitmentConfig,
     ) -> ChainResult<bool> {
         Ok(true)
+=======
+        async fn get_account(&self, account: Pubkey) -> ChainResult<Option<Account>>;
+>>>>>>> main
     }
 }
 
@@ -177,7 +181,7 @@ pub fn estimate() -> SealevelTxCostEstimate {
 pub fn adapter() -> SealevelAdapter {
     let client = mock_client();
     let oracle = MockOracle::new();
-    let provider = MockProvider {};
+    let provider = create_default_mock_svm_provider();
     let submitter = mock_submitter();
 
     SealevelAdapter::new_internal_default(
@@ -192,7 +196,7 @@ pub fn adapter_config(conf: ChainConf) -> SealevelAdapter {
     let raw_conf = RawChainConf::default();
     let client = mock_client();
     let oracle = MockOracle::new();
-    let provider = MockProvider {};
+    let provider = create_default_mock_svm_provider();
     let submitter = mock_submitter();
 
     SealevelAdapter::new_internal(
@@ -204,6 +208,56 @@ pub fn adapter_config(conf: ChainConf) -> SealevelAdapter {
         Arc::new(submitter),
     )
     .unwrap()
+}
+
+pub fn adapter_with_mock_svm_provider(provider: MockSvmProvider) -> SealevelAdapter {
+    let client = mock_client();
+    let oracle = MockOracle::new();
+    let submitter = mock_submitter();
+
+    SealevelAdapter::new_internal_default(
+        Arc::new(client),
+        Arc::new(provider),
+        Arc::new(oracle),
+        Arc::new(submitter),
+    )
+}
+
+fn create_default_mock_svm_provider() -> MockSvmProvider {
+    let mut provider = MockSvmProvider::new();
+
+    // Set up default expectations that existing tests expect
+    provider
+        .expect_get_estimated_costs_for_instruction()
+        .returning(|_, _, _, _| {
+            Ok(SealevelTxCostEstimate {
+                compute_units: GAS_LIMIT,
+                compute_unit_price_micro_lamports: 0,
+            })
+        });
+
+    provider
+        .expect_create_transaction_for_instruction()
+        .returning(|_, _, instruction, payer, _, _| {
+            let keypair = payer;
+            Ok(SealevelTransaction::new_unsigned(Message::new(
+                &[instruction],
+                Some(&keypair.pubkey()),
+            )))
+        });
+
+    provider
+        .expect_wait_for_transaction_confirmation()
+        .returning(|_| Ok(()));
+
+    provider
+        .expect_confirm_transaction()
+        .returning(|_, _| Ok(true));
+
+    // Default get_account returns None (account doesn't exist)
+    provider.expect_get_account().returning(|_| Ok(None));
+
+    provider
 }
 
 fn mock_submitter() -> MockSubmitter {
@@ -262,7 +316,21 @@ pub fn encoded_svm_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
         slot: 43,
         transaction: EncodedTransactionWithStatusMeta {
             transaction: EncodedTransaction::LegacyBinary("binary".to_string()),
-            meta: None,
+            meta: Some(UiTransactionStatusMeta {
+                err: None,
+                status: Ok(()),
+                fee: 0,
+                pre_balances: Vec::new(),
+                post_balances: Vec::new(),
+                inner_instructions: OptionSerializer::None,
+                log_messages: OptionSerializer::None,
+                pre_token_balances: OptionSerializer::None,
+                post_token_balances: OptionSerializer::None,
+                rewards: OptionSerializer::None,
+                loaded_addresses: OptionSerializer::None,
+                return_data: OptionSerializer::None,
+                compute_units_consumed: OptionSerializer::None,
+            }),
             version: None,
         },
         block_time: None,

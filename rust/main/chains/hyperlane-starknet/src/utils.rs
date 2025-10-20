@@ -1,3 +1,4 @@
+use std::ops::Rem;
 use std::time::Duration;
 
 use cainome::cairo_serde::CairoSerde;
@@ -14,10 +15,9 @@ use starknet::{
         types::{EmittedEvent, Felt, TransactionReceipt},
         utils::{cairo_short_string_to_felt, CairoShortStringToFeltError},
     },
-    providers::{JsonRpcClient, Provider},
+    providers::Provider,
     signers::LocalWallet,
 };
-use url::Url;
 
 use crate::contracts::{
     aggregation_ism, interchain_security_module, mailbox, multisig_ism, routing_ism,
@@ -28,7 +28,7 @@ use crate::{
     contracts::{interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message},
     HyperlaneStarknetError,
 };
-use crate::{FallbackHttpTransport, JsonProvider, Signer};
+use crate::{JsonProvider, Signer};
 
 /// Polls the rpc client until the transaction receipt is available.
 pub async fn get_transaction_receipt(
@@ -74,12 +74,10 @@ pub async fn get_transaction_receipt(
 /// * `account_address` - The address of the account.
 /// * `is_legacy` - Whether the account is legacy (Cairo 0) or not.
 pub async fn build_single_owner_account(
-    rpc_urls: Vec<Url>,
     signer: Option<Signer>,
+    provider: &JsonProvider,
 ) -> ChainResult<SingleOwnerAccount<JsonProvider, LocalWallet>> {
-    let rpc_client = JsonRpcClient::new(FallbackHttpTransport::new(rpc_urls));
-
-    let chain_id = rpc_client.chain_id().await.map_err(|_| {
+    let chain_id = provider.chain_id().await.map_err(|_| {
         ChainCommunicationError::from_other_str("Failed to get chain id from rpc client")
     })?;
 
@@ -94,7 +92,7 @@ pub async fn build_single_owner_account(
     };
 
     Ok(SingleOwnerAccount::new(
-        rpc_client,
+        provider.clone(),
         signer.local_wallet(),
         signer.address,
         chain_id,
@@ -247,13 +245,13 @@ message_converter!(routing_ism::Message);
 /// Convert a byte slice to a starknet bytes by padding the bytes to 16 bytes chunks
 pub fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {
     // Calculate the required padding
-    let padding = (16 - (bytes.len() % 16)) % 16;
-    let total_len = bytes.len() + padding;
+    let padding = 16usize.saturating_sub(bytes.len().rem(16)).rem(16);
+    let total_len = bytes.len().saturating_add(padding);
 
     // Create a new byte vector with the necessary padding
     let mut padded_bytes = Vec::with_capacity(total_len);
     padded_bytes.extend_from_slice(bytes);
-    padded_bytes.extend(std::iter::repeat(0).take(padding));
+    padded_bytes.extend(std::iter::repeat_n(0, padding));
 
     let mut result = Vec::with_capacity(total_len / 16);
     for chunk in padded_bytes.chunks_exact(16) {
@@ -274,10 +272,10 @@ pub fn string_to_cairo_long_string(s: &str) -> Result<Vec<Felt>, CairoShortStrin
     let mut start = 0;
 
     while start < s.len() {
-        let end = std::cmp::min(start + chunk_size, s.len());
+        let end = std::cmp::min(start.saturating_add(chunk_size), s.len());
         let chunk = s[start..end].to_string();
         chunks.push(cairo_short_string_to_felt(&chunk)?);
-        start += chunk_size;
+        start = start.saturating_add(chunk_size);
     }
 
     Ok(chunks)
@@ -296,7 +294,7 @@ pub(crate) async fn get_block_height_for_reorg_period(
                 .block_number()
                 .await
                 .map_err(Into::<HyperlaneStarknetError>::into)?;
-            tip - blocks.get() as u64
+            tip.saturating_sub(blocks.get() as u64)
         }
         ReorgPeriod::None => provider
             .block_number()

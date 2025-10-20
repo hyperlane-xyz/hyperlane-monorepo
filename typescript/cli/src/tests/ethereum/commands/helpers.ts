@@ -6,8 +6,11 @@ import {
   ERC20Test,
   ERC20Test__factory,
   ERC4626Test__factory,
+<<<<<<< HEAD
   FiatTokenTest,
   FiatTokenTest__factory,
+=======
+>>>>>>> main
   XERC20LockboxTest,
   XERC20LockboxTest__factory,
   XERC20VSTest,
@@ -186,6 +189,7 @@ export async function deployToken(
   return token;
 }
 
+<<<<<<< HEAD
 export async function deployFiatToken(
   privateKey: string,
   chain: string,
@@ -208,6 +212,8 @@ export async function deployFiatToken(
   return token;
 }
 
+=======
+>>>>>>> main
 export async function deploy4626Vault(
   privateKey: string,
   chain: string,

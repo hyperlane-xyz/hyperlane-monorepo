@@ -91,7 +91,7 @@ spec:
         env:
           {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.relayer.envConfig) | nindent 10 }}
           - name: CONFIG_FILES
-            value: "/relayer-configmap/relayer-config.json"
+            value: "/relayer-configmap/relayer-config.json,/app/app-contexts/mainnet_config.json"
           {{- with .Values.hyperlane.relayer.cacheDefaultExpirationSeconds }}
           - name: HYP_CACHEDEFAULTEXPIRATIONSECONDS
             value: {{ . | quote }}

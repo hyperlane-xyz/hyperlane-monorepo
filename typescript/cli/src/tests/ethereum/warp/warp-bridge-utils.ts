@@ -23,6 +23,7 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
+<<<<<<< HEAD
 import {
   deploy4626Vault,
   deployFiatToken,
@@ -31,6 +32,9 @@ import {
   deployXERC20VSToken,
   getTokenAddressFromWarpConfig,
 } from '../commands/helpers.js';
+=======
+import { deploy4626Vault, deployToken } from '../commands/helpers.js';
+>>>>>>> main
 import {
   generateWarpConfigs,
   hyperlaneWarpDeploy,

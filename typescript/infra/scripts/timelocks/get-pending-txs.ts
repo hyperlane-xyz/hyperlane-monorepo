@@ -13,6 +13,10 @@ import { Contexts } from '../../config/contexts.js';
 import { getGovernanceTimelocks } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
+<<<<<<< HEAD
+=======
+import { executePendingTransactions } from '../../src/tx/utils.js';
+>>>>>>> main
 import { logTable } from '../../src/utils/log.js';
 import {
   TimelockOperationStatus,
@@ -55,6 +59,7 @@ async function main() {
     process.exit(0);
   }
 
+<<<<<<< HEAD
   logTable(pendingTxs, [
     'chain',
     'id',
@@ -63,6 +68,28 @@ async function main() {
     'status',
     'canSignerExecute',
   ]);
+=======
+  // Sort by chain name, then by earliestExecution (as BigNumber, so use .toNumber())
+  // Then convert earliestExecution to a readable date string
+  logTable(
+    pendingTxs
+      .sort((a, b) => {
+        const chainCmp = a.chain.localeCompare(b.chain);
+        if (chainCmp !== 0) return chainCmp;
+        // Compare earliestExecution as numbers (BigNumber -> number)
+        const aExec = a.earliestExecution.toNumber();
+        const bExec = b.earliestExecution.toNumber();
+        return aExec - bExec;
+      })
+      .map((tx) => ({
+        ...tx,
+        earliestExecution: new Date(
+          tx.earliestExecution.toNumber() * 1000,
+        ).toLocaleString(),
+      })),
+    ['chain', 'id', 'earliestExecution', 'status'],
+  );
+>>>>>>> main
 
   const executableTxs = pendingTxs.filter(
     (tx) =>
@@ -89,6 +116,7 @@ async function main() {
   }
 
   rootLogger.info(chalk.blueBright('Executing transactions...'));
+<<<<<<< HEAD
   for (const tx of executableTxs) {
     const confirmExecuteTx = await confirm({
       message: `Execute transaction ${tx.id} on chain ${tx.chain}?`,
@@ -110,6 +138,18 @@ async function main() {
       return;
     }
   }
+=======
+  await executePendingTransactions(
+    executableTxs,
+    (tx) => tx.id,
+    (tx) => tx.chain,
+    (tx) =>
+      multiProvider.sendTransaction(tx.chain, {
+        to: tx.timelockAddress,
+        data: tx.executeTransactionData,
+      }),
+  );
+>>>>>>> main
 
   process.exit(0);
 }

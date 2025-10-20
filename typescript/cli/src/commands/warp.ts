@@ -3,14 +3,19 @@ import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import {
-  ChainName,
   RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, objFilter } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  difference,
+  intersection,
+  objFilter,
+} from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
@@ -20,7 +25,6 @@ import {
   CommandModuleWithWarpDeployContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
-import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { runForkCommand } from '../fork/fork.js';
 import {
@@ -34,7 +38,6 @@ import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { RebalancerRunner } from '../rebalancer/runner.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -51,9 +54,7 @@ import { runVerifyWarpRoute } from '../verify/warp.js';
 import {
   addressCommandOption,
   chainCommandOption,
-  dryRunCommandOption,
   forkCommandOptions,
-  fromAddressCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
   symbolCommandOption,
@@ -157,25 +158,14 @@ export const apply: CommandModuleWithWarpApplyContext<
   },
 };
 
-export const deploy: CommandModuleWithWarpDeployContext<
-  SelectWarpRouteBuilder & {
-    'dry-run': string;
-    'from-address': string;
-  }
-> = {
-  command: 'deploy',
-  describe: 'Deploy Warp Route contracts',
-  builder: {
-    ...SELECT_WARP_ROUTE_BUILDER,
-    'dry-run': dryRunCommandOption,
-    'from-address': fromAddressCommandOption,
-  },
-  handler: async ({ context, dryRun, warpRouteId, config }) => {
-    logCommandHeader(
-      `Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`,
-    );
+export const deploy: CommandModuleWithWarpDeployContext<SelectWarpRouteBuilder> =
+  {
+    command: 'deploy',
+    describe: 'Deploy Warp Route contracts',
+    builder: SELECT_WARP_ROUTE_BUILDER,
+    handler: async ({ context, warpRouteId, config }) => {
+      logCommandHeader(`Hyperlane Warp Route Deployment`);
 
-    try {
       await runWarpRouteDeploy({
         context,
         // Already fetched in the resolveWarpRouteConfigChains
@@ -183,13 +173,10 @@ export const deploy: CommandModuleWithWarpDeployContext<
         warpRouteId,
         warpDeployConfigFileName: config,
       });
-    } catch (error: any) {
-      evaluateIfDryRunFailure(error, dryRun);
-      throw error;
-    }
-    process.exit(0);
-  },
-};
+
+      process.exit(0);
+    },
+  };
 
 export const init: CommandModuleWithContext<{
   advanced: boolean;
@@ -242,6 +229,8 @@ export const read: CommandModuleWithContext<
     address,
     config: configFilePath,
     symbol,
+    warp,
+    warpRouteId,
   }) => {
     logCommandHeader('Hyperlane Warp Reader');
 
@@ -250,6 +239,8 @@ export const read: CommandModuleWithContext<
       chain,
       address,
       symbol,
+      warpCoreConfigPath: warp,
+      warpRouteId,
     });
 
     if (configFilePath) {
@@ -271,6 +262,7 @@ const send: CommandModuleWithWriteContext<
       router?: string;
       amount: string;
       recipient?: string;
+      chains?: string;
     }
 > = {
   command: 'send',
@@ -287,6 +279,12 @@ const send: CommandModuleWithWriteContext<
       type: 'string',
       description: 'Token recipient address (defaults to sender)',
     },
+    chains: {
+      type: 'string',
+      description: 'Comma separated list of chains to send messages to',
+      demandOption: false,
+      conflicts: ['origin', 'destination'],
+    },
   },
   handler: async ({
     context,
@@ -300,43 +298,41 @@ const send: CommandModuleWithWriteContext<
     amount,
     recipient,
     roundTrip,
+    chains: chainsAsString,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
       warp,
       context,
     });
+    const chainsToSend = chainsAsString?.split(',').map((_) => _.trim());
+    let chains = chainsToSend || [];
 
-    let chains: ChainName[] = warpCoreConfig.tokens.map((t) => t.chainName);
+    if (origin && destination) {
+      chains.push(origin);
+      chains.push(destination);
+    }
+
+    const supportedChains = new Set(
+      warpCoreConfig.tokens.map((t) => t.chainName),
+    );
+
+    const unsupportedChains = difference(
+      new Set([...(chainsToSend || []), origin, destination].filter(Boolean)),
+      supportedChains,
+    );
+    assert(
+      unsupportedChains.size === 0,
+      `Chain(s) ${[...unsupportedChains].join(', ')} are not part of the warp route.`,
+    );
+
+    chains = [...intersection(new Set(chains), supportedChains)];
+    assert(chains.length > 1, `Not enough chains to send messages.`);
+
     if (roundTrip) {
       // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
-      const reversed = [...chains].reverse().slice(1, chains.length + 1); // We make a copy because .reverse() is mutating
-      chains.push(...reversed);
-    } else {
-      // Assume we want to use use `--origin` and `--destination` params, prompt as needed.
-      const chainMetadata = objFilter(
-        context.chainMetadata,
-        (key, _metadata): _metadata is any => chains.includes(key),
-      );
-
-      if (!origin)
-        origin = await runSingleChainSelectionStep(
-          chainMetadata,
-          'Select the origin chain:',
-        );
-
-      if (!destination)
-        destination = await runSingleChainSelectionStep(
-          chainMetadata,
-          'Select the destination chain:',
-        );
-
-      chains = [origin, destination].filter((c) => chains.includes(c));
-
-      assert(
-        chains.length === 2,
-        `Origin (${origin}) or destination (${destination}) are not part of the warp route.`,
-      );
+      const reversed = [...chains].reverse().slice(1, chains.length + 1);
+      chains = [...chains, ...reversed];
     }
 
     logBlue(`🚀 Sending a message for chains: ${chains.join(' ➡️ ')}`);
@@ -403,6 +399,7 @@ export const check: CommandModuleWithContext<SelectWarpRouteBuilder> = {
 
     let expandedWarpDeployConfig = await expandWarpDeployConfig({
       multiProvider: context.multiProvider,
+      altVmProvider: context.altVmProvider,
       warpDeployConfig,
       deployedRoutersAddresses,
       expandedOnChainWarpConfig,
