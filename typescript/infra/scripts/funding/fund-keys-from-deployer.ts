@@ -673,6 +673,7 @@ class ContextFunder {
         { chain },
         'Chain is not in production yet, skipping sweep.',
       );
+      return;
     }
 
     // Skip if we don't have a threshold configured for this chain
