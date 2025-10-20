@@ -12,9 +12,6 @@ import {IMessageHandlerV2} from "../interfaces/cctp/IMessageHandlerV2.sol";
 import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
 import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
 
-// TokenMessage.metadata := null
-uint256 constant CCTP_TOKEN_BRIDGE_MESSAGE_LEN = TokenMessage.METADATA_OFFSET;
-
 // @dev Supports only CCTP V2
 contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     using CctpMessageV2 for bytes29;
@@ -93,27 +90,6 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         return cctpMessage._getRecipient().bytes32ToAddress();
     }
 
-    function _getCircleNonce(
-        bytes29 cctpMessage
-    ) internal pure override returns (bytes32) {
-        return cctpMessage._getNonce();
-    }
-
-    function _getCircleSource(
-        bytes29 cctpMessage
-    ) internal pure override returns (uint32) {
-        return cctpMessage._getSourceDomain();
-    }
-
-    function _validateTokenMessageLength(
-        bytes memory tokenMessage
-    ) internal pure {
-        require(
-            tokenMessage.length == CCTP_TOKEN_BRIDGE_MESSAGE_LEN,
-            "Invalid message length"
-        );
-    }
-
     function _validateTokenMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
@@ -128,7 +104,6 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         );
 
         bytes calldata tokenMessage = hyperlaneMessage.body();
-        _validateTokenMessageLength(tokenMessage);
 
         require(
             TokenMessage.amount(tokenMessage) == burnMessage._getAmount(),
@@ -145,35 +120,39 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     function _validateHookMessage(
         bytes calldata hyperlaneMessage,
         bytes29 cctpMessage
-    ) internal view override {
-        bytes32 circleSender = cctpMessage._getSender();
-        require(
-            circleSender == _mustHaveRemoteRouter(hyperlaneMessage.origin()),
-            "Invalid circle sender"
-        );
-
+    ) internal pure override {
         bytes32 circleMessageId = cctpMessage._getMessageBody().index(0, 32);
         require(circleMessageId == hyperlaneMessage.id(), "Invalid message id");
     }
 
     // @inheritdoc IMessageHandlerV2
     function handleReceiveFinalizedMessage(
-        uint32 /*sourceDomain*/,
-        bytes32 /*sender*/,
+        uint32 sourceDomain,
+        bytes32 sender,
         uint32 /*finalityThresholdExecuted*/,
-        bytes calldata /*messageBody*/
-    ) external pure override returns (bool) {
-        return true;
+        bytes calldata messageBody
+    ) external override returns (bool) {
+        return
+            _receiveMessageId(
+                sourceDomain,
+                sender,
+                abi.decode(messageBody, (bytes32))
+            );
     }
 
     // @inheritdoc IMessageHandlerV2
     function handleReceiveUnfinalizedMessage(
-        uint32 /*sourceDomain*/,
-        bytes32 /*sender*/,
+        uint32 sourceDomain,
+        bytes32 sender,
         uint32 /*finalityThresholdExecuted*/,
-        bytes calldata /*messageBody*/
-    ) external pure override returns (bool) {
-        return true;
+        bytes calldata messageBody
+    ) external override returns (bool) {
+        return
+            _receiveMessageId(
+                sourceDomain,
+                sender,
+                abi.decode(messageBody, (bytes32))
+            );
     }
 
     function _sendMessageIdToIsm(
@@ -184,7 +163,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         IMessageTransmitterV2(address(messageTransmitter)).sendMessage(
             destinationDomain,
             ism,
-            ism,
+            bytes32(0), // allow anyone to relay
             minFinalityThreshold,
             abi.encode(messageId)
         );
@@ -194,7 +173,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         uint32 circleDomain,
         bytes32 _recipient,
         uint256 _amount
-    ) internal override returns (bytes memory message) {
+    ) internal override {
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
             _amount,
             circleDomain,
@@ -204,10 +183,5 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             maxFeeBps,
             minFinalityThreshold
         );
-
-        message = TokenMessage.format(_recipient, _amount);
-        _validateTokenMessageLength(message);
-
-        return message;
     }
 }
