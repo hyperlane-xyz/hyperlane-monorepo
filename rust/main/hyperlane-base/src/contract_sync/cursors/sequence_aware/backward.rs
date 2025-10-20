@@ -35,6 +35,9 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     pub lowest_block_height_or_sequence: i64,
     /// A store used to check which logs have already been indexed.
     store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+    /// Optional SQL store for fast historical data retrieval.
+    /// When available, this is used first to attempt bulk retrieval of historical data.
+    pub sql_store: Option<Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>>,
     /// A snapshot of the last log to be indexed, or if no indexing has occurred yet,
     /// the initial log to start indexing backward from.
     last_indexed_snapshot: LastIndexedSnapshot,
@@ -68,6 +71,7 @@ pub struct BackwardSequenceAwareSyncCursorParams<T> {
     pub latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
     pub lowest_block_height_or_sequence: i64,
     pub store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+    pub sql_store: Option<Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>>,
     pub current_sequence_count: u32,
     pub start_block: u32,
     pub index_mode: IndexMode,
@@ -99,6 +103,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             latest_sequence_querier,
             lowest_block_height_or_sequence,
             store,
+            sql_store,
             current_sequence_count,
             start_block,
             index_mode,
@@ -119,6 +124,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             latest_sequence_querier,
             lowest_block_height_or_sequence,
             store,
+            sql_store,
             current_indexing_snapshot: last_indexed_snapshot.previous_target(),
             last_indexed_snapshot,
             index_mode,
@@ -311,6 +317,23 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// Gets the log block number of a previously indexed sequence. Returns None if the
     /// log for the sequence number hasn't been indexed.
     async fn get_sequence_log_block_number(&self, sequence: u32) -> Result<Option<u32>> {
+        // Try SQL store first if available (fast path)
+        if let Some(sql_store) = &self.sql_store {
+            if let Ok(Some(_)) = sql_store.retrieve_by_sequence(sequence).await {
+                if let Ok(Some(block_number)) = sql_store
+                    .retrieve_log_block_number_by_sequence(sequence)
+                    .await
+                {
+                    debug!(
+                        sequence,
+                        block_number, "Retrieved block number from SQL store"
+                    );
+                    return Ok(Some(block_number.try_into()?));
+                }
+            }
+        }
+
+        // Fallback to local store (original behavior)
         // Ensure there's a full entry for the sequence.
         if self.store.retrieve_by_sequence(sequence).await?.is_some() {
             // And get the block number.
@@ -626,6 +649,7 @@ mod test {
             start_block: INITIAL_START_BLOCK,
             index_mode: mode,
             metrics_data,
+            sql_store: None,
         };
         let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
 
@@ -978,6 +1002,7 @@ mod test {
                 start_block: INITIAL_START_BLOCK,
                 index_mode: INDEX_MODE,
                 metrics_data,
+                sql_store: None,
             };
             let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
 
