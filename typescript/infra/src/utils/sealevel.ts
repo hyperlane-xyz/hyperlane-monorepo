@@ -200,7 +200,7 @@ export function formatRemoteGasData(data: any): string {
   // Convert gas price to lamports (assuming it's in smallest unit)
   const gasPriceLamports = Number(data.gas_price);
 
-  return `Exchange rate: ${exchangeRate.toFixed(10)}, Gas price: ${gasPriceLamports.toLocaleString()} lamports, Decimals: ${data.token_decimals}`;
+  return `Exchange rate: ${exchangeRate.toFixed(10)}, Gas price: ${gasPriceLamports.toLocaleString()}, Decimals: ${data.token_decimals}`;
 }
 
 /**
@@ -237,7 +237,7 @@ export function serializeGasOracleDifference(
   const exchangeRate = Number(expected.token_exchange_rate) / 1e10;
   const gasPriceLamports = Number(expected.gas_price);
 
-  return `Exchange rate: ${exchangeRate.toFixed(10)} (${exchangeRateDiff}), Gas price: ${gasPriceLamports.toLocaleString()} lamports (${gasPriceDiff}), Product diff: ${productDiff}`;
+  return `Exchange rate: ${exchangeRate.toFixed(10)} (${exchangeRateDiff}), Gas price: ${gasPriceLamports.toLocaleString()} (${gasPriceDiff}), Product diff: ${productDiff}`;
 }
 
 /**
