@@ -5,7 +5,6 @@ import { UINT_256_MAX } from 'starknet';
 import { zeroAddress } from 'viem';
 
 import {
-  FungibleTokenRouter__factory,
   GasRouter__factory,
   IERC20__factory,
   MailboxClient__factory,
@@ -751,7 +750,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           annotation: 'Setting new routing fee...',
           chainId: this.chainId,
           to: this.args.addresses.deployedTokenRoute,
-          data: FungibleTokenRouter__factory.createInterface().encodeFunctionData(
+          data: TokenRouter__factory.createInterface().encodeFunctionData(
             'setFeeRecipient(address)',
             [deployedFee],
           ),
@@ -783,7 +782,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       annotation: 'Updating routing fee...',
       chainId: this.chainId,
       to: this.args.addresses.deployedTokenRoute,
-      data: FungibleTokenRouter__factory.createInterface().encodeFunctionData(
+      data: TokenRouter__factory.createInterface().encodeFunctionData(
         'setFeeRecipient(address)',
         [deployedFee],
       ),

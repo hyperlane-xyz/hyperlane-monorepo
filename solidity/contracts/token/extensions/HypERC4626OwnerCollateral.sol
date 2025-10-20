@@ -36,22 +36,28 @@ contract HypERC4626OwnerCollateral is HypERC4626Collateral {
         address _mailbox
     ) HypERC4626Collateral(_vault, _scale, _mailbox) {}
 
+    // =========== TokenRouter Overrides ============
+
+    /**
+     * @inheritdoc HypERC4626Collateral
+     * @dev Overrides to track the total asset deposited.
+     */
     function _depositIntoVault(
         uint256 _amount
-    ) internal virtual override returns (uint256) {
+    ) internal override returns (uint256) {
         assetDeposited += _amount;
         vault.deposit(_amount, address(this));
         return _amount;
     }
 
     /**
-     * @dev Transfers `_amount` of `wrappedToken` from this contract to `_recipient`, and withdraws from vault
-     * @inheritdoc HypERC20Collateral
+     * @inheritdoc HypERC4626Collateral
+     * @dev Overrides to withdraw from the vault and track the asset deposited.
      */
     function _transferTo(
         address _recipient,
         uint256 _amount
-    ) internal virtual override {
+    ) internal override {
         assetDeposited -= _amount;
         vault.withdraw(_amount, _recipient, address(this));
     }
@@ -60,8 +66,10 @@ contract HypERC4626OwnerCollateral is HypERC4626Collateral {
      * @notice Allows the owner to redeem excess shares
      */
     function sweep() external onlyOwner {
+        // convert assetsDeposited to shares rounding up to ensure
+        // the owner cannot withdraw user collateral
         uint256 excessShares = vault.maxRedeem(address(this)) -
-            vault.convertToShares(assetDeposited);
+            vault.previewWithdraw(assetDeposited);
         uint256 assetsRedeemed = vault.redeem(
             excessShares,
             owner(),

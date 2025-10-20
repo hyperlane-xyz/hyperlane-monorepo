@@ -158,7 +158,7 @@ export function addBufferToGasLimit(
 
 /**
  * Calculates the amount from the origin chain scaled to the destination chain
- * This calculation is in line with the FungibleTokenRouter contract _outboundAmount
+ * This calculation is in line with the TokenRouter contract _outboundAmount
  * and _inboundAmount functions
  * @param fromScale The origin scale number.
  * @param toScale The destination scale number.

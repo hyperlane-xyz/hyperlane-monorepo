@@ -3,7 +3,6 @@ import { constants } from 'ethers';
 import {
   ERC20__factory,
   ERC721Enumerable__factory,
-  FungibleTokenRouter,
   GasRouter,
   IERC4626__factory,
   IMessageTransmitter__factory,
@@ -12,6 +11,7 @@ import {
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   TokenBridgeCctpBase__factory,
+  TokenRouter,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -155,7 +155,6 @@ abstract class TokenDeployer<
         case 'V1':
           return [
             config.token,
-            scale,
             config.mailbox,
             config.messageTransmitter,
             config.tokenMessenger,
@@ -163,7 +162,6 @@ abstract class TokenDeployer<
         case 'V2':
           return [
             config.token,
-            scale,
             config.mailbox,
             config.messageTransmitter,
             config.tokenMessenger,
@@ -581,9 +579,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     );
   }
 
-  router(
-    contracts: HyperlaneContracts<HypERC20Factories>,
-  ): FungibleTokenRouter {
+  router(contracts: HyperlaneContracts<HypERC20Factories>): TokenRouter {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
         return contracts[key];

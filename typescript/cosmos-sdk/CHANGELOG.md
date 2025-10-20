@@ -1,10 +1,71 @@
 # @hyperlane-xyz/cosmos-sdk
 
-## 15.0.0-beta.0
+## 19.1.1
 
 ### Patch Changes
 
-- @hyperlane-xyz/cosmos-types@15.0.0-beta.0
+- @hyperlane-xyz/cosmos-types@19.1.1
+- @hyperlane-xyz/utils@19.1.1
+
+## 19.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@19.1.0
+- @hyperlane-xyz/utils@19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- 32479e139: feat: implement cosmos-sdk for new AltVM interface
+
+### Minor Changes
+
+- 8eab305bd: chore: add transactionToPrintableJson to altvm interface
+- e42a0e8e1: chore: updated AltVM interface
+
+### Patch Changes
+
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/utils@19.0.0
+  - @hyperlane-xyz/cosmos-types@19.0.0
+
+## 18.3.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@18.3.0
+
+## 18.2.0
+
+### Minor Changes
+
+- dfa9d368c: Added a `getCometClientOrFail` to the `HyperlaneModuleClient` to expose the internal provider connection
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@18.2.0
+
+## 18.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@18.1.0
+
+## 18.0.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@18.0.0
+
+## 17.0.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@17.0.0
 
 ## 16.2.0
 

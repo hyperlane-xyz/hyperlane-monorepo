@@ -84,7 +84,8 @@ contract ezETH is Script {
         vm.prank(0x7BE481D464CAD7ad99500CE8A637599eB8d0FCDB); // ezETH whale
         IXERC20(blastXERC20).transfer(address(this), amount);
         IXERC20(blastXERC20).approve(address(hypXERC20), amount);
-        uint256 value = hypXERC20.quoteGasPayment(ethereumDomainId);
+        uint256 value = hypXERC20
+        .quoteTransferRemote(ethereumDomainId, recipient, amount)[0].amount;
         hypXERC20.transferRemote{value: value}(
             ethereumDomainId,
             recipient,

@@ -2,7 +2,6 @@ import { compareVersions } from 'compare-versions';
 import { Contract, constants } from 'ethers';
 
 import {
-  FungibleTokenRouter__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
@@ -243,14 +242,14 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     routerAddress: Address,
     destinations?: number[],
   ): Promise<TokenFeeConfig | undefined> {
-    const fungibleTokenRouter = FungibleTokenRouter__factory.connect(
+    const tokenRouter = TokenRouter__factory.connect(
       routerAddress,
       this.provider,
     );
 
     const [packageVersion, tokenFee] = await Promise.all([
       this.fetchPackageVersion(routerAddress).catch(() => '0.0.0'),
-      fungibleTokenRouter.feeRecipient().catch(() => constants.AddressZero),
+      tokenRouter.feeRecipient().catch(() => constants.AddressZero),
     ]);
 
     const hasTokenFeeInterface =

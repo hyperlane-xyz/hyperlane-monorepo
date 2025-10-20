@@ -23,8 +23,7 @@ import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.so
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 import {Message} from "../../contracts/libs/Message.sol";
-import {EverclearTokenBridge, OutputAssetInfo} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
-import {EverclearEthBridge} from "../../contracts/token/bridge/EverclearEthBridge.sol";
+import {EverclearBridge, EverclearEthBridge, EverclearTokenBridge, OutputAssetInfo} from "../../contracts/token/bridge/EverclearTokenBridge.sol";
 import {IEverclearAdapter, IEverclear, IEverclearSpoke} from "../../contracts/interfaces/IEverclearAdapter.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
@@ -162,7 +161,7 @@ contract EverclearTokenBridgeTest is Test {
     bytes internal feeSignature = hex"1234567890abcdef";
 
     // Events to test
-    event FeeParamsUpdated(uint256 fee, uint256 deadline);
+    event FeeParamsUpdated(uint32 destination, uint256 fee, uint256 deadline);
     event OutputAssetSet(uint32 destination, bytes32 outputAsset);
 
     function setUp() public {
@@ -189,13 +188,13 @@ contract EverclearTokenBridgeTest is Test {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
-            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
+            abi.encodeCall(EverclearBridge.initialize, (address(0), OWNER))
         );
 
         bridge = EverclearTokenBridge(address(proxy));
         // Setup initial state
         vm.startPrank(OWNER);
-        bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
+        bridge.setFeeParams(DESTINATION, FEE_AMOUNT, feeDeadline, feeSignature);
         bridge.setOutputAsset(
             OutputAssetInfo({
                 destination: DESTINATION,
@@ -255,12 +254,14 @@ contract EverclearTokenBridgeTest is Test {
         bytes memory newSig = hex"abcdef";
 
         vm.expectEmit(true, true, false, true);
-        emit FeeParamsUpdated(newFee, newDeadline);
+        emit FeeParamsUpdated(DESTINATION, newFee, newDeadline);
 
         vm.prank(OWNER);
-        bridge.setFeeParams(newFee, newDeadline, newSig);
+        bridge.setFeeParams(DESTINATION, newFee, newDeadline, newSig);
 
-        (uint256 fee, uint256 deadline, bytes memory sig) = bridge.feeParams();
+        (uint256 fee, uint256 deadline, bytes memory sig) = bridge.feeParams(
+            DESTINATION
+        );
         assertEq(fee, newFee);
         assertEq(deadline, newDeadline);
         assertEq(sig, newSig);
@@ -269,7 +270,7 @@ contract EverclearTokenBridgeTest is Test {
     function testSetFeeParamsOnlyOwner() public {
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(ALICE);
-        bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
+        bridge.setFeeParams(DESTINATION, FEE_AMOUNT, feeDeadline, feeSignature);
     }
 
     // ============ setOutputAsset Tests ============
@@ -348,11 +349,13 @@ contract EverclearTokenBridgeTest is Test {
             TRANSFER_AMT
         );
 
-        assertEq(quotes.length, 2);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
         assertEq(quotes[0].amount, 0); // Gas payment is 0 for test dispatch hooks
         assertEq(quotes[1].token, address(token));
-        assertEq(quotes[1].amount, TRANSFER_AMT + FEE_AMOUNT);
+        assertEq(quotes[1].amount, TRANSFER_AMT);
+        assertEq(quotes[2].token, address(token));
+        assertEq(quotes[2].amount, FEE_AMOUNT);
     }
 
     // ============ transferRemote Tests ============
@@ -387,10 +390,7 @@ contract EverclearTokenBridgeTest is Test {
         assertEq(everclearAdapter.lastAmount(), TRANSFER_AMT);
         assertEq(everclearAdapter.lastMaxFee(), 0);
         assertEq(everclearAdapter.lastTtl(), 0);
-        assertEq(
-            everclearAdapter.lastData(),
-            abi.encode(RECIPIENT, TRANSFER_AMT)
-        );
+        assertEq(everclearAdapter.lastData(), "");
 
         // Check fee params
         (uint256 fee, uint256 deadline, bytes memory sig) = everclearAdapter
@@ -477,9 +477,11 @@ contract EverclearTokenBridgeTest is Test {
         );
 
         vm.prank(OWNER);
-        bridge.setFeeParams(fee, deadline, feeSignature);
+        bridge.setFeeParams(DESTINATION, fee, deadline, feeSignature);
 
-        (uint256 storedFee, uint256 storedDeadline, ) = bridge.feeParams();
+        (uint256 storedFee, uint256 storedDeadline, ) = bridge.feeParams(
+            DESTINATION
+        );
         assertEq(storedFee, fee);
         assertEq(storedDeadline, deadline);
     }
@@ -497,7 +499,8 @@ contract EverclearTokenBridgeTest is Test {
             RECIPIENT,
             transferAmount
         );
-        uint256 tokenCost = quotes[1].amount; // Token cost including fee
+        uint256 tokenCost = quotes[1].amount;
+        uint256 fee = quotes[2].amount;
 
         // 2. Execute transfer
         vm.prank(ALICE);
@@ -508,7 +511,7 @@ contract EverclearTokenBridgeTest is Test {
         );
 
         // 3. Verify state changes
-        assertEq(token.balanceOf(ALICE), initialAliceBalance - tokenCost);
+        assertEq(token.balanceOf(ALICE), initialAliceBalance - tokenCost - fee);
 
         // 4. Verify Everclear intent was created correctly
         assertEq(everclearAdapter.newIntentCallCount(), 1);
@@ -559,151 +562,6 @@ contract EverclearTokenBridgeTest is Test {
         // Verify intent is not initially settled
         assertFalse(bridge.intentSettled(intentId));
     }
-
-    function testIntentSettledAfterProcessing() public {
-        // Create a mock intent
-        IEverclear.Intent memory intent = IEverclear.Intent({
-            initiator: bytes32(uint256(uint160(ALICE))),
-            receiver: RECIPIENT,
-            inputAsset: bytes32(uint256(uint160(address(token)))),
-            outputAsset: bytes32(uint256(uint160(address(token)))),
-            maxFee: 0,
-            origin: ORIGIN,
-            destinations: new uint32[](1),
-            nonce: 1,
-            timestamp: uint48(block.timestamp),
-            ttl: 0,
-            amount: 100e18,
-            data: abi.encode(RECIPIENT, 100e18)
-        });
-        intent.destinations[0] = DESTINATION;
-
-        bytes32 intentId = keccak256(abi.encode(intent));
-
-        // Mock the spoke to return SETTLED status
-        vm.mockCall(
-            address(everclearAdapter.spoke()),
-            abi.encodeWithSelector(IEverclearSpoke.status.selector, intentId),
-            abi.encode(IEverclear.IntentStatus.SETTLED)
-        );
-
-        // Give the bridge some tokens to transfer
-        token.mintTo(address(bridge), 100e18);
-
-        // Create a mock message with the intent in metadata
-        bytes memory metadata = abi.encode(intent);
-        bytes memory message = TokenMessage.format(RECIPIENT, 100e18, metadata);
-
-        // Simulate receiving the message (this should process the intent)
-        vm.prank(address(mailbox));
-        bridge.handle(
-            ORIGIN,
-            bytes32(uint256(uint160(address(bridge)))),
-            message
-        );
-
-        // Verify intent is now settled
-        assertTrue(bridge.intentSettled(intentId));
-    }
-
-    function testIntentAlreadyProcessedReverts() public {
-        // Create a mock intent
-        IEverclear.Intent memory intent = IEverclear.Intent({
-            initiator: bytes32(uint256(uint160(ALICE))),
-            receiver: RECIPIENT,
-            inputAsset: bytes32(uint256(uint160(address(token)))),
-            outputAsset: bytes32(uint256(uint160(address(token)))),
-            maxFee: 0,
-            origin: ORIGIN,
-            destinations: new uint32[](1),
-            nonce: 1,
-            timestamp: uint48(block.timestamp),
-            ttl: 0,
-            amount: 100e18,
-            data: abi.encode(RECIPIENT, 100e18)
-        });
-        intent.destinations[0] = DESTINATION;
-
-        bytes32 intentId = keccak256(abi.encode(intent));
-
-        // Mock the spoke to return SETTLED status
-        vm.mockCall(
-            address(everclearAdapter.spoke()),
-            abi.encodeWithSelector(IEverclearSpoke.status.selector, intentId),
-            abi.encode(IEverclear.IntentStatus.SETTLED)
-        );
-
-        // Give the bridge some tokens to transfer
-        token.mintTo(address(bridge), 200e18);
-
-        // Create a mock message with the intent in metadata
-        bytes memory metadata = abi.encode(intent);
-        bytes memory message = TokenMessage.format(RECIPIENT, 100e18, metadata);
-
-        // Process the intent first time (should succeed)
-        vm.prank(address(mailbox));
-        bridge.handle(
-            ORIGIN,
-            bytes32(uint256(uint160(address(bridge)))),
-            message
-        );
-
-        // Verify intent is settled
-        assertTrue(bridge.intentSettled(intentId));
-
-        // Try to process the same intent again (should revert)
-        vm.prank(address(mailbox));
-        vm.expectRevert("ETB: Intent already processed");
-        bridge.handle(
-            ORIGIN,
-            bytes32(uint256(uint160(address(bridge)))),
-            message
-        );
-    }
-
-    function testIntentNotSettledReverts() public {
-        // Create a mock intent
-        IEverclear.Intent memory intent = IEverclear.Intent({
-            initiator: bytes32(uint256(uint160(ALICE))),
-            receiver: RECIPIENT,
-            inputAsset: bytes32(uint256(uint160(address(token)))),
-            outputAsset: bytes32(uint256(uint160(address(token)))),
-            maxFee: 0,
-            origin: ORIGIN,
-            destinations: new uint32[](1),
-            nonce: 1,
-            timestamp: uint48(block.timestamp),
-            ttl: 0,
-            amount: 100e18,
-            data: abi.encode(RECIPIENT, 100e18)
-        });
-        intent.destinations[0] = DESTINATION;
-
-        bytes32 intentId = keccak256(abi.encode(intent));
-
-        // Mock the spoke to return ADDED status
-        vm.mockCall(
-            address(everclearAdapter.spoke()),
-            abi.encodeWithSelector(IEverclearSpoke.status.selector, intentId),
-            abi.encode(IEverclear.IntentStatus.ADDED)
-        );
-
-        // Create a mock message with the intent in metadata
-        bytes memory metadata = abi.encode(intent);
-        bytes memory message = TokenMessage.format(RECIPIENT, 100e18, metadata);
-
-        // Try to process an unsettled intent (should revert)
-        vm.prank(address(mailbox));
-        vm.expectRevert("ETB: Intent Status != SETTLED");
-        bridge.handle(
-            ORIGIN,
-            bytes32(uint256(uint160(address(bridge)))),
-            message
-        );
-
-        // Verify intent is not settled in our mapping
-        assertFalse(bridge.intentSettled(intentId));
-    }
 }
 
 contract MockEverclearTokenBridge is EverclearTokenBridge {
@@ -730,16 +588,9 @@ contract MockEverclearTokenBridge is EverclearTokenBridge {
     }
 }
 
-/**
- * @notice Fork test contract for EverclearTokenBridge on Arbitrum
- * @dev Tests the bridge using real Arbitrum state and contracts with WETH transfers to Optimism
- * @dev We're running the cancun evm version, to avoid `NotActivated` errors
- * forge-config: default.evm_version = "cancun"
- */
-contract EverclearTokenBridgeForkTest is Test {
+contract BaseEverclearTokenBridgeForkTest is Test {
     using TypeCasts for *;
     using Message for bytes;
-    using stdStorage for StdStorage;
 
     // Arbitrum mainnet constants
     uint32 internal constant ARBITRUM_DOMAIN = 42161;
@@ -767,7 +618,7 @@ contract EverclearTokenBridgeForkTest is Test {
     // Contracts
     IWETH internal weth;
     IEverclearAdapter internal everclearAdapter;
-    MockEverclearTokenBridge internal bridge;
+    EverclearTokenBridge internal bridge;
 
     // Test data
     bytes32 internal constant OUTPUT_ASSET =
@@ -784,6 +635,23 @@ contract EverclearTokenBridgeForkTest is Test {
         return true;
     }
 
+    function _deployBridge() internal virtual returns (address) {
+        MockEverclearTokenBridge implementation = new MockEverclearTokenBridge(
+            address(weth),
+            1,
+            address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
+            everclearAdapter
+        );
+        // Deploy proxy
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeCall(EverclearBridge.initialize, (address(0), OWNER))
+        );
+
+        return address(proxy);
+    }
+
     function setUp() public virtual {
         // Fork Arbitrum at the latest block
         vm.createSelectFork("arbitrum");
@@ -795,22 +663,8 @@ contract EverclearTokenBridgeForkTest is Test {
         // Set fee deadline to future
         feeDeadline = block.timestamp + 3600; // 1 hour from now
 
-        // Deploy bridge implementation
-        MockEverclearTokenBridge implementation = new MockEverclearTokenBridge(
-            address(weth),
-            1,
-            address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
-            everclearAdapter
-        );
-
-        // Deploy proxy
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            address(implementation),
-            PROXY_ADMIN,
-            abi.encodeCall(EverclearTokenBridge.initialize, (address(0), OWNER))
-        );
-
-        bridge = MockEverclearTokenBridge(address(proxy));
+        // Deploy bridge
+        bridge = EverclearTokenBridge(_deployBridge());
 
         // It would be great if we could mock the ecrecover function to always return the fee signer for the adapter
         // but we can't do that with forge. So we're going to sign the fee params with the fee signer private key
@@ -833,9 +687,16 @@ contract EverclearTokenBridgeForkTest is Test {
         );
         feeSignature = abi.encodePacked(r, s, v);
 
-        // Configure the bridge
+        // Configure the bridge. We can send to both Optimism and Arbitrum.
         vm.startPrank(OWNER);
-        bridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
+
+        // Optimism
+        bridge.setFeeParams(
+            OPTIMISM_DOMAIN,
+            FEE_AMOUNT,
+            feeDeadline,
+            feeSignature
+        );
         bridge.setOutputAsset(
             OutputAssetInfo({
                 destination: OPTIMISM_DOMAIN,
@@ -847,7 +708,13 @@ contract EverclearTokenBridgeForkTest is Test {
             address(bridge).addressToBytes32()
         );
 
-        // Handle ARB-ARB transfers as well
+        // Arbitrum
+        bridge.setFeeParams(
+            ARBITRUM_DOMAIN,
+            FEE_AMOUNT,
+            feeDeadline,
+            feeSignature
+        );
         bridge.setOutputAsset(
             OutputAssetInfo({
                 destination: ARBITRUM_DOMAIN,
@@ -866,6 +733,16 @@ contract EverclearTokenBridgeForkTest is Test {
         vm.prank(ALICE);
         weth.approve(address(bridge), type(uint256).max);
     }
+}
+
+/**
+ * @notice Fork test contract for EverclearTokenBridge on Arbitrum
+ * @dev Tests the bridge using real Arbitrum state and contracts with WETH transfers to Optimism
+ * @dev We're running the cancun evm version, to avoid `NotActivated` errors
+ * forge-config: default.evm_version = "cancun"
+ */
+contract EverclearTokenBridgeForkTest is BaseEverclearTokenBridgeForkTest {
+    using TypeCasts for *;
 
     function testFuzz_ForkTransferRemote(uint256 amount) public {
         // Fund Alice with WETH by wrapping ETH
@@ -877,6 +754,17 @@ contract EverclearTokenBridgeForkTest is Test {
 
         uint256 initialBalance = weth.balanceOf(ALICE);
         uint256 initialBridgeBalance = weth.balanceOf(address(bridge));
+
+        // Get the gas payment quote
+        Quote[] memory quotes = bridge.quoteTransferRemote(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+        uint256 gasPayment = quotes[0].amount;
+
+        // Give Alice ETH for gas payment
+        vm.deal(ALICE, gasPayment);
 
         // Test the transfer - it may succeed or fail depending on adapter state
         vm.prank(ALICE);
@@ -892,7 +780,11 @@ contract EverclearTokenBridgeForkTest is Test {
             _tokenFee: FEE_AMOUNT,
             _nativeFee: 0
         });
-        bridge.transferRemote(OPTIMISM_DOMAIN, RECIPIENT, amount);
+        bridge.transferRemote{value: gasPayment}(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
 
         // Verify the balance changes
         // Alice should have lost the transfer amount and the fee
@@ -900,58 +792,31 @@ contract EverclearTokenBridgeForkTest is Test {
         // The bridge forwards all weth to the adapter, so the bridge balance should be the same
         assertEq(weth.balanceOf(address(bridge)), initialBridgeBalance);
     }
-
-    function testFork_receiveMessage(uint256 amount) public {
-        amount = bound(amount, 1, 100e6 ether);
-        uint depositAmount = amount + FEE_AMOUNT;
-        vm.deal(ALICE, depositAmount);
-        vm.prank(ALICE);
-        weth.deposit{value: depositAmount}();
-
-        uint256 initialBalance = weth.balanceOf(ALICE);
-        uint256 initialBridgeBalance = weth.balanceOf(address(bridge));
-
-        // Replace mailbox with code from MockMailbox
-        MockMailbox _mailbox = new MockMailbox(ARBITRUM_DOMAIN);
-        vm.etch(address(bridge.mailbox()), address(_mailbox).code);
-        MockMailbox mailbox = MockMailbox(address(bridge.mailbox()));
-        mailbox.addRemoteMailbox(ARBITRUM_DOMAIN, mailbox);
-
-        // Test the transfer
-        vm.prank(ALICE);
-
-        // Actually sending message to arbitrum
-        bridge.transferRemote(ARBITRUM_DOMAIN, RECIPIENT, amount);
-
-        bytes memory intent = bridge.lastIntent();
-        bytes32 intentId = keccak256(intent);
-
-        // Settle the created intent via direct storage write
-        stdstore
-            .target(address(bridge.everclearSpoke()))
-            .sig(bridge.everclearSpoke().status.selector)
-            .with_key(intentId)
-            .checked_write(uint8(IEverclear.IntentStatus.SETTLED));
-
-        assertEq(
-            uint(bridge.everclearSpoke().status(intentId)),
-            uint(IEverclear.IntentStatus.SETTLED)
-        );
-
-        // Give the bridge some WETH
-        vm.deal(address(bridge), amount);
-        vm.prank(address(bridge));
-        weth.deposit{value: amount}();
-
-        // Process the hyperlane message -> call handle directly
-        // Deliver the message to the recipient.
-        mailbox.processNextInboundMessage();
-
-        // Funds should be sent to actual recipient
-        assertEq(weth.balanceOf(BOB), amount);
-    }
 }
 
+contract MockEverclearEthBridge is EverclearEthBridge {
+    constructor(
+        IWETH _weth,
+        uint256 _scale,
+        address _mailbox,
+        IEverclearAdapter _everclearAdapter
+    ) EverclearEthBridge(_weth, _scale, _mailbox, _everclearAdapter) {}
+
+    bytes public lastIntent;
+    function _createIntent(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal override returns (IEverclear.Intent memory) {
+        IEverclear.Intent memory intent = super._createIntent(
+            _destination,
+            _recipient,
+            _amount
+        );
+        lastIntent = abi.encode(intent);
+        return intent;
+    }
+}
 /**
  * @notice Fork test contract for EverclearEthBridge on Arbitrum
  * @dev Tests the ETH bridge using real Arbitrum state and contracts with ETH transfers to Optimism
@@ -959,18 +824,16 @@ contract EverclearTokenBridgeForkTest is Test {
  * @dev We're running the cancun evm version, to avoid `NotActivated` errors
  * forge-config: default.evm_version = "cancun"
  */
-contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
+contract EverclearEthBridgeForkTest is BaseEverclearTokenBridgeForkTest {
     using TypeCasts for address;
+    using stdStorage for StdStorage;
 
     // ETH bridge contract
-    EverclearEthBridge internal ethBridge;
+    MockEverclearEthBridge internal ethBridge;
 
-    function setUp() public override {
-        // Call parent setUp to initialize fork and all base contracts
-        super.setUp();
-
+    function _deployBridge() internal override returns (address) {
         // Deploy ETH bridge implementation
-        EverclearEthBridge implementation = new EverclearEthBridge(
+        MockEverclearEthBridge implementation = new MockEverclearEthBridge(
             IWETH(ARBITRUM_WETH),
             1,
             address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
@@ -982,24 +845,16 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             address(implementation),
             PROXY_ADMIN,
             abi.encodeCall(
-                EverclearTokenBridge.initialize,
+                EverclearBridge.initialize,
                 (address(new TestPostDispatchHook()), OWNER)
             )
         );
+        return address(proxy);
+    }
 
-        ethBridge = EverclearEthBridge(payable(address(proxy)));
-
-        // Configure the ETH bridge using existing fee params and signature
-        vm.startPrank(OWNER);
-        ethBridge.setFeeParams(FEE_AMOUNT, feeDeadline, feeSignature);
-        ethBridge.setOutputAsset(
-            OutputAssetInfo({
-                destination: OPTIMISM_DOMAIN,
-                outputAsset: OUTPUT_ASSET
-            })
-        );
-        ethBridge.enrollRemoteRouter(OPTIMISM_DOMAIN, RECIPIENT);
-        vm.stopPrank();
+    function setUp() public override {
+        super.setUp();
+        ethBridge = MockEverclearEthBridge(payable(address(bridge)));
     }
 
     function testFuzz_EthBridgeTransferRemote(uint256 amount) public {
@@ -1043,7 +898,7 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
         vm.deal(ALICE, totalAmount - 1);
 
         vm.prank(ALICE);
-        vm.expectRevert("EEB: ETH amount mismatch");
+        vm.expectRevert("Native: amount exceeds msg.value");
         ethBridge.transferRemote{value: totalAmount - 1}(
             OPTIMISM_DOMAIN,
             RECIPIENT,
@@ -1060,9 +915,13 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             amount
         );
 
-        assertEq(quotes.length, 1);
+        assertEq(quotes.length, 3);
         assertEq(quotes[0].token, address(0));
-        assertEq(quotes[0].amount, amount + FEE_AMOUNT);
+        assertEq(quotes[0].amount, 0);
+        assertEq(quotes[1].token, address(0));
+        assertEq(quotes[1].amount, amount);
+        assertEq(quotes[2].token, address(0));
+        assertEq(quotes[2].amount, FEE_AMOUNT);
     }
 
     function testEthBridgeConstructor() public {
@@ -1078,6 +937,251 @@ contract EverclearEthBridgeForkTest is EverclearTokenBridgeForkTest {
             address(newBridge.everclearAdapter()),
             address(everclearAdapter)
         );
-        assertEq(address(newBridge.token()), address(weth));
+        assertEq(address(newBridge.token()), address(0));
+    }
+
+    function testFork_receiveMessage(uint256 amount) public {
+        amount = bound(amount, 1, 100e6 ether);
+        uint depositAmount = amount + FEE_AMOUNT;
+        vm.deal(ALICE, depositAmount);
+
+        // Replace mailbox with code from MockMailbox
+        MockMailbox _mailbox = new MockMailbox(ARBITRUM_DOMAIN);
+        vm.etch(address(ethBridge.mailbox()), address(_mailbox).code);
+        MockMailbox mailbox = MockMailbox(address(ethBridge.mailbox()));
+        mailbox.addRemoteMailbox(ARBITRUM_DOMAIN, mailbox);
+
+        // Actually sending message to arbitrum
+        vm.prank(ALICE);
+        ethBridge.transferRemote{value: depositAmount}(
+            ARBITRUM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+
+        bytes32 intentId = keccak256(ethBridge.lastIntent());
+
+        // Settle the created intent via direct storage write
+        stdstore
+            .target(address(ethBridge.everclearSpoke()))
+            .sig(ethBridge.everclearSpoke().status.selector)
+            .with_key(intentId)
+            .checked_write(uint8(IEverclear.IntentStatus.SETTLED));
+
+        assertEq(
+            uint(ethBridge.everclearSpoke().status(intentId)),
+            uint(IEverclear.IntentStatus.SETTLED)
+        );
+
+        // Give the bridge some WETH
+        vm.deal(address(ethBridge), amount);
+        vm.prank(address(ethBridge));
+        weth.deposit{value: amount}();
+
+        // Process the hyperlane message -> call handle directly
+        // Deliver the message to the recipient.
+        mailbox.processNextInboundMessage();
+
+        // Funds should be sent to actual recipient
+        assertEq(BOB.balance, amount);
+    }
+
+    // ============ intentSettled Mapping Tests ============
+
+    function testIntentSettledInitiallyFalse() public {
+        uint256 amount = 1e18; // 1 ETH
+        uint256 totalAmount = amount + FEE_AMOUNT;
+
+        // Fund Alice and perform a transfer to generate an intent
+        vm.deal(ALICE, totalAmount);
+        vm.prank(ALICE);
+        ethBridge.transferRemote{value: totalAmount}(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+
+        // Get the intent ID from the last created intent
+        bytes32 intentId = keccak256(ethBridge.lastIntent());
+
+        // Verify intent is not initially settled in our bridge
+        assertFalse(ethBridge.intentSettled(intentId));
+    }
+
+    function testIntentSettledAfterProcessing() public {
+        uint256 amount = 1e18; // 1 ETH
+        uint256 totalAmount = amount + FEE_AMOUNT;
+        vm.deal(ALICE, totalAmount);
+
+        // Setup mock mailbox for message processing
+        MockMailbox _mailbox = new MockMailbox(ARBITRUM_DOMAIN);
+        vm.etch(address(ethBridge.mailbox()), address(_mailbox).code);
+        MockMailbox mailbox = MockMailbox(address(ethBridge.mailbox()));
+        mailbox.addRemoteMailbox(ARBITRUM_DOMAIN, mailbox);
+
+        // Perform transfer to create intent
+        vm.prank(ALICE);
+        ethBridge.transferRemote{value: totalAmount}(
+            ARBITRUM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+
+        bytes32 intentId = keccak256(ethBridge.lastIntent());
+
+        // Initially should not be settled in our bridge
+        assertFalse(ethBridge.intentSettled(intentId));
+
+        // Settle the intent in Everclear spoke via storage manipulation
+        stdstore
+            .target(address(ethBridge.everclearSpoke()))
+            .sig(ethBridge.everclearSpoke().status.selector)
+            .with_key(intentId)
+            .checked_write(uint8(IEverclear.IntentStatus.SETTLED));
+
+        // Give the bridge some WETH to process the intent
+        vm.deal(address(ethBridge), amount);
+        vm.prank(address(ethBridge));
+        weth.deposit{value: amount}();
+
+        // Process the hyperlane message
+        mailbox.processNextInboundMessage();
+
+        // After processing, intent should be marked as settled in our bridge
+        assertTrue(ethBridge.intentSettled(intentId));
+    }
+
+    function testIntentSettledPreventsDuplicateProcessing() public {
+        uint amount = 1e18;
+        testFork_receiveMessage(amount);
+        // Try to process the same intent again - should fail because intent is already settled in our bridge
+        MockMailbox mailbox = MockMailbox(address(ethBridge.mailbox()));
+        bytes32 _recipient = address(ethBridge).addressToBytes32();
+        bytes memory _message = TokenMessage.format(
+            _recipient,
+            amount,
+            ethBridge.lastIntent()
+        );
+        bytes memory message = mailbox.buildMessage(
+            address(ethBridge),
+            ARBITRUM_DOMAIN,
+            _recipient,
+            _message
+        );
+
+        mailbox.addInboundMessage(message);
+        vm.expectRevert("ETB: Intent already processed");
+        mailbox.processNextInboundMessage();
+    }
+
+    function testFuzzIntentSettledWithVariousAmounts(uint256 amount) public {
+        amount = bound(amount, 1e15, 10e18); // 0.001 ETH to 10 ETH
+        uint256 totalAmount = amount + FEE_AMOUNT;
+
+        vm.deal(ALICE, totalAmount);
+
+        // Perform transfer
+        vm.prank(ALICE);
+        ethBridge.transferRemote{value: totalAmount}(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+
+        // Get intent ID and verify initially not settled
+        bytes32 intentId = keccak256(ethBridge.lastIntent());
+        assertFalse(ethBridge.intentSettled(intentId));
+
+        // Verify intent ID is deterministic for same parameters
+        vm.deal(ALICE, totalAmount);
+        vm.prank(ALICE);
+        ethBridge.transferRemote{value: totalAmount}(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+
+        bytes32 secondIntentId = keccak256(ethBridge.lastIntent());
+        // Different intents should have different IDs (due to nonce/timestamp differences)
+        assertTrue(intentId != secondIntentId);
+        assertFalse(ethBridge.intentSettled(secondIntentId));
+    }
+
+    function testIntentSettledWithDifferentDestinations() public {
+        uint256 amount = 1e18;
+        uint256 totalAmount = amount + FEE_AMOUNT;
+
+        // Configure bridge for Optimism transfers
+        vm.prank(OWNER);
+        ethBridge.enrollRemoteRouter(OPTIMISM_DOMAIN, RECIPIENT);
+
+        vm.deal(ALICE, totalAmount * 2);
+
+        // Transfer to Arbitrum
+        vm.prank(ALICE);
+        ethBridge.transferRemote{value: totalAmount}(
+            ARBITRUM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+        bytes32 arbitrumIntentId = keccak256(ethBridge.lastIntent());
+
+        // Transfer to Optimism
+        vm.prank(ALICE);
+        ethBridge.transferRemote{value: totalAmount}(
+            OPTIMISM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+        bytes32 optimismIntentId = keccak256(ethBridge.lastIntent());
+
+        // Both should be initially not settled and have different IDs
+        assertFalse(ethBridge.intentSettled(arbitrumIntentId));
+        assertFalse(ethBridge.intentSettled(optimismIntentId));
+        assertTrue(arbitrumIntentId != optimismIntentId);
+    }
+
+    function testIntentSettledStatusChecking() public {
+        uint256 amount = 1e18;
+        uint256 totalAmount = amount + FEE_AMOUNT;
+        vm.deal(ALICE, totalAmount);
+
+        // Setup mock mailbox
+        MockMailbox _mailbox = new MockMailbox(ARBITRUM_DOMAIN);
+        vm.etch(address(ethBridge.mailbox()), address(_mailbox).code);
+        MockMailbox mailbox = MockMailbox(address(ethBridge.mailbox()));
+        mailbox.addRemoteMailbox(ARBITRUM_DOMAIN, mailbox);
+
+        // Create intent
+        vm.prank(ALICE);
+        ethBridge.transferRemote{value: totalAmount}(
+            ARBITRUM_DOMAIN,
+            RECIPIENT,
+            amount
+        );
+
+        bytes32 intentId = keccak256(ethBridge.lastIntent());
+
+        // Try to process without settling in Everclear first - should fail
+        vm.deal(address(ethBridge), amount);
+        vm.prank(address(ethBridge));
+        weth.deposit{value: amount}();
+
+        vm.expectRevert("ETB: Intent Status != SETTLED");
+        mailbox.processNextInboundMessage();
+
+        // Verify still not settled in our bridge
+        assertFalse(ethBridge.intentSettled(intentId));
+
+        // Now settle in Everclear spoke
+        stdstore
+            .target(address(ethBridge.everclearSpoke()))
+            .sig(ethBridge.everclearSpoke().status.selector)
+            .with_key(intentId)
+            .checked_write(uint8(IEverclear.IntentStatus.SETTLED));
+
+        // Now processing should succeed
+        mailbox.processNextInboundMessage();
+        assertTrue(ethBridge.intentSettled(intentId));
     }
 }

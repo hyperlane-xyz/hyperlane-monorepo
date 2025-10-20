@@ -1,10 +1,156 @@
 # @hyperlane-xyz/sdk
 
-## 15.0.0-beta.0
+## 19.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@19.1.1
+- @hyperlane-xyz/cosmos-sdk@19.1.1
+- @hyperlane-xyz/radix-sdk@19.1.1
+- @hyperlane-xyz/utils@19.1.1
+- @hyperlane-xyz/core@9.0.13
+
+## 19.1.0
 
 ### Minor Changes
 
-- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additonal updates to types related to these changes.
+- 554ff1a66: Add M0 PortalLite token adapter support for bridging M tokens
+
+  - Add new TokenStandard.EvmM0PortalLite for M0 Portal integration
+  - Implement M0PortalLiteTokenAdapter for handling M0 token transfers
+  - Support for M0's transferMLikeToken function to bridge wrapped M tokens (e.g., mUSD)
+  - Built-in gas estimation via Portal's quoteTransfer function
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@19.1.0
+- @hyperlane-xyz/cosmos-sdk@19.1.0
+- @hyperlane-xyz/radix-sdk@19.1.0
+- @hyperlane-xyz/utils@19.1.0
+- @hyperlane-xyz/core@9.0.12
+
+## 19.0.0
+
+### Major Changes
+
+- e42a0e8e1: feat: radix support for the cli
+- 32479e139: feat: implement new AltVM modules and readers
+
+### Minor Changes
+
+- 8eab305bd: chore: add transactionToPrintableJson to altvm interface
+
+### Patch Changes
+
+- 70354d6d9: Restore foreignDeployment field behaviour to allow enrollment of unsupported chains during deployment
+- dd4928b1c: chore: refactor altvm warp module and add tests
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [32479e139]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/cosmos-sdk@19.0.0
+  - @hyperlane-xyz/radix-sdk@19.0.0
+  - @hyperlane-xyz/utils@19.0.0
+  - @hyperlane-xyz/core@9.0.11
+  - @hyperlane-xyz/starknet-core@19.0.0
+
+## 18.3.0
+
+### Minor Changes
+
+- 4974e66a0: export radix core reader
+- 30ec5ffbb: Add signer abstraction for different protocol types by defining the IMultiProtocolSigner interface
+- b66129ee2: export radix hook reader
+- 2c47e1143: Update the `ContractVerifier` class to avoid verification of already verified contracts and to show verification errors in debug logs
+- 2b16904f8: Add getBridgedSupply to EvmHypNativeAdapter to return the native token balance as collateral
+- 096389aea: Fix a bug in the `EvmIcaTxSubmitter.submit` method which failed when the evm chain id and the hyperlane domain id are different
+- e4e6a75a8: export radix hook module
+- 6b8419370: export radix ism module
+- 94e7116c2: export RadixIsmTypes enum to consumers
+
+### Patch Changes
+
+- 57cf9e953: now token.isFungibleWith() will also check for isHypNative() tokens
+- ee7c7ade4: Avoid extra Safe API call when only creating local JSON files for manual upload. When proposing, the Safe UI will automatically update the tx nonce. So we can return 0 and save ourselves from Safe API unreliability.
+- Updated dependencies [e5a530e43]
+- Updated dependencies [a5728818f]
+- Updated dependencies [c41bc3b93]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [b66129ee2]
+- Updated dependencies [6b8419370]
+  - @hyperlane-xyz/radix-sdk@18.3.0
+  - @hyperlane-xyz/core@9.0.10
+  - @hyperlane-xyz/utils@18.3.0
+  - @hyperlane-xyz/starknet-core@18.3.0
+  - @hyperlane-xyz/cosmos-sdk@18.3.0
+
+## 18.2.0
+
+### Minor Changes
+
+- fed6906e4: Include isHypNative() check to Token and add PROTOCOL_TO_HYP_NATIVE_STANDARD
+- ca64e73cd: Update the oXAUT bridge limits for avax, celo, ethereum, worldchain and base config. Export XERC20LimitsTokenConfig.
+- dfa9d368c: exposed a `isJsonRpcSubmitterConfig` function to validate submitter configurations and assert the type
+
+### Patch Changes
+
+- Updated dependencies [dfa9d368c]
+  - @hyperlane-xyz/cosmos-sdk@18.2.0
+  - @hyperlane-xyz/starknet-core@18.2.0
+  - @hyperlane-xyz/radix-sdk@18.2.0
+  - @hyperlane-xyz/utils@18.2.0
+  - @hyperlane-xyz/core@9.0.9
+
+## 18.1.0
+
+### Patch Changes
+
+- 73be9b8d2: Don't use radix-engine-toolkit for frontend application usage.
+- Updated dependencies [73be9b8d2]
+  - @hyperlane-xyz/radix-sdk@18.1.0
+  - @hyperlane-xyz/starknet-core@18.1.0
+  - @hyperlane-xyz/cosmos-sdk@18.1.0
+  - @hyperlane-xyz/utils@18.1.0
+  - @hyperlane-xyz/core@9.0.8
+
+## 18.0.0
+
+### Major Changes
+
+- 552b253b9: deprecated dry-run support in the cli in favour of `hyperlane warp fork` and `hyperlane fork` commands
+
+### Patch Changes
+
+- ba832828f: Made decimals consistency check scale-aware and disallowed partial decimals across chains
+- Updated dependencies [cfc0eb2a7]
+  - @hyperlane-xyz/utils@18.0.0
+  - @hyperlane-xyz/core@9.0.7
+  - @hyperlane-xyz/radix-sdk@18.0.0
+  - @hyperlane-xyz/starknet-core@18.0.0
+  - @hyperlane-xyz/cosmos-sdk@18.0.0
+
+## 17.0.0
+
+### Major Changes
+
+- 8c15edc67: Added Radix Protocol Type
+
+### Minor Changes
+
+- 400c02460: Add fallback logic to the `EvmEventLogsReader` to use the rpc when the block explorer api request fails
+- 6583df016: Add the getPendingScheduledOperations and getPendingOperationIds methods on the EvmTimelockReader class and export getTimelockExecutableTransactionFromBatch from sdk
+
+### Patch Changes
+
+- 76a5db49a: Fixed a bug when deriving token metadata from chain was erasing existing fields from deployment config
+- 7f542b288: Fix `CosmosModuleTokenAdapter` recipient conversion for populateTransferRemoteTx
+- Updated dependencies [8c15edc67]
+- Updated dependencies [e0bda316a]
+  - @hyperlane-xyz/utils@17.0.0
+  - @hyperlane-xyz/core@9.0.6
+  - @hyperlane-xyz/starknet-core@17.0.0
+  - @hyperlane-xyz/cosmos-sdk@17.0.0
 
 ## 16.2.0
 
@@ -77,29 +223,6 @@
 ### Patch Changes
 
 - 23861b70a: Don't `handleTx` for zksync, since the zksync deployer itself will handle it.
-  <<<<<<< HEAD
-- e0c69e255: Implement token fees on FungibleTokenRouter
-
-  Removes `metadata` from return type of internal `TokenRouter._transferFromSender` hook
-
-  To append `metadata` to `TokenMessage`, override the `TokenRouter._beforeDispatch` hook
-
-- d16a853c0: Update paradex AW validator address.
-- Updated dependencies [205bcae75]
-- Updated dependencies [f8da8cd40]
-- Updated dependencies [451f3f6c3]
-- Updated dependencies [2c6506735]
-- Updated dependencies [799751606]
-- Updated dependencies [826e83741]
-- Updated dependencies [e0c69e255]
-- Updated dependencies [737ea2b35]
-- Updated dependencies [e0c69e255]
-- Updated dependencies [dd16e3df4]
-- Updated dependencies [9a43cdca9]
-  - @hyperlane-xyz/core@10.0.0-beta.0
-  - @hyperlane-xyz/utils@15.0.0-beta.0
-  - @hyperlane-xyz/starknet-core@15.0.0-beta.0
-  - @hyperlane-xyz/cosmos-sdk@15.0.0-beta.0
 - a33c8abd4: Use `convertToScaledAmount` in WarpCore
 - d16a853c0: Update paradex AW validator address.
 - Updated dependencies [451f3f6c3]

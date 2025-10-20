@@ -1,6 +1,57 @@
 # @hyperlane-xyz/cli
 
-## 15.0.0-beta.0
+## 19.1.1
+
+## 19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- e42a0e8e1: feat: radix support for the cli
+- 8eab305bd: feat: add altvm file submitter
+- 32479e139: feat: register AltVM signer & provider factories
+
+### Minor Changes
+
+- 9e5dbfdf1: Update `hyperlane warp send` to include `--chains` parameter to input which chains to send to
+- 6c97a305d: Use only rebalancer config chains when resolving warp rebalance command
+- b076393b5: Remove inflight guard from rebalancer
+
+### Patch Changes
+
+- 70354d6d9: Restore foreignDeployment field behaviour to allow enrollment of unsupported chains during deployment
+
+## 18.3.0
+
+### Minor Changes
+
+- 2b16904f8: Dont check for token collateralAddressOrDenom to enable HypNative router collateral balance reads
+- 571901a6d: Fix warp read crashing when providing the `--warpRouteId` flag
+
+### Patch Changes
+
+- a5728818f: Fixed pre deploy balance check logic that attempted to convert to bignumber decimal numbers
+
+## 18.2.0
+
+### Minor Changes
+
+- dfa9d368c: updated command context initialization logic to simplify signer configuration and remove private usage assumption
+
+## 18.1.0
+
+## 18.0.0
+
+### Major Changes
+
+- 552b253b9: deprecated dry-run support in the cli in favour of `hyperlane warp fork` and `hyperlane fork` commands
+
+## 17.0.0
+
+### Minor Changes
+
+- dfa883e24: Fixes chain resolver for `hyperlane submit` by adding the STRATEGY enum into the chain resolver switch.
 
 ## 16.2.0
 

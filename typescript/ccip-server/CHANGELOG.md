@@ -1,26 +1,103 @@
 # @hyperlane-xyz/ccip-server
 
-## 15.0.0-beta.0
+## 19.1.1
 
 ### Patch Changes
 
-- Updated dependencies [205bcae75]
-- Updated dependencies [f8da8cd40]
-- Updated dependencies [451f3f6c3]
-- Updated dependencies [23861b70a]
-- Updated dependencies [2c6506735]
-- Updated dependencies [799751606]
-- Updated dependencies [826e83741]
-- Updated dependencies [e0c69e255]
-- Updated dependencies [737ea2b35]
-- Updated dependencies [e0c69e255]
-- Updated dependencies [dd16e3df4]
-- Updated dependencies [e0ea8910c]
-- Updated dependencies [d16a853c0]
-- Updated dependencies [9a43cdca9]
-  - @hyperlane-xyz/core@10.0.0-beta.0
-  - @hyperlane-xyz/utils@15.0.0-beta.0
-  - @hyperlane-xyz/sdk@15.0.0-beta.0
+- @hyperlane-xyz/sdk@19.1.1
+- @hyperlane-xyz/utils@19.1.1
+- @hyperlane-xyz/core@9.0.13
+
+## 19.1.0
+
+### Patch Changes
+
+- Updated dependencies [554ff1a66]
+  - @hyperlane-xyz/sdk@19.1.0
+  - @hyperlane-xyz/utils@19.1.0
+  - @hyperlane-xyz/core@9.0.12
+
+## 19.0.0
+
+### Patch Changes
+
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [70354d6d9]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [dd4928b1c]
+- Updated dependencies [32479e139]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/utils@19.0.0
+  - @hyperlane-xyz/sdk@19.0.0
+  - @hyperlane-xyz/core@9.0.11
+
+## 18.3.0
+
+### Patch Changes
+
+- Updated dependencies [4974e66a0]
+- Updated dependencies [30ec5ffbb]
+- Updated dependencies [a5728818f]
+- Updated dependencies [57cf9e953]
+- Updated dependencies [c41bc3b93]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [b66129ee2]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [2b16904f8]
+- Updated dependencies [096389aea]
+- Updated dependencies [e4e6a75a8]
+- Updated dependencies [ee7c7ade4]
+- Updated dependencies [6b8419370]
+- Updated dependencies [94e7116c2]
+  - @hyperlane-xyz/sdk@18.3.0
+  - @hyperlane-xyz/core@9.0.10
+  - @hyperlane-xyz/utils@18.3.0
+
+## 18.2.0
+
+### Patch Changes
+
+- Updated dependencies [fed6906e4]
+- Updated dependencies [ca64e73cd]
+- Updated dependencies [dfa9d368c]
+  - @hyperlane-xyz/sdk@18.2.0
+  - @hyperlane-xyz/utils@18.2.0
+  - @hyperlane-xyz/core@9.0.9
+
+## 18.1.0
+
+### Patch Changes
+
+- Updated dependencies [73be9b8d2]
+  - @hyperlane-xyz/sdk@18.1.0
+  - @hyperlane-xyz/utils@18.1.0
+  - @hyperlane-xyz/core@9.0.8
+
+## 18.0.0
+
+### Patch Changes
+
+- Updated dependencies [552b253b9]
+- Updated dependencies [ba832828f]
+- Updated dependencies [cfc0eb2a7]
+  - @hyperlane-xyz/sdk@18.0.0
+  - @hyperlane-xyz/utils@18.0.0
+  - @hyperlane-xyz/core@9.0.7
+
+## 17.0.0
+
+### Patch Changes
+
+- Updated dependencies [400c02460]
+- Updated dependencies [8c15edc67]
+- Updated dependencies [76a5db49a]
+- Updated dependencies [6583df016]
+- Updated dependencies [e0bda316a]
+- Updated dependencies [7f542b288]
+  - @hyperlane-xyz/sdk@17.0.0
+  - @hyperlane-xyz/utils@17.0.0
+  - @hyperlane-xyz/core@9.0.6
 
 ## 16.2.0
 

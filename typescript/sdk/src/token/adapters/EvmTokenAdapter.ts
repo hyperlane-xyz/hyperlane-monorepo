@@ -10,8 +10,6 @@ import {
   ERC4626__factory,
   GasRouter__factory,
   HypERC20,
-  HypERC20Collateral,
-  HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626,
   HypERC4626Collateral,
@@ -27,6 +25,10 @@ import {
   IXERC20VS,
   IXERC20VS__factory,
   IXERC20__factory,
+  MovableCollateralRouter,
+  MovableCollateralRouter__factory,
+  TokenRouter,
+  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -343,11 +345,9 @@ export class EvmHypSyntheticAdapter
 // Interacts with HypCollateral contracts
 export class EvmHypCollateralAdapter
   extends EvmHypSyntheticAdapter
-  implements
-    IHypTokenAdapter<PopulatedTransaction>,
-    IMovableCollateralRouterAdapter<PopulatedTransaction>
+  implements IHypTokenAdapter<PopulatedTransaction>
 {
-  public readonly collateralContract: HypERC20Collateral;
+  public readonly collateralContract: TokenRouter;
   protected wrappedTokenAddress?: Address;
 
   constructor(
@@ -356,7 +356,7 @@ export class EvmHypCollateralAdapter
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
-    this.collateralContract = HypERC20Collateral__factory.connect(
+    this.collateralContract = TokenRouter__factory.connect(
       addresses.token,
       this.getProvider(),
     );
@@ -364,7 +364,7 @@ export class EvmHypCollateralAdapter
 
   async getWrappedTokenAddress(): Promise<Address> {
     if (!this.wrappedTokenAddress) {
-      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
+      this.wrappedTokenAddress = await this.collateralContract.token();
     }
     return this.wrappedTokenAddress!;
   }
@@ -422,22 +422,34 @@ export class EvmHypCollateralAdapter
       t.populateTransferTx(params),
     );
   }
+}
+
+export class EvmMovableCollateralAdapter
+  extends EvmHypCollateralAdapter
+  implements IMovableCollateralRouterAdapter<PopulatedTransaction>
+{
+  movableCollateral(): MovableCollateralRouter {
+    return MovableCollateralRouter__factory.connect(
+      this.addresses.token,
+      this.getProvider(),
+    );
+  }
 
   async isRebalancer(account: Address): Promise<boolean> {
-    const rebalancers = await this.collateralContract.allowedRebalancers();
+    const rebalancers = await this.movableCollateral().allowedRebalancers();
 
     return rebalancers.includes(account);
   }
 
   async getAllowedDestination(domain: Domain): Promise<Address> {
     const allowedDestinationBytes32 =
-      await this.collateralContract.allowedRecipient(domain);
+      await this.movableCollateral().allowedRecipient(domain);
 
     // If allowedRecipient is not set (returns bytes32(0)),
     // fall back to the enrolled remote router for that domain,
     // matching the contract's fallback logic in MovableCollateralRouter.sol
     if (allowedDestinationBytes32 === ZERO_ADDRESS_HEX_32) {
-      const routerBytes32 = await this.collateralContract.routers(domain);
+      const routerBytes32 = await this.movableCollateral().routers(domain);
       return bytes32ToAddress(routerBytes32);
     }
 
@@ -445,7 +457,8 @@ export class EvmHypCollateralAdapter
   }
 
   async isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean> {
-    const allowedBridges = await this.collateralContract.allowedBridges(domain);
+    const allowedBridges =
+      await this.movableCollateral().allowedBridges(domain);
 
     return allowedBridges
       .map((bridgeAddress) => normalizeAddress(bridgeAddress))
@@ -509,7 +522,7 @@ export class EvmHypCollateralAdapter
       0n,
     );
 
-    return this.collateralContract.populateTransaction.rebalance(
+    return this.movableCollateral().populateTransaction.rebalance(
       domain,
       amount,
       bridge,
@@ -836,7 +849,7 @@ export class EvmHypVSXERC20Adapter
 
 // Interacts HypNative contracts
 export class EvmHypNativeAdapter
-  extends EvmHypCollateralAdapter
+  extends EvmMovableCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
   override async getBalance(address: Address): Promise<bigint> {
@@ -960,7 +973,7 @@ export class EvmHypNativeAdapter
       BigInt(amount),
     );
 
-    return this.collateralContract.populateTransaction.rebalance(
+    return this.movableCollateral().populateTransaction.rebalance(
       domain,
       amount,
       bridge,

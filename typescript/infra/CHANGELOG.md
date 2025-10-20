@@ -1,6 +1,117 @@
 # @hyperlane-xyz/infra
 
-## 15.0.0-beta.0
+## 19.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@19.1.1
+- @hyperlane-xyz/sdk@19.1.1
+- @hyperlane-xyz/utils@19.1.1
+
+## 19.1.0
+
+### Patch Changes
+
+- Updated dependencies [554ff1a66]
+  - @hyperlane-xyz/sdk@19.1.0
+  - @hyperlane-xyz/helloworld@19.1.0
+  - @hyperlane-xyz/utils@19.1.0
+
+## 19.0.0
+
+### Patch Changes
+
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [70354d6d9]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [dd4928b1c]
+- Updated dependencies [32479e139]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/utils@19.0.0
+  - @hyperlane-xyz/sdk@19.0.0
+  - @hyperlane-xyz/helloworld@19.0.0
+
+## 18.3.0
+
+### Minor Changes
+
+- edada3640: added USDC/matchain warp route config getter with submitters and rebalancing support
+
+### Patch Changes
+
+- Updated dependencies [4974e66a0]
+- Updated dependencies [30ec5ffbb]
+- Updated dependencies [57cf9e953]
+- Updated dependencies [c41bc3b93]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [b66129ee2]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [2b16904f8]
+- Updated dependencies [096389aea]
+- Updated dependencies [e4e6a75a8]
+- Updated dependencies [ee7c7ade4]
+- Updated dependencies [6b8419370]
+- Updated dependencies [94e7116c2]
+  - @hyperlane-xyz/sdk@18.3.0
+  - @hyperlane-xyz/utils@18.3.0
+  - @hyperlane-xyz/helloworld@18.3.0
+
+## 18.2.0
+
+### Minor Changes
+
+- ca64e73cd: Update the oXAUT bridge limits for avax, celo, ethereum, worldchain and base config. Export XERC20LimitsTokenConfig.
+
+### Patch Changes
+
+- Updated dependencies [fed6906e4]
+- Updated dependencies [ca64e73cd]
+- Updated dependencies [dfa9d368c]
+  - @hyperlane-xyz/sdk@18.2.0
+  - @hyperlane-xyz/helloworld@18.2.0
+  - @hyperlane-xyz/utils@18.2.0
+
+## 18.1.0
+
+### Minor Changes
+
+- d7c5f30df: Add radix USDC warp route getter
+
+### Patch Changes
+
+- Updated dependencies [73be9b8d2]
+  - @hyperlane-xyz/sdk@18.1.0
+  - @hyperlane-xyz/helloworld@18.1.0
+  - @hyperlane-xyz/utils@18.1.0
+
+## 18.0.0
+
+### Patch Changes
+
+- 0bcb90abc: set token decimals in more warp config getters to satisfy warp checker rules
+- cb908b8aa: set token decimals in warp config getters to satisfy stricter warp checker rules
+- Updated dependencies [552b253b9]
+- Updated dependencies [ba832828f]
+- Updated dependencies [cfc0eb2a7]
+  - @hyperlane-xyz/sdk@18.0.0
+  - @hyperlane-xyz/utils@18.0.0
+  - @hyperlane-xyz/helloworld@18.0.0
+
+## 17.0.0
+
+### Patch Changes
+
+- b23bcd111: Fix: Corrected logger usage by avoiding destructured debug method calls
+- Updated dependencies [400c02460]
+- Updated dependencies [8c15edc67]
+- Updated dependencies [76a5db49a]
+- Updated dependencies [6583df016]
+- Updated dependencies [e0bda316a]
+- Updated dependencies [7f542b288]
+  - @hyperlane-xyz/sdk@17.0.0
+  - @hyperlane-xyz/utils@17.0.0
+  - @hyperlane-xyz/helloworld@17.0.0
 
 ## 16.2.0
 
@@ -55,13 +166,6 @@
 
 - Updated dependencies [451f3f6c3]
 - Updated dependencies [23861b70a]
-  <<<<<<< HEAD
-- Updated dependencies [e0c69e255]
-- Updated dependencies [e0ea8910c]
-- Updated dependencies [d16a853c0]
-  - @hyperlane-xyz/utils@15.0.0-beta.0
-  - @hyperlane-xyz/sdk@15.0.0-beta.0
-  - @hyperlane-xyz/helloworld@15.0.0-beta.0
 - Updated dependencies [a33c8abd4]
 - Updated dependencies [a33c8abd4]
 - Updated dependencies [e0ea8910c]
