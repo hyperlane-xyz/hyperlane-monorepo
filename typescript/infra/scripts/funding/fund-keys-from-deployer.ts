@@ -9,6 +9,7 @@ import {
   ChainName,
   HyperlaneIgp,
   MultiProvider,
+  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -666,6 +667,14 @@ class ContextFunder {
   // To avoid churning txs, only sweep when balance > triggerMultiplier * threshold,
   // and leave targetMultiplier * threshold after sweep.
   private async attemptToSweepExcessFunds(chain: ChainName): Promise<void> {
+    // Skip if the chain isn't in production yet i.e. if the validator set size is still 1
+    if (defaultMultisigConfigs[chain].validators.length === 1) {
+      logger.debug(
+        { chain },
+        'Chain is not in production yet, skipping sweep.',
+      );
+    }
+
     // Skip if we don't have a threshold configured for this chain
     const lowUrgencyBalanceStr = this.lowUrgencyKeyFunderBalances[chain];
     if (!lowUrgencyBalanceStr) {
