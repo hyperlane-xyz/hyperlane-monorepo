@@ -7,6 +7,7 @@ import { multisigIsms } from '../../config/multisigIsm.js';
 import { getChains } from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import {
+  assertContext,
   getMonorepoRoot,
   writeAndFormatJsonAtPath,
 } from '../../src/utils/utils.js';
@@ -26,9 +27,15 @@ const multisigIsmConfigPath = (
   );
 
 async function main() {
-  const { environment, local, context, write } = await withWrite(
-    withContext(getArgs()),
-  )
+  const {
+    environment,
+    local,
+    context = Contexts.Hyperlane,
+    write,
+  } = await withWrite(getArgs())
+    .describe('context', 'write multisig ISM config to context')
+    .choices('context', [Contexts.Hyperlane, Contexts.ReleaseCandidate])
+    .alias('x', 'context')
     .describe('local', 'local chain')
     .choices('local', getChains())
     .demandOption('local').argv;
@@ -37,7 +44,8 @@ async function main() {
     environment,
     local,
     IsmType.MESSAGE_ID_MULTISIG,
-    context,
+    // generate for hyperlane context by default
+    Contexts.Hyperlane,
   );
 
   // Cap any thresholds to 4 due to the Sealevel transaction size limit.
@@ -65,6 +73,10 @@ async function main() {
   }
 
   if (write) {
+    // write to the context directory
+    // we use the `hyperlane` context for all config generation
+    // but when deploying new SVM ISMS, we deploy/confugre a new "release candidate" ISM
+    // before promoting it to the `hyperlane` context and setting it as the default ISM
     const filepath = multisigIsmConfigPath(environment, context, local);
     console.log(`Writing config to ${filepath}`);
     writeAndFormatJsonAtPath(filepath, config);
