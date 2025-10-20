@@ -6007,7 +6007,12 @@
       "index": {
         "from": 860343
       },
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-ink.safe.global/"
+      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-ink.safe.global/",
+      "transactionOverrides": {
+        "minGasPrice": 1,
+        "minFeePerGas": 1,
+        "minPriorityFeePerGas": 1
+      }
     },
     "soneium": {
       "blockExplorers": [
