@@ -57,6 +57,13 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       minPriorityFeePerGas: 1 * 10 ** 9, // 1 gwei
     },
   },
+  ronin: {
+    transactionOverrides: {
+      minGasPrice: 20 * 10 ** 9, // 20 gwei
+      minFeePerGas: 20 * 10 ** 9, // 20 gwei
+      minPriorityFeePerGas: 20 * 10 ** 9, // 20 gwei
+    },
+  },
   // Deploy-only overrides, set when deploying contracts
   // chilizmainnet: {
   //   transactionOverrides: {

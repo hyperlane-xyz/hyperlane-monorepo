@@ -6928,7 +6928,12 @@
       "index": {
         "from": 42656210
       },
-      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-ronin.safe.onchainden.com"
+      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-ronin.safe.onchainden.com",
+      "transactionOverrides": {
+        "minGasPrice": 20000000000,
+        "minFeePerGas": 20000000000,
+        "minPriorityFeePerGas": 20000000000
+      }
     },
     "sophon": {
       "blockExplorers": [
