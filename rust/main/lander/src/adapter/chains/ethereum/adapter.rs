@@ -42,11 +42,9 @@ use crate::{
 };
 
 use super::{
-    metrics::EthereumAdapterMetrics, nonce::NonceManager, transaction::Precursor,
-    EthereumTxPrecursor,
+    gas_price::GasPrice, metrics::EthereumAdapterMetrics, nonce::NonceManager,
+    transaction::Precursor, EthereumTxPrecursor,
 };
-
-use gas_price::GasPrice;
 
 mod gas_limit_estimator;
 mod gas_price;
@@ -135,7 +133,7 @@ impl EthereumAdapter {
         // to be resilient to gas spikes
         let old_tx_precursor = tx.precursor();
 
-        let old_gas_price = gas_price::extract_gas_price(old_tx_precursor);
+        let old_gas_price = old_tx_precursor.extract_gas_price();
 
         // first, estimate the gas price
         let estimated_gas_price = gas_price::estimate_gas_price(
@@ -160,6 +158,29 @@ impl EthereumAdapter {
 
         info!(old=?old_tx_precursor, new=?new_gas_price, "estimated and escalated gas price for transaction");
         Ok(new_gas_price)
+    }
+
+    fn check_if_resubmission_makes_sense(
+        tx: &Transaction,
+        gas_price: &GasPrice,
+    ) -> Result<(), LanderError> {
+        let precursor = tx.precursor();
+        let tx_gas_price = precursor.extract_gas_price();
+
+        if tx_gas_price == GasPrice::None {
+            // If transaction has no gas price set, it is the first submission
+            return Ok(());
+        }
+
+        // Transaction has been submitted before, check if the new gas price has not
+        // reached limit yet
+
+        if gas_price == &tx_gas_price {
+            // If new gas price is the same as the old one, no point in resubmitting
+            return Err(LanderError::TxAlreadyExists);
+        }
+
+        Ok(())
     }
 
     fn update_tx(&self, tx: &mut Transaction, nonce: U256, gas_price: GasPrice) {
@@ -578,6 +599,8 @@ impl AdaptsChain for EthereumAdapter {
             self.calculate_nonce(&tx_for_nonce),
             self.estimate_gas_price(&tx_for_gas_price)
         )?;
+
+        Self::check_if_resubmission_makes_sense(tx, &gas_price)?;
 
         self.update_tx(tx, nonce, gas_price);
 
