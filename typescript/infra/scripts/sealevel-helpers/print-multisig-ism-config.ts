@@ -75,7 +75,7 @@ async function main() {
   if (write) {
     // write to the context directory
     // we use the `hyperlane` context for all config generation
-    // but when deploying new SVM ISMS, we deploy/confugre a new "release candidate" ISM
+    // but when deploying new SVM ISMS, we deploy/configure a new "release candidate" ISM
     // before promoting it to the `hyperlane` context and setting it as the default ISM
     const filepath = multisigIsmConfigPath(environment, context, local);
     console.log(`Writing config to ${filepath}`);

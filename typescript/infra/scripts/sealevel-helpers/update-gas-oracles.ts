@@ -1,17 +1,10 @@
-import {
-  Connection,
-  Keypair,
-  PublicKey,
-  SystemProgram,
-  TransactionInstruction,
-} from '@solana/web3.js';
-import { deserializeUnchecked, serialize } from 'borsh';
+import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+import { deserializeUnchecked } from 'borsh';
 
 import {
   ChainMap,
   ChainName,
   MultiProtocolProvider,
-  SealeveIgpInstruction,
   SealevelAccountDataWrapper,
   SealevelGasOracle,
   SealevelGasOracleConfig,
@@ -20,14 +13,10 @@ import {
   SealevelIgpAdapter,
   SealevelIgpData,
   SealevelIgpDataSchema,
-  SealevelInstructionWrapper,
+  SealevelOverheadIgpAdapter,
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
   SealevelRemoteGasData,
-  SealevelSetDestinationGasOverheadsInstruction,
-  SealevelSetDestinationGasOverheadsInstructionSchema,
-  SealevelSetGasOracleConfigsInstruction,
-  SealevelSetGasOracleConfigsInstructionSchema,
 } from '@hyperlane-xyz/sdk';
 import { Domain, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -46,70 +35,10 @@ import {
   serializeGasOracleDifference,
   svmGasOracleConfigPath,
 } from '../../src/utils/sealevel.js';
-import { getMonorepoRoot, readJSONAtPath } from '../../src/utils/utils.js';
+import { readJSONAtPath } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 import { GasOracleConfigWithOverhead } from '../gas/print-all-gas-oracles.js';
-
-/**
- * Helper functions
- */
-
-function createSetGasOracleConfigsInstruction(
-  programId: PublicKey,
-  igpAccount: PublicKey,
-  owner: PublicKey,
-  configs: SealevelGasOracleConfig[],
-): TransactionInstruction {
-  const keys = [
-    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    { pubkey: igpAccount, isSigner: false, isWritable: true },
-    { pubkey: owner, isSigner: true, isWritable: true },
-  ];
-
-  const value = new SealevelInstructionWrapper({
-    instruction: SealeveIgpInstruction.SetGasOracleConfigs,
-    data: new SealevelSetGasOracleConfigsInstruction(configs),
-  });
-
-  const data = Buffer.from(
-    serialize(SealevelSetGasOracleConfigsInstructionSchema, value),
-  );
-
-  return new TransactionInstruction({
-    keys,
-    programId,
-    data,
-  });
-}
-
-function createSetDestinationGasOverheadsInstruction(
-  programId: PublicKey,
-  overheadIgpAccount: PublicKey,
-  owner: PublicKey,
-  configs: SealevelGasOverheadConfig[],
-): TransactionInstruction {
-  const keys = [
-    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    { pubkey: overheadIgpAccount, isSigner: false, isWritable: true },
-    { pubkey: owner, isSigner: true, isWritable: true },
-  ];
-
-  const value = new SealevelInstructionWrapper({
-    instruction: SealeveIgpInstruction.SetDestinationGasOverheads,
-    data: new SealevelSetDestinationGasOverheadsInstruction(configs),
-  });
-
-  const data = Buffer.from(
-    serialize(SealevelSetDestinationGasOverheadsInstructionSchema, value),
-  );
-
-  return new TransactionInstruction({
-    keys,
-    programId,
-    data,
-  });
-}
 
 /**
  * Fetch and deserialize account states
@@ -166,7 +95,7 @@ async function removeUnusedGasOracles(
   connection: Connection,
   igpAccountData: SealevelIgpData,
   allConfigDomainIds: Set<Domain>,
-  programId: PublicKey,
+  igpAdapter: SealevelIgpAdapter,
   igpAccountPda: PublicKey,
   signerKeypair: Keypair,
   chain: ChainName,
@@ -181,8 +110,7 @@ async function removeUnusedGasOracles(
       );
 
       const config = new SealevelGasOracleConfig(remoteDomain, null);
-      const instruction = createSetGasOracleConfigsInstruction(
-        programId,
+      const instruction = igpAdapter.createSetGasOracleConfigsInstruction(
         igpAccountPda,
         signerKeypair.publicKey,
         [config],
@@ -213,7 +141,7 @@ async function removeUnusedGasOverheads(
   connection: Connection,
   overheadIgpAccountData: SealevelOverheadIgpData,
   allConfigDomainIds: Set<Domain>,
-  programId: PublicKey,
+  overheadIgpAdapter: SealevelOverheadIgpAdapter,
   overheadIgpAccountPda: PublicKey,
   signerKeypair: Keypair,
   chain: ChainName,
@@ -228,12 +156,12 @@ async function removeUnusedGasOverheads(
       );
 
       const config = new SealevelGasOverheadConfig(remoteDomain, null);
-      const instruction = createSetDestinationGasOverheadsInstruction(
-        programId,
-        overheadIgpAccountPda,
-        signerKeypair.publicKey,
-        [config],
-      );
+      const instruction =
+        overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
+          overheadIgpAccountPda,
+          signerKeypair.publicKey,
+          [config],
+        );
 
       overheadsRemoved++;
       if (!dryRun) {
@@ -315,8 +243,7 @@ async function updateGasOracles(
         gasOracle,
       );
 
-      const instruction = createSetGasOracleConfigsInstruction(
-        programId,
+      const instruction = igpAdapter.createSetGasOracleConfigsInstruction(
         igpAccountPda,
         signerKeypair.publicKey,
         [gasOracleConfig],
@@ -362,7 +289,7 @@ async function updateGasOverheads(
   gasOracleConfig: ChainMap<ChainMap<GasOracleConfigWithOverhead>>,
   chain: ChainName,
   overheadIgpAccountData: SealevelOverheadIgpData,
-  programId: PublicKey,
+  overheadIgpAdapter: SealevelOverheadIgpAdapter,
   overheadIgpAccountPda: PublicKey,
   signerKeypair: Keypair,
   dryRun: boolean,
@@ -423,12 +350,12 @@ async function updateGasOverheads(
         remoteDomain,
         targetOverhead,
       );
-      const instruction = createSetDestinationGasOverheadsInstruction(
-        programId,
-        overheadIgpAccountPda,
-        signerKeypair.publicKey,
-        [overheadConfig],
-      );
+      const instruction =
+        overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
+          overheadIgpAccountPda,
+          signerKeypair.publicKey,
+          [overheadConfig],
+        );
 
       if (!dryRun) {
         const tx = await buildAndSendTransaction(
@@ -492,9 +419,17 @@ async function processChain(
   rootLogger.debug(`IGP Account: ${igpAccountPda.toBase58()}`);
   rootLogger.debug(`Overhead IGP Account: ${overheadIgpAccountPda.toBase58()}`);
 
-  // Create adapter and fetch account states
-  const igpAdapter = new SealevelIgpAdapter(chain, {} as any, {
+  const environmentConfig = getEnvironmentConfig(environment);
+  const mpp = await environmentConfig.getMultiProtocolProvider();
+
+  // Create adapters and fetch account states
+  const igpAdapter = new SealevelIgpAdapter(chain, mpp, {
     igp: igpAccountPda.toBase58(),
+    programId: programId.toBase58(),
+  });
+
+  const overheadIgpAdapter = new SealevelOverheadIgpAdapter(chain, mpp, {
+    overheadIgp: overheadIgpAccountPda.toBase58(),
     programId: programId.toBase58(),
   });
 
@@ -516,7 +451,7 @@ async function processChain(
     connection,
     igpAccountData,
     allConfigDomainIds,
-    programId,
+    igpAdapter,
     igpAccountPda,
     signerKeypair,
     chain,
@@ -527,15 +462,13 @@ async function processChain(
     connection,
     overheadIgpAccountData,
     allConfigDomainIds,
-    programId,
+    overheadIgpAdapter,
     overheadIgpAccountPda,
     signerKeypair,
     chain,
     dryRun,
   );
 
-  const environmentConfig = getEnvironmentConfig(environment);
-  const mpp = await environmentConfig.getMultiProtocolProvider();
   const { oraclesUpdated, oraclesMatched } = await updateGasOracles(
     mpp,
     connection,
@@ -554,7 +487,7 @@ async function processChain(
     gasOracleConfig,
     chain,
     overheadIgpAccountData,
-    programId,
+    overheadIgpAdapter,
     overheadIgpAccountPda,
     signerKeypair,
     dryRun,
