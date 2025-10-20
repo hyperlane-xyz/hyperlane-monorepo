@@ -36,6 +36,7 @@ abstract contract TokenBridgeCctpBaseStorage is TokenRouter {
     MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
 }
 
+// see ./CCTP.md for sequence diagrams of the destination chain control flow
 abstract contract TokenBridgeCctpBase is
     TokenBridgeCctpBaseStorage,
     AbstractCcipReadIsm,
@@ -275,22 +276,24 @@ abstract contract TokenBridgeCctpBase is
             revert("Invalid circle recipient");
         }
 
+        // for GMP messages, this.verifiedMessages[hyperlaneMessage.id()] will be set
+        // for token messages, hyperlaneMessage.body().amount() tokens will be delivered to hyperlaneMessage.body().recipient()
         return messageTransmitter.receiveMessage(cctpMessageBytes, attestation);
     }
 
-    function _receiveCircleMessage(
-        uint32 sourceDomain,
-        bytes32 sender,
-        bytes calldata body
+    function _receiveMessageId(
+        uint32 circleSource,
+        bytes32 circleSender,
+        bytes32 messageId
     ) internal returns (bool) {
-        uint32 hyperlaneDomain = circleDomainToHyperlaneDomain(sourceDomain);
+        // ensure that the message was sent from the hook on the origin chain
+        uint32 origin = circleDomainToHyperlaneDomain(circleSource);
         require(
-            _mustHaveRemoteRouter(hyperlaneDomain) == sender,
+            _mustHaveRemoteRouter(origin) == circleSender,
             "Unauthorized circle sender"
         );
 
-        // body is abi encoded message ID
-        preVerifyMessage(bytes32(body[0:32]), 0);
+        preVerifyMessage(messageId, 0);
 
         return true;
     }
