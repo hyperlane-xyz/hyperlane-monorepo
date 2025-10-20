@@ -688,11 +688,6 @@ contract TokenBridgeCctpV1Test is Test {
         TokenBridgeCctpV1 ism = TokenBridgeCctpV1(router.bytes32ToAddress());
         _upgrade(ism);
 
-        // Add domain mapping for circle domain 6 -> hyperlane origin domain
-        // The CCTP message has source domain 6, so we need to configure this mapping
-        vm.prank(ism.owner());
-        ism.addDomain(origin, 6);
-
         // Sender validation happens inside receiveMessage via callback to _authenticateCircleSender
         vm.expectRevert(bytes("Unauthorized circle sender"));
         ism.verify(metadata, message);

@@ -36,11 +36,26 @@ abstract contract TokenBridgeCctpBaseStorage is TokenRouter {
     MovableCollateralRouterStorage private __MOVABLE_COLLATERAL_GAP;
 }
 
-// see ./CCTP.md for sequence diagrams of the destination chain control flow
-abstract contract TokenBridgeCctpBase is
+struct Domain {
+    uint32 hyperlane;
+    uint32 circle;
+}
+
+// need intermediate contract to insert slots between TokenBridgeCctpBase and AbstractMessageIdAuthorizedIsm
+abstract contract TokenBridgeCctpIntermediateStorage is
     TokenBridgeCctpBaseStorage,
     AbstractCcipReadIsm,
-    AbstractPostDispatchHook,
+    AbstractPostDispatchHook
+{
+    /// @notice Hyperlane domain => Domain struct.
+    /// We use a struct to avoid ambiguity with domain 0 being unknown.
+    mapping(uint32 hypDomain => Domain circleDomain)
+        internal _hyperlaneDomainMap;
+}
+
+// see ./CCTP.md for sequence diagrams of the destination chain control flow
+abstract contract TokenBridgeCctpBase is
+    TokenBridgeCctpIntermediateStorage,
     AbstractMessageIdAuthorizedIsm
 {
     using Message for bytes;
@@ -57,18 +72,10 @@ abstract contract TokenBridgeCctpBase is
     // @notice CCTP token messenger contract
     ITokenMessenger public immutable tokenMessenger;
 
-    struct Domain {
-        uint32 hyperlane;
-        uint32 circle;
-    }
-
-    /// @notice Hyperlane domain => Domain struct.
-    /// We use a struct to avoid ambiguity with domain 0 being unknown.
-    mapping(uint32 hypDomain => Domain domain) internal _hyperlaneDomainMap;
-
     /// @notice Circle domain => Domain struct.
     // We use a struct to avoid ambiguity with domain 0 being unknown.
-    mapping(uint32 circleDomain => Domain domain) internal _circleDomainMap;
+    mapping(uint32 circleDomain => Domain hyperlaneDomain)
+        internal _circleDomainMap;
 
     /**
      * @notice Emitted when the Hyperlane domain to Circle domain mapping is updated.
