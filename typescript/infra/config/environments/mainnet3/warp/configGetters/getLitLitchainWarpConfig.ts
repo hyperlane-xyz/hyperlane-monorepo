@@ -40,7 +40,7 @@ const ownersByChain: DeploymentChains<Address> = {
   polygon: DEFAULT_SAFE_OWNER,
   ethereum: DEFAULT_SAFE_OWNER,
   // It is still a safe but a different address
-  litchain: '0x703cf58975B14142eD0Ba272555789610c85520c',
+  litchain: '0xC6EBB3ca53D028F419F677Ed45126490331F728b',
   avalanche: DEFAULT_SAFE_OWNER,
   optimism: DEFAULT_SAFE_OWNER,
   linea: DEFAULT_SAFE_OWNER,
