@@ -38,11 +38,7 @@ where
     {
         let entry = entry.map_err(|err| {
             let mut config_err = ConfigParsingError::default();
-<<<<<<< HEAD
-            let config_path = ConfigPath::default() + "./config";
-=======
             let config_path = ConfigPath::default().add("./config");
->>>>>>> main
             config_err.push(config_path, eyre::eyre!(err.to_string()));
             config_err
         })?;

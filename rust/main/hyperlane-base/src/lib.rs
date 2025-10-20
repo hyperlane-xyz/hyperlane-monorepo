@@ -6,10 +6,7 @@
 #![cfg_attr(not(test), forbid(unsafe_code))]
 #![warn(missing_docs)]
 #![deny(clippy::unwrap_used, clippy::panic)]
-<<<<<<< HEAD
-=======
 #![deny(clippy::arithmetic_side_effects)]
->>>>>>> main
 
 pub mod settings;
 

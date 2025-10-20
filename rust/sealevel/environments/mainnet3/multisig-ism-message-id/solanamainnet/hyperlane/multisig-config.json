@@ -213,8 +213,6 @@
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
-<<<<<<< HEAD
-=======
   "carrchain": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
@@ -223,7 +221,6 @@
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
->>>>>>> main
   "celestia": {
     "type": "messageIdMultisigIsm",
     "threshold": 4,

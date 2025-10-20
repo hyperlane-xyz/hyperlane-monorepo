@@ -226,13 +226,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         Some(low..=current_indexing_snapshot.sequence)
     }
 
-<<<<<<< HEAD
-=======
     /// Get the lowest block height or sequence.
     /// If the configured lowest block height/sequence is positive, just use that value.
     /// If the configured value is negative, then fetch the current latest sequence
     /// and calculate a relative lowest block height or sequence.
->>>>>>> main
     async fn get_lowest_block_height_or_sequence(&self) -> Option<u32> {
         if self.lowest_block_height_or_sequence >= 0 {
             return Some(self.lowest_block_height_or_sequence as u32);
@@ -253,17 +250,6 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                     Some(lowest_block_height as u32)
                 }
             }
-<<<<<<< HEAD
-            IndexMode::Sequence => sequence_count.map(|seq_count| {
-                let lowest_sequence_count =
-                    (seq_count as i64).saturating_add(self.lowest_block_height_or_sequence);
-                if lowest_sequence_count < 0 {
-                    0
-                } else {
-                    lowest_sequence_count as u32
-                }
-            }),
-=======
             IndexMode::Sequence => {
                 let seq_count = sequence_count?;
                 let lowest_sequence_count =
@@ -274,7 +260,6 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                     Some(lowest_sequence_count as u32)
                 }
             }
->>>>>>> main
         }
     }
 
@@ -1476,18 +1461,6 @@ mod test {
 
         #[tracing_test::traced_test]
         #[tokio::test]
-<<<<<<< HEAD
-        async fn test_negative_block_height() {
-            let chunk_size = 50;
-            let lowest_sequence = -10;
-
-            let mut cursor = get_test_backward_sequence_aware_sync_cursor(
-                INDEX_MODE,
-                chunk_size,
-                lowest_sequence,
-            )
-            .await;
-=======
         async fn test_get_next_range_negative_block_height() {
             let chunk_size = 50;
             let lowest_block_height_or_sequence = -1000;
@@ -1535,29 +1508,11 @@ mod test {
                     at_block: 4000,
                 }
             );
->>>>>>> main
 
             // Expect the range to be:
             // (current - chunk_size, current)
             // since cursor does not reach the lowest sequence at this round
             let range = cursor.get_next_range().await.unwrap().unwrap();
-<<<<<<< HEAD
-            let expected_range = (90)..=99;
-            assert_eq!(range, expected_range);
-
-            // Update the with all the missing logs.
-            cursor
-                .update(
-                    range
-                        .map(|i| {
-                            (
-                                MockSequencedData::new(i).into(),
-                                log_meta_with_block(900 + i as u64),
-                            )
-                        })
-                        .collect(),
-                    expected_range,
-=======
             let expected_range = expected_current_snapshot
                 .at_block
                 .saturating_sub(chunk_size)
@@ -1572,20 +1527,10 @@ mod test {
                         .map(|i| (MockSequencedData::new(i).into(), log_meta_with_block(3000)))
                         .collect(),
                     range,
->>>>>>> main
                 )
                 .await
                 .unwrap();
 
-<<<<<<< HEAD
-            // Expect the cursor to indicate that synced up to the latest sequence it could
-            assert_eq!(
-                cursor.current_indexing_snapshot,
-                Some(TargetSnapshot {
-                    sequence: 89,
-                    at_block: 990
-                })
-=======
             // even though, we only were able to find sequences between 3000 and 2900, we stop
             // indexing because we've reached the block relative height of 3000 (4000 - 1000)
             let range = cursor.get_next_range().await.unwrap();
@@ -1633,19 +1578,10 @@ mod test {
             assert_eq!(
                 cursor.current_indexing_snapshot,
                 Some(expected_current_snapshot.clone()),
->>>>>>> main
             );
             assert_eq!(
                 cursor.last_indexed_snapshot,
                 LastIndexedSnapshot {
-<<<<<<< HEAD
-                    sequence: Some(90),
-                    at_block: 990,
-                }
-            );
-
-            // should be no more ranges because we've indexed everything
-=======
                     sequence: Some(3000),
                     at_block: 4000,
                 }
@@ -1674,7 +1610,6 @@ mod test {
                 .unwrap();
 
             // We were able to find all sequences >= 2000, so we should stop indexing now
->>>>>>> main
             let range = cursor.get_next_range().await.unwrap();
             assert_eq!(range, None);
         }

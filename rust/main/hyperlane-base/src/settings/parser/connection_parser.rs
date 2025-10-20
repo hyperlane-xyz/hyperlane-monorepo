@@ -176,81 +176,6 @@ pub fn build_cosmos_connection_conf(
 
     let native_token = parse_native_token(chain, err, 18);
 
-<<<<<<< HEAD
-    if !local_err.is_ok() {
-        err.merge(local_err);
-        return None;
-    }
-
-    let chain_id = chain_id?;
-    let prefix = prefix?;
-    let gas_price = gas_price?;
-    let contract_address_bytes = contract_address_bytes?;
-
-    let canonical_asset = match chain
-        .chain(err)
-        .get_opt_key("canonicalAsset")
-        .parse_string()
-        .end()
-    {
-        Some(asset) => asset.to_string(),
-        None => format!("u{}", prefix),
-    };
-
-    Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
-        grpcs,
-        rpcs.to_owned(),
-        chain_id.to_string(),
-        prefix.to_string(),
-        canonical_asset,
-        gas_price,
-        contract_address_bytes as usize,
-        operation_batch,
-        native_token,
-    )))
-}
-
-pub fn build_cosmos_native_connection_conf(
-    rpcs: &[Url],
-    chain: &ValueParser,
-    err: &mut ConfigParsingError,
-    operation_batch: OpSubmissionConfig,
-) -> Option<ChainConnectionConf> {
-    let mut local_err = ConfigParsingError::default();
-    let grpcs =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
-
-    let chain_id = chain
-        .chain(&mut local_err)
-        .get_key("chainId")
-        .parse_string()
-        .end()
-        .or_else(|| {
-            local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain id for chain"));
-            None
-        });
-
-    let prefix = chain
-        .chain(err)
-        .get_key("bech32Prefix")
-        .parse_string()
-        .end()
-        .or_else(|| {
-            local_err.push(
-                &chain.cwp + "bech32Prefix",
-                eyre!("Missing bech32 prefix for chain"),
-            );
-            None
-        });
-
-    let gas_price = chain
-        .chain(err)
-        .get_opt_key("gasPrice")
-        .and_then(parse_cosmos_gas_price)
-        .end();
-
-=======
->>>>>>> main
     let gas_multiplier = chain
         .chain(err)
         .get_opt_key("gasMultiplier")
@@ -267,8 +192,6 @@ pub fn build_cosmos_native_connection_conf(
     if !local_err.is_ok() {
         err.merge(local_err);
         return None;
-<<<<<<< HEAD
-=======
     }
 
     let chain_id = chain_id?;
@@ -311,41 +234,7 @@ pub fn build_cosmos_native_connection_conf(
             }
             _ => None,
         },
->>>>>>> main
     }
-    let gas_price = gas_price?;
-    let gas_price = h_cosmos_native::RawCosmosAmount {
-        denom: gas_price.denom,
-        amount: gas_price.amount,
-    };
-    let contract_address_bytes: usize = contract_address_bytes.and_then(|v| v.try_into().ok())?;
-
-    let chain_id = chain_id?;
-    let prefix = prefix?;
-    let canonical_asset = match chain
-        .chain(err)
-        .get_opt_key("canonicalAsset")
-        .parse_string()
-        .end()
-    {
-        Some(asset) => asset.to_string(),
-        None => format!("u{}", prefix),
-    };
-
-    Some(ChainConnectionConf::CosmosNative(
-        h_cosmos_native::ConnectionConf::new(
-            rpcs.to_owned(),
-            grpcs,
-            chain_id.to_string(),
-            prefix.to_string(),
-            canonical_asset,
-            gas_price,
-            gas_multiplier,
-            contract_address_bytes,
-            operation_batch,
-            native_token,
-        ),
-    ))
 }
 
 fn build_starknet_connection_conf(

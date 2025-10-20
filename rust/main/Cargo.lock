@@ -5690,49 +5690,6 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sha256",
-<<<<<<< HEAD
- "thiserror 1.0.63",
- "time",
- "tokio",
- "tonic 0.12.3",
- "tower 0.5.2",
- "tracing",
- "tracing-futures",
- "url",
-]
-
-[[package]]
-name = "hyperlane-cosmos-native"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64 0.21.7",
- "bech32 0.11.0",
- "cosmrs",
- "crypto",
- "derive-new",
- "futures",
- "hex 0.4.3",
- "http 1.2.0",
- "hyper 0.14.30",
- "hyper-tls",
- "hyperlane-core",
- "hyperlane-cosmos-rs",
- "hyperlane-cosmwasm-interface",
- "hyperlane-metric",
- "itertools 0.12.1",
- "once_cell",
- "pin-project",
- "protobuf",
- "ripemd",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "sha256",
- "tendermint",
- "tendermint-rpc",
-=======
->>>>>>> main
  "thiserror 1.0.63",
  "time",
  "tokio",

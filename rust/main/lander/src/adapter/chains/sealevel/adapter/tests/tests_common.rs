@@ -117,57 +117,7 @@ mock! {
             commitment: CommitmentConfig,
         ) -> ChainResult<bool>;
 
-<<<<<<< HEAD
-// used for localized tests for estimating, simulating, submitting txs etc
-struct MockProvider {}
-
-#[async_trait]
-impl SealevelProviderForLander for MockProvider {
-    async fn create_transaction_for_instruction(
-        &self,
-        _compute_unit_limit: u32,
-        _compute_unit_price_micro_lamports: u64,
-        _instruction: SealevelInstruction,
-        _payer: &SealevelKeypair,
-        _tx_submitter: Arc<dyn TransactionSubmitter>,
-        _sign: bool,
-    ) -> ChainResult<SealevelTransaction> {
-        let keypair = SealevelKeypair::default();
-        Ok(SealevelTransaction::new_unsigned(Message::new(
-            &[instruction()],
-            Some(&keypair.pubkey()),
-        )))
-    }
-
-    async fn get_estimated_costs_for_instruction(
-        &self,
-        _instruction: SealevelInstruction,
-        _payer: &SealevelKeypair,
-        _tx_submitter: Arc<dyn TransactionSubmitter>,
-        _priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-    ) -> ChainResult<SealevelTxCostEstimate> {
-        Ok(SealevelTxCostEstimate {
-            compute_units: GAS_LIMIT,
-            compute_unit_price_micro_lamports: 0,
-        })
-    }
-
-    async fn wait_for_transaction_confirmation(
-        &self,
-        _transaction: &SealevelTransaction,
-    ) -> ChainResult<()> {
-        Ok(())
-    }
-
-    async fn confirm_transaction(
-        &self,
-        _signature: Signature,
-        _commitment: CommitmentConfig,
-    ) -> ChainResult<bool> {
-        Ok(true)
-=======
         async fn get_account(&self, account: Pubkey) -> ChainResult<Option<Account>>;
->>>>>>> main
     }
 }
 

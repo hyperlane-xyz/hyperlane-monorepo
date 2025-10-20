@@ -120,8 +120,6 @@ impl From<cometbft_rpc::Error> for HyperlaneCosmosError {
         HyperlaneCosmosError::CometbftRpcError(Box::new(value))
     }
 }
-<<<<<<< HEAD
-=======
 
 impl From<cometbft::Error> for HyperlaneCosmosError {
     fn from(value: cometbft::Error) -> Self {
@@ -134,4 +132,3 @@ impl From<cosmrs::tendermint::Error> for HyperlaneCosmosError {
         HyperlaneCosmosError::CosmrsTendermintError(Box::new(value))
     }
 }
->>>>>>> main

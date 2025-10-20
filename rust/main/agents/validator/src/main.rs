@@ -3,10 +3,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![deny(clippy::unwrap_used)]
-<<<<<<< HEAD
-=======
 #![deny(clippy::arithmetic_side_effects)]
->>>>>>> main
 
 use eyre::Result;
 

@@ -1,8 +1,5 @@
 #![deny(clippy::unwrap_used, clippy::panic)]
-<<<<<<< HEAD
-=======
 #![deny(clippy::arithmetic_side_effects)]
->>>>>>> main
 
 pub mod msg;
 

@@ -1,10 +1,3 @@
-<<<<<<< HEAD:rust/main/chains/hyperlane-cosmos/src/providers/rpc/client/tests.rs
-use crate::HyperlaneCosmosError;
-use cometbft_rpc::client::CompatMode;
-use cometbft_rpc::endpoint::block::Response;
-use cometbft_rpc::{HttpClient, Url};
-use std::str::FromStr;
-=======
 use std::str::FromStr;
 
 use cometbft_rpc::{client::CompatMode, HttpClient, Url};
@@ -15,7 +8,6 @@ use hyperlane_metric::prometheus_metric::{
 
 use crate::{ConnectionConf, CosmosAmount, CosmosHttpClient, RawCosmosAmount, RpcProvider};
 use cometbft_rpc::endpoint::block::Response;
->>>>>>> main:rust/main/chains/hyperlane-cosmos/src/providers/tests.rs
 
 #[test]
 fn test_deserialize_neutron_block_22488720() {
@@ -1287,8 +1279,6 @@ fn test_deserialize_osmosis_block_15317185() {
 #[ignore]
 async fn test_http_client() {
     use cometbft_rpc::Client;
-<<<<<<< HEAD:rust/main/chains/hyperlane-cosmos/src/providers/rpc/client/tests.rs
-=======
 
     // Neutron
     let url = "<neutron url>";
@@ -1319,30 +1309,18 @@ async fn test_http_client() {
 #[ignore]
 async fn test_fallback_provider() {
     use url::Url as UUrl;
->>>>>>> main:rust/main/chains/hyperlane-cosmos/src/providers/tests.rs
 
     // Neutron
     let url = "<neutron url>";
-    let height: u32 = 22488720;
+    let height = 22488720u32;
 
     // Osmosis
     // let url = "<osmosis url>";
     // let height = 15317185u32;
 
-<<<<<<< HEAD:rust/main/chains/hyperlane-cosmos/src/providers/rpc/client/tests.rs
-    let url = Url::from_str(url).unwrap();
-    let rpc_url = cometbft_rpc::Url::try_from(url).unwrap();
-    let url = cometbft_rpc::HttpClientUrl::try_from(rpc_url).unwrap();
-
-    let client = HttpClient::builder(url)
-        .compat_mode(CompatMode::latest())
-        .build()
-        .unwrap();
-=======
     let url = UUrl::from_str(url).unwrap();
 
     let metrics = PrometheusClientMetrics::default();
->>>>>>> main:rust/main/chains/hyperlane-cosmos/src/providers/tests.rs
 
     let metrics_config = PrometheusConfig {
         connection_type: ClientConnectionType::Rpc,

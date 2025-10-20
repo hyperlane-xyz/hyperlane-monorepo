@@ -6,10 +6,7 @@
 #![allow(unused_variables)]
 #![allow(unused_imports)] // TODO: `rustc` 1.80.1 clippy issue
 #![deny(clippy::unwrap_used, clippy::panic)]
-<<<<<<< HEAD
-=======
 #![deny(clippy::arithmetic_side_effects)]
->>>>>>> main
 
 /// Hyperlane Application specific functionality
 pub mod application;

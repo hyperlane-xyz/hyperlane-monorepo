@@ -69,11 +69,7 @@ impl ConnectionConf {
         self.op_submission_config
             .batch_contract_address
             .unwrap_or_else(|| {
-<<<<<<< HEAD
-                hex_or_base58_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT)
-=======
                 hex_or_base58_or_bech32_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT)
->>>>>>> main
                     .expect("Invalid default batch contract address")
             })
     }
