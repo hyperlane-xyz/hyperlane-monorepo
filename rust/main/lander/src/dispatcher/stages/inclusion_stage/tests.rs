@@ -21,6 +21,9 @@ async fn test_processing_included_txs() {
 
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .returning(|_| None);
+    mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(400));
 
@@ -89,6 +92,9 @@ async fn test_failed_simulation() {
 
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .returning(|_| None);
+    mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(400));
 
@@ -125,6 +131,9 @@ async fn test_failed_estimation() {
     const TXS_TO_PROCESS: usize = 3;
 
     let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .returning(|_| None);
     mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(400));
@@ -199,6 +208,9 @@ async fn test_channel_closed_before_any_tx() {
 async fn test_transaction_status_dropped() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .returning(|_| None);
+    mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(400));
     mock_adapter
@@ -250,6 +262,9 @@ async fn test_transaction_not_ready_for_resubmission() {
 async fn test_failed_submission_after_simulation_and_estimation() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .returning(|_| None);
+    mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(400));
     mock_adapter
@@ -284,6 +299,9 @@ async fn test_failed_submission_after_simulation_and_estimation() {
 async fn test_transaction_included_immediately() {
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .returning(|_| None);
+    mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(400));
     mock_adapter
@@ -307,6 +325,9 @@ async fn test_transaction_included_immediately() {
 #[tokio::test]
 async fn test_transaction_pending_then_included() {
     let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .returning(|_| None);
     mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(400));
