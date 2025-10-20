@@ -47,7 +47,7 @@
   "dependencies": {
     "@eth-optimism/sdk": "^3.3.3",
     "@google-cloud/pino-logging-gcp-config": "^1.0.6",
-    "@hyperlane-xyz/core": "9.0.13",
+    "@hyperlane-xyz/core": "10.0.0-beta.0",
     "@hyperlane-xyz/sdk": "19.1.1",
     "@hyperlane-xyz/utils": "19.1.1",
     "@prisma/client": "^6.8.2",

@@ -8100,7 +8100,7 @@ __metadata:
   dependencies:
     "@eth-optimism/sdk": "npm:^3.3.3"
     "@google-cloud/pino-logging-gcp-config": "npm:^1.0.6"
-    "@hyperlane-xyz/core": "npm:9.0.13"
+    "@hyperlane-xyz/core": "npm:10.0.0-beta.0"
     "@hyperlane-xyz/sdk": "npm:19.1.1"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.1.1"
@@ -8235,26 +8235,6 @@ __metadata:
     "@types/sinon-chai": "*"
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/core@npm:9.0.13":
-  version: 9.0.13
-  resolution: "@hyperlane-xyz/core@npm:9.0.13"
-  dependencies:
-    "@arbitrum/nitro-contracts": "npm:^1.2.1"
-    "@chainlink/contracts-ccip": "npm:^1.5.0"
-    "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:19.1.1"
-    "@matterlabs/hardhat-zksync-solc": "npm:1.2.5"
-    "@matterlabs/hardhat-zksync-verify": "npm:1.7.1"
-    "@openzeppelin/contracts": "npm:^4.9.3"
-    "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
-  peerDependencies:
-    "@ethersproject/abi": "*"
-    "@ethersproject/providers": "*"
-    "@types/sinon-chai": "*"
-  checksum: 10/ceacbe2f7e5918399120ed6fdba3723f06e630f2dbc4c8ac7117e00cf6046627b67f0bad0f30c47964e1f25a988e751a52d38f9e6d4998ce6921558dd72347dd
-  languageName: node
-  linkType: hard
 
 "@hyperlane-xyz/cosmos-sdk@npm:19.1.1, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
   version: 0.0.0-use.local
