@@ -117,6 +117,8 @@ export enum WarpRouteIds {
 
   MantraUSDC = 'USDC/mantra',
 
+  IncentivUSDC = 'USDC/incentiv',
+
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
 
