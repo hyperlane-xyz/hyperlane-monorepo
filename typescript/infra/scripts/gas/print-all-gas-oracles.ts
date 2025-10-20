@@ -6,7 +6,7 @@ import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withOutputFile } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-interface GasOracleConfigWithOverhead {
+export interface GasOracleConfigWithOverhead {
   oracleConfig: ProtocolAgnositicGasOracleConfig;
   overhead?: number;
 }

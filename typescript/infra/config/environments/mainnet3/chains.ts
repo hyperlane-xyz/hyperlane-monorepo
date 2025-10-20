@@ -1,8 +1,12 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getRegistryForEnvironment } from '../../../src/config/chain.js';
-import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
+import {
+  chainIsProtocol,
+  isEthereumProtocolChain,
+} from '../../../src/utils/utils.js';
 
 import { supportedChainNames } from './supportedChainNames.js';
 
@@ -10,6 +14,10 @@ export const environment = 'mainnet3';
 
 export const ethereumChainNames = supportedChainNames.filter(
   isEthereumProtocolChain,
+);
+
+export const svmChainNames = supportedChainNames.filter((chainName) =>
+  chainIsProtocol(chainName, ProtocolType.Sealevel),
 );
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {

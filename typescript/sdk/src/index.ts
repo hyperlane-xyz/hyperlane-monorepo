@@ -27,7 +27,10 @@ export {
   AW_VALIDATOR_ALIAS,
   defaultMultisigConfigs,
 } from './consts/multisigIsm.js';
-export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
+export {
+  SEALEVEL_SPL_NOOP_ADDRESS,
+  SEALEVEL_PRIORITY_FEES,
+} from './consts/sealevel.js';
 export {
   multiProtocolTestChainMetadata,
   test1,
@@ -137,6 +140,18 @@ export {
   SealevelInterchainGasPaymasterType,
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
+  SealeveIgpInstruction,
+  SealevelIgpDataSchema,
+  SealevelIgpData,
+  SealevelGasOracle,
+  SealevelGasOracleConfig,
+  SealevelGasOracleType,
+  SealevelGasOverheadConfig,
+  SealevelRemoteGasData,
+  SealevelSetDestinationGasOverheadsInstruction,
+  SealevelSetDestinationGasOverheadsInstructionSchema,
+  SealevelSetGasOracleConfigsInstruction,
+  SealevelSetGasOracleConfigsInstructionSchema,
 } from './gas/adapters/serialization.js';
 export { IgpFactories, igpFactories } from './gas/contracts.js';
 export { HyperlaneIgp } from './gas/HyperlaneIgp.js';
