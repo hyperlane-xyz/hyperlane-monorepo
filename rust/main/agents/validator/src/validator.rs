@@ -10,6 +10,7 @@ use itertools::Itertools;
 use serde::Serialize;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
+use url::Url;
 
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
@@ -68,8 +69,13 @@ pub struct Validator {
 #[derive(Debug, Serialize)]
 pub struct ValidatorMetadata {
     git_sha: String,
-    rpcs: Vec<H256>,
+    rpcs: Vec<ValidatorMetadataRpcEntry>,
     allows_public_rpcs: bool,
+}
+#[derive(Debug, Serialize)]
+pub struct ValidatorMetadataRpcEntry {
+    url_hash: H256,
+    host_hash: H256,
 }
 
 impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
@@ -79,7 +85,12 @@ impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
         let rpcs = settings
             .rpcs
             .iter()
-            .map(|rpc| H256::from_slice(&keccak256(&rpc.url)))
+            .map(|rpc| ValidatorMetadataRpcEntry {
+                url_hash: H256::from_slice(&keccak256(&rpc.url)),
+                host_hash: H256::from_slice(&keccak256(
+                    &Url::parse(&rpc.url).unwrap().host_str().unwrap_or(""),
+                )),
+            })
             .collect();
         ValidatorMetadata {
             git_sha: git_sha(),
@@ -146,6 +157,8 @@ impl BaseAgent for Validator {
             .expect("Failed to build checkpoint syncer")
             .into();
 
+        // If checkpoint syncer initialization was successful, use a reorg-reporter which
+        // writes to the storage location in addition to the logs.
         let reorg_reporter_with_storage_writer =
             LatestCheckpointReorgReporterWithStorageWriter::from_settings_with_storage_writer(
                 &settings,
