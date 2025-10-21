@@ -22,12 +22,12 @@ import {
 } from '../../utils/sealevelSerialization.js';
 
 import {
-  SealeveIgpInstruction,
   SealevelGasOracle,
   SealevelGasOracleConfig,
   SealevelGasOverheadConfig,
   SealevelIgpData,
   SealevelIgpDataSchema,
+  SealevelIgpInstruction,
   SealevelIgpQuoteGasPaymentInstruction,
   SealevelIgpQuoteGasPaymentResponse,
   SealevelIgpQuoteGasPaymentResponseSchema,
@@ -88,7 +88,7 @@ export abstract class SealevelIgpProgramAdapter extends BaseSealevelAdapter {
       });
     }
     const value = new SealevelInstructionWrapper({
-      instruction: SealeveIgpInstruction.QuoteGasPayment,
+      instruction: SealevelIgpInstruction.QuoteGasPayment,
       data: new SealevelIgpQuoteGasPaymentInstruction({
         destination_domain: destination,
         gas_amount: BigInt(gasAmount),
@@ -178,7 +178,7 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
     const connection = this.getProvider();
 
     const accountInfo = await connection.getAccountInfo(new PublicKey(address));
-    assert(accountInfo, `No account info found for ${address}}`);
+    assert(accountInfo, `No account info found for ${address}`);
 
     const accountData = deserializeUnchecked(
       SealevelIgpDataSchema,
@@ -214,7 +214,7 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
     }
 
     const keys = this.getClaimInstructionKeyList(beneficiary);
-    const data = Buffer.from([SealeveIgpInstruction.Claim]);
+    const data = Buffer.from([SealevelIgpInstruction.Claim]);
 
     const claimIgpInstruction = new TransactionInstruction({
       keys,
@@ -253,7 +253,7 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
     ];
 
     const value = new SealevelInstructionWrapper({
-      instruction: SealeveIgpInstruction.SetGasOracleConfigs,
+      instruction: SealevelIgpInstruction.SetGasOracleConfigs,
       data: new SealevelSetGasOracleConfigsInstruction(configs),
     });
 
@@ -342,7 +342,7 @@ export class SealevelOverheadIgpAdapter extends SealevelIgpProgramAdapter {
     const connection = this.getProvider();
 
     const accountInfo = await connection.getAccountInfo(new PublicKey(address));
-    assert(accountInfo, `No account info found for ${address}}`);
+    assert(accountInfo, `No account info found for ${address}`);
 
     const accountData = deserializeUnchecked(
       SealevelOverheadIgpDataSchema,
@@ -376,7 +376,7 @@ export class SealevelOverheadIgpAdapter extends SealevelIgpProgramAdapter {
     ];
 
     const value = new SealevelInstructionWrapper({
-      instruction: SealeveIgpInstruction.SetDestinationGasOverheads,
+      instruction: SealevelIgpInstruction.SetDestinationGasOverheads,
       data: new SealevelSetDestinationGasOverheadsInstruction(configs),
     });
 

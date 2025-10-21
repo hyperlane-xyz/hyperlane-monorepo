@@ -11,7 +11,7 @@ import {
   getMonorepoRoot,
   writeAndFormatJsonAtPath,
 } from '../../src/utils/utils.js';
-import { getArgs, withContext, withWrite } from '../agent-utils.js';
+import { getArgs, withWrite } from '../agent-utils.js';
 
 // This script exists to print the default multisig ISM validator sets for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(
@@ -79,7 +79,7 @@ async function main() {
     // before promoting it to the `hyperlane` context and setting it as the default ISM
     const filepath = multisigIsmConfigPath(environment, context, local);
     console.log(`Writing config to ${filepath}`);
-    writeAndFormatJsonAtPath(filepath, config);
+    await writeAndFormatJsonAtPath(filepath, config);
   } else {
     console.log(JSON.stringify(config, null, 2));
   }

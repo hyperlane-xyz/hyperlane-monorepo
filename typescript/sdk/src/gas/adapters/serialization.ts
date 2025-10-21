@@ -186,7 +186,7 @@ export const SealevelIgpDataSchema = new Map<any, any>([
  */
 
 // Should match Instruction in https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/8f8853bcd7105a6dd7af3a45c413b137ded6e888/rust/sealevel/programs/hyperlane-sealevel-igp/src/instruction.rs#L19-L42
-export enum SealeveIgpInstruction {
+export enum SealevelIgpInstruction {
   Init,
   InitIgp,
   InitOverheadIgp,

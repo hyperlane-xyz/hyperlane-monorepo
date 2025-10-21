@@ -1,15 +1,11 @@
-import { ChainMap, ProtocolAgnositicGasOracleConfig } from '@hyperlane-xyz/sdk';
+import { ChainMap } from '@hyperlane-xyz/sdk';
 import { stringifyObject } from '@hyperlane-xyz/utils';
 
 import { getChains } from '../../config/registry.js';
+import type { GasOracleConfigWithOverhead } from '../../src/config/gas-oracle.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withOutputFile } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
-
-export interface GasOracleConfigWithOverhead {
-  oracleConfig: ProtocolAgnositicGasOracleConfig;
-  overhead?: number;
-}
 
 async function main() {
   const allChainChoices = getChains();

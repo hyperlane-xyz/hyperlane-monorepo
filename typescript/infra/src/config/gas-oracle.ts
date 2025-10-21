@@ -31,6 +31,15 @@ export type AllStorageGasOracleConfigs = ChainMap<
   ChainMap<ProtocolAgnositicGasOracleConfigWithTypicalCost>
 >;
 
+/**
+ * Gas oracle configuration with optional overhead value.
+ * Used for configuring IGP gas oracles across different chains.
+ */
+export type GasOracleConfigWithOverhead = {
+  oracleConfig: ProtocolAgnositicGasOracleConfig;
+  overhead?: number;
+};
+
 // Overcharge by 50% to account for market making risk
 export const EXCHANGE_RATE_MARGIN_PCT = 50;
 

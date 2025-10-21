@@ -18,12 +18,13 @@ import {
   SealevelOverheadIgpDataSchema,
   SealevelRemoteGasData,
 } from '@hyperlane-xyz/sdk';
-import { Domain, rootLogger } from '@hyperlane-xyz/utils';
+import { Domain, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { svmChainNames } from '../../config/environments/mainnet3/chains.js';
 import { getChain } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../../src/agents/index.js';
+import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
+import type { GasOracleConfigWithOverhead } from '../../src/config/gas-oracle.js';
 import {
   ZERO_SALT,
   buildAndSendTransaction,
@@ -35,10 +36,9 @@ import {
   serializeGasOracleDifference,
   svmGasOracleConfigPath,
 } from '../../src/utils/sealevel.js';
-import { readJSONAtPath } from '../../src/utils/utils.js';
+import { chainIsProtocol, readJSONAtPath } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
-import { GasOracleConfigWithOverhead } from '../gas/print-all-gas-oracles.js';
 
 /**
  * Fetch and deserialize account states
@@ -379,6 +379,7 @@ async function updateGasOverheads(
  */
 async function processChain(
   environment: DeployEnvironment,
+  mpp: MultiProtocolProvider,
   chain: ChainName,
   keyPath: string,
   dryRun: boolean,
@@ -396,6 +397,15 @@ async function processChain(
   // Load configuration and setup
   const gasOracleConfig: ChainMap<ChainMap<GasOracleConfigWithOverhead>> =
     readJSONAtPath(svmGasOracleConfigPath(environment));
+
+  // Guard against missing chain configuration to prevent mass removals
+  if (!gasOracleConfig[chain]) {
+    throw new Error(
+      `No gas oracle configuration found for chain '${chain}' in environment '${environment}'. ` +
+        `This would cause all existing gas oracles and overheads to be removed. ` +
+        `Please ensure the chain is configured in ${svmGasOracleConfigPath(environment)}`,
+    );
+  }
 
   const coreProgramIds = loadCoreProgramIds(environment, chain);
   const programId = new PublicKey(coreProgramIds.igp_program_id);
@@ -418,9 +428,6 @@ async function processChain(
 
   rootLogger.debug(`IGP Account: ${igpAccountPda.toBase58()}`);
   rootLogger.debug(`Overhead IGP Account: ${overheadIgpAccountPda.toBase58()}`);
-
-  const environmentConfig = getEnvironmentConfig(environment);
-  const mpp = await environmentConfig.getMultiProtocolProvider();
 
   // Create adapters and fetch account states
   const igpAdapter = new SealevelIgpAdapter(chain, mpp, {
@@ -508,11 +515,10 @@ async function processChain(
 async function main() {
   const {
     environment,
-    // don't include svmbnb in the default chains
-    chains = svmChainNames.filter((chain) => chain !== 'svmbnb'),
+    chains: chainsArg,
     keyPath,
     apply,
-  } = await withChains(getArgs(), svmChainNames)
+  } = await withChains(getArgs())
     .option('keyPath', {
       type: 'string',
       description: 'Path to Solana keypair JSON file',
@@ -527,6 +533,17 @@ async function main() {
 
   const dryRun = !apply;
 
+  // Compute default chains based on environment
+  const envConfig = getEnvironmentConfig(environment);
+  const chains =
+    !chainsArg || chainsArg.length === 0
+      ? envConfig.supportedChainNames.filter(
+          (chain) =>
+            chainIsProtocol(chain, ProtocolType.Sealevel) &&
+            !chainsToSkip.includes(chain),
+        )
+      : chainsArg;
+
   rootLogger.info(
     `Configuring IGP for chains: ${chains.join(', ')} on ${environment}`,
   );
@@ -535,8 +552,11 @@ async function main() {
   }
 
   // Process all chains in parallel
+  const mpp = await envConfig.getMultiProtocolProvider();
   const results = await Promise.all(
-    chains.map((chain) => processChain(environment, chain, keyPath, dryRun)),
+    chains.map((chain) =>
+      processChain(environment, mpp, chain, keyPath, dryRun),
+    ),
   );
 
   // Print results in a table format

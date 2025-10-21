@@ -79,7 +79,7 @@ async function main() {
   if (write) {
     const filepath = svmGasOracleConfigPath(environment);
     console.log(`Writing config to ${filepath}`);
-    writeAndFormatJsonAtPath(filepath, gasOracles);
+    await writeAndFormatJsonAtPath(filepath, gasOracles);
   } else {
     console.log(stringifyObject(gasOracles, 'json', 2));
   }

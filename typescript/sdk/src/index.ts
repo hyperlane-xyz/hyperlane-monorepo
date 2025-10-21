@@ -140,7 +140,7 @@ export {
   SealevelInterchainGasPaymasterType,
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
-  SealeveIgpInstruction,
+  SealevelIgpInstruction,
   SealevelIgpDataSchema,
   SealevelIgpData,
   SealevelGasOracle,
