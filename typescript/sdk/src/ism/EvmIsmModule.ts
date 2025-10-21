@@ -17,6 +17,7 @@ import {
   intersection,
   isZeroishAddress,
   rootLogger,
+  setEquality,
 } from '@hyperlane-xyz/utils';
 
 import { CCIPContractCache } from '../ccip/utils.js';
@@ -137,7 +138,7 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     assert(
-      typeof targetConfig === 'object',
+      typeof normalizedTargetConfig === 'object',
       'normalized targetConfig should be an object',
     );
 
@@ -373,11 +374,7 @@ export class EvmIsmModule extends HyperlaneModule<
     current: OffchainLookupIsmConfig;
     target: OffchainLookupIsmConfig;
   }): AnnotatedEV5Transaction[] {
-    const currentUrls = new Set(current.urls);
-    const targetUrls = new Set(target.urls);
-
-    const newUrls: string[] = Array.from(difference(targetUrls, currentUrls));
-    if (newUrls.length === 0) {
+    if (setEquality(new Set(target.urls), new Set(current.urls))) {
       return [];
     }
 

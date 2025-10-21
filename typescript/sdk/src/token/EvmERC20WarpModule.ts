@@ -1,5 +1,4 @@
 // import { expect } from 'chai';
-import { isZeroAddress } from '@safe-global/protocol-kit/dist/src/utils/address.js';
 import { compareVersions } from 'compare-versions';
 import { BigNumberish } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
@@ -24,6 +23,7 @@ import {
   difference,
   eqAddress,
   isObjEmpty,
+  isZeroishAddress,
   normalizeAddressEvm,
   objMap,
   promiseObjAll,
@@ -732,7 +732,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     if (
       typeof expectedConfig.interchainSecurityModule === 'string' &&
-      isZeroAddress(expectedConfig.interchainSecurityModule)
+      isZeroishAddress(expectedConfig.interchainSecurityModule)
     ) {
       return {
         deployedIsm: expectedConfig.interchainSecurityModule,
