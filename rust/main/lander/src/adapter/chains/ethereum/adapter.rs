@@ -177,6 +177,10 @@ impl EthereumAdapter {
 
         if gas_price == &tx_gas_price {
             // If new gas price is the same as the old one, no point in resubmitting
+            info!(
+                ?tx,
+                "not resubmitting transaction since new gas price is the same as the old one"
+            );
             return Err(LanderError::TxAlreadyExists);
         }
 
