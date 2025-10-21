@@ -13,7 +13,6 @@ import {
   ProtocolType,
   assert,
   deepEquals,
-  difference,
   intersection,
   isZeroishAddress,
   rootLogger,
@@ -136,11 +135,6 @@ export class EvmIsmModule extends HyperlaneModule<
 
       return [];
     }
-
-    assert(
-      typeof normalizedTargetConfig === 'object',
-      'normalized targetConfig should be an object',
-    );
 
     // Conditions for deploying a new ISM:
     // - If updating from an address/custom config to a proper ISM config.
