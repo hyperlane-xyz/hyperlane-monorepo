@@ -26,14 +26,6 @@ pub trait ReorgReporter: Send + Sync + Debug {
 #[derive(Debug)]
 pub struct LatestCheckpointReorgReporter {
     merkle_tree_hooks: HashMap<Url, Arc<dyn MerkleTreeHook>>,
-    /// In some cases, it is desirable for the `LatestCheckpointReorgReporter` to also write RPC
-    /// responses to a storage location. If a storage location is provided during initialization,
-    /// the `LatestCheckpointReorgReporter` will write to the specified location in addition to its
-    /// default behavior.
-    ///
-    /// Currently, the storage abstraction is tied to the checkpoint syncer, which is why
-    /// it is used here.
-    storage_writer: Option<Arc<dyn CheckpointSyncer>>,
 }
 
 #[derive(Serialize)]
@@ -69,6 +61,16 @@ impl ReorgReportRpcResponse {
 #[async_trait]
 impl ReorgReporter for LatestCheckpointReorgReporter {
     async fn report_at_block(&self, height: u64) {
+        self.report_at_block(height).await;
+    }
+
+    async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod) {
+        self.report_with_reorg_period(reorg_period).await;
+    }
+}
+
+impl LatestCheckpointReorgReporter {
+    async fn report_at_block(&self, height: u64) -> Vec<ReorgReportRpcResponse> {
         info!(?height, "Reporting latest checkpoint on reorg");
         let mut futures = vec![];
         for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
@@ -88,11 +90,13 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
             futures.push(future);
         }
 
-        let storage_logs = join_all(futures).await;
-        self.submit_to_storage_writer(&storage_logs).await;
+        join_all(futures).await
     }
 
-    async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod) {
+    async fn report_with_reorg_period(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> Vec<ReorgReportRpcResponse> {
         info!(?reorg_period, "Reporting latest checkpoint on reorg");
         let mut futures = vec![];
         for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
@@ -116,8 +120,7 @@ impl ReorgReporter for LatestCheckpointReorgReporter {
             futures.push(future);
         }
 
-        let storage_logs = join_all(futures).await;
-        self.submit_to_storage_writer(&storage_logs).await;
+        join_all(futures).await
     }
 }
 
@@ -125,14 +128,6 @@ impl LatestCheckpointReorgReporter {
     pub(crate) async fn from_settings(
         settings: &ValidatorSettings,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Self> {
-        Self::from_settings_with_storage_writer(settings, metrics, None).await
-    }
-
-    pub(crate) async fn from_settings_with_storage_writer(
-        settings: &ValidatorSettings,
-        metrics: &CoreMetrics,
-        storage_writer: Option<Arc<dyn CheckpointSyncer>>,
     ) -> eyre::Result<Self> {
         let origin = &settings.origin_chain;
 
@@ -144,10 +139,7 @@ impl LatestCheckpointReorgReporter {
             merkle_tree_hooks.insert(url, merkle_tree_hook.into());
         }
 
-        let reporter = LatestCheckpointReorgReporter {
-            merkle_tree_hooks,
-            storage_writer,
-        };
+        let reporter = LatestCheckpointReorgReporter { merkle_tree_hooks };
 
         Ok(reporter)
     }
@@ -225,22 +217,6 @@ impl LatestCheckpointReorgReporter {
             .collect::<Vec<_>>()
     }
 
-    async fn submit_to_storage_writer(&self, storage_logs_entries: &Vec<ReorgReportRpcResponse>) {
-        if let Some(storage_writer) = &self.storage_writer {
-            let json_string =
-                serde_json::to_string_pretty(storage_logs_entries).unwrap_or_else(|e| {
-                    warn!("Error serializing json: {}", e);
-                    String::from("{\"error\": \"Error formatting the string\"}")
-                });
-            storage_writer
-                .write_reorg_log(json_string)
-                .await
-                .unwrap_or_else(|e| {
-                    warn!("Error writing checkpoint syncer to reorg log: {}", e);
-                });
-        }
-    }
-
     fn map_urls_to_connections<T, F>(
         urls: Vec<Url>,
         conn: T,
@@ -252,5 +228,64 @@ impl LatestCheckpointReorgReporter {
         urls.into_iter()
             .map(|url| (url.clone(), update_conn(&conn, url)))
             .collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct LatestCheckpointReorgReporterWithStorageWriter {
+    /// `LatestCheckpointReorgReporterWithStorageWriter` is an extension to
+    /// `LatestCheckpointReorgReporter`
+    latest_checkpoint_reorg_reporter: LatestCheckpointReorgReporter,
+
+    /// Currently, the storage abstraction is tied to the checkpoint syncer, which is why
+    /// it is used here.
+    storage_writer: Arc<dyn CheckpointSyncer>,
+}
+
+#[async_trait]
+impl ReorgReporter for LatestCheckpointReorgReporterWithStorageWriter {
+    async fn report_at_block(&self, height: u64) {
+        let logs = self
+            .latest_checkpoint_reorg_reporter
+            .report_at_block(height)
+            .await;
+        self.submit_to_storage_writer(&logs).await;
+    }
+
+    async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod) {
+        let logs = self
+            .latest_checkpoint_reorg_reporter
+            .report_with_reorg_period(reorg_period)
+            .await;
+        self.submit_to_storage_writer(&logs).await;
+    }
+}
+
+impl LatestCheckpointReorgReporterWithStorageWriter {
+    pub(crate) async fn from_settings_with_storage_writer(
+        settings: &ValidatorSettings,
+        metrics: &CoreMetrics,
+        storage_writer: Arc<dyn CheckpointSyncer>,
+    ) -> eyre::Result<Self> {
+        Ok(LatestCheckpointReorgReporterWithStorageWriter {
+            latest_checkpoint_reorg_reporter: LatestCheckpointReorgReporter::from_settings(
+                settings, metrics,
+            )
+            .await?,
+            storage_writer,
+        })
+    }
+
+    async fn submit_to_storage_writer(&self, storage_logs_entries: &Vec<ReorgReportRpcResponse>) {
+        let json_string = serde_json::to_string_pretty(storage_logs_entries).unwrap_or_else(|e| {
+            warn!("Error serializing json: {}", e);
+            String::from("{\"error\": \"Error formatting the string\"}")
+        });
+        self.storage_writer
+            .write_reorg_rpc_responses(json_string)
+            .await
+            .unwrap_or_else(|e| {
+                warn!("Error writing checkpoint syncer to reorg log: {}", e);
+            });
     }
 }

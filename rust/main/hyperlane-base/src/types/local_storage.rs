@@ -46,7 +46,7 @@ impl LocalStorage {
     }
 
     fn reorg_rpc_responses_path(&self) -> PathBuf {
-        self.path.join("reorg_rpc_responses_path_log.json")
+        self.path.join("reorg_rpc_responses.json")
     }
 
     fn metadata_file_path(&self) -> PathBuf {
@@ -141,7 +141,7 @@ impl CheckpointSyncer for LocalStorage {
         Ok(Some(reorg))
     }
 
-    async fn write_reorg_log(&self, log: String) -> Result<()> {
+    async fn write_reorg_rpc_responses(&self, log: String) -> Result<()> {
         let path = self.reorg_rpc_responses_path();
         tokio::fs::write(&path, &log)
             .await

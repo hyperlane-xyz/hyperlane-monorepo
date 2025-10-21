@@ -274,7 +274,7 @@ impl CheckpointSyncer for GcsStorageClient {
     }
 
     #[instrument(skip(self, log))]
-    async fn write_reorg_log(&self, log: String) -> Result<()> {
+    async fn write_reorg_rpc_responses(&self, log: String) -> Result<()> {
         let object_name = REORG_RPC_RESPONSES_KEY;
         self.upload_and_log(object_name, log.into_bytes()).await
     }

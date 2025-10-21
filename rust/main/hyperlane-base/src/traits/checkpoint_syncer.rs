@@ -43,9 +43,9 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     /// the validator agent to stop publishing checkpoints. Once any remediation is done, this flag can be reset
     /// to resume operation.
     async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()>;
-    /// Writes the provided log message to the storage destination
-    /// This log is publicly available. It must not contain sensitive information
-    async fn write_reorg_log(&self, _log: String) -> Result<()> {
+    /// Writes the provided log message to the storage destination.
+    /// This log is publicly available. It must not contain sensitive information.
+    async fn write_reorg_rpc_responses(&self, _log: String) -> Result<()> {
         Err(Report::msg("Destination does not support log writing."))
     }
     /// Read the reorg status of the chain being validated

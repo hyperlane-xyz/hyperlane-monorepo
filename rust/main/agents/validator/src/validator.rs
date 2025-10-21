@@ -27,7 +27,9 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
-use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
+use crate::reorg_reporter::{
+    LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
+};
 use crate::server::{self as validator_server, merkle_tree_insertions};
 use crate::{
     settings::ValidatorSettings,
@@ -144,14 +146,14 @@ impl BaseAgent for Validator {
             .expect("Failed to build checkpoint syncer")
             .into();
 
-        let arg = checkpoint_syncer.clone();
-        let reorg_reporter = LatestCheckpointReorgReporter::from_settings_with_storage_writer(
-            &settings,
-            &metrics,
-            Some(arg),
-        )
-        .await?;
-        let reorg_reporter = Arc::new(reorg_reporter) as Arc<dyn ReorgReporter>;
+        let reorg_reporter_with_storage_writer =
+            LatestCheckpointReorgReporterWithStorageWriter::from_settings_with_storage_writer(
+                &settings,
+                &metrics,
+                checkpoint_syncer.clone(),
+            )
+            .await?;
+        let reorg_reporter = Arc::new(reorg_reporter_with_storage_writer) as Arc<dyn ReorgReporter>;
 
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
 

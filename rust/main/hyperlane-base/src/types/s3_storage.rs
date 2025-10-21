@@ -283,7 +283,7 @@ impl CheckpointSyncer for S3Storage {
         Ok(())
     }
 
-    async fn write_reorg_log(&self, reorg_log: String) -> Result<()> {
+    async fn write_reorg_rpc_responses(&self, reorg_log: String) -> Result<()> {
         self.write_to_bucket(S3Storage::reorg_rpc_responses_key(), &reorg_log)
             .await?;
         Ok(())
