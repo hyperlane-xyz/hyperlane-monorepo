@@ -117,6 +117,8 @@ export enum WarpRouteIds {
 
   MantraUSDC = 'USDC/mantra',
 
+  LitchainLITKEY = 'LITKEY/litchain',
+
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
 
