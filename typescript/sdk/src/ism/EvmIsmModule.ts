@@ -1,7 +1,10 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { DomainRoutingIsm__factory } from '@hyperlane-xyz/core';
+import {
+  DomainRoutingIsm__factory,
+  PausableIsm__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
@@ -10,6 +13,7 @@ import {
   assert,
   deepEquals,
   intersection,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -31,11 +35,13 @@ import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
   DeployedIsm,
+  DerivedIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmConfigSchema,
   IsmType,
   MUTABLE_ISM_TYPE,
+  PausableIsmConfig,
 } from './types.js';
 import { calculateDomainRoutingDelta } from './utils.js';
 
@@ -99,76 +105,108 @@ export class EvmIsmModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     targetConfig = IsmConfigSchema.parse(targetConfig);
 
-    // Do not support updating to a custom ISM address
-    if (typeof targetConfig === 'string') {
-      throw new Error(
-        'Invalid targetConfig: Updating to a custom ISM address is not supported. Please provide a valid ISM configuration.',
-      );
+    // Nothing to do if its the default ism
+    if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
+      return [];
     }
 
-    // save current config for comparison
-    // normalize the config to ensure it's in a consistent format for comparison
-    const currentConfig = normalizeConfig(await this.read());
-    // Update the config
-    this.args.config = targetConfig;
-    targetConfig = normalizeConfig(targetConfig);
+    // We need to normalize the current and target configs to compare.
+    const normalizedTargetConfig: DerivedIsmConfig = normalizeConfig(
+      await this.reader.deriveIsmConfig(targetConfig),
+    );
+    const normalizedCurrentConfig: DerivedIsmConfig | string = normalizeConfig(
+      await this.read(),
+    );
+
+    // If configs match, no updates needed
+    if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
+      return [];
+    }
+
+    // Update the module config to the target one as we are sure now that an update will be needed
+    this.args.config = normalizedTargetConfig;
+
+    // if the new config is an address just point the module to the new address
+    if (typeof normalizedTargetConfig === 'string') {
+      this.args.addresses.deployedIsm = normalizedTargetConfig;
+
+      return [];
+    }
 
     assert(
       typeof targetConfig === 'object',
       'normalized targetConfig should be an object',
     );
 
-    // if it's a fallback routing ISM, do a mailbox diff check
-
-    // If configs match, no updates needed
-    if (deepEquals(currentConfig, targetConfig)) {
-      return [];
-    }
-
+    // Conditions for deploying a new ISM:
+    // - If updating from an address/custom config to a proper ISM config.
+    // - If updating a proper ISM config whose types are different.
+    // - If it is not a mutable ISM.
     // Else, we have to figure out what an update for this ISM entails
     // Check if we need to deploy a new ISM
     if (
-      // if updating from an address/custom config to a proper ISM config, do a new deploy
-      typeof currentConfig === 'string' ||
-      // if updating a proper ISM config whose types are different, do a new deploy
-      currentConfig.type !== targetConfig.type ||
-      // if it is not a mutable ISM, do a new deploy
-      !MUTABLE_ISM_TYPE.includes(targetConfig.type)
+      typeof normalizedCurrentConfig === 'string' ||
+      normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
+      !MUTABLE_ISM_TYPE.includes(normalizedTargetConfig.type)
     ) {
       const contract = await this.deploy({
-        config: targetConfig,
+        config: normalizedTargetConfig,
       });
 
       this.args.addresses.deployedIsm = contract.address;
       return [];
     }
 
-    // At this point, only the 3 ownable/mutable ISM types should remain: PAUSABLE, ROUTING, FALLBACK_ROUTING
-    if (
-      targetConfig.type !== IsmType.PAUSABLE &&
-      targetConfig.type !== IsmType.ROUTING &&
-      targetConfig.type !== IsmType.FALLBACK_ROUTING
-    ) {
-      throw new Error(`Unsupported ISM type ${targetConfig.type}`);
-    }
+    // At this point, only the ownable/mutable ISM types should remain: PAUSABLE, ROUTING, FALLBACK_ROUTING
+    return this.updateMutableIsm({
+      current: normalizedCurrentConfig,
+      target: normalizedTargetConfig,
+    });
+  }
+
+  protected async updateMutableIsm({
+    current,
+    target,
+  }: {
+    current: Exclude<IsmConfig, string>;
+    target: Exclude<IsmConfig, string>;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const updateTxs: AnnotatedEV5Transaction[] = [];
+
+    assert(MUTABLE_ISM_TYPE.includes(current.type), '');
+    assert(
+      current.type === target.type,
+      `Updating Mutable ISMs requires both the expected and actual config to be of the same type`,
+    );
 
     const logger = this.logger.child({
       destination: this.chain,
-      ismType: targetConfig.type,
+      ismType: target.type,
     });
-    logger.debug(`Updating ${targetConfig.type} on ${this.chain}`);
+    logger.debug(`Updating ${target.type} on ${this.chain}`);
 
-    // if it's either of the routing ISMs, update their submodules
-    let updateTxs: AnnotatedEV5Transaction[] = [];
-    if (
-      targetConfig.type === IsmType.ROUTING ||
-      targetConfig.type === IsmType.FALLBACK_ROUTING
-    ) {
-      updateTxs = await this.updateRoutingIsm({
-        current: currentConfig,
-        target: targetConfig,
+    if (current.type === IsmType.ROUTING && target.type === IsmType.ROUTING) {
+      const txs = await this.updateRoutingIsm({
+        current,
+        target,
         logger,
       });
+
+      updateTxs.push(...txs);
+    } else if (
+      current.type === IsmType.PAUSABLE &&
+      target.type === IsmType.PAUSABLE
+    ) {
+      updateTxs.push(
+        ...this.updatePausableIsm({
+          current,
+          target,
+        }),
+      );
+    } else {
+      throw new Error(
+        `Unsupported update to mutable ISM of type ${target.type}`,
+      );
     }
 
     // Lastly, check if the resolved owner is different from the current owner
@@ -176,8 +214,8 @@ export class EvmIsmModule extends HyperlaneModule<
       ...transferOwnershipTransactions(
         this.chainId,
         this.args.addresses.deployedIsm,
-        currentConfig,
-        targetConfig,
+        current,
+        target,
       ),
     );
 
@@ -283,6 +321,32 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     return updateTxs;
+  }
+
+  protected updatePausableIsm({
+    current,
+    target,
+  }: {
+    current: PausableIsmConfig;
+    target: PausableIsmConfig;
+  }): AnnotatedEV5Transaction[] {
+    if (current.paused === target.paused) {
+      return [];
+    }
+
+    const ismInterface = PausableIsm__factory.createInterface();
+    const data = target.paused
+      ? ismInterface.encodeFunctionData('pause')
+      : ismInterface.encodeFunctionData('unpause');
+
+    return [
+      {
+        annotation: `${target.paused ? 'Pausing' : 'Unpausing'} Pausable ISM on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
+        chainId: this.multiProvider.getEvmChainId(this.chain),
+        to: this.args.addresses.deployedIsm,
+        data,
+      },
+    ];
   }
 
   protected async deploy({

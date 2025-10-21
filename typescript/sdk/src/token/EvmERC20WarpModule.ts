@@ -1,8 +1,8 @@
 // import { expect } from 'chai';
+import { isZeroAddress } from '@safe-global/protocol-kit/dist/src/utils/address.js';
 import { compareVersions } from 'compare-versions';
 import { BigNumberish } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
-import { zeroAddress } from 'viem';
 
 import {
   GasRouter__factory,
@@ -22,6 +22,7 @@ import {
   assert,
   deepEquals,
   difference,
+  eqAddress,
   isObjEmpty,
   normalizeAddressEvm,
   objMap,
@@ -623,10 +624,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
-    if (
-      !expectedConfig.interchainSecurityModule ||
-      expectedConfig.interchainSecurityModule === zeroAddress
-    ) {
+    if (!expectedConfig.interchainSecurityModule) {
       return [];
     }
 
@@ -642,11 +640,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     updateTransactions.push(...ismUpdateTransactions);
 
     // If a new ISM is deployed, push the setInterchainSecurityModule tx
-    if (actualDeployedIsm !== expectedDeployedIsm) {
+    if (!eqAddress(actualDeployedIsm, expectedDeployedIsm)) {
       const contractToUpdate = MailboxClient__factory.connect(
         this.args.addresses.deployedTokenRoute,
         this.multiProvider.getProvider(this.domainId),
       );
+
       updateTransactions.push({
         chainId: this.chainId,
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
@@ -731,14 +730,24 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }> {
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
+    if (
+      typeof expectedConfig.interchainSecurityModule === 'string' &&
+      isZeroAddress(expectedConfig.interchainSecurityModule)
+    ) {
+      return {
+        deployedIsm: expectedConfig.interchainSecurityModule,
+        updateTransactions: [],
+      };
+    }
+
     const ismModule = new EvmIsmModule(
       this.multiProvider,
       {
         chain: this.args.chain,
-        config: expectedConfig.interchainSecurityModule,
+        config: actualConfig.interchainSecurityModule,
         addresses: {
           ...this.args.addresses,
-          mailbox: expectedConfig.mailbox,
+          mailbox: actualConfig.mailbox,
           deployedIsm: derivedIsmAddress(actualConfig),
         },
       },
