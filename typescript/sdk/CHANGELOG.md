@@ -1,5 +1,19 @@
 # @hyperlane-xyz/sdk
 
+## 19.3.0
+
+### Minor Changes
+
+- fcdda58a8: Update hardcoded `originTokenAmount` of getLocalTransferFee from 1 to 2 wei.
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@19.3.0
+- @hyperlane-xyz/cosmos-sdk@19.3.0
+- @hyperlane-xyz/radix-sdk@19.3.0
+- @hyperlane-xyz/utils@19.3.0
+- @hyperlane-xyz/core@9.0.15
+
 ## 19.2.0
 
 ### Minor Changes
