@@ -1,3 +1,4 @@
+import { Wallet } from 'ethers';
 import { $, ProcessPromise } from 'zx';
 
 import {
@@ -8,6 +9,7 @@ import {
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../utils/files.js';
+import { HYP_KEY_BY_PROTOCOL } from '../constants.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
@@ -62,6 +64,38 @@ export class HyperlaneE2EWarpTestCommands {
     WarpCoreConfigSchema.parse(warpCoreConfig);
     return warpCoreConfig.tokens.find((t) => t.chainName === chain)!
       .addressOrDenom;
+  }
+
+  public initRaw({
+    privateKey,
+    hypKey,
+    skipConfirmationPrompts,
+    advanced,
+    outputPath,
+  }: {
+    privateKey?: string;
+    hypKey?: string;
+    skipConfirmationPrompts?: boolean;
+    outputPath?: string;
+    advanced?: boolean;
+  }): ProcessPromise {
+    return $`${
+      hypKey ? ['HYP_KEY=' + hypKey] : []
+    } ${localTestRunCmdPrefix()} hyperlane warp init \
+          --registry ${this.registryPath} \
+          ${outputPath ? ['--out', outputPath] : []} \
+          ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
+          ${advanced ? ['--advanced'] : []} \
+          --verbosity debug \
+          ${skipConfirmationPrompts ? ['--yes'] : []}`;
+  }
+
+  public init(outputPath: string, privateKey?: string): ProcessPromise {
+    return this.initRaw({
+      outputPath,
+      privateKey,
+      skipConfirmationPrompts: true,
+    });
   }
 
   public readRaw({
@@ -193,5 +227,117 @@ export class HyperlaneE2EWarpTestCommands {
           ${skipConfirmationPrompts ? ['--yes'] : []} \
           ${extraArgs ? extraArgs : []}
           `;
+  }
+
+  public checkRaw({
+    warpDeployPath,
+    symbol,
+    warpCoreConfigPath,
+    warpRouteId,
+  }: {
+    symbol?: string;
+    warpDeployPath?: string;
+    warpCoreConfigPath?: string;
+    warpRouteId?: string;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp check \
+          --registry ${this.registryPath} \
+          ${symbol ? ['--symbol', symbol] : []} \
+          --verbosity debug \
+          ${warpDeployPath ? ['--config', warpDeployPath] : []} \
+          ${warpCoreConfigPath ? ['--warp', warpCoreConfigPath] : []} \
+          ${warpRouteId ? ['--warpRouteId', warpRouteId] : []}`;
+  }
+
+  public check(
+    warpDeployPath: string,
+    symbol: string,
+    warpCoreConfigPath?: string,
+  ): ProcessPromise {
+    return this.checkRaw({
+      warpDeployPath,
+      symbol,
+      warpCoreConfigPath,
+    });
+  }
+
+  sendAndRelay({
+    relay = true,
+    destination,
+    origin,
+    value = 1,
+    warpCorePath,
+    privateKey,
+    chains,
+    roundTrip,
+  }: {
+    origin?: string;
+    destination?: string;
+    warpCorePath: string;
+    relay?: boolean;
+    value?: number | string;
+    privateKey?: string;
+    chains?: string;
+    roundTrip?: boolean;
+  }): ProcessPromise {
+    return $`${localTestRunCmdPrefix()} hyperlane warp send \
+          ${relay ? '--relay' : []} \
+          --registry ${this.registryPath} \
+          ${origin ? ['--origin', origin] : []} \
+        ${destination ? ['--destination', destination] : []} \
+          --warp ${warpCorePath} \
+          ${privateKey ? [this.privateKeyFlag, privateKey] : []} \ \
+          --verbosity debug \
+          --yes \
+                ${chains ? ['--chains', chains] : []} \
+        ${roundTrip ? ['--round-trip'] : []} \
+          --amount ${value}`;
+  }
+
+  public hyperlaneRelayer(
+    chains: string[],
+    warp?: string,
+    privateKey?: string,
+  ) {
+    const keyToUse = privateKey ?? HYP_KEY_BY_PROTOCOL.ethereum;
+
+    return $`${localTestRunCmdPrefix()} hyperlane relayer \
+          --registry ${this.registryPath} \
+          --chains ${chains.join(',')} \
+          --warp ${warp ?? ''} \
+          --key ${keyToUse} \
+          --verbosity debug \
+          --yes`;
+  }
+
+  warpRebalancer(
+    checkFrequency: number,
+    config: string,
+    withMetrics: boolean,
+    monitorOnly?: boolean,
+    manual?: boolean,
+    origin?: string,
+    destination?: string,
+    amount?: string,
+    key?: string,
+    explorerUrl?: string,
+  ): ProcessPromise {
+    const keyToUse = key ?? HYP_KEY_BY_PROTOCOL.ethereum;
+    const rebalancerAddress = new Wallet(keyToUse).address;
+
+    return $`${explorerUrl ? [`EXPLORER_API_URL=${explorerUrl}`] : []} \
+          REBALANCER=${rebalancerAddress} ${localTestRunCmdPrefix()} \
+          hyperlane warp rebalancer \
+          --registry ${this.registryPath} \
+          --checkFrequency ${checkFrequency} \
+          --config ${config} \
+          --key ${keyToUse} \
+          --verbosity debug \
+          --withMetrics ${withMetrics ? ['true'] : ['false']} \
+          --monitorOnly ${monitorOnly ? ['true'] : ['false']} \
+          ${manual ? ['--manual'] : []} \
+          ${origin ? ['--origin', origin] : []} \
+          ${destination ? ['--destination', destination] : []} \
+          ${amount ? ['--amount', amount] : []}`;
   }
 }

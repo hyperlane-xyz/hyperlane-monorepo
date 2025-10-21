@@ -3,7 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 
 import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 
-import { DEFAULT_E2E_TEST_TIMEOUT } from '../consts.js';
+import { DEFAULT_E2E_TEST_TIMEOUT } from '../../constants.js';
 
 import {
   TOTAL_PARTS,

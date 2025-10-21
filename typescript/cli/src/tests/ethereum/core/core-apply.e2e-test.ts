@@ -16,40 +16,34 @@ import {
   addressToBytes32,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
-  ANVIL_KEY,
-  CHAIN_2_METADATA_PATH,
-  CHAIN_3_METADATA_PATH,
-  CHAIN_NAME_2,
-  CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
-  CORE_READ_CONFIG_PATH_2,
+  CORE_CONFIG_PATH_BY_PROTOCOL,
+  CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
+  HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
-  TEMP_PATH,
-} from '../consts.js';
-
-const CORE_READ_CHAIN_2_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
-const CORE_READ_CHAIN_3_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_3}/core-config-read.yaml`;
+  TEST_CHAIN_METADATA_BY_PROTOCOL,
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
+} from '../../constants.js';
 
 describe('hyperlane core apply e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   const hyperlaneCore = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
-    CHAIN_NAME_2,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     REGISTRY_PATH,
-    CORE_CONFIG_PATH,
-    CORE_READ_CHAIN_2_CONFIG_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
   );
   const hyperlaneCore3 = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
-    CHAIN_NAME_3,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
     REGISTRY_PATH,
-    CORE_CONFIG_PATH,
-    CORE_READ_CHAIN_3_CONFIG_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
   );
 
   let signer: Signer;
@@ -58,8 +52,10 @@ describe('hyperlane core apply e2e tests', async function () {
   let chain3DomainId: Domain;
 
   before(async () => {
-    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    const chain2Metadata: ChainMetadata =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
+    const chain3Metadata: ChainMetadata =
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
 
     const provider = new ethers.providers.JsonRpcProvider(
       chain2Metadata.rpcUrls[0].http,
@@ -67,20 +63,23 @@ describe('hyperlane core apply e2e tests', async function () {
 
     chain2DomainId = chain2Metadata.domainId;
     chain3DomainId = chain3Metadata.domainId;
-    const wallet = new Wallet(ANVIL_KEY);
+    const wallet = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum);
     signer = wallet.connect(provider);
 
     initialOwnerAddress = await signer.getAddress();
   });
 
   it('should update the mailbox owner', async () => {
-    await hyperlaneCore.deploy(ANVIL_KEY);
+    await hyperlaneCore.deploy(HYP_KEY_BY_PROTOCOL.ethereum);
     const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
     expect(coreConfig.owner).to.equal(initialOwnerAddress);
     const newOwner = randomAddress().toLowerCase();
     coreConfig.owner = newOwner;
-    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
-    await hyperlaneCore.apply(ANVIL_KEY);
+    writeYamlOrJson(
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      coreConfig,
+    );
+    await hyperlaneCore.apply(HYP_KEY_BY_PROTOCOL.ethereum);
     // Verify that the owner has been set correctly without modifying any other owner values
     const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
     expect(updatedConfig.owner.toLowerCase()).to.equal(newOwner);
@@ -92,7 +91,7 @@ describe('hyperlane core apply e2e tests', async function () {
   });
 
   it('should update the ProxyAdmin to a new one for the mailbox', async () => {
-    await hyperlaneCore.deploy(ANVIL_KEY);
+    await hyperlaneCore.deploy(HYP_KEY_BY_PROTOCOL.ethereum);
     const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
     expect(coreConfig.owner).to.equal(initialOwnerAddress);
 
@@ -101,8 +100,11 @@ describe('hyperlane core apply e2e tests', async function () {
     const newProxyAdmin = await deployTx.deployed();
     coreConfig.proxyAdmin!.address = newProxyAdmin.address;
 
-    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
-    await hyperlaneCore.apply(ANVIL_KEY);
+    writeYamlOrJson(
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      coreConfig,
+    );
+    await hyperlaneCore.apply(HYP_KEY_BY_PROTOCOL.ethereum);
 
     // Verify that the owner has been set correctly without modifying any other owner values
     const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
@@ -115,14 +117,17 @@ describe('hyperlane core apply e2e tests', async function () {
   });
 
   it('should update the ProxyAdmin owner for the mailbox', async () => {
-    await hyperlaneCore.deploy(ANVIL_KEY);
+    await hyperlaneCore.deploy(HYP_KEY_BY_PROTOCOL.ethereum);
     const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
     expect(coreConfig.owner).to.equal(initialOwnerAddress);
 
     const newOwner = randomAddress().toLowerCase();
     coreConfig.proxyAdmin!.owner = newOwner;
-    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
-    await hyperlaneCore.apply(ANVIL_KEY);
+    writeYamlOrJson(
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      coreConfig,
+    );
+    await hyperlaneCore.apply(HYP_KEY_BY_PROTOCOL.ethereum);
 
     // Verify that the owner has been set correctly without modifying any other owner values
     const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
@@ -136,8 +141,8 @@ describe('hyperlane core apply e2e tests', async function () {
 
   it('should enroll a remote ICA Router and update the config on all involved chains', async () => {
     await Promise.all([
-      hyperlaneCore.deploy(ANVIL_KEY),
-      hyperlaneCore3.deploy(ANVIL_KEY),
+      hyperlaneCore.deploy(HYP_KEY_BY_PROTOCOL.ethereum),
+      hyperlaneCore3.deploy(HYP_KEY_BY_PROTOCOL.ethereum),
     ]);
 
     const [coreConfigChain2, coreConfigChain3]: DerivedCoreConfig[] =
@@ -174,8 +179,11 @@ describe('hyperlane core apply e2e tests', async function () {
       },
     };
 
-    writeYamlOrJson(CORE_READ_CHAIN_2_CONFIG_PATH, coreConfigChain2);
-    await hyperlaneCore.apply(ANVIL_KEY);
+    writeYamlOrJson(
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      coreConfigChain2,
+    );
+    await hyperlaneCore.apply(HYP_KEY_BY_PROTOCOL.ethereum);
 
     const [updatedChain2Config, updatedChain3Config]: DerivedCoreConfig[] =
       await Promise.all([
@@ -193,8 +201,8 @@ describe('hyperlane core apply e2e tests', async function () {
 
   it('should unenroll a remote ICA Router and update the config on all involved chains', async () => {
     await Promise.all([
-      hyperlaneCore.deploy(ANVIL_KEY),
-      hyperlaneCore3.deploy(ANVIL_KEY),
+      hyperlaneCore.deploy(HYP_KEY_BY_PROTOCOL.ethereum),
+      hyperlaneCore3.deploy(HYP_KEY_BY_PROTOCOL.ethereum),
     ]);
 
     const [coreConfigChain2, coreConfigChain3]: DerivedCoreConfig[] =
@@ -221,8 +229,11 @@ describe('hyperlane core apply e2e tests', async function () {
       },
     };
 
-    writeYamlOrJson(CORE_READ_CHAIN_2_CONFIG_PATH, coreConfigChain2);
-    await hyperlaneCore.apply(ANVIL_KEY);
+    writeYamlOrJson(
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      coreConfigChain2,
+    );
+    await hyperlaneCore.apply(HYP_KEY_BY_PROTOCOL.ethereum);
 
     const updatedChain2ConfigAfterEnrollment: DerivedCoreConfig =
       await hyperlaneCore.readConfig();
@@ -234,11 +245,11 @@ describe('hyperlane core apply e2e tests', async function () {
     updatedChain2ConfigAfterEnrollment.interchainAccountRouter!.remoteRouters =
       {};
     writeYamlOrJson(
-      CORE_READ_CHAIN_2_CONFIG_PATH,
+      CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       updatedChain2ConfigAfterEnrollment,
     );
 
-    await hyperlaneCore.apply(ANVIL_KEY);
+    await hyperlaneCore.apply(HYP_KEY_BY_PROTOCOL.ethereum);
 
     const [updatedChain2Config, updatedChain3Config]: DerivedCoreConfig[] =
       await Promise.all([

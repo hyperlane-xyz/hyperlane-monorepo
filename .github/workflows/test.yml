@@ -310,6 +310,8 @@ jobs:
           - core-read
           # Other commands
           - relay
+          # TODO: enable in a follow up PR
+          # - submit
           # Warp Commands
           - warp-apply-1
           - warp-apply-2

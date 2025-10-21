@@ -7,14 +7,13 @@ import { Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { CustomTxSubmitterType } from '../../../submitters/types.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { deployXERC20VSToken, hyperlaneSubmit } from '../commands/helpers.js';
 import {
-  ANVIL_KEY,
-  CHAIN_NAME_2,
-  CHAIN_NAME_3,
   DEFAULT_E2E_TEST_TIMEOUT,
+  HYP_KEY_BY_PROTOCOL,
   TEMP_PATH,
-} from '../consts.js';
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
+} from '../../constants.js';
+import { deployXERC20VSToken, hyperlaneSubmit } from '../commands/helpers.js';
 
 async function getMintOnlyOwnerTransaction(
   xerc20: XERC20VSTest,
@@ -55,16 +54,17 @@ describe('hyperlane submit', function () {
   const ANVIL3_CHAIN_ID = 31347;
   let xerc20Chain2: XERC20VSTest;
   let xerc20Chain3: XERC20VSTest;
+
   before(async function () {
     xerc20Chain2 = await deployXERC20VSToken(
-      ANVIL_KEY,
-      CHAIN_NAME_2,
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       9,
       'TOKEN.E',
     );
     xerc20Chain3 = await deployXERC20VSToken(
-      ANVIL_KEY,
-      CHAIN_NAME_3,
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
       9,
       'TOKEN.E',
     );
@@ -77,16 +77,16 @@ describe('hyperlane submit', function () {
     ]);
 
     const impersonateStrategy = {
-      [CHAIN_NAME_2]: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
         submitter: {
-          chain: CHAIN_NAME_2,
+          chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
           type: TxSubmitterType.IMPERSONATED_ACCOUNT,
           userAddress: xerc20Owner2,
         },
       },
-      [CHAIN_NAME_3]: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
         submitter: {
-          chain: CHAIN_NAME_3,
+          chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
           type: TxSubmitterType.IMPERSONATED_ACCOUNT,
           userAddress: xerc20Owner3,
         },
@@ -162,13 +162,13 @@ describe('hyperlane submit', function () {
       // Generate a random-ish filename for local testing because FileSubmitterStrategy always appends so tests may fail
       const outputTransactionPath = `${TEMP_PATH}/transactions_${randomInt(0, 1_000_000)}.json`;
       const fileSubmitterStrategy = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           submitter: {
             type: CustomTxSubmitterType.FILE,
             filepath: outputTransactionPath,
           },
         },
-        [CHAIN_NAME_3]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           submitter: {
             type: CustomTxSubmitterType.FILE,
             filepath: outputTransactionPath,
@@ -207,7 +207,7 @@ describe('hyperlane submit', function () {
     it('should overwrite a transactions file if it is malformed (not array)', async () => {
       const outputTransactionPath = `${TEMP_PATH}/transactions_${randomInt(0, 1_000_000)}.json`;
       const fileSubmitterStrategy = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           submitter: {
             type: CustomTxSubmitterType.FILE,
             filepath: outputTransactionPath,

@@ -4,93 +4,130 @@ import { Wallet } from 'ethers';
 import { TokenRouter__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  HypTokenRouterConfig,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { deployOrUseExistingCore } from '../commands/core.js';
-import { getDomainId } from '../commands/helpers.js';
+import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
+import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
-  extendWarpConfig,
-  hyperlaneWarpDeploy,
-  readWarpConfig,
-  setupIncompleteWarpRouteExtension,
-} from '../commands/warp.js';
-import {
-  ANVIL_KEY,
-  CHAIN_NAME_2,
-  CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
+  CORE_CONFIG_PATH_BY_PROTOCOL,
+  CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
+  DEFAULT_EVM_WARP_ID,
+  DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
+  DEPLOYER_ADDRESS_BY_PROTOCOL,
+  HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
   TEMP_PATH,
-  WARP_CONFIG_PATH_2,
-  WARP_CONFIG_PATH_EXAMPLE,
-  WARP_CORE_CONFIG_PATH_2,
-  WARP_DEPLOY_2_ID,
-  getCombinedWarpRoutePath,
-} from '../consts.js';
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
+  getWarpCoreConfigPath,
+} from '../../constants.js';
+import { setupIncompleteWarpRouteExtension } from '../../utils.js';
+import { getDomainId } from '../commands/helpers.js';
 
 describe('hyperlane warp apply recovery extension tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let chain3Addresses: ChainAddresses = {};
 
+  let ownerAddress: Address;
+  let warpDeployConfig: WarpRouteDeployConfig;
+
+  const evmChain2Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+  );
+  const evmChain3Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+  );
+
+  const evmWarpCommands = new HyperlaneE2EWarpTestCommands(
+    ProtocolType.Ethereum,
+    REGISTRY_PATH,
+    DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
+  );
+
   before(async function () {
     [, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      evmChain2Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
+      evmChain3Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
     ]);
 
-    // Create a new warp config using the example
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
-      WARP_CONFIG_PATH_EXAMPLE,
-    );
-    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
-    writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
+    ownerAddress = await DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum();
   });
 
   beforeEach(async function () {
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
+    const warpConfig2Path = `${TEMP_PATH}/${TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2}/warp-route-deployment-anvil2.yaml`;
+
+    warpDeployConfig = {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
+        type: TokenType.native,
+        owner: ownerAddress,
+      },
+    };
+
+    writeYamlOrJson(warpConfig2Path, warpDeployConfig);
+    await evmWarpCommands.deploy(
+      warpConfig2Path,
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      DEFAULT_EVM_WARP_ID,
+    );
   });
 
   it('should recover and re-enroll routers after direct contract-level unenrollment through TokenRouter interface', async () => {
     const { multiProvider } = await getContext({
       registryUris: [REGISTRY_PATH],
-      key: ANVIL_KEY,
+      key: HYP_KEY_BY_PROTOCOL.ethereum,
     });
 
     const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+    const warpCoreConfig2Path = getWarpCoreConfigPath('ETH', [
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    ]);
 
-    // Initial setup with chain3 using extendWarpConfig
-    await extendWarpConfig({
-      chain: CHAIN_NAME_2,
-      chainToExtend: CHAIN_NAME_3,
-      extendedConfig: {
-        decimals: 18,
-        mailbox: chain3Addresses!.mailbox,
-        name: 'Ether',
-        owner: new Wallet(ANVIL_KEY).address,
-        symbol: 'ETH',
-        type: TokenType.native,
-      },
-      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+    const config: HypTokenRouterConfig = {
+      decimals: 18,
+      mailbox: chain3Addresses!.mailbox,
+      name: 'Ether',
+      owner: new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).address,
+      symbol: 'ETH',
+      type: TokenType.native,
+    };
+
+    warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3] =
+      config;
+    writeYamlOrJson(warpConfigPath, warpDeployConfig);
+
+    await evmWarpCommands.applyRaw({
       warpDeployPath: warpConfigPath,
+      warpCorePath: warpCoreConfig2Path,
+      privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      skipConfirmationPrompts: true,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
+    const COMBINED_WARP_CORE_CONFIG_PATH = getWarpCoreConfigPath('ETH', [
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
     ]);
 
     const warpCoreConfig = readYamlOrJson(
       COMBINED_WARP_CORE_CONFIG_PATH,
     ) as WarpCoreConfig;
     const deployedTokenRoute = warpCoreConfig.tokens.find(
-      (t) => t.chainName === CHAIN_NAME_2,
+      (t) => t.chainName === TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     )?.addressOrDenom;
 
     if (!deployedTokenRoute) {
@@ -98,47 +135,50 @@ describe('hyperlane warp apply recovery extension tests', async function () {
     }
 
     // Manually call unenrollRemoteRouters
-    const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+    const chain3Id = await getDomainId(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+      HYP_KEY_BY_PROTOCOL.ethereum,
+    );
     const tokenRouter = TokenRouter__factory.connect(
       deployedTokenRoute,
-      new Wallet(ANVIL_KEY).connect(multiProvider.getProvider(CHAIN_NAME_2)),
+      new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).connect(
+        multiProvider.getProvider(
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        ),
+      ),
     );
     await tokenRouter.unenrollRemoteRouters([chain3Id]);
 
     // Verify the router was unenrolled
-    const beforeRecoveryConfig = await readWarpConfig(
-      CHAIN_NAME_2,
+    const beforeRecoveryConfig = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       COMBINED_WARP_CORE_CONFIG_PATH,
-      warpConfigPath,
     );
     expect(
-      Object.keys(beforeRecoveryConfig[CHAIN_NAME_2].remoteRouters || {}),
+      Object.keys(
+        beforeRecoveryConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .remoteRouters || {},
+      ),
     ).to.not.include(chain3Id.toString());
 
     // Re-extend to fix the configuration
-    await extendWarpConfig({
-      chain: CHAIN_NAME_2,
-      chainToExtend: CHAIN_NAME_3,
-      extendedConfig: {
-        decimals: 18,
-        mailbox: chain3Addresses!.mailbox,
-        name: 'Ether',
-        owner: new Wallet(ANVIL_KEY).address,
-        symbol: 'ETH',
-        type: TokenType.native,
-      },
-      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+    await evmWarpCommands.applyRaw({
       warpDeployPath: warpConfigPath,
+      warpCorePath: warpCoreConfig2Path,
+      privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      skipConfirmationPrompts: true,
     });
 
-    const recoveredConfig = await readWarpConfig(
-      CHAIN_NAME_2,
+    const recoveredConfig = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       COMBINED_WARP_CORE_CONFIG_PATH,
-      warpConfigPath,
     );
 
     expect(
-      Object.keys(recoveredConfig[CHAIN_NAME_2].remoteRouters!),
+      Object.keys(
+        recoveredConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .remoteRouters!,
+      ),
     ).to.include(chain3Id.toString());
   });
 
@@ -149,71 +189,98 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       warpConfigPath,
       configToExtend,
       combinedWarpCorePath,
-    } = await setupIncompleteWarpRouteExtension(chain3Addresses);
+    } = await setupIncompleteWarpRouteExtension(
+      chain3Addresses,
+      evmWarpCommands,
+    );
 
     // Verify initial state - neither chain should be enrolled in the other
-    const initialConfig2 = await readWarpConfig(
-      CHAIN_NAME_2,
+    const initialConfig2 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       combinedWarpCorePath,
-      warpConfigPath,
     );
-    const initialConfig3 = await readWarpConfig(
-      CHAIN_NAME_3,
+    const initialConfig3 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
       combinedWarpCorePath,
-      warpConfigPath,
     );
+
     // Check remote routers initial state
     expect(
-      Object.keys(initialConfig2[CHAIN_NAME_2].remoteRouters!),
+      Object.keys(
+        initialConfig2[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .remoteRouters!,
+      ),
     ).to.not.include(chain3DomainId);
     expect(
-      Object.keys(initialConfig3[CHAIN_NAME_3].remoteRouters!),
+      Object.keys(
+        initialConfig3[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .remoteRouters!,
+      ),
     ).to.not.include(chain2DomainId);
 
     // Check destination gas initial state
     expect(
-      Object.keys(initialConfig2[CHAIN_NAME_2].destinationGas || {}),
+      Object.keys(
+        initialConfig2[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .destinationGas || {},
+      ),
     ).to.not.include(chain3DomainId);
     expect(
-      Object.keys(initialConfig3[CHAIN_NAME_3].destinationGas || {}),
+      Object.keys(
+        initialConfig3[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .destinationGas || {},
+      ),
     ).to.not.include(chain2DomainId);
 
     // Complete the extension
-    await extendWarpConfig({
-      chain: CHAIN_NAME_2,
-      chainToExtend: CHAIN_NAME_3,
-      extendedConfig: configToExtend,
-      warpCorePath: combinedWarpCorePath,
+    warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3] =
+      configToExtend;
+    writeYamlOrJson(warpConfigPath, warpDeployConfig);
+
+    await evmWarpCommands.applyRaw({
       warpDeployPath: warpConfigPath,
+      warpCorePath: combinedWarpCorePath,
+      privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      skipConfirmationPrompts: true,
     });
 
     // Verify both chains are now properly configured
-    const finalConfig2 = await readWarpConfig(
-      CHAIN_NAME_2,
+    const finalConfig2 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       combinedWarpCorePath,
-      warpConfigPath,
     );
-    const finalConfig3 = await readWarpConfig(
-      CHAIN_NAME_3,
+    const finalConfig3 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
       combinedWarpCorePath,
-      warpConfigPath,
     );
 
     // Check remote routers final state
-    expect(Object.keys(finalConfig2[CHAIN_NAME_2].remoteRouters!)).to.include(
-      chain3DomainId,
-    );
-    expect(Object.keys(finalConfig3[CHAIN_NAME_3].remoteRouters!)).to.include(
-      chain2DomainId,
-    );
+    expect(
+      Object.keys(
+        finalConfig2[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .remoteRouters!,
+      ),
+    ).to.include(chain3DomainId);
+    expect(
+      Object.keys(
+        finalConfig3[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .remoteRouters!,
+      ),
+    ).to.include(chain2DomainId);
 
     // Check destination gas final state
-    expect(Object.keys(finalConfig2[CHAIN_NAME_2].destinationGas!)).to.include(
-      chain3DomainId,
-    );
-    expect(Object.keys(finalConfig3[CHAIN_NAME_3].destinationGas!)).to.include(
-      chain2DomainId,
-    );
+    expect(
+      Object.keys(
+        finalConfig2[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .destinationGas!,
+      ),
+    ).to.include(chain3DomainId);
+    expect(
+      Object.keys(
+        finalConfig3[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .destinationGas!,
+      ),
+    ).to.include(chain2DomainId);
   });
 
   it('should complete warp route extension when previous attempt left incomplete enrollment or destination gas settings (second attempt with same config)', async () => {
@@ -223,71 +290,97 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       warpConfigPath,
       configToExtend,
       combinedWarpCorePath,
-    } = await setupIncompleteWarpRouteExtension(chain3Addresses);
+    } = await setupIncompleteWarpRouteExtension(
+      chain3Addresses,
+      evmWarpCommands,
+    );
 
     // Verify initial state - neither chain should be enrolled in the other
-    const initialConfig2 = await readWarpConfig(
-      CHAIN_NAME_2,
+    const initialConfig2 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       combinedWarpCorePath,
-      warpConfigPath,
     );
-    const initialConfig3 = await readWarpConfig(
-      CHAIN_NAME_3,
+    const initialConfig3 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
       combinedWarpCorePath,
-      warpConfigPath,
     );
     // Check remote routers initial state
     expect(
-      Object.keys(initialConfig2[CHAIN_NAME_2].remoteRouters!),
+      Object.keys(
+        initialConfig2[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .remoteRouters!,
+      ),
     ).to.not.include(chain3DomainId);
     expect(
-      Object.keys(initialConfig3[CHAIN_NAME_3].remoteRouters!),
+      Object.keys(
+        initialConfig3[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .remoteRouters!,
+      ),
     ).to.not.include(chain2DomainId);
 
     // Check destination gas initial state
     expect(
-      Object.keys(initialConfig2[CHAIN_NAME_2].destinationGas || {}),
+      Object.keys(
+        initialConfig2[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .destinationGas || {},
+      ),
     ).to.not.include(chain3DomainId);
     expect(
-      Object.keys(initialConfig3[CHAIN_NAME_3].destinationGas || {}),
+      Object.keys(
+        initialConfig3[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .destinationGas || {},
+      ),
     ).to.not.include(chain2DomainId);
 
     // Complete the extension
-    await extendWarpConfig({
-      chain: CHAIN_NAME_2,
-      chainToExtend: CHAIN_NAME_3,
-      extendedConfig: configToExtend,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath: combinedWarpCorePath,
+    warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3] =
+      configToExtend;
+    writeYamlOrJson(warpConfigPath, warpDeployConfig);
+
+    await evmWarpCommands.applyRaw({
+      warpDeployPath: warpConfigPath,
+      warpCorePath: combinedWarpCorePath,
+      privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      skipConfirmationPrompts: true,
     });
 
     // Verify both chains are now properly configured
-    const finalConfig2 = await readWarpConfig(
-      CHAIN_NAME_2,
+    const finalConfig2 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       combinedWarpCorePath,
-      warpConfigPath,
     );
-    const finalConfig3 = await readWarpConfig(
-      CHAIN_NAME_3,
+    const finalConfig3 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
       combinedWarpCorePath,
-      warpConfigPath,
     );
 
     // Check remote routers final state
-    expect(Object.keys(finalConfig2[CHAIN_NAME_2].remoteRouters!)).to.include(
-      chain3DomainId,
-    );
-    expect(Object.keys(finalConfig3[CHAIN_NAME_3].remoteRouters!)).to.include(
-      chain2DomainId,
-    );
+    expect(
+      Object.keys(
+        finalConfig2[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .remoteRouters!,
+      ),
+    ).to.include(chain3DomainId);
+    expect(
+      Object.keys(
+        finalConfig3[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .remoteRouters!,
+      ),
+    ).to.include(chain2DomainId);
 
     // Check destination gas final state
-    expect(Object.keys(finalConfig2[CHAIN_NAME_2].destinationGas!)).to.include(
-      chain3DomainId,
-    );
-    expect(Object.keys(finalConfig3[CHAIN_NAME_3].destinationGas!)).to.include(
-      chain2DomainId,
-    );
+    expect(
+      Object.keys(
+        finalConfig2[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .destinationGas!,
+      ),
+    ).to.include(chain3DomainId);
+    expect(
+      Object.keys(
+        finalConfig3[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .destinationGas!,
+      ),
+    ).to.include(chain2DomainId);
   });
 
   it('should set correct gas values when completing warp route extension', async () => {
@@ -297,62 +390,75 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       warpConfigPath,
       configToExtend,
       combinedWarpCorePath,
-    } = await setupIncompleteWarpRouteExtension(chain3Addresses);
+    } = await setupIncompleteWarpRouteExtension(
+      chain3Addresses,
+      evmWarpCommands,
+    );
 
     // Verify initial state - gas values should not be set
-    const initialConfig2 = await readWarpConfig(
-      CHAIN_NAME_2,
+    const initialConfig2 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       combinedWarpCorePath,
-      warpConfigPath,
     );
-    const initialConfig3 = await readWarpConfig(
-      CHAIN_NAME_3,
+    const initialConfig3 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
       combinedWarpCorePath,
-      warpConfigPath,
     );
 
     // Check initial gas values
-    expect(initialConfig2[CHAIN_NAME_2].destinationGas?.[chain3DomainId]).to.be
-      .undefined;
-    expect(initialConfig3[CHAIN_NAME_3].destinationGas?.[chain2DomainId]).to.be
-      .undefined;
+    expect(
+      initialConfig2[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+        .destinationGas?.[chain3DomainId],
+    ).to.be.undefined;
+    expect(
+      initialConfig3[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+        .destinationGas?.[chain2DomainId],
+    ).to.be.undefined;
 
     // Set specific gas values for the extension
     const customGasValue = '300000';
     configToExtend.gas = parseInt(customGasValue);
 
     // Complete the extension with custom gas value
-    await extendWarpConfig({
-      chain: CHAIN_NAME_2,
-      chainToExtend: CHAIN_NAME_3,
-      extendedConfig: configToExtend,
-      warpCorePath: combinedWarpCorePath,
+    warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3] =
+      configToExtend;
+    writeYamlOrJson(warpConfigPath, warpDeployConfig);
+
+    await evmWarpCommands.applyRaw({
       warpDeployPath: warpConfigPath,
+      warpCorePath: combinedWarpCorePath,
+      privateKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      skipConfirmationPrompts: true,
     });
 
     // Verify gas values are correctly set after extension
-    const finalConfig2 = await readWarpConfig(
-      CHAIN_NAME_2,
+    const finalConfig2 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       combinedWarpCorePath,
-      warpConfigPath,
     );
-    const finalConfig3 = await readWarpConfig(
-      CHAIN_NAME_3,
+    const finalConfig3 = await evmWarpCommands.readConfig(
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
       combinedWarpCorePath,
-      warpConfigPath,
     );
 
     // Check gas value is set correctly
-    expect(finalConfig2[CHAIN_NAME_2].destinationGas![chain3DomainId]).to.equal(
-      customGasValue,
-    );
+    expect(
+      finalConfig2[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+        .destinationGas![chain3DomainId],
+    ).to.equal(customGasValue);
 
     // Verify remote routers are also properly set
-    expect(Object.keys(finalConfig2[CHAIN_NAME_2].remoteRouters!)).to.include(
-      chain3DomainId,
-    );
-    expect(Object.keys(finalConfig3[CHAIN_NAME_3].remoteRouters!)).to.include(
-      chain2DomainId,
-    );
+    expect(
+      Object.keys(
+        finalConfig2[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+          .remoteRouters!,
+      ),
+    ).to.include(chain3DomainId);
+    expect(
+      Object.keys(
+        finalConfig3[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]
+          .remoteRouters!,
+      ),
+    ).to.include(chain2DomainId);
   });
 });
