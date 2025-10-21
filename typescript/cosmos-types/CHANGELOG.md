@@ -1,5 +1,7 @@
 # @hyperlane-xyz/cosmos-types
 
+## 19.2.0
+
 ## 19.1.1
 
 ## 19.1.0
