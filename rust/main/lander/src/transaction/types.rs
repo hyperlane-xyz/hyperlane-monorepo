@@ -81,10 +81,10 @@ impl TransactionStatus {
             return TransactionStatus::Finalized;
         } else if *included_count > 0 {
             return TransactionStatus::Included;
-        } else if *pending_count > 0 {
-            return TransactionStatus::PendingInclusion;
         } else if *mempool_count > 0 {
             return TransactionStatus::Mempool;
+        } else if *pending_count > 0 {
+            return TransactionStatus::PendingInclusion;
         } else if !status_counts.is_empty() {
             // if the hashmap is not empty, it must mean that the hashes were dropped,
             // because the hashmap is populated only if the status query was successful
@@ -191,7 +191,6 @@ mod tests {
 
         let statuses = vec![
             Ok(TransactionStatus::Dropped(DropReason::DroppedByChain)),
-            Ok(TransactionStatus::Mempool),
             Ok(TransactionStatus::PendingInclusion),
             Err(LanderError::NetworkError("Network error".to_string())),
         ];
@@ -208,6 +207,7 @@ mod tests {
         let statuses = vec![
             Err(LanderError::NetworkError("Network error".to_string())),
             Ok(TransactionStatus::Mempool),
+            Ok(TransactionStatus::PendingInclusion),
             Ok(TransactionStatus::Dropped(DropReason::DroppedByChain)),
         ];
 
