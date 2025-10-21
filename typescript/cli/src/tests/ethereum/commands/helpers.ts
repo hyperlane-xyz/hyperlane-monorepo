@@ -6,6 +6,8 @@ import {
   ERC20Test,
   ERC20Test__factory,
   ERC4626Test__factory,
+  TestCcipReadIsm,
+  TestCcipReadIsm__factory,
   XERC20LockboxTest,
   XERC20LockboxTest__factory,
   XERC20VSTest,
@@ -264,6 +266,26 @@ export async function deployXERC20LockboxToken(
   await lockboxToken.deployed();
 
   return lockboxToken;
+}
+
+export async function deployTestOffchainLookupISM(
+  privateKey: string,
+  chain: string,
+  urls: string[] = [],
+): Promise<TestCcipReadIsm> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
+  const testIsm = await new TestCcipReadIsm__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(urls);
+  await testIsm.deployed();
+
+  return testIsm;
 }
 
 // Verifies if the IS_CI var is set and generates the correct prefix for running the command

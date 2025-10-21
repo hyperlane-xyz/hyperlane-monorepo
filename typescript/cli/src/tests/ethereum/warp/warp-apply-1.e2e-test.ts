@@ -13,6 +13,7 @@ import {
 import { TokenType } from '../../../../../utils/dist/altvm.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
+import { deployTestOffchainLookupISM } from '../commands/helpers.js';
 import {
   hyperlaneWarpApply,
   hyperlaneWarpApplyRaw,
@@ -218,16 +219,16 @@ describe('hyperlane warp apply owner update tests', async function () {
       initialIsmConfig?: IsmConfig;
       targetIsmConfig: IsmConfig;
     }[] = [
-      // {
-      //   description:
-      //     'should allow updating the ism configuration to a new config ism',
-      //   // Use the default ism
-      //   targetIsmConfig: {
-      //     type: IsmType.PAUSABLE,
-      //     owner: ANVIL_DEPLOYER_ADDRESS,
-      //     paused: false,
-      //   },
-      // },
+      {
+        description:
+          'should allow updating the ism configuration to a new config ism',
+        // Use the default ism
+        targetIsmConfig: {
+          type: IsmType.PAUSABLE,
+          owner: ANVIL_DEPLOYER_ADDRESS,
+          paused: false,
+        },
+      },
       {
         description:
           'should allow updating the ism configuration to the default ism (0 address)',
@@ -251,6 +252,22 @@ describe('hyperlane warp apply owner update tests', async function () {
           paused: true,
         },
       },
+      {
+        description: 'should update the offchain lookup ism',
+        targetIsmConfig: {
+          type: IsmType.OFFCHAIN_LOOKUP,
+          owner: ANVIL_DEPLOYER_ADDRESS,
+          urls: [
+            'https://new-server.hyperlane.xyz/api',
+            'https://backup-server.hyperlane.xyz/api',
+          ],
+        },
+        initialIsmConfig: {
+          type: IsmType.OFFCHAIN_LOOKUP,
+          owner: ANVIL_DEPLOYER_ADDRESS,
+          urls: ['https://server.hyperlane.xyz/api'],
+        },
+      },
     ];
 
     for (const {
@@ -258,14 +275,29 @@ describe('hyperlane warp apply owner update tests', async function () {
       targetIsmConfig,
       initialIsmConfig,
     } of testCases) {
-      it.only(description, async () => {
+      it(description, async () => {
         const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+        // CLI does not support deploying offchain lookup isms so we do it here
+        let ismDeployConfig = initialIsmConfig;
+        if (
+          typeof initialIsmConfig !== 'string' &&
+          initialIsmConfig?.type === IsmType.OFFCHAIN_LOOKUP
+        ) {
+          const testOffchainLookupIsm = await deployTestOffchainLookupISM(
+            ANVIL_KEY,
+            CHAIN_NAME_2,
+            initialIsmConfig.urls,
+          );
+
+          ismDeployConfig = testOffchainLookupIsm.address;
+        }
 
         const warpDeployConfig: WarpRouteDeployConfig = {
           [CHAIN_NAME_2]: {
             type: TokenType.native,
             owner: ANVIL_DEPLOYER_ADDRESS,
-            interchainSecurityModule: initialIsmConfig,
+            interchainSecurityModule: ismDeployConfig,
           },
         };
 

@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  AbstractCcipReadIsm__factory,
   DomainRoutingIsm__factory,
   PausableIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -12,6 +13,7 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  difference,
   intersection,
   isZeroishAddress,
   rootLogger,
@@ -41,6 +43,7 @@ import {
   IsmConfigSchema,
   IsmType,
   MUTABLE_ISM_TYPE,
+  OffchainLookupIsmConfig,
   PausableIsmConfig,
 } from './types.js';
 import { calculateDomainRoutingDelta } from './utils.js';
@@ -185,7 +188,11 @@ export class EvmIsmModule extends HyperlaneModule<
     });
     logger.debug(`Updating ${target.type} on ${this.chain}`);
 
-    if (current.type === IsmType.ROUTING && target.type === IsmType.ROUTING) {
+    if (
+      (current.type === IsmType.ROUTING && target.type === IsmType.ROUTING) ||
+      (current.type === IsmType.FALLBACK_ROUTING &&
+        target.type === IsmType.FALLBACK_ROUTING)
+    ) {
       const txs = await this.updateRoutingIsm({
         current,
         target,
@@ -199,6 +206,16 @@ export class EvmIsmModule extends HyperlaneModule<
     ) {
       updateTxs.push(
         ...this.updatePausableIsm({
+          current,
+          target,
+        }),
+      );
+    } else if (
+      current.type === IsmType.OFFCHAIN_LOOKUP &&
+      target.type === IsmType.OFFCHAIN_LOOKUP
+    ) {
+      updateTxs.push(
+        ...this.updateOffchainLookupIsm({
           current,
           target,
         }),
@@ -345,6 +362,35 @@ export class EvmIsmModule extends HyperlaneModule<
         chainId: this.multiProvider.getEvmChainId(this.chain),
         to: this.args.addresses.deployedIsm,
         data,
+      },
+    ];
+  }
+
+  protected updateOffchainLookupIsm({
+    current,
+    target,
+  }: {
+    current: OffchainLookupIsmConfig;
+    target: OffchainLookupIsmConfig;
+  }): AnnotatedEV5Transaction[] {
+    const currentUrls = new Set(current.urls);
+    const targetUrls = new Set(target.urls);
+
+    const newUrls: string[] = Array.from(difference(targetUrls, currentUrls));
+    if (newUrls.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        annotation: `Adding new urls to ${target.type} ISM on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
+        chainId: this.multiProvider.getEvmChainId(this.chain),
+        to: this.args.addresses.deployedIsm,
+        // The contract code just replaces the existing array with the new one
+        data: AbstractCcipReadIsm__factory.createInterface().encodeFunctionData(
+          'setUrls(string[])',
+          [target.urls],
+        ),
       },
     ];
   }
