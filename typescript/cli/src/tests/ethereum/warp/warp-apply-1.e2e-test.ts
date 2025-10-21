@@ -1,16 +1,21 @@
 import { expect } from 'chai';
+import { ethers } from 'ethers';
 
 import {
   HookType,
+  IsmConfig,
+  IsmType,
   WarpRouteDeployConfig,
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 
+import { TokenType } from '../../../../../utils/dist/altvm.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   hyperlaneWarpApply,
+  hyperlaneWarpApplyRaw,
   hyperlaneWarpDeploy,
   readWarpConfig,
   updateOwner,
@@ -205,5 +210,101 @@ describe('hyperlane warp apply owner update tests', async function () {
     expect(normalizeConfig(updatedConfig[CHAIN_NAME_2].hook)).to.deep.equal(
       normalizeConfig(warpDeployConfig[CHAIN_NAME_2].hook),
     );
+  });
+
+  describe('ism updates', () => {
+    it('should allow updating the ism configuration to a new config ism', async () => {
+      const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+      // First read the existing config
+      const warpDeployConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.native,
+          owner: ANVIL_DEPLOYER_ADDRESS,
+        },
+      };
+
+      // Write the updated config
+      await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+      await hyperlaneWarpDeploy(warpDeployPath, WARP_DEPLOY_2_ID);
+
+      const ismConfig: IsmConfig = {
+        type: IsmType.PAUSABLE,
+        owner: ANVIL_DEPLOYER_ADDRESS,
+        paused: false,
+      };
+
+      warpDeployConfig[CHAIN_NAME_2].interchainSecurityModule = ismConfig;
+      await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+
+      // Apply the changes
+      await hyperlaneWarpApplyRaw({
+        warpDeployPath: warpDeployPath,
+        warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      });
+
+      // Read back the config to verify changes
+      const updatedConfig = await readWarpConfig(
+        CHAIN_NAME_2,
+        WARP_CORE_CONFIG_PATH_2,
+        warpDeployPath,
+      );
+
+      // Verify the hook was updated with all properties
+      expect(
+        normalizeConfig(updatedConfig[CHAIN_NAME_2].interchainSecurityModule),
+      ).to.deep.equal(
+        normalizeConfig(
+          warpDeployConfig[CHAIN_NAME_2].interchainSecurityModule,
+        ),
+      );
+    });
+
+    it('should allow updating the ism configuration to the default ism (0 address)', async () => {
+      const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+      // First read the existing config
+      const warpDeployConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.native,
+          owner: ANVIL_DEPLOYER_ADDRESS,
+          interchainSecurityModule: {
+            type: IsmType.PAUSABLE,
+            owner: ANVIL_DEPLOYER_ADDRESS,
+            paused: false,
+          },
+        },
+      };
+
+      // Write the updated config
+      await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+      await hyperlaneWarpDeploy(warpDeployPath, WARP_DEPLOY_2_ID);
+
+      warpDeployConfig[CHAIN_NAME_2].interchainSecurityModule =
+        ethers.constants.AddressZero;
+      await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+
+      // Apply the changes
+      await hyperlaneWarpApplyRaw({
+        warpDeployPath: warpDeployPath,
+        warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      });
+
+      // Read back the config to verify changes
+      const updatedConfig = await readWarpConfig(
+        CHAIN_NAME_2,
+        WARP_CORE_CONFIG_PATH_2,
+        warpDeployPath,
+      );
+
+      // Verify the hook was updated with all properties
+      expect(
+        normalizeConfig(updatedConfig[CHAIN_NAME_2].interchainSecurityModule),
+      ).to.deep.equal(
+        normalizeConfig(
+          warpDeployConfig[CHAIN_NAME_2].interchainSecurityModule,
+        ),
+      );
+    });
   });
 });
