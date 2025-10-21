@@ -380,7 +380,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
     return [
       {
-        annotation: `Adding new urls to ${target.type} ISM on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
+        annotation: `Setting urls to ${target.type} ISM on chain "${this.chain}" and address "${this.args.addresses.deployedIsm}"`,
         chainId: this.multiProvider.getEvmChainId(this.chain),
         to: this.args.addresses.deployedIsm,
         // The contract code just replaces the existing array with the new one
