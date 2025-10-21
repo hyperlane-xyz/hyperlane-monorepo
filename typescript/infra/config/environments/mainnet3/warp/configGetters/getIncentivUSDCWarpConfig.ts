@@ -19,7 +19,7 @@ type DeploymentChains<T> = {
 };
 
 const SAFE_OWNER_ADDRESS = '0x64F6C20eAeaF8418F73E1D399d8b86B9eA26e6F2';
-const INCENTIV_OWNER_ADDRESS = '0x3Fb137161365f273Ebb8262a26569C117b6CBAfb';
+const INCENTIV_OWNER_ADDRESS = '0x4c1B3430ec07F2D58b07a18c53B6f92603C2eF3F';
 
 // SAFE wallets from the team
 const ownersByChain: DeploymentChains<Address> = {
