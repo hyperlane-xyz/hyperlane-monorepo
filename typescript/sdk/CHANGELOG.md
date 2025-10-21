@@ -1,5 +1,19 @@
 # @hyperlane-xyz/sdk
 
+## 19.2.0
+
+### Minor Changes
+
+- f68419605: Update Warp Reader to set `token` to underlying `vault` instead of `wrappedToken` for yield routes. Update Checker to return the vault's `asset` as the collateral token.
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@19.2.0
+- @hyperlane-xyz/cosmos-sdk@19.2.0
+- @hyperlane-xyz/radix-sdk@19.2.0
+- @hyperlane-xyz/utils@19.2.0
+- @hyperlane-xyz/core@9.0.14
+
 ## 19.1.1
 
 ### Patch Changes

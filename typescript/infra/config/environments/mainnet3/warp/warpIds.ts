@@ -119,6 +119,8 @@ export enum WarpRouteIds {
 
   IncentivUSDC = 'USDC/incentiv',
 
+  LitchainLITKEY = 'LITKEY/litchain',
+
   MainnetCCTP = 'USDC/mainnet-cctp',
   TestnetCCTP = 'USDC/testnet-cctp',
 
