@@ -207,13 +207,15 @@ mod test {
         let dummy_canonical_merkle_root =
             H256::from_str("0xb437b888332ef12f7260c7f679aad3c96b91ab81c2dc7242f8b290f0b6bba92b")
                 .unwrap();
-        let dummy_checkpoint_index = 56;
+        let dummy_local_checkpoint_index = 56;
+        let dummy_canonical_checkpoint_index = 56;
         let unix_timestamp = 1620000000;
         let reorg_period = ReorgPeriod::from_blocks(5);
         let dummy_reorg_event = ReorgEvent {
             local_merkle_root: dummy_local_merkle_root,
+            local_checkpoint_index: dummy_local_checkpoint_index,
             canonical_merkle_root: dummy_canonical_merkle_root,
-            checkpoint_index: dummy_checkpoint_index,
+            canonical_checkpoint_index: dummy_canonical_checkpoint_index,
             unix_timestamp,
             reorg_period,
         };
