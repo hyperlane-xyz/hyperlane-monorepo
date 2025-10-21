@@ -257,7 +257,7 @@ export async function collateralizeWarpTokens(
             chainName
           ].collateral.transfer(
             config[chainName].addressOrDenom,
-            parseUnits('1', decimals),
+            parseUnits('2', decimals),
           );
 
           await tx.wait();

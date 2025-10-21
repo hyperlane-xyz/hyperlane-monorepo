@@ -11,7 +11,7 @@ use eyre::Result;
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
 use tokio::sync::{mpsc::Receiver as MpscReceiver, Mutex};
 use tokio::time::sleep;
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{debug, info, instrument, trace, warn, Instrument};
 
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
@@ -97,7 +97,7 @@ where
     }
 
     /// Sync logs and write them to the LogStore
-    #[instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, opts))]
+    #[instrument(name = "ContractSync", fields(domain=self.domain().name(), label), skip(self, opts))]
     pub async fn sync(&self, label: &'static str, opts: SyncOptions<T>) {
         let chain_name = self.domain.as_ref();
         let indexed_height_metric = self
@@ -155,19 +155,26 @@ where
 
                 let stored_logs_metric = stored_logs_metric.clone();
 
-                tokio::task::spawn(async {
-                    Self::cursor_indexer_task(
-                        domain_clone,
-                        indexer_clone,
-                        store_clone,
-                        cursor,
-                        broadcast_sender,
-                        stored_logs_metric,
-                        indexed_height_metric,
-                        liveness_metric,
-                    )
-                    .await;
-                })
+                tokio::task::spawn(
+                    async {
+                        Self::cursor_indexer_task(
+                            domain_clone,
+                            indexer_clone,
+                            store_clone,
+                            cursor,
+                            broadcast_sender,
+                            stored_logs_metric,
+                            indexed_height_metric,
+                            liveness_metric,
+                        )
+                        .await
+                    }
+                    .instrument(tracing::info_span!(
+                        "spawn_cursor_indexer_task",
+                        domain = self.domain().name(),
+                        label
+                    )),
+                )
             }
             None => tokio::task::spawn(async {}),
         };
