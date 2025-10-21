@@ -237,7 +237,7 @@ export function hyperlaneWarpSendRelay({
   destination,
   warpCorePath,
   relay = true,
-  value = 1,
+  value = 2,
   chains,
   roundTrip,
 }: {
@@ -651,18 +651,15 @@ export async function sendWarpRouteMessageRoundTrip(
   chain1: string,
   chain2: string,
   warpCoreConfigPath: string,
-  value: number = 1,
 ) {
   await hyperlaneWarpSendRelay({
     origin: chain1,
     destination: chain2,
     warpCorePath: warpCoreConfigPath,
-    value,
   });
   return hyperlaneWarpSendRelay({
     origin: chain2,
     destination: chain1,
     warpCorePath: warpCoreConfigPath,
-    value,
   });
 }

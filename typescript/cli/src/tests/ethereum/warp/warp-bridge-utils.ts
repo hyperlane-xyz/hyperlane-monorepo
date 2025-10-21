@@ -101,7 +101,6 @@ export async function runWarpBridgeTests(
       startChain,
       targetChain,
       routeConfigPath,
-      2,
     );
 
     console.log(
