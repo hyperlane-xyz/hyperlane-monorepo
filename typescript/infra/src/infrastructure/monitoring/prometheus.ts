@@ -96,8 +96,6 @@ async function getPrometheusConfig(
               action: 'keep',
               regex: `(${[
                 'container.*',
-                'optics.*',
-                'Optics.*',
                 'prometheus.*',
                 'ethereum.*',
                 'hyperlane.*',
