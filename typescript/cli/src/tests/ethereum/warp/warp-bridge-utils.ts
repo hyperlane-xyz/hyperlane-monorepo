@@ -101,6 +101,7 @@ export async function runWarpBridgeTests(
       startChain,
       targetChain,
       routeConfigPath,
+      2,
     );
 
     console.log(
@@ -257,7 +258,7 @@ export async function collateralizeWarpTokens(
             chainName
           ].collateral.transfer(
             config[chainName].addressOrDenom,
-            parseUnits('1', decimals),
+            parseUnits('2', decimals),
           );
 
           await tx.wait();
