@@ -195,7 +195,7 @@ export async function writeJsonWithAppendMode(
 /**
  * Gets the monorepo root directory
  */
-function getMonorepoRoot(): string {
+export function getMonorepoRoot(): string {
   return join(dirname(fileURLToPath(import.meta.url)), '../../../../');
 }
 
