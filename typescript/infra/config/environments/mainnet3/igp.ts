@@ -46,7 +46,24 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
 
 function getOracleConfigWithOverrides(origin: ChainName) {
   const oracleConfig = storageGasOracleConfig[origin];
-  /* apply overrides in here if needed */
+
+  // WORKAROUND for Sealevel IGP decimal bug (solaxy-specific):
+  // The Rust Sealevel IGP code hardcodes SOL_DECIMALS = 9, but solaxy has 6 decimals.
+  // Rather than trying to calculate the correct workaround values, we hardcode
+  // the values that are already set on-chain and known to work.
+  if (origin === 'solaxy') {
+    oracleConfig.ethereum = {
+      gasPrice: '9',
+      tokenExchangeRate: '15000000000000000000',
+      tokenDecimals: 6,
+    };
+    oracleConfig.solanamainnet = {
+      gasPrice: '1',
+      tokenExchangeRate: '15000000000000000000',
+      tokenDecimals: 6,
+    };
+  }
+
   return oracleConfig;
 }
 
