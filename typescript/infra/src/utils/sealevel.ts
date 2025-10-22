@@ -83,7 +83,7 @@ export async function buildAndSendTransaction(params: {
       const currentBlockHeight = await connection.getBlockHeight();
       if (currentBlockHeight > lastValidBlockHeight && !confirmed) {
         rootLogger.warn(
-          `Blockhash expired at block ${lastValidBlockHeight}, current block ${currentBlockHeight}. Refreshing and resubmitting...`,
+          `[${chain}] Blockhash expired at block ${lastValidBlockHeight}, current block ${currentBlockHeight}. Refreshing and resubmitting...`,
         );
         ({ blockhash, lastValidBlockHeight } =
           await connection.getLatestBlockhash('confirmed'));
@@ -94,7 +94,7 @@ export async function buildAndSendTransaction(params: {
           maxRetries: 3,
         });
         rootLogger.info(
-          `Resubmitted transaction with new signature: ${signature}`,
+          `[${chain}] Resubmitted transaction with new signature: ${signature}`,
         );
         continue;
       }
@@ -120,7 +120,9 @@ export async function buildAndSendTransaction(params: {
       }
     } catch (error) {
       // Continue polling on error, might be temporary
-      rootLogger.warn(`Polling attempt ${attempts} failed: ${error}`);
+      rootLogger.warn(
+        `[${chain}] Polling attempt ${attempts} failed: ${error}`,
+      );
     }
   }
 
@@ -173,7 +175,7 @@ export async function batchAndSendTransactions<T>(params: {
     dryRun = false,
   } = params;
   rootLogger.info(
-    `${dryRun ? 'Would send' : 'Sending'} ${items.length} ${operationName} in batches of ${maxBatchSize}`,
+    `[${chain}] ${dryRun ? 'Would send' : 'Sending'} ${items.length} ${operationName} in batches of ${maxBatchSize}`,
   );
 
   for (let i = 0; i < items.length; i += maxBatchSize) {
@@ -185,7 +187,7 @@ export async function batchAndSendTransactions<T>(params: {
 
     if (dryRun) {
       rootLogger.info(
-        `Batch ${batchNum}/${totalBatches}: Would send ${operationName} for ${batch.length} items [${formatBatch(batch)}]`,
+        `[${chain}] Batch ${batchNum}/${totalBatches}: Would send ${operationName} for ${batch.length} items: ${formatBatch(batch)}`,
       );
     } else {
       const tx = await buildAndSendTransaction({
@@ -196,7 +198,7 @@ export async function batchAndSendTransactions<T>(params: {
       });
 
       rootLogger.info(
-        `Batch ${batchNum}/${totalBatches}: ${operationName} ${batch.length} items [${formatBatch(batch)}] - tx: ${tx}`,
+        `[${chain}] Batch ${batchNum}/${totalBatches}: ${operationName} ${batch.length} items [${formatBatch(batch)}] - tx: ${tx}`,
       );
     }
   }
