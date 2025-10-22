@@ -155,7 +155,7 @@ export class EvmIsmModule extends HyperlaneModule<
       return [];
     }
 
-    // At this point, only the ownable/mutable ISM types should remain: PAUSABLE, ROUTING, FALLBACK_ROUTING
+    // At this point, only the ownable/mutable ISM types should remain: PAUSABLE, ROUTING, FALLBACK_ROUTING, OFFCHAIN_LOOKUP
     return this.updateMutableIsm({
       current: normalizedCurrentConfig,
       target: normalizedTargetConfig,
@@ -171,7 +171,10 @@ export class EvmIsmModule extends HyperlaneModule<
   }): Promise<AnnotatedEV5Transaction[]> {
     const updateTxs: AnnotatedEV5Transaction[] = [];
 
-    assert(MUTABLE_ISM_TYPE.includes(current.type), '');
+    assert(
+      MUTABLE_ISM_TYPE.includes(current.type),
+      `Expected mutable ISM type but got ${current.type}`,
+    );
     assert(
       current.type === target.type,
       `Updating Mutable ISMs requires both the expected and actual config to be of the same type`,
