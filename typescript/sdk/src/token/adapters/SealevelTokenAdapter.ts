@@ -244,16 +244,30 @@ export class SealevelTokenAdapter
     fromAccountOwner,
     fromTokenAccount,
   }: TransferParams): Promise<Transaction> {
-    if (!fromTokenAccount)
-      throw new Error('fromTokenAccount required for Sealevel');
     if (!fromAccountOwner)
       throw new Error('fromAccountOwner required for Sealevel');
+
+    const originTokenAccount = fromTokenAccount
+      ? new PublicKey(fromAccountOwner)
+      : await this.deriveAssociatedTokenAccount(
+          new PublicKey(fromAccountOwner),
+        );
+    const destinationTokenAccount = await this.deriveAssociatedTokenAccount(
+      new PublicKey(recipient),
+    );
+    const tokenProgramAccount = (await this.isSpl2022())
+      ? TOKEN_2022_PROGRAM_ID
+      : TOKEN_PROGRAM_ID;
+
+    // TODO: add instruction to create token account if it does not exist
     return new Transaction().add(
       createTransferInstruction(
-        new PublicKey(fromTokenAccount),
-        new PublicKey(recipient),
+        originTokenAccount,
+        destinationTokenAccount,
         new PublicKey(fromAccountOwner),
         BigInt(weiAmountOrId),
+        [],
+        tokenProgramAccount,
       ),
     );
   }
