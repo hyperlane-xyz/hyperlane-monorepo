@@ -1,3 +1,5 @@
+import { Wallet } from 'ethers';
+
 import {
   ChainAddresses,
   createWarpRouteConfigId,
@@ -70,6 +72,20 @@ type ProtocolChainMap<
   };
 };
 
+export const DEPLOYER_ADDRESS_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).address,
+} as const satisfies ProtocolMap<string>;
+
+export const E2E_BURN_ADDRESS_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: '0x0000000000000000000000000000000000000001',
+  // Result of:
+  // bytesToAddressCosmosNative(
+  //   addressToBytes(ZERO_ADDRESS_HEX_32),
+  //   TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1.bech32Prefix,
+  // ),
+  [ProtocolType.CosmosNative]: 'hyp1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk98wwq',
+} as const satisfies ProtocolMap<string>;
+
 type CoreDeploymentPath<TChainName extends string> =
   `${typeof TEMP_PATH}/${TChainName}/core-config-read.yaml`;
 
@@ -122,6 +138,7 @@ export const TEST_CHAIN_METADATA_PATH_BY_PROTOCOL: ProtocolChainMap<
 
 export type TestChainMetadata = ChainMetadata & {
   rpcPort: number;
+  rpcUrl: string;
   restPort: number;
 };
 
@@ -143,6 +160,7 @@ export const TEST_CHAIN_METADATA_BY_PROTOCOL: ProtocolChainMap<
 
     return {
       ...currentChainMetadata,
+      rpcUrl,
       rpcPort,
       restPort,
     };
@@ -177,3 +195,17 @@ export function getWarpId(tokenSymbol: string, chains: string[]): string {
 }
 
 export const TEST_TOKEN_SYMBOL = 'TST';
+
+export const DEFAULT_EVM_WARP_ID = getWarpId('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
+export const DEFAULT_EVM_WARP_CORE_PATH = getWarpCoreConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
+export const DEFAULT_EVM_WARP_READ_OUTPUT_PATH = getWarpCoreConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+  'read',
+]);
+export const DEFAULT_EVM_WARP_DEPLOY_PATH = getWarpDeployConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
