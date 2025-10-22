@@ -237,7 +237,7 @@ export function hyperlaneWarpSendRelay({
   destination,
   warpCorePath,
   relay = true,
-  value = 1,
+  value = 2,
   chains,
   roundTrip,
 }: {
