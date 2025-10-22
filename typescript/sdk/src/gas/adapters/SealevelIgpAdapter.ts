@@ -157,9 +157,16 @@ export abstract class SealevelIgpProgramAdapter extends BaseSealevelAdapter {
     programId: string | PublicKey,
     salt: Uint8Array,
   ): PublicKey {
+    return this.deriveIgpAccountPdaWithBump(programId, salt)[0];
+  }
+
+  static deriveIgpAccountPdaWithBump(
+    programId: string | PublicKey,
+    salt: Uint8Array,
+  ): [PublicKey, number] {
     const programIdKey =
       typeof programId === 'string' ? new PublicKey(programId) : programId;
-    return super.derivePda(
+    return super.derivePdaWithBump(
       ['hyperlane_igp', '-', 'igp', '-', Buffer.from(salt)],
       programIdKey,
     );
@@ -170,9 +177,16 @@ export abstract class SealevelIgpProgramAdapter extends BaseSealevelAdapter {
     programId: string | PublicKey,
     salt: Uint8Array,
   ): PublicKey {
+    return this.deriveOverheadIgpAccountPdaWithBump(programId, salt)[0];
+  }
+
+  static deriveOverheadIgpAccountPdaWithBump(
+    programId: string | PublicKey,
+    salt: Uint8Array,
+  ): [PublicKey, number] {
     const programIdKey =
       typeof programId === 'string' ? new PublicKey(programId) : programId;
-    return super.derivePda(
+    return super.derivePdaWithBump(
       ['hyperlane_igp', '-', 'overhead_igp', '-', Buffer.from(salt)],
       programIdKey,
     );
