@@ -11,12 +11,12 @@ import {
   Domain,
   EvmChainId,
   ProtocolType,
+  arrayEqual,
   assert,
   deepEquals,
   intersection,
   isZeroishAddress,
   rootLogger,
-  setEquality,
 } from '@hyperlane-xyz/utils';
 
 import { CCIPContractCache } from '../ccip/utils.js';
@@ -371,7 +371,7 @@ export class EvmIsmModule extends HyperlaneModule<
     current: OffchainLookupIsmConfig;
     target: OffchainLookupIsmConfig;
   }): AnnotatedEV5Transaction[] {
-    if (setEquality(new Set(target.urls), new Set(current.urls))) {
+    if (arrayEqual(target.urls, current.urls)) {
       return [];
     }
 

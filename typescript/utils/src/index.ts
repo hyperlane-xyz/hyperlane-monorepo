@@ -68,7 +68,7 @@ export {
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude, randomElement } from './arrays.js';
+export { chunk, exclude, randomElement, arrayEqual } from './arrays.js';
 export {
   concurrentMap,
   fetchWithTimeout,

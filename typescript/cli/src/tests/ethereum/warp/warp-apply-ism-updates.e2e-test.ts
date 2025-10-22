@@ -88,6 +88,26 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
         urls: ['https://server.hyperlane.xyz/api'],
       },
     },
+    {
+      description:
+        'should update the offchain lookup ism if the urls are not in the same order',
+      targetIsmConfig: {
+        type: IsmType.OFFCHAIN_LOOKUP,
+        owner: ANVIL_DEPLOYER_ADDRESS,
+        urls: [
+          'https://new-server.hyperlane.xyz/api',
+          'https://backup-server.hyperlane.xyz/api',
+        ],
+      },
+      initialIsmConfig: {
+        type: IsmType.OFFCHAIN_LOOKUP,
+        owner: ANVIL_DEPLOYER_ADDRESS,
+        urls: [
+          'https://backup-server.hyperlane.xyz/api',
+          'https://new-server.hyperlane.xyz/api',
+        ],
+      },
+    },
   ];
 
   for (const { description, targetIsmConfig, initialIsmConfig } of testCases) {

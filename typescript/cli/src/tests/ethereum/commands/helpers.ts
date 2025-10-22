@@ -3,10 +3,11 @@ import path from 'path';
 import { $ } from 'zx';
 
 import {
+  AbstractCcipReadIsm,
+  AbstractCcipReadIsm__factory,
   ERC20Test,
   ERC20Test__factory,
   ERC4626Test__factory,
-  TestCcipReadIsm,
   TestCcipReadIsm__factory,
   XERC20LockboxTest,
   XERC20LockboxTest__factory,
@@ -272,7 +273,7 @@ export async function deployTestOffchainLookupISM(
   privateKey: string,
   chain: string,
   urls: string[] = [],
-): Promise<TestCcipReadIsm> {
+): Promise<AbstractCcipReadIsm> {
   const { multiProvider } = await getContext({
     registryUris: [REGISTRY_PATH],
     key: privateKey,
@@ -285,7 +286,10 @@ export async function deployTestOffchainLookupISM(
   ).deploy(urls);
   await testIsm.deployed();
 
-  return testIsm;
+  return AbstractCcipReadIsm__factory.connect(
+    testIsm.address,
+    multiProvider.getSigner(chain),
+  );
 }
 
 // Verifies if the IS_CI var is set and generates the correct prefix for running the command
