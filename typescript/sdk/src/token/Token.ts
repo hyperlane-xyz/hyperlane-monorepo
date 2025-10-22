@@ -78,6 +78,7 @@ import {
   StarknetHypFeeAdapter,
   StarknetHypNativeAdapter,
   StarknetHypSyntheticAdapter,
+  StarknetTokenAdapter,
 } from './adapters/StarknetTokenAdapter.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 
@@ -522,5 +523,49 @@ export class Token implements IToken {
     }
 
     return false;
+  }
+}
+
+interface GetCollateralTokenAdapterOptions {
+  multiProvider: MultiProtocolProvider;
+  chainName: ChainName;
+  tokenAddress: Address;
+}
+
+export function getCollateralTokenAdapter({
+  chainName,
+  multiProvider,
+  tokenAddress,
+}: GetCollateralTokenAdapterOptions): ITokenAdapter<unknown> {
+  const protocolType = multiProvider.getProtocol(chainName);
+
+  // ERC20s
+  if (protocolType === ProtocolType.Ethereum) {
+    return new EvmTokenAdapter(chainName, multiProvider, {
+      token: tokenAddress,
+    });
+  }
+  // SPL and SPL2022
+  else if (protocolType === ProtocolType.Sealevel) {
+    return new SealevelTokenAdapter(chainName, multiProvider, {
+      token: tokenAddress,
+    });
+  } else if (protocolType === ProtocolType.CosmosNative) {
+    return new CosmNativeTokenAdapter(
+      chainName,
+      multiProvider,
+      {},
+      { ibcDenom: tokenAddress },
+    );
+  } else if (protocolType === ProtocolType.Starknet) {
+    return new StarknetTokenAdapter(chainName, multiProvider, {
+      warpRouter: tokenAddress,
+    });
+  } else if (protocolType === ProtocolType.Radix) {
+    return new RadixNativeTokenAdapter(chainName, multiProvider, {
+      token: tokenAddress,
+    });
+  } else {
+    throw new Error();
   }
 }
