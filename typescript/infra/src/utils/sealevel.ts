@@ -257,27 +257,35 @@ export async function batchAndSendTransactions<T>(
   formatBatch: (batch: T[]) => string,
   operationName: string,
   maxBatchSize: number = DEFAULT_MAX_SEALEVEL_BATCH_SIZE,
+  dryRun: boolean = false,
 ): Promise<void> {
   rootLogger.info(
-    `Sending ${items.length} ${operationName} in batches of ${maxBatchSize}`,
+    `${dryRun ? 'Would send' : 'Sending'} ${items.length} ${operationName} in batches of ${maxBatchSize}`,
   );
 
   for (let i = 0; i < items.length; i += maxBatchSize) {
     const batch = items.slice(i, i + maxBatchSize);
     const instruction = createInstruction(batch);
 
-    const tx = await buildAndSendTransaction(
-      connection,
-      [instruction],
-      signerKeypair,
-      chain,
-    );
-
     const batchNum = Math.floor(i / maxBatchSize) + 1;
     const totalBatches = Math.ceil(items.length / maxBatchSize);
-    rootLogger.info(
-      `Batch ${batchNum}/${totalBatches}: ${operationName} ${batch.length} items [${formatBatch(batch)}] - tx: ${tx}`,
-    );
+
+    if (dryRun) {
+      rootLogger.info(
+        `Batch ${batchNum}/${totalBatches}: Would send ${operationName} for ${batch.length} items [${formatBatch(batch)}]`,
+      );
+    } else {
+      const tx = await buildAndSendTransaction(
+        connection,
+        [instruction],
+        signerKeypair,
+        chain,
+      );
+
+      rootLogger.info(
+        `Batch ${batchNum}/${totalBatches}: ${operationName} ${batch.length} items [${formatBatch(batch)}] - tx: ${tx}`,
+      );
+    }
   }
 }
 

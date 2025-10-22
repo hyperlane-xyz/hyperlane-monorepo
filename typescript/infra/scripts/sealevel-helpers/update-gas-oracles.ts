@@ -270,43 +270,39 @@ async function manageGasOracles(
   let oraclesRemoved = 0;
   if (domainsToRemove.length > 0) {
     if (await promptForRemoval(mpp, 'gas oracles', chain, domainsToRemove)) {
-      if (!dryRun) {
-        const removalConfigs = domainsToRemove.map(
-          (domain) => new SealevelGasOracleConfig(domain, null),
-        );
+      const removalConfigs = domainsToRemove.map(
+        (domain) => new SealevelGasOracleConfig(domain, null),
+      );
 
-        await batchAndSendTransactions(
-          connection,
-          removalConfigs,
-          (batch) =>
-            igpAdapter.createSetGasOracleConfigsInstruction(
-              igpAccountPda,
-              signerKeypair.publicKey,
-              batch,
-            ),
-          signerKeypair,
-          chain,
-          (batch) => {
-            const startIdx = removalConfigs.indexOf(batch[0]);
-            return domainsToRemove
-              .slice(startIdx, startIdx + batch.length)
-              .map((domain) => mpp.getChainName(domain))
-              .join(', ');
-          },
-          'gas oracle removals',
-        );
-      } else {
-        domainsToRemove.forEach((domain) => {
-          rootLogger.info(`Would remove gas oracle for domain ${domain}`);
-        });
-      }
+      await batchAndSendTransactions(
+        connection,
+        removalConfigs,
+        (batch) =>
+          igpAdapter.createSetGasOracleConfigsInstruction(
+            igpAccountPda,
+            signerKeypair.publicKey,
+            batch,
+          ),
+        signerKeypair,
+        chain,
+        (batch) => {
+          const startIdx = removalConfigs.indexOf(batch[0]);
+          return domainsToRemove
+            .slice(startIdx, startIdx + batch.length)
+            .map((domain) => mpp.getChainName(domain))
+            .join(', ');
+        },
+        'gas oracle removals',
+        undefined, // maxBatchSize - use default
+        dryRun,
+      );
       oraclesRemoved = domainsToRemove.length;
     }
   }
 
   // Step 4: Handle updates
   let oraclesUpdated = 0;
-  if (configsToUpdate.length > 0 && !dryRun) {
+  if (configsToUpdate.length > 0) {
     await batchAndSendTransactions(
       connection,
       configsToUpdate.map((item) => item.config),
@@ -328,6 +324,8 @@ async function manageGasOracles(
           .join(', ');
       },
       'gas oracle updates',
+      undefined, // maxBatchSize - use default
+      dryRun,
     );
     oraclesUpdated = configsToUpdate.length;
   }
@@ -422,43 +420,39 @@ async function manageGasOverheads(
   let overheadsRemoved = 0;
   if (domainsToRemove.length > 0) {
     if (await promptForRemoval(mpp, 'gas overheads', chain, domainsToRemove)) {
-      if (!dryRun) {
-        const removalConfigs = domainsToRemove.map(
-          (domain) => new SealevelGasOverheadConfig(domain, null),
-        );
+      const removalConfigs = domainsToRemove.map(
+        (domain) => new SealevelGasOverheadConfig(domain, null),
+      );
 
-        await batchAndSendTransactions(
-          connection,
-          removalConfigs,
-          (batch) =>
-            overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
-              overheadIgpAccountPda,
-              signerKeypair.publicKey,
-              batch,
-            ),
-          signerKeypair,
-          chain,
-          (batch) => {
-            const startIdx = removalConfigs.indexOf(batch[0]);
-            return domainsToRemove
-              .slice(startIdx, startIdx + batch.length)
-              .map((domain) => mpp.getChainName(domain))
-              .join(', ');
-          },
-          'gas overhead removals',
-        );
-      } else {
-        domainsToRemove.forEach((domain) => {
-          rootLogger.info(`Would remove gas overhead for domain ${domain}`);
-        });
-      }
+      await batchAndSendTransactions(
+        connection,
+        removalConfigs,
+        (batch) =>
+          overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
+            overheadIgpAccountPda,
+            signerKeypair.publicKey,
+            batch,
+          ),
+        signerKeypair,
+        chain,
+        (batch) => {
+          const startIdx = removalConfigs.indexOf(batch[0]);
+          return domainsToRemove
+            .slice(startIdx, startIdx + batch.length)
+            .map((domain) => mpp.getChainName(domain))
+            .join(', ');
+        },
+        'gas overhead removals',
+        undefined, // maxBatchSize - use default
+        dryRun,
+      );
       overheadsRemoved = domainsToRemove.length;
     }
   }
 
   // Step 4: Handle updates
   let overheadsUpdated = 0;
-  if (configsToUpdate.length > 0 && !dryRun) {
+  if (configsToUpdate.length > 0) {
     await batchAndSendTransactions(
       connection,
       configsToUpdate.map((item) => item.config),
@@ -480,6 +474,8 @@ async function manageGasOverheads(
           .join(', ');
       },
       'gas overhead updates',
+      undefined, // maxBatchSize - use default
+      dryRun,
     );
     overheadsUpdated = configsToUpdate.length;
   }
