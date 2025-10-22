@@ -51,14 +51,15 @@ export async function buildAndSendTransaction(
     tx.add(instruction);
   }
 
-  // Get recent blockhash
-  const { blockhash } = await connection.getLatestBlockhash('confirmed');
+  // Get recent blockhash with expiry tracking
+  let { blockhash, lastValidBlockHeight } =
+    await connection.getLatestBlockhash('confirmed');
   tx.recentBlockhash = blockhash;
   tx.feePayer = signer.publicKey;
 
   // Sign and send transaction
   tx.sign(signer);
-  const signature = await connection.sendRawTransaction(tx.serialize(), {
+  let signature = await connection.sendRawTransaction(tx.serialize(), {
     skipPreflight: false,
     maxRetries: 3,
   });
@@ -74,6 +75,26 @@ export async function buildAndSendTransaction(
     attempts++;
 
     try {
+      // Check if blockhash expired and refresh if needed
+      const currentBlockHeight = await connection.getBlockHeight();
+      if (currentBlockHeight > lastValidBlockHeight && !confirmed) {
+        rootLogger.warn(
+          `Blockhash expired at block ${lastValidBlockHeight}, current block ${currentBlockHeight}. Refreshing and resubmitting...`,
+        );
+        ({ blockhash, lastValidBlockHeight } =
+          await connection.getLatestBlockhash('confirmed'));
+        tx.recentBlockhash = blockhash;
+        tx.sign(signer);
+        signature = await connection.sendRawTransaction(tx.serialize(), {
+          skipPreflight: false,
+          maxRetries: 3,
+        });
+        rootLogger.info(
+          `Resubmitted transaction with new signature: ${signature}`,
+        );
+        continue;
+      }
+
       const status = await connection.getSignatureStatus(signature, {
         searchTransactionHistory: true,
       });
@@ -169,8 +190,8 @@ export function calculatePercentDifference(
  * Format RemoteGasData for display
  */
 export function formatRemoteGasData(data: any): string {
-  // Scale exchange rate by 1e10 to get human-readable value (TOKEN_EXCHANGE_RATE_SCALE is 1e19)
-  const exchangeRate = Number(data.token_exchange_rate) / 1e10;
+  // Scale exchange rate by 1e19 (TOKEN_EXCHANGE_RATE_SCALE for Sealevel)
+  const exchangeRate = Number(data.token_exchange_rate) / 1e19;
   // Convert gas price to lamports (assuming it's in smallest unit)
   const gasPriceLamports = Number(data.gas_price);
 
@@ -208,7 +229,7 @@ export function serializeGasOracleDifference(
     expectedProduct,
   );
 
-  const exchangeRate = Number(expected.token_exchange_rate) / 1e10;
+  const exchangeRate = Number(expected.token_exchange_rate) / 1e19;
   const gasPriceLamports = Number(expected.gas_price);
 
   return `Exchange rate: ${exchangeRate.toFixed(10)} (${exchangeRateDiff}), Gas price: ${gasPriceLamports.toLocaleString()} (${gasPriceDiff}), Product diff: ${productDiff}`;
