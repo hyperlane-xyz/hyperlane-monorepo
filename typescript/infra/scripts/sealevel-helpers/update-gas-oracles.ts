@@ -15,7 +15,6 @@ import {
   SealevelIgpAdapter,
   SealevelIgpData,
   SealevelIgpDataSchema,
-  SealevelIgpProgramAdapter,
   SealevelOverheadIgpAdapter,
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
@@ -32,7 +31,6 @@ import {
   loadAndValidateGasOracleConfig,
 } from '../../src/config/gas-oracle.js';
 import {
-  ZERO_SALT,
   batchAndSendTransactions,
   calculatePercentDifference,
   formatRemoteGasData,
@@ -45,14 +43,12 @@ import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 /**
- * Fetch and deserialize account states with bump validation
+ * Fetch and deserialize account states
  */
 async function fetchAccountStates(
   connection: Connection,
   igpAccountPda: PublicKey,
   overheadIgpAccountPda: PublicKey,
-  expectedIgpBump: number,
-  expectedOverheadIgpBump: number,
 ): Promise<{
   igpAccountData: SealevelIgpData;
   overheadIgpAccountData: SealevelOverheadIgpData;
@@ -83,36 +79,6 @@ async function fetchAccountStates(
     SealevelAccountDataWrapper,
     overheadIgpAccountInfo.data,
   ).data as SealevelOverheadIgpData;
-
-  // Validate bump seeds match what's stored on-chain
-  if (igpAccountData.bump_seed !== expectedIgpBump) {
-    rootLogger.warn(
-      chalk.yellow(
-        `IGP account bump mismatch! Expected: ${expectedIgpBump}, On-chain: ${igpAccountData.bump_seed}`,
-      ),
-    );
-    throw new Error(
-      `IGP account bump validation failed. This may indicate the account is not the canonical PDA.`,
-    );
-  }
-
-  if (overheadIgpAccountData.bump !== expectedOverheadIgpBump) {
-    rootLogger.warn(
-      chalk.yellow(
-        `Overhead IGP account bump mismatch! Expected: ${expectedOverheadIgpBump}, On-chain: ${overheadIgpAccountData.bump}`,
-      ),
-    );
-    throw new Error(
-      `Overhead IGP account bump validation failed. This may indicate the account is not the canonical PDA.`,
-    );
-  }
-
-  rootLogger.debug(
-    `IGP account bump validated: ${igpAccountData.bump_seed} (PDA: ${igpAccountPda.toBase58()})`,
-  );
-  rootLogger.debug(
-    `Overhead IGP account bump validated: ${overheadIgpAccountData.bump} (PDA: ${overheadIgpAccountPda.toBase58()})`,
-  );
 
   rootLogger.debug(
     `Current IGP account has ${igpAccountData.gas_oracles.size} gas oracles configured`,
@@ -506,27 +472,23 @@ async function processChain(
 
   const coreProgramIds = loadCoreProgramIds(environment, chain);
   const programId = new PublicKey(coreProgramIds.igp_program_id);
+  const igpAccountPda = new PublicKey(coreProgramIds.igp_account);
+  const overheadIgpAccountPda = new PublicKey(
+    coreProgramIds.overhead_igp_account,
+  );
+
   rootLogger.debug(`Using IGP program ID: ${programId.toBase58()}`);
+  rootLogger.debug(`IGP Account: ${igpAccountPda.toBase58()}`);
+  rootLogger.debug(`Overhead IGP Account: ${overheadIgpAccountPda.toBase58()}`);
 
   // Load keypair
   const keypairData = readJSONAtPath(keyPath);
   const signerKeypair = Keypair.fromSecretKey(new Uint8Array(keypairData));
   rootLogger.debug(`Using signer: ${signerKeypair.publicKey.toBase58()}`);
 
-  // Setup connection and derive PDAs with bumps
+  // Setup connection
   const rpcs = await getSecretRpcEndpoints(environment, chain);
   const connection = new Connection(rpcs[0], 'confirmed');
-
-  const [igpAccountPda, expectedIgpBump] =
-    SealevelIgpProgramAdapter.deriveIgpAccountPdaWithBump(programId, ZERO_SALT);
-  const [overheadIgpAccountPda, expectedOverheadIgpBump] =
-    SealevelIgpProgramAdapter.deriveOverheadIgpAccountPdaWithBump(
-      programId,
-      ZERO_SALT,
-    );
-
-  rootLogger.debug(`IGP Account: ${igpAccountPda.toBase58()}`);
-  rootLogger.debug(`Overhead IGP Account: ${overheadIgpAccountPda.toBase58()}`);
 
   // Create adapters and fetch account states
   const igpAdapter = new SealevelIgpAdapter(chain, mpp, {
@@ -543,8 +505,6 @@ async function processChain(
     connection,
     igpAccountPda,
     overheadIgpAccountPda,
-    expectedIgpBump,
-    expectedOverheadIgpBump,
   );
 
   // Get domain IDs for all configured chains
