@@ -132,6 +132,7 @@ export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.j
 export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
+  SealevelIgpProgramAdapter,
   SealevelOverheadIgpAdapter,
 } from './gas/adapters/SealevelIgpAdapter.js';
 export {

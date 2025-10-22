@@ -13,6 +13,7 @@ import {
   SealevelIgpAdapter,
   SealevelIgpData,
   SealevelIgpDataSchema,
+  SealevelIgpProgramAdapter,
   SealevelOverheadIgpAdapter,
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
@@ -29,8 +30,6 @@ import {
   ZERO_SALT,
   buildAndSendTransaction,
   calculatePercentDifference,
-  deriveIgpAccountPda,
-  deriveOverheadIgpAccountPda,
   formatRemoteGasData,
   loadCoreProgramIds,
   serializeGasOracleDifference,
@@ -420,11 +419,12 @@ async function processChain(
   const rpcs = await getSecretRpcEndpoints(environment, chain);
   const connection = new Connection(rpcs[0], 'confirmed');
 
-  const igpAccountPda = deriveIgpAccountPda(programId, ZERO_SALT);
-  const overheadIgpAccountPda = deriveOverheadIgpAccountPda(
+  const igpAccountPda = SealevelIgpProgramAdapter.deriveIgpAccountPda(
     programId,
     ZERO_SALT,
   );
+  const overheadIgpAccountPda =
+    SealevelIgpProgramAdapter.deriveOverheadIgpAccountPda(programId, ZERO_SALT);
 
   rootLogger.debug(`IGP Account: ${igpAccountPda.toBase58()}`);
   rootLogger.debug(`Overhead IGP Account: ${overheadIgpAccountPda.toBase58()}`);

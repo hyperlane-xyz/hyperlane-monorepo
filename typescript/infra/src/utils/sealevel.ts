@@ -8,7 +8,10 @@ import {
 } from '@solana/web3.js';
 import { resolve } from 'path';
 
-import { SEALEVEL_PRIORITY_FEES } from '@hyperlane-xyz/sdk';
+import {
+  SEALEVEL_PRIORITY_FEES,
+  SealevelIgpProgramAdapter,
+} from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../config/environment.js';
@@ -100,42 +103,6 @@ export async function buildAndSendTransaction(
   }
 
   return signature;
-}
-
-/**
- * Derive IGP account PDA
- */
-export function deriveIgpAccountPda(
-  programId: PublicKey,
-  salt: Uint8Array,
-): PublicKey {
-  const seeds = [
-    Buffer.from('hyperlane_igp', 'utf-8'),
-    Buffer.from('-', 'utf-8'),
-    Buffer.from('igp', 'utf-8'),
-    Buffer.from('-', 'utf-8'),
-    Buffer.from(salt),
-  ];
-  const [pda] = PublicKey.findProgramAddressSync(seeds, programId);
-  return pda;
-}
-
-/**
- * Derive Overhead IGP account PDA
- */
-export function deriveOverheadIgpAccountPda(
-  programId: PublicKey,
-  salt: Uint8Array,
-): PublicKey {
-  const seeds = [
-    Buffer.from('hyperlane_igp', 'utf-8'),
-    Buffer.from('-', 'utf-8'),
-    Buffer.from('overhead_igp', 'utf-8'),
-    Buffer.from('-', 'utf-8'),
-    Buffer.from(salt),
-  ];
-  const [pda] = PublicKey.findProgramAddressSync(seeds, programId);
-  return pda;
 }
 
 /**

@@ -151,6 +151,32 @@ export abstract class SealevelIgpProgramAdapter extends BaseSealevelAdapter {
       igpProgramId,
     );
   }
+
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/pda_seeds.rs
+  static deriveIgpAccountPda(
+    programId: string | PublicKey,
+    salt: Uint8Array,
+  ): PublicKey {
+    const programIdKey =
+      typeof programId === 'string' ? new PublicKey(programId) : programId;
+    return super.derivePda(
+      ['hyperlane_igp', '-', 'igp', '-', Buffer.from(salt)],
+      programIdKey,
+    );
+  }
+
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/pda_seeds.rs
+  static deriveOverheadIgpAccountPda(
+    programId: string | PublicKey,
+    salt: Uint8Array,
+  ): PublicKey {
+    const programIdKey =
+      typeof programId === 'string' ? new PublicKey(programId) : programId;
+    return super.derivePda(
+      ['hyperlane_igp', '-', 'overhead_igp', '-', Buffer.from(salt)],
+      programIdKey,
+    );
+  }
 }
 
 export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
