@@ -48,7 +48,7 @@ impl LoadableFromDb for TransactionDbLoader {
 
     async fn retrieve_by_index(&self, index: u32) -> Result<Option<Self::Item>, LanderError> {
         let transaction = self.db.retrieve_transaction_by_index(index).await?;
-        debug!(?transaction, "Retrieved transaction by index");
+        debug!(?transaction, ?index, "Retrieved transaction by index");
         Ok(transaction)
     }
 
