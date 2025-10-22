@@ -2,7 +2,6 @@ import {
   ComputeBudgetProgram,
   Connection,
   Keypair,
-  PublicKey,
   Transaction,
   TransactionInstruction,
 } from '@solana/web3.js';
@@ -10,7 +9,7 @@ import { resolve } from 'path';
 
 import {
   SEALEVEL_PRIORITY_FEES,
-  SealevelIgpProgramAdapter,
+  SealevelRemoteGasData,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -168,16 +167,11 @@ export function calculatePercentDifference(
   actual: bigint,
   expected: bigint,
 ): string {
-  // Ensure both are actually BigInt (borsh might deserialize as number in some cases)
-  const actualBigInt = typeof actual === 'bigint' ? actual : BigInt(actual);
-  const expectedBigInt =
-    typeof expected === 'bigint' ? expected : BigInt(expected);
-
-  if (actualBigInt === 0n) {
+  if (actual === 0n) {
     return 'new';
   }
   // Calculate (expected - actual) / actual * 100
-  const diff = ((expectedBigInt - actualBigInt) * 10000n) / actualBigInt; // multiply by 10000 for 2 decimal places
+  const diff = ((expected - actual) * 10000n) / actual; // multiply by 10000 for 2 decimal places
   const percentStr = (Number(diff) / 100).toFixed(2);
   return diff >= 0n ? `+${percentStr}%` : `${percentStr}%`;
 }
@@ -206,8 +200,8 @@ export function formatRemoteGasData(data: any): string {
  * local decimals instead of remote decimals (e.g., solaxy has 6 decimals locally, but ethereum has 18).
  */
 export function serializeGasOracleDifference(
-  actual: any,
-  expected: any,
+  actual: SealevelRemoteGasData,
+  expected: SealevelRemoteGasData,
   calculatePercentDifference: (actual: bigint, expected: bigint) => string,
 ): string {
   const exchangeRateDiff = calculatePercentDifference(
