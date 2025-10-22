@@ -33,7 +33,7 @@ impl BuildingStage {
     #[instrument(skip(self), name = "BuildingStage::run", fields(domain=%self.domain))]
     pub async fn run(&mut self) {
         // we can efficiently wait for more payloads if no one has notified us.
-        while let Some(_) = self.building_stage_receiver.recv().await {
+        while self.building_stage_receiver.recv().await.is_some() {
             loop {
                 // event-driven by the Building queue
                 let payloads = self
