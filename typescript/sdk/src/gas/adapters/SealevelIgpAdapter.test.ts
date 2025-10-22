@@ -224,7 +224,7 @@ describe('SealevelIgpAdapter', () => {
           { expected: [1000, 2000], actual: [1000n, 2000n] },
         ];
 
-        testCases.forEach(({ expected, actual }, index) => {
+        testCases.forEach(({ expected, actual }) => {
           const expectedData = createMockRemoteGasData(
             expected[0],
             expected[1],

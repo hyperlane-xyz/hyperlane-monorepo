@@ -61,6 +61,8 @@ export type OracleConfig = z.infer<typeof OracleConfigSchema>;
 const OracleConfigSchema = ProtocolAgnositicGasOracleConfigSchema.extend({
   tokenExchangeRate: bigintCompatibleString, // override to coerce/canonicalize
   gasPrice: bigintCompatibleString, // override to coerce/canonicalize
+  // we expect infra-generated configs to always have token decimals
+  tokenDecimals: z.number().int().nonnegative(),
 });
 
 /**

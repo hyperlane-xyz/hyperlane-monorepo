@@ -186,6 +186,13 @@ async function removeUnusedGasOverheads(
 }
 
 /**
+ * Maximum number of gas oracle configs to include in a single transaction.
+ * Conservative limit based on Solana's 1232 byte transaction size limit.
+ * Each config is ~39 bytes, allowing ~17 max, but we use 10 for safety.
+ */
+const MAX_BATCH_SIZE = 10;
+
+/**
  * Update gas oracles based on config
  */
 async function updateGasOracles(
@@ -203,6 +210,14 @@ async function updateGasOracles(
   let oraclesUpdated = 0;
   let oraclesMatched = 0;
 
+  // Collect configs that need updating
+  const configsToUpdate: {
+    remoteChain: string;
+    remoteDomain: number;
+    config: SealevelGasOracleConfig;
+    remoteGasData: SealevelRemoteGasData;
+  }[] = [];
+
   for (const [remoteChain, config] of Object.entries(chainGasOracleConfig)) {
     const remoteMeta = getChain(remoteChain);
     const remoteDomain = remoteMeta.domainId;
@@ -212,7 +227,8 @@ async function updateGasOracles(
     const remoteGasData = new SealevelRemoteGasData({
       token_exchange_rate: BigInt(config.oracleConfig.tokenExchangeRate),
       gas_price: BigInt(config.oracleConfig.gasPrice),
-      token_decimals: config.oracleConfig.tokenDecimals!,
+      // tokenDecimals is guaranteed to be defined by schema validation
+      token_decimals: config.oracleConfig.tokenDecimals,
     });
 
     const comparisonResult = igpAdapter.gasOracleMatches(
@@ -223,8 +239,6 @@ async function updateGasOracles(
     const needsGasOracleUpdate = !comparisonResult.matches;
 
     if (needsGasOracleUpdate) {
-      oraclesUpdated++;
-
       // Log the gas oracle config with diff if we have the actual values
       if (comparisonResult.actual) {
         rootLogger.info(
@@ -245,21 +259,12 @@ async function updateGasOracles(
         gasOracle,
       );
 
-      const instruction = igpAdapter.createSetGasOracleConfigsInstruction(
-        igpAccountPda,
-        signerKeypair.publicKey,
-        [gasOracleConfig],
-      );
-
-      if (!dryRun) {
-        const tx = await buildAndSendTransaction(
-          connection,
-          [instruction],
-          signerKeypair,
-          chain,
-        );
-        rootLogger.info(`  Transaction: ${tx}`);
-      }
+      configsToUpdate.push({
+        remoteChain,
+        remoteDomain,
+        config: gasOracleConfig,
+        remoteGasData,
+      });
     } else {
       oraclesMatched++;
     }
@@ -281,6 +286,38 @@ async function updateGasOracles(
       `${chain} -> ${remoteChain}: ${exampleRemoteGas} remote gas cost: ${exampleCost} ${symbol}`,
     );
   }
+
+  // Send batched transactions
+  if (configsToUpdate.length > 0 && !dryRun) {
+    rootLogger.info(
+      `Sending ${configsToUpdate.length} gas oracle updates in batches of ${MAX_BATCH_SIZE}`,
+    );
+
+    for (let i = 0; i < configsToUpdate.length; i += MAX_BATCH_SIZE) {
+      const batch = configsToUpdate.slice(i, i + MAX_BATCH_SIZE);
+      const batchConfigs = batch.map((item) => item.config);
+
+      const instruction = igpAdapter.createSetGasOracleConfigsInstruction(
+        igpAccountPda,
+        signerKeypair.publicKey,
+        batchConfigs,
+      );
+
+      const tx = await buildAndSendTransaction(
+        connection,
+        [instruction],
+        signerKeypair,
+        chain,
+      );
+
+      const chains = batch.map((item) => item.remoteChain).join(', ');
+      rootLogger.info(
+        `Batch ${Math.floor(i / MAX_BATCH_SIZE) + 1}/${Math.ceil(configsToUpdate.length / MAX_BATCH_SIZE)}: Updated ${batch.length} oracles [${chains}] - tx: ${tx}`,
+      );
+    }
+  }
+
+  oraclesUpdated = configsToUpdate.length;
   return { oraclesUpdated, oraclesMatched };
 }
 /**
@@ -296,8 +333,16 @@ async function updateGasOverheads(
   signerKeypair: Keypair,
   dryRun: boolean,
 ): Promise<{ overheadsUpdated: number; overheadsMatched: number }> {
-  let overheadsUpdated = 0;
   let overheadsMatched = 0;
+
+  // Collect configs that need updating
+  const configsToUpdate: {
+    remoteChain: string;
+    remoteDomain: number;
+    config: SealevelGasOverheadConfig;
+    targetOverhead: bigint;
+    currentOverhead: bigint | undefined;
+  }[] = [];
 
   for (const [remoteChain, config] of Object.entries(chainGasOracleConfig)) {
     const remoteMeta = getChain(remoteChain);
@@ -307,15 +352,15 @@ async function updateGasOverheads(
     const currentOverhead =
       overheadIgpAccountData.gas_overheads.get(remoteDomain);
     // Convert to BigInt for comparison (validated config guarantees number type)
-    const targetOverhead = config.overhead ? BigInt(config.overhead) : null;
+    // Use explicit undefined check to allow overhead=0
+    const targetOverhead =
+      config.overhead !== undefined ? BigInt(config.overhead) : null;
 
     const needsOverheadUpdate =
       targetOverhead !== null &&
       (currentOverhead === undefined || currentOverhead !== targetOverhead);
 
     if (needsOverheadUpdate && targetOverhead !== null) {
-      overheadsUpdated++;
-
       if (currentOverhead === undefined) {
         rootLogger.info(
           `${chain} -> ${remoteChain}: Setting gas overhead to ${targetOverhead} (new)`,
@@ -332,27 +377,51 @@ async function updateGasOverheads(
         remoteDomain,
         targetOverhead,
       );
-      const instruction =
-        overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
-          overheadIgpAccountPda,
-          signerKeypair.publicKey,
-          [overheadConfig],
-        );
 
-      if (!dryRun) {
-        const tx = await buildAndSendTransaction(
-          connection,
-          [instruction],
-          signerKeypair,
-          chain,
-        );
-        rootLogger.info(`  Transaction: ${tx}`);
-      }
+      configsToUpdate.push({
+        remoteChain,
+        remoteDomain,
+        config: overheadConfig,
+        targetOverhead,
+        currentOverhead,
+      });
     } else if (targetOverhead !== null) {
       overheadsMatched++;
     }
   }
 
+  // Send batched transactions
+  if (configsToUpdate.length > 0 && !dryRun) {
+    rootLogger.info(
+      `Sending ${configsToUpdate.length} gas overhead updates in batches of ${MAX_BATCH_SIZE}`,
+    );
+
+    for (let i = 0; i < configsToUpdate.length; i += MAX_BATCH_SIZE) {
+      const batch = configsToUpdate.slice(i, i + MAX_BATCH_SIZE);
+      const batchConfigs = batch.map((item) => item.config);
+
+      const instruction =
+        overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
+          overheadIgpAccountPda,
+          signerKeypair.publicKey,
+          batchConfigs,
+        );
+
+      const tx = await buildAndSendTransaction(
+        connection,
+        [instruction],
+        signerKeypair,
+        chain,
+      );
+
+      const chains = batch.map((item) => item.remoteChain).join(', ');
+      rootLogger.info(
+        `Batch ${Math.floor(i / MAX_BATCH_SIZE) + 1}/${Math.ceil(configsToUpdate.length / MAX_BATCH_SIZE)}: Updated ${batch.length} overheads [${chains}] - tx: ${tx}`,
+      );
+    }
+  }
+
+  const overheadsUpdated = configsToUpdate.length;
   return { overheadsUpdated, overheadsMatched };
 }
 

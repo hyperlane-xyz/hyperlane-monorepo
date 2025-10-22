@@ -65,7 +65,10 @@ async function main() {
           }
 
           destAcc[destination] = {
-            oracleConfig,
+            oracleConfig: {
+              ...oracleConfig,
+              tokenDecimals: oracleConfig.tokenDecimals, // Guaranteed by check above
+            },
             overhead: igpConfig?.overhead?.[destination],
           };
           return destAcc;
