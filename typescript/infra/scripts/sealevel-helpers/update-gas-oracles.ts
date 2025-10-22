@@ -157,35 +157,43 @@ async function removeUnusedGasOracles(
     return 0;
   }
 
-  let oraclesRemoved = 0;
-
-  for (const remoteDomain of domainsToRemove) {
-    rootLogger.debug(
-      `Removing gas oracle for remote domain ${remoteDomain} (not in config)`,
+  // Send batched removal transactions
+  if (domainsToRemove.length > 0 && !dryRun) {
+    rootLogger.info(
+      `Removing ${domainsToRemove.length} gas oracles in batches of ${MAX_BATCH_SIZE}`,
     );
 
-    const config = new SealevelGasOracleConfig(remoteDomain, null);
-    const instruction = igpAdapter.createSetGasOracleConfigsInstruction(
-      igpAccountPda,
-      signerKeypair.publicKey,
-      [config],
-    );
+    for (let i = 0; i < domainsToRemove.length; i += MAX_BATCH_SIZE) {
+      const batch = domainsToRemove.slice(i, i + MAX_BATCH_SIZE);
+      const batchConfigs = batch.map(
+        (domain) => new SealevelGasOracleConfig(domain, null),
+      );
 
-    oraclesRemoved++;
-    if (!dryRun) {
+      const instruction = igpAdapter.createSetGasOracleConfigsInstruction(
+        igpAccountPda,
+        signerKeypair.publicKey,
+        batchConfigs,
+      );
+
       const tx = await buildAndSendTransaction(
         connection,
         [instruction],
         signerKeypair,
         chain,
       );
-      rootLogger.info(`Removed gas oracle for domain ${remoteDomain}: ${tx}`);
-    } else {
+
+      const chains = batch.map((domain) => mpp.getChainName(domain)).join(', ');
+      rootLogger.info(
+        `Batch ${Math.floor(i / MAX_BATCH_SIZE) + 1}/${Math.ceil(domainsToRemove.length / MAX_BATCH_SIZE)}: Removed ${batch.length} oracles [${chains}] - tx: ${tx}`,
+      );
+    }
+  } else if (dryRun) {
+    for (const remoteDomain of domainsToRemove) {
       rootLogger.info(`Would remove gas oracle for domain ${remoteDomain}`);
     }
   }
 
-  return oraclesRemoved;
+  return domainsToRemove.length;
 }
 
 /**
@@ -214,36 +222,44 @@ async function removeUnusedGasOverheads(
     return 0;
   }
 
-  let overheadsRemoved = 0;
-
-  for (const remoteDomain of domainsToRemove) {
-    rootLogger.debug(
-      `Removing gas overhead for remote domain ${remoteDomain} (not in config)`,
+  // Send batched removal transactions
+  if (domainsToRemove.length > 0 && !dryRun) {
+    rootLogger.info(
+      `Removing ${domainsToRemove.length} gas overheads in batches of ${MAX_BATCH_SIZE}`,
     );
 
-    const config = new SealevelGasOverheadConfig(remoteDomain, null);
-    const instruction =
-      overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
-        overheadIgpAccountPda,
-        signerKeypair.publicKey,
-        [config],
+    for (let i = 0; i < domainsToRemove.length; i += MAX_BATCH_SIZE) {
+      const batch = domainsToRemove.slice(i, i + MAX_BATCH_SIZE);
+      const batchConfigs = batch.map(
+        (domain) => new SealevelGasOverheadConfig(domain, null),
       );
 
-    overheadsRemoved++;
-    if (!dryRun) {
+      const instruction =
+        overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
+          overheadIgpAccountPda,
+          signerKeypair.publicKey,
+          batchConfigs,
+        );
+
       const tx = await buildAndSendTransaction(
         connection,
         [instruction],
         signerKeypair,
         chain,
       );
-      rootLogger.info(`Removed gas overhead for domain ${remoteDomain}: ${tx}`);
-    } else {
+
+      const chains = batch.map((domain) => mpp.getChainName(domain)).join(', ');
+      rootLogger.info(
+        `Batch ${Math.floor(i / MAX_BATCH_SIZE) + 1}/${Math.ceil(domainsToRemove.length / MAX_BATCH_SIZE)}: Removed ${batch.length} overheads [${chains}] - tx: ${tx}`,
+      );
+    }
+  } else if (dryRun) {
+    for (const remoteDomain of domainsToRemove) {
       rootLogger.info(`Would remove gas overhead for domain ${remoteDomain}`);
     }
   }
 
-  return overheadsRemoved;
+  return domainsToRemove.length;
 }
 
 /**
