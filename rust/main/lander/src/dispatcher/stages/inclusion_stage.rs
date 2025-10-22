@@ -274,6 +274,7 @@ impl InclusionStage {
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
+                update_tx_status(state, &mut tx, tx_status.clone()).await?;
                 if !state.adapter.tx_ready_for_resubmission(&tx).await {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
