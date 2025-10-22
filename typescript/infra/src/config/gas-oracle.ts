@@ -1,5 +1,6 @@
 import { BigNumber as BigNumberJs } from 'bignumber.js';
 import { BigNumber } from 'ethers';
+import { z } from 'zod';
 
 import {
   ChainGasOracleParams,
@@ -7,6 +8,7 @@ import {
   ChainName,
   GasPriceConfig,
   ProtocolAgnositicGasOracleConfig,
+  ProtocolAgnositicGasOracleConfigSchema,
   ProtocolAgnositicGasOracleConfigWithTypicalCost,
   defaultMultisigConfigs,
   getLocalStorageGasOracleConfig,
@@ -23,7 +25,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../config/registry.js';
-import { mustGetChainNativeToken } from '../utils/utils.js';
+import { mustGetChainNativeToken, readJSONAtPath } from '../utils/utils.js';
 
 // gas oracle configs for each chain, which includes
 // a map for each chain's remote chains
@@ -32,13 +34,81 @@ export type AllStorageGasOracleConfigs = ChainMap<
 >;
 
 /**
+ * Zod schemas for validating gas oracle config files
+ */
+
+// Helper to validate bigint-compatible values and coerce to string
+const bigintCompatibleString = z
+  .union([
+    z.string().regex(/^\d+$/, 'Must be a numeric string'),
+    z.number().int().nonnegative(),
+    z.bigint(),
+  ])
+  .refine(
+    (val) => {
+      try {
+        BigInt(val);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Must be convertible to BigInt' },
+  )
+  .transform((val) => String(val));
+
+export type OracleConfig = z.infer<typeof OracleConfigSchema>;
+const OracleConfigSchema = ProtocolAgnositicGasOracleConfigSchema.extend({
+  tokenExchangeRate: bigintCompatibleString, // override to coerce/canonicalize
+  gasPrice: bigintCompatibleString, // override to coerce/canonicalize
+});
+
+/**
  * Gas oracle configuration with optional overhead value.
  * Used for configuring IGP gas oracles across different chains.
  */
-export type GasOracleConfigWithOverhead = {
-  oracleConfig: ProtocolAgnositicGasOracleConfig;
-  overhead?: number;
-};
+export type GasOracleConfigWithOverhead = z.infer<
+  typeof GasOracleConfigWithOverheadSchema
+>;
+const GasOracleConfigWithOverheadSchema = z.object({
+  oracleConfig: OracleConfigSchema,
+  overhead: z.number().int().nonnegative().optional(),
+});
+
+// zod validation for the gas oracle config file
+const GasOracleConfigFileSchema = z.record(
+  z.string().min(1, 'Chain name cannot be empty'),
+  z.record(
+    z.string().min(1, 'Remote chain name cannot be empty'),
+    GasOracleConfigWithOverheadSchema,
+  ),
+);
+
+/**
+ * Load and validate gas oracle config file
+ */
+export function loadAndValidateGasOracleConfig(
+  configPath: string,
+): ChainMap<ChainMap<GasOracleConfigWithOverhead>> {
+  const rawConfig = readJSONAtPath(configPath);
+
+  try {
+    const validated = GasOracleConfigFileSchema.parse(rawConfig);
+    // The validated config is now compatible with GasOracleConfigWithOverhead
+    return validated as ChainMap<ChainMap<GasOracleConfigWithOverhead>>;
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      rootLogger.error('Gas oracle config validation failed:');
+      error.errors.forEach((err) => {
+        rootLogger.error(`  ${err.path.join('.')}: ${err.message}`);
+      });
+      throw new Error(
+        `Invalid gas oracle config file at ${configPath}. Please ensure all fields are properly formatted.`,
+      );
+    }
+    throw error;
+  }
+}
 
 // Overcharge by 50% to account for market making risk
 export const EXCHANGE_RATE_MARGIN_PCT = 50;

@@ -25,7 +25,10 @@ import { getChain } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../../src/agents/index.js';
 import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
-import type { GasOracleConfigWithOverhead } from '../../src/config/gas-oracle.js';
+import {
+  type GasOracleConfigWithOverhead,
+  loadAndValidateGasOracleConfig,
+} from '../../src/config/gas-oracle.js';
 import {
   ZERO_SALT,
   buildAndSendTransaction,
@@ -188,7 +191,7 @@ async function removeUnusedGasOverheads(
 async function updateGasOracles(
   mpp: MultiProtocolProvider,
   connection: Connection,
-  gasOracleConfig: ChainMap<ChainMap<GasOracleConfigWithOverhead>>,
+  chainGasOracleConfig: ChainMap<GasOracleConfigWithOverhead>,
   chain: ChainName,
   igpAccountData: SealevelIgpData,
   igpAdapter: SealevelIgpAdapter,
@@ -200,7 +203,7 @@ async function updateGasOracles(
   let oraclesUpdated = 0;
   let oraclesMatched = 0;
 
-  for (const [remoteChain, config] of Object.entries(gasOracleConfig[chain])) {
+  for (const [remoteChain, config] of Object.entries(chainGasOracleConfig)) {
     const remoteMeta = getChain(remoteChain);
     const remoteDomain = remoteMeta.domainId;
 
@@ -285,7 +288,7 @@ async function updateGasOracles(
  */
 async function updateGasOverheads(
   connection: Connection,
-  gasOracleConfig: ChainMap<ChainMap<GasOracleConfigWithOverhead>>,
+  chainGasOracleConfig: ChainMap<GasOracleConfigWithOverhead>,
   chain: ChainName,
   overheadIgpAccountData: SealevelOverheadIgpData,
   overheadIgpAdapter: SealevelOverheadIgpAdapter,
@@ -296,30 +299,19 @@ async function updateGasOverheads(
   let overheadsUpdated = 0;
   let overheadsMatched = 0;
 
-  for (const [remoteChain, config] of Object.entries(gasOracleConfig[chain])) {
+  for (const [remoteChain, config] of Object.entries(chainGasOracleConfig)) {
     const remoteMeta = getChain(remoteChain);
     const remoteDomain = remoteMeta.domainId;
 
     // Check if gas overhead needs updating
     const currentOverhead =
       overheadIgpAccountData.gas_overheads.get(remoteDomain);
-    // Ensure targetOverhead is properly converted to BigInt, handling number or string inputs
-    const targetOverhead = config.overhead
-      ? typeof config.overhead === 'bigint'
-        ? config.overhead
-        : BigInt(config.overhead)
-      : null;
+    // Convert to BigInt for comparison (validated config guarantees number type)
+    const targetOverhead = config.overhead ? BigInt(config.overhead) : null;
 
-    // Ensure BigInt comparison works for overheads
     const needsOverheadUpdate =
       targetOverhead !== null &&
-      (currentOverhead === undefined ||
-        (typeof currentOverhead === 'bigint'
-          ? currentOverhead
-          : BigInt(currentOverhead)) !==
-          (typeof targetOverhead === 'bigint'
-            ? targetOverhead
-            : BigInt(targetOverhead)));
+      (currentOverhead === undefined || currentOverhead !== targetOverhead);
 
     if (needsOverheadUpdate && targetOverhead !== null) {
       overheadsUpdated++;
@@ -329,16 +321,7 @@ async function updateGasOverheads(
           `${chain} -> ${remoteChain}: Setting gas overhead to ${targetOverhead} (new)`,
         );
       } else {
-        // Ensure both values are BigInt for the arithmetic
-        const currentBigInt =
-          typeof currentOverhead === 'bigint'
-            ? currentOverhead
-            : BigInt(currentOverhead);
-        const targetBigInt =
-          typeof targetOverhead === 'bigint'
-            ? targetOverhead
-            : BigInt(targetOverhead);
-        const diff = targetBigInt - currentBigInt;
+        const diff = targetOverhead - currentOverhead;
         const sign = diff >= 0n ? '+' : '';
         rootLogger.info(
           `${chain} -> ${remoteChain}: Updating gas overhead from ${currentOverhead} to ${targetOverhead} (${sign}${diff})`,
@@ -380,6 +363,7 @@ async function processChain(
   environment: DeployEnvironment,
   mpp: MultiProtocolProvider,
   chain: ChainName,
+  chainGasOracleConfig: ChainMap<GasOracleConfigWithOverhead>,
   keyPath: string,
   dryRun: boolean,
 ): Promise<{
@@ -392,19 +376,6 @@ async function processChain(
   overheadsMatched: number;
 }> {
   rootLogger.debug(`Configuring IGP for ${chain} on ${environment}`);
-
-  // Load configuration and setup
-  const gasOracleConfig: ChainMap<ChainMap<GasOracleConfigWithOverhead>> =
-    readJSONAtPath(svmGasOracleConfigPath(environment));
-
-  // Guard against missing chain configuration to prevent mass removals
-  if (!gasOracleConfig[chain]) {
-    throw new Error(
-      `No gas oracle configuration found for chain '${chain}' in environment '${environment}'. ` +
-        `This would cause all existing gas oracles and overheads to be removed. ` +
-        `Please ensure the chain is configured in ${svmGasOracleConfigPath(environment)}`,
-    );
-  }
 
   const coreProgramIds = loadCoreProgramIds(environment, chain);
   const programId = new PublicKey(coreProgramIds.igp_program_id);
@@ -448,7 +419,7 @@ async function processChain(
 
   // Get domain IDs for all configured chains
   const allConfigDomainIds = new Set<number>();
-  for (const remoteChain of Object.keys(gasOracleConfig[chain])) {
+  for (const remoteChain of Object.keys(chainGasOracleConfig)) {
     const remoteMeta = getChain(remoteChain);
     allConfigDomainIds.add(remoteMeta.domainId);
   }
@@ -479,7 +450,7 @@ async function processChain(
   const { oraclesUpdated, oraclesMatched } = await updateGasOracles(
     mpp,
     connection,
-    gasOracleConfig,
+    chainGasOracleConfig,
     chain,
     igpAccountData,
     igpAdapter,
@@ -491,7 +462,7 @@ async function processChain(
 
   const { overheadsUpdated, overheadsMatched } = await updateGasOverheads(
     connection,
-    gasOracleConfig,
+    chainGasOracleConfig,
     chain,
     overheadIgpAccountData,
     overheadIgpAdapter,
@@ -551,12 +522,32 @@ async function main() {
     rootLogger.info('Running in DRY RUN mode - no transactions will be sent');
   }
 
+  // Load and validate configuration
+  const configPath = svmGasOracleConfigPath(environment);
+  const gasOracleConfig = loadAndValidateGasOracleConfig(configPath);
+
   // Process all chains in parallel
   const mpp = await envConfig.getMultiProtocolProvider();
   const results = await Promise.all(
-    chains.map((chain) =>
-      processChain(environment, mpp, chain, keyPath, dryRun),
-    ),
+    chains.map((chain) => {
+      const chainGasOracleConfig = gasOracleConfig[chain];
+      if (!chainGasOracleConfig) {
+        // Guard against missing chain configuration
+        throw new Error(
+          `No gas oracle configuration found for chain '${chain}' in environment '${environment}'. ` +
+            `This would cause all existing gas oracles and overheads to be removed. ` +
+            `Please ensure the chain is configured in ${configPath}`,
+        );
+      }
+      return processChain(
+        environment,
+        mpp,
+        chain,
+        chainGasOracleConfig,
+        keyPath,
+        dryRun,
+      );
+    }),
   );
 
   // Print results in a table format

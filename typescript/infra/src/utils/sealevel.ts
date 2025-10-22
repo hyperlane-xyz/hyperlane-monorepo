@@ -67,6 +67,7 @@ export async function buildAndSendTransaction(
   let confirmed = false;
   let attempts = 0;
   const maxAttempts = 30; // 30 seconds timeout
+  let failureReason: Error | null = null;
 
   while (!confirmed && attempts < maxAttempts) {
     await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
@@ -79,9 +80,11 @@ export async function buildAndSendTransaction(
 
       if (status.value) {
         if (status.value.err) {
-          throw new Error(
+          // Record the error and break out of the polling loop
+          failureReason = new Error(
             `Transaction failed: ${JSON.stringify(status.value.err)}`,
           );
+          break;
         }
         if (
           status.value.confirmationStatus === 'confirmed' ||
@@ -94,6 +97,10 @@ export async function buildAndSendTransaction(
       // Continue polling on error, might be temporary
       rootLogger.warn(`Polling attempt ${attempts} failed: ${error}`);
     }
+  }
+
+  if (failureReason) {
+    throw failureReason;
   }
 
   if (!confirmed) {
