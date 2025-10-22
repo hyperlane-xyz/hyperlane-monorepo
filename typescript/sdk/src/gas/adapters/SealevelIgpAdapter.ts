@@ -24,6 +24,7 @@ import {
 import {
   SealevelGasOracle,
   SealevelGasOracleConfig,
+  SealevelGasOracleType,
   SealevelGasOverheadConfig,
   SealevelIgpData,
   SealevelIgpDataSchema,
@@ -333,6 +334,11 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
     expected: SealevelRemoteGasData,
   ): { matches: boolean; actual: SealevelRemoteGasData | null } {
     if (!currentOracle) {
+      return { matches: false, actual: null };
+    }
+
+    // Guard: only proceed if currentOracle is the remote-gas variant (type 0)
+    if (currentOracle.type !== SealevelGasOracleType.RemoteGasData) {
       return { matches: false, actual: null };
     }
 

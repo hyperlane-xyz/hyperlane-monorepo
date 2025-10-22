@@ -84,8 +84,8 @@ export function loadAndValidateGasOracleConfig(
   } catch (error) {
     if (error instanceof z.ZodError) {
       rootLogger.error('Gas oracle config validation failed:');
-      error.errors.forEach((err) => {
-        rootLogger.error(`  ${err.path.join('.')}: ${err.message}`);
+      error.issues.forEach((issue) => {
+        rootLogger.error(`  ${issue.path.join('.')}: ${issue.message}`);
       });
       throw new Error(
         `Invalid gas oracle config file at ${configPath}. Please ensure all fields are properly formatted.`,
