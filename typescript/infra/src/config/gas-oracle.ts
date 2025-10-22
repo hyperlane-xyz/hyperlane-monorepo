@@ -10,6 +10,7 @@ import {
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,
   ProtocolAgnositicGasOracleConfigWithTypicalCost,
+  ZBigNumberish,
   defaultMultisigConfigs,
   getLocalStorageGasOracleConfig,
   getProtocolExchangeRateScale,
@@ -37,33 +38,15 @@ export type AllStorageGasOracleConfigs = ChainMap<
  * Zod schemas for validating gas oracle config files
  */
 
-// Helper to validate bigint-compatible values and coerce to string
-const bigintCompatibleString = z
-  .union([
-    z.string().regex(/^\d+$/, 'Must be a numeric string'),
-    z.number().int().nonnegative(),
-    z.bigint(),
-  ])
-  .refine(
-    (val) => {
-      try {
-        BigInt(val);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    { message: 'Must be convertible to BigInt' },
-  )
-  .transform((val) => String(val));
-
 export type OracleConfig = z.infer<typeof OracleConfigSchema>;
-const OracleConfigSchema = ProtocolAgnositicGasOracleConfigSchema.extend({
-  tokenExchangeRate: bigintCompatibleString, // override to coerce/canonicalize
-  gasPrice: bigintCompatibleString, // override to coerce/canonicalize
-  // we expect infra-generated configs to always have token decimals
-  tokenDecimals: z.number().int().nonnegative(),
-});
+export const OracleConfigSchema = ProtocolAgnositicGasOracleConfigSchema.extend(
+  {
+    tokenExchangeRate: ZBigNumberish, // override to coerce/canonicalize
+    gasPrice: ZBigNumberish, // override to coerce/canonicalize
+    // we expect infra-generated configs to always have token decimals
+    tokenDecimals: z.number().int().nonnegative(),
+  },
+);
 
 /**
  * Gas oracle configuration with optional overhead value.

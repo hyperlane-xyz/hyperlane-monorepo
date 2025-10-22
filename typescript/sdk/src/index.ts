@@ -310,7 +310,7 @@ export {
   RpcUrl,
   RpcUrlSchema,
 } from './metadata/chainMetadataTypes.js';
-export { ZChainName, ZHash } from './metadata/customZodTypes.js';
+export { ZBigNumberish, ZChainName, ZHash } from './metadata/customZodTypes.js';
 export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
