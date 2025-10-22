@@ -204,7 +204,7 @@ mod check_if_resubmission_makes_sense {
         };
 
         let result = EthereumAdapter::check_if_resubmission_makes_sense(&tx, &new_gas_price);
-        assert!(matches!(result, Err(LanderError::TxWontBeResubmitted)));
+        assert!(matches!(result, Err(LanderError::TxAlreadyExists)));
     }
 
     #[test]
@@ -268,7 +268,7 @@ mod check_if_resubmission_makes_sense {
         };
 
         let result = EthereumAdapter::check_if_resubmission_makes_sense(&tx, &new_gas_price);
-        assert!(matches!(result, Err(LanderError::TxWontBeResubmitted)));
+        assert!(matches!(result, Err(LanderError::TxAlreadyExists)));
     }
 
     #[test]
