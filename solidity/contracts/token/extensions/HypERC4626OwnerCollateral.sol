@@ -17,6 +17,8 @@ pragma solidity >=0.8.0;
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 
 // ============ External Imports ============
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {HypERC4626Collateral} from "./HypERC4626Collateral.sol";
 
@@ -25,6 +27,8 @@ import {HypERC4626Collateral} from "./HypERC4626Collateral.sol";
  * @author Abacus Works
  */
 contract HypERC4626OwnerCollateral is HypERC4626Collateral {
+    using SafeERC20 for IERC20;
+
     // Internal balance of total asset deposited
     uint256 public assetDeposited;
 
