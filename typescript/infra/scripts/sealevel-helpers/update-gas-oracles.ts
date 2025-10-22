@@ -1,5 +1,7 @@
+import { confirm } from '@inquirer/prompts';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { deserializeUnchecked } from 'borsh';
+import chalk from 'chalk';
 
 import {
   ChainMap,
@@ -91,9 +93,49 @@ async function fetchAccountStates(
 }
 
 /**
+ * Generic function to prompt user before removing unused configs
+ */
+async function promptForRemoval(
+  mpp: MultiProtocolProvider,
+  itemType: string,
+  chain: ChainName,
+  domainsToRemove: Domain[],
+): Promise<boolean> {
+  if (domainsToRemove.length === 0) {
+    return false;
+  }
+
+  // Format and log the list of chains to be removed
+  rootLogger.info(
+    chalk.yellow(
+      `\nThe following ${domainsToRemove.length} ${itemType} will be removed from ${chain}:\n${domainsToRemove
+        .map((domain) => {
+          return `  - ${mpp.getChainName(domain)} (domain ${domain})`;
+        })
+        .join('\n')}\n`,
+    ),
+  );
+
+  const shouldContinue = await confirm({
+    message: chalk.yellow.bold(
+      `Are you sure you want to remove these ${itemType}?`,
+    ),
+    default: false,
+  });
+
+  if (!shouldContinue) {
+    rootLogger.info(`Continuing without removing any ${itemType} for ${chain}`);
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Remove gas oracles not in the config
  */
 async function removeUnusedGasOracles(
+  mpp: MultiProtocolProvider,
   connection: Connection,
   igpAccountData: SealevelIgpData,
   allConfigDomainIds: Set<Domain>,
@@ -103,33 +145,43 @@ async function removeUnusedGasOracles(
   chain: ChainName,
   dryRun: boolean,
 ): Promise<number> {
-  let oraclesRemoved = 0;
-
+  // First, collect all domains to be removed
+  const domainsToRemove: Domain[] = [];
   for (const [remoteDomain] of igpAccountData.gas_oracles) {
     if (!allConfigDomainIds.has(remoteDomain)) {
-      rootLogger.debug(
-        `Removing gas oracle for remote domain ${remoteDomain} (not in config)`,
-      );
+      domainsToRemove.push(remoteDomain);
+    }
+  }
 
-      const config = new SealevelGasOracleConfig(remoteDomain, null);
-      const instruction = igpAdapter.createSetGasOracleConfigsInstruction(
-        igpAccountPda,
-        signerKeypair.publicKey,
-        [config],
-      );
+  if (!(await promptForRemoval(mpp, 'gas oracles', chain, domainsToRemove))) {
+    return 0;
+  }
 
-      oraclesRemoved++;
-      if (!dryRun) {
-        const tx = await buildAndSendTransaction(
-          connection,
-          [instruction],
-          signerKeypair,
-          chain,
-        );
-        rootLogger.info(`Removed gas oracle for domain ${remoteDomain}: ${tx}`);
-      } else {
-        rootLogger.info(`Would remove gas oracle for domain ${remoteDomain}`);
-      }
+  let oraclesRemoved = 0;
+
+  for (const remoteDomain of domainsToRemove) {
+    rootLogger.debug(
+      `Removing gas oracle for remote domain ${remoteDomain} (not in config)`,
+    );
+
+    const config = new SealevelGasOracleConfig(remoteDomain, null);
+    const instruction = igpAdapter.createSetGasOracleConfigsInstruction(
+      igpAccountPda,
+      signerKeypair.publicKey,
+      [config],
+    );
+
+    oraclesRemoved++;
+    if (!dryRun) {
+      const tx = await buildAndSendTransaction(
+        connection,
+        [instruction],
+        signerKeypair,
+        chain,
+      );
+      rootLogger.info(`Removed gas oracle for domain ${remoteDomain}: ${tx}`);
+    } else {
+      rootLogger.info(`Would remove gas oracle for domain ${remoteDomain}`);
     }
   }
 
@@ -140,6 +192,7 @@ async function removeUnusedGasOracles(
  * Remove gas overheads not in the config
  */
 async function removeUnusedGasOverheads(
+  mpp: MultiProtocolProvider,
   connection: Connection,
   overheadIgpAccountData: SealevelOverheadIgpData,
   allConfigDomainIds: Set<Domain>,
@@ -149,36 +202,44 @@ async function removeUnusedGasOverheads(
   chain: ChainName,
   dryRun: boolean,
 ): Promise<number> {
-  let overheadsRemoved = 0;
-
+  // First, collect all domains to be removed
+  const domainsToRemove: Domain[] = [];
   for (const [remoteDomain] of overheadIgpAccountData.gas_overheads) {
     if (!allConfigDomainIds.has(remoteDomain)) {
-      rootLogger.debug(
-        `Removing gas overhead for remote domain ${remoteDomain} (not in config)`,
+      domainsToRemove.push(remoteDomain);
+    }
+  }
+
+  if (!(await promptForRemoval(mpp, 'gas overheads', chain, domainsToRemove))) {
+    return 0;
+  }
+
+  let overheadsRemoved = 0;
+
+  for (const remoteDomain of domainsToRemove) {
+    rootLogger.debug(
+      `Removing gas overhead for remote domain ${remoteDomain} (not in config)`,
+    );
+
+    const config = new SealevelGasOverheadConfig(remoteDomain, null);
+    const instruction =
+      overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
+        overheadIgpAccountPda,
+        signerKeypair.publicKey,
+        [config],
       );
 
-      const config = new SealevelGasOverheadConfig(remoteDomain, null);
-      const instruction =
-        overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
-          overheadIgpAccountPda,
-          signerKeypair.publicKey,
-          [config],
-        );
-
-      overheadsRemoved++;
-      if (!dryRun) {
-        const tx = await buildAndSendTransaction(
-          connection,
-          [instruction],
-          signerKeypair,
-          chain,
-        );
-        rootLogger.info(
-          `Removed gas overhead for domain ${remoteDomain}: ${tx}`,
-        );
-      } else {
-        rootLogger.info(`Would remove gas overhead for domain ${remoteDomain}`);
-      }
+    overheadsRemoved++;
+    if (!dryRun) {
+      const tx = await buildAndSendTransaction(
+        connection,
+        [instruction],
+        signerKeypair,
+        chain,
+      );
+      rootLogger.info(`Removed gas overhead for domain ${remoteDomain}: ${tx}`);
+    } else {
+      rootLogger.info(`Would remove gas overhead for domain ${remoteDomain}`);
     }
   }
 
@@ -495,6 +556,7 @@ async function processChain(
 
   // Execute operations
   const oraclesRemoved = await removeUnusedGasOracles(
+    mpp,
     connection,
     igpAccountData,
     allConfigDomainIds,
@@ -506,6 +568,7 @@ async function processChain(
   );
 
   const overheadsRemoved = await removeUnusedGasOverheads(
+    mpp,
     connection,
     overheadIgpAccountData,
     allConfigDomainIds,
