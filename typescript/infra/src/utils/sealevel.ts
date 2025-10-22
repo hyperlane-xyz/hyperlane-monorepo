@@ -229,6 +229,53 @@ export function serializeGasOracleDifference(
   return `Exchange rate: ${exchangeRate.toFixed(10)} (${exchangeRateDiff}), Gas price: ${gasPriceLamports.toLocaleString()} (${gasPriceDiff}), Product diff: ${productDiff}`;
 }
 
+export const DEFAULT_MAX_SEALEVEL_BATCH_SIZE = 10;
+
+/**
+ * Batch and send multiple transactions with instructions
+ *
+ * @param connection - Solana RPC connection
+ * @param items - Items to process in batches
+ * @param createInstruction - Function to create instruction from batch of items
+ * @param signerKeypair - Keypair to sign transactions
+ * @param chain - Chain name for logging and priority fees
+ * @param formatBatch - Function to format batch for logging
+ * @param operationName - Description of operation for logging
+ * @param maxBatchSize - Maximum items per transaction (default 10)
+ */
+export async function batchAndSendTransactions<T>(
+  connection: Connection,
+  items: T[],
+  createInstruction: (batch: T[]) => TransactionInstruction,
+  signerKeypair: Keypair,
+  chain: string,
+  formatBatch: (batch: T[]) => string,
+  operationName: string,
+  maxBatchSize: number = DEFAULT_MAX_SEALEVEL_BATCH_SIZE,
+): Promise<void> {
+  rootLogger.info(
+    `Sending ${items.length} ${operationName} in batches of ${maxBatchSize}`,
+  );
+
+  for (let i = 0; i < items.length; i += maxBatchSize) {
+    const batch = items.slice(i, i + maxBatchSize);
+    const instruction = createInstruction(batch);
+
+    const tx = await buildAndSendTransaction(
+      connection,
+      [instruction],
+      signerKeypair,
+      chain,
+    );
+
+    const batchNum = Math.floor(i / maxBatchSize) + 1;
+    const totalBatches = Math.ceil(items.length / maxBatchSize);
+    rootLogger.info(
+      `Batch ${batchNum}/${totalBatches}: ${operationName} ${batch.length} items [${formatBatch(batch)}] - tx: ${tx}`,
+    );
+  }
+}
+
 /**
  * Constants
  */
