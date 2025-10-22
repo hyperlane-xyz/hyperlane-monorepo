@@ -1,15 +1,16 @@
-import { ethers } from 'ethers';
-import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
+import { formatUnits } from 'ethers/lib/utils.js';
 import { format } from 'util';
 
 import {
   ChainName,
   CoinGeckoTokenPriceGetter,
+  ITokenAdapter,
   MultiProtocolSignerSignerAccountInfo,
+  PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProtocolTypedTransaction,
-  TOKEN_STANDARD_TO_PROVIDER_TYPE,
   Token,
   TransferParams,
+  getCollateralTokenAdapter,
   getSignerForChain,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -17,7 +18,6 @@ import {
   ProtocolType,
   assert,
   rootLogger,
-  strip0x,
   toWei,
 } from '@hyperlane-xyz/utils';
 
@@ -64,12 +64,26 @@ async function main() {
     .demandOption('chain')
     .coerce('chain', assertChain)
 
+    .string('token')
+    .alias('t', 'token')
+    .describe(
+      'token',
+      'Optional token address for the token that should be funded. The native token will be used if no address is provided',
+    )
+
+    .string('decimals')
+    .alias('d', 'decimals')
+    .describe(
+      'decimals',
+      'Optional token decimals used to format the amount into its native denomination if the token metadata cannnot be derived onchain',
+    )
+
     .boolean('dry-run')
     .describe('dry-run', 'Simulate the transaction without sending')
     .default('dry-run', false).argv;
 
   const config = getEnvironmentConfig(argv.environment);
-  const { recipient, amount, chain, dryRun } = argv;
+  const { recipient, amount, chain, dryRun, token, decimals } = argv;
 
   logger.info(
     {
@@ -77,6 +91,7 @@ async function main() {
       amount,
       chain,
       dryRun,
+      token: token ?? 'native token',
     },
     'Starting funding operation',
   );
@@ -88,6 +103,8 @@ async function main() {
       recipientAddress: recipient,
       amount,
       dryRun,
+      tokenAddress: token,
+      tokenDecimals: decimals ? parseInt(decimals) : undefined,
     });
 
     logger.info('Funding operation completed successfully');
@@ -109,6 +126,8 @@ interface FundingParams {
   config: EnvironmentConfig;
   chainName: ChainName;
   recipientAddress: Address;
+  tokenAddress?: Address;
+  tokenDecimals?: number;
   amount: string;
   dryRun: boolean;
 }
@@ -119,6 +138,8 @@ async function fundAccount({
   recipientAddress,
   amount,
   dryRun,
+  tokenAddress,
+  tokenDecimals,
 }: FundingParams): Promise<void> {
   const multiProtocolProvider = await config.getMultiProtocolProvider();
 
@@ -153,13 +174,53 @@ async function fundAccount({
     );
   }
 
-  // Create token instance
-  const token = Token.FromChainMetadataNativeToken(chainMetadata);
-  const adapter = token.getAdapter(multiProtocolProvider);
+  // Create adapter instance
+  let adapter: ITokenAdapter<unknown>;
+  if (tokenAddress) {
+    adapter = getCollateralTokenAdapter({
+      chainName,
+      multiProvider: multiProtocolProvider,
+      tokenAddress,
+    });
+  } else {
+    const tokenInstance = Token.FromChainMetadataNativeToken(chainMetadata);
+    adapter = tokenInstance.getAdapter(multiProtocolProvider);
+  }
+
+  let tokenMetadata: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
+  try {
+    const { name, symbol, decimals } = await adapter.getMetadata();
+
+    assert(decimals, `Exp`);
+
+    tokenMetadata = {
+      name,
+      symbol,
+      decimals,
+    };
+  } catch (err) {
+    fundingLogger.error(
+      { chainName, err },
+      `Failed to get token metadata for ${chainName}, falling back to 1usd`,
+    );
+
+    assert(
+      tokenDecimals,
+      `tokenDecimals is required as the token metadata can't be derived on chain`,
+    );
+
+    tokenMetadata = {
+      name: 'NOT SPECIFIED',
+      symbol: 'NOT SPECIFIED',
+      decimals: tokenDecimals,
+    };
+  }
 
   // Get signer
-  fundingLogger.info('Retrieved signer info');
-
   const agentConfig = getAgentConfig(Contexts.Hyperlane, config.environment);
   const privateKeyAgent = getDeployerKey(agentConfig, chainName);
 
@@ -193,11 +254,6 @@ async function fundAccount({
     multiProtocolProvider,
   );
 
-  fundingLogger.info(
-    { chainName, protocol },
-    'Performing pre transaction checks',
-  );
-
   // Check balance before transfer
   const fromAddress = await signer.address();
   const currentBalance = await adapter.getBalance(fromAddress);
@@ -206,13 +262,13 @@ async function fundAccount({
     {
       fromAddress,
       currentBalance: currentBalance.toString(),
-      symbol: token.symbol,
+      symbol: tokenMetadata.symbol,
     },
-    'Current sender balance',
+    'Retrieved signer balance info',
   );
 
   // Convert amount to wei/smallest unit
-  const decimals = token.decimals;
+  const decimals = tokenMetadata.decimals;
   const weiAmount = BigInt(toWei(amount, decimals));
 
   fundingLogger.info(
@@ -227,7 +283,7 @@ async function fundAccount({
   // Check if we have sufficient balance
   if (currentBalance < weiAmount) {
     throw new Error(
-      `Insufficient balance. Have: ${formatUnits(currentBalance, decimals)} ${token.symbol}, Need: ${amount} ${token.symbol}`,
+      `Insufficient balance. Have: ${formatUnits(currentBalance, decimals)} ${tokenMetadata.symbol}, Need: ${amount} ${tokenMetadata.symbol}`,
     );
   }
 
@@ -251,7 +307,7 @@ async function fundAccount({
 
   const protocolTypedTx = {
     transaction: transferTx,
-    type: TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard],
+    type: PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol],
   } as ProtocolTypedTransaction<typeof protocol>;
 
   if (dryRun) {
@@ -274,7 +330,7 @@ async function fundAccount({
       transactionHash,
       senderNewBalance: formatUnits(newBalance, decimals),
       recipientBalance: formatUnits(recipientBalance, decimals),
-      symbol: token.symbol,
+      symbol: tokenMetadata.symbol,
     },
     'Transfer completed successfully',
   );
