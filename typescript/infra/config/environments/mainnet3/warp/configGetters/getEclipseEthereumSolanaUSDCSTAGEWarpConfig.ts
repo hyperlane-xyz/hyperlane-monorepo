@@ -1,42 +1,108 @@
-import { ethers } from 'ethers';
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
-import {
-  ChainMap,
-  HypTokenRouterConfig,
-  RouterConfig,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
-
-import { tokens } from '../../../../../src/config/warp.js';
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { usdcTokenAddresses } from '../cctp.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
-const deployer = '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5';
+import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
+
+const EVM_OWNER = '0x7fDFd78B278f88C1A1921B7AeC69aC509862C44f';
+const SOLANA_OWNER = '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf';
+
+const deploymentChains = [
+  'ethereum',
+  'arbitrum',
+  'base',
+  'eclipsemainnet',
+  'solanamainnet',
+] as const;
+
+type DeploymentChain = (typeof deploymentChains)[number];
+
+// Chains that support CCTP-based rebalancing
+const rebalanceableCollateralChains = [
+  'ethereum',
+  'arbitrum',
+  'base',
+] as const satisfies DeploymentChain[];
+
+const CONTRACT_VERSION = '9.0.13';
+
+const STAGING_PROGRAM_IDS = {
+  eclipsemainnet: '6QSWUmEaEcE2KJrU5jq7T11tNRaVsgnG8XULezjg7JjL',
+  solanamainnet: 'E5rVV8zXwtc4TKGypCJvSBaYbgxa4XaYg5MS6N9QGdeo',
+};
 
 export const getEclipseEthereumSolanaUSDCSTAGEWarpConfig = async (
-  routerConfig: ChainMap<RouterConfig>,
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const eclipsemainnet: HypTokenRouterConfig = {
-    ...routerConfig.eclipsemainnet,
-    type: TokenType.synthetic,
-    foreignDeployment: '6QSWUmEaEcE2KJrU5jq7T11tNRaVsgnG8XULezjg7JjL',
-    gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
-  };
+  const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
+    rebalanceableCollateralChains,
+  );
 
-  const ethereum: HypTokenRouterConfig = {
-    ...routerConfig.ethereum,
-    type: TokenType.collateral,
-    interchainSecurityModule: ethers.constants.AddressZero,
-    token: tokens.ethereum.USDC,
-    owner: deployer,
-    symbol: 'USDCSTAGE',
-    name: 'USD Coin STAGE',
-  };
+  const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
-  // Intentionally don't enroll Solana to avoid transferring
-  // directly between Solana and Ethereum
+  // Handle rebalanceable collateral chains (EVM chains with rebalancing)
+  for (const currentChain of rebalanceableCollateralChains) {
+    const usdcTokenAddress =
+      usdcTokenAddresses[currentChain as keyof typeof usdcTokenAddresses];
 
-  return {
-    eclipsemainnet,
-    ethereum,
-  };
+    assert(
+      usdcTokenAddress,
+      `USDC token address not found for chain ${currentChain}`,
+    );
+
+    const currentRebalancingConfig = rebalancingConfigByChain[currentChain];
+    assert(
+      currentRebalancingConfig,
+      `Rebalancing config not found for chain ${currentChain}`,
+    );
+
+    const { allowedRebalancers, allowedRebalancingBridges } =
+      currentRebalancingConfig;
+
+    configs.push([
+      currentChain,
+      {
+        type: TokenType.collateral,
+        token: usdcTokenAddress,
+        mailbox: routerConfig[currentChain].mailbox,
+        owner: EVM_OWNER,
+        allowedRebalancers,
+        allowedRebalancingBridges,
+        contractVersion: CONTRACT_VERSION,
+        // STAGING: Use test token branding
+        symbol: 'USDCSTAGE',
+        name: 'USD Coin STAGE',
+      },
+    ]);
+  }
+
+  // Handle synthetic chain (Eclipse)
+  configs.push([
+    'eclipsemainnet',
+    {
+      type: TokenType.synthetic,
+      mailbox: routerConfig.eclipsemainnet.mailbox,
+      foreignDeployment: STAGING_PROGRAM_IDS.eclipsemainnet,
+      gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+      owner: SOLANA_OWNER,
+    },
+  ]);
+
+  // Handle non-rebalanceable collateral chain (Solana)
+  configs.push([
+    'solanamainnet',
+    {
+      type: TokenType.collateral,
+      token: usdcTokenAddresses.solanamainnet,
+      mailbox: routerConfig.solanamainnet.mailbox,
+      foreignDeployment: STAGING_PROGRAM_IDS.solanamainnet,
+      gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
+      owner: SOLANA_OWNER,
+    },
+  ]);
+
+  return Object.fromEntries(configs);
 };
