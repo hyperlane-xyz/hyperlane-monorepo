@@ -318,7 +318,7 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
   ): SealevelGasOracleConfig {
     const gasOracle = remoteGasData
       ? new SealevelGasOracle({
-          type: 0, // RemoteGasData
+          type: SealevelGasOracleType.RemoteGasData,
           data: remoteGasData,
         })
       : null;
