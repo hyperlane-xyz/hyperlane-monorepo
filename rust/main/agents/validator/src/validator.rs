@@ -88,7 +88,10 @@ impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
             .map(|rpc| ValidatorMetadataRpcEntry {
                 url_hash: H256::from_slice(&keccak256(&rpc.url)),
                 host_hash: H256::from_slice(&keccak256(
-                    &Url::parse(&rpc.url).unwrap().host_str().unwrap_or(""),
+                    Url::parse(&rpc.url)
+                        .ok()
+                        .and_then(|url| url.host_str().map(str::to_string))
+                        .unwrap_or("".to_string()),
                 )),
             })
             .collect();

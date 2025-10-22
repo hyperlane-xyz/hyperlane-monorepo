@@ -47,8 +47,8 @@ impl ReorgReportRpcResponse {
         reorg_period: Option<ReorgPeriod>,
     ) -> Self {
         ReorgReportRpcResponse {
-            rpc_host_hash: H256::from_slice(&keccak256(&url.host_str().unwrap_or("").as_bytes())),
-            rpc_url_hash: H256::from_slice(&keccak256(&url.as_str().as_bytes())),
+            rpc_host_hash: H256::from_slice(&keccak256(url.host_str().unwrap_or("").as_bytes())),
+            rpc_url_hash: H256::from_slice(&keccak256(url.as_str().as_bytes())),
             height,
             reorg_period,
             merkle_root_hash: latest_checkpoint.checkpoint.root,
