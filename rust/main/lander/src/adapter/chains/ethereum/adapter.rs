@@ -181,7 +181,7 @@ impl EthereumAdapter {
                 ?tx,
                 "not resubmitting transaction since new gas price is the same as the old one"
             );
-            return Err(LanderError::TxAlreadyExists);
+            return Err(LanderError::TxWontBeResubmitted);
         }
 
         Ok(())
