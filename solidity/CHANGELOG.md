@@ -1,5 +1,11 @@
 # @hyperlane-xyz/core
 
+## 9.0.15
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.3.0
+
 ## 9.0.14
 
 ### Patch Changes
