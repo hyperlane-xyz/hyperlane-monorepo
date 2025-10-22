@@ -164,14 +164,19 @@ export function loadCoreProgramIds(
  * Calculate percentage difference between two bigints
  */
 export function calculatePercentDifference(
-  actual: bigint,
-  expected: bigint,
+  actual: bigint | number,
+  expected: bigint | number,
 ): string {
-  if (actual === 0n) {
+  // Convert to bigints if needed
+  const actualBigInt = typeof actual === 'bigint' ? actual : BigInt(actual);
+  const expectedBigInt =
+    typeof expected === 'bigint' ? expected : BigInt(expected);
+
+  if (actualBigInt === 0n) {
     return 'new';
   }
   // Calculate (expected - actual) / actual * 100
-  const diff = ((expected - actual) * 10000n) / actual; // multiply by 10000 for 2 decimal places
+  const diff = ((expectedBigInt - actualBigInt) * 10000n) / actualBigInt; // multiply by 10000 for 2 decimal places
   const percentStr = (Number(diff) / 100).toFixed(2);
   return diff >= 0n ? `+${percentStr}%` : `${percentStr}%`;
 }
