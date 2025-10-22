@@ -1,7 +1,10 @@
 import {
   TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
   createTransferInstruction,
   getAssociatedTokenAddressSync,
+  getMint,
+  getTokenMetadata,
 } from '@solana/spl-token';
 import {
   AccountMeta,
@@ -40,6 +43,7 @@ import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
 } from '../../utils/sealevelSerialization.js';
+import { getLegacySPLTokenMetadata } from '../sealevel/metadata.js';
 import { TokenMetadata } from '../types.js';
 
 import {
@@ -182,8 +186,37 @@ export class SealevelTokenAdapter
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
-    // TODO solana support
-    return { decimals: 9, symbol: 'SPL', name: 'SPL Token' };
+    const svmProvider = this.getProvider();
+
+    const isSpl2022Token = await this.isSpl2022();
+
+    const tokenAddress = new PublicKey(this.addresses.token);
+    const [tokenInfo, metadata] = await Promise.all([
+      getMint(
+        svmProvider,
+        tokenAddress,
+        'finalized',
+        isSpl2022Token ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID,
+      ),
+      isSpl2022Token
+        ? await getTokenMetadata(
+            svmProvider,
+            tokenAddress,
+            'finalized',
+            TOKEN_2022_PROGRAM_ID,
+          )
+        : await getLegacySPLTokenMetadata(svmProvider, tokenAddress),
+    ]);
+
+    assert(
+      metadata,
+      `Metadata for SVM token at address "${this.addresses.token}" on chain "${this.chainName}" not found`,
+    );
+    return {
+      decimals: tokenInfo.decimals,
+      symbol: metadata.symbol,
+      name: metadata.name,
+    };
   }
 
   async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
