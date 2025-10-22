@@ -15,7 +15,11 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../config/environment.js';
 
+import { TurnkeySealevelSigner } from './turnkey.js';
 import { getMonorepoRoot, readJSONAtPath } from './utils.js';
+
+// Type for signer - can be either local Keypair or Turnkey remote signer
+export type SealevelSigner = Keypair | TurnkeySealevelSigner;
 
 export const svmGasOracleConfigPath = (environment: DeployEnvironment) =>
   resolve(
@@ -32,8 +36,8 @@ export async function buildAndSendTransaction(params: {
   connection: Connection;
   /** Transaction instructions to include */
   instructions: TransactionInstruction[];
-  /** Keypair to sign the transaction */
-  signer: Keypair;
+  /** Sealevel signer to sign the transaction */
+  signer: SealevelSigner;
   /** Chain name for logging and priority fees */
   chain: string;
 }): Promise<string> {
@@ -62,11 +66,22 @@ export async function buildAndSendTransaction(params: {
   tx.feePayer = signer.publicKey;
 
   // Sign and send transaction
-  tx.sign(signer);
-  let signature = await connection.sendRawTransaction(tx.serialize(), {
-    skipPreflight: false,
-    maxRetries: 3,
-  });
+  let signature: string;
+  if (signer instanceof Keypair) {
+    rootLogger.debug('Signing with local Keypair');
+    tx.sign(signer);
+    signature = await connection.sendRawTransaction(tx.serialize(), {
+      skipPreflight: false,
+      maxRetries: 3,
+    });
+  } else {
+    rootLogger.debug('Signing with Turnkey');
+    const signedTx = await signer.signTransaction(tx);
+    signature = await connection.sendRawTransaction(signedTx.serialize(), {
+      skipPreflight: false,
+      maxRetries: 3,
+    });
+  }
 
   // Poll for confirmation using getSignatureStatus instead of confirmTransaction
   let confirmed = false;
@@ -88,11 +103,24 @@ export async function buildAndSendTransaction(params: {
         ({ blockhash, lastValidBlockHeight } =
           await connection.getLatestBlockhash('confirmed'));
         tx.recentBlockhash = blockhash;
-        tx.sign(signer);
-        signature = await connection.sendRawTransaction(tx.serialize(), {
-          skipPreflight: false,
-          maxRetries: 3,
-        });
+        if (signer instanceof Keypair) {
+          rootLogger.debug('Signing with local Keypair');
+          tx.sign(signer);
+          signature = await connection.sendRawTransaction(tx.serialize(), {
+            skipPreflight: false,
+            maxRetries: 3,
+          });
+        } else {
+          rootLogger.debug('Signing with Turnkey');
+          const signedTx = await signer.signTransaction(tx);
+          signature = await connection.sendRawTransaction(
+            signedTx.serialize(),
+            {
+              skipPreflight: false,
+              maxRetries: 3,
+            },
+          );
+        }
         rootLogger.info(
           `[${chain}] Resubmitted transaction with new signature: ${signature}`,
         );
@@ -148,8 +176,8 @@ export async function batchAndSendTransactions<T>(params: {
   connection: Connection;
   /** Chain name for logging and priority fees */
   chain: string;
-  /** Keypair to sign transactions */
-  signerKeypair: Keypair;
+  /** Sealevel signer to sign transactions */
+  signer: SealevelSigner;
   /** Description of operation for logging */
   operationName: string;
   /** Items to process in batches */
@@ -166,7 +194,7 @@ export async function batchAndSendTransactions<T>(params: {
   const {
     connection,
     chain,
-    signerKeypair,
+    signer,
     operationName,
     items,
     createInstruction,
@@ -193,7 +221,7 @@ export async function batchAndSendTransactions<T>(params: {
       const tx = await buildAndSendTransaction({
         connection,
         instructions: [instruction],
-        signer: signerKeypair,
+        signer,
         chain,
       });
 

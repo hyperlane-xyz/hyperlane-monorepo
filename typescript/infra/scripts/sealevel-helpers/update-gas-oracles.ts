@@ -31,6 +31,7 @@ import {
   loadAndValidateGasOracleConfig,
 } from '../../src/config/gas-oracle.js';
 import {
+  SealevelSigner,
   batchAndSendTransactions,
   calculatePercentDifference,
   formatRemoteGasData,
@@ -38,6 +39,7 @@ import {
   serializeGasOracleDifference,
   svmGasOracleConfigPath,
 } from '../../src/utils/sealevel.js';
+import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
 import { chainIsProtocol, readJSONAtPath } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -140,9 +142,8 @@ async function manageGasOracles(
   chainGasOracleConfig: ChainMap<GasOracleConfigWithOverhead>,
   allConfigDomainIds: Set<Domain>,
   igpAdapter: SealevelIgpAdapter,
-  programId: PublicKey,
   igpAccountPda: PublicKey,
-  signerKeypair: Keypair,
+  signer: SealevelSigner,
   dryRun: boolean,
 ): Promise<{
   oraclesRemoved: number;
@@ -243,13 +244,13 @@ async function manageGasOracles(
       await batchAndSendTransactions({
         connection,
         chain,
-        signerKeypair,
+        signer,
         operationName: 'gas oracle removals',
         items: removalConfigs,
         createInstruction: (batch) =>
           igpAdapter.createSetGasOracleConfigsInstruction(
             igpAccountPda,
-            signerKeypair.publicKey,
+            signer.publicKey,
             batch,
           ),
         formatBatch: (batch) => {
@@ -271,13 +272,13 @@ async function manageGasOracles(
     await batchAndSendTransactions({
       connection,
       chain,
-      signerKeypair,
+      signer,
       operationName: 'gas oracle updates',
       items: configsToUpdate.map((item) => item.config),
       createInstruction: (batch) =>
         igpAdapter.createSetGasOracleConfigsInstruction(
           igpAccountPda,
-          signerKeypair.publicKey,
+          signer.publicKey,
           batch,
         ),
       formatBatch: (batch) => {
@@ -309,7 +310,7 @@ async function manageGasOverheads(
   allConfigDomainIds: Set<Domain>,
   overheadIgpAdapter: SealevelOverheadIgpAdapter,
   overheadIgpAccountPda: PublicKey,
-  signerKeypair: Keypair,
+  signer: SealevelSigner,
   dryRun: boolean,
 ): Promise<{
   overheadsRemoved: number;
@@ -391,13 +392,13 @@ async function manageGasOverheads(
       await batchAndSendTransactions({
         connection,
         chain,
-        signerKeypair,
+        signer,
         operationName: 'gas overhead removals',
         items: removalConfigs,
         createInstruction: (batch) =>
           overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
             overheadIgpAccountPda,
-            signerKeypair.publicKey,
+            signer.publicKey,
             batch,
           ),
         formatBatch: (batch) => {
@@ -419,13 +420,13 @@ async function manageGasOverheads(
     await batchAndSendTransactions({
       connection,
       chain,
-      signerKeypair,
+      signer,
       operationName: 'gas overhead updates',
       items: configsToUpdate.map((item) => item.config),
       createInstruction: (batch) =>
         overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
           overheadIgpAccountPda,
-          signerKeypair.publicKey,
+          signer.publicKey,
           batch,
         ),
       formatBatch: (batch) => {
@@ -453,7 +454,7 @@ async function processChain(
   mpp: MultiProtocolProvider,
   chain: ChainName,
   chainGasOracleConfig: ChainMap<GasOracleConfigWithOverhead>,
-  keyPath: string,
+  signer: SealevelSigner,
   dryRun: boolean,
 ): Promise<{
   chain: string;
@@ -476,11 +477,7 @@ async function processChain(
   rootLogger.debug(`Using IGP program ID: ${programId.toBase58()}`);
   rootLogger.debug(`IGP Account: ${igpAccountPda.toBase58()}`);
   rootLogger.debug(`Overhead IGP Account: ${overheadIgpAccountPda.toBase58()}`);
-
-  // Load keypair
-  const keypairData = readJSONAtPath(keyPath);
-  const signerKeypair = Keypair.fromSecretKey(new Uint8Array(keypairData));
-  rootLogger.debug(`Using signer: ${signerKeypair.publicKey.toBase58()}`);
+  rootLogger.debug(`Using signer: ${signer.publicKey.toBase58()}`);
 
   // Setup connection
   const rpcs = await getSecretRpcEndpoints(environment, chain);
@@ -520,9 +517,8 @@ async function processChain(
       chainGasOracleConfig,
       allConfigDomainIds,
       igpAdapter,
-      programId,
       igpAccountPda,
-      signerKeypair,
+      signer,
       dryRun,
     );
 
@@ -536,7 +532,7 @@ async function processChain(
       allConfigDomainIds,
       overheadIgpAdapter,
       overheadIgpAccountPda,
-      signerKeypair,
+      signer,
       dryRun,
     );
 
@@ -558,18 +554,11 @@ async function main() {
     chains: chainsArg,
     keyPath,
     apply,
-  } = await withChains(getArgs())
-    .option('keyPath', {
-      type: 'string',
-      description: 'Path to Solana keypair JSON file',
-      demandOption: true,
-      alias: 'k',
-    })
-    .option('apply', {
-      type: 'boolean',
-      description: 'Apply changes on-chain (default is dry-run mode)',
-      default: false,
-    }).argv;
+  } = await withChains(getArgs()).option('apply', {
+    type: 'boolean',
+    description: 'Apply changes on-chain (default is dry-run mode)',
+    default: false,
+  }).argv;
 
   const dryRun = !apply;
 
@@ -583,6 +572,11 @@ async function main() {
             !chainsToSkip.includes(chain),
         )
       : chainsArg;
+
+  // Initialize Turnkey signer (default and only option)
+  rootLogger.info('Initializing Turnkey signer from GCP Secret Manager...');
+  const signer = await getTurnkeySealevelDeployerSigner(environment);
+  rootLogger.info(`Signer public key: ${signer.publicKey.toBase58()}`);
 
   rootLogger.info(
     `Configuring IGP for chains: ${chains.join(', ')} on ${environment}`,
@@ -613,7 +607,7 @@ async function main() {
         mpp,
         chain,
         chainGasOracleConfig,
-        keyPath,
+        signer,
         dryRun,
       );
     }),
