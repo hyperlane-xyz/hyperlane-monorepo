@@ -377,8 +377,10 @@ async function manageGasOverheads(
     const remoteDomain = remoteMeta.domainId;
 
     // Check if gas overhead needs updating
-    const currentOverhead =
+    const currentOverheadRaw =
       overheadIgpAccountData.gas_overheads.get(remoteDomain);
+    const currentOverhead =
+      currentOverheadRaw !== undefined ? BigInt(currentOverheadRaw) : undefined;
     const targetOverhead =
       config.overhead !== undefined ? BigInt(config.overhead) : null;
 
