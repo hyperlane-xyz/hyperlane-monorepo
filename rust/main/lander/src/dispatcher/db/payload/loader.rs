@@ -5,6 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
+use tokio::sync::mpsc;
 use tracing::{debug, trace};
 
 use crate::{
@@ -18,6 +19,7 @@ use super::PayloadDb;
 #[derive(new)]
 pub struct PayloadDbLoader {
     db: Arc<dyn PayloadDb>,
+    building_stage_sender: mpsc::Sender<()>,
     building_stage_queue: BuildingStageQueue,
     domain: String,
 }
@@ -26,6 +28,19 @@ impl PayloadDbLoader {
     pub async fn into_iterator(self) -> DbIterator<Self> {
         let domain = self.domain.clone();
         DbIterator::new(Arc::new(self), "Payload".to_string(), false, domain).await
+    }
+
+    pub async fn push_back(&self, item: FullPayload) {
+        self.building_stage_queue.push_back(item).await;
+        // Notify building stage of new payloads.
+        // If capacity is zero, then that means building stage
+        // is already notified. Don't need to notify again.
+        if self.building_stage_sender.capacity() > 0 {
+            self.building_stage_sender
+                .send(())
+                .await
+                .expect("Failed to send signal to building_stage_receiver");
+        }
     }
 }
 
@@ -50,7 +65,7 @@ impl LoadableFromDb for PayloadDbLoader {
     async fn load(&self, item: FullPayload) -> Result<LoadingOutcome, LanderError> {
         match item.status {
             PayloadStatus::ReadyToSubmit | PayloadStatus::Retry(_) => {
-                self.building_stage_queue.push_back(item).await;
+                self.push_back(item).await;
                 Ok(LoadingOutcome::Loaded)
             }
             PayloadStatus::Dropped(_) | PayloadStatus::InTransaction(_) => {

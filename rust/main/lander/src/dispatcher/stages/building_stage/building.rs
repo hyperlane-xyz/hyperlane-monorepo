@@ -21,6 +21,8 @@ pub const STAGE_NAME: &str = "BuildingStage";
 pub struct BuildingStage {
     /// This queue is the entrypoint and event driver of the Building Stage
     queue: BuildingStageQueue,
+    /// Signal to tell building stage to process more payloads.
+    building_stage_receiver: mpsc::Receiver<()>,
     /// This channel is the exitpoint of the Building Stage
     inclusion_stage_sender: mpsc::Sender<Transaction>,
     pub(crate) state: DispatcherState,
@@ -29,23 +31,24 @@ pub struct BuildingStage {
 
 impl BuildingStage {
     #[instrument(skip(self), name = "BuildingStage::run", fields(domain=%self.domain))]
-    pub async fn run(&self) {
-        loop {
-            // event-driven by the Building queue
-            let payloads = self
-                .queue
-                .pop_n(self.state.adapter.max_batch_size() as usize)
-                .await;
-            if payloads.is_empty() {
-                // wait for more payloads to arrive
-                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
-                continue;
-            }
-            // note: this will set the queue length metric to `length - payloads.len()`,
-            // so worst case this will be lower by `max_batch_size`
-            self.update_metrics().await;
+    pub async fn run(&mut self) {
+        // we can efficiently wait for more payloads if no one has notified us.
+        while let Some(_) = self.building_stage_receiver.recv().await {
+            loop {
+                // event-driven by the Building queue
+                let payloads = self
+                    .queue
+                    .pop_n(self.state.adapter.max_batch_size() as usize)
+                    .await;
+                if payloads.is_empty() {
+                    break;
+                }
+                // note: this will set the queue length metric to `length - payloads.len()`,
+                // so worst case this will be lower by `max_batch_size`
+                self.update_metrics().await;
 
-            self.build_transactions(&payloads).await;
+                self.build_transactions(&payloads).await;
+            }
         }
     }
 
