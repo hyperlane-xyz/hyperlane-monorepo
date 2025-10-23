@@ -2,12 +2,11 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import Sinon from 'sinon';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, MockSigner } from '@hyperlane-xyz/provider-sdk';
 
 import { TestChainName } from '../consts/testChains.js';
 import { IsmType } from '../ism/types.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-import { MockSigner } from '../test/AltVMMockSigner.js';
 
 import { AltVMWarpModule } from './AltVMWarpModule.js';
 import { TokenType } from './config.js';
