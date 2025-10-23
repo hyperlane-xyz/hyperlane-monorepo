@@ -1,7 +1,30 @@
 import { zeroAddress } from 'viem';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  Address,
+  ChainId,
+  Domain,
+  ProtocolType,
+  assert,
+  deepEquals,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
+
+import {
+  HyperlaneModule,
+  HyperlaneModuleParams,
+} from '../core/AbstractHyperlaneModule.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import {
+  AnnotatedTypedTransaction,
+  ProtocolReceipt,
+} from '../providers/ProviderType.js';
+import { ChainName, ChainNameOrId } from '../types.js';
+import { normalizeConfig } from '../utils/ism.js';
+
+import { AltVMHookReader } from './AltVMHookReader.js';
 import {
   HookConfig,
   HookType,

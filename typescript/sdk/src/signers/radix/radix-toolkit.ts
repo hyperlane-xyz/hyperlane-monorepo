@@ -1,9 +1,10 @@
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   RadixSDKReceipt,
   RadixSDKTransaction,
   RadixSigner,
 } from '@hyperlane-xyz/radix-sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { RadixTransaction } from '../../providers/ProviderType.js';

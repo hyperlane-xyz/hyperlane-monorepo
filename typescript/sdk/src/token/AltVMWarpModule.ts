@@ -1,17 +1,11 @@
 import { Logger } from 'pino';
 import { zeroAddress } from 'viem';
 
-import { AltVMIsmModule } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { DerivedIsmConfig, IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
-import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  TxReceipt,
-} from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
+  Domain,
+  ProtocolType,
   addressToBytes32,
   assert,
   rootLogger,
