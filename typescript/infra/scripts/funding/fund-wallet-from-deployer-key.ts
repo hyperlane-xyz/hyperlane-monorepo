@@ -159,7 +159,12 @@ async function fundAccount({
   // TODO: update this to get token info if available
   let tokenPrice;
   try {
-    tokenPrice = await tokenPriceGetter.getTokenPrice(chainName);
+    tokenPrice = tokenAddress
+      ? await tokenPriceGetter.fetchPriceDataByContractAddress(
+          chainName,
+          tokenAddress,
+        )
+      : await tokenPriceGetter.getTokenPrice(chainName);
   } catch (err) {
     fundingLogger.error(
       { chainName, err },

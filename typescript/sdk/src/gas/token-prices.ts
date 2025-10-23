@@ -1,9 +1,13 @@
-import { objKeys, rootLogger, sleep } from '@hyperlane-xyz/utils';
+import { URL } from 'url';
+
+import { Address, objKeys, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../types.js';
 
 const COINGECKO_PRICE_API = 'https://api.coingecko.com/api/v3/simple/price';
+
+const COINGECKO_COIN_API = 'https://api.coingecko.com/api/v3/coins';
 
 export interface TokenPriceGetter {
   getTokenPrice(chain: ChainName): Promise<number>;
@@ -157,14 +161,37 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     return ids.map((id) => this.cache.fetch(id));
   }
 
+  public async fetchPriceDataByContractAddress(
+    chain: ChainName,
+    contractAddress: Address,
+  ): Promise<number> {
+    const tokenPrice = await this.get(
+      `${COINGECKO_COIN_API}/${chain}/contract/${contractAddress}`,
+    );
+
+    return tokenPrice.market_data.current_price.usd;
+  }
+
   public async fetchPriceData(
     ids: string[],
     currency: string,
   ): Promise<number[]> {
     const tokenIds = ids.join(',');
-    let url = `${COINGECKO_PRICE_API}?ids=${tokenIds}&vs_currencies=${currency}`;
+    const idPrices = await this.get(
+      `${COINGECKO_PRICE_API}?ids=${tokenIds}&vs_currencies=${currency}`,
+    );
+
+    return ids.map((id) => {
+      const price = idPrices[id]?.[currency];
+      if (!price) throw new Error(`No price found for ${id}`);
+      return Number(price);
+    });
+  }
+
+  private async get(endpoint: string): Promise<any> {
+    const url = new URL(endpoint);
     if (this.apiKey) {
-      url += `&x-cg-pro-api-key=${this.apiKey}`;
+      url.searchParams.append('x-cg-pro-api-key', this.apiKey);
     }
 
     const resp = await fetch(url);
@@ -191,10 +218,6 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       rootLogger.warn(jsonError, 'Failed to parse token prices');
     }
 
-    return ids.map((id) => {
-      const price = idPrices[id]?.[currency];
-      if (!price) throw new Error(`No price found for ${id}`);
-      return Number(price);
-    });
+    return idPrices;
   }
 }
