@@ -1,5 +1,14 @@
 # @hyperlane-xyz/ccip-server
 
+## 19.3.0
+
+### Patch Changes
+
+- Updated dependencies [fcdda58a8]
+  - @hyperlane-xyz/sdk@19.3.0
+  - @hyperlane-xyz/utils@19.3.0
+  - @hyperlane-xyz/core@9.0.15
+
 ## 19.2.0
 
 ### Patch Changes

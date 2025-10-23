@@ -29,3 +29,12 @@ export function sortArrayByKey<T extends Record<keyof T, any>>(
 ): T[] {
   return sortBy(array, [(item) => item[sortKey]]);
 }
+
+// Validates that 2 arrays are equal in both ordering and elements
+export function arrayEqual<T>(a: T[], b: T[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  return a.every((item, idx) => item === b[idx]);
+}

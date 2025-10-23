@@ -94,8 +94,17 @@ async function getPrometheusConfig(
           write_relabel_configs: [
             {
               action: 'keep',
-              regex:
-                '(container.*|optics.*|Optics.*|prometheus.*|ethereum.*|hyperlane.*|kube_pod_status_phase|kube_pod_container_status_restarts_total|kube_pod_container_resource_requests)',
+              regex: `(${[
+                'container.*',
+                'prometheus.*',
+                'ethereum.*',
+                'hyperlane.*',
+                'kube_pod_status_phase',
+                'kube_pod_container_status_restarts_total',
+                'kube_pod_container_resource_requests',
+                'kube_job_status_failed',
+                'kube_job_created',
+              ].join('|')})`,
               source_labels: ['__name__'],
             },
             {
