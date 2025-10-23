@@ -62,14 +62,14 @@ export class KeypairSvmTransactionSigner implements SvmTransactionSigner {
   }
 }
 
-export class SvmMultiprotocolSignerAdapter
+export class SvmMultiProtocolSignerAdapter
   implements IMultiProtocolSigner<ProtocolType.Sealevel>
 {
   private readonly signer: SvmTransactionSigner;
   private readonly svmProvider: Connection;
   private readonly config: Required<SvmSignerConfig>;
   private readonly logger = rootLogger.child({
-    module: 'SvmMultiprotocolSignerAdapter',
+    module: 'SvmMultiProtocolSignerAdapter',
   });
 
   constructor(

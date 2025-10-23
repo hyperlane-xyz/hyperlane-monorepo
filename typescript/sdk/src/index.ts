@@ -845,7 +845,7 @@ export {
 export {
   SvmTransactionSigner,
   KeypairSvmTransactionSigner,
-  SvmMultiprotocolSignerAdapter,
+  SvmMultiProtocolSignerAdapter,
   SvmSignerConfig,
   TransactionBuildOptions,
 } from './signers/svm/solana-web3js.js';

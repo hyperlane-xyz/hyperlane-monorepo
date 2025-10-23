@@ -19,7 +19,7 @@ import {
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
   SealevelRemoteGasData,
-  SvmMultiprotocolSignerAdapter,
+  SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
 import { Domain, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -142,7 +142,7 @@ async function manageGasOracles(
   allConfigDomainIds: Set<Domain>,
   igpAdapter: SealevelIgpAdapter,
   igpAccountPda: PublicKey,
-  adapter: SvmMultiprotocolSignerAdapter,
+  adapter: SvmMultiProtocolSignerAdapter,
   dryRun: boolean,
 ): Promise<{
   oraclesRemoved: number;
@@ -307,7 +307,7 @@ async function manageGasOverheads(
   allConfigDomainIds: Set<Domain>,
   overheadIgpAdapter: SealevelOverheadIgpAdapter,
   overheadIgpAccountPda: PublicKey,
-  adapter: SvmMultiprotocolSignerAdapter,
+  adapter: SvmMultiProtocolSignerAdapter,
   dryRun: boolean,
 ): Promise<{
   overheadsRemoved: number;
@@ -449,7 +449,7 @@ async function processChain(
   mpp: MultiProtocolProvider,
   chain: ChainName,
   chainGasOracleConfig: ChainMap<GasOracleConfigWithOverhead>,
-  adapter: SvmMultiprotocolSignerAdapter,
+  adapter: SvmMultiProtocolSignerAdapter,
   dryRun: boolean,
 ): Promise<{
   chain: string;
@@ -585,7 +585,7 @@ async function main() {
   const results = await Promise.all(
     chains.map((chain) => {
       // Wrap Turnkey signer in the adapter for this chain
-      const signerAdapter = new SvmMultiprotocolSignerAdapter(
+      const signerAdapter = new SvmMultiProtocolSignerAdapter(
         chain,
         turnkeySigner,
         mpp,

@@ -3,7 +3,7 @@ import { resolve } from 'path';
 
 import {
   SealevelRemoteGasData,
-  SvmMultiprotocolSignerAdapter,
+  SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -25,7 +25,7 @@ export async function batchAndSendTransactions<T>(params: {
   /** Chain name for logging */
   chain: string;
   /** Sealevel signer adapter */
-  adapter: SvmMultiprotocolSignerAdapter;
+  adapter: SvmMultiProtocolSignerAdapter;
   /** Description of operation for logging */
   operationName: string;
   /** Items to process in batches */

@@ -9,7 +9,7 @@ import { RadixMultiProtocolSignerAdapter } from './radix/radix-toolkit.js';
 import { StarknetMultiProtocolSignerAdapter } from './starknet/starknetjs.js';
 import {
   KeypairSvmTransactionSigner,
-  SvmMultiprotocolSignerAdapter,
+  SvmMultiProtocolSignerAdapter,
 } from './svm/solana-web3js.js';
 import { IMultiProtocolSigner } from './types.js';
 
@@ -46,7 +46,7 @@ export async function getSignerForChain<TProtocol extends ProtocolType>(
         multiProtocolProvider,
       );
     case ProtocolType.Sealevel:
-      return new SvmMultiprotocolSignerAdapter(
+      return new SvmMultiProtocolSignerAdapter(
         chainName,
         new KeypairSvmTransactionSigner(accountConfig.privateKey),
         multiProtocolProvider,
