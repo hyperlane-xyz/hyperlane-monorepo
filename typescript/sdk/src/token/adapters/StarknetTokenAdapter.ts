@@ -36,6 +36,9 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
+const stringFromDecimalNumber = (num: bigint | number) =>
+  Buffer.from(num.toString(16), 'hex').toString('utf8');
+
 export class StarknetTokenAdapter
   extends BaseStarknetAdapter
   implements ITokenAdapter<Call>
@@ -88,13 +91,8 @@ export class StarknetTokenAdapter
       // strings might be returned as bigint/numbers depending on the ABI
       // and cairo version of the contract
       symbol:
-        typeof symbol === 'string'
-          ? symbol
-          : Buffer.from(symbol.toString(16), 'hex').toString('utf8'),
-      name:
-        typeof name === 'string'
-          ? name
-          : Buffer.from(name.toString(16), 'hex').toString('utf8'),
+        typeof symbol === 'string' ? symbol : stringFromDecimalNumber(symbol),
+      name: typeof name === 'string' ? name : stringFromDecimalNumber(name),
     };
   }
 
