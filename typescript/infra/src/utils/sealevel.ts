@@ -1,16 +1,9 @@
-import {
-  ComputeBudgetProgram,
-  Connection,
-  Keypair,
-  PublicKey,
-  Transaction,
-  TransactionInstruction,
-} from '@solana/web3.js';
+import { TransactionInstruction } from '@solana/web3.js';
 import { resolve } from 'path';
 
 import {
-  SEALEVEL_PRIORITY_FEES,
   SealevelRemoteGasData,
+  SvmMultiprotocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -24,152 +17,15 @@ export const svmGasOracleConfigPath = (environment: DeployEnvironment) =>
     `rust/sealevel/environments/${environment}/gas-oracle-configs.json`,
   );
 
-export interface SvmTransactionSigner {
-  readonly publicKey: PublicKey;
-  signTransaction(transaction: Transaction): Promise<Transaction>;
-}
-
-export class KeypairSvmSigner implements SvmTransactionSigner {
-  constructor(private readonly keypair: Keypair) {}
-
-  get publicKey(): PublicKey {
-    return this.keypair.publicKey;
-  }
-
-  async signTransaction(transaction: Transaction): Promise<Transaction> {
-    transaction.sign(this.keypair);
-    return transaction;
-  }
-}
-
-/**
- * Build and send a transaction with priority fees and custom confirmation polling
- * This avoids WebSocket subscription issues with some RPC providers
- */
-export async function buildAndSendTransaction(params: {
-  /** Solana RPC connection */
-  connection: Connection;
-  /** Transaction instructions to include */
-  instructions: TransactionInstruction[];
-  /** Sealevel signer to sign the transaction */
-  signer: SvmTransactionSigner;
-  /** Chain name for logging and priority fees */
-  chain: string;
-}): Promise<string> {
-  const { connection, instructions, signer, chain } = params;
-  const tx = new Transaction();
-
-  // Add priority fee if configured
-  const priorityFee = SEALEVEL_PRIORITY_FEES[chain];
-  if (priorityFee) {
-    tx.add(
-      ComputeBudgetProgram.setComputeUnitPrice({
-        microLamports: priorityFee,
-      }),
-    );
-  }
-
-  // Add all instructions
-  for (const instruction of instructions) {
-    tx.add(instruction);
-  }
-
-  // Get recent blockhash with expiry tracking
-  let { blockhash, lastValidBlockHeight } =
-    await connection.getLatestBlockhash('confirmed');
-  tx.recentBlockhash = blockhash;
-  tx.feePayer = signer.publicKey;
-
-  // Sign and send transaction
-  let signature: string;
-  const signedTx = await signer.signTransaction(tx);
-  signature = await connection.sendRawTransaction(signedTx.serialize(), {
-    skipPreflight: false,
-    maxRetries: 3,
-  });
-
-  // Poll for confirmation using getSignatureStatus instead of confirmTransaction
-  let confirmed = false;
-  let attempts = 0;
-  const maxAttempts = 30; // 30 seconds timeout
-  let failureReason: Error | null = null;
-
-  while (!confirmed && attempts < maxAttempts) {
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
-    attempts++;
-
-    try {
-      // Check if blockhash expired and refresh if needed
-      const currentBlockHeight = await connection.getBlockHeight();
-      if (currentBlockHeight > lastValidBlockHeight && !confirmed) {
-        rootLogger.warn(
-          `[${chain}] Blockhash expired at block ${lastValidBlockHeight}, current block ${currentBlockHeight}. Refreshing and resubmitting...`,
-        );
-        ({ blockhash, lastValidBlockHeight } =
-          await connection.getLatestBlockhash('confirmed'));
-        tx.recentBlockhash = blockhash;
-        const signedTx = await signer.signTransaction(tx);
-        signature = await connection.sendRawTransaction(signedTx.serialize(), {
-          skipPreflight: false,
-          maxRetries: 3,
-        });
-        rootLogger.info(
-          `[${chain}] Resubmitted transaction with new signature: ${signature}`,
-        );
-        continue;
-      }
-
-      const status = await connection.getSignatureStatus(signature, {
-        searchTransactionHistory: true,
-      });
-
-      if (status.value) {
-        if (status.value.err) {
-          // Record the error and break out of the polling loop
-          failureReason = new Error(
-            `Transaction failed: ${JSON.stringify(status.value.err)}`,
-          );
-          break;
-        }
-        if (
-          status.value.confirmationStatus === 'confirmed' ||
-          status.value.confirmationStatus === 'finalized'
-        ) {
-          confirmed = true;
-        }
-      }
-    } catch (error) {
-      // Continue polling on error, might be temporary
-      rootLogger.warn(
-        `[${chain}] Polling attempt ${attempts} failed: ${error}`,
-      );
-    }
-  }
-
-  if (failureReason) {
-    throw failureReason;
-  }
-
-  if (!confirmed) {
-    throw new Error(
-      `Transaction confirmation timeout after ${maxAttempts} seconds`,
-    );
-  }
-
-  return signature;
-}
-
 // SOLANA_TX_SIZE_LIMIT = 1232 bytes
 // batches of 10 fill up about 60% of the limit
 export const DEFAULT_MAX_SEALEVEL_BATCH_SIZE = 10;
 
 export async function batchAndSendTransactions<T>(params: {
-  /** Solana RPC connection */
-  connection: Connection;
-  /** Chain name for logging and priority fees */
+  /** Chain name for logging */
   chain: string;
-  /** Sealevel signer to sign transactions */
-  signer: SvmTransactionSigner;
+  /** Sealevel signer adapter */
+  adapter: SvmMultiprotocolSignerAdapter;
   /** Description of operation for logging */
   operationName: string;
   /** Items to process in batches */
@@ -184,9 +40,8 @@ export async function batchAndSendTransactions<T>(params: {
   dryRun?: boolean;
 }): Promise<void> {
   const {
-    connection,
     chain,
-    signer,
+    adapter,
     operationName,
     items,
     createInstruction,
@@ -210,12 +65,7 @@ export async function batchAndSendTransactions<T>(params: {
         `[${chain}] Batch ${batchNum}/${totalBatches}: Would send ${operationName} for ${batch.length} items: ${formatBatch(batch)}`,
       );
     } else {
-      const tx = await buildAndSendTransaction({
-        connection,
-        instructions: [instruction],
-        signer,
-        chain,
-      });
+      const tx = await adapter.buildAndSendTransaction([instruction]);
 
       rootLogger.info(
         `[${chain}] Batch ${batchNum}/${totalBatches}: ${operationName} ${batch.length} items [${formatBatch(batch)}] - tx: ${tx}`,

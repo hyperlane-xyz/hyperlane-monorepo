@@ -19,6 +19,7 @@ import {
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
   SealevelRemoteGasData,
+  SvmMultiprotocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
 import { Domain, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -31,7 +32,6 @@ import {
   loadAndValidateGasOracleConfig,
 } from '../../src/config/gas-oracle.js';
 import {
-  SvmTransactionSigner,
   batchAndSendTransactions,
   formatRemoteGasData,
   loadCoreProgramIds,
@@ -142,7 +142,7 @@ async function manageGasOracles(
   allConfigDomainIds: Set<Domain>,
   igpAdapter: SealevelIgpAdapter,
   igpAccountPda: PublicKey,
-  signer: SvmTransactionSigner,
+  adapter: SvmMultiprotocolSignerAdapter,
   dryRun: boolean,
 ): Promise<{
   oraclesRemoved: number;
@@ -241,15 +241,14 @@ async function manageGasOracles(
       );
 
       await batchAndSendTransactions({
-        connection,
         chain,
-        signer,
+        adapter,
         operationName: 'gas oracle removals',
         items: removalConfigs,
         createInstruction: (batch) =>
           igpAdapter.createSetGasOracleConfigsInstruction(
             igpAccountPda,
-            signer.publicKey,
+            adapter.publicKey(),
             batch,
           ),
         formatBatch: (batch) => {
@@ -269,15 +268,14 @@ async function manageGasOracles(
   let oraclesUpdated = 0;
   if (configsToUpdate.length > 0) {
     await batchAndSendTransactions({
-      connection,
       chain,
-      signer,
+      adapter,
       operationName: 'gas oracle updates',
       items: configsToUpdate.map((item) => item.config),
       createInstruction: (batch) =>
         igpAdapter.createSetGasOracleConfigsInstruction(
           igpAccountPda,
-          signer.publicKey,
+          adapter.publicKey(),
           batch,
         ),
       formatBatch: (batch) => {
@@ -309,7 +307,7 @@ async function manageGasOverheads(
   allConfigDomainIds: Set<Domain>,
   overheadIgpAdapter: SealevelOverheadIgpAdapter,
   overheadIgpAccountPda: PublicKey,
-  signer: SvmTransactionSigner,
+  adapter: SvmMultiprotocolSignerAdapter,
   dryRun: boolean,
 ): Promise<{
   overheadsRemoved: number;
@@ -389,15 +387,14 @@ async function manageGasOverheads(
       );
 
       await batchAndSendTransactions({
-        connection,
         chain,
-        signer,
+        adapter,
         operationName: 'gas overhead removals',
         items: removalConfigs,
         createInstruction: (batch) =>
           overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
             overheadIgpAccountPda,
-            signer.publicKey,
+            adapter.publicKey(),
             batch,
           ),
         formatBatch: (batch) => {
@@ -417,15 +414,14 @@ async function manageGasOverheads(
   let overheadsUpdated = 0;
   if (configsToUpdate.length > 0) {
     await batchAndSendTransactions({
-      connection,
       chain,
-      signer,
+      adapter,
       operationName: 'gas overhead updates',
       items: configsToUpdate.map((item) => item.config),
       createInstruction: (batch) =>
         overheadIgpAdapter.createSetDestinationGasOverheadsInstruction(
           overheadIgpAccountPda,
-          signer.publicKey,
+          adapter.publicKey(),
           batch,
         ),
       formatBatch: (batch) => {
@@ -453,7 +449,7 @@ async function processChain(
   mpp: MultiProtocolProvider,
   chain: ChainName,
   chainGasOracleConfig: ChainMap<GasOracleConfigWithOverhead>,
-  signer: SvmTransactionSigner,
+  adapter: SvmMultiprotocolSignerAdapter,
   dryRun: boolean,
 ): Promise<{
   chain: string;
@@ -476,11 +472,7 @@ async function processChain(
   rootLogger.debug(`Using IGP program ID: ${programId.toBase58()}`);
   rootLogger.debug(`IGP Account: ${igpAccountPda.toBase58()}`);
   rootLogger.debug(`Overhead IGP Account: ${overheadIgpAccountPda.toBase58()}`);
-  rootLogger.debug(`Using signer: ${signer.publicKey.toBase58()}`);
-
-  // Setup connection
-  const rpcs = await getSecretRpcEndpoints(environment, chain);
-  const connection = new Connection(rpcs[0], 'confirmed');
+  rootLogger.debug(`Using signer: ${adapter.address()}`);
 
   // Create adapters and fetch account states
   const igpAdapter = new SealevelIgpAdapter(chain, mpp, {
@@ -493,6 +485,7 @@ async function processChain(
     programId: programId.toBase58(),
   });
 
+  const connection = mpp.getSolanaWeb3Provider(chain);
   const { igpAccountData, overheadIgpAccountData } = await fetchAccountStates(
     connection,
     igpAccountPda,
@@ -517,7 +510,7 @@ async function processChain(
       allConfigDomainIds,
       igpAdapter,
       igpAccountPda,
-      signer,
+      adapter,
       dryRun,
     );
 
@@ -531,7 +524,7 @@ async function processChain(
       allConfigDomainIds,
       overheadIgpAdapter,
       overheadIgpAccountPda,
-      signer,
+      adapter,
       dryRun,
     );
 
@@ -571,10 +564,10 @@ async function main() {
         )
       : chainsArg;
 
-  // Initialize Turnkey signer (default and only option)
+  // Initialize Turnkey signer and wrap in adapter (default and only option)
   rootLogger.info('Initializing Turnkey signer from GCP Secret Manager...');
-  const signer = await getTurnkeySealevelDeployerSigner(environment);
-  rootLogger.info(`Signer public key: ${signer.publicKey.toBase58()}`);
+  const turnkeySigner = await getTurnkeySealevelDeployerSigner(environment);
+  rootLogger.info(`Signer public key: ${turnkeySigner.publicKey.toBase58()}`);
 
   rootLogger.info(
     `Configuring IGP for chains: ${chains.join(', ')} on ${environment}`,
@@ -591,6 +584,13 @@ async function main() {
   const mpp = await envConfig.getMultiProtocolProvider();
   const results = await Promise.all(
     chains.map((chain) => {
+      // Wrap Turnkey signer in the adapter for this chain
+      const signerAdapter = new SvmMultiprotocolSignerAdapter(
+        chain,
+        turnkeySigner,
+        mpp,
+      );
+
       const chainGasOracleConfig = gasOracleConfig[chain];
       if (!chainGasOracleConfig) {
         // Guard against missing chain configuration
@@ -605,7 +605,7 @@ async function main() {
         mpp,
         chain,
         chainGasOracleConfig,
-        signer,
+        signerAdapter,
         dryRun,
       );
     }),

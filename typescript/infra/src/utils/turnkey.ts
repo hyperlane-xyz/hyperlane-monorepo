@@ -3,12 +3,12 @@ import { ApiKeyStamper } from '@turnkey/api-key-stamper';
 import { TurnkeyServerClient } from '@turnkey/sdk-server';
 import { TurnkeySigner } from '@turnkey/solana';
 
+import { SvmTransactionSigner } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../config/environment.js';
 
 import { fetchLatestGCPSecret } from './gcloud.js';
-import { SvmTransactionSigner } from './sealevel.js';
 
 const logger = rootLogger.child({ module: 'infra:turnkey-sealevel' });
 

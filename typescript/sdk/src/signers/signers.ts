@@ -7,7 +7,10 @@ import { CosmosNativeMultiProtocolSignerAdapter } from './cosmos/cosmjs.js';
 import { EvmMultiProtocolSignerAdapter } from './evm/ethersv5.js';
 import { RadixMultiProtocolSignerAdapter } from './radix/radix-toolkit.js';
 import { StarknetMultiProtocolSignerAdapter } from './starknet/starknetjs.js';
-import { SvmMultiprotocolSignerAdapter } from './svm/solana-web3js.js';
+import {
+  KeypairSvmTransactionSigner,
+  SvmMultiprotocolSignerAdapter,
+} from './svm/solana-web3js.js';
 import { IMultiProtocolSigner } from './types.js';
 
 export type MultiProtocolSignerSignerAccountInfo =
@@ -45,7 +48,7 @@ export async function getSignerForChain<TProtocol extends ProtocolType>(
     case ProtocolType.Sealevel:
       return new SvmMultiprotocolSignerAdapter(
         chainName,
-        accountConfig.privateKey,
+        new KeypairSvmTransactionSigner(accountConfig.privateKey),
         multiProtocolProvider,
       );
     case ProtocolType.CosmosNative:
