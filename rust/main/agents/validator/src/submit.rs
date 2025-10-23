@@ -134,8 +134,10 @@ impl ValidatorSubmitter {
             })
             .await;
 
+            /*
             self.verify_checkpoint(&tree, &latest_checkpoint, &latest_seen_checkpoint)
                 .await;
+             */
             self.metrics
                 .set_latest_checkpoint_observed(&latest_checkpoint);
 
