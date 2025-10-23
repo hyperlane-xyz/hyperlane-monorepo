@@ -1,9 +1,9 @@
 import { Logger } from 'pino';
 import { zeroAddress } from 'viem';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  AltVM,
   Domain,
   ProtocolType,
   addressToBytes32,

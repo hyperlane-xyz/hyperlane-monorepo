@@ -47,6 +47,7 @@
     "typescript-eslint": "^8.37.0"
   },
   "dependencies": {
+    "@hyperlane-xyz/provider-sdk": "0.1.0",
     "@hyperlane-xyz/utils": "19.4.0",
     "@radixdlt/babylon-core-api-sdk": "^1.3.0",
     "@radixdlt/babylon-gateway-api-sdk": "^1.10.1",

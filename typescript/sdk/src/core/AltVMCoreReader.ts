@@ -1,4 +1,5 @@
-import { Address, AltVM, rootLogger } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from '../hook/AltVMHookReader.js';
 import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';

@@ -12,7 +12,8 @@ import {
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
 import { isTypes, warpTypes } from '@hyperlane-xyz/cosmos-types';
-import { AltVM, assert, strip0x } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
   MsgCreateMailboxEncodeObject,

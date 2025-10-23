@@ -1,6 +1,7 @@
 import { Logger } from 'pino';
 
-import { Address, AltVM, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from '../hook/AltVMHookReader.js';
 import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';

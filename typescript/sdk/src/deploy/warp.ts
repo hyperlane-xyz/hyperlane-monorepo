@@ -1,8 +1,8 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  AltVM,
   ProtocolType,
   addressToBytes32,
   assert,
