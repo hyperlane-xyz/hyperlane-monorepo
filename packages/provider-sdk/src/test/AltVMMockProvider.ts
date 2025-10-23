@@ -1,4 +1,4 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import * as AltVM from '../altvm.js';
 
 type MockTransaction = any;
 
