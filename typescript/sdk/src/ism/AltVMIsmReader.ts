@@ -1,4 +1,5 @@
-import { Address, AltVM, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 

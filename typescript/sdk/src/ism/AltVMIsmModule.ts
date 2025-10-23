@@ -1,8 +1,8 @@
 import { Logger } from 'pino';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  AltVM,
   ChainId,
   Domain,
   ProtocolType,

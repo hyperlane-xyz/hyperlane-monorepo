@@ -1,5 +1,6 @@
+import type { ProtocolType } from '@hyperlane-xyz/utils';
+
 import { MinimumRequiredGasByAction } from './mingas.js';
-import { ProtocolType } from './types.js';
 
 // ### QUERY BASE ###
 export type ReqGetBalance = { address: string; denom: string };

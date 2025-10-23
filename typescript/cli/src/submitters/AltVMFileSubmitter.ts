@@ -1,5 +1,6 @@
 import { Logger } from 'pino';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   ProtocolReceipt,
   ProtocolTransaction,
@@ -8,7 +9,6 @@ import {
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import {
-  AltVM,
   Annotated,
   ProtocolType,
   assert,

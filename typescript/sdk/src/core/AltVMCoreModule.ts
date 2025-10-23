@@ -1,6 +1,6 @@
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  AltVM,
   ChainId,
   Domain,
   ProtocolType,
