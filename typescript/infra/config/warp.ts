@@ -46,11 +46,11 @@ import {
 } from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
 import { getCarrChainCARRWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainCARRWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
-import { getEclipseUSDCSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDCSTAGEWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
+import { getEclipseUSDCSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseUSDCSTAGEWarpConfig.js';
 import { getElectroneumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getElectroneumUSDCWarpConfig.js';
 import { getEthereumFormFORMWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormFORMWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
