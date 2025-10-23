@@ -8,7 +8,7 @@ import {
   TransactionInstruction,
 } from '@solana/web3.js';
 
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
@@ -189,7 +189,7 @@ export class SvmMultiProtocolSignerAdapter
     let currentLastValidBlockHeight = lastValidBlockHeight;
 
     while (attempts < this.config.maxConfirmationAttempts) {
-      await this.sleep(this.config.pollingDelayMs);
+      await sleep(this.config.pollingDelayMs);
       attempts++;
 
       try {
@@ -315,9 +315,5 @@ export class SvmMultiProtocolSignerAdapter
       skipPreflight: false,
       maxRetries: 3,
     });
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
