@@ -65,6 +65,7 @@ import {
   RadixHypCollateralAdapter,
   RadixHypSyntheticAdapter,
   RadixNativeTokenAdapter,
+  RadixTokenAdapter,
 } from './adapters/RadixTokenAdapter.js';
 import {
   SealevelHypCollateralAdapter,
@@ -562,7 +563,7 @@ export function getCollateralTokenAdapter({
       tokenAddress,
     });
   } else if (protocolType === ProtocolType.Radix) {
-    return new RadixNativeTokenAdapter(chainName, multiProvider, {
+    return new RadixTokenAdapter(chainName, multiProvider, {
       token: tokenAddress,
     });
   } else {
