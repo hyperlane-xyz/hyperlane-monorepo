@@ -1,18 +1,13 @@
 import { Logger } from 'pino';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ProtocolReceipt,
   ProtocolTypedTransaction,
   TxSubmitterInterface,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import {
-  Annotated,
-  ProtocolType,
-  assert,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Annotated, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
