@@ -1,12 +1,22 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 import { deserializeUnchecked } from 'borsh';
 
+class Creator {
+  address!: Uint8Array;
+  verified!: number;
+  share!: number;
+
+  constructor(fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
 class MetadataData {
   name!: string;
   symbol!: string;
   uri!: string;
   sellerFeeBasisPoints!: number;
-  creators?: string[];
+  creators?: Creator[];
 
   constructor(fields: any) {
     Object.assign(this, fields);
@@ -29,6 +39,17 @@ export class Metadata {
 
 export const SPL_TOKEN_METADATA_SCHEMA = new Map<any, any>([
   [
+    Creator,
+    {
+      kind: 'struct',
+      fields: [
+        ['address', [32]],
+        ['verified', 'u8'],
+        ['share', 'u8'],
+      ],
+    },
+  ],
+  [
     MetadataData,
     {
       kind: 'struct',
@@ -37,7 +58,7 @@ export const SPL_TOKEN_METADATA_SCHEMA = new Map<any, any>([
         ['symbol', 'string'],
         ['uri', 'string'],
         ['sellerFeeBasisPoints', 'u16'],
-        ['creators', { kind: 'option', type: ['string'] }],
+        ['creators', { kind: 'option', type: [Creator] }],
       ],
     },
   ],

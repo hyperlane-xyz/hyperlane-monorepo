@@ -1,6 +1,7 @@
 import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
   createTransferInstruction,
   getAssociatedTokenAddressSync,
   getMint,
@@ -259,8 +260,25 @@ export class SealevelTokenAdapter
       ? TOKEN_2022_PROGRAM_ID
       : TOKEN_PROGRAM_ID;
 
-    // TODO: add instruction to create token account if it does not exist
-    return new Transaction().add(
+    const transaction = new Transaction();
+
+    // if the ATA does not exist we need to create it before transferring the tokens
+    const toTokenAccountInfo = await this.getProvider().getAccountInfo(
+      destinationTokenAccount,
+    );
+    if (!toTokenAccountInfo) {
+      transaction.add(
+        createAssociatedTokenAccountInstruction(
+          new PublicKey(fromAccountOwner),
+          destinationTokenAccount,
+          new PublicKey(recipient),
+          this.tokenMintPubKey,
+          tokenProgramAccount,
+        ),
+      );
+    }
+
+    transaction.add(
       createTransferInstruction(
         originTokenAccount,
         destinationTokenAccount,
@@ -270,6 +288,8 @@ export class SealevelTokenAdapter
         tokenProgramAccount,
       ),
     );
+
+    return transaction;
   }
 
   async getTokenProgramId(): Promise<PublicKey> {
