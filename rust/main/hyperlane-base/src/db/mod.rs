@@ -3,9 +3,9 @@ pub use error::*;
 pub use rocks::*;
 
 use hyperlane_core::{
-    identifiers::UniqueIdentifier, CheckpointInfo, GasPaymentKey, HyperlaneDomain,
-    HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion,
-    PendingOperationStatus, H256,
+    identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneDomain, HyperlaneMessage,
+    InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion, PendingOperationStatus,
+    H256,
 };
 
 mod error;
@@ -173,9 +173,4 @@ pub trait HyperlaneDb: Send + Sync {
         &self,
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>>;
-
-    /// Store latest seen checkpoint info
-    fn store_latest_checkpoint_info(&self, checkpoint_info: &CheckpointInfo) -> DbResult<()>;
-    /// Retrieve latest seen checkpoint info
-    fn retrieve_latest_checkpoint_info(&self) -> DbResult<Option<CheckpointInfo>>;
 }
