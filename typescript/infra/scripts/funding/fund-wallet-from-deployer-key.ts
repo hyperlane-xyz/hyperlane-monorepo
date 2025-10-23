@@ -75,7 +75,7 @@ async function main() {
     .alias('d', 'decimals')
     .describe(
       'decimals',
-      'Optional token decimals used to format the amount into its native denomination if the token metadata cannnot be derived onchain',
+      'Optional token decimals used to format the amount into its native denomination if the token metadata cannot be derived on chain',
     )
 
     .boolean('dry-run')
