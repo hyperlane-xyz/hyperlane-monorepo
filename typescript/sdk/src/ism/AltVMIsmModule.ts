@@ -1,11 +1,10 @@
 import { Logger } from 'pino';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   ChainId,
   Domain,
-  ProtocolType,
   assert,
   deepEquals,
   intersection,

@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import { $ } from 'zx';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { randomCosmosAddress } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
