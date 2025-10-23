@@ -8,6 +8,7 @@ import {
   AltVM,
   type MinimumRequiredGasByAction,
 } from '@hyperlane-xyz/provider-sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { RadixProvider, RadixSigner } from '@hyperlane-xyz/radix-sdk';
 import {
   AltVMJsonRpcTxSubmitter,
@@ -19,7 +20,7 @@ import {
   SubmitterMetadata,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { AltVMFileSubmitter } from '../submitters/AltVMFileSubmitter.js';
 import {
