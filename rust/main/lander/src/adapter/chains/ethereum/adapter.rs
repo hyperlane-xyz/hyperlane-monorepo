@@ -11,6 +11,7 @@ use ethers_core::abi::Function;
 use ethers_core::types::Eip1559TransactionRequest;
 use eyre::eyre;
 use futures_util::future;
+use hyperlane_core::ChainResult;
 use tokio::sync::Mutex;
 use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
@@ -338,7 +339,7 @@ impl EthereumAdapter {
         &self,
         precursors: Vec<(TypedTransaction, Function)>,
         payload_details: Vec<PayloadDetails>,
-    ) -> Vec<TxBuildingResult> {
+    ) -> ChainResult<Vec<TxBuildingResult>> {
         use super::transaction::TransactionFactory;
 
         let multi_precursor = self
@@ -350,15 +351,7 @@ impl EthereumAdapter {
                 self.signer,
             )
             .await
-            .map(|(tx, f)| EthereumTxPrecursor::new(tx, f));
-
-        let multi_precursor = match multi_precursor {
-            Ok(precursor) => precursor,
-            Err(e) => {
-                error!(error = ?e, "Failed to batch payloads");
-                return vec![];
-            }
-        };
+            .map(|(tx, f)| EthereumTxPrecursor::new(tx, f))?;
 
         let transaction = TransactionFactory::build(multi_precursor, payload_details.clone());
 
@@ -366,8 +359,7 @@ impl EthereumAdapter {
             payloads: payload_details,
             maybe_tx: Some(transaction),
         };
-
-        vec![tx_building_result]
+        Ok(vec![tx_building_result])
     }
 }
 
@@ -446,9 +438,33 @@ impl AdaptsChain for EthereumAdapter {
         }
 
         // Batched transaction
-        let results = self
-            .build_batched_transaction(precursors, payload_details)
-            .await;
+        let results = match self
+            .build_batched_transaction(precursors.clone(), payload_details.clone())
+            .await
+        {
+            Ok(res) => res,
+            // multicall contract not deployed!
+            Err(err) => {
+                tracing::warn!(
+                    domain = self.domain.name(),
+                    ?err,
+                    "Failed to build batch transaction"
+                );
+                tracing::warn!(
+                    domain = self.domain.name(),
+                    "Fallback to single tx submission"
+                );
+
+                let mut results = Vec::with_capacity(precursors.len());
+                for payload in payloads {
+                    let precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
+                    results.push(
+                        self.build_single_transaction(precursor, vec![payload.details.clone()]),
+                    );
+                }
+                results
+            }
+        };
 
         info!(?payloads, ?results, "built transaction for payloads");
         results

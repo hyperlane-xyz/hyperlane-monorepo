@@ -7,7 +7,9 @@ use itertools::{Either, Itertools};
 use tokio::sync::Mutex;
 use tracing::warn;
 
-use hyperlane_core::{ChainResult, HyperlaneDomain, HyperlaneProvider, H256, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneProvider, H256, U256,
+};
 
 use crate::{decode_revert_reason, EthereumProvider};
 
@@ -34,7 +36,7 @@ pub async fn build_multicall<M: Middleware + 'static>(
     domain: HyperlaneDomain,
     cache: Arc<Mutex<BatchCache>>,
     multicall_contract_address: H256,
-) -> eyre::Result<Multicall<M>> {
+) -> ChainResult<Multicall<M>> {
     let is_contract_cache = {
         let cache = cache.lock().await;
         cache.is_contract.get(&multicall_contract_address).cloned()
@@ -56,16 +58,19 @@ pub async fn build_multicall<M: Middleware + 'static>(
     };
 
     if !is_contract {
-        return Err(eyre::eyre!("Multicall contract not found at address"));
+        let err =
+            ChainCommunicationError::ContractNotFound(hex::encode(multicall_contract_address));
+        return Err(err);
     }
     let multicall =
         match Multicall::new(provider.clone(), Some(multicall_contract_address.into())).await {
             Ok(multicall) => multicall.version(MulticallVersion::Multicall3),
             Err(err) => {
-                return Err(eyre::eyre!(
-                    "Unable to build multicall contract: {}",
-                    err.to_string()
-                ))
+                tracing::error!(?err, "Unable to build multicall contract");
+                let err = ChainCommunicationError::CustomError(format!(
+                    "Unable to build multicall contract: {err}",
+                ));
+                return Err(err);
             }
         };
 
