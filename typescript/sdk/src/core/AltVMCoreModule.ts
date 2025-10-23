@@ -1,11 +1,5 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import {
-  Address,
-  ChainId,
-  Domain,
-  ProtocolType,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { Address, ChainId, Domain, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
 import { AltVMHookModule } from '../hook/AltVMHookModule.js';
