@@ -2,6 +2,7 @@ import {
   ComputeBudgetProgram,
   Connection,
   Keypair,
+  PublicKey,
   Transaction,
   TransactionInstruction,
 } from '@solana/web3.js';
@@ -15,17 +16,31 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../config/environment.js';
 
-import { TurnkeySealevelSigner } from './turnkey.js';
 import { getMonorepoRoot, readJSONAtPath } from './utils.js';
-
-// Type for signer - can be either local Keypair or Turnkey remote signer
-export type SealevelSigner = Keypair | TurnkeySealevelSigner;
 
 export const svmGasOracleConfigPath = (environment: DeployEnvironment) =>
   resolve(
     getMonorepoRoot(),
     `rust/sealevel/environments/${environment}/gas-oracle-configs.json`,
   );
+
+export interface SvmTransactionSigner {
+  readonly publicKey: PublicKey;
+  signTransaction(transaction: Transaction): Promise<Transaction>;
+}
+
+export class KeypairSvmSigner implements SvmTransactionSigner {
+  constructor(private readonly keypair: Keypair) {}
+
+  get publicKey(): PublicKey {
+    return this.keypair.publicKey;
+  }
+
+  async signTransaction(transaction: Transaction): Promise<Transaction> {
+    transaction.sign(this.keypair);
+    return transaction;
+  }
+}
 
 /**
  * Build and send a transaction with priority fees and custom confirmation polling
@@ -37,7 +52,7 @@ export async function buildAndSendTransaction(params: {
   /** Transaction instructions to include */
   instructions: TransactionInstruction[];
   /** Sealevel signer to sign the transaction */
-  signer: SealevelSigner;
+  signer: SvmTransactionSigner;
   /** Chain name for logging and priority fees */
   chain: string;
 }): Promise<string> {
@@ -67,21 +82,11 @@ export async function buildAndSendTransaction(params: {
 
   // Sign and send transaction
   let signature: string;
-  if (signer instanceof Keypair) {
-    rootLogger.debug('Signing with local Keypair');
-    tx.sign(signer);
-    signature = await connection.sendRawTransaction(tx.serialize(), {
-      skipPreflight: false,
-      maxRetries: 3,
-    });
-  } else {
-    rootLogger.debug('Signing with Turnkey');
-    const signedTx = await signer.signTransaction(tx);
-    signature = await connection.sendRawTransaction(signedTx.serialize(), {
-      skipPreflight: false,
-      maxRetries: 3,
-    });
-  }
+  const signedTx = await signer.signTransaction(tx);
+  signature = await connection.sendRawTransaction(signedTx.serialize(), {
+    skipPreflight: false,
+    maxRetries: 3,
+  });
 
   // Poll for confirmation using getSignatureStatus instead of confirmTransaction
   let confirmed = false;
@@ -103,24 +108,11 @@ export async function buildAndSendTransaction(params: {
         ({ blockhash, lastValidBlockHeight } =
           await connection.getLatestBlockhash('confirmed'));
         tx.recentBlockhash = blockhash;
-        if (signer instanceof Keypair) {
-          rootLogger.debug('Signing with local Keypair');
-          tx.sign(signer);
-          signature = await connection.sendRawTransaction(tx.serialize(), {
-            skipPreflight: false,
-            maxRetries: 3,
-          });
-        } else {
-          rootLogger.debug('Signing with Turnkey');
-          const signedTx = await signer.signTransaction(tx);
-          signature = await connection.sendRawTransaction(
-            signedTx.serialize(),
-            {
-              skipPreflight: false,
-              maxRetries: 3,
-            },
-          );
-        }
+        const signedTx = await signer.signTransaction(tx);
+        signature = await connection.sendRawTransaction(signedTx.serialize(), {
+          skipPreflight: false,
+          maxRetries: 3,
+        });
         rootLogger.info(
           `[${chain}] Resubmitted transaction with new signature: ${signature}`,
         );
@@ -177,7 +169,7 @@ export async function batchAndSendTransactions<T>(params: {
   /** Chain name for logging and priority fees */
   chain: string;
   /** Sealevel signer to sign transactions */
-  signer: SealevelSigner;
+  signer: SvmTransactionSigner;
   /** Description of operation for logging */
   operationName: string;
   /** Items to process in batches */
@@ -332,8 +324,3 @@ export function serializeGasOracleDifference(
 
   return `Exchange rate: ${exchangeRate.toFixed(10)} (${exchangeRateDiff}), Gas price: ${gasPriceLamports.toLocaleString()} (${gasPriceDiff}), Product diff: ${productDiff}`;
 }
-
-/**
- * Constants
- */
-export const ZERO_SALT = new Uint8Array(32).fill(0);

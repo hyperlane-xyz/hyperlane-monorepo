@@ -8,6 +8,7 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { DeployEnvironment } from '../config/environment.js';
 
 import { fetchLatestGCPSecret } from './gcloud.js';
+import { SvmTransactionSigner } from './sealevel.js';
 
 const logger = rootLogger.child({ module: 'infra:turnkey-sealevel' });
 
@@ -27,7 +28,7 @@ export type TurnkeyConfig = {
  * Turnkey signer for Solana/SVM transactions
  * Provides a Keypair-like interface but signs transactions using Turnkey's secure enclaves
  */
-export class TurnkeySealevelSigner {
+export class TurnkeySealevelSigner implements SvmTransactionSigner {
   private client: TurnkeyServerClient;
   private turnkeySigner: TurnkeySigner;
   private organizationId: string;
@@ -67,9 +68,7 @@ export class TurnkeySealevelSigner {
    * This method uses Turnkey's secure enclave to sign the transaction
    * and enforces any policies configured in Turnkey (e.g., IGP-only restrictions)
    */
-  async signTransaction(
-    transaction: Transaction | VersionedTransaction,
-  ): Promise<Transaction | VersionedTransaction> {
+  async signTransaction(transaction: Transaction): Promise<Transaction> {
     logger.debug('Signing transaction with Turnkey');
 
     try {

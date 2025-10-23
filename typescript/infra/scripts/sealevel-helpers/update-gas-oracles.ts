@@ -31,16 +31,15 @@ import {
   loadAndValidateGasOracleConfig,
 } from '../../src/config/gas-oracle.js';
 import {
-  SealevelSigner,
+  SvmTransactionSigner,
   batchAndSendTransactions,
-  calculatePercentDifference,
   formatRemoteGasData,
   loadCoreProgramIds,
   serializeGasOracleDifference,
   svmGasOracleConfigPath,
 } from '../../src/utils/sealevel.js';
 import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
-import { chainIsProtocol, readJSONAtPath } from '../../src/utils/utils.js';
+import { chainIsProtocol } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -143,7 +142,7 @@ async function manageGasOracles(
   allConfigDomainIds: Set<Domain>,
   igpAdapter: SealevelIgpAdapter,
   igpAccountPda: PublicKey,
-  signer: SealevelSigner,
+  signer: SvmTransactionSigner,
   dryRun: boolean,
 ): Promise<{
   oraclesRemoved: number;
@@ -310,7 +309,7 @@ async function manageGasOverheads(
   allConfigDomainIds: Set<Domain>,
   overheadIgpAdapter: SealevelOverheadIgpAdapter,
   overheadIgpAccountPda: PublicKey,
-  signer: SealevelSigner,
+  signer: SvmTransactionSigner,
   dryRun: boolean,
 ): Promise<{
   overheadsRemoved: number;
@@ -454,7 +453,7 @@ async function processChain(
   mpp: MultiProtocolProvider,
   chain: ChainName,
   chainGasOracleConfig: ChainMap<GasOracleConfigWithOverhead>,
-  signer: SealevelSigner,
+  signer: SvmTransactionSigner,
   dryRun: boolean,
 ): Promise<{
   chain: string;
@@ -552,7 +551,6 @@ async function main() {
   const {
     environment,
     chains: chainsArg,
-    keyPath,
     apply,
   } = await withChains(getArgs()).option('apply', {
     type: 'boolean',
