@@ -1,9 +1,9 @@
 import { Logger } from 'pino';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
+  ProtocolType,
   assert,
   objFilter,
   objMap,

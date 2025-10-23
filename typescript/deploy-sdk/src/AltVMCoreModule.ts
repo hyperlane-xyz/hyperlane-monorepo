@@ -1,5 +1,29 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  Address,
+  ChainId,
+  Domain,
+  ProtocolType,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
+
+import { AltVMHookModule } from '../hook/AltVMHookModule.js';
+import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
+import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
+import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import {
+  AnnotatedTypedTransaction,
+  ProtocolReceipt,
+} from '../providers/ProviderType.js';
+import { ChainName, ChainNameOrId } from '../types.js';
+
+import {
+  HyperlaneModule,
+  HyperlaneModuleParams,
+} from './AbstractHyperlaneModule.js';
+import { AltVMCoreReader } from './AltVMCoreReader.js';
 import {
   CoreConfig,
   DeployedCoreAddresses,

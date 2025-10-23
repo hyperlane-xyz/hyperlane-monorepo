@@ -1,5 +1,8 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainNameLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+
 import {
   DerivedIsmConfig,
   DomainRoutingIsmConfig,

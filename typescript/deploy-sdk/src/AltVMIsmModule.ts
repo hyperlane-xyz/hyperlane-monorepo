@@ -1,22 +1,11 @@
 import { Logger } from 'pino';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
-import {
-  DomainRoutingIsmConfig,
-  IsmConfig,
-  IsmType,
-  MultisigIsmConfig,
-  STATIC_ISM_TYPES,
-} from '@hyperlane-xyz/provider-sdk/ism';
-import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  TxReceipt,
-} from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
+  ChainId,
+  Domain,
+  ProtocolType,
   assert,
   deepEquals,
   intersection,

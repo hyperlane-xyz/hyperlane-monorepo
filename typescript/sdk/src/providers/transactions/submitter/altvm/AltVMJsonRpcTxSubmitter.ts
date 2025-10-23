@@ -1,8 +1,7 @@
 import { Logger } from 'pino';
 
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   AnnotatedTypedTransaction,

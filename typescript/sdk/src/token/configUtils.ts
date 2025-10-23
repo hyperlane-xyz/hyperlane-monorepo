@@ -1,11 +1,9 @@
 import { zeroAddress } from 'viem';
 
-import { AltVMHookReader, AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { HookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
+  ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
   assert,
