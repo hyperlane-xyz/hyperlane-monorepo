@@ -1,5 +1,6 @@
 import { stringify as yamlStringify } from 'yaml';
 
+import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainName,
   DispatchedMessage,
@@ -11,11 +12,7 @@ import {
   WarpCore,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  GasAction,
-  parseWarpRouteMessage,
-  timeout,
-} from '@hyperlane-xyz/utils';
+import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';

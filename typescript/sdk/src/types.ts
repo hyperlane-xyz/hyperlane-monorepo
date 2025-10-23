@@ -1,12 +1,8 @@
 import type { BigNumber, Signer, ethers } from 'ethers';
 import { z } from 'zod';
 
-import type {
-  Address,
-  AltVM,
-  Domain,
-  ProtocolType,
-} from '@hyperlane-xyz/utils';
+import type { AltVM } from '@hyperlane-xyz/provider-sdk';
+import type { Address, Domain, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ZHash } from './metadata/customZodTypes.js';
 import { MultiProvider } from './providers/MultiProvider.js';
