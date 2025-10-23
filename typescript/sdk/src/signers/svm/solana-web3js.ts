@@ -18,7 +18,6 @@ import { IMultiProtocolSigner } from '../types.js';
 
 /**
  * Interface for SVM transaction signers
- * This matches the infra SvmTransactionSigner interface
  */
 export interface SvmTransactionSigner {
   readonly publicKey: PublicKey;
@@ -100,7 +99,6 @@ export class SvmMultiprotocolSignerAdapter
 
   /**
    * Build and send a transaction from raw instructions
-   * This is the preferred method for infra scripts
    */
   async buildAndSendTransaction(
     instructions: TransactionInstruction[],
