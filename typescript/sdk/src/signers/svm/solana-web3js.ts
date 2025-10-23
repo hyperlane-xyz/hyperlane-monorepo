@@ -126,17 +126,22 @@ export class SvmMultiProtocolSignerAdapter
   ): Transaction {
     const tx = new Transaction();
 
-    // Add priority fee if enabled
+    // Add priority fee if enabled and not already present
     const includePriorityFee = options?.includePriorityFee ?? true;
     if (includePriorityFee) {
-      const priorityFee =
-        options?.priorityFee ?? SEALEVEL_PRIORITY_FEES[this.chainName];
-      if (priorityFee) {
-        tx.add(
-          ComputeBudgetProgram.setComputeUnitPrice({
-            microLamports: priorityFee,
-          }),
-        );
+      const hasPriorityFeeIx = instructions.some((ix) =>
+        ix.programId.equals(ComputeBudgetProgram.programId),
+      );
+      if (!hasPriorityFeeIx) {
+        const priorityFee =
+          options?.priorityFee ?? SEALEVEL_PRIORITY_FEES[this.chainName];
+        if (priorityFee) {
+          tx.add(
+            ComputeBudgetProgram.setComputeUnitPrice({
+              microLamports: priorityFee,
+            }),
+          );
+        }
       }
     }
 

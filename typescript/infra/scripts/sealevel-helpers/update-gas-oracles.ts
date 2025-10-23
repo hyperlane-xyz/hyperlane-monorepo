@@ -135,7 +135,6 @@ async function promptForRemoval(
  */
 async function manageGasOracles(
   mpp: MultiProtocolProvider,
-  connection: Connection,
   chain: ChainName,
   igpAccountData: SealevelIgpData,
   chainGasOracleConfig: ChainMap<GasOracleConfigWithOverhead>,
@@ -300,7 +299,6 @@ async function manageGasOracles(
  */
 async function manageGasOverheads(
   mpp: MultiProtocolProvider,
-  connection: Connection,
   chain: ChainName,
   overheadIgpAccountData: SealevelOverheadIgpData,
   chainGasOracleConfig: ChainMap<GasOracleConfigWithOverhead>,
@@ -472,7 +470,7 @@ async function processChain(
   rootLogger.debug(`Using IGP program ID: ${programId.toBase58()}`);
   rootLogger.debug(`IGP Account: ${igpAccountPda.toBase58()}`);
   rootLogger.debug(`Overhead IGP Account: ${overheadIgpAccountPda.toBase58()}`);
-  rootLogger.debug(`Using signer: ${adapter.address()}`);
+  rootLogger.debug(`Using signer: ${await adapter.address()}`);
 
   // Create adapters and fetch account states
   const igpAdapter = new SealevelIgpAdapter(chain, mpp, {
@@ -503,7 +501,6 @@ async function processChain(
   const { oraclesRemoved, oraclesUpdated, oraclesMatched } =
     await manageGasOracles(
       mpp,
-      connection,
       chain,
       igpAccountData,
       chainGasOracleConfig,
@@ -517,7 +514,6 @@ async function processChain(
   const { overheadsRemoved, overheadsUpdated, overheadsMatched } =
     await manageGasOverheads(
       mpp,
-      connection,
       chain,
       overheadIgpAccountData,
       chainGasOracleConfig,
