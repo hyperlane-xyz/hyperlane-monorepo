@@ -8514,6 +8514,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/provider-sdk@workspace:typescript/provider-sdk":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/provider-sdk@workspace:typescript/provider-sdk"
+  dependencies:
+    "@hyperlane-xyz/eslint-config": "workspace:^"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
+    "@types/node": "npm:^18.14.5"
+    eslint: "npm:^9.31.0"
+    typescript: "npm:5.3.3"
+    zod: "npm:^3.21.2"
+  languageName: unknown
+  linkType: soft
+
 "@hyperlane-xyz/radix-sdk@npm:19.4.0, @hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk"
