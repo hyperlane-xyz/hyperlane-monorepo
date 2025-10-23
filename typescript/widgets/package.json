@@ -11,6 +11,7 @@
     "@cosmos-kit/react": "^2.18.0",
     "@headlessui/react": "^2.1.8",
     "@hyperlane-xyz/cosmos-sdk": "19.4.0",
+    "@hyperlane-xyz/provider-sdk": "0.1.0",
     "@hyperlane-xyz/sdk": "19.4.0",
     "@hyperlane-xyz/utils": "19.4.0",
     "@interchain-ui/react": "^1.23.28",
