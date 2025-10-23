@@ -34,6 +34,9 @@ use hyperlane_ethereum::{
     multicall, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
 };
 
+use crate::adapter::chains::ethereum::metrics::{
+    LABEL_BATCHED_TRANSCATION_FAILED, LABEL_BATCHED_TRANSCATION_SUCCESS,
+};
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
     dispatcher::{PayloadDb, PostInclusionMetricsSource, TransactionDb},
@@ -98,6 +101,8 @@ impl EthereumAdapter {
             .ok_or_else(|| eyre!("No signer found in provider for domain {}", domain))?;
 
         let metrics = EthereumAdapterMetrics::new(
+            conf.domain.clone(),
+            dispatcher_metrics.get_batched_transactions(),
             dispatcher_metrics.get_finalized_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_upper_nonce(domain, &signer.to_string()),
         );
@@ -442,9 +447,25 @@ impl AdaptsChain for EthereumAdapter {
             .build_batched_transaction(precursors.clone(), payload_details.clone())
             .await
         {
-            Ok(res) => res,
+            Ok(res) => {
+                self.nonce_manager
+                    .state
+                    .metrics()
+                    .increment_batched_transactions(
+                        LABEL_BATCHED_TRANSCATION_SUCCESS,
+                        payloads.len() as u64,
+                    );
+                res
+            }
             // multicall contract not deployed!
             Err(err) => {
+                self.nonce_manager
+                    .state
+                    .metrics()
+                    .increment_batched_transactions(
+                        LABEL_BATCHED_TRANSCATION_FAILED,
+                        payloads.len() as u64,
+                    );
                 tracing::warn!(
                     domain = self.domain.name(),
                     ?err,

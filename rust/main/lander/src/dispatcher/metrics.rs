@@ -30,6 +30,7 @@ pub struct DispatcherMetrics {
     pub inclusion_stage_pool_length: IntGaugeVec,
     pub finality_stage_pool_length: IntGaugeVec,
 
+    pub batched_transactions: IntCounterVec,
     pub dropped_payloads: IntCounterVec,
     pub dropped_transactions: IntCounterVec,
 
@@ -96,6 +97,14 @@ impl DispatcherMetrics {
                 "The number of payloads dropped",
             ),
             &["destination", "reason",],
+            registry.clone()
+        )?;
+        let batched_transactions = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced("batched_transactions"),
+                "The number of batched transactions",
+            ),
+            &["destination", "status",],
             registry.clone()
         )?;
         let dropped_transactions = register_int_counter_vec_with_registry!(
@@ -184,6 +193,7 @@ impl DispatcherMetrics {
             building_stage_queue_length,
             inclusion_stage_pool_length,
             finality_stage_pool_length,
+            batched_transactions,
             dropped_payloads,
             dropped_transactions,
             transaction_submissions,
@@ -283,6 +293,10 @@ impl DispatcherMetrics {
         self.upper_nonce
             .with_label_values(&[destination, signer])
             .clone()
+    }
+
+    pub fn get_batched_transactions(&self) -> IntCounterVec {
+        self.batched_transactions.clone()
     }
 
     pub fn set_post_inclusion_metrics(
