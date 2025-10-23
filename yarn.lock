@@ -8280,6 +8280,20 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/deploy-sdk@workspace:packages/deploy-sdk":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/deploy-sdk@workspace:packages/deploy-sdk"
+  dependencies:
+    "@hyperlane-xyz/eslint-config": "workspace:^"
+    "@hyperlane-xyz/provider-sdk": "workspace:^"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
+    "@types/node": "npm:^18.14.5"
+    eslint: "npm:^9.31.0"
+    typescript: "npm:5.3.3"
+    zod: "npm:^3.21.2"
+  languageName: unknown
+  linkType: soft
+
 "@hyperlane-xyz/eslint-config@workspace:^, @hyperlane-xyz/eslint-config@workspace:typescript/eslint-config":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/eslint-config@workspace:typescript/eslint-config"
@@ -8470,6 +8484,19 @@ __metadata:
     syncpack: "npm:^13.0.0"
     tsx: "npm:^4.19.1"
     turbo: "npm:^2.5.3"
+  languageName: unknown
+  linkType: soft
+
+"@hyperlane-xyz/provider-sdk@workspace:^, @hyperlane-xyz/provider-sdk@workspace:packages/provider-sdk":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/provider-sdk@workspace:packages/provider-sdk"
+  dependencies:
+    "@hyperlane-xyz/eslint-config": "workspace:^"
+    "@hyperlane-xyz/tsconfig": "workspace:^"
+    "@types/node": "npm:^18.14.5"
+    eslint: "npm:^9.31.0"
+    typescript: "npm:5.3.3"
+    zod: "npm:^3.21.2"
   languageName: unknown
   linkType: soft
 

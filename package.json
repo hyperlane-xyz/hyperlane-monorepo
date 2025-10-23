@@ -40,6 +40,7 @@
     "postinstall": "husky install"
   },
   "workspaces": [
+    "packages/*",
     "solidity",
     "typescript/*",
     "starknet"
