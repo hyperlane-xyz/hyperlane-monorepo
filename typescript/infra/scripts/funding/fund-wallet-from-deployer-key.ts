@@ -205,7 +205,7 @@ async function fundAccount({
   } catch (err) {
     fundingLogger.error(
       { chainName, err },
-      `Failed to get token metadata for ${chainName}, falling back to 1usd`,
+      `Failed to get token metadata for ${chainName}`,
     );
 
     assert(

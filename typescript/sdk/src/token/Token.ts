@@ -559,7 +559,7 @@ export function getCollateralTokenAdapter({
     );
   } else if (protocolType === ProtocolType.Starknet) {
     return new StarknetTokenAdapter(chainName, multiProvider, {
-      warpRouter: tokenAddress,
+      tokenAddress,
     });
   } else if (protocolType === ProtocolType.Radix) {
     return new RadixNativeTokenAdapter(chainName, multiProvider, {
