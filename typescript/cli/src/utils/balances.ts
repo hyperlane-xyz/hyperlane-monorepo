@@ -2,14 +2,14 @@ import { BigNumber as BN } from 'bignumber.js';
 import { BigNumber } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 
-import { AltVM, GasAction } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   AnyProtocolReceipt,
   AnyProtocolTransaction,
   ChainName,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { autoConfirm } from '../config/prompts.js';
 import { ETHEREUM_MINIMUM_GAS } from '../consts.js';
