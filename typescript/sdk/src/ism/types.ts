@@ -282,7 +282,7 @@ export const CCIPIsmConfigSchema = z.object({
 
 export const OffchainLookupIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.OFFCHAIN_LOOKUP),
-  urls: z.array(z.string()),
+  urls: z.array(z.string().url()),
 });
 
 export const isOffchainLookupIsmConfig = isCompliant(

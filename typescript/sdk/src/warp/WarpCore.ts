@@ -224,7 +224,7 @@ export class WarpCore {
       destinationMetadata.bech32Prefix,
     );
     const txs = await this.getTransferRemoteTxs({
-      originTokenAmount: originToken.amount(1),
+      originTokenAmount: originToken.amount(2),
       destination,
       sender,
       recipient,

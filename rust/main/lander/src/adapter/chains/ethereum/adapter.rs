@@ -164,6 +164,8 @@ impl EthereumAdapter {
         tx: &Transaction,
         gas_price: &GasPrice,
     ) -> Result<(), LanderError> {
+        use TransactionStatus::*;
+
         let precursor = tx.precursor();
         let tx_gas_price = precursor.extract_gas_price();
 
@@ -181,7 +183,11 @@ impl EthereumAdapter {
                 ?tx,
                 "not resubmitting transaction since new gas price is the same as the old one"
             );
-            return Err(LanderError::TxAlreadyExists);
+
+            return match tx.status {
+                PendingInclusion | Dropped(_) => Err(LanderError::TxWontBeResubmitted),
+                Mempool | Included | Finalized => Err(LanderError::TxAlreadyExists),
+            };
         }
 
         Ok(())
