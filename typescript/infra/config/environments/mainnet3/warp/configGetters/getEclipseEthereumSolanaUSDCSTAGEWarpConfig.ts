@@ -34,7 +34,7 @@ const STAGING_PROGRAM_IDS = {
   solanamainnet: 'E5rVV8zXwtc4TKGypCJvSBaYbgxa4XaYg5MS6N9QGdeo',
 };
 
-export const getEclipseEthereumSolanaUSDCSTAGEWarpConfig = async (
+export const getEclipseUSDCSTAGEWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
