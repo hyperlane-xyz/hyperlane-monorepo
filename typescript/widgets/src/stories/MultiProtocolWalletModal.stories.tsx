@@ -20,7 +20,7 @@ import { WagmiProvider, createConfig, http } from 'wagmi';
 
 import { cosmoshub, ethereum, solanamainnet } from '@hyperlane-xyz/registry';
 import { MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { AccountList } from '../walletIntegrations/AccountList.js';
 import { ConnectWalletButton } from '../walletIntegrations/ConnectWalletButton.js';

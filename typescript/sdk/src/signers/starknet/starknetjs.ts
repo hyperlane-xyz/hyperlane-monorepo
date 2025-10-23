@@ -1,7 +1,8 @@
 import { ethers } from 'ethers';
 import { Account as StarknetAccount } from 'starknet';
 
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { StarknetJsTransaction } from '../../providers/ProviderType.js';

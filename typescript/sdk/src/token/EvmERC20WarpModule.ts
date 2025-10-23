@@ -12,11 +12,11 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   Domain,
   EvmChainId,
-  ProtocolType,
   addressToBytes32,
   assert,
   deepEquals,

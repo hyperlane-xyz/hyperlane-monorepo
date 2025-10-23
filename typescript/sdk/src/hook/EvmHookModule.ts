@@ -27,11 +27,11 @@ import {
   StorageGasOracle,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   Domain,
   EvmChainId,
-  ProtocolType,
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,

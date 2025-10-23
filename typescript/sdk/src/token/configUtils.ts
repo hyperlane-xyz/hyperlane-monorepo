@@ -1,9 +1,8 @@
 import { zeroAddress } from 'viem';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
   assert,

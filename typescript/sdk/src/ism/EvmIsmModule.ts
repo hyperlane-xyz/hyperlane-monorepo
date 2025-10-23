@@ -6,11 +6,11 @@ import {
   DomainRoutingIsm__factory,
   PausableIsm__factory,
 } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   Domain,
   EvmChainId,
-  ProtocolType,
   arrayEqual,
   assert,
   deepEquals,

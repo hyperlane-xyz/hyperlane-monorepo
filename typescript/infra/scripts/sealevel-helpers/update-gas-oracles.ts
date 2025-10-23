@@ -3,6 +3,7 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { deserializeUnchecked } from 'borsh';
 import chalk from 'chalk';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMap,
   ChainName,
@@ -20,7 +21,7 @@ import {
   SealevelOverheadIgpDataSchema,
   SealevelRemoteGasData,
 } from '@hyperlane-xyz/sdk';
-import { Domain, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { Domain, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../../src/agents/index.js';

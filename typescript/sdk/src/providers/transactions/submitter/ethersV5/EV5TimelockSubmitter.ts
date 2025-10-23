@@ -2,7 +2,8 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { EMPTY_BYTES_32 } from '../../../../timelock/evm/constants.js';
 import { ChainMap } from '../../../../types.js';

@@ -1,5 +1,6 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { AltVMHookReader, ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
+import { Address, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { log, logBlue } from '../logger.js';

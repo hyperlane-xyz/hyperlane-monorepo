@@ -1,6 +1,7 @@
 import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
@@ -11,7 +12,7 @@ import {
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';

@@ -8682,6 +8682,7 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@headlessui/react": "npm:^2.1.8"
     "@hyperlane-xyz/cosmos-sdk": "npm:19.3.0"
+    "@hyperlane-xyz/provider-sdk": "npm:19.3.0"
     "@hyperlane-xyz/registry": "npm:20.0.0"
     "@hyperlane-xyz/sdk": "npm:19.3.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"

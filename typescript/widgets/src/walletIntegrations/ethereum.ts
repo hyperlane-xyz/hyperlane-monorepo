@@ -10,6 +10,7 @@ import { useCallback, useMemo } from 'react';
 import { Chain as ViemChain } from 'viem';
 import { useAccount, useConfig, useDisconnect } from 'wagmi';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainName,
   EvmHypXERC20LockboxAdapter,
@@ -21,7 +22,7 @@ import {
   WarpTypedTransaction,
   chainMetadataToViemChain,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
+import { assert, sleep } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 

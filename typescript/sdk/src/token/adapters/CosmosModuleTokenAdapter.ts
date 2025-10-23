@@ -1,10 +1,10 @@
 import { MsgSendEncodeObject } from '@cosmjs/stargate';
 
 import { MsgRemoteTransferEncodeObject } from '@hyperlane-xyz/cosmos-sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   Domain,
-  ProtocolType,
   addressToBytes32,
   assert,
   convertToProtocolAddress,

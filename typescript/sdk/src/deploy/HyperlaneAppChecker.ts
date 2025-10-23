@@ -5,9 +5,9 @@ import {
   ProxyAdmin__factory,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  ProtocolType,
   assert,
   eqAddress,
   objMap,

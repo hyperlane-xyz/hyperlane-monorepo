@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainName,
   CheckerViolation,
@@ -9,7 +10,7 @@ import {
   InterchainAccount,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { chainsToSkip } from '../config/chain.js';
 

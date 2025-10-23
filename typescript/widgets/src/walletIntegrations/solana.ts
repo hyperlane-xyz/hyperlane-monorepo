@@ -3,6 +3,7 @@ import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Connection } from '@solana/web3.js';
 import { useCallback, useMemo } from 'react';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainName,
   IToken,
@@ -11,7 +12,6 @@ import {
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 

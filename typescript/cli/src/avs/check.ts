@@ -6,13 +6,14 @@ import {
   MerkleTreeHook__factory,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMap,
   ChainName,
   MultiProvider,
   isValidValidatorStorageLocation,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
+import { Address, isObjEmpty } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import {

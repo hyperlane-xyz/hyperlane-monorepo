@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { Signer, Wallet, ethers } from 'ethers';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMetadata,
   CoreConfig,
@@ -9,12 +10,7 @@ import {
   ProtocolFeeHookConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  Domain,
-  ProtocolType,
-  addressToBytes32,
-} from '@hyperlane-xyz/utils';
+import { Address, Domain, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';

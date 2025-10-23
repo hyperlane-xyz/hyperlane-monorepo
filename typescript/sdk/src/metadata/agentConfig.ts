@@ -4,8 +4,8 @@
  */
 import { z } from 'zod';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ModuleType } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';

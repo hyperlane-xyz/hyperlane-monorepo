@@ -4,7 +4,8 @@ import {
   TransactionConfirmationStatus,
 } from '@solana/web3.js';
 
-import { Address, ProtocolType, retryAsync } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { Address, retryAsync } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { SolanaWeb3Transaction } from '../../providers/ProviderType.js';

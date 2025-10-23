@@ -12,8 +12,8 @@ import {
   OpL2NativeTokenBridge__factory,
   TokenBridgeCctp__factory,
 } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
-  ProtocolType,
   assert,
   objFilter,
   objKeys,

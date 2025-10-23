@@ -8,10 +8,10 @@ import path, { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { parse as yamlParse } from 'yaml';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainMap, ChainName, NativeToken } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  ProtocolType,
   objFilter,
   objMerge,
   stringifyObject,

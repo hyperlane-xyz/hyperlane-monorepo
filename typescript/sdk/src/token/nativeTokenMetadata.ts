@@ -1,4 +1,4 @@
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { NativeToken } from '../metadata/chainMetadataTypes.js';
 

@@ -1,4 +1,5 @@
-import { Address, Domain, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp.js';
 import { ChainMap, ChainName } from '../types.js';

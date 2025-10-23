@@ -1,14 +1,10 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMap,
   ChainName,
   ProtocolAgnositicGasOracleConfigWithTypicalCost,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  objFilter,
-  objMap,
-  stringifyObject,
-} from '@hyperlane-xyz/utils';
+import { objFilter, objMap, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { getChain, getWarpAddresses } from '../../config/registry.js';

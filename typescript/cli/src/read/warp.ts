@@ -5,6 +5,7 @@ import {
   HypXERC20__factory,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   AltVMWarpRouteReader,
   ChainMap,
@@ -18,7 +19,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  ProtocolType,
   objFilter,
   objMap,
   promiseObjAll,

@@ -4,6 +4,7 @@ import {
 } from '@radixdlt/radix-dapp-toolkit';
 import { useCallback, useMemo } from 'react';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk';
 import {
   ChainName,
@@ -13,7 +14,7 @@ import {
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, retryAsync } from '@hyperlane-xyz/utils';
+import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { useAccount } from './radix/AccountContext.js';
 import { usePopup } from './radix/RadixProviders.js';

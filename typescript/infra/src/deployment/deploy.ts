@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMap,
   ChainName,
@@ -9,12 +10,7 @@ import {
   MultiProvider,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  objFilter,
-  objMerge,
-  runWithTimeout,
-} from '@hyperlane-xyz/utils';
+import { objFilter, objMerge, runWithTimeout } from '@hyperlane-xyz/utils';
 
 import {
   Modules,

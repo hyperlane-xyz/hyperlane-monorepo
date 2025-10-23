@@ -1,5 +1,6 @@
 import { join } from 'path';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   AgentSealevelPriorityFeeOracle,
   AgentSealevelTransactionSubmitter,
@@ -7,7 +8,7 @@ import {
   RelayerConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objOmitKeys } from '@hyperlane-xyz/utils';
+import { objOmitKeys } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';

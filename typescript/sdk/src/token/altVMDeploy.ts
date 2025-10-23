@@ -1,9 +1,8 @@
 import { Logger } from 'pino';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  ProtocolType,
   assert,
   objFilter,
   objMap,

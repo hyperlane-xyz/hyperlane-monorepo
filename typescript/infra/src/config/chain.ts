@@ -1,5 +1,6 @@
 import { providers } from 'ethers';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -8,13 +9,7 @@ import {
   HyperlaneSmartProvider,
   ProviderRetryOptions,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
-  inCIMode,
-  objFilter,
-  objMerge,
-} from '@hyperlane-xyz/utils';
+import { Address, inCIMode, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';

@@ -1,6 +1,6 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 export const TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM = 10;
 

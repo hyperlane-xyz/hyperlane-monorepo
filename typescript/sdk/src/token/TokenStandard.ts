@@ -1,4 +1,5 @@
-import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import {
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,

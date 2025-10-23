@@ -8,11 +8,11 @@ import {
   num,
 } from 'starknet';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   Domain,
   Numberish,
-  ProtocolType,
   addressToBytes32,
   assert,
 } from '@hyperlane-xyz/utils';

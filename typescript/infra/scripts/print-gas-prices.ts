@@ -2,13 +2,13 @@ import { Provider } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import path from 'path';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMap,
   GasPriceConfig,
   MultiProtocolProvider,
   getCosmosChainGasPrice,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 // Intentionally circumvent `mainnet3/index.ts` and `getEnvironmentConfig('mainnet3')`
 // to avoid circular dependencies.

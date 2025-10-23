@@ -11,6 +11,7 @@ import { useCallback, useMemo } from 'react';
 import { Call } from 'starknet';
 import { StarknetkitConnector, useStarknetkitConnectModal } from 'starknetkit';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainName,
   IToken,
@@ -20,7 +21,7 @@ import {
   WarpTypedTransaction,
   chainMetadataToStarknetChain,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
+import { assert, sleep } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 

@@ -1,5 +1,6 @@
 import { TransactionReceipt } from '@ethersproject/providers';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   DispatchedMessage,
@@ -10,7 +11,6 @@ import {
   TxSubmitterBuilder,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
 import { ExtendedSubmissionStrategy } from '../submitters/types.js';

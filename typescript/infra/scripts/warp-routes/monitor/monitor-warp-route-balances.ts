@@ -1,6 +1,7 @@
 import { Contract, PopulatedTransaction } from 'ethers';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMap,
   ChainMetadata,
@@ -17,13 +18,7 @@ import {
   WarpCore,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
-  objMap,
-  objMerge,
-  sleep,
-} from '@hyperlane-xyz/utils';
+import { Address, objMap, objMerge, sleep } from '@hyperlane-xyz/utils';
 
 import { getWarpCoreConfig } from '../../../config/registry.js';
 import { getCoinGeckoApiKey } from '../../../src/coingecko/utils.js';

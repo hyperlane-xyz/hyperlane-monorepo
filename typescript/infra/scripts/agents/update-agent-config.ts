@@ -1,6 +1,7 @@
 // eslint-disable-next-line
 import fs from 'fs';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   AgentConfig,
@@ -15,7 +16,6 @@ import {
   getCosmosChainGasPrice,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
   assert,
   objFilter,
   objMap,

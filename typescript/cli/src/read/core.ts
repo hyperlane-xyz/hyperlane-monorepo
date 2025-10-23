@@ -1,10 +1,11 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   AltVMCoreReader,
   ChainName,
   CoreConfig,
   EvmCoreReader,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed } from '../logger.js';

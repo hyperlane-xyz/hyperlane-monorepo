@@ -2,13 +2,9 @@ import { confirm, input, password, select } from '@inquirer/prompts';
 import { Wallet } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { TxSubmitterType } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  assert,
-  isAddress,
-  isPrivateKeyEvm,
-} from '@hyperlane-xyz/utils';
+import { assert, isAddress, isPrivateKeyEvm } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';

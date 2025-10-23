@@ -1,5 +1,5 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { moduleCanCertainlyVerify } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getArgs } from './agent-utils.js';
 import { getHyperlaneCore } from './core-utils.js';

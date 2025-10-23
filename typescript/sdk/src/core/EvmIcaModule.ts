@@ -1,10 +1,10 @@
 import { ethers } from 'ethers';
 
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Domain,
   EvmChainId,
-  ProtocolType,
   addressToBytes32,
   bytes32ToAddress,
   difference,

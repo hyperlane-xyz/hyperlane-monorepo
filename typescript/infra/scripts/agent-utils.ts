@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -15,7 +16,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  ProtocolType,
   difference,
   inCIMode,
   objFilter,

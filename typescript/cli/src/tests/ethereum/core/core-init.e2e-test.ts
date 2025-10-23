@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   CoreConfig,
   HookType,
@@ -8,7 +9,7 @@ import {
   ProtocolFeeHookConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, normalizeAddress } from '@hyperlane-xyz/utils';
+import { Address, normalizeAddress } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';

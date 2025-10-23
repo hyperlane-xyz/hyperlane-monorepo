@@ -4,7 +4,8 @@
  */
 import { SafeParseReturnType, z } from 'zod';
 
-import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { objMerge } from '@hyperlane-xyz/utils';
 
 import { ChainMap } from '../types.js';
 

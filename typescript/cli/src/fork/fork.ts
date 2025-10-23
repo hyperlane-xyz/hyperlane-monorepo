@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { execa } from 'execa';
 
 import { HttpServer } from '@hyperlane-xyz/http-registry-server';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { MergedRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -18,13 +19,7 @@ import {
   TransactionDataType,
   forkedChainConfigByChainFromRaw,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
-  assert,
-  deepEquals,
-  retryAsync,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, deepEquals, retryAsync } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed } from '../logger.js';

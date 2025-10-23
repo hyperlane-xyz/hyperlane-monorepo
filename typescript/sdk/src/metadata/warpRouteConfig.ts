@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { TokenType } from '../token/config.js';
 import { ChainMap } from '../types.js';

@@ -1,6 +1,6 @@
 import { FC, SVGProps } from 'react';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { CosmosLogo } from './Cosmos.js';
 import { EthereumLogo } from './Ethereum.js';

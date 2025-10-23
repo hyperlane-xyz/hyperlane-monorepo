@@ -1,8 +1,8 @@
 import { Logger } from 'pino';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   EvmChainId,
-  ProtocolType,
   assert,
   exclude,
   pick,

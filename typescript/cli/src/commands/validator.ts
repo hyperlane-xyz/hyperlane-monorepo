@@ -1,8 +1,8 @@
 import { CommandModule } from 'yargs';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  ProtocolType,
   isValidAddressEvm,
   normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';

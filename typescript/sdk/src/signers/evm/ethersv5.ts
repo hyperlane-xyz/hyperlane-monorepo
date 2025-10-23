@@ -1,7 +1,8 @@
 import { Wallet, ethers } from 'ethers';
 import { Wallet as ZkSyncWallet } from 'zksync-ethers';
 
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { ChainTechnicalStack } from '../../index.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';

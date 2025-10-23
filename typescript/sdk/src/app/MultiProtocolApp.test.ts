@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';

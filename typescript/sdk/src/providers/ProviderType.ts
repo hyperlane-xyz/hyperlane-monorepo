@@ -34,12 +34,13 @@ import {
 } from 'zksync-ethers';
 
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   RadixProvider as RadixSDKProvider,
   RadixSDKReceipt,
   RadixSDKTransaction,
 } from '@hyperlane-xyz/radix-sdk';
-import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
+import { Annotated } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
   EthersV5 = 'ethers-v5',

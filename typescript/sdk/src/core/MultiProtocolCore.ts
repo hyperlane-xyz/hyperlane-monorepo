@@ -1,4 +1,5 @@
-import { HexString, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { HexString, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';

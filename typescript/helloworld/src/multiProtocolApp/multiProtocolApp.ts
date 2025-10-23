@@ -1,3 +1,4 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMap,
   ChainName,
@@ -5,7 +6,7 @@ import {
   RouterAddress,
   TypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { StatCounts } from '../app/types.js';
 

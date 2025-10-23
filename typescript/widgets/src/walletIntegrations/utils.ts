@@ -4,8 +4,8 @@ import {
   BigNumber as EthersBN,
 } from 'ethers';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainMetadata, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export function ethers5TxToWagmiTx(
   tx: Ethers5Transaction,

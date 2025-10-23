@@ -1,4 +1,5 @@
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
 

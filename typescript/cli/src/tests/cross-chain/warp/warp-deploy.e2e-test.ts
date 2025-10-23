@@ -3,6 +3,7 @@ import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -14,7 +15,7 @@ import {
   randomStarknetAddress,
   randomSvmAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
