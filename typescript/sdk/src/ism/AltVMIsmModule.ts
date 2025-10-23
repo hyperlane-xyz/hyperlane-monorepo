@@ -2,13 +2,10 @@ import { Logger } from 'pino';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  TxReceipt,
-} from '@hyperlane-xyz/provider-sdk/module';
-import {
   Address,
+  ChainId,
+  Domain,
+  ProtocolType,
   assert,
   deepEquals,
   intersection,

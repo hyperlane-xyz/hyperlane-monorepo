@@ -3,13 +3,9 @@ import { zeroAddress } from 'viem';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  TxReceipt,
-} from '@hyperlane-xyz/provider-sdk/module';
-import {
   Address,
+  Domain,
+  ProtocolType,
   addressToBytes32,
   assert,
   rootLogger,

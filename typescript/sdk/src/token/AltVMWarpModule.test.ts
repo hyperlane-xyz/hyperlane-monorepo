@@ -2,8 +2,7 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import Sinon from 'sinon';
 
-import { AltVM, MockSigner } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
 import { TestChainName } from '../consts/testChains.js';
 import { IsmType } from '../ism/types.js';

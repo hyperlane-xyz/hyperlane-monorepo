@@ -1,11 +1,11 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  TxReceipt,
-} from '@hyperlane-xyz/provider-sdk/module';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+  Address,
+  ChainId,
+  Domain,
+  ProtocolType,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
 import { AltVMHookModule } from '../hook/AltVMHookModule.js';

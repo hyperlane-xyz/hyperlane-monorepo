@@ -2,7 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
   AddWarpRouteConfigOptions,
   BaseRegistry,
@@ -48,6 +48,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  ProtocolType,
   assert,
   objFilter,
   objMap,

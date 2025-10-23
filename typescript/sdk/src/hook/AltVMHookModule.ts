@@ -2,12 +2,14 @@ import { zeroAddress } from 'viem';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  TxReceipt,
-} from '@hyperlane-xyz/provider-sdk/module';
-import { Address, assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
+  Address,
+  ChainId,
+  Domain,
+  ProtocolType,
+  assert,
+  deepEquals,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
 import { ChainName } from '../types.js';
