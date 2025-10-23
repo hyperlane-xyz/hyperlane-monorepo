@@ -42,11 +42,9 @@ use crate::{
 };
 
 use super::{
-    metrics::EthereumAdapterMetrics, nonce::NonceManager, transaction::Precursor,
-    EthereumTxPrecursor,
+    gas_price::GasPrice, metrics::EthereumAdapterMetrics, nonce::NonceManager,
+    transaction::Precursor, EthereumTxPrecursor,
 };
-
-use gas_price::GasPrice;
 
 mod gas_limit_estimator;
 mod gas_price;
@@ -135,7 +133,7 @@ impl EthereumAdapter {
         // to be resilient to gas spikes
         let old_tx_precursor = tx.precursor();
 
-        let old_gas_price = gas_price::extract_gas_price(old_tx_precursor);
+        let old_gas_price = old_tx_precursor.extract_gas_price();
 
         // first, estimate the gas price
         let estimated_gas_price = gas_price::estimate_gas_price(
@@ -160,6 +158,39 @@ impl EthereumAdapter {
 
         info!(old=?old_tx_precursor, new=?new_gas_price, "estimated and escalated gas price for transaction");
         Ok(new_gas_price)
+    }
+
+    fn check_if_resubmission_makes_sense(
+        tx: &Transaction,
+        gas_price: &GasPrice,
+    ) -> Result<(), LanderError> {
+        use TransactionStatus::*;
+
+        let precursor = tx.precursor();
+        let tx_gas_price = precursor.extract_gas_price();
+
+        if tx_gas_price == GasPrice::None {
+            // If transaction has no gas price set, it is the first submission
+            return Ok(());
+        }
+
+        // Transaction has been submitted before, check if the new gas price has not
+        // reached limit yet
+
+        if gas_price == &tx_gas_price {
+            // If new gas price is the same as the old one, no point in resubmitting
+            info!(
+                ?tx,
+                "not resubmitting transaction since new gas price is the same as the old one"
+            );
+
+            return match tx.status {
+                PendingInclusion | Dropped(_) => Err(LanderError::TxWontBeResubmitted),
+                Mempool | Included | Finalized => Err(LanderError::TxAlreadyExists),
+            };
+        }
+
+        Ok(())
     }
 
     fn update_tx(&self, tx: &mut Transaction, nonce: U256, gas_price: GasPrice) {
@@ -579,6 +610,8 @@ impl AdaptsChain for EthereumAdapter {
             self.estimate_gas_price(&tx_for_gas_price)
         )?;
 
+        Self::check_if_resubmission_makes_sense(tx, &gas_price)?;
+
         self.update_tx(tx, nonce, gas_price);
 
         info!(?tx, "submitting transaction");
@@ -636,6 +669,60 @@ impl AdaptsChain for EthereumAdapter {
         }
 
         Ok(reverted)
+    }
+
+    fn reprocess_txs_poll_rate(&self) -> Option<Duration> {
+        // if the block time is too short, we want to cap it at 5s because we don't want
+        // to query the nonce too much. 5s should be quick enough for a reorg
+        Some((*self.estimated_block_time()).max(Duration::from_secs(5)))
+    }
+
+    async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
+        let old_finalized_nonce = self
+            .nonce_manager
+            .state
+            .get_finalized_nonce()
+            .await?
+            .unwrap_or_default();
+        self.nonce_manager.nonce_updater.update_boundaries().await?;
+        let new_finalized_nonce = self
+            .nonce_manager
+            .state
+            .get_finalized_nonce()
+            .await?
+            .unwrap_or_default();
+
+        if new_finalized_nonce >= old_finalized_nonce {
+            return Ok(Vec::new());
+        }
+
+        warn!(
+            ?old_finalized_nonce,
+            ?new_finalized_nonce,
+            "New finalized nonce is lower than old finalized nonce"
+        );
+
+        let mut txs = Vec::new();
+        let mut nonce = new_finalized_nonce.saturating_add(U256::one());
+        while nonce <= old_finalized_nonce {
+            let tx_uuid = self.nonce_manager.state.get_tracked_tx_uuid(&nonce).await?;
+            if tx_uuid == TransactionUuid::default() {
+                debug!(
+                    ?nonce,
+                    "No tracked transaction UUID for nonce in reorg range"
+                );
+            } else if let Some(tx) = self.nonce_manager.state.get_tracked_tx(&tx_uuid).await? {
+                txs.push(tx);
+            } else {
+                debug!(
+                    ?nonce,
+                    ?tx_uuid,
+                    "No transaction found for nonce in reorg range"
+                );
+            }
+            nonce = nonce.saturating_add(U256::one());
+        }
+        Ok(txs)
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {

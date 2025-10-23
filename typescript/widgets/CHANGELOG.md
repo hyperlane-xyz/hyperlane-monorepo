@@ -1,5 +1,27 @@
 # @hyperlane-xyz/widgets
 
+## 19.3.0
+
+### Patch Changes
+
+- Updated dependencies [fcdda58a8]
+  - @hyperlane-xyz/sdk@19.3.0
+  - @hyperlane-xyz/cosmos-sdk@19.3.0
+  - @hyperlane-xyz/utils@19.3.0
+
+## 19.2.0
+
+### Minor Changes
+
+- bfea74dac: Add optional callback for when protocol is selected in MultiProtocolWalletModal
+
+### Patch Changes
+
+- Updated dependencies [f68419605]
+  - @hyperlane-xyz/sdk@19.2.0
+  - @hyperlane-xyz/cosmos-sdk@19.2.0
+  - @hyperlane-xyz/utils@19.2.0
+
 ## 19.1.1
 
 ### Patch Changes
