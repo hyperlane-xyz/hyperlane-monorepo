@@ -210,13 +210,13 @@ export class SealevelTokenAdapter
         isSpl2022Token ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID,
       ),
       isSpl2022Token
-        ? await getTokenMetadata(
+        ? getTokenMetadata(
             svmProvider,
             tokenAddress,
             'finalized',
             TOKEN_2022_PROGRAM_ID,
           )
-        : await getLegacySPLTokenMetadata(svmProvider, tokenAddress),
+        : getLegacySPLTokenMetadata(svmProvider, tokenAddress),
     ]);
 
     assert(
@@ -259,7 +259,7 @@ export class SealevelTokenAdapter
       throw new Error('fromAccountOwner required for Sealevel');
 
     const originTokenAccount = fromTokenAccount
-      ? new PublicKey(fromAccountOwner)
+      ? new PublicKey(fromTokenAccount)
       : await this.deriveAssociatedTokenAccount(
           new PublicKey(fromAccountOwner),
         );
