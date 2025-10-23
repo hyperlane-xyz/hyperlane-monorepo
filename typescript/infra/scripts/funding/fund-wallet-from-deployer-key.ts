@@ -156,7 +156,6 @@ async function fundAccount({
     apiKey: await getCoinGeckoApiKey(fundingLogger),
   });
 
-  // TODO: update this to get token info if available
   let tokenPrice;
   try {
     tokenPrice = tokenAddress
