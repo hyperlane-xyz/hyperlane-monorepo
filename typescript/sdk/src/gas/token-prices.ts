@@ -1,5 +1,3 @@
-import { URL } from 'url';
-
 import { Address, objKeys, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
