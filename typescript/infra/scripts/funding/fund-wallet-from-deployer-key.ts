@@ -156,6 +156,7 @@ async function fundAccount({
     apiKey: await getCoinGeckoApiKey(fundingLogger),
   });
 
+  // TODO: update this to get token info if available
   let tokenPrice;
   try {
     tokenPrice = await tokenPriceGetter.getTokenPrice(chainName);
@@ -194,8 +195,10 @@ async function fundAccount({
   };
   try {
     const { name, symbol, decimals } = await adapter.getMetadata();
-
-    assert(decimals, `Exp`);
+    assert(
+      decimals,
+      `Expected decimals for ${tokenAddress ? '' : 'native'} token ${tokenAddress ?? ''} on chain "${chainName}" to be defined`,
+    );
 
     tokenMetadata = {
       name,
@@ -204,7 +207,7 @@ async function fundAccount({
     };
   } catch (err) {
     fundingLogger.error(
-      { chainName, err },
+      { err },
       `Failed to get token metadata for ${chainName}`,
     );
 
@@ -214,8 +217,8 @@ async function fundAccount({
     );
 
     tokenMetadata = {
-      name: 'NOT SPECIFIED',
-      symbol: 'NOT SPECIFIED',
+      name: 'NAME NOT SPECIFIED',
+      symbol: 'SYMBOL NOT SPECIFIED',
       decimals: tokenDecimals,
     };
   }

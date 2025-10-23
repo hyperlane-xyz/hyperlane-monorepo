@@ -551,13 +551,6 @@ export function getCollateralTokenAdapter({
     return new SealevelTokenAdapter(chainName, multiProvider, {
       token: tokenAddress,
     });
-  } else if (protocolType === ProtocolType.CosmosNative) {
-    return new CosmNativeTokenAdapter(
-      chainName,
-      multiProvider,
-      {},
-      { ibcDenom: tokenAddress },
-    );
   } else if (protocolType === ProtocolType.Starknet) {
     return new StarknetTokenAdapter(chainName, multiProvider, {
       tokenAddress,
@@ -567,6 +560,8 @@ export function getCollateralTokenAdapter({
       token: tokenAddress,
     });
   } else {
-    throw new Error();
+    throw new Error(
+      `Unsupported protocol ${protocolType} for retrieving collateral token adapter on chain ${chainName}`,
+    );
   }
 }
