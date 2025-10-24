@@ -76,29 +76,23 @@ export async function writeAgentConfig(
   const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
   const environmentChains = envAgentConfig.environmentChainNames;
   const registry = await envConfig.getRegistry();
+
+  // Build additional config for:
+  // - cosmos/cosmos native chains that require special gas price handling
+  // - any chains that have agent-specific overrides
   const additionalConfig = Object.fromEntries(
     await Promise.all(
-      environmentChains
-        .filter(
-          (chain) =>
-            chainIsProtocol(chain, ProtocolType.Cosmos) ||
-            chainIsProtocol(chain, ProtocolType.CosmosNative),
-        )
-        .map(async (chain) => {
-          // initialise overrides with empty object
-          const overrides: Partial<ChainMetadata> = {};
+      environmentChains.map(async (chain) => {
+        let config: Partial<ChainMetadata> = {};
 
-          // Merge general overrides with agent specific overrides
-          const chainMetadata = await registry.getChainMetadata(chain);
-          overrides.transactionOverrides = {
-            ...(chainMetadata?.transactionOverrides ?? {}),
-            ...(agentSpecificChainMetadataOverrides[chain] ?? {}),
-          };
-
-          // Get gas price for Cosmos chains
+        // Get Cosmos gas price if applicable
+        if (
+          chainIsProtocol(chain, ProtocolType.Cosmos) ||
+          chainIsProtocol(chain, ProtocolType.CosmosNative)
+        ) {
           try {
             const gasPrice = await getCosmosChainGasPrice(chain, multiProvider);
-            overrides.gasPrice = gasPrice;
+            config.gasPrice = gasPrice;
           } catch (error) {
             rootLogger.error(`Error getting gas price for ${chain}:`, error);
             const { denom } = await multiProvider.getNativeToken(chain);
@@ -109,12 +103,34 @@ export async function writeAgentConfig(
                     .amount
                 : testnet4GasPrices[chain as keyof typeof testnet4GasPrices]
                     .amount;
-            overrides.gasPrice = { denom, amount };
+            config.gasPrice = { denom, amount };
           }
+        }
 
-          // Return the chain and overrides
-          return [chain, overrides];
-        }),
+        // Merge agent-specific overrides with general overrides
+        // TODO: support testnet4 overrides (if we ever need to)
+        const agentSpecificOverrides =
+          agentSpecificChainMetadataOverrides[chain];
+        if (agentSpecificOverrides) {
+          const chainMetadata = await registry.getChainMetadata(chain);
+          const generalTxOverrides = chainMetadata?.transactionOverrides ?? {};
+          const agentSpecificTxOverrides =
+            agentSpecificOverrides?.transactionOverrides ?? {};
+
+          // Merge general tx overrides with agent-specific ones (agent-specific takes precedence)
+          const mergedTxOverrides = objMerge(
+            generalTxOverrides,
+            agentSpecificTxOverrides,
+          );
+
+          config = objMerge(config, {
+            ...agentSpecificOverrides,
+            transactionOverrides: mergedTxOverrides,
+          });
+        }
+
+        return [chain, config];
+      }),
     ),
   );
 
