@@ -1,15 +1,9 @@
-import {
-  ComputeBudgetProgram,
-  Connection,
-  Keypair,
-  Transaction,
-  TransactionInstruction,
-} from '@solana/web3.js';
+import { TransactionInstruction } from '@solana/web3.js';
 import { resolve } from 'path';
 
 import {
-  SEALEVEL_PRIORITY_FEES,
   SealevelRemoteGasData,
+  SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -23,133 +17,15 @@ export const svmGasOracleConfigPath = (environment: DeployEnvironment) =>
     `rust/sealevel/environments/${environment}/gas-oracle-configs.json`,
   );
 
-/**
- * Build and send a transaction with priority fees and custom confirmation polling
- * This avoids WebSocket subscription issues with some RPC providers
- */
-export async function buildAndSendTransaction(params: {
-  /** Solana RPC connection */
-  connection: Connection;
-  /** Transaction instructions to include */
-  instructions: TransactionInstruction[];
-  /** Keypair to sign the transaction */
-  signer: Keypair;
-  /** Chain name for logging and priority fees */
-  chain: string;
-}): Promise<string> {
-  const { connection, instructions, signer, chain } = params;
-  const tx = new Transaction();
-
-  // Add priority fee if configured
-  const priorityFee = SEALEVEL_PRIORITY_FEES[chain];
-  if (priorityFee) {
-    tx.add(
-      ComputeBudgetProgram.setComputeUnitPrice({
-        microLamports: priorityFee,
-      }),
-    );
-  }
-
-  // Add all instructions
-  for (const instruction of instructions) {
-    tx.add(instruction);
-  }
-
-  // Get recent blockhash with expiry tracking
-  let { blockhash, lastValidBlockHeight } =
-    await connection.getLatestBlockhash('confirmed');
-  tx.recentBlockhash = blockhash;
-  tx.feePayer = signer.publicKey;
-
-  // Sign and send transaction
-  tx.sign(signer);
-  let signature = await connection.sendRawTransaction(tx.serialize(), {
-    skipPreflight: false,
-    maxRetries: 3,
-  });
-
-  // Poll for confirmation using getSignatureStatus instead of confirmTransaction
-  let confirmed = false;
-  let attempts = 0;
-  const maxAttempts = 30; // 30 seconds timeout
-  let failureReason: Error | null = null;
-
-  while (!confirmed && attempts < maxAttempts) {
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
-    attempts++;
-
-    try {
-      // Check if blockhash expired and refresh if needed
-      const currentBlockHeight = await connection.getBlockHeight();
-      if (currentBlockHeight > lastValidBlockHeight && !confirmed) {
-        rootLogger.warn(
-          `[${chain}] Blockhash expired at block ${lastValidBlockHeight}, current block ${currentBlockHeight}. Refreshing and resubmitting...`,
-        );
-        ({ blockhash, lastValidBlockHeight } =
-          await connection.getLatestBlockhash('confirmed'));
-        tx.recentBlockhash = blockhash;
-        tx.sign(signer);
-        signature = await connection.sendRawTransaction(tx.serialize(), {
-          skipPreflight: false,
-          maxRetries: 3,
-        });
-        rootLogger.info(
-          `[${chain}] Resubmitted transaction with new signature: ${signature}`,
-        );
-        continue;
-      }
-
-      const status = await connection.getSignatureStatus(signature, {
-        searchTransactionHistory: true,
-      });
-
-      if (status.value) {
-        if (status.value.err) {
-          // Record the error and break out of the polling loop
-          failureReason = new Error(
-            `Transaction failed: ${JSON.stringify(status.value.err)}`,
-          );
-          break;
-        }
-        if (
-          status.value.confirmationStatus === 'confirmed' ||
-          status.value.confirmationStatus === 'finalized'
-        ) {
-          confirmed = true;
-        }
-      }
-    } catch (error) {
-      // Continue polling on error, might be temporary
-      rootLogger.warn(
-        `[${chain}] Polling attempt ${attempts} failed: ${error}`,
-      );
-    }
-  }
-
-  if (failureReason) {
-    throw failureReason;
-  }
-
-  if (!confirmed) {
-    throw new Error(
-      `Transaction confirmation timeout after ${maxAttempts} seconds`,
-    );
-  }
-
-  return signature;
-}
-
 // SOLANA_TX_SIZE_LIMIT = 1232 bytes
 // batches of 10 fill up about 60% of the limit
 export const DEFAULT_MAX_SEALEVEL_BATCH_SIZE = 10;
 
 export async function batchAndSendTransactions<T>(params: {
-  /** Solana RPC connection */
-  connection: Connection;
-  /** Chain name for logging and priority fees */
+  /** Chain name for logging */
   chain: string;
-  /** Keypair to sign transactions */
-  signerKeypair: Keypair;
+  /** Sealevel signer adapter */
+  adapter: SvmMultiProtocolSignerAdapter;
   /** Description of operation for logging */
   operationName: string;
   /** Items to process in batches */
@@ -164,9 +40,8 @@ export async function batchAndSendTransactions<T>(params: {
   dryRun?: boolean;
 }): Promise<void> {
   const {
-    connection,
     chain,
-    signerKeypair,
+    adapter,
     operationName,
     items,
     createInstruction,
@@ -190,12 +65,7 @@ export async function batchAndSendTransactions<T>(params: {
         `[${chain}] Batch ${batchNum}/${totalBatches}: Would send ${operationName} for ${batch.length} items: ${formatBatch(batch)}`,
       );
     } else {
-      const tx = await buildAndSendTransaction({
-        connection,
-        instructions: [instruction],
-        signer: signerKeypair,
-        chain,
-      });
+      const tx = await adapter.buildAndSendTransaction([instruction]);
 
       rootLogger.info(
         `[${chain}] Batch ${batchNum}/${totalBatches}: ${operationName} ${batch.length} items [${formatBatch(batch)}] - tx: ${tx}`,
@@ -304,8 +174,3 @@ export function serializeGasOracleDifference(
 
   return `Exchange rate: ${exchangeRate.toFixed(10)} (${exchangeRateDiff}), Gas price: ${gasPriceLamports.toLocaleString()} (${gasPriceDiff}), Product diff: ${productDiff}`;
 }
-
-/**
- * Constants
- */
-export const ZERO_SALT = new Uint8Array(32).fill(0);
