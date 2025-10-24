@@ -845,3 +845,10 @@ export {
   getSignerForChain,
   MultiProtocolSignerSignerAccountInfo,
 } from './signers/signers.js';
+export {
+  SvmTransactionSigner,
+  KeypairSvmTransactionSigner,
+  SvmMultiProtocolSignerAdapter,
+  SvmSignerConfig,
+  TransactionBuildOptions,
+} from './signers/svm/solana-web3js.js';
