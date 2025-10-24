@@ -30,4 +30,8 @@ impl NonceManagerState {
             metrics,
         }
     }
+
+    pub fn metrics(&self) -> &EthereumAdapterMetrics {
+        &self.metrics
+    }
 }
