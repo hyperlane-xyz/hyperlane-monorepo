@@ -266,11 +266,14 @@ async function createWarpIsm({
 
       const ismModule = await AltVMIsmModule.create({
         chain,
-        multiProvider: multiProvider,
         addresses: {
           mailbox: chainAddresses.mailbox,
         },
         config: interchainSecurityModule,
+        getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
+        getChainName: (chain) => multiProvider.tryGetChainName(chain),
+        getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
+        getKnownChainNames: () => multiProvider.getKnownChainNames(),
         signer,
       });
       const { deployedIsm } = ismModule.serialize();
