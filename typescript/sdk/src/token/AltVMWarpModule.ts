@@ -347,7 +347,10 @@ export class AltVMWarpModule
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
     const ismModule = new AltVMIsmModule(
-      this.chainLookup,
+      (chain) => this.metadataManager.getChainMetadata(chain),
+      (chain) => this.metadataManager.tryGetChainName(chain),
+      (chain) => this.metadataManager.tryGetDomainId(chain),
+      () => this.metadataManager.getKnownChainNames(),
       {
         chain: this.args.chain,
         config: expectedConfig.interchainSecurityModule,

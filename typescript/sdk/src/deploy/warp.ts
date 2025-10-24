@@ -267,7 +267,10 @@ async function createWarpIsm({
           mailbox: chainAddresses.mailbox,
         },
         config: interchainSecurityModule,
-        chainLookup: altVmChainLookup(multiProvider),
+        getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
+        getChainName: (chain) => multiProvider.tryGetChainName(chain),
+        getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
+        getKnownChainNames: () => multiProvider.getKnownChainNames(),
         signer,
       });
       const { deployedIsm } = ismModule.serialize();
