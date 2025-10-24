@@ -122,7 +122,7 @@ impl SovereignClient {
             let pub_key = hex::encode(signer.public_key());
             obj.insert("pub_key".to_string(), serde_json::to_value(pub_key)?);
         }
-        tracing::debug!(?utx_json, "Signed tx");
+        tracing::trace!(?utx_json, "Signed tx");
         Ok(utx_json)
     }
 
@@ -192,7 +192,7 @@ impl SovereignClient {
                     }
                     // All other kinds of messages are ignored because
                     // `tokio-tungstenite` ought to handle all
-                    // meta-communication messages (ping, pong, clonse) for us anyway.
+                    // meta-communication messages (ping, pong, close) for us anyway.
                     Ok(_) => None,
                     // Errors are not handled here but passed to the caller.
                     Err(err) => Some(Err(custom_err!("{err}"))),
