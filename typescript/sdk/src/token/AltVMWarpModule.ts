@@ -36,17 +36,6 @@ type WarpRouteAddresses = {
   deployedTokenRoute: Address;
 };
 
-/**
- * Minimal chain metadata needed for AltVM Warp operations
- */
-export interface ChainMetadataForWarp {
-  name: string;
-  nativeToken?: {
-    decimals?: number;
-    denom?: string;
-  };
-}
-
 export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
   PT,
   HypTokenRouterConfig,
@@ -58,7 +47,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
   public readonly chainName: ChainName;
 
   constructor(
-    protected readonly chainLookup: ChainLookup<ChainMetadataForWarp>,
+    protected readonly chainLookup: ChainLookup,
     protected readonly signer: AltVM.ISigner<
       AnnotatedTypedTransaction<PT>,
       ProtocolReceipt<PT>
@@ -417,7 +406,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
   static async create<PT extends ProtocolType>(params: {
     chain: string;
     config: HypTokenRouterConfig;
-    chainLookup: ChainLookup<ChainMetadataForWarp>;
+    chainLookup: ChainLookup;
     signer: AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMWarpModule<PT>> {
     const deployer = new AltVMDeployer({
