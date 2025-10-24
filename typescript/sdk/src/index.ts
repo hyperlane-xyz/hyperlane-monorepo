@@ -285,6 +285,7 @@ export {
 export {
   ChainMetadataManager,
   ChainMetadataManagerOptions,
+  altVmChainLookup,
 } from './metadata/ChainMetadataManager.js';
 export {
   BlockExplorer,
