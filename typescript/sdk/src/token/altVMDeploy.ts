@@ -9,7 +9,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
   ProtocolReceipt,
   ProtocolTransaction,
@@ -23,7 +22,6 @@ export class AltVMDeployer<PT extends ProtocolType> {
   protected logger: Logger;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
     protected readonly signersMap: ChainMap<
       AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>
     >,

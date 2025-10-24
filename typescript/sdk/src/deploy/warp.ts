@@ -142,7 +142,7 @@ export async function executeWarpDeploy(
           altVmSigner.get(chain),
         );
 
-        const deployer = new AltVMDeployer(multiProvider, signersMap);
+        const deployer = new AltVMDeployer(signersMap);
         deployedContracts = {
           ...deployedContracts,
           ...(await deployer.deploy(protocolSpecificConfig)),
@@ -463,7 +463,11 @@ export async function enrollCrossChainRouters(
         const signer = altVmSigner.get(currentChain);
 
         const warpModule = new AltVMWarpModule(
-          multiProvider,
+          (chain) => multiProvider.getChainMetadata(chain),
+          (domainId) => multiProvider.tryGetChainName(domainId),
+          (chain) => multiProvider.tryGetDomainId(chain),
+          () => multiProvider.getKnownChainNames(),
+          signer,
           {
             chain: currentChain,
             config: resolvedConfigMap[currentChain],
@@ -471,7 +475,6 @@ export async function enrollCrossChainRouters(
               deployedTokenRoute: deployedContracts[currentChain],
             },
           },
-          signer,
         );
         const actualConfig = await warpModule.read();
         const expectedConfig: HypTokenRouterConfig = {

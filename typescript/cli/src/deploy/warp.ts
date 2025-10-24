@@ -675,7 +675,11 @@ async function updateExistingWarpRoute(
           default: {
             const signer = altVmSigner.get(chain);
             const warpModule = new AltVMWarpModule(
-              multiProvider,
+              (chain) => multiProvider.getChainMetadata(chain),
+              (domainId) => multiProvider.tryGetChainName(domainId),
+              (chain) => multiProvider.tryGetDomainId(chain),
+              () => multiProvider.getKnownChainNames(),
+              signer,
               {
                 config: configWithMailbox,
                 chain,
@@ -683,7 +687,6 @@ async function updateExistingWarpRoute(
                   deployedTokenRoute,
                 },
               },
-              signer,
             );
 
             const transactions = await warpModule.update(configWithMailbox);
