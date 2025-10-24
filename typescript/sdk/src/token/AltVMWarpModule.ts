@@ -14,7 +14,6 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { ChainMetadataLookup as HookChainMetadataLookup } from '../hook/AltVMHookReader.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import {
@@ -59,11 +58,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;
 
-    this.reader = new AltVMWarpRouteReader(
-      chainLookup.getChainMetadata as HookChainMetadataLookup,
-      chainLookup.getChainName,
-      signer,
-    );
+    this.reader = new AltVMWarpRouteReader(chainLookup, signer);
 
     this.logger = rootLogger.child({
       module: AltVMWarpModule.name,
