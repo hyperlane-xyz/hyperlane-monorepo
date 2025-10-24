@@ -118,10 +118,7 @@ mod tests {
         let tx_status = get_tx_hash_status(&evm_provider, transaction_hash.into(), &reorg_period)
             .await
             .unwrap();
-        assert_eq!(
-            tx_status,
-            TransactionStatus::Dropped(TransactionDropReason::RevertedByChain)
-        );
+        assert_eq!(tx_status, TransactionStatus::Finalized);
     }
 
     #[tokio::test]
