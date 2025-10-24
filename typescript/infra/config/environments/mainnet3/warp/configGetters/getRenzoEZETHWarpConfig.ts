@@ -313,6 +313,36 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
       { address: '0x9A336232b3cc7399b500D09821AB14Caed008b7e', alias: 'Renzo' },
     ],
   },
+  ink: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xff9c1e7b266a36eda0d9177d4236994d94819dc0',
+        alias: 'Luganodes',
+      },
+      { address: '0x4d3d970a2468c25d4b5c6af860d11b48223ca94b', alias: 'Renzo' },
+    ],
+  },
+  monad: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x552d5a478d78a558eb473d844e4524de36d79cd9',
+        alias: 'Luganodes',
+      },
+      { address: '0x552d5a478d78a558eb473d844e4524de36d79cd9', alias: 'Renzo' },
+    ],
+  },
+  xlayer: {
+    threshold: 1,
+    validators: [
+      {
+        address: 'blabla',
+        alias: 'Luganodes',
+      },
+      { address: '0xfcbd33064565403c9d8f038abf7d931140f3fd7d', alias: 'Renzo' },
+    ],
+  },
 };
 
 export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
@@ -334,6 +364,9 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     berachain: '0xc1036D6bBa2FE24c65823110B348Ee80D3386ACd',
     worldchain: '0x672fb1C0F35DBD2074742765d23d18b80cbAAf22',
     plasma: '0x3eA4D0467C976e9877Adb96869Fdeb0551fd0930',
+    ink: '0x42A4E564836AE98C2522368Be2faA6e96Ff7a07f',
+    monad: '0xf2a0775ED23887F3C47Bf1f0D01cc580281dA2E4',
+    xlayer: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   };
 
 const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
