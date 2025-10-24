@@ -20,6 +20,8 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
 
 // ============ External Imports ============
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
 /**
@@ -27,6 +29,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
  * @author Abacus Works
  */
 contract HypERC4626Collateral is HypERC20Collateral {
+    using SafeERC20 for IERC20;
     using TypeCasts for address;
     using TokenMessage for bytes;
     using Math for uint256;
@@ -106,7 +109,7 @@ contract HypERC4626Collateral is HypERC20Collateral {
      * @param _amount amount to deposit into vault
      */
     function _depositIntoVault(uint256 _amount) internal returns (uint256) {
-        wrappedToken.approve(address(vault), _amount);
+        wrappedToken.safeApprove(address(vault), _amount);
         return vault.deposit(_amount, address(this));
     }
 

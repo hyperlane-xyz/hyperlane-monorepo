@@ -17,6 +17,8 @@ pragma solidity >=0.8.0;
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 
 // ============ External Imports ============
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
 /**
@@ -24,6 +26,8 @@ import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.so
  * @author ltyu
  */
 contract HypERC4626OwnerCollateral is HypERC20Collateral {
+    using SafeERC20 for IERC20;
+
     // Address of the ERC4626 compatible vault
     ERC4626 public immutable vault;
     // standby precision for exchange rate
@@ -48,7 +52,7 @@ contract HypERC4626OwnerCollateral is HypERC20Collateral {
         address _interchainSecurityModule,
         address _owner
     ) public override initializer {
-        wrappedToken.approve(address(vault), type(uint256).max);
+        wrappedToken.safeApprove(address(vault), type(uint256).max);
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
