@@ -5,6 +5,7 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   AgentConfig,
   ChainMap,
+  ChainMetadata,
   ChainTechnicalStack,
   CoreFactories,
   HyperlaneContracts,
@@ -25,6 +26,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { agentSpecificChainMetadataOverrides } from '../../config/environments/mainnet3/chains.js';
 import mainnet3GasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
 import testnet4GasPrices from '../../config/environments/testnet4/gasPrices.json' with { type: 'json' };
 import {
@@ -69,8 +71,11 @@ export async function writeAgentConfig(
   // Get gas prices for Cosmos chains.
   // Instead of iterating through `addresses`, which only includes EVM chains,
   // iterate through the environment chain names.
+
+  const envConfig = getEnvironmentConfig(environment);
   const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
   const environmentChains = envAgentConfig.environmentChainNames;
+  const registry = await envConfig.getRegistry();
   const additionalConfig = Object.fromEntries(
     await Promise.all(
       environmentChains
@@ -80,9 +85,20 @@ export async function writeAgentConfig(
             chainIsProtocol(chain, ProtocolType.CosmosNative),
         )
         .map(async (chain) => {
+          // initialise overrides with empty object
+          const overrides: Partial<ChainMetadata> = {};
+
+          // Merge general overrides with agent specific overrides
+          const chainMetadata = await registry.getChainMetadata(chain);
+          overrides.transactionOverrides = {
+            ...(chainMetadata?.transactionOverrides ?? {}),
+            ...(agentSpecificChainMetadataOverrides[chain] ?? {}),
+          };
+
+          // Get gas price for Cosmos chains
           try {
             const gasPrice = await getCosmosChainGasPrice(chain, multiProvider);
-            return [chain, { gasPrice }];
+            overrides.gasPrice = gasPrice;
           } catch (error) {
             rootLogger.error(`Error getting gas price for ${chain}:`, error);
             const { denom } = await multiProvider.getNativeToken(chain);
@@ -93,8 +109,11 @@ export async function writeAgentConfig(
                     .amount
                 : testnet4GasPrices[chain as keyof typeof testnet4GasPrices]
                     .amount;
-            return [chain, { gasPrice: { denom, amount } }];
+            overrides.gasPrice = { denom, amount };
           }
+
+          // Return the chain and overrides
+          return [chain, overrides];
         }),
     ),
   );
