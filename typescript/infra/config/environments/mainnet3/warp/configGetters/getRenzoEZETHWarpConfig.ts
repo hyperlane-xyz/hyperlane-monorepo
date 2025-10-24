@@ -147,8 +147,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x9bccfad3bd12ef0ee8ae839dd9ed7835bccadc9d',
-        alias: 'Everclear',
+        address: '0x57ddf0cd46f31ead8084069ce481507f4305c716',
+        alias: 'Luganodes',
       },
       { address: '0xc27032c6bbd48c20005f552af3aaa0dbf14260f3', alias: 'Renzo' },
     ],
@@ -157,8 +157,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x6f4cb8e96db5d44422a4495faa73fffb9d30e9e2',
-        alias: 'Everclear',
+        address: '0xf9dfaa5c20ae1d84da4b2696b8dc80c919e48b12',
+        alias: 'Luganodes',
       },
       { address: '0xe2593d205f5e7f74a50fa900824501084e092ebd', alias: 'Renzo' },
     ],
@@ -168,8 +168,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     validators: [
       { address: '0x25ba4ee5268cbfb8d69bac531aa10368778702bd', alias: 'Renzo' },
       {
-        address: '0x9ec803b503e9c7d2611e231521ef3fde73f7a21c',
-        alias: 'Everclear',
+        address: '0xe957310e17730f29862e896709cce62d24e4b773',
+        alias: 'Luganodes',
       },
     ],
   },
@@ -188,8 +188,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     validators: [
       { address: '0x3156db97a3b3e2dcc3d69fddfd3e12dc7c937b6d', alias: 'Renzo' },
       {
-        address: '0x9a0326c43e4713ae2477f09e0f28ffedc24d8266',
-        alias: 'Everclear',
+        address: '0xc67789546a7a983bf06453425231ab71c119153f',
+        alias: 'Luganodes',
       },
     ],
   },
@@ -197,8 +197,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x456fbbe05484fc9f2f38ea09648424f54d6872be',
-        alias: 'Everclear',
+        address: '0x485a4f0009d9afbbf44521016f9b8cdd718e36ea',
+        alias: 'Luganodes',
       },
       { address: '0x7e29608c6e5792bbf9128599ca309be0728af7b4', alias: 'Renzo' },
     ],
@@ -207,8 +207,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x06a5a2a429560034d38bf62ca6d470942535947e',
-        alias: 'Everclear',
+        address: '0x0c760f4bcb508db9144b0579e26f5ff8d94daf4d',
+        alias: 'Luganodes',
       },
       { address: '0xcb3e44edd2229860bdbaa58ba2c3817d111bee9a', alias: 'Renzo' },
     ],
@@ -217,8 +217,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x1fd889337f60986aa57166bc5ac121efd13e4fdd',
-        alias: 'Everclear',
+        address: '0xb683b742b378632a5f73a2a5a45801b3489bba44',
+        alias: 'AVS: Luganodes',
       },
       { address: '0xc7f7b94a6baf2fffa54dfe1dde6e5fcbb749e04f', alias: 'Renzo' },
     ],
