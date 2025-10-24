@@ -75,7 +75,8 @@ export async function writeAgentConfig(
   const envConfig = getEnvironmentConfig(environment);
   const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
   const environmentChains = envAgentConfig.environmentChainNames;
-  const registry = await envConfig.getRegistry();
+  const registry =
+    environment !== 'test' ? await envConfig.getRegistry() : undefined;
 
   // Build additional config for:
   // - cosmos/cosmos native chains that require special gas price handling
@@ -111,7 +112,7 @@ export async function writeAgentConfig(
         // TODO: support testnet4 overrides (if we ever need to)
         const agentSpecificOverrides =
           agentSpecificChainMetadataOverrides[chain];
-        if (agentSpecificOverrides) {
+        if (agentSpecificOverrides && registry) {
           const chainMetadata = await registry.getChainMetadata(chain);
           assert(chainMetadata, `Chain metadata not found for chain ${chain}`);
           // Only care about blocks and transactionOverrides from the agent-specific overrides
