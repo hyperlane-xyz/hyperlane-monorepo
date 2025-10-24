@@ -9,6 +9,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import {
+  ProtocolReceipt,
+  ProtocolTransaction,
+} from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenType, gasOverhead } from './config.js';
