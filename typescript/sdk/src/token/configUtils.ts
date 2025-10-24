@@ -274,10 +274,7 @@ export async function expandWarpDeployConfig(params: {
               (chain) => multiProvider.getChainMetadata(chain),
               provider,
             );
-            chainConfig.hook = await reader.deriveHookConfig(
-              // FIXME: not all hook types are supported yet
-              chainConfig.hook as HookConfig | Address,
-            );
+            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
           }
         }
       }

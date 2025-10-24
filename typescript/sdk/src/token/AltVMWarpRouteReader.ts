@@ -24,10 +24,10 @@ export class AltVMWarpRouteReader {
     protected readonly provider: AltVM.IProvider,
   ) {
     this.hookReader = new AltVMHookReader(
-      chainLookup.getChainMetadata,
+      (chain) => metadataManager.getChainMetadata(chain),
       provider,
     );
-    this.ismReader = new AltVMIsmReader(chainLookup.getChainName, provider);
+    this.ismReader = new AltVMIsmReader(metadataManager, provider);
 
     this.logger = rootLogger.child({
       module: AltVMWarpRouteReader.name,

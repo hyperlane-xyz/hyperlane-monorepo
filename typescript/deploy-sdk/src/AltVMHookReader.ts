@@ -1,7 +1,7 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import type { ChainNameOrId } from '../types.js';
 
 import {
   DerivedHookConfig,
@@ -10,6 +10,24 @@ import {
   MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+
+/**
+ * Minimal chain metadata needed for AltVM hook operations
+ */
+export interface ChainMetadataForHook {
+  name: string;
+  nativeToken?: {
+    decimals?: number;
+    denom?: string;
+  };
+}
+
+/**
+ * Function adapter to lookup chain metadata by domain ID or chain name
+ */
+export type ChainMetadataLookup = (
+  chain: ChainNameOrId,
+) => ChainMetadataForHook;
 
 export class AltVMHookReader {
   protected readonly logger = rootLogger.child({

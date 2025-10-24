@@ -3,7 +3,6 @@ import { zeroAddress } from 'viem';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  ChainId,
   Domain,
   assert,
   deepEquals,
@@ -14,8 +13,6 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AnnotatedTypedTransaction,
   ProtocolReceipt,
@@ -23,7 +20,7 @@ import {
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
-import { AltVMHookReader } from './AltVMHookReader.js';
+import { AltVMHookReader, ChainMetadataLookup } from './AltVMHookReader.js';
 import {
   HookConfig,
   HookType,
@@ -46,6 +43,11 @@ import {
 
 import { AltVMHookReader } from './AltVMHookReader.js';
 
+/**
+ * Function adapter to lookup domain ID by chain name, returns null if not found
+ */
+export type DomainIdLookup = (chain: ChainNameOrId) => Domain | null;
+
 type HookModuleAddresses = {
   deployedHook: Address;
   mailbox: Address;
@@ -60,18 +62,22 @@ export class AltVMHookModule
   protected readonly reader: AltVMHookReader;
 
   // Cached chain name
-  public readonly chain: string;
+  public readonly chain: ChainName;
 
   constructor(
-    protected readonly chainLookup: ChainLookup,
-    private readonly args: HypModuleArgs<HookConfig, HookModuleAddresses>,
-    protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
+    protected readonly getChainMetadata: ChainMetadataLookup,
+    protected readonly getDomainId: DomainIdLookup,
+    params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
+    protected readonly signer: AltVM.ISigner<
+      AnnotatedTypedTransaction<PT>,
+      ProtocolReceipt<PT>
+    >,
   ) {
     // this.args.config = HookConfigSchema.parse(this.args.config);
 
-    this.reader = new AltVMHookReader(chainLookup.getChainMetadata, signer);
+    this.reader = new AltVMHookReader(getChainMetadata, signer);
 
-    const metadata = chainLookup.getChainMetadata(this.args.chain);
+    const metadata = getChainMetadata(this.args.chain);
     this.chain = metadata.name;
   }
 
@@ -168,7 +174,7 @@ export class AltVMHookModule
         continue;
       }
 
-      const remoteDomain = this.chainLookup.getDomainId(remote);
+      const remoteDomain = this.getDomainId(remote);
       if (remoteDomain === null) {
         this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
         continue;
@@ -210,17 +216,20 @@ export class AltVMHookModule
     chain,
     config,
     addresses,
-    chainLookup,
+    getChainMetadata,
+    getDomainId,
     signer,
   }: {
     chain: string;
     config: HookConfig | string;
     addresses: HookModuleAddresses;
-    chainLookup: ChainLookup;
-    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
-  }): Promise<AltVMHookModule> {
-    const module = new AltVMHookModule(
-      chainLookup,
+    getChainMetadata: ChainMetadataLookup;
+    getDomainId: DomainIdLookup;
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
+  }): Promise<AltVMHookModule<PT>> {
+    const module = new AltVMHookModule<PT>(
+      getChainMetadata,
+      getDomainId,
       { addresses, chain, config },
       signer,
     );
@@ -262,7 +271,7 @@ export class AltVMHookModule
   }): Promise<Address> {
     this.logger.debug('Deploying IGP as hook...');
 
-    const { nativeToken } = this.chainLookup.getChainMetadata(this.chain);
+    const { nativeToken } = this.getChainMetadata(this.chain);
 
     assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
 
@@ -271,7 +280,7 @@ export class AltVMHookModule
     });
 
     for (const [remote, c] of Object.entries(config.oracleConfig)) {
-      const remoteDomain = this.chainLookup.getDomainId(remote);
+      const remoteDomain = this.getDomainId(remote);
       if (remoteDomain === null) {
         this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
         continue;
