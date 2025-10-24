@@ -35,7 +35,10 @@ export async function readHookConfig({
     }
     default: {
       const provider = await context.altVmProvider.get(chain);
-      const hookReader = new AltVMHookReader(context.multiProvider, provider);
+      const hookReader = new AltVMHookReader(
+        (chain) => context.multiProvider.getChainMetadata(chain),
+        provider,
+      );
       const config = await hookReader.deriveHookConfig(address);
       const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
       if (!out) {

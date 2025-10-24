@@ -3,7 +3,6 @@ import { zeroAddress } from 'viem';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  ChainId,
   Domain,
   assert,
   deepEquals,
@@ -14,8 +13,6 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AnnotatedTypedTransaction,
   ProtocolReceipt,
@@ -23,7 +20,7 @@ import {
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
-import { AltVMHookReader } from './AltVMHookReader.js';
+import { AltVMHookReader, ChainMetadataLookup } from './AltVMHookReader.js';
 import {
   HookConfig,
   HookConfigSchema,
@@ -31,6 +28,11 @@ import {
   IgpHookConfig,
   MUTABLE_HOOK_TYPE,
 } from './types.js';
+
+/**
+ * Function adapter to lookup domain ID by chain name, returns null if not found
+ */
+export type DomainIdLookup = (chain: ChainNameOrId) => Domain | null;
 
 type HookModuleAddresses = {
   deployedHook: Address;
@@ -47,13 +49,12 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
   });
   protected readonly reader: AltVMHookReader;
 
-  // Adding these to reduce how often we need to grab from ChainMetadataManager.
+  // Cached chain name
   public readonly chain: ChainName;
-  public readonly chainId: ChainId;
-  public readonly domainId: Domain;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
+    protected readonly getChainMetadata: ChainMetadataLookup,
+    protected readonly getDomainId: DomainIdLookup,
     params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
     protected readonly signer: AltVM.ISigner<
       AnnotatedTypedTransaction<PT>,
@@ -63,11 +64,10 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
     params.config = HookConfigSchema.parse(params.config);
     super(params);
 
-    this.reader = new AltVMHookReader(metadataManager, signer);
+    this.reader = new AltVMHookReader(getChainMetadata, signer);
 
-    this.chain = metadataManager.getChainName(this.args.chain);
-    this.chainId = metadataManager.getChainId(this.chain);
-    this.domainId = metadataManager.getDomainId(this.chain);
+    const metadata = getChainMetadata(this.args.chain);
+    this.chain = metadata.name;
   }
 
   public async read(): Promise<HookConfig> {
@@ -159,7 +159,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
         continue;
       }
 
-      const remoteDomain = this.metadataManager.tryGetDomainId(remote);
+      const remoteDomain = this.getDomainId(remote);
       if (remoteDomain === null) {
         this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
         continue;
@@ -201,22 +201,21 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
     chain,
     config,
     addresses,
-    multiProvider,
+    getChainMetadata,
+    getDomainId,
     signer,
   }: {
     chain: ChainNameOrId;
     config: HookConfig;
     addresses: HookModuleAddresses;
-    multiProvider: MultiProvider;
+    getChainMetadata: ChainMetadataLookup;
+    getDomainId: DomainIdLookup;
     signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMHookModule<PT>> {
     const module = new AltVMHookModule<PT>(
-      multiProvider,
-      {
-        addresses,
-        chain,
-        config,
-      },
+      getChainMetadata,
+      getDomainId,
+      { addresses, chain, config },
       signer,
     );
 
@@ -251,7 +250,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
   }): Promise<Address> {
     this.logger.debug('Deploying IGP as hook...');
 
-    const { nativeToken } = this.metadataManager.getChainMetadata(this.chain);
+    const { nativeToken } = this.getChainMetadata(this.chain);
 
     assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
 
@@ -260,7 +259,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
     });
 
     for (const [remote, c] of Object.entries(config.oracleConfig)) {
-      const remoteDomain = this.metadataManager.tryGetDomainId(remote);
+      const remoteDomain = this.getDomainId(remote);
       if (remoteDomain === null) {
         this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
         continue;
