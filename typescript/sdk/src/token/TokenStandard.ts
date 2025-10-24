@@ -52,6 +52,7 @@ export enum TokenStandard {
   CosmNativeHypSynthetic = 'CosmosNativeHypSynthetic',
 
   // Starknet
+  StarknetNative = 'StarknetNative',
   StarknetHypNative = 'StarknetHypNative',
   StarknetHypCollateral = 'StarknetHypCollateral',
   StarknetHypSynthetic = 'StarknetHypSynthetic',
@@ -108,6 +109,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   CwHypSynthetic: ProtocolType.Cosmos,
 
   // Starknet
+  StarknetNative: ProtocolType.Starknet,
   StarknetHypCollateral: ProtocolType.Starknet,
   StarknetHypNative: ProtocolType.Starknet,
   StarknetHypSynthetic: ProtocolType.Starknet,
@@ -367,7 +369,7 @@ export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
     [ProtocolType.Cosmos]: TokenStandard.CosmosNative,
     [ProtocolType.CosmosNative]: TokenStandard.CosmosNative,
     [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
-    [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
+    [ProtocolType.Starknet]: TokenStandard.StarknetNative,
     [ProtocolType.Radix]: TokenStandard.RadixNative,
   };
 

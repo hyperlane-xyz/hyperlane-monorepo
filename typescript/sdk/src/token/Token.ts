@@ -165,6 +165,10 @@ export class Token implements IToken {
         {},
         addressOrDenom,
       );
+    } else if (standard === TokenStandard.StarknetNative) {
+      return new StarknetTokenAdapter(chainName, multiProvider, {
+        tokenAddress: addressOrDenom,
+      });
     } else if (standard === TokenStandard.RadixNative) {
       return new RadixNativeTokenAdapter(chainName, multiProvider, {
         token: addressOrDenom,
