@@ -392,10 +392,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
    *
    * @param chain - The chain to deploy the module on.
    * @param config - The configuration for the token router.
-   * @param getChainMetadata - Function to get chain metadata
-   * @param getChainName - Function to get chain name from domain ID
-   * @param getDomainId - Function to get domain ID from chain
-   * @param getKnownChainNames - Function to get known chain names
+   * @param chainLookup - Chain metadata lookup functions
    * @param signer - The AltVM signing client
    * @returns A new instance of the AltVMWarpModule.
    */

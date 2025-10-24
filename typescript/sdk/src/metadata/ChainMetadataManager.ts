@@ -530,7 +530,10 @@ export class ChainMetadataManager<MetaExt = {}> {
 
 /**
  * Creates a ChainLookup object from a ChainMetadataManager instance
- * for use with AltVM modules
+ * for use with AltVM modules.
+ *
+ * @param chainMetadataManager - The ChainMetadataManager instance
+ * @returns A ChainLookup object containing chain metadata lookup functions
  */
 export function altVmChainLookup<MetaExt = {}>(
   chainMetadataManager: ChainMetadataManager<MetaExt>,
