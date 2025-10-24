@@ -3,19 +3,30 @@ import { Domain } from '@hyperlane-xyz/utils';
 import { ChainNameOrId } from './types.js';
 
 /**
- * Minimal base chain metadata required by all AltVM modules
+ * Consolidated chain metadata interface for all AltVM modules.
+ * Contains the union of all fields needed by Core, ISM, Hook, and Warp modules.
+ * Matches the subset of ChainMetadata that AltVM modules actually need.
  */
-export interface ChainMetadataBase {
+export interface ChainMetadataForAltVM {
   name: string;
+  domainId: Domain;
+  nativeToken?: {
+    decimals?: number;
+    denom?: string;
+  };
+  blocks?: {
+    confirmations?: number;
+    estimateBlockTime?: number;
+  };
 }
 
 /**
  * Function adapters for chain metadata lookups required by AltVM modules.
  * These provide a lightweight alternative to ChainMetadataManager and MultiProvider.
  */
-export type ChainMetadataLookup<
-  T extends ChainMetadataBase = ChainMetadataBase,
-> = (chain: ChainNameOrId) => T;
+export type ChainMetadataLookup = (
+  chain: ChainNameOrId,
+) => ChainMetadataForAltVM;
 
 export type ChainNameLookup = (domainId: Domain) => string | null;
 
@@ -27,8 +38,8 @@ export type GetKnownChainNames = () => string[];
  * Combined interface for all chain lookup operations.
  * Pass this instead of individual function adapters for cleaner signatures.
  */
-export interface ChainLookup<T extends ChainMetadataBase = ChainMetadataBase> {
-  getChainMetadata: ChainMetadataLookup<T>;
+export interface ChainLookup {
+  getChainMetadata: ChainMetadataLookup;
   getChainName: ChainNameLookup;
   getDomainId: DomainIdLookup;
   getKnownChainNames: GetKnownChainNames;
