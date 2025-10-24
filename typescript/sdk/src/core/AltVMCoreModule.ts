@@ -132,7 +132,8 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
         deployedHook: '',
         mailbox: mailbox.mailboxAddress,
       },
-      multiProvider,
+      getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
+      getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
       signer,
     });
 
@@ -146,7 +147,8 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
         deployedHook: '',
         mailbox: mailbox.mailboxAddress,
       },
-      multiProvider,
+      getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
+      getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
       signer,
     });
 
@@ -456,7 +458,8 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     const { mailbox } = this.serialize();
 
     const hookModule = new AltVMHookModule(
-      this.metadataManager,
+      (chain) => this.metadataManager.getChainMetadata(chain),
+      (chain) => this.metadataManager.tryGetDomainId(chain),
       {
         addresses: {
           mailbox: mailbox,

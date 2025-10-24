@@ -272,7 +272,10 @@ export async function expandWarpDeployConfig(params: {
           default: {
             const provider = await altVmProvider.get(chain);
 
-            const reader = new AltVMHookReader(multiProvider, provider);
+            const reader = new AltVMHookReader(
+              (chain) => multiProvider.getChainMetadata(chain),
+              provider,
+            );
             chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
           }
         }
