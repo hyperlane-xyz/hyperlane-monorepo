@@ -1,9 +1,11 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import { AltVMHookReader } from '../hook/AltVMHookReader.js';
-import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import {
+  AltVMHookReader,
+  ChainMetadataLookup as HookChainMetadataLookup,
+} from '../hook/AltVMHookReader.js';
+import { AltVMIsmReader, ChainNameLookup } from '../ism/AltVMIsmReader.js';
 
 import { DerivedCoreConfig } from './types.js';
 
@@ -15,15 +17,13 @@ export class AltVMCoreReader {
   protected hookReader: AltVMHookReader;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
+    getChainMetadataForHook: HookChainMetadataLookup,
+    getChainNameFromDomain: ChainNameLookup,
     protected readonly provider: AltVM.IProvider,
   ) {
-    this.ismReader = new AltVMIsmReader(
-      (chain) => this.metadataManager.tryGetChainName(chain),
-      this.provider,
-    );
+    this.ismReader = new AltVMIsmReader(getChainNameFromDomain, this.provider);
     this.hookReader = new AltVMHookReader(
-      (chain) => this.metadataManager.getChainMetadata(chain),
+      getChainMetadataForHook,
       this.provider,
     );
   }
