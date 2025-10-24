@@ -109,9 +109,11 @@ export async function runCoreDeploy(params: DeployParams) {
 
       const coreModule = await AltVMCoreModule.create({
         chain,
-        // TODO: Remove this cast when all ISM and Hook types are supported
-        config: config as ProviderCoreConfig,
-        chainLookup: altVmChainLookup(multiProvider),
+        config,
+        getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
+        getChainName: (domainId) => multiProvider.tryGetChainName(domainId),
+        getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
+        getKnownChainNames: () => multiProvider.getKnownChainNames(),
         signer,
       });
 
@@ -173,12 +175,14 @@ export async function runCoreApply(params: ApplyParams) {
       });
 
       const coreModule = new AltVMCoreModule(
-        altVmChainLookup(multiProvider),
+        (chain) => multiProvider.getChainMetadata(chain),
+        (domainId) => multiProvider.tryGetChainName(domainId),
+        (chain) => multiProvider.tryGetDomainId(chain),
+        () => multiProvider.getKnownChainNames(),
         signer,
         {
           chain,
-          // TODO: Remove this cast when all ISM and Hook types are supported
-          config: config as ProviderCoreConfig,
+          config,
           addresses: deployedCoreAddresses,
         },
       );
