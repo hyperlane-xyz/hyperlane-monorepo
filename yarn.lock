@@ -8444,6 +8444,7 @@ __metadata:
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
     yargs: "npm:^17.7.2"
+    zod: "npm:^3.21.2"
   peerDependencies:
     "@ethersproject/abi": "*"
   languageName: unknown
