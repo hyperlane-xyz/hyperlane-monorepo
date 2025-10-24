@@ -110,7 +110,8 @@ export class AltVMCoreModule
         deployedHook: '',
         mailbox: mailbox.mailboxAddress,
       },
-      chainLookup,
+      getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
+      getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
       signer,
     });
 
@@ -124,7 +125,8 @@ export class AltVMCoreModule
         deployedHook: '',
         mailbox: mailbox.mailboxAddress,
       },
-      chainLookup,
+      getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
+      getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
       signer,
     });
 
@@ -432,7 +434,8 @@ export class AltVMCoreModule
     const { mailbox } = this.serialize();
 
     const hookModule = new AltVMHookModule(
-      this.chainLookup,
+      (chain) => this.metadataManager.getChainMetadata(chain),
+      (chain) => this.metadataManager.tryGetDomainId(chain),
       {
         addresses: {
           mailbox: mailbox,
