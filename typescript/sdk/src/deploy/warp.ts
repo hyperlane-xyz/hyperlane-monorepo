@@ -266,10 +266,12 @@ async function createWarpIsm({
           mailbox: chainAddresses.mailbox,
         },
         config: interchainSecurityModule,
-        getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
-        getChainName: (chain) => multiProvider.tryGetChainName(chain),
-        getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
-        getKnownChainNames: () => multiProvider.getKnownChainNames(),
+        chainLookup: {
+          getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
+          getChainName: (domainId) => multiProvider.tryGetChainName(domainId),
+          getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
+          getKnownChainNames: () => multiProvider.getKnownChainNames(),
+        },
         signer,
       });
       const { deployedIsm } = ismModule.serialize();
@@ -456,10 +458,7 @@ export async function enrollCrossChainRouters(
         const signer = altVmSigner.get(currentChain);
 
         const warpModule = new AltVMWarpModule(
-          (chain) => multiProvider.getChainMetadata(chain),
-          (domainId) => multiProvider.tryGetChainName(domainId),
-          (chain) => multiProvider.tryGetDomainId(chain),
-          () => multiProvider.getKnownChainNames(),
+          altVmChainLookup(multiProvider),
           signer,
           {
             chain: currentChain,

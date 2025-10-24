@@ -1,14 +1,9 @@
 import { zeroAddress } from 'viem';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import {
-  Address,
-  Domain,
-  assert,
-  deepEquals,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
 
+import { ChainLookup } from '../altvm.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
@@ -17,10 +12,10 @@ import {
   AnnotatedTypedTransaction,
   ProtocolReceipt,
 } from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
-import { AltVMHookReader, ChainMetadataLookup } from './AltVMHookReader.js';
+import { AltVMHookReader, ChainMetadataForHook } from './AltVMHookReader.js';
 import {
   HookConfig,
   HookType,
@@ -43,11 +38,6 @@ import {
 
 import { AltVMHookReader } from './AltVMHookReader.js';
 
-/**
- * Function adapter to lookup domain ID by chain name, returns null if not found
- */
-export type DomainIdLookup = (chain: ChainNameOrId) => Domain | null;
-
 type HookModuleAddresses = {
   deployedHook: Address;
   mailbox: Address;
@@ -65,8 +55,7 @@ export class AltVMHookModule
   public readonly chain: ChainName;
 
   constructor(
-    protected readonly getChainMetadata: ChainMetadataLookup,
-    protected readonly getDomainId: DomainIdLookup,
+    protected readonly chainLookup: ChainLookup<ChainMetadataForHook>,
     params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
     protected readonly signer: AltVM.ISigner<
       AnnotatedTypedTransaction<PT>,
@@ -75,9 +64,9 @@ export class AltVMHookModule
   ) {
     // this.args.config = HookConfigSchema.parse(this.args.config);
 
-    this.reader = new AltVMHookReader(getChainMetadata, signer);
+    this.reader = new AltVMHookReader(chainLookup.getChainMetadata, signer);
 
-    const metadata = getChainMetadata(this.args.chain);
+    const metadata = chainLookup.getChainMetadata(this.args.chain);
     this.chain = metadata.name;
   }
 
@@ -174,7 +163,7 @@ export class AltVMHookModule
         continue;
       }
 
-      const remoteDomain = this.getDomainId(remote);
+      const remoteDomain = this.chainLookup.getDomainId(remote);
       if (remoteDomain === null) {
         this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
         continue;
@@ -216,20 +205,17 @@ export class AltVMHookModule
     chain,
     config,
     addresses,
-    getChainMetadata,
-    getDomainId,
+    chainLookup,
     signer,
   }: {
     chain: string;
-    config: HookConfig | string;
+    config: HookConfig;
     addresses: HookModuleAddresses;
-    getChainMetadata: ChainMetadataLookup;
-    getDomainId: DomainIdLookup;
+    chainLookup: ChainLookup<ChainMetadataForHook>;
     signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMHookModule<PT>> {
     const module = new AltVMHookModule<PT>(
-      getChainMetadata,
-      getDomainId,
+      chainLookup,
       { addresses, chain, config },
       signer,
     );
@@ -271,7 +257,7 @@ export class AltVMHookModule
   }): Promise<Address> {
     this.logger.debug('Deploying IGP as hook...');
 
-    const { nativeToken } = this.getChainMetadata(this.chain);
+    const { nativeToken } = this.chainLookup.getChainMetadata(this.chain);
 
     assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
 
@@ -280,7 +266,7 @@ export class AltVMHookModule
     });
 
     for (const [remote, c] of Object.entries(config.oracleConfig)) {
-      const remoteDomain = this.getDomainId(remote);
+      const remoteDomain = this.chainLookup.getDomainId(remote);
       if (remoteDomain === null) {
         this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
         continue;
