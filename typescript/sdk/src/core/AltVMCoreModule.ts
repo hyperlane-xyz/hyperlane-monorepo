@@ -1,12 +1,16 @@
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { Address, ChainId, Domain, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, Domain, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
 import { AltVMHookModule } from '../hook/AltVMHookModule.js';
 import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
-import { ChainName } from '../types.js';
+import {
+  AnnotatedTypedTransaction,
+  ProtocolReceipt,
+} from '../providers/ProviderType.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 
 import { AltVMCoreReader } from './AltVMCoreReader.js';
 import {
@@ -16,9 +20,37 @@ import {
   DerivedCoreConfig,
 } from './types.js';
 
-export class AltVMCoreModule
-  implements HypModule<CoreConfig, DeployedCoreAddresses>
-{
+/**
+ * Minimal chain metadata needed for AltVM Core operations
+ */
+export interface ChainMetadataForCore {
+  name: string;
+  domainId: Domain;
+  nativeToken?: {
+    decimals?: number;
+    denom?: string;
+  };
+  blocks?: {
+    confirmations?: number;
+    estimateBlockTime?: number;
+  };
+}
+
+/**
+ * Function adapters for chain metadata lookups required by AltVM Core operations
+ */
+export type ChainMetadataLookup = (
+  chain: ChainNameOrId,
+) => ChainMetadataForCore;
+export type ChainNameLookup = (domainId: Domain) => string | null;
+export type DomainIdLookup = (chain: ChainNameOrId) => Domain | null;
+export type GetKnownChainNames = () => string[];
+
+export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
+  any,
+  CoreConfig,
+  Record<string, string>
+> {
   protected logger = rootLogger.child({ module: 'AltVMCoreModule' });
   protected coreReader: AltVMCoreReader;
 
@@ -26,14 +58,27 @@ export class AltVMCoreModule
   public readonly chainName: ChainName;
 
   constructor(
-    protected readonly chainLookup: ChainLookup,
-    protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
-    private readonly args: HypModuleArgs<CoreConfig, DeployedCoreAddresses>,
+    protected readonly getChainMetadata: ChainMetadataLookup,
+    protected readonly getChainName: ChainNameLookup,
+    protected readonly getDomainId: DomainIdLookup,
+    protected readonly getKnownChainNames: GetKnownChainNames,
+    protected readonly signer: AltVM.ISigner<
+      AnnotatedTypedTransaction<PT>,
+      ProtocolReceipt<PT>
+    >,
+    args: HyperlaneModuleParams<CoreConfig, Record<string, string>>,
   ) {
     const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;
 
-    this.coreReader = new AltVMCoreReader(chainLookup, signer);
+    const metadata = getChainMetadata(args.chain);
+    this.chainName = metadata.name;
+
+    this.coreReader = new AltVMCoreReader(
+      getChainMetadata,
+      getChainName,
+      signer,
+    );
   }
 
   /**
@@ -55,16 +100,26 @@ export class AltVMCoreModule
   public static async create(params: {
     chain: string;
     config: CoreConfig;
-    chainLookup: ChainLookup;
-    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
-  }): Promise<AltVMCoreModule> {
-    const addresses = await AltVMCoreModule.deploy(params);
+    getChainMetadata: ChainMetadataLookup;
+    getChainName: ChainNameLookup;
+    getDomainId: DomainIdLookup;
+    getKnownChainNames: GetKnownChainNames;
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
+  }): Promise<AltVMCoreModule<PT>> {
+    const addresses = await AltVMCoreModule.deploy<PT>(params);
 
-    return new AltVMCoreModule(params.chainLookup, params.signer, {
-      addresses,
-      chain: params.chain,
-      config: params.config,
-    });
+    return new AltVMCoreModule<PT>(
+      params.getChainMetadata,
+      params.getChainName,
+      params.getDomainId,
+      params.getKnownChainNames,
+      params.signer,
+      {
+        addresses,
+        chain: params.chain,
+        config: params.config,
+      },
+    );
   }
 
   /**
@@ -73,13 +128,24 @@ export class AltVMCoreModule
    */
   static async deploy(params: {
     config: CoreConfig;
-    chainLookup: ChainLookup;
-    chain: string;
-    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+    getChainMetadata: ChainMetadataLookup;
+    getChainName: ChainNameLookup;
+    getDomainId: DomainIdLookup;
+    getKnownChainNames: GetKnownChainNames;
+    chain: ChainNameOrId;
+    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<DeployedCoreAddresses> {
-    const { config, chainLookup, chain, signer } = params;
+    const {
+      config,
+      getChainMetadata,
+      getChainName,
+      getDomainId,
+      getKnownChainNames,
+      chain,
+      signer,
+    } = params;
 
-    const metadata = chainLookup.getChainMetadata(chain);
+    const metadata = getChainMetadata(chain);
     const chainName = metadata.name;
     const domainId = metadata.domainId;
 
@@ -90,10 +156,10 @@ export class AltVMCoreModule
       addresses: {
         mailbox: '',
       },
-      getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
-      getChainName: (domainId) => multiProvider.tryGetChainName(domainId),
-      getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
-      getKnownChainNames: () => multiProvider.getKnownChainNames(),
+      getChainMetadata,
+      getChainName,
+      getDomainId,
+      getKnownChainNames,
       signer,
     });
 
@@ -113,8 +179,8 @@ export class AltVMCoreModule
         deployedHook: '',
         mailbox: mailbox.mailboxAddress,
       },
-      getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
-      getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
+      getChainMetadata,
+      getDomainId,
       signer,
     });
 
@@ -128,8 +194,8 @@ export class AltVMCoreModule
         deployedHook: '',
         mailbox: mailbox.mailboxAddress,
       },
-      getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
-      getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
+      getChainMetadata,
+      getDomainId,
       signer,
     });
 
@@ -318,10 +384,10 @@ export class AltVMCoreModule
     const { mailbox } = this.serialize();
 
     const ismModule = new AltVMIsmModule(
-      (chain) => this.metadataManager.getChainMetadata(chain),
-      (chain) => this.metadataManager.tryGetChainName(chain),
-      (chain) => this.metadataManager.tryGetDomainId(chain),
-      () => this.metadataManager.getKnownChainNames(),
+      this.getChainMetadata,
+      this.getChainName,
+      this.getDomainId,
+      this.getKnownChainNames,
       {
         addresses: {
           mailbox: mailbox,
@@ -440,8 +506,8 @@ export class AltVMCoreModule
     const { mailbox } = this.serialize();
 
     const hookModule = new AltVMHookModule(
-      (chain) => this.metadataManager.getChainMetadata(chain),
-      (chain) => this.metadataManager.tryGetDomainId(chain),
+      this.getChainMetadata,
+      this.getDomainId,
       {
         addresses: {
           mailbox: mailbox,
