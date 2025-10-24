@@ -273,9 +273,10 @@ export async function deployTestOffchainLookupISM(
   privateKey: string,
   chain: string,
   urls: string[] = [],
+  registryPath: string = REGISTRY_PATH,
 ): Promise<AbstractCcipReadIsm> {
   const { multiProvider } = await getContext({
-    registryUris: [REGISTRY_PATH],
+    registryUris: [registryPath],
     key: privateKey,
   });
 
