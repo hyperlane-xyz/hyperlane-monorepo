@@ -1,3 +1,4 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMap,
   ChainName,
@@ -5,7 +6,7 @@ import {
   DeployedCoreAddressesSchema,
   EvmCoreModule,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';

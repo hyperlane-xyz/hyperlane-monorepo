@@ -1,9 +1,10 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import { ChainMetadata, ProtocolMap } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
+import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../utils/files.js';
 

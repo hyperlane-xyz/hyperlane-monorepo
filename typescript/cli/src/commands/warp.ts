@@ -2,6 +2,7 @@ import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
@@ -10,7 +11,6 @@ import {
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
   assert,
   difference,
   intersection,

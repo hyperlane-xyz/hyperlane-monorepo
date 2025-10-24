@@ -2,14 +2,9 @@ import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import { join } from 'path';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
-  deepEquals,
-  objMap,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, deepEquals, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { helloworld } from '../../config/environments/helloworld.js';

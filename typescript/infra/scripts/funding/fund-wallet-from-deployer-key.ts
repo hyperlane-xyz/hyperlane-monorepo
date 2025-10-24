@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
 import { format } from 'util';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainName,
   CoinGeckoTokenPriceGetter,
@@ -14,7 +15,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  ProtocolType,
   assert,
   rootLogger,
   strip0x,

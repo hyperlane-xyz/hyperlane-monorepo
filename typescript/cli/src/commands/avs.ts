@@ -1,7 +1,8 @@
 import { CommandModule, Options } from 'yargs';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { checkValidatorAvsSetup } from '../avs/check.js';
 import {

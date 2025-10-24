@@ -1,8 +1,8 @@
 import { Logger } from 'pino';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   EvmChainId,
-  ProtocolType,
   assert,
   exclude,
   pick,
@@ -526,4 +526,25 @@ export class ChainMetadataManager<MetaExt = {}> {
     const rpcUrl = metadata?.rpcUrls[0]?.http;
     return rpcUrl?.includes('localhost') || rpcUrl?.includes('127.0.0.1');
   }
+}
+
+/**
+ * Creates a ChainLookup object from a ChainMetadataManager instance
+ * for use with AltVM modules.
+ *
+ * @param chainMetadataManager - The ChainMetadataManager instance
+ * @returns A ChainLookup object containing chain metadata lookup functions
+ */
+export function altVmChainLookup<MetaExt = {}>(
+  chainMetadataManager: ChainMetadataManager<MetaExt>,
+) {
+  return {
+    getChainMetadata: (chain: ChainNameOrId) =>
+      chainMetadataManager.getChainMetadata(chain),
+    getChainName: (domainId: number) =>
+      chainMetadataManager.tryGetChainName(domainId),
+    getDomainId: (chain: ChainNameOrId) =>
+      chainMetadataManager.tryGetDomainId(chain),
+    getKnownChainNames: () => chainMetadataManager.getKnownChainNames(),
+  };
 }

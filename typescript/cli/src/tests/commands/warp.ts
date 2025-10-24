@@ -1,11 +1,11 @@
 import { $, ProcessPromise } from 'zx';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../utils/files.js';
 

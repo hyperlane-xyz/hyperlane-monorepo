@@ -4,6 +4,7 @@ import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import { HelloMultiProtocolApp } from '@hyperlane-xyz/helloworld';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMap,
   ChainName,
@@ -15,7 +16,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  ProtocolType,
   ensure0x,
   objMap,
   pick,

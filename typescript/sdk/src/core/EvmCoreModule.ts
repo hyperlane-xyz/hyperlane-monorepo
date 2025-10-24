@@ -3,11 +3,11 @@ import {
   Mailbox__factory,
   Ownable__factory,
 } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   Domain,
   EvmChainId,
-  ProtocolType,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';

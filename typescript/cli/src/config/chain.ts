@@ -2,6 +2,7 @@ import { confirm, input, select } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMetadata,
   ChainMetadataSchema,
@@ -10,7 +11,6 @@ import {
   ExplorerFamily,
   ZChainName,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';

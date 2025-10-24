@@ -1,16 +1,14 @@
 import { Logger } from 'pino';
 
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  AltVM,
-  ProtocolType,
   assert,
   objFilter,
   objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
   ProtocolReceipt,
   ProtocolTransaction,
@@ -24,7 +22,6 @@ export class AltVMDeployer<PT extends ProtocolType> {
   protected logger: Logger;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
     protected readonly signersMap: ChainMap<
       AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>
     >,

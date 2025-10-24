@@ -1,8 +1,8 @@
 import { PublicKey } from '@solana/web3.js';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  ProtocolType,
   objMap,
   promiseObjAll,
   rootLogger,

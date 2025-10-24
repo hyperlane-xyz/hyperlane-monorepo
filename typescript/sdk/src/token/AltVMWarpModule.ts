@@ -1,30 +1,27 @@
 import { Logger } from 'pino';
 import { zeroAddress } from 'viem';
 
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  AltVM,
-  Domain,
-  ProtocolType,
   addressToBytes32,
   assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { ChainLookup } from '../altvm.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AnnotatedTypedTransaction,
   ProtocolReceipt,
   ProtocolTransaction,
 } from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainName } from '../types.js';
 
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 import { AltVMDeployer } from './altVMDeploy.js';
@@ -47,22 +44,21 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
 
   reader: AltVMWarpRouteReader;
   public readonly chainName: ChainName;
-  public readonly chainId: string;
-  public readonly domainId: Domain;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
-    args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
+    protected readonly chainLookup: ChainLookup,
     protected readonly signer: AltVM.ISigner<
       AnnotatedTypedTransaction<PT>,
       ProtocolReceipt<PT>
     >,
+    args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
   ) {
     super(args);
-    this.reader = new AltVMWarpRouteReader(metadataManager, args.chain, signer);
-    this.chainName = this.metadataManager.getChainName(args.chain);
-    this.chainId = metadataManager.getChainId(args.chain).toString();
-    this.domainId = metadataManager.getDomainId(args.chain);
+
+    const metadata = chainLookup.getChainMetadata(args.chain);
+    this.chainName = metadata.name;
+
+    this.reader = new AltVMWarpRouteReader(chainLookup, signer);
 
     this.logger = rootLogger.child({
       module: AltVMWarpModule.name,
@@ -361,7 +357,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
     const ismModule = new AltVMIsmModule(
-      this.metadataManager,
+      this.chainLookup,
       {
         chain: this.args.chain,
         config: expectedConfig.interchainSecurityModule,
@@ -391,38 +387,30 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
    *
    * @param chain - The chain to deploy the module on.
    * @param config - The configuration for the token router.
-   * @param multiProvider - The multi-provider instance to use.
+   * @param chainLookup - Chain metadata lookup functions
    * @param signer - The AltVM signing client
    * @returns A new instance of the AltVMWarpModule.
    */
   static async create<PT extends ProtocolType>(params: {
-    chain: ChainNameOrId;
+    chain: string;
     config: HypTokenRouterConfig;
-    multiProvider: MultiProvider;
+    chainLookup: ChainLookup;
     signer: AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMWarpModule<PT>> {
-    const { chain, config, multiProvider, signer } = params;
-
-    const deployer = new AltVMDeployer(multiProvider, {
-      [chain]: signer,
+    const deployer = new AltVMDeployer({
+      [params.chain]: params.signer,
     });
 
-    const { [chain]: deployedTokenRoute } = await deployer.deploy({
-      [chain]: config,
+    const { [params.chain]: deployedTokenRoute } = await deployer.deploy({
+      [params.chain]: params.config,
     });
 
-    const warpModule = new AltVMWarpModule<PT>(
-      multiProvider,
-      {
-        addresses: {
-          deployedTokenRoute,
-        },
-        chain,
-        config,
+    return new AltVMWarpModule<PT>(params.chainLookup, params.signer, {
+      addresses: {
+        deployedTokenRoute,
       },
-      signer,
-    );
-
-    return warpModule;
+      chain: params.chain,
+      config: params.config,
+    });
   }
 }

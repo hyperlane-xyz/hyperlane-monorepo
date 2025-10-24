@@ -4,13 +4,9 @@ import { Wallet, ethers } from 'ethers';
 import { Logger } from 'pino';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainName } from '@hyperlane-xyz/sdk';
-import {
-  HexString,
-  ProtocolType,
-  rootLogger,
-  strip0x,
-} from '@hyperlane-xyz/utils';
+import { HexString, rootLogger, strip0x } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';

@@ -1,7 +1,8 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { GasPrice, SigningStargateClient } from '@cosmjs/stargate';
 
-import { Address, ProtocolType, assert, strip0x } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { Address, assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { CosmJsNativeTransaction } from '../../providers/ProviderType.js';

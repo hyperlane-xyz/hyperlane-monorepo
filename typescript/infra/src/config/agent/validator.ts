@@ -1,3 +1,4 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   AgentConfig,
   AgentSignerKeyType,
@@ -6,7 +7,6 @@ import {
   ChainName,
   S3Config,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';

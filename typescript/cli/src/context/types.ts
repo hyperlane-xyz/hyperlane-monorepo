@@ -2,6 +2,7 @@ import type { ethers } from 'ethers';
 import type { CommandModule } from 'yargs';
 import { z } from 'zod';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,
@@ -11,7 +12,6 @@ import type {
   WarpCoreConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { AltVMProviderFactory, AltVMSignerFactory } from './altvm.js';
 

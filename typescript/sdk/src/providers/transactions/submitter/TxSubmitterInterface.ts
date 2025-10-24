@@ -1,4 +1,5 @@
-import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { Annotated } from '@hyperlane-xyz/utils';
 
 import {
   ProtocolTypedProvider,

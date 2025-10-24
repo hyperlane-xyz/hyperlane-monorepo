@@ -7,8 +7,9 @@ import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
 
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
-import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
+import { assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
 

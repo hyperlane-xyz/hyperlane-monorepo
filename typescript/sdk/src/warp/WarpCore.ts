@@ -1,10 +1,10 @@
 import { Logger } from 'pino';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   HexString,
   Numberish,
-  ProtocolType,
   assert,
   convertDecimalsToIntegerString,
   convertToProtocolAddress,

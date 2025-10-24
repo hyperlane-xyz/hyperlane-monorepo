@@ -1,10 +1,11 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainName,
   IToken,
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
+import { HexString } from '@hyperlane-xyz/utils';
 
 export interface ChainAddress {
   address: string;

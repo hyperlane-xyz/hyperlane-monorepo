@@ -1,13 +1,13 @@
 import chalk from 'chalk';
 import yargs from 'yargs';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   TokenStandard,
   WarpCoreConfig,
   getTokenConnectionId,
   parseTokenConnectionId,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../../config/environments/mainnet3/warp/warpIds.js';
 import { getRegistry } from '../../../config/registry.js';

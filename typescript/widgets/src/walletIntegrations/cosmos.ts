@@ -4,6 +4,7 @@ import { useChain, useChains } from '@cosmos-kit/react';
 import { useCallback, useMemo } from 'react';
 
 import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
@@ -15,7 +16,7 @@ import {
   WarpTypedTransaction,
   chainMetadataToCosmosChain,
 } from '@hyperlane-xyz/sdk';
-import { HexString, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { HexString, assert } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 

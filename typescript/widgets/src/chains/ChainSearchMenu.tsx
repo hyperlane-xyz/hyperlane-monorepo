@@ -7,7 +7,8 @@ import {
   ChainStatus,
   mergeChainMetadataMap,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   SearchMenu,

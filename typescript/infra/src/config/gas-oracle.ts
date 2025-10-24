@@ -2,6 +2,7 @@ import { BigNumber as BigNumberJs } from 'bignumber.js';
 import { BigNumber } from 'ethers';
 import { z } from 'zod';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainGasOracleParams,
   ChainMap,
@@ -17,7 +18,6 @@ import {
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import {
-  ProtocolType,
   assert,
   convertDecimals,
   fromWei,

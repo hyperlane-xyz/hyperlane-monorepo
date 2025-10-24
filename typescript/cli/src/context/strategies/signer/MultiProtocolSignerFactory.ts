@@ -1,8 +1,8 @@
 import { Signer, Wallet } from 'ethers';
 import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainTechnicalStack, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   BaseMultiProtocolSigner,

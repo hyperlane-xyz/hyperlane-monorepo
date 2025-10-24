@@ -1,9 +1,9 @@
 import { Logger } from 'pino';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   HexString,
-  ProtocolType,
   objFilter,
   objMap,
   pick,

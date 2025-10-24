@@ -1,3 +1,4 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   AgentChainMetadata,
   AgentSealevelPriorityFeeOracle,
@@ -7,7 +8,7 @@ import {
   ChainName,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts.js';
 import { getChain } from '../../../config/registry.js';

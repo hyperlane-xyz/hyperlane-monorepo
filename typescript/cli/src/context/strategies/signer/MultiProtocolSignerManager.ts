@@ -1,6 +1,7 @@
 import { BigNumber, Signer } from 'ethers';
 import { Logger } from 'pino';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainName,
   IMultiProtocolSignerManager,
@@ -9,12 +10,7 @@ import {
   ProtocolMap,
   isJsonRpcSubmitterConfig,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  ProtocolType,
-  assert,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 import { SignerKeyProtocolMap } from '../../types.js';

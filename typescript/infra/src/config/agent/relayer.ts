@@ -2,6 +2,7 @@ import { BigNumberish } from 'ethers';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   AgentConfig,
   ChainMap,
@@ -15,7 +16,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  ProtocolType,
   addressToBytes32,
   isValidAddressEvm,
   objMap,

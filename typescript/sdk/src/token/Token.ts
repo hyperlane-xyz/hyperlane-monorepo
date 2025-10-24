@@ -1,13 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 import { MsgTransferEncodeObject } from '@cosmjs/stargate';
 
-import {
-  Address,
-  Numberish,
-  ProtocolType,
-  assert,
-  eqAddress,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { Address, Numberish, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';

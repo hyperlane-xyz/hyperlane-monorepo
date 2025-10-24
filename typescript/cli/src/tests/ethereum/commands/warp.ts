@@ -1,6 +1,7 @@
 import { Wallet } from 'ethers';
 import { $, ProcessPromise } from 'zx';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainName,
@@ -11,7 +12,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import {

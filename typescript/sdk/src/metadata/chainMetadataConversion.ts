@@ -2,7 +2,7 @@ import type { AssetList, Chain as CosmosChain } from '@chain-registry/types';
 import { Chain as StarknetChain } from '@starknet-react/chains';
 import { Chain, defineChain } from 'viem';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { test1 } from '../consts/testChains.js';
 import {

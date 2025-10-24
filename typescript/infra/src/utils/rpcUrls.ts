@@ -3,8 +3,9 @@ import { Separator, checkbox, confirm } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import { ethers } from 'ethers';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
+import { timeout } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';

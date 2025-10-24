@@ -1,4 +1,5 @@
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import {
   InterchainAccount,

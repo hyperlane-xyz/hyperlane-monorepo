@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { Address, HexString, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { Address, HexString } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 

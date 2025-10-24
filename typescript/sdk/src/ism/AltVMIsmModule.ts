@@ -1,11 +1,8 @@
 import { Logger } from 'pino';
 
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  AltVM,
-  ChainId,
-  Domain,
-  ProtocolType,
   assert,
   deepEquals,
   intersection,
@@ -13,17 +10,16 @@ import {
   sleep,
 } from '@hyperlane-xyz/utils';
 
+import { ChainLookup } from '../altvm.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AnnotatedTypedTransaction,
   ProtocolReceipt,
 } from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { AltVMIsmReader } from './AltVMIsmReader.js';
@@ -53,13 +49,11 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
   protected readonly reader: AltVMIsmReader;
   protected readonly mailbox: Address;
 
-  // Adding these to reduce how often we need to grab from MetadataManager.
+  // Cached chain name
   public readonly chain: ChainName;
-  public readonly chainId: ChainId;
-  public readonly domainId: Domain;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
+    protected readonly chainLookup: ChainLookup,
     params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
     protected readonly signer: AltVM.ISigner<
       AnnotatedTypedTransaction<PT>,
@@ -70,11 +64,10 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
     super(params);
 
     this.mailbox = params.addresses.mailbox;
-    this.chain = metadataManager.getChainName(this.args.chain);
-    this.chainId = metadataManager.getChainId(this.chain);
-    this.domainId = metadataManager.getDomainId(this.chain);
+    const metadata = chainLookup.getChainMetadata(this.args.chain);
+    this.chain = metadata.name;
 
-    this.reader = new AltVMIsmReader(this.metadataManager, this.signer);
+    this.reader = new AltVMIsmReader(chainLookup.getChainName, this.signer);
   }
 
   public async read(): Promise<IsmConfig> {
@@ -154,19 +147,19 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
     chain,
     config,
     addresses,
-    multiProvider,
+    chainLookup,
     signer,
   }: {
-    chain: ChainNameOrId;
+    chain: string;
     config: IsmConfig;
     addresses: {
       mailbox: string;
     };
-    multiProvider: MultiProvider;
+    chainLookup: ChainLookup;
     signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMIsmModule<PT>> {
     const module = new AltVMIsmModule<PT>(
-      multiProvider,
+      chainLookup,
       {
         addresses: {
           ...addresses,
@@ -246,7 +239,7 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
 
     // deploy ISMs for each domain
     for (const chainName of Object.keys(config.domains)) {
-      const domainId = this.metadataManager.tryGetDomainId(chainName);
+      const domainId = this.chainLookup.getDomainId(chainName);
       if (!domainId) {
         this.logger.warn(
           `Unknown chain ${chainName}, skipping ISM configuration`,
@@ -282,7 +275,7 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
 
     const updateTxs: AnnotatedTypedTransaction<PT>[] = [];
 
-    const knownChains = new Set(this.metadataManager.getKnownChainNames());
+    const knownChains = new Set(this.chainLookup.getKnownChainNames());
 
     const { domainsToEnroll, domainsToUnenroll } = calculateDomainRoutingDelta(
       actual,
@@ -300,7 +293,7 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
         config: expected.domains[origin],
       });
 
-      const { blocks } = this.metadataManager.getChainMetadata(this.chain);
+      const { blocks } = this.chainLookup.getChainMetadata(this.chain);
 
       if (blocks) {
         // we assume at least one confirmation
@@ -310,7 +303,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
         await sleep(confirmations * estimateBlockTime);
       }
 
-      const domainId = this.metadataManager.getDomainId(origin);
+      const domainId = this.chainLookup.getDomainId(origin);
+      assert(domainId !== null, `Domain ID not found for chain ${origin}`);
       updateTxs.push({
         annotation: `Setting new ISM for origin ${origin}...`,
         ...(await this.signer.getSetRoutingIsmRouteTransaction({
@@ -331,7 +325,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
 
     // Unenroll domains
     for (const origin of knownUnenrolls) {
-      const domainId = this.metadataManager.getDomainId(origin);
+      const domainId = this.chainLookup.getDomainId(origin);
+      assert(domainId !== null, `Domain ID not found for chain ${origin}`);
       updateTxs.push({
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         ...(await this.signer.getRemoveRoutingIsmRouteTransaction({

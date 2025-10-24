@@ -2,12 +2,8 @@ import type { BigNumber } from 'ethers';
 import { Logger } from 'pino';
 
 import { GasRouter, Router } from '@hyperlane-xyz/core';
-import {
-  Address,
-  ProtocolType,
-  objMap,
-  promiseObjAll,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import {

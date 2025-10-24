@@ -1,4 +1,5 @@
-import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { HexString } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ChainName } from '../types.js';

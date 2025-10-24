@@ -1,9 +1,8 @@
 import { zeroAddress } from 'viem';
 
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  AltVM,
-  ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
   assert,
@@ -273,7 +272,10 @@ export async function expandWarpDeployConfig(params: {
           default: {
             const provider = await altVmProvider.get(chain);
 
-            const reader = new AltVMHookReader(multiProvider, provider);
+            const reader = new AltVMHookReader(
+              (chain) => multiProvider.getChainMetadata(chain),
+              provider,
+            );
             chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
           }
         }
@@ -296,7 +298,10 @@ export async function expandWarpDeployConfig(params: {
           default: {
             const provider = await altVmProvider.get(chain);
 
-            const reader = new AltVMIsmReader(multiProvider, provider);
+            const reader = new AltVMIsmReader(
+              (chain) => multiProvider.tryGetChainName(chain),
+              provider,
+            );
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
               chainConfig.interchainSecurityModule,
             );

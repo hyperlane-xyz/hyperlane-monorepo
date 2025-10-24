@@ -2,12 +2,8 @@ import { Provider } from '@ethersproject/providers';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
 import { BigNumber, ethers } from 'ethers';
 
-import {
-  ProtocolType,
-  assert,
-  convertDecimals,
-  objMap,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { assert, convertDecimals, objMap } from '@hyperlane-xyz/utils';
 
 import { getProtocolExchangeRateDecimals } from '../consts/igp.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';

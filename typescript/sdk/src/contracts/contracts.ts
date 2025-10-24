@@ -1,10 +1,10 @@
 import { constants } from 'ethers';
 
 import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   EvmChainId,
-  ProtocolType,
   ValueOf,
   addressToByteHexString,
   assert,

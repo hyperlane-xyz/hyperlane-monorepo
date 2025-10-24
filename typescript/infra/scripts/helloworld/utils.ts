@@ -3,6 +3,7 @@ import {
   HelloWorldApp,
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   HyperlaneIgp,
   MultiProtocolCore,
@@ -13,7 +14,7 @@ import {
   filterChainMapToProtocol,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getEnvAddresses } from '../../config/registry.js';

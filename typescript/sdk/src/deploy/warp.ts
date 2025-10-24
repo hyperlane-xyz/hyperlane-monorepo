@@ -1,9 +1,8 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  AltVM,
-  ProtocolType,
   addressToBytes32,
   assert,
   isObjEmpty,
@@ -25,6 +24,7 @@ import { HookConfig } from '../hook/types.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
+import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AnyProtocolReceipt,
@@ -143,7 +143,7 @@ export async function executeWarpDeploy(
           altVmSigner.get(chain),
         );
 
-        const deployer = new AltVMDeployer(multiProvider, signersMap);
+        const deployer = new AltVMDeployer(signersMap);
         deployedContracts = {
           ...deployedContracts,
           ...(await deployer.deploy(protocolSpecificConfig)),
@@ -267,11 +267,11 @@ async function createWarpIsm({
 
       const ismModule = await AltVMIsmModule.create({
         chain,
-        multiProvider: multiProvider,
         addresses: {
           mailbox: chainAddresses.mailbox,
         },
         config: interchainSecurityModule,
+        chainLookup: altVmChainLookup(multiProvider),
         signer,
       });
       const { deployedIsm } = ismModule.serialize();
@@ -461,7 +461,8 @@ export async function enrollCrossChainRouters(
         const signer = altVmSigner.get(currentChain);
 
         const warpModule = new AltVMWarpModule(
-          multiProvider,
+          altVmChainLookup(multiProvider),
+          signer,
           {
             chain: currentChain,
             config: resolvedConfigMap[currentChain],
@@ -469,7 +470,6 @@ export async function enrollCrossChainRouters(
               deployedTokenRoute: deployedContracts[currentChain],
             },
           },
-          signer,
         );
         const actualConfig = await warpModule.read();
         const expectedConfig: HypTokenRouterConfig = {

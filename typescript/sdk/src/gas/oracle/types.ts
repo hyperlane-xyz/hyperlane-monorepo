@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { z } from 'zod';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { getProtocolExchangeRateDecimals } from '../../consts/igp.js';
 

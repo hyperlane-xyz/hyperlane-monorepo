@@ -2,6 +2,7 @@ import { Contract, PopulatedTransaction } from 'ethers';
 import { Logger } from 'pino';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
@@ -15,7 +16,7 @@ import {
   WarpCore,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { IMetrics } from '../interfaces/IMetrics.js';
 import { MonitorEvent } from '../interfaces/IMonitor.js';

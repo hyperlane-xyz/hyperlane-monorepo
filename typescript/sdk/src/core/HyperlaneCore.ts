@@ -8,10 +8,10 @@ import {
   MailboxClient__factory,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   AddressBytes32,
-  ProtocolType,
   addBufferToGasLimit,
   addressToBytes32,
   assert,
