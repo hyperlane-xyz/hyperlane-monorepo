@@ -47,9 +47,9 @@ pub async fn get_tx_hash_status(
     tracing::debug!(?receipt, "tx receipt");
     match receipt.status.as_ref().map(|s| s.as_u64()) {
         // https://eips.ethereum.org/EIPS/eip-658
-        Some(0) => Ok(TransactionStatus::Dropped(
-            TransactionDropReason::RevertedByChain,
-        )),
+        // Transaction failed, but technically it landed. So its considered finalized.
+        // We will check in the finality stage whether tx actually count as delivered.
+        Some(0) => Ok(TransactionStatus::Finalized),
         _ => {
             let res =
                 block_number_result_to_tx_status(provider, receipt.block_number, reorg_period)
@@ -118,10 +118,7 @@ mod tests {
         let tx_status = get_tx_hash_status(&evm_provider, transaction_hash.into(), &reorg_period)
             .await
             .unwrap();
-        assert_eq!(
-            tx_status,
-            TransactionStatus::Dropped(TransactionDropReason::RevertedByChain)
-        );
+        assert_eq!(tx_status, TransactionStatus::Finalized);
     }
 
     #[tokio::test]
