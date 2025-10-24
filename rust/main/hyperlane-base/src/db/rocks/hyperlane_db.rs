@@ -5,7 +5,7 @@ use eyre::{bail, Result};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    identifiers::UniqueIdentifier, CheckpointInfo, Decode, Encode, GasPaymentKey, HyperlaneDomain,
+    identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
     HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
     HyperlaneWatermarkedLogStore, Indexed, InterchainGasExpenditure, InterchainGasPayment,
     InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256,
@@ -40,7 +40,6 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 const PAYLOAD_UUIDS_BY_MESSAGE_ID: &str = "payload_uuids_by_message_id_";
-const LATEST_CHECKPOINT_INFO: &str = "latest_checkpoint_info";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -698,13 +697,6 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>> {
         self.retrieve_value_by_key(PAYLOAD_UUIDS_BY_MESSAGE_ID, message_id)
-    }
-
-    fn store_latest_checkpoint_info(&self, checkpoint_info: &CheckpointInfo) -> DbResult<()> {
-        self.store_value_by_key(LATEST_CHECKPOINT_INFO, &bool::default(), checkpoint_info)
-    }
-    fn retrieve_latest_checkpoint_info(&self) -> DbResult<Option<CheckpointInfo>> {
-        self.retrieve_value_by_key(LATEST_CHECKPOINT_INFO, &bool::default())
     }
 }
 

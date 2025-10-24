@@ -27,7 +27,10 @@ export {
   AW_VALIDATOR_ALIAS,
   defaultMultisigConfigs,
 } from './consts/multisigIsm.js';
-export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
+export {
+  SEALEVEL_SPL_NOOP_ADDRESS,
+  SEALEVEL_PRIORITY_FEES,
+} from './consts/sealevel.js';
 export {
   multiProtocolTestChainMetadata,
   test1,
@@ -129,6 +132,7 @@ export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.j
 export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
+  SealevelIgpProgramAdapter,
   SealevelOverheadIgpAdapter,
 } from './gas/adapters/SealevelIgpAdapter.js';
 export {
@@ -137,6 +141,18 @@ export {
   SealevelInterchainGasPaymasterType,
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
+  SealevelIgpInstruction,
+  SealevelIgpDataSchema,
+  SealevelIgpData,
+  SealevelGasOracle,
+  SealevelGasOracleConfig,
+  SealevelGasOracleType,
+  SealevelGasOverheadConfig,
+  SealevelRemoteGasData,
+  SealevelSetDestinationGasOverheadsInstruction,
+  SealevelSetDestinationGasOverheadsInstructionSchema,
+  SealevelSetGasOracleConfigsInstruction,
+  SealevelSetGasOracleConfigsInstructionSchema,
 } from './gas/adapters/serialization.js';
 export { IgpFactories, igpFactories } from './gas/contracts.js';
 export { HyperlaneIgp } from './gas/HyperlaneIgp.js';
@@ -294,7 +310,7 @@ export {
   RpcUrl,
   RpcUrlSchema,
 } from './metadata/chainMetadataTypes.js';
-export { ZChainName, ZHash } from './metadata/customZodTypes.js';
+export { ZBigNumberish, ZChainName, ZHash } from './metadata/customZodTypes.js';
 export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
@@ -826,3 +842,10 @@ export {
   getSignerForChain,
   MultiProtocolSignerSignerAccountInfo,
 } from './signers/signers.js';
+export {
+  SvmTransactionSigner,
+  KeypairSvmTransactionSigner,
+  SvmMultiProtocolSignerAdapter,
+  SvmSignerConfig,
+  TransactionBuildOptions,
+} from './signers/svm/solana-web3js.js';
