@@ -456,7 +456,10 @@ export async function enrollCrossChainRouters(
         const signer = altVmSigner.get(currentChain);
 
         const warpModule = new AltVMWarpModule(
-          altVmChainLookup(multiProvider),
+          (chain) => multiProvider.getChainMetadata(chain),
+          (domainId) => multiProvider.tryGetChainName(domainId),
+          (chain) => multiProvider.tryGetDomainId(chain),
+          () => multiProvider.getKnownChainNames(),
           signer,
           {
             chain: currentChain,
