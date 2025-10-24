@@ -1,0 +1,36 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "owner": "9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf"
+  },
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "USD Coin STAGE",
+    "symbol": "USDCSTAGE",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/03b8562eb54afc52c0be0529a3d454aebed31a7d/deployments/warp_routes/USDCSTAGE/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
+    "owner": "9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "foreignDeployment": "0x04C26A1Efb87D5Ac9ee6179754B4CDDC61fC11d5"
+  },
+  "arbitrum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "foreignDeployment": "0x604610E6B3310852f1599a6eDbEbd6b6b2B766DC"
+  },
+  "base": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "foreignDeployment": "0x5A0E13290ec57F5e9031D01D03C6A40029Cc24ea"
+  }
+}
