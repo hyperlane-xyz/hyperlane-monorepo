@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 19.4.0
+
+### Patch Changes
+
+- 5a4e22d34: Bump @solana/web3.js dependency explicitly from ^1.95.4 to ^1.98.4.
+
 ## 19.3.0
 
 ## 19.2.0
