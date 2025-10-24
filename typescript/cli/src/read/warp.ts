@@ -132,8 +132,8 @@ async function deriveWarpRouteConfigs(
         default: {
           const provider = await context.altVmProvider.get(chain);
           return new AltVMWarpRouteReader(
-            multiProvider,
-            chain,
+            (chain) => multiProvider.getChainMetadata(chain),
+            (domainId) => multiProvider.tryGetChainName(domainId),
             provider,
           ).deriveWarpRouteConfig(address);
         }
