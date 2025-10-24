@@ -113,20 +113,13 @@ export async function writeAgentConfig(
           agentSpecificChainMetadataOverrides[chain];
         if (agentSpecificOverrides) {
           const chainMetadata = await registry.getChainMetadata(chain);
-          const generalTxOverrides = chainMetadata?.transactionOverrides ?? {};
-          const agentSpecificTxOverrides =
-            agentSpecificOverrides?.transactionOverrides ?? {};
-
-          // Merge general tx overrides with agent-specific ones (agent-specific takes precedence)
-          const mergedTxOverrides = objMerge(
-            generalTxOverrides,
-            agentSpecificTxOverrides,
+          assert(chainMetadata, `Chain metadata not found for chain ${chain}`);
+          // Only care about blocks and transactionOverrides from the agent-specific overrides
+          const { blocks, transactionOverrides } = objMerge(
+            chainMetadata,
+            agentSpecificOverrides,
           );
-
-          config = objMerge(config, {
-            ...agentSpecificOverrides,
-            transactionOverrides: mergedTxOverrides,
-          });
+          config = objMerge(config, { blocks, transactionOverrides });
         }
 
         return [chain, config];
