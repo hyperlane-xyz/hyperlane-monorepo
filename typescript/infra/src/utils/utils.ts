@@ -27,7 +27,7 @@ export function include(condition: boolean, data: any) {
 }
 
 const EcdsaPubKey = asn1.define('EcdsaPubKey', function (this: any) {
-  // parsing this according to https://tools.ietf.org/html/rfc5480#section-2
+  // parsing this according to https://datatracker.ietf.org/doc/html/rfc5480#section-2
   this.seq().obj(
     this.key('algo').seq().obj(this.key('a').objid(), this.key('b').objid()),
     this.key('pubKey').bitstr(),
@@ -36,7 +36,7 @@ const EcdsaPubKey = asn1.define('EcdsaPubKey', function (this: any) {
 
 export function getEthereumAddress(publicKey: Buffer): string {
   // The public key is ASN1 encoded in a format according to
-  // https://tools.ietf.org/html/rfc5480#section-2
+  // https://datatracker.ietf.org/doc/html/rfc5480#section-2
   // I used https://lapo.it/asn1js to figure out how to parse this
   // and defined the schema in the EcdsaPubKey object
   const res = EcdsaPubKey.decode(publicKey, 'der');
