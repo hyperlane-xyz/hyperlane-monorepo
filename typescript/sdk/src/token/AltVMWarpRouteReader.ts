@@ -3,9 +3,11 @@ import { Logger } from 'pino';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ChainLookup } from '../altvm.js';
-import { AltVMHookReader } from '../hook/AltVMHookReader.js';
-import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
+import {
+  AltVMHookReader,
+  ChainMetadataLookup as HookChainMetadataLookup,
+} from '../hook/AltVMHookReader.js';
+import { AltVMIsmReader, ChainNameLookup } from '../ism/AltVMIsmReader.js';
 import {
   DestinationGas,
   MailboxClientConfig,
@@ -22,17 +24,12 @@ export class AltVMWarpRouteReader {
   ismReader: AltVMIsmReader;
 
   constructor(
-    chainLookup: ChainLookup,
+    getChainMetadataForHook: HookChainMetadataLookup,
+    getChainNameFromDomain: ChainNameLookup,
     protected readonly provider: AltVM.IProvider,
   ) {
-    this.hookReader = new AltVMHookReader(
-      (chain) => metadataManager.getChainMetadata(chain),
-      provider,
-    );
-    this.ismReader = new AltVMIsmReader(
-      (chain) => metadataManager.tryGetChainName(chain),
-      provider,
-    );
+    this.hookReader = new AltVMHookReader(getChainMetadataForHook, provider);
+    this.ismReader = new AltVMIsmReader(getChainNameFromDomain, provider);
 
     this.logger = rootLogger.child({
       module: AltVMWarpRouteReader.name,
