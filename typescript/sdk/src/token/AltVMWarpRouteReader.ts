@@ -31,7 +31,10 @@ export class AltVMWarpRouteReader {
       (chain) => metadataManager.getChainMetadata(chain),
       provider,
     );
-    this.ismReader = new AltVMIsmReader(metadataManager, provider);
+    this.ismReader = new AltVMIsmReader(
+      (chain) => metadataManager.tryGetChainName(chain),
+      provider,
+    );
 
     this.logger = rootLogger.child({
       module: AltVMWarpRouteReader.name,

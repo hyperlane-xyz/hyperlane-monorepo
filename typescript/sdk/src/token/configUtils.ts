@@ -298,7 +298,10 @@ export async function expandWarpDeployConfig(params: {
           default: {
             const provider = await altVmProvider.get(chain);
 
-            const reader = new AltVMIsmReader(multiProvider, provider);
+            const reader = new AltVMIsmReader(
+              (chain) => multiProvider.tryGetChainName(chain),
+              provider,
+            );
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
               chainConfig.interchainSecurityModule,
             );
