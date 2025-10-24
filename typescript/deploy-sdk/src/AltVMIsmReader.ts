@@ -1,5 +1,7 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { Address, Domain, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+
+import { ChainNameLookup } from '../altvm.js';
 
 import {
   DerivedIsmConfig,
@@ -8,11 +10,6 @@ import {
   MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
-
-/**
- * Function adapter to lookup chain name by domain ID, returns null if not found
- */
-export type ChainNameLookup = (domainId: Domain) => string | null;
 
 export class AltVMIsmReader {
   protected readonly logger = rootLogger.child({
