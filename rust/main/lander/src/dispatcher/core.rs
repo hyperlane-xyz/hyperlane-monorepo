@@ -6,7 +6,10 @@ use std::{collections::VecDeque, path::PathBuf, sync::Arc};
 use derive_new::new;
 use eyre::Result;
 use futures_util::future::join_all;
-use tokio::{sync::Mutex, task::JoinHandle};
+use tokio::{
+    sync::{mpsc, Mutex},
+    task::JoinHandle,
+};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
@@ -72,14 +75,16 @@ impl Dispatcher {
     #[instrument(skip(self), fields(domain = %self.domain))]
     pub async fn spawn(self) -> JoinHandle<()> {
         let mut tasks = vec![];
+        let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
         let building_stage_queue = BuildingStageQueue::new();
         let (inclusion_stage_sender, inclusion_stage_receiver) =
             tokio::sync::mpsc::channel::<Transaction>(SUBMITTER_CHANNEL_SIZE);
         let (finality_stage_sender, finality_stage_receiver) =
             tokio::sync::mpsc::channel::<Transaction>(SUBMITTER_CHANNEL_SIZE);
 
-        let building_stage = BuildingStage::new(
+        let mut building_stage = BuildingStage::new(
             building_stage_queue.clone(),
+            building_stage_receiver,
             inclusion_stage_sender.clone(),
             self.inner.clone(),
             self.domain.clone(),
@@ -131,6 +136,7 @@ impl Dispatcher {
 
         let payload_db_loader = PayloadDbLoader::new(
             self.inner.payload_db.clone(),
+            building_stage_sender,
             building_stage_queue.clone(),
             self.domain.clone(),
         );

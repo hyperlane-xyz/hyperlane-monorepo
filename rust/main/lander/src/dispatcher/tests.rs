@@ -1,5 +1,6 @@
 use std::{collections::VecDeque, sync::Arc, time::Duration};
 
+use tokio::sync::mpsc;
 use tokio::{sync::Mutex, time::sleep};
 
 use crate::adapter::TxBuildingResult;
@@ -19,8 +20,10 @@ async fn test_entrypoint_send_is_detected_by_loader() {
     let (payload_db, tx_db, _) = tmp_dbs();
     let building_stage_queue = BuildingStageQueue::new();
     let domain = "dummy_domain".to_string();
+    let (building_stage_sender, _building_stage_receiver) = mpsc::channel(1);
     let payload_db_loader = PayloadDbLoader::new(
         payload_db.clone(),
+        building_stage_sender,
         building_stage_queue.clone(),
         domain.clone(),
     );
@@ -374,9 +377,11 @@ async fn mock_entrypoint_and_dispatcher(
     let domain = "test_domain".to_string();
 
     let (payload_db, tx_db, _) = tmp_dbs();
+    let (building_stage_sender, _building_stage_receiver) = mpsc::channel(1);
     let building_stage_queue = BuildingStageQueue::new();
     let payload_db_loader = PayloadDbLoader::new(
         payload_db.clone(),
+        building_stage_sender,
         building_stage_queue.clone(),
         domain.clone(),
     );
