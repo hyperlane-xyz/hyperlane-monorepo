@@ -19,7 +19,10 @@ export class AltVMCoreReader {
     protected readonly provider: AltVM.IProvider,
   ) {
     this.ismReader = new AltVMIsmReader(this.metadataManager, this.provider);
-    this.hookReader = new AltVMHookReader(this.metadataManager, this.provider);
+    this.hookReader = new AltVMHookReader(
+      (chain) => this.metadataManager.getChainMetadata(chain),
+      this.provider,
+    );
   }
 
   async deriveCoreConfig(mailboxAddress: Address): Promise<DerivedCoreConfig> {

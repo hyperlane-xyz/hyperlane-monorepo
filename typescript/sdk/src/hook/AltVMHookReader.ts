@@ -1,7 +1,7 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import type { ChainNameOrId } from '../types.js';
 
 import {
   DerivedHookConfig,
@@ -11,13 +11,31 @@ import {
   MerkleTreeHookConfig,
 } from './types.js';
 
+/**
+ * Minimal chain metadata needed for AltVM hook operations
+ */
+export interface ChainMetadataForHook {
+  name: string;
+  nativeToken?: {
+    decimals?: number;
+    denom?: string;
+  };
+}
+
+/**
+ * Function adapter to lookup chain metadata by domain ID or chain name
+ */
+export type ChainMetadataLookup = (
+  chain: ChainNameOrId,
+) => ChainMetadataForHook;
+
 export class AltVMHookReader {
   protected readonly logger = rootLogger.child({
     module: 'AltVMHookReader',
   });
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
+    protected readonly getChainMetadata: ChainMetadataLookup,
     protected readonly provider: AltVM.IProvider,
   ) {}
 
@@ -61,8 +79,7 @@ export class AltVMHookReader {
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
 
     Object.keys(igp.destinationGasConfigs).forEach((domain_id) => {
-      const { name, nativeToken } =
-        this.metadataManager.getChainMetadata(domain_id);
+      const { name, nativeToken } = this.getChainMetadata(domain_id);
       overhead[name] = parseInt(
         igp.destinationGasConfigs[domain_id].gasOverhead,
       );
