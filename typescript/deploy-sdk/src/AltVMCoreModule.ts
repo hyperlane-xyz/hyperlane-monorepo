@@ -60,11 +60,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;
 
-    this.coreReader = new AltVMCoreReader(
-      chainLookup.getChainMetadata,
-      chainLookup.getChainName,
-      signer,
-    );
+    this.coreReader = new AltVMCoreReader(chainLookup, signer);
   }
 
   /**
