@@ -51,8 +51,7 @@ export async function executeCoreRead({
     default: {
       const provider = await context.altVmProvider.get(chain);
       const coreReader = new AltVMCoreReader(
-        (chain) => context.multiProvider.getChainMetadata(chain),
-        (domainId) => context.multiProvider.tryGetChainName(domainId),
+        altVmChainLookup(context.multiProvider),
         provider,
       );
       try {
