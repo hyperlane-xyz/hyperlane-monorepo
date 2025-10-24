@@ -147,14 +147,16 @@ async function main() {
           ] ?? {};
 
         knownTokenAddresses[tokenConfig.chainName] ??= {};
-        knownTokenAddresses[tokenConfig.chainName][tokenConfig.symbol] =
+        knownTokenAddresses[tokenConfig.chainName][
+          tokenConfig.symbol.toLowerCase()
+        ] =
           // Default to the address in the infra mapping if one exists
-          knownTokensForCurrentChain[tokenConfig.symbol] ??
+          knownTokensForCurrentChain[tokenConfig.symbol.toLowerCase()] ??
           tokenConfig.collateralAddressOrDenom;
       }),
     );
 
-    const tokenAddress = knownTokenAddresses[chain][symbol];
+    const tokenAddress = knownTokenAddresses[chain]?.[symbol.toLowerCase()];
     assert(
       tokenAddress,
       `An address was not found for token with symbol "${symbol}" on chain "${chain}". Please provide the token address instead`,
@@ -251,7 +253,7 @@ async function fundAccount({
   } catch (err) {
     fundingLogger.error(
       { err },
-      `Failed to get native token price for ${chainName}, falling back to 1usd`,
+      `Failed to get token price for ${chainName}, falling back to 1usd`,
     );
     tokenPrice = 1;
   }
@@ -374,7 +376,7 @@ async function fundAccount({
   // Check if we have sufficient balance
   if (currentBalance < weiAmount) {
     throw new Error(
-      `Insufficient balance. Have: ${formatUnits(currentBalance, decimals)} ${tokenMetadata.symbol}, Need: ${amount} ${tokenMetadata.symbol}`,
+      `Insufficient balance. Have: ${formatUnits(currentBalance.toString(), decimals)} ${tokenMetadata.symbol}, Need: ${amount} ${tokenMetadata.symbol}`,
     );
   }
 
@@ -419,8 +421,8 @@ async function fundAccount({
   fundingLogger.info(
     {
       transactionHash,
-      senderNewBalance: formatUnits(newBalance, decimals),
-      recipientBalance: formatUnits(recipientBalance, decimals),
+      senderNewBalance: formatUnits(newBalance.toString(), decimals),
+      recipientBalance: formatUnits(recipientBalance.toString(), decimals),
       symbol: tokenMetadata.symbol,
     },
     'Transfer completed successfully',

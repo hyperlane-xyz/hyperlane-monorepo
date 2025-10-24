@@ -6,6 +6,7 @@ import {
   Contract,
   cairo,
   num,
+  shortString,
 } from 'starknet';
 
 import {
@@ -15,6 +16,7 @@ import {
   ProtocolType,
   addressToBytes32,
   assert,
+  ensure0x,
 } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
@@ -37,7 +39,7 @@ import {
 } from './ITokenAdapter.js';
 
 const stringFromDecimalNumber = (num: bigint | number) =>
-  Buffer.from(num.toString(16), 'hex').toString('utf8');
+  shortString.decodeShortString(ensure0x(num.toString(16)));
 
 export class StarknetTokenAdapter
   extends BaseStarknetAdapter

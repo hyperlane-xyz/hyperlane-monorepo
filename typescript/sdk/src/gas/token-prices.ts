@@ -1,4 +1,10 @@
-import { Address, objKeys, rootLogger, sleep } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  objKeys,
+  rootLogger,
+  sleep,
+} from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -167,7 +173,13 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       `${COINGECKO_COIN_API}/${chain}/contract/${contractAddress}`,
     );
 
-    return tokenPrice.market_data.current_price.usd;
+    const price = tokenPrice?.market_data?.current_price?.usd;
+    assert(
+      price,
+      `USD price not found for token at address "${contractAddress}" and chain ${chain}`,
+    );
+
+    return price;
   }
 
   public async fetchPriceData(
