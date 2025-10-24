@@ -114,7 +114,10 @@ export class AltVMCoreModule
       addresses: {
         mailbox: '',
       },
-      chainLookup,
+      getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
+      getChainName: (domainId) => multiProvider.tryGetChainName(domainId),
+      getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
+      getKnownChainNames: () => multiProvider.getKnownChainNames(),
       signer,
     });
 
@@ -328,7 +331,10 @@ export class AltVMCoreModule
     const { mailbox } = this.serialize();
 
     const ismModule = new AltVMIsmModule(
-      this.chainLookup,
+      (chain) => this.metadataManager.getChainMetadata(chain),
+      (chain) => this.metadataManager.tryGetChainName(chain),
+      (chain) => this.metadataManager.tryGetDomainId(chain),
+      () => this.metadataManager.getKnownChainNames(),
       {
         addresses: {
           mailbox: mailbox,

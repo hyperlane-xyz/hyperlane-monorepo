@@ -265,9 +265,11 @@ async function createWarpIsm({
         addresses: {
           mailbox: chainAddresses.mailbox,
         },
-        // FIXME: not all ISM types are supported yet
-        config: interchainSecurityModule as ProviderIsmConfig | string,
-        chainLookup: altVmChainLookup(multiProvider),
+        config: interchainSecurityModule,
+        getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
+        getChainName: (chain) => multiProvider.tryGetChainName(chain),
+        getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
+        getKnownChainNames: () => multiProvider.getKnownChainNames(),
         signer,
       });
       const { deployedIsm } = ismModule.serialize();

@@ -15,7 +15,10 @@ export class AltVMCoreReader {
     chainLookup: ChainLookup,
     protected readonly provider: AltVM.IProvider,
   ) {
-    this.ismReader = new AltVMIsmReader(this.metadataManager, this.provider);
+    this.ismReader = new AltVMIsmReader(
+      (chain) => this.metadataManager.tryGetChainName(chain),
+      this.provider,
+    );
     this.hookReader = new AltVMHookReader(
       (chain) => this.metadataManager.getChainMetadata(chain),
       this.provider,
