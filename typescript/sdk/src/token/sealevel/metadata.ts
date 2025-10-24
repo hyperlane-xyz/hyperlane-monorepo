@@ -79,6 +79,7 @@ export const SPL_TOKEN_METADATA_SCHEMA = new Map<any, any>([
   ],
 ]);
 
+// Metadata program account for creating SPL tokens metadata
 const METADATA_PROGRAM_ID = new PublicKey(
   'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s',
 );
@@ -89,6 +90,7 @@ export async function getLegacySPLTokenMetadata(
   connection: Connection,
   mint: PublicKey,
 ): Promise<{ name: string; symbol: string; uri: string } | null> {
+  // Derive the SPL token metadata account
   const [metadataPda] = PublicKey.findProgramAddressSync(
     [Buffer.from('metadata'), METADATA_PROGRAM_ID.toBuffer(), mint.toBuffer()],
     METADATA_PROGRAM_ID,
