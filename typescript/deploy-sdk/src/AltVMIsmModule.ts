@@ -25,17 +25,6 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { AltVMIsmReader } from './AltVMIsmReader.js';
 
-/**
- * Minimal chain metadata needed for AltVM ISM operations
- */
-export interface ChainMetadataForIsm {
-  name: string;
-  blocks?: {
-    confirmations?: number;
-    estimateBlockTime?: number;
-  };
-}
-
 type IsmModuleAddresses = {
   deployedIsm: Address;
   mailbox: Address;
@@ -89,7 +78,7 @@ export class AltVMIsmModule
   public readonly chain: ChainName;
 
   constructor(
-    protected readonly chainLookup: ChainLookup<ChainMetadataForIsm>,
+    protected readonly chainLookup: ChainLookup,
     params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
     protected readonly signer: AltVM.ISigner<
       AnnotatedTypedTransaction<PT>,
@@ -195,7 +184,7 @@ export class AltVMIsmModule
     addresses: {
       mailbox: string;
     };
-    chainLookup: ChainLookup<ChainMetadataForIsm>;
+    chainLookup: ChainLookup;
     signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMIsmModule<PT>> {
     const module = new AltVMIsmModule<PT>(

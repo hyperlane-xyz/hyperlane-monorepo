@@ -1,5 +1,5 @@
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { Address, Domain, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
 import { AltVMHookModule } from '../hook/AltVMHookModule.js';
@@ -35,22 +35,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-/**
- * Minimal chain metadata needed for AltVM Core operations
- */
-export interface ChainMetadataForCore {
-  name: string;
-  domainId: Domain;
-  nativeToken?: {
-    decimals?: number;
-    denom?: string;
-  };
-  blocks?: {
-    confirmations?: number;
-    estimateBlockTime?: number;
-  };
-}
-
 export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
   any,
   CoreConfig,
@@ -63,7 +47,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
   public readonly chainName: ChainName;
 
   constructor(
-    protected readonly chainLookup: ChainLookup<ChainMetadataForCore>,
+    protected readonly chainLookup: ChainLookup,
     protected readonly signer: AltVM.ISigner<
       AnnotatedTypedTransaction<PT>,
       ProtocolReceipt<PT>
@@ -102,7 +86,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
   public static async create<PT extends ProtocolType>(params: {
     chain: string;
     config: CoreConfig;
-    chainLookup: ChainLookup<ChainMetadataForCore>;
+    chainLookup: ChainLookup;
     signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMCoreModule<PT>> {
     const addresses = await AltVMCoreModule.deploy<PT>(params);
@@ -120,7 +104,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
    */
   static async deploy(params: {
     config: CoreConfig;
-    chainLookup: ChainLookup<ChainMetadataForCore>;
+    chainLookup: ChainLookup;
     chain: string;
     signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<DeployedCoreAddresses> {
