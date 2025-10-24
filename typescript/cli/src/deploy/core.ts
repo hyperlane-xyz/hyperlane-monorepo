@@ -11,6 +11,7 @@ import {
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
+  altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
 
 import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
@@ -110,10 +111,7 @@ export async function runCoreDeploy(params: DeployParams) {
       const coreModule = await AltVMCoreModule.create({
         chain,
         config,
-        getChainMetadata: (chain) => multiProvider.getChainMetadata(chain),
-        getChainName: (domainId) => multiProvider.tryGetChainName(domainId),
-        getDomainId: (chain) => multiProvider.tryGetDomainId(chain),
-        getKnownChainNames: () => multiProvider.getKnownChainNames(),
+        chainLookup: altVmChainLookup(multiProvider),
         signer,
       });
 
@@ -175,10 +173,7 @@ export async function runCoreApply(params: ApplyParams) {
       });
 
       const coreModule = new AltVMCoreModule(
-        (chain) => multiProvider.getChainMetadata(chain),
-        (domainId) => multiProvider.tryGetChainName(domainId),
-        (chain) => multiProvider.tryGetDomainId(chain),
-        () => multiProvider.getKnownChainNames(),
+        altVmChainLookup(multiProvider),
         signer,
         {
           chain,

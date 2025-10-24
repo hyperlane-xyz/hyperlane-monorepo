@@ -4,26 +4,25 @@ import { zeroAddress } from 'viem';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
-  Domain,
   addressToBytes32,
   assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { ChainLookup } from '../altvm.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { ChainMetadataLookup as HookChainMetadataLookup } from '../hook/AltVMHookReader.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
-import { ChainNameLookup } from '../ism/AltVMIsmReader.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import {
   AnnotatedTypedTransaction,
   ProtocolReceipt,
   ProtocolTransaction,
 } from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainName } from '../types.js';
 
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 import { AltVMDeployer } from './altVMDeploy.js';
@@ -48,15 +47,6 @@ export interface ChainMetadataForWarp {
   };
 }
 
-/**
- * Function adapters for chain metadata lookups required by AltVM Warp operations
- */
-export type ChainMetadataLookup = (
-  chain: ChainNameOrId,
-) => ChainMetadataForWarp;
-export type DomainIdLookup = (chain: ChainNameOrId) => Domain | null;
-export type GetKnownChainNames = () => string[];
-
 export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
   PT,
   HypTokenRouterConfig,
@@ -68,10 +58,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
   public readonly chainName: ChainName;
 
   constructor(
-    protected readonly getChainMetadata: ChainMetadataLookup,
-    protected readonly getChainName: ChainNameLookup,
-    protected readonly getDomainId: DomainIdLookup,
-    protected readonly getKnownChainNames: GetKnownChainNames,
+    protected readonly chainLookup: ChainLookup<ChainMetadataForWarp>,
     protected readonly signer: AltVM.ISigner<
       AnnotatedTypedTransaction<PT>,
       ProtocolReceipt<PT>
@@ -80,12 +67,12 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
   ) {
     super(args);
 
-    const metadata = getChainMetadata(args.chain);
+    const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;
 
     this.reader = new AltVMWarpRouteReader(
-      getChainMetadata as HookChainMetadataLookup,
-      getChainName,
+      chainLookup.getChainMetadata as HookChainMetadataLookup,
+      chainLookup.getChainName,
       signer,
     );
 
@@ -386,10 +373,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
     const ismModule = new AltVMIsmModule(
-      this.getChainMetadata,
-      this.getChainName,
-      this.getDomainId,
-      this.getKnownChainNames,
+      this.chainLookup,
       {
         chain: this.args.chain,
         config: expectedConfig.interchainSecurityModule,
@@ -427,12 +411,9 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
    * @returns A new instance of the AltVMWarpModule.
    */
   static async create<PT extends ProtocolType>(params: {
-    chain: ChainNameOrId;
+    chain: string;
     config: HypTokenRouterConfig;
-    getChainMetadata: ChainMetadataLookup;
-    getChainName: ChainNameLookup;
-    getDomainId: DomainIdLookup;
-    getKnownChainNames: GetKnownChainNames;
+    chainLookup: ChainLookup<ChainMetadataForWarp>;
     signer: AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMWarpModule<PT>> {
     const deployer = new AltVMDeployer({
@@ -443,19 +424,12 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
       [params.chain]: params.config,
     });
 
-    return new AltVMWarpModule<PT>(
-      params.getChainMetadata,
-      params.getChainName,
-      params.getDomainId,
-      params.getKnownChainNames,
-      params.signer,
-      {
-        addresses: {
-          deployedTokenRoute,
-        },
-        chain: params.chain,
-        config: params.config,
+    return new AltVMWarpModule<PT>(params.chainLookup, params.signer, {
+      addresses: {
+        deployedTokenRoute,
       },
-    );
+      chain: params.chain,
+      config: params.config,
+    });
   }
 }
