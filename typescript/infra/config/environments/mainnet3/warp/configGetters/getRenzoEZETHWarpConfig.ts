@@ -36,28 +36,34 @@ export const ezEthChainsToDeploy = [
   'berachain',
   'worldchain',
   'plasma',
+  'ink',
+  'monad',
+  'xlayer',
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
-// Used to stabilize the protocolFee of ProtocolHook such that we don't get diffs every time tokenPrices.json is updated
+// Used to stabilize the protocolFee of ProtocolHook upon deployment such that we don't get diffs every time tokenPrices.json is updated
 export const renzoTokenPrices: ChainMap<string> = {
-  arbitrum: '3157.26',
-  optimism: '3157.26',
-  base: '3157.26',
-  blast: '3157.26',
-  bsc: '673.59',
-  mode: '3157.26',
-  linea: '3157.26',
-  ethereum: '3157.26',
-  fraxtal: '3168.75',
-  zircuit: '3157.26',
-  taiko: '3157.26',
-  sei: '0.354988',
-  swell: '3157.26',
-  unichain: '2602.66',
-  berachain: '10',
-  worldchain: '1599.53',
-  plasma: '0.90',
+  arbitrum: '3157.26', // ETH
+  optimism: '3157.26', // ETH
+  base: '3157.26', // ETH
+  blast: '3157.26', // ETH
+  bsc: '673.59', // BNB
+  mode: '3157.26', // ETH
+  linea: '3157.26', // ETH
+  ethereum: '3157.26', // ETH
+  fraxtal: '3168.75', // ETH
+  zircuit: '3157.26', // ETH
+  taiko: '3157.26', // ETH
+  sei: '0.354988', // SEI
+  swell: '3157.26', // ETH
+  unichain: '2602.66', // ETH
+  berachain: '10', // BERA
+  worldchain: '1599.53', // ETH
+  plasma: '0.90', // XPL
+  ink: '3900', // ETH
+  monad: '0', // as of Oct 24, 2025, MON has not been released so no fee
+  xlayer: '165', // OKX
 };
 export function getProtocolFee(chain: ChainName) {
   const price = renzoTokenPrices[chain];
@@ -66,6 +72,7 @@ export function getProtocolFee(chain: ChainName) {
 }
 
 // Fetched using: hyperlane warp check --warpRouteId EZETH/renzo-prod
+// Set After deployment
 const chainProtocolFee: Record<ChainName, string> = {
   arbitrum: '400000000000000',
   base: '400000000000000',
@@ -130,6 +137,9 @@ const ezEthAddresses: Record<(typeof ezEthChainsToDeploy)[number], string> = {
   berachain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   worldchain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   plasma: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  ink: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  monad: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  xlayer: '0x2416092f143378750bb29b79eD961ab195CcEea5',
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
