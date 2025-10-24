@@ -15,7 +15,7 @@ import {
 import { ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
-import { AltVMHookReader, ChainMetadataForHook } from './AltVMHookReader.js';
+import { AltVMHookReader } from './AltVMHookReader.js';
 import {
   HookConfig,
   HookConfigSchema,
@@ -41,7 +41,7 @@ export class AltVMHookModule
   public readonly chain: ChainName;
 
   constructor(
-    protected readonly chainLookup: ChainLookup<ChainMetadataForHook>,
+    protected readonly chainLookup: ChainLookup,
     params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
     protected readonly signer: AltVM.ISigner<
       AnnotatedTypedTransaction<PT>,
@@ -195,7 +195,7 @@ export class AltVMHookModule
     chain: string;
     config: HookConfig;
     addresses: HookModuleAddresses;
-    chainLookup: ChainLookup<ChainMetadataForHook>;
+    chainLookup: ChainLookup;
     signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
   }): Promise<AltVMHookModule<PT>> {
     const module = new AltVMHookModule<PT>(
