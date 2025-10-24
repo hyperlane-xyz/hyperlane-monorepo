@@ -1,0 +1,66 @@
+{
+  "compilerOptions": {
+    // Project build
+    "incremental": false,
+    "target": "es2024",
+    "lib": [
+      "ES2015",
+      "ES2016",
+      "ES2017",
+      "ES2018",
+      "ES2019",
+      "ES2020",
+      "ES2021",
+      "ES2022",
+      "ES2024",
+      "DOM"
+    ],
+
+    // Module settings
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "resolveJsonModule": true,
+
+    // Type emit setting
+    "sourceMap": true,
+    "declaration": true,
+    "noEmitOnError": true,
+    "declarationMap": true,
+
+    // Type checking
+    "strict": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "strictBindCallApply": true,
+    "allowUnreachableCode": false,
+    "strictPropertyInitialization": true,
+    "strictFunctionTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "noImplicitOverride": true,
+
+    // Interoperability
+    "esModuleInterop": true,
+    "preserveSymlinks": false,
+    "forceConsistentCasingInFileNames": true,
+
+    "isolatedModules": true,
+
+    // Output formatting
+    "preserveWatchOutput": true,
+    "pretty": false,
+
+    // Completeness
+    "skipLibCheck": true
+  },
+  "ts-node": {
+    "experimentalSpecifierResolution": "node",
+    "experimentalResolver": true,
+    "files": true
+  }
+}
