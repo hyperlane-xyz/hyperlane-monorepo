@@ -49,7 +49,11 @@ export async function executeCoreRead({
     }
     default: {
       const provider = await context.altVmProvider.get(chain);
-      const coreReader = new AltVMCoreReader(context.multiProvider, provider);
+      const coreReader = new AltVMCoreReader(
+        (chain) => context.multiProvider.getChainMetadata(chain),
+        (domainId) => context.multiProvider.tryGetChainName(domainId),
+        provider,
+      );
       try {
         return await coreReader.deriveCoreConfig(mailbox);
       } catch (e: any) {
