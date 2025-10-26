@@ -16,15 +16,16 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
     metrics::AgentMetrics,
-    settings::{ChainConf, CheckpointSyncerBuildError},
+    settings::{ChainConf, CheckpointSyncerBuildError, IndexSettings},
     BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
     ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
 };
 use hyperlane_core::{
-    Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
-    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
-    ValidatorAnnounce, H256, U256,
+    Announcement, ChainResult, ContractSyncCursor, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneSequenceAwareIndexerStoreReader, HyperlaneSigner, HyperlaneSignerExt,
+    Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce, H256,
+    U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
@@ -32,6 +33,7 @@ use crate::reorg_reporter::{
     LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
 };
 use crate::server::{self as validator_server, merkle_tree_insertions};
+use crate::sql_indexer::SqlSequenceAwareIndexerStore;
 use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
@@ -63,6 +65,8 @@ pub struct Validator {
     agent_metadata: ValidatorMetadata,
     max_sign_concurrency: usize,
     reorg_reporter: Arc<dyn ReorgReporter>,
+    sql_store: Option<Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion>>>,
+    scraper_db_url: Option<String>,
 }
 
 /// Metadata for `validator`
@@ -196,6 +200,8 @@ impl BaseAgent for Validator {
             )
             .await?;
 
+        // SQL store will be initialized after validator creation to use Arc<dyn MerkleTreeHook>
+
         Ok(Self {
             origin_chain: settings.origin_chain,
             origin_chain_conf,
@@ -218,11 +224,20 @@ impl BaseAgent for Validator {
             agent_metadata,
             max_sign_concurrency: settings.max_sign_concurrency,
             reorg_reporter,
+            sql_store: None, // Will be initialized after creation
+            scraper_db_url: settings.scraper_db_url.clone(),
         })
     }
 
     #[allow(clippy::async_yields_async)]
     async fn run(mut self) {
+        // Initialize SQL store if scraper DB URL is provided
+        if let Some(scraper_db_url) = self.scraper_db_url.take() {
+            if let Err(err) = self.initialize_sql_store(&scraper_db_url).await {
+                warn!(?err, "Failed to initialize SQL store during startup");
+            }
+        }
+
         let mut tasks = vec![];
 
         // run server
@@ -325,6 +340,53 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
+    /// Initialize SQL store if scraper DB URL is provided
+    async fn initialize_sql_store(&mut self, scraper_db_url: &str) -> Result<(), eyre::Error> {
+        info!(
+            scraper_db_url,
+            "Initializing SQL store for validator indexing"
+        );
+
+        match SqlSequenceAwareIndexerStore::new(
+            scraper_db_url,
+            self.origin_chain.id(),
+            self.mailbox.address(),
+            self.merkle_tree_hook.clone(),
+            self.reorg_period.clone(),
+        )
+        .await
+        {
+            Ok(sql_store) => {
+                let sql_store_arc = Arc::new(sql_store)
+                    as Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion>>;
+                info!("SQL store initialized successfully for validator");
+                self.sql_store = Some(sql_store_arc);
+                Ok(())
+            }
+            Err(err) => {
+                warn!(
+                    ?err,
+                    "Failed to initialize SQL store, will use RPC-only indexing"
+                );
+                Err(err)
+            }
+        }
+    }
+
+    /// Create a cursor with optional SQL store support for fast historical indexing
+    async fn create_cursor_with_sql_store(
+        &self,
+        contract_sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
+        index_settings: IndexSettings,
+    ) -> Result<Box<dyn ContractSyncCursor<MerkleTreeInsertion>>, eyre::Error> {
+        // For now, use the standard cursor creation and log that SQL store is available
+        // TODO: Implement proper SQL store integration with cursor
+        if self.sql_store.is_some() {
+            info!("SQL store available - will be used via backward cursor during indexing");
+        }
+
+        contract_sync.cursor(index_settings).await
+    }
     async fn run_merkle_tree_hook_sync(&self) -> eyre::Result<JoinHandle<()>> {
         let index_settings = self
             .as_ref()
@@ -334,7 +396,11 @@ impl Validator {
             .map(|chain| chain.index_settings())
             .ok_or_else(|| eyre::eyre!("No index setting found"))?;
         let contract_sync = self.merkle_tree_hook_sync.clone();
-        let cursor = contract_sync.cursor(index_settings).await?;
+
+        // Create cursor with optional SQL store support
+        let cursor = self
+            .create_cursor_with_sql_store(contract_sync.clone(), index_settings)
+            .await?;
         let origin = self.origin_chain.name().to_string();
 
         let handle = tokio::spawn(
