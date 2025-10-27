@@ -38,24 +38,17 @@ pub async fn get_tx_hash_status(
     hash: hyperlane_core::H512,
     reorg_period: &EthereumReorgPeriod,
 ) -> Result<TransactionStatus, LanderError> {
-    let receipt = provider
-        .get_transaction_receipt(hash.into())
-        .await
-        .map_err(|err| LanderError::TxHashNotFound(err.to_string()))?
-        .ok_or_else(|| LanderError::TxHashNotFound("Transaction not found".to_string()))?;
-
-    tracing::debug!(?receipt, "tx receipt");
-    match receipt.status.as_ref().map(|s| s.as_u64()) {
-        // https://eips.ethereum.org/EIPS/eip-658
-        // Transaction failed, but technically it landed. So its considered finalized.
-        // We will check in the finality stage whether tx actually count as delivered.
-        Some(0) => Ok(TransactionStatus::Finalized),
-        _ => {
-            let res =
+    match provider.get_transaction_receipt(hash.into()).await {
+        Ok(None) => Err(LanderError::TxHashNotFound(
+            "Transaction not found".to_string(),
+        )),
+        Ok(Some(receipt)) => {
+            Ok(
                 block_number_result_to_tx_status(provider, receipt.block_number, reorg_period)
-                    .await;
-            Ok(res)
+                    .await,
+            )
         }
+        Err(err) => Err(LanderError::TxHashNotFound(err.to_string())),
     }
 }
 
