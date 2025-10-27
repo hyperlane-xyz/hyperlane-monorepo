@@ -51,7 +51,7 @@ pub enum TransactionStatus {
     Included,
     /// in a block older than the configured `reorgPeriod`.
     /// If a transaction fails on-chain, it is still considered finalized because it
-    /// consumed a nonce.
+    /// consumed a nonce on EVM.
     Finalized,
     /// the tx was drop either by the submitter or by the chain
     Dropped(DropReason),
