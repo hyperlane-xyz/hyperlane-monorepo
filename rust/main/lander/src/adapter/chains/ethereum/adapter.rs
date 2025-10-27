@@ -622,11 +622,12 @@ impl AdaptsChain for EthereumAdapter {
         let hash = match send_result {
             Ok(hash) => hash,
             Err(e) => {
+                warn!(?e, "submitting transaction error");
                 return if e.to_string().contains(NONCE_TOO_LOW_ERROR) {
                     Err(TxAlreadyExists)
                 } else {
                     Err(e.into())
-                }
+                };
             }
         };
 
