@@ -43,6 +43,7 @@ pub async fn get_tx_hash_status(
             "Transaction not found".to_string(),
         )),
         Ok(Some(receipt)) => {
+            tracing::debug!(?receipt, "tx receipt");
             Ok(
                 block_number_result_to_tx_status(provider, receipt.block_number, reorg_period)
                     .await,
@@ -97,6 +98,7 @@ mod tests {
                 .unwrap();
 
         let mock_provider = MockProvider::new();
+        let _ = mock_provider.push(U64::from(23328000u64));
 
         let tx_receipt = test_tx_receipt(transaction_hash, Some(U64::from(0)));
         let _ = mock_provider.push(tx_receipt);
