@@ -1,30 +1,14 @@
-import path from 'path';
-
-import { ChainName, IsmType } from '@hyperlane-xyz/sdk';
+import { IsmType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
 import { multisigIsms } from '../../config/multisigIsm.js';
 import { getChains } from '../../config/registry.js';
-import { DeployEnvironment } from '../../src/config/environment.js';
-import {
-  assertContext,
-  getMonorepoRoot,
-  writeAndFormatJsonAtPath,
-} from '../../src/utils/utils.js';
+import { multisigIsmConfigPath } from '../../src/utils/sealevel.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withWrite } from '../agent-utils.js';
 
 // This script exists to print the default multisig ISM validator sets for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(
-
-const multisigIsmConfigPath = (
-  environment: DeployEnvironment,
-  context: Contexts,
-  local: ChainName,
-) =>
-  path.resolve(
-    getMonorepoRoot(),
-    `rust/sealevel/environments/${environment}/multisig-ism-message-id/${local}/${context}/multisig-config.json`,
-  );
 
 async function main() {
   const {

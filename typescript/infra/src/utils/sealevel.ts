@@ -1,21 +1,269 @@
-import { TransactionInstruction } from '@solana/web3.js';
-import { resolve } from 'path';
+import { PublicKey, TransactionInstruction } from '@solana/web3.js';
+import path, { resolve } from 'path';
 
 import {
+  ChainMap,
+  ChainName,
+  IsmType,
+  MultisigIsmConfig,
   SealevelRemoteGasData,
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
 
 import { getMonorepoRoot, readJSONAtPath } from './utils.js';
+
+// ============================================================================
+// Solana Data Structure Sizes
+// ============================================================================
+
+/**
+ * Size of a Solana PublicKey in bytes
+ */
+export const SOLANA_PUBKEY_SIZE = 32;
+
+/**
+ * Size of a Solana u32 in bytes
+ */
+export const SOLANA_U32_SIZE = 4;
+
+/**
+ * Size of a Solana u8 in bytes
+ */
+export const SOLANA_U8_SIZE = 1;
+
+/**
+ * Size of a Solana u16 in bytes
+ */
+export const SOLANA_U16_SIZE = 2;
+
+/**
+ * Size of an Ethereum address (H160) in bytes
+ * Used for validator addresses in Hyperlane MultisigIsm
+ */
+export const ETHEREUM_ADDRESS_SIZE = 20;
+
+/**
+ * Discriminator value for Option::Some in Rust/Anchor
+ */
+export const OPTION_SOME_DISCRIMINATOR = 1;
+
+/**
+ * Discriminator value for Option::None in Rust/Anchor
+ */
+export const OPTION_NONE_DISCRIMINATOR = 0;
+
+// ============================================================================
+// Hyperlane Program Discriminator Lengths
+// ============================================================================
+
+/**
+ * Mailbox instruction discriminator size (1 byte enum discriminator)
+ */
+export const MAILBOX_DISCRIMINATOR_SIZE = 1;
+
+/**
+ * Hyperlane Sealevel program instruction discriminator size
+ * (8-byte Anchor discriminator)
+ */
+export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
+
+/**
+ * Maximum number of validators in MultisigIsm
+ * Must match Solidity: uint8 constant MAX_VALIDATORS = 20 in MultisigIsm.t.sol
+ */
+export const MAX_VALIDATORS = 20;
+
+// ============================================================================
+// Solana System Limits
+// ============================================================================
+
+/**
+ * Maximum number of account keys in a Solana transaction
+ */
+export const MAX_SOLANA_ACCOUNTS = 256;
+
+/**
+ * Maximum reasonable Solana account size (10KB)
+ * Accounts larger than this are suspicious
+ */
+export const MAX_SOLANA_ACCOUNT_SIZE = 10240;
+
+/**
+ * First real instruction index in Solana transactions
+ * (index 0 is typically a dummy instruction)
+ */
+export const FIRST_REAL_INSTRUCTION_INDEX = 1;
+
+// ============================================================================
+// Well-Known Solana Program IDs
+// ============================================================================
+
+/**
+ * Solana System Program ID
+ */
+export const SYSTEM_PROGRAM_ID = new PublicKey(
+  '11111111111111111111111111111111',
+);
+
+/**
+ * Solana Compute Budget Program ID
+ */
+export const COMPUTE_BUDGET_PROGRAM_ID = new PublicKey(
+  'ComputeBudget111111111111111111111111111111',
+);
+
+// ============================================================================
+// Program Names (for transaction parsing/display)
+// ============================================================================
+
+/**
+ * Program name enum for consistent labeling
+ */
+export enum ProgramName {
+  MAILBOX = 'Mailbox',
+  MULTISIG_ISM = 'MultisigIsmMessageId',
+  SQUADS_V4 = 'SquadsV4',
+  SYSTEM_PROGRAM = 'System Program',
+  COMPUTE_BUDGET = 'Compute Budget Program',
+  UNKNOWN = 'Unknown',
+}
+
+// ============================================================================
+// Instruction Type Labels (for transaction parsing/display)
+// ============================================================================
+
+/**
+ * Instruction type enum for consistent labeling
+ */
+export enum InstructionType {
+  UNKNOWN = 'Unknown',
+  SYSTEM_CALL = 'System Program Call',
+  COMPUTE_BUDGET = 'Compute Budget',
+  PARSE_FAILED = 'Failed to Parse',
+}
+
+// ============================================================================
+// Mailbox Instruction Types
+// ============================================================================
+
+/**
+ * Mailbox instruction discriminator values
+ */
+export enum MailboxInstructionType {
+  INIT = 0,
+  SET_DEFAULT_ISM = 1,
+  TRANSFER_OWNERSHIP = 2,
+  // Add more as needed
+}
+
+/**
+ * Human-readable names for Mailbox instructions
+ */
+export const MailboxInstructionName: Record<MailboxInstructionType, string> = {
+  [MailboxInstructionType.INIT]: 'Init',
+  [MailboxInstructionType.SET_DEFAULT_ISM]: 'SetDefaultIsm',
+  [MailboxInstructionType.TRANSFER_OWNERSHIP]: 'TransferOwnership',
+};
+
+// ============================================================================
+// MultisigIsm Instruction Types
+// ============================================================================
+
+/**
+ * MultisigIsm instruction discriminator values
+ */
+export enum MultisigIsmInstructionType {
+  INIT = 0,
+  SET_VALIDATORS_AND_THRESHOLD = 1,
+  TRANSFER_OWNERSHIP = 2,
+  ENROLL_VALIDATORS = 3,
+  UNENROLL_VALIDATORS = 4,
+  // Add more as needed
+}
+
+/**
+ * Human-readable names for MultisigIsm instructions
+ */
+export const MultisigIsmInstructionName: Record<
+  MultisigIsmInstructionType,
+  string
+> = {
+  [MultisigIsmInstructionType.INIT]: 'Init',
+  [MultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD]:
+    'SetValidatorsAndThreshold',
+  [MultisigIsmInstructionType.TRANSFER_OWNERSHIP]: 'TransferOwnership',
+  [MultisigIsmInstructionType.ENROLL_VALIDATORS]: 'EnrollValidators',
+  [MultisigIsmInstructionType.UNENROLL_VALIDATORS]: 'UnenrollValidators',
+};
+
+// ============================================================================
+// Error and Warning Messages (for transaction parsing)
+// ============================================================================
+
+/**
+ * Error message enum for instruction parsing
+ */
+export enum ErrorMessage {
+  INVALID_INSTRUCTION_LENGTH = 'Invalid instruction data length',
+  INSTRUCTION_TOO_SHORT = 'Instruction data too short',
+  INVALID_MULTISIG_ISM_DATA = 'Invalid MultisigIsm instruction data',
+  INVALID_SQUADS_DATA = 'Invalid Squads instruction data',
+}
+
+/**
+ * Warning message enum for security and parsing issues
+ */
+export enum WarningMessage {
+  OWNERSHIP_TRANSFER = '⚠️  OWNERSHIP TRANSFER DETECTED',
+  OWNERSHIP_RENUNCIATION = '⚠️  OWNERSHIP RENUNCIATION DETECTED',
+  UNKNOWN_SQUADS_INSTRUCTION = 'Unknown Squads instruction',
+}
+
+/**
+ * Format warning message for unknown program
+ */
+export function formatUnknownProgramWarning(programId: string): string {
+  return `⚠️  UNKNOWN PROGRAM: ${programId}`;
+}
+
+/**
+ * Format warning message for unknown instruction
+ */
+export function formatUnknownInstructionWarning(
+  programType: string,
+  discriminator: number,
+): string {
+  return `Unknown ${programType} instruction: ${discriminator}`;
+}
 
 export const svmGasOracleConfigPath = (environment: DeployEnvironment) =>
   resolve(
     getMonorepoRoot(),
     `rust/sealevel/environments/${environment}/gas-oracle-configs.json`,
   );
+
+export const multisigIsmConfigPath = (
+  environment: DeployEnvironment,
+  context: Contexts,
+  local: ChainName,
+) =>
+  path.resolve(
+    getMonorepoRoot(),
+    `rust/sealevel/environments/${environment}/multisig-ism-message-id/${local}/${context}/multisig-config.json`,
+  );
+
+/**
+ * All multisig ISM configurations for a chain, keyed by remote chain name,
+ * restricted to config type MESSAGE_ID_MULTISIG
+ */
+export type SvmMultisigConfig = Omit<MultisigIsmConfig, 'type'> & {
+  type: IsmType.MESSAGE_ID_MULTISIG;
+};
+export type SvmMultisigConfigMap = ChainMap<SvmMultisigConfig>;
 
 // SOLANA_TX_SIZE_LIMIT = 1232 bytes
 // batches of 10 fill up about 60% of the limit
