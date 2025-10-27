@@ -61,10 +61,9 @@ export async function getSafeAndService(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
-  const safeApiKey = await getSafeApiKey();
   let safeService: SafeApiKit.default;
   try {
-    safeService = getSafeService(chain, multiProvider, safeApiKey);
+    safeService = getSafeService(chain, multiProvider);
   } catch (error) {
     throw new Error(
       `Failed to initialize Safe service for chain ${chain}: ${error}`,
@@ -89,7 +88,7 @@ export async function getSafeAndService(
   let safeSdk: Safe.default;
   try {
     safeSdk = await retryAsync(
-      () => getSafe(chain, multiProvider, safeAddress, safeApiKey, deployerKey),
+      () => getSafe(chain, multiProvider, safeAddress, deployerKey),
       5,
       1000,
     );

@@ -9,13 +9,14 @@ import { Address } from '../../../utils/dist/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
-export function getSafeService(
-  chain: ChainName,
-  multiProvider: MultiProvider,
-  apiKey?: string,
-) {
-  let txServiceUrl =
-    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
+export function safeApiKeyRequired(txServiceUrl: string): boolean {
+  return /safe\.global|5afe\.dev/.test(txServiceUrl);
+}
+
+export function getSafeService(chain: ChainName, multiProvider: MultiProvider) {
+  const { gnosisSafeTransactionServiceUrl, gnosisSafeApiKey } =
+    multiProvider.getChainMetadata(chain);
+  let txServiceUrl = gnosisSafeTransactionServiceUrl;
   if (!txServiceUrl) {
     throw new Error(`must provide tx service url for ${chain}`);
   }
@@ -36,14 +37,12 @@ export function getSafeService(
     throw new Error(`Chain is not an EVM chain: ${chain}`);
   }
 
-  // Only provide apiKey if the url contains safe.global or 5afe.dev
-  const shouldProvideApiKey = /safe\.global|5afe\.dev/.test(txServiceUrl);
-
   // @ts-ignore
   return new SafeApiKit({
     chainId: BigInt(chainId),
     txServiceUrl,
-    apiKey: shouldProvideApiKey ? apiKey : undefined,
+    // Only provide apiKey if the url contains safe.global or 5afe.dev
+    apiKey: safeApiKeyRequired(txServiceUrl) ? gnosisSafeApiKey : undefined,
   });
 }
 
@@ -98,14 +97,13 @@ export async function getSafe(
   chain: ChainName,
   multiProvider: MultiProvider,
   safeAddress: Address,
-  apiKey?: string,
   signer?: SafeProviderConfig['signer'],
 ) {
   // Get the chain id for the given chain
   const chainId = `${multiProvider.getEvmChainId(chain)}`;
 
   // Get the safe version
-  const safeService = getSafeService(chain, multiProvider, apiKey);
+  const safeService = getSafeService(chain, multiProvider);
 
   const { version: rawSafeVersion } =
     await safeService.getSafeInfo(safeAddress);
