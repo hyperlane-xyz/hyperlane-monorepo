@@ -1,6 +1,15 @@
-import { GenericContainer, Wait } from 'testcontainers';
+import { dirname } from 'path';
+import {
+  DockerComposeEnvironment,
+  GenericContainer,
+  Wait,
+} from 'testcontainers';
+import { fileURLToPath } from 'url';
 
 import { TestChainMetadata } from './constants.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export async function runEvmNode({ rpcPort, chainId }: TestChainMetadata) {
   const container = await new GenericContainer(
@@ -44,4 +53,28 @@ export async function runCosmosNode({ rpcPort, restPort }: TestChainMetadata) {
     .start();
 
   return container;
+}
+
+export async function runRadixNode(_meta: TestChainMetadata) {
+  const composeFilePath = `${__dirname}/radix`;
+
+  console.log('Starting Radix localnet with testcontainers...');
+
+  const environment = await new DockerComposeEnvironment(
+    composeFilePath,
+    'docker-compose.yml',
+  )
+    .withProfiles('fullnode', 'network-gateway-image')
+    .withWaitStrategy('postgres_db-1', Wait.forHealthCheck())
+    .withWaitStrategy('fullnode-1', Wait.forHealthCheck())
+    .withWaitStrategy(
+      'gateway_api_image-1',
+      Wait.forLogMessage(/HealthyAndSynced=1/),
+    )
+    .withStartupTimeout(180_000) // 3 minutes for all services
+    .up();
+
+  console.log('Radix localnet started successfully');
+
+  return environment;
 }

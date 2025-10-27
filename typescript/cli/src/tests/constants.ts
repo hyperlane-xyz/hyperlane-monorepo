@@ -31,6 +31,9 @@ export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   [ProtocolType.Sealevel]: {
     UNSUPPORTED_CHAIN: 'sealevel1',
   },
+  [ProtocolType.Radix]: {
+    CHAIN_NAME_1: 'radix1',
+  },
 } as const satisfies ProtocolMap<Record<string, string>>;
 
 type TestProtocolType = keyof typeof TEST_CHAIN_NAMES_BY_PROTOCOL;
@@ -52,6 +55,7 @@ export const UNSUPPORTED_CHAIN_CORE_ADDRESSES: ChainAddresses = {
 export const CORE_CONFIG_PATH_BY_PROTOCOL = {
   [ProtocolType.Ethereum]: `./examples/core-config.yaml`,
   [ProtocolType.CosmosNative]: './examples/cosmosnative/core-config.yaml',
+  [ProtocolType.Radix]: './examples/radix/core-config.yaml',
 } as const satisfies ProtocolMap<string>;
 
 export const HYP_KEY_BY_PROTOCOL = {
@@ -59,6 +63,8 @@ export const HYP_KEY_BY_PROTOCOL = {
     '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
   [ProtocolType.CosmosNative]:
     '33913dd43a5d5764f7a23da212a8664fc4f5eedc68db35f3eb4a5c4f046b5b51',
+  [ProtocolType.Radix]:
+    '0x8ef41fc20bf963ce18494c0f13e9303f70abc4c1d1ecfdb0a329d7fd468865b8',
 } as const satisfies ProtocolMap<string>;
 
 type ProtocolChainMap<
