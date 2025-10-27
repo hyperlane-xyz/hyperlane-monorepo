@@ -405,6 +405,17 @@ contract EverclearTokenBridge is EverclearBridge {
     }
 
     /**
+     * @inheritdoc TokenRouter
+     * @dev Transfers fees directly from router balance using ERC20 transfer.
+     */
+    function _transferFee(
+        address _recipient,
+        uint256 _amount
+    ) internal override {
+        wrappedToken._transferTo(_recipient, _amount);
+    }
+
+    /**
      * @notice Encodes the intent calldata for ETH transfers
      * @return The encoded calldata for the everclear intent.
      */
@@ -429,16 +440,17 @@ contract EverclearEthBridge is EverclearBridge {
     using Address for address payable;
     using TypeCasts for bytes32;
 
+    uint256 private constant SCALE = 1;
+
     /**
      * @notice Constructor to initialize the Everclear ETH bridge
      * @param _everclearAdapter The address of the Everclear adapter contract
      */
     constructor(
         IWETH _weth,
-        uint256 _scale,
         address _mailbox,
         IEverclearAdapter _everclearAdapter
-    ) EverclearBridge(_everclearAdapter, IERC20(_weth), _scale, _mailbox) {}
+    ) EverclearBridge(_everclearAdapter, IERC20(_weth), SCALE, _mailbox) {}
 
     /**
      * @inheritdoc EverclearBridge

@@ -24,6 +24,7 @@ library NativeCollateral {
 
 /**
  * @title Handles deposits and withdrawals of WETH collateral.
+ * @dev TokenRouters must have `token() == address(0)` to use this library.
  */
 library WETHCollateral {
     function _transferFromSender(IWETH token, uint256 _amount) internal {

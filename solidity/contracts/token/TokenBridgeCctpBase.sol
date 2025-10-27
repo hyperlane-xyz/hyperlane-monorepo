@@ -366,6 +366,17 @@ abstract contract TokenBridgeCctpBase is
         // do not transfer to recipient as the CCTP transfer will do it
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to transfer fees directly from the router balance since CCTP handles token delivery.
+     */
+    function _transferFee(
+        address _recipient,
+        uint256 _amount
+    ) internal override {
+        wrappedToken.safeTransfer(_recipient, _amount);
+    }
+
     function _bridgeViaCircle(
         uint32 _destination,
         bytes32 _recipient,
