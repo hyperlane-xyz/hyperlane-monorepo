@@ -688,6 +688,9 @@ contract TokenBridgeCctpV1Test is Test {
         TokenBridgeCctpV1 ism = TokenBridgeCctpV1(router.bytes32ToAddress());
         _upgrade(ism);
 
+        vm.prank(ism.owner());
+        ism.addDomain(origin, 6);
+
         // Sender validation happens inside receiveMessage via callback to _authenticateCircleSender
         vm.expectRevert(bytes("Unauthorized circle sender"));
         ism.verify(metadata, message);
@@ -1274,7 +1277,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                 0x00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d
             ), // tokenMessengerDestination
             bytes32(0), // destinationCaller
-            maxFee,
+            fastFee,
             minFinalityThreshold,
             bytes("")
         );
@@ -1404,7 +1407,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                     user.addressToBytes32(),
                     address(tokenOrigin),
                     bytes32(0),
-                    maxFee,
+                    fastFee,
                     minFinalityThreshold
                 )
             )
@@ -1452,7 +1455,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                     user.addressToBytes32(),
                     address(tokenOrigin),
                     bytes32(0),
-                    maxFee,
+                    fastFee,
                     minFinalityThreshold
                 )
             )

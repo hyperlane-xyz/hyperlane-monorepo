@@ -108,7 +108,8 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
     function _bridgeViaCircle(
         uint32 circleDomain,
         bytes32 _recipient,
-        uint256 _amount
+        uint256 _amount,
+        uint256 /*_maxFee*/ // not used for CCTP V1
     ) internal override {
         ITokenMessengerV1(address(tokenMessenger)).depositForBurn(
             _amount,

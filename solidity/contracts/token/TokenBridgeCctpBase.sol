@@ -150,7 +150,7 @@ abstract contract TokenBridgeCctpBase is
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
         uint256 burnAmount = _amount + externalFee;
-        _bridgeViaCircle(circleDomain, _recipient, burnAmount);
+        _bridgeViaCircle(circleDomain, _recipient, burnAmount, externalFee);
 
         bytes memory _message = TokenMessage.format(_recipient, burnAmount);
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
@@ -272,6 +272,12 @@ abstract contract TokenBridgeCctpBase is
         address circleRecipient = _getCircleRecipient(cctpMessage);
         // check if CCTP message is a USDC burn message
         if (circleRecipient == address(tokenMessenger)) {
+            // prevent hyperlane message recipient configured with CCTP ISM
+            // from verifying and handling token messages
+            require(
+                _hyperlaneMessage.recipientAddress() == address(this),
+                "Token message must be sent to this contract"
+            );
             _validateTokenMessage(_hyperlaneMessage, cctpMessage);
         }
         // check if CCTP message is a GMP message to this contract
@@ -369,6 +375,7 @@ abstract contract TokenBridgeCctpBase is
     function _bridgeViaCircle(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
+        uint256 _amount,
+        uint256 _maxFee
     ) internal virtual;
 }
