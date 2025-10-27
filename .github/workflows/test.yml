@@ -313,6 +313,7 @@ jobs:
           # Warp Commands
           - warp-apply-1
           - warp-apply-2
+          - warp-apply-ism-updates
           - warp-apply-submitters
           - warp-bridge-1
           - warp-bridge-2

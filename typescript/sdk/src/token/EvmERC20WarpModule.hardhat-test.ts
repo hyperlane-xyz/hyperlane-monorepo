@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
+import { ethers } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 import { UINT_256_MAX } from 'starknet';
@@ -374,7 +375,9 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         owner: owner,
         paused: false,
       },
+      ethers.constants.AddressZero,
     ];
+
     const hookConfigToUpdate: HookConfig[] = [
       {
         type: HookType.PROTOCOL_FEE,
@@ -396,23 +399,23 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       },
     ];
 
-    it('should deploy and set a new Ism', async () => {
-      const config = {
-        ...baseConfig,
-        type: TokenType.native,
-        interchainSecurityModule: ismAddress,
-      } as HypTokenRouterConfig;
+    for (const interchainSecurityModule of ismConfigToUpdate) {
+      it(`should deploy and set a new Ism (${typeof interchainSecurityModule === 'string' ? interchainSecurityModule : interchainSecurityModule.type})`, async () => {
+        const config = {
+          ...baseConfig,
+          type: TokenType.native,
+          interchainSecurityModule: ismAddress,
+        } as HypTokenRouterConfig;
 
-      // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
-        chain,
-        config,
-        multiProvider,
-        proxyFactoryFactories: ismFactoryAddresses,
-      });
-      const actualConfig = await evmERC20WarpModule.read();
+        // Deploy using WarpModule
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+          proxyFactoryFactories: ismFactoryAddresses,
+        });
+        const actualConfig = await evmERC20WarpModule.read();
 
-      for (const interchainSecurityModule of ismConfigToUpdate) {
         const expectedConfig: HypTokenRouterConfig = {
           ...actualConfig,
           interchainSecurityModule,
@@ -423,8 +426,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         );
 
         expect(updatedConfig).to.deep.equal(interchainSecurityModule);
-      }
-    });
+      });
+    }
 
     it('should not deploy and set a new Ism if the config is the same', async () => {
       const config = {
