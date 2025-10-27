@@ -5,7 +5,8 @@ import {
   getMultiSendDeployment,
 } from '@safe-global/safe-deployments';
 
-import { Address } from '../../../utils/dist/types.js';
+import { Address } from '@hyperlane-xyz/utils';
+
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -126,11 +127,11 @@ export async function getSafe(
       safeDeploymentsVersions[safeVersion];
     multiSend = getMultiSendDeployment({
       version: multiSendVersion,
-      network: `${chainId}`,
+      network: chainId,
     });
     multiSendCallOnly = getMultiSendCallOnlyDeployment({
       version: multiSendCallOnlyVersion,
-      network: `${chainId}`,
+      network: chainId,
     });
   }
 
