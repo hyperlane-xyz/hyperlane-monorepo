@@ -62,8 +62,8 @@ export const renzoTokenPrices: ChainMap<string> = {
   worldchain: '1599.53', // ETH
   plasma: '0.90', // XPL
   ink: '3900', // ETH
-  monad: '0', // as of Oct 24, 2025, MON has not been released so no fee
-  xlayer: '165', // OKX
+  monad: '1', // MON placeholder price to avoid division by zero
+  xlayer: '165', // OKB
 };
 export function getProtocolFee(chain: ChainName) {
   const price = renzoTokenPrices[chain];
@@ -317,10 +317,10 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0xff9c1e7b266a36eda0d9177d4236994d94819dc0',
+        address: '0x4d3d970a2468c25d4b5c6af860d11b48223ca94b',
         alias: 'Luganodes',
       },
-      { address: '0x4d3d970a2468c25d4b5c6af860d11b48223ca94b', alias: 'Renzo' },
+      { address: '0xe42562c4b4d72f28a11e6d02e5a641706f5815b3', alias: 'Renzo' },
     ],
   },
   monad: {
@@ -330,17 +330,17 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
         address: '0x552d5a478d78a558eb473d844e4524de36d79cd9',
         alias: 'Luganodes',
       },
-      { address: '0x552d5a478d78a558eb473d844e4524de36d79cd9', alias: 'Renzo' },
+      { address: '0x59f6f0beb754f74a6d6b95d37f70066a474f2de7', alias: 'Renzo' },
     ],
   },
   xlayer: {
     threshold: 1,
     validators: [
       {
-        address: 'blabla',
+        address: '0xfcbd33064565403c9d8f038abf7d931140f3fd7d',
         alias: 'Luganodes',
       },
-      { address: '0xfcbd33064565403c9d8f038abf7d931140f3fd7d', alias: 'Renzo' },
+      { address: '0xecbe0864d34b215964c1abc21623aa8d0d75c723', alias: 'Renzo' },
     ],
   },
 };
