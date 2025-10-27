@@ -17,7 +17,6 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {MovableCollateralRouter, MovableCollateralRouterStorage} from "./libs/MovableCollateralRouter.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {AbstractPostDispatchHook} from "../hooks/libs/AbstractPostDispatchHook.sol";
-import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -41,22 +40,11 @@ struct Domain {
     uint32 circle;
 }
 
-// need intermediate contract to insert slots between TokenBridgeCctpBase and AbstractMessageIdAuthorizedIsm
-abstract contract TokenBridgeCctpIntermediateStorage is
+// see ./CCTP.md for sequence diagrams of the destination chain control flow
+abstract contract TokenBridgeCctpBase is
     TokenBridgeCctpBaseStorage,
     AbstractCcipReadIsm,
     AbstractPostDispatchHook
-{
-    /// @notice Hyperlane domain => Domain struct.
-    /// We use a struct to avoid ambiguity with domain 0 being unknown.
-    mapping(uint32 hypDomain => Domain circleDomain)
-        internal _hyperlaneDomainMap;
-}
-
-// see ./CCTP.md for sequence diagrams of the destination chain control flow
-abstract contract TokenBridgeCctpBase is
-    TokenBridgeCctpIntermediateStorage,
-    AbstractMessageIdAuthorizedIsm
 {
     using Message for bytes;
     using TypeCasts for bytes32;
@@ -72,10 +60,19 @@ abstract contract TokenBridgeCctpBase is
     // @notice CCTP token messenger contract
     ITokenMessenger public immutable tokenMessenger;
 
+    /// @notice Hyperlane domain => Domain struct.
+    /// We use a struct to avoid ambiguity with domain 0 being unknown.
+    mapping(uint32 hypDomain => Domain circleDomain)
+        internal _hyperlaneDomainMap;
+
     /// @notice Circle domain => Domain struct.
     // We use a struct to avoid ambiguity with domain 0 being unknown.
     mapping(uint32 circleDomain => Domain hyperlaneDomain)
         internal _circleDomainMap;
+
+    /// @notice Maps messageId to whether or not the message has been verified
+    /// by the CCTP message transmitter
+    mapping(bytes32 messageId => bool) public isVerified;
 
     /**
      * @notice Emitted when the Hyperlane domain to Circle domain mapping is updated.
@@ -252,13 +249,9 @@ abstract contract TokenBridgeCctpBase is
     function verify(
         bytes calldata _metadata,
         bytes calldata _hyperlaneMessage
-    )
-        external
-        override(AbstractMessageIdAuthorizedIsm, IInterchainSecurityModule)
-        returns (bool)
-    {
+    ) external returns (bool) {
         // check if hyperlane message has already been verified by CCTP
-        if (isVerified(_hyperlaneMessage)) {
+        if (isVerified[_hyperlaneMessage.id()]) {
             return true;
         }
 
@@ -299,6 +292,11 @@ abstract contract TokenBridgeCctpBase is
         bytes32 circleSender,
         bytes32 messageId
     ) internal returns (bool) {
+        require(
+            msg.sender == address(messageTransmitter),
+            "Not message transmitter"
+        );
+
         // ensure that the message was sent from the hook on the origin chain
         uint32 origin = circleDomainToHyperlaneDomain(circleSource);
         require(
@@ -306,13 +304,9 @@ abstract contract TokenBridgeCctpBase is
             "Unauthorized circle sender"
         );
 
-        preVerifyMessage(messageId, 0);
+        isVerified[messageId] = true;
 
         return true;
-    }
-
-    function _isAuthorized() internal view override returns (bool) {
-        return msg.sender == address(messageTransmitter);
     }
 
     function _offchainLookupCalldata(
