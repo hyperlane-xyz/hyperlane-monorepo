@@ -286,22 +286,47 @@ where
                 // Send to hub
                 let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
                 match res {
-                    Ok(_) => {
-                        info!(fxg = ?fxg, "Dymension, got sigs and sent new deposit to hub");
-
-                        // Calculate end-to-end processing latency from initial detection to hub confirmation
-                        let latency_ms = operation_start_time.elapsed().as_millis() as i64;
-
-                        // Record successful deposit processing with amount and latency
+                    Ok(outcome) => {
+                        let tx_hash = hyperlane_cosmos::native::h512_to_cosmos_hash(outcome.transaction_id).encode_hex_upper::<String>();
                         let deposit_amount = fxg.amount.low_u64(); // Convert U256 to u64 for metrics
                         let deposit_id = format!("{:?}", operation.deposit.id);
-                        self.provider
-                            .metrics()
-                            .record_deposit_processed(&deposit_id, deposit_amount);
-                        self.provider.metrics().update_deposit_latency(latency_ms);
 
-                        // Success! Operation complete
-                        operation.reset_attempts();
+                        if !outcome.executed {
+                            // Transaction was submitted but not executed on-chain
+                            error!(
+                                message_id = ?fxg.hl_message.id(),
+                                tx_hash = %tx_hash,
+                                gas_used = %outcome.gas_used,
+                                "Dymension, deposit process() failed - TX was not executed on-chain"
+                            );
+
+                            // Record failed deposit attempt with deduplication
+                            self.provider
+                                .metrics()
+                                .record_deposit_failed(&deposit_id, deposit_amount);
+
+                            // Queue for retry since this could be transient
+                            operation.mark_failed(&self.config);
+                            self.deposit_queue.lock().await.requeue(operation);
+                        } else {
+                            info!(
+                                fxg = ?fxg,
+                                tx_hash = %tx_hash,
+                                "Dymension, got sigs and sent new deposit to hub"
+                            );
+
+                            // Calculate end-to-end processing latency from initial detection to hub confirmation
+                            let latency_ms = operation_start_time.elapsed().as_millis() as i64;
+
+                            // Record successful deposit processing with amount and latency
+                            self.provider
+                                .metrics()
+                                .record_deposit_processed(&deposit_id, deposit_amount);
+                            self.provider.metrics().update_deposit_latency(latency_ms);
+
+                            // Success! Operation complete
+                            operation.reset_attempts();
+                        }
                     }
                     Err(e) => {
                         let kaspa_err = self.chain_error_to_kaspa_error(&e);
