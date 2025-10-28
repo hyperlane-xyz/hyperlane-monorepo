@@ -287,7 +287,9 @@ where
                 let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
                 match res {
                     Ok(outcome) => {
-                        let tx_hash = hyperlane_cosmos::native::h512_to_cosmos_hash(outcome.transaction_id).encode_hex_upper::<String>();
+                        let tx_hash =
+                            hyperlane_cosmos::native::h512_to_cosmos_hash(outcome.transaction_id)
+                                .encode_hex_upper::<String>();
                         let deposit_amount = fxg.amount.low_u64(); // Convert U256 to u64 for metrics
                         let deposit_id = format!("{:?}", operation.deposit.id);
 
