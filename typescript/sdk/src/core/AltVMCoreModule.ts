@@ -1,8 +1,9 @@
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   AnnotatedTx,
   HypModule,
   HypModuleArgs,
+  TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -11,7 +12,6 @@ import { AltVMHookModule } from '../hook/AltVMHookModule.js';
 import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
-import { ProtocolReceipt } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 
 import { AltVMCoreReader } from './AltVMCoreReader.js';
@@ -22,7 +22,7 @@ import {
   DerivedCoreConfig,
 } from './types.js';
 
-export class AltVMCoreModule<PT extends ProtocolType>
+export class AltVMCoreModule
   implements HypModule<CoreConfig, DeployedCoreAddresses>
 {
   protected logger = rootLogger.child({ module: 'AltVMCoreModule' });
@@ -33,7 +33,7 @@ export class AltVMCoreModule<PT extends ProtocolType>
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    protected readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
     private readonly args: HypModuleArgs<CoreConfig, DeployedCoreAddresses>,
   ) {
     const metadata = chainLookup.getChainMetadata(args.chain);
@@ -58,15 +58,15 @@ export class AltVMCoreModule<PT extends ProtocolType>
    * Deploys the Core contracts.
    * @returns The created AltVMCoreModule instance.
    */
-  public static async create<PT extends ProtocolType>(params: {
+  public static async create(params: {
     chain: string;
     config: CoreConfig;
     chainLookup: ChainLookup;
-    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
-  }): Promise<AltVMCoreModule<PT>> {
-    const addresses = await AltVMCoreModule.deploy<PT>(params);
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  }): Promise<AltVMCoreModule> {
+    const addresses = await AltVMCoreModule.deploy(params);
 
-    return new AltVMCoreModule<PT>(params.chainLookup, params.signer, {
+    return new AltVMCoreModule(params.chainLookup, params.signer, {
       addresses,
       chain: params.chain,
       config: params.config,
@@ -77,11 +77,11 @@ export class AltVMCoreModule<PT extends ProtocolType>
    * Deploys the core Hyperlane contracts.
    * @returns The deployed core contract addresses.
    */
-  static async deploy<PT extends ProtocolType>(params: {
+  static async deploy(params: {
     config: CoreConfig;
     chainLookup: ChainLookup;
     chain: string;
-    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
   }): Promise<DeployedCoreAddresses> {
     const { config, chainLookup, chain, signer } = params;
 

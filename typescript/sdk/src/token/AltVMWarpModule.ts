@@ -1,11 +1,12 @@
 import { Logger } from 'pino';
 import { zeroAddress } from 'viem';
 
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   AnnotatedTx,
   HypModule,
   HypModuleArgs,
+  TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
@@ -17,7 +18,6 @@ import {
 import { ChainLookup } from '../altvm.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
-import { ProtocolReceipt } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
@@ -32,7 +32,7 @@ type WarpRouteAddresses = {
   deployedTokenRoute: Address;
 };
 
-export class AltVMWarpModule<PT extends ProtocolType>
+export class AltVMWarpModule
   implements HypModule<HypTokenRouterConfig, WarpRouteAddresses>
 {
   protected logger: Logger;
@@ -42,7 +42,7 @@ export class AltVMWarpModule<PT extends ProtocolType>
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    protected readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
     private readonly args: HypModuleArgs<
       HypTokenRouterConfig,
       WarpRouteAddresses
@@ -386,12 +386,12 @@ export class AltVMWarpModule<PT extends ProtocolType>
    * @param signer - The AltVM signing client
    * @returns A new instance of the AltVMWarpModule.
    */
-  static async create<PT extends ProtocolType>(params: {
+  static async create(params: {
     chain: string;
     config: HypTokenRouterConfig;
     chainLookup: ChainLookup;
-    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
-  }): Promise<AltVMWarpModule<PT>> {
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  }): Promise<AltVMWarpModule> {
     const deployer = new AltVMDeployer({
       [params.chain]: params.signer,
     });
@@ -400,7 +400,7 @@ export class AltVMWarpModule<PT extends ProtocolType>
       [params.chain]: params.config,
     });
 
-    return new AltVMWarpModule<PT>(params.chainLookup, params.signer, {
+    return new AltVMWarpModule(params.chainLookup, params.signer, {
       addresses: {
         deployedTokenRoute,
       },
