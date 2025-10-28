@@ -1,15 +1,15 @@
 import { zeroAddress } from 'viem';
 
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   AnnotatedTx,
   HypModule,
   HypModuleArgs,
+  TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
-import { ProtocolReceipt } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -27,7 +27,7 @@ type HookModuleAddresses = {
   mailbox: Address;
 };
 
-export class AltVMHookModule<PT extends ProtocolType>
+export class AltVMHookModule
   implements HypModule<HookConfig, HookModuleAddresses>
 {
   protected readonly logger = rootLogger.child({
@@ -41,7 +41,7 @@ export class AltVMHookModule<PT extends ProtocolType>
   constructor(
     protected readonly chainLookup: ChainLookup,
     private readonly args: HypModuleArgs<HookConfig, HookModuleAddresses>,
-    protected readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
     this.args.config = HookConfigSchema.parse(this.args.config);
 
@@ -191,9 +191,9 @@ export class AltVMHookModule<PT extends ProtocolType>
     config: HookConfig;
     addresses: HookModuleAddresses;
     chainLookup: ChainLookup;
-    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
-  }): Promise<AltVMHookModule<PT>> {
-    const module = new AltVMHookModule<PT>(
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  }): Promise<AltVMHookModule> {
+    const module = new AltVMHookModule(
       chainLookup,
       { addresses, chain, config },
       signer,
