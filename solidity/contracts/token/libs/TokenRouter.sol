@@ -189,7 +189,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         if (feeAmount > 0) {
             // transfer atomically so we don't need to keep track of collateral
             // and fee balances separately
-            _transferTo(_feeRecipient, feeAmount);
+            _transferFee(_feeRecipient, feeAmount);
         }
         remainingNativeValue = token() != address(0)
             ? _msgValue
@@ -249,6 +249,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * param _recipient The address of the recipient on the destination chain.
      * param _amount The amount or identifier of tokens to be sent to the remote recipient
      * @return feeAmount The external fee amount.
+     * @dev This fee must be denominated in the `token()` defined by this router.
      * @dev The default implementation returns 0, meaning no external fees are charged.
      * This function is intended to be overridden by derived contracts that have additional fees.
      * Known overrides:
@@ -361,6 +362,25 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         address _recipient,
         uint256 _amountOrId
     ) internal virtual;
+
+    /**
+     * @dev Should transfer `_amount` of tokens from this token router to the fee recipient.
+     * @dev Called by `_calculateFeesAndCharge` when fee recipient is set and feeAmount > 0.
+     * @dev The default implementation delegates to `_transferTo`, which works for most token routers
+     * where tokens are held by the router (e.g., collateral routers, synthetic token routers).
+     * @dev Override this function for bridges where tokens are NOT held by the router but fees still
+     * need to be paid (e.g., CCTP, Everclear). In those cases, use direct token transfers from the
+     * router's balance collected via `_transferFromSender`.
+     * Known overrides:
+     * - TokenBridgeCctpBase: Directly transfers tokens from router balance.
+     * - EverclearTokenBridge: Directly transfers tokens from router balance.
+     */
+    function _transferFee(
+        address _recipient,
+        uint256 _amount
+    ) internal virtual {
+        _transferTo(_recipient, _amount);
+    }
 
     /**
      * @dev Scales local amount to message amount (up by scale factor).

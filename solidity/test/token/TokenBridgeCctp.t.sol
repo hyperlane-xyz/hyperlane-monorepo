@@ -339,6 +339,12 @@ contract TokenBridgeCctpV1Test is Test {
         vm.startPrank(user);
         tokenOrigin.approve(address(tbOrigin), charge);
 
+        uint256 initialUserBalance = tokenOrigin.balanceOf(user);
+        uint256 initialFeeContractBalance = tokenOrigin.balanceOf(
+            address(feeContract)
+        );
+        uint256 initialBridgeBalance = tokenOrigin.balanceOf(address(tbOrigin));
+
         uint64 cctpNonce = tokenMessengerOrigin.nextNonce();
 
         vm.expectCall(
@@ -357,6 +363,27 @@ contract TokenBridgeCctpV1Test is Test {
             destination,
             user.addressToBytes32(),
             amount
+        );
+
+        // Verify fee recipient received the fee (tests the fix!)
+        assertEq(
+            tokenOrigin.balanceOf(address(feeContract)),
+            initialFeeContractBalance + feeRecipientFee,
+            "Fee contract should receive fee"
+        );
+
+        // Verify user was charged correctly
+        assertEq(
+            tokenOrigin.balanceOf(user),
+            initialUserBalance - charge,
+            "User should be charged transfer amount + fees"
+        );
+
+        // Verify bridge doesn't hold the fee
+        assertEq(
+            tokenOrigin.balanceOf(address(tbOrigin)),
+            initialBridgeBalance,
+            "Bridge should not hold fee recipient fee"
         );
     }
 
