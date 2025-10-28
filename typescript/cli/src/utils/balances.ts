@@ -3,9 +3,9 @@ import { BigNumber } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 
 import { AltVM, GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AnnotatedTx } from '@hyperlane-xyz/provider-sdk/module';
 import {
   AnyProtocolReceipt,
-  AnyProtocolTransaction,
   ChainName,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -17,7 +17,7 @@ import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>,
+  altVmSigner: AltVM.ISignerFactory<AnnotatedTx, AnyProtocolReceipt>,
   chains: ChainName[],
   minGas: GasAction,
   skipConfirmation: boolean,
