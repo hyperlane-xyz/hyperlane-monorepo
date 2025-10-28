@@ -1,5 +1,25 @@
 # @hyperlane-xyz/sdk
 
+## 19.4.0
+
+### Minor Changes
+
+- 4011a4561: Fix bug that prevented the warp route ism to be set to the 0 address and include logic to update a pausable ism as it was missing
+- 8fd3bf78c: Fixed critical schema bug where SealevelIgpData.gas_oracles was incorrectly typed as Map<number, bigint> instead of Map<number, SealevelGasOracle>, preventing proper deserialization of on-chain gas oracle state. Added SealevelRemoteGasData, SealevelGasOracle, and related Borsh schemas to match the Rust implementation. Implemented createSetGasOracleConfigsInstruction() and createSetDestinationGasOverheadsInstruction() methods on the IGP adapters, along with gasOracleMatches() helper with BigInt-safe comparison for detecting configuration drift between expected and actual on-chain values.
+- 79f55e09d: Export WarpCoreFeeEstimate
+- 5a4e22d34: Introduced new SvmTransactionSigner interface, rewrite SvmMultiprotocolSignerAdapter to leverage this interface. Add more robust tx sending and handling to SvmMultiprotocolSignerAdapter. Implement KeypairSvmTransactionSigner to handle the general PK/keypair-based tx signing.
+
+### Patch Changes
+
+- 5a4e22d34: Bump @solana/web3.js dependency explicitly from ^1.95.4 to ^1.98.4.
+- 517bbaa42: Update NON_ZERO_SENDER_ADDRESS to 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba.
+- Updated dependencies [5a4e22d34]
+  - @hyperlane-xyz/utils@19.4.0
+  - @hyperlane-xyz/core@9.0.16
+  - @hyperlane-xyz/starknet-core@19.4.0
+  - @hyperlane-xyz/cosmos-sdk@19.4.0
+  - @hyperlane-xyz/radix-sdk@19.4.0
+
 ## 19.3.0
 
 ### Minor Changes
