@@ -77,6 +77,9 @@ export async function runRadixNode(
     )
     .up();
 
+  // Adding dummy package address to avoid the signer crashing because
+  // no Hyperlane package is deployed on the new node
+  chainMetadata.packageAddress = 'no-yet-deployed';
   const signer = (await RadixSigner.connectWithSigner(
     chainMetadata.rpcUrls.map((rpc) => rpc.http),
     HYP_KEY_BY_PROTOCOL.radix,

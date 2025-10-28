@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, deepCopy } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../utils/files.js';
 import {
@@ -14,6 +14,8 @@ import { runRadixNode } from '../nodes.js';
 
 const HYPERLANE_RADIX_GIT = 'https://github.com/hyperlane-xyz/hyperlane-radix';
 const HYPERLANE_RADIX_VERSION = '1.1.0';
+
+let orginalRadixTestMentadata: typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix;
 
 async function downloadFile(url: string): Promise<Uint8Array> {
   const response = await fetch(url);
@@ -61,6 +63,9 @@ before(async function () {
   // Download Radix contracts
   const { code, packageDefinition } = await downloadRadixContracts();
 
+  // Store the original metadata so that it can be restored after all the test run
+  orginalRadixTestMentadata = deepCopy(TEST_CHAIN_METADATA_BY_PROTOCOL.radix);
+
   await runRadixNode(TEST_CHAIN_METADATA_BY_PROTOCOL.radix.CHAIN_NAME_1, {
     code: new Uint8Array(code),
     packageDefinition: new Uint8Array(packageDefinition),
@@ -81,5 +86,19 @@ beforeEach(() => {
 
   if (fs.existsSync(deploymentPaths)) {
     fs.rmSync(deploymentPaths, { recursive: true, force: true });
+  }
+});
+
+after(function () {
+  // Restore the original test metadata
+  for (const [chainName, originalMetadata] of Object.entries(
+    orginalRadixTestMentadata,
+  )) {
+    const metadataPath =
+      TEST_CHAIN_METADATA_PATH_BY_PROTOCOL[ProtocolType.Radix][
+        chainName as keyof typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
+      ];
+
+    writeYamlOrJson(metadataPath, originalMetadata);
   }
 });

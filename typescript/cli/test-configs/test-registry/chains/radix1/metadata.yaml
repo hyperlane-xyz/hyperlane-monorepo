@@ -19,7 +19,6 @@ nativeToken:
   denom: resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd
   name: Radix
   symbol: XRD
-packageAddress: package_loc1pkmn3usyu74jc3enwud3vchw25yu4egcucc5dt2mhj69jn8avd5ewq
 protocol: radix
 restPort: 3333
 rpcPort: 3333
