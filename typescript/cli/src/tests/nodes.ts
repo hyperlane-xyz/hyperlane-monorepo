@@ -6,7 +6,9 @@ import {
 } from 'testcontainers';
 import { fileURLToPath } from 'url';
 
-import { TestChainMetadata } from './constants.js';
+import { RadixSigner } from '@hyperlane-xyz/radix-sdk';
+
+import { HYP_KEY_BY_PROTOCOL, TestChainMetadata } from './constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -55,13 +57,15 @@ export async function runCosmosNode({ rpcPort, restPort }: TestChainMetadata) {
   return container;
 }
 
-export async function runRadixNode(_meta: TestChainMetadata) {
-  const composeFilePath = `${__dirname}/radix`;
-
-  console.log('Starting Radix localnet with testcontainers...');
-
+export async function runRadixNode(
+  chainMetadata: TestChainMetadata,
+  hyperlanePackageArtifacts: {
+    code: Uint8Array;
+    packageDefinition: Uint8Array;
+  },
+) {
   const environment = await new DockerComposeEnvironment(
-    composeFilePath,
+    `${__dirname}/radix`,
     'docker-compose.yml',
   )
     .withProfiles('fullnode', 'network-gateway-image')
@@ -71,10 +75,23 @@ export async function runRadixNode(_meta: TestChainMetadata) {
       'gateway_api_image-1',
       Wait.forLogMessage(/HealthyAndSynced=1/),
     )
-    .withStartupTimeout(180_000) // 3 minutes for all services
     .up();
 
-  console.log('Radix localnet started successfully');
+  const signer = (await RadixSigner.connectWithSigner(
+    chainMetadata.rpcUrls.map((rpc) => rpc.http),
+    HYP_KEY_BY_PROTOCOL.radix,
+    {
+      metadata: chainMetadata,
+    },
+  )) as RadixSigner;
+
+  // Fund the account with the internal signer
+  await signer['signer'].getTestnetXrd();
+  const packageAddress = await signer.publishPackage({
+    code: hyperlanePackageArtifacts.code,
+    packageDefinition: hyperlanePackageArtifacts.packageDefinition,
+  });
+  chainMetadata.packageAddress = packageAddress;
 
   return environment;
 }
