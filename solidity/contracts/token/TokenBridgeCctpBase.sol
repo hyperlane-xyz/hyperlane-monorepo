@@ -72,7 +72,7 @@ abstract contract TokenBridgeCctpBase is
 
     /// @notice Maps messageId to whether or not the message has been verified
     /// by the CCTP message transmitter
-    mapping(bytes32 messageId => bool) public isVerified;
+    mapping(bytes32 messageId => bool verified) public isVerified;
 
     /**
      * @notice Emitted when the Hyperlane domain to Circle domain mapping is updated.
