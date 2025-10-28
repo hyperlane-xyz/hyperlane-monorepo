@@ -2,6 +2,11 @@ import { Logger } from 'pino';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
+  AnnotatedTx,
+  HypModule,
+  HypModuleArgs,
+} from '@hyperlane-xyz/provider-sdk/module';
+import {
   Address,
   assert,
   deepEquals,
@@ -12,14 +17,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
-import {
-  HyperlaneModule,
-  HyperlaneModuleParams,
-} from '../core/AbstractHyperlaneModule.js';
-import {
-  AnnotatedTypedTransaction,
-  ProtocolReceipt,
-} from '../providers/ProviderType.js';
+import { ProtocolReceipt } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -30,42 +28,7 @@ type IsmModuleAddresses = {
   mailbox: Address;
 };
 
-// Determines the domains to enroll and unenroll to update the current ISM config
-// to match the target ISM config.
-function calculateDomainRoutingDelta(
-  current: DomainRoutingIsmConfig,
-  target: DomainRoutingIsmConfig,
-): { domainsToEnroll: string[]; domainsToUnenroll: string[] } {
-  const domainsToEnroll = [];
-  for (const origin of Object.keys(target.domains)) {
-    if (!current.domains[origin]) {
-      domainsToEnroll.push(origin);
-    } else {
-      const subModuleMatches = deepEquals(
-        current.domains[origin],
-        target.domains[origin],
-      );
-      if (!subModuleMatches) domainsToEnroll.push(origin);
-    }
-  }
-
-  const domainsToUnenroll = Object.keys(current.domains).reduce(
-    (acc, origin) => {
-      if (!Object.keys(target.domains).includes(origin)) {
-        acc.push(origin);
-      }
-      return acc;
-    },
-    [] as string[],
-  );
-
-  return {
-    domainsToEnroll,
-    domainsToUnenroll,
-  };
-}
-
-export class AltVMIsmModule
+export class AltVMIsmModule<PT extends ProtocolType>
   implements HypModule<IsmConfig, IsmModuleAddresses>
 {
   protected readonly logger = rootLogger.child({
@@ -79,18 +42,12 @@ export class AltVMIsmModule
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
-    protected readonly signer: AltVM.ISigner<
-      AnnotatedTypedTransaction<PT>,
-      ProtocolReceipt<PT>
-    >,
-    protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
+    private readonly args: HypModuleArgs<IsmConfig, IsmModuleAddresses>,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
   ) {
-    this.mailbox = this.args.addresses.mailbox;
-    const metadata = chainLookup.getChainMetadata(this.args.chain);
-    this.chain = metadata.name;
+    this.args.config = IsmConfigSchema.parse(this.args.config);
 
-    this.mailbox = params.addresses.mailbox;
+    this.mailbox = this.args.addresses.mailbox;
     const metadata = chainLookup.getChainMetadata(this.args.chain);
     this.chain = metadata.name;
 
@@ -106,9 +63,9 @@ export class AltVMIsmModule
   }
 
   // whoever calls update() needs to ensure that targetConfig has a valid owner
-  public async update(
-    expectedConfig: IsmConfig | string,
-  ): Promise<AnnotatedTx[]> {
+  public async update(expectedConfig: IsmConfig): Promise<AnnotatedTx[]> {
+    expectedConfig = IsmConfigSchema.parse(expectedConfig);
+
     // Do not support updating to a custom ISM address
     if (typeof expectedConfig === 'string') {
       throw new Error(
@@ -154,7 +111,7 @@ export class AltVMIsmModule
     }
 
     let updateTxs: AnnotatedTx[] = [];
-    if (expectedConfig.type === 'domainRoutingIsm') {
+    if (expectedConfig.type === IsmType.ROUTING) {
       const logger = this.logger.child({
         destination: this.chain,
         ismType: expectedConfig.type,
@@ -185,7 +142,7 @@ export class AltVMIsmModule
       mailbox: string;
     };
     chainLookup: ChainLookup;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
+    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
   }): Promise<AltVMIsmModule<PT>> {
     const module = new AltVMIsmModule<PT>(
       chainLookup,
