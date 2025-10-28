@@ -269,7 +269,7 @@ abstract contract TokenBridgeCctpBase is
             // from verifying and handling token messages
             require(
                 _hyperlaneMessage.recipientAddress() == address(this),
-                "Token message must be sent to this contract"
+                "Invalid token message recipient"
             );
             _validateTokenMessage(_hyperlaneMessage, cctpMessage);
         }
