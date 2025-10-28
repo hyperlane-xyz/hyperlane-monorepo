@@ -76,6 +76,35 @@ type ProtocolChainMap<
   };
 };
 
+export const HYP_DEPLOYER_ADDRESS_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  [ProtocolType.CosmosNative]: 'hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5',
+  [ProtocolType.Radix]:
+    'account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3',
+} as const satisfies ProtocolMap<string>;
+
+export const BURN_ADDRESS_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: '0x0000000000000000000000000000000000000001',
+  // Result of:
+  // bytesToAddressCosmosNative(
+  //   addressToBytes(ZERO_ADDRESS_HEX_32),
+  //   TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1.bech32Prefix,
+  // ),
+  [ProtocolType.CosmosNative]: 'hyp1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk98wwq',
+  // Result of:
+  // await LTSRadixEngineToolkit.Derive.virtualAccountAddress(
+  //   new PublicKey.Ed25519(
+  //     Uint8Array.from([
+  //       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  //       0, 0, 0, 0, 0, 0, 0, 0, 0,
+  //     ]),
+  //   ),
+  //   NetworkId.LocalNet,
+  // );
+  [ProtocolType.Radix]:
+    'account_loc1294g56ga4ckdzhksx6vnrns2jj0v47ju87flsyscxdjxu9wrkjp5vt',
+} as const satisfies ProtocolMap<string>;
+
 type CoreDeploymentPath<TChainName extends string> =
   `${typeof TEMP_PATH}/${TChainName}/core-config-read.yaml`;
 
