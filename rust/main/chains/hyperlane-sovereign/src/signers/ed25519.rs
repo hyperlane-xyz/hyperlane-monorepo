@@ -31,4 +31,8 @@ impl Crypto for Signer {
     fn h256_address(&self) -> H256 {
         H256::from_slice(self.0.verifying_key().as_bytes())
     }
+
+    fn credential_id(&self) -> Vec<u8> {
+        self.public_key()
+    }
 }

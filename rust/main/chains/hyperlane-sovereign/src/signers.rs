@@ -38,6 +38,9 @@ pub trait Crypto: std::fmt::Debug {
 
     /// Get the address in hyperlane format
     fn h256_address(&self) -> H256;
+
+    /// Get the credential ID for the signer.
+    fn credential_id(&self) -> Vec<u8>;
 }
 
 /// Signer for Sovereign chain.
@@ -84,5 +87,9 @@ impl Crypto for Signer {
 
     fn h256_address(&self) -> H256 {
         self.inner.h256_address()
+    }
+
+    fn credential_id(&self) -> Vec<u8> {
+        self.inner.credential_id()
     }
 }

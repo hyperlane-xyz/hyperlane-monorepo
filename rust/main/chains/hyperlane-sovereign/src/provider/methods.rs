@@ -1,5 +1,3 @@
-use base64::prelude::BASE64_STANDARD;
-use base64::Engine;
 use futures::stream::FuturesOrdered;
 use futures::TryStreamExt;
 use hyperlane_core::accumulator::TREE_DEPTH;
@@ -174,7 +172,7 @@ impl SovereignClient {
             },
         });
         let request = json!({
-            "sender": hex::encode(self.signer.public_key()),
+            "sender": hex::encode(self.signer.credential_id()),
             "call": call_message,
         });
 

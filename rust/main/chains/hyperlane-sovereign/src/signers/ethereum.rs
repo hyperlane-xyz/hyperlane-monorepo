@@ -59,6 +59,10 @@ impl Crypto for Signer {
     fn h256_address(&self) -> H256 {
         self.h160_address().into()
     }
+
+    fn credential_id(&self) -> Vec<u8> {
+        self.h256_address().as_bytes().to_vec()
+    }
 }
 
 #[cfg(test)]
@@ -82,5 +86,17 @@ mod test {
             "0x000000000000000000000000a6edfca3aa985dd3cc728bffb700933a986ac085",
             format!("{:?}", signer.h256_address()),
         );
+    }
+
+    #[test]
+    fn test_credential_id() {
+        let private_key = H256([
+            1, 135, 193, 46, 167, 193, 32, 36, 179, 247, 10, 197, 215, 53, 135, 70, 58, 241, 124,
+            139, 206, 43, 217, 230, 254, 135, 56, 147, 16, 25, 108, 100,
+        ]);
+        let signer = Signer::new(&private_key).unwrap();
+        let expected = "000000000000000000000000a6edfca3aa985dd3cc728bffb700933a986ac085";
+
+        assert_eq!(expected, hex::encode(signer.credential_id()));
     }
 }

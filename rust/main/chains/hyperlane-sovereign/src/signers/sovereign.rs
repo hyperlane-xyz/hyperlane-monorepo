@@ -62,6 +62,10 @@ impl Crypto for Signer {
             .copy_from_slice(&self.key.verifying_key().to_bytes()[..SOV_ADDRESS_LENGTH]);
         h256
     }
+
+    fn credential_id(&self) -> Vec<u8> {
+        self.public_key()
+    }
 }
 
 #[cfg(test)]
