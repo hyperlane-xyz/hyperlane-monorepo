@@ -24,6 +24,7 @@ import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openze
 import {CctpMessageV1, BurnMessageV1} from "../../contracts/libs/CctpMessageV1.sol";
 import {CctpMessageV2, BurnMessageV2} from "../../contracts/libs/CctpMessageV2.sol";
 import {Message} from "../../contracts/libs/Message.sol";
+import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {CctpService} from "../../contracts/token/TokenBridgeCctpBase.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {TokenBridgeCctpBase} from "../../contracts/token/TokenBridgeCctpBase.sol";
@@ -486,6 +487,40 @@ contract TokenBridgeCctpV1Test is Test {
 
         vm.expectRevert(bytes("Invalid burn sender"));
         tbDestination.verify(metadata, message);
+    }
+
+    function test_verify_revertsWhen_invalidTokenMessageRecipient() public {
+        TestRecipient messageRecipient = new TestRecipient();
+        messageRecipient.setInterchainSecurityModule(address(tbDestination));
+
+        bytes32 tokenRecipient = user.addressToBytes32();
+        bytes memory messageBody = TokenMessage.format(tokenRecipient, amount);
+
+        // Create a message with recipient instead of tbDestination
+        bytes memory invalidMessage = abi.encodePacked(
+            uint8(3),
+            uint32(0),
+            origin,
+            address(tbOrigin).addressToBytes32(),
+            destination,
+            address(messageRecipient).addressToBytes32(),
+            messageBody
+        );
+
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
+            0,
+            cctpOrigin,
+            tokenRecipient,
+            amount
+        );
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid token message recipient"));
+        tbDestination.verify(metadata, invalidMessage);
+
+        vm.expectRevert(bytes("Invalid token message recipient"));
+        mailboxDestination.process(metadata, invalidMessage);
     }
 
     function test_revertsWhen_versionIsNotSupported() public virtual {
