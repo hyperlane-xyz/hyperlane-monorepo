@@ -1,4 +1,9 @@
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import {
+  AnnotatedTx,
+  HypModule,
+  HypModuleArgs,
+} from '@hyperlane-xyz/provider-sdk/module';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
@@ -6,16 +11,9 @@ import { AltVMHookModule } from '../hook/AltVMHookModule.js';
 import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
-import {
-  AnnotatedTypedTransaction,
-  ProtocolReceipt,
-} from '../providers/ProviderType.js';
+import { ProtocolReceipt } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 
-import {
-  HyperlaneModule,
-  HyperlaneModuleParams,
-} from './AbstractHyperlaneModule.js';
 import { AltVMCoreReader } from './AltVMCoreReader.js';
 import {
   CoreConfig,
@@ -35,11 +33,9 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
-  any,
-  CoreConfig,
-  Record<string, string>
-> {
+export class AltVMCoreModule<PT extends ProtocolType>
+  implements HypModule<CoreConfig, DeployedCoreAddresses>
+{
   protected logger = rootLogger.child({ module: 'AltVMCoreModule' });
   protected coreReader: AltVMCoreReader;
 
@@ -48,15 +44,9 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    protected readonly signer: AltVM.ISigner<
-      AnnotatedTypedTransaction<PT>,
-      ProtocolReceipt<PT>
-    >,
-    args: HyperlaneModuleParams<CoreConfig, Record<string, string>>,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
+    private readonly args: HypModuleArgs<CoreConfig, DeployedCoreAddresses>,
   ) {
-    const metadata = chainLookup.getChainMetadata(args.chain);
-    this.chainName = metadata.name;
-
     const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;
 
@@ -83,7 +73,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     chain: string;
     config: CoreConfig;
     chainLookup: ChainLookup;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
+    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
   }): Promise<AltVMCoreModule<PT>> {
     const addresses = await AltVMCoreModule.deploy<PT>(params);
 
@@ -102,7 +92,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     config: CoreConfig;
     chainLookup: ChainLookup;
     chain: string;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
+    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
   }): Promise<DeployedCoreAddresses> {
     const { config, chainLookup, chain, signer } = params;
 
@@ -240,6 +230,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
    * @returns An array of transactions that were executed to update the contract.
    */
   public async update(expectedConfig: CoreConfig): Promise<AnnotatedTx[]> {
+    CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
     const transactions: AnnotatedTx[] = [];
