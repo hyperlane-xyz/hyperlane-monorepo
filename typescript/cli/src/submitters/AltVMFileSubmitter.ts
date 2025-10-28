@@ -1,6 +1,7 @@
 import { Logger } from 'pino';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AnnotatedTx } from '@hyperlane-xyz/provider-sdk/module';
 import {
   ProtocolReceipt,
   ProtocolTypedTransaction,
@@ -22,7 +23,7 @@ export class AltVMFileSubmitter<PT extends ProtocolType>
   protected readonly logger: Logger;
 
   constructor(
-    public readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
+    public readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
     public readonly props: FileTxSubmitterProps,
   ) {
     this.logger = rootLogger.child({
