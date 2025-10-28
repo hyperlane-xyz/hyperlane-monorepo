@@ -18,6 +18,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 
 import {HypERC4626} from "../../contracts/token/extensions/HypERC4626.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
+import {NonCompliantERC20Test} from "../../contracts/test/ERC20Test.sol";
 
 import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -34,12 +35,11 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
     HypERC4626OwnerCollateral internal erc20CollateralVaultDeposit;
     ERC4626Test vault;
 
-    function setUp() public override {
-        super.setUp();
-        vault = new ERC4626Test(address(primaryToken), "Regular Vault", "RV");
-
+    function deployErc20CollateralVaultDeposit(
+        address _vault
+    ) public returns (HypERC4626OwnerCollateral) {
         HypERC4626OwnerCollateral implementation = new HypERC4626OwnerCollateral(
-                vault,
+                ERC4626(_vault),
                 SCALE,
                 address(localMailbox)
             );
@@ -54,8 +54,14 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
             )
         );
         localToken = HypERC4626OwnerCollateral(address(proxy));
-        erc20CollateralVaultDeposit = HypERC4626OwnerCollateral(
-            address(localToken)
+        return HypERC4626OwnerCollateral(address(localToken));
+    }
+    function setUp() public override {
+        super.setUp();
+        vault = new ERC4626Test(address(primaryToken), "Regular Vault", "RV");
+
+        (erc20CollateralVaultDeposit) = deployErc20CollateralVaultDeposit(
+            address(vault)
         );
 
         erc20CollateralVaultDeposit.enrollRemoteRouter(
@@ -73,6 +79,18 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         address _account
     ) internal view override returns (uint256) {
         return IERC20(primaryToken).balanceOf(_account);
+    }
+
+    function testERC4626VaultDeposit_Initialize_NoncompliantERC20Token()
+        public
+    {
+        NonCompliantERC20Test nonCompliantToken = new NonCompliantERC20Test(); // Has approval() that returns void, instead of bool
+        ERC4626Test _vault = new ERC4626Test(
+            address(nonCompliantToken),
+            "Noncompliant Token Vault",
+            "NT"
+        );
+        deployErc20CollateralVaultDeposit(address(_vault));
     }
 
     function _transferRoundTripAndIncreaseYields(

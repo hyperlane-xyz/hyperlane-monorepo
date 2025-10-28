@@ -22,6 +22,8 @@ import {ERC20Collateral} from "../libs/TokenCollateral.sol";
 import {LpCollateralRouterStorage} from "../libs/LpCollateralRouter.sol";
 
 // ============ External Imports ============
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -31,6 +33,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 contract HypERC4626Collateral is TokenRouter {
     using ERC20Collateral for IERC20;
+    using SafeERC20 for IERC20;
     using TypeCasts for address;
     using TokenMessage for bytes;
     using Math for uint256;
@@ -65,7 +68,7 @@ contract HypERC4626Collateral is TokenRouter {
         address _interchainSecurityModule,
         address _owner
     ) public initializer {
-        wrappedToken.approve(address(vault), type(uint256).max);
+        wrappedToken.safeApprove(address(vault), type(uint256).max);
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
