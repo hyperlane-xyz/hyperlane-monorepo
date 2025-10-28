@@ -1,12 +1,8 @@
 import {
   ChainMap,
   HypTokenRouterConfig,
-  IsmType,
   OwnableConfig,
-  RoutingIsmConfig,
   TokenType,
-  buildAggregationIsmConfigs,
-  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -15,18 +11,6 @@ import {
 } from '../../../../../src/config/warp.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
-
-const getIsm = (local: keyof typeof owners): RoutingIsmConfig => {
-  return {
-    type: IsmType.FALLBACK_ROUTING,
-    owner: owners[local],
-    domains: buildAggregationIsmConfigs(
-      local,
-      ['radix'],
-      defaultMultisigConfigs,
-    ),
-  };
-};
 
 const owners = {
   ethereum: '0xA365Bf3Da1f1B01E2a80f9261Ec717B305b2Eb8F',
@@ -39,7 +23,7 @@ const owners = {
 
 export const getRadixUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
     Object.keys(owners),
@@ -48,7 +32,6 @@ export const getRadixUSDCWarpConfig = async (
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     decimals: 6,
-    interchainSecurityModule: getIsm('ethereum'),
     owner: owners.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
@@ -58,7 +41,6 @@ export const getRadixUSDCWarpConfig = async (
   const arbitrum: HypTokenRouterConfig = {
     ...routerConfig.arbitrum,
     decimals: 6,
-    interchainSecurityModule: getIsm('arbitrum'),
     owner: owners.arbitrum,
     type: TokenType.collateral,
     token: tokens.arbitrum.USDC,
@@ -68,7 +50,6 @@ export const getRadixUSDCWarpConfig = async (
   const base: HypTokenRouterConfig = {
     ...routerConfig.base,
     decimals: 6,
-    interchainSecurityModule: getIsm('base'),
     owner: owners.base,
     type: TokenType.collateral,
     token: tokens.base.USDC,
@@ -88,7 +69,6 @@ export const getRadixUSDCWarpConfig = async (
   const solanamainnet: HypTokenRouterConfig = {
     ...routerConfig.solanamainnet,
     decimals: 6,
-    interchainSecurityModule: getIsm('solanamainnet'),
     owner: owners.solanamainnet,
     type: TokenType.collateral,
     token: tokens.solanamainnet.USDC,
