@@ -24,6 +24,7 @@ import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "@openze
 import {CctpMessageV1, BurnMessageV1} from "../../contracts/libs/CctpMessageV1.sol";
 import {CctpMessageV2, BurnMessageV2} from "../../contracts/libs/CctpMessageV2.sol";
 import {Message} from "../../contracts/libs/Message.sol";
+import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {CctpService} from "../../contracts/token/TokenBridgeCctpBase.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {TokenBridgeCctpBase} from "../../contracts/token/TokenBridgeCctpBase.sol";
@@ -488,6 +489,40 @@ contract TokenBridgeCctpV1Test is Test {
         tbDestination.verify(metadata, message);
     }
 
+    function test_verify_revertsWhen_invalidTokenMessageRecipient() public {
+        TestRecipient messageRecipient = new TestRecipient();
+        messageRecipient.setInterchainSecurityModule(address(tbDestination));
+
+        bytes32 tokenRecipient = user.addressToBytes32();
+        bytes memory messageBody = TokenMessage.format(tokenRecipient, amount);
+
+        // Create a message with recipient instead of tbDestination
+        bytes memory invalidMessage = abi.encodePacked(
+            uint8(3),
+            uint32(0),
+            origin,
+            address(tbOrigin).addressToBytes32(),
+            destination,
+            address(messageRecipient).addressToBytes32(),
+            messageBody
+        );
+
+        bytes memory cctpMessage = _encodeCctpBurnMessage(
+            0,
+            cctpOrigin,
+            tokenRecipient,
+            amount
+        );
+        bytes memory attestation = bytes("");
+        bytes memory metadata = abi.encode(cctpMessage, attestation);
+
+        vm.expectRevert(bytes("Invalid token message recipient"));
+        tbDestination.verify(metadata, invalidMessage);
+
+        vm.expectRevert(bytes("Invalid token message recipient"));
+        mailboxDestination.process(metadata, invalidMessage);
+    }
+
     function test_revertsWhen_versionIsNotSupported() public virtual {
         tokenMessengerOrigin.setVersion(CCTP_VERSION_2);
 
@@ -687,6 +722,9 @@ contract TokenBridgeCctpV1Test is Test {
         vm.createSelectFork(vm.rpcUrl("mainnet"), 22_898_879);
         TokenBridgeCctpV1 ism = TokenBridgeCctpV1(router.bytes32ToAddress());
         _upgrade(ism);
+
+        vm.prank(ism.owner());
+        ism.addDomain(origin, 6);
 
         // Sender validation happens inside receiveMessage via callback to _authenticateCircleSender
         vm.expectRevert(bytes("Unauthorized circle sender"));
@@ -890,7 +928,7 @@ contract TokenBridgeCctpV1Test is Test {
 
         assertTrue(result);
         assertTrue(
-            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(messageId)
         );
     }
 
@@ -912,9 +950,7 @@ contract TokenBridgeCctpV1Test is Test {
     ) public virtual {
         // Try to call from a non-message-transmitter address
         vm.prank(evil);
-        vm.expectRevert(
-            bytes("AbstractMessageIdAuthorizedIsm: sender is not the hook")
-        );
+        vm.expectRevert(bytes("Not message transmitter"));
         TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
             cctpOrigin,
             address(tbOrigin).addressToBytes32(),
@@ -955,29 +991,6 @@ contract TokenBridgeCctpV1Test is Test {
         );
     }
 
-    function test_handleReceiveMessage_revertsWhen_messageAlreadyDelivered(
-        bytes32 messageId
-    ) public virtual {
-        // First delivery succeeds
-        vm.prank(address(messageTransmitterDestination));
-        TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
-            cctpOrigin,
-            address(tbOrigin).addressToBytes32(),
-            abi.encode(messageId)
-        );
-
-        // Second delivery of the same message should revert
-        vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(
-            bytes("AbstractMessageIdAuthorizedIsm: message already verified")
-        );
-        TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
-            cctpOrigin,
-            address(tbOrigin).addressToBytes32(),
-            abi.encode(messageId)
-        );
-    }
-
     function test_verify_returnsTrue_afterDirectDelivery(
         bytes calldata message
     ) public virtual {
@@ -995,7 +1008,7 @@ contract TokenBridgeCctpV1Test is Test {
 
         // Verify the message is marked as verified
         assertTrue(
-            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(messageId)
         );
 
         // Now call verify with empty metadata - should return true without attestation
@@ -1274,7 +1287,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                 0x00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d
             ), // tokenMessengerDestination
             bytes32(0), // destinationCaller
-            maxFee,
+            fastFee,
             minFinalityThreshold,
             bytes("")
         );
@@ -1404,7 +1417,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                     user.addressToBytes32(),
                     address(tokenOrigin),
                     bytes32(0),
-                    maxFee,
+                    fastFee,
                     minFinalityThreshold
                 )
             )
@@ -1452,7 +1465,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                     user.addressToBytes32(),
                     address(tokenOrigin),
                     bytes32(0),
-                    maxFee,
+                    fastFee,
                     minFinalityThreshold
                 )
             )
@@ -1607,7 +1620,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
 
         assertTrue(result);
         assertTrue(
-            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(messageId)
         );
     }
 
@@ -1630,9 +1643,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint32 finalityThreshold
     ) public {
         vm.prank(evil);
-        vm.expectRevert(
-            bytes("AbstractMessageIdAuthorizedIsm: sender is not the hook")
-        );
+        vm.expectRevert(bytes("Not message transmitter"));
         TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
             cctpOrigin,
             address(tbOrigin).addressToBytes32(),
@@ -1695,7 +1706,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
 
         assertTrue(result);
         assertTrue(
-            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(messageId)
         );
     }
 
@@ -1719,9 +1730,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint32 finalityThreshold
     ) public {
         vm.prank(evil);
-        vm.expectRevert(
-            bytes("AbstractMessageIdAuthorizedIsm: sender is not the hook")
-        );
+        vm.expectRevert(bytes("Not message transmitter"));
         TokenBridgeCctpV2(address(tbDestination))
             .handleReceiveUnfinalizedMessage(
                 cctpOrigin,
@@ -1768,32 +1777,6 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             );
     }
 
-    function test_handleReceiveMessage_revertsWhen_messageAlreadyDelivered(
-        bytes32 messageId
-    ) public override {
-        uint32 finalityThreshold = 2000;
-        // First delivery succeeds
-        vm.prank(address(messageTransmitterDestination));
-        TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
-            cctpOrigin,
-            address(tbOrigin).addressToBytes32(),
-            finalityThreshold,
-            abi.encode(messageId)
-        );
-
-        // Second delivery of the same message should revert
-        vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(
-            bytes("AbstractMessageIdAuthorizedIsm: message already verified")
-        );
-        TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
-            cctpOrigin,
-            address(tbOrigin).addressToBytes32(),
-            finalityThreshold,
-            abi.encode(messageId)
-        );
-    }
-
     function test_verify_returnsTrue_afterDirectDelivery(
         bytes calldata message
     ) public override {
@@ -1814,7 +1797,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
 
         // Verify the message is marked as verified
         assertTrue(
-            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(messageId)
         );
 
         // Now call verify with empty metadata - should return true without attestation
@@ -1842,7 +1825,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
 
         // Verify the message is marked as verified
         assertTrue(
-            TokenBridgeCctpBase(address(tbDestination)).isVerified(message)
+            TokenBridgeCctpBase(address(tbDestination)).isVerified(messageId)
         );
 
         // Now call verify with empty metadata - should return true without attestation

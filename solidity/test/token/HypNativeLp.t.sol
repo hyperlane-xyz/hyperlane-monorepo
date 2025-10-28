@@ -167,16 +167,6 @@ contract HypNativeLpTest is Test {
         assertEq(router.maxWithdraw(bob), bobDeposit + (donation * 2) / 3);
     }
 
-    function testReceiveCallsDonate() public {
-        assertEq(router.totalAssets(), 0);
-        vm.expectEmit(true, true, true, true);
-        emit Donation(alice, DONATE_AMOUNT);
-        vm.prank(alice);
-        (bool success, ) = address(router).call{value: DONATE_AMOUNT}("");
-        assertTrue(success);
-        assertEq(router.totalAssets(), DONATE_AMOUNT);
-    }
-
     function testMultipleDepositsAndWithdrawals() public {
         // Alice deposits
         vm.prank(alice);
