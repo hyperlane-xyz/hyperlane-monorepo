@@ -3,6 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 import Sinon from 'sinon';
 
 import { AltVM, MockSigner } from '@hyperlane-xyz/provider-sdk';
+import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
 import { TestChainName } from '../consts/testChains.js';
 import { IsmType } from '../ism/types.js';
@@ -35,8 +36,8 @@ TEST CASES - AltVMWarpModule tests
 */
 
 describe('AltVMWarpModule', () => {
-  let signer: AltVM.ISigner<any, any>;
-  let warpModule: AltVMWarpModule<any>;
+  let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  let warpModule: AltVMWarpModule;
 
   const tokenAddress =
     '0x726f757465725f61707000000000000000000000000000010000000000000000';

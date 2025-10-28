@@ -1,10 +1,11 @@
 import { Logger } from 'pino';
 
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   AnnotatedTx,
   HypModule,
   HypModuleArgs,
+  TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
@@ -16,7 +17,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
-import { ProtocolReceipt } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -36,7 +36,7 @@ type IsmModuleAddresses = {
   mailbox: Address;
 };
 
-export class AltVMIsmModule<PT extends ProtocolType>
+export class AltVMIsmModule
   implements HypModule<IsmConfig, IsmModuleAddresses>
 {
   protected readonly logger = rootLogger.child({
@@ -51,7 +51,7 @@ export class AltVMIsmModule<PT extends ProtocolType>
   constructor(
     protected readonly chainLookup: ChainLookup,
     private readonly args: HypModuleArgs<IsmConfig, IsmModuleAddresses>,
-    protected readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
     this.args.config = IsmConfigSchema.parse(this.args.config);
 
@@ -137,7 +137,7 @@ export class AltVMIsmModule<PT extends ProtocolType>
   }
 
   // manually write static create function
-  public static async create<PT extends ProtocolType>({
+  public static async create({
     chain,
     config,
     addresses,
@@ -150,9 +150,9 @@ export class AltVMIsmModule<PT extends ProtocolType>
       mailbox: string;
     };
     chainLookup: ChainLookup;
-    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
-  }): Promise<AltVMIsmModule<PT>> {
-    const module = new AltVMIsmModule<PT>(
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  }): Promise<AltVMIsmModule> {
+    const module = new AltVMIsmModule(
       chainLookup,
       {
         addresses: {

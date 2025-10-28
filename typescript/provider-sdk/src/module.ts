@@ -1,5 +1,6 @@
 type AddrMap = Record<string, unknown>;
 export type AnnotatedTx = { annotation?: string; [key: string]: any };
+export type TxReceipt = { [key: string]: any };
 
 export interface HypModuleArgs<Cfg, Addrs extends AddrMap> {
   addresses: Addrs;
