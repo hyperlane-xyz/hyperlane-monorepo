@@ -158,6 +158,8 @@ export const TEST_CHAIN_METADATA_PATH_BY_PROTOCOL: ProtocolChainMap<
 export type TestChainMetadata = ChainMetadata & {
   rpcPort: number;
   restPort: number;
+  // The ChainMetadata type does not define this property yet
+  gatewayUrls?: { http: string }[];
   // Used for radix tests
   packageAddress?: string;
 };

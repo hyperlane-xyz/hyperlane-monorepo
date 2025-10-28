@@ -1,15 +1,19 @@
+# Modified from rust/main/utils/run-locally/src/radix/docker-compose.yml
 services:
   fullnode:
     image: 'radixdlt/babylon-node:v1.3.0.1'
     profiles: ['fullnode']
     init: true
     ports:
-      - '127.0.0.1:3333:3333'
+      - '127.0.0.1:${RADIX_CORE_PORT:-3333}:3333'
     cap_add:
       - NET_ADMIN
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        limits:
+          memory: 768M
     environment:
       # Full node configuration
       FULLNODE_NETWORK_ID: 240
@@ -22,24 +26,21 @@ services:
       RADIXDLT_PROMETHEUS_API_PORT: 3335
       RADIXDLT_ENGINE_STATE_API_PORT: 3336
       RADIXDLT_NETWORK_SEEDS_REMOTE: ''
-      JAVA_OPTS: -server -Xmx512m -Xmx512m -XX:+HeapDumpOnOutOfMemoryError -XX:+AlwaysPreTouch -Dguice_bytecode_gen_option=DISABLED -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStoreType=jks -Djava.security.egd=file:/dev/urandom -Dcom.sun.management.jmxremote.port=9011 -Dcom.sun.management.jmxremote.rmi.port=9011 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=core -agentlib:jdwp=transport=dt_socket,address=*:50505,suspend=n,server=y --enable-preview
+      JAVA_OPTS: -server -Xms384m -Xmx384m -XX:MaxMetaspaceSize=128m -Dguice_bytecode_gen_option=DISABLED -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStoreType=jks -Djava.security.egd=file:/dev/urandom --enable-preview
       RADIXDLT_HOST_IP_ADDRESS: core0
       RADIXDLT_NODE_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY=
       RADIXDLT_GENESIS_DATA: /wYAAHNOYVBwWQAHAgCfdxlxngUUXCEGCgEACQEABQkHKAAAIQoJZAAAAAr0DRoICrgLCRsMCuCTBAUKFTQYoABAehDzWgUVMgEAIKAAAGSns7bgDTIWAAFWDVUuRAAYABBjLV7HaxWBDQHAICICAAEgIQEGIAchA//5e9V1Xu6kIEU6FDVSNdOC9kcvhWihiy8FehRgKXVWAQEBAWJ1APCVICECAgwEbmFtZSIAAQwTRGVmYXVsdCB2YWxpZGF0b3IgMQIMCGluZm9fdXJsIg0BDBhodHRwczovL3d3dy5yYWRpeGRsdC5jb22A0V2lblLuqlWNSPddLPYcqXQbJq7Y9QscHefNoU86AQIggAHR0ouStuhEmbg7B5fvUjVVPut+2qDOokPBEowv5zcgIQECIAchA//5dtEAASgACSEKAKBeSwE0oAAAAEDq7XRG0JwsnwwBKw0B4CAMCgx0cmFuc2Zlcl94cmQIcmFkaXN3YXAIbWV0YWRhdGERZnVuZ2libGVfcmVzb3VyY2UVbm9uX0IWAPBpHWFjY291bnRfYXV0aG9yaXplZF9kZXBvc2l0b3JzDmdsb2JhbF9uX293bmVkJm5vbl9mdW5naWJsZV9yZXNvdXJjZV93aXRoX3JlbW90ZV90eXBlGWt2X3N0b3JlX3dpdGhfcmVtb3RlXwEaPA9tYXhfdHJhbnNhY3Rpb24=
       RADIXDLT_DB_HISTORICAL_SUBSTATE_VALUES_ENABLE: true
 
   postgres_db:
-    # See https://hub.docker.com/_/postgres for details about configuration
     image: 'postgres:15.2-alpine'
-    shm_size: 256m
+    shm_size: 128m
     profiles:
       [
         'network-gateway-built',
         'network-gateway-image',
         'network-gateway-resources',
       ]
-    ports:
-      - '127.0.0.1:5433:5432'
     # The default shutdown mode for this container is SIGINT:
     # https://github.com/docker-library/postgres/blob/e483778176ca34bcbe83ee17000820d4f6e64c28/12/alpine/Dockerfile
     # This enables fast Shutdown mode - see eg https://www.postgresql.org/docs/10/server-shutdown.html
@@ -47,6 +48,9 @@ services:
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        limits:
+          memory: 512M
     environment:
       # Database configuration
       POSTGRES_USER: 'db_dev_superuser'
@@ -65,20 +69,19 @@ services:
       # Database configuration
       ConnectionStrings__NetworkGatewayMigrations: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
 
-  data_aggregator: # This is the base -- the _image and _built containers are defined below
+  data_aggregator:
     image: 'radixdlt/babylon-ng-data-aggregator:v1.10.3'
     profiles: ['NONE']
     deploy:
       restart_policy:
         condition: on-failure
-    ports:
-      - '127.0.0.1:5207:8080' # This allows you to connect to the API (for root and health checks) at http://localhost:5207
-      - '127.0.0.1:1234:1234' # This allows you to connect to the metrics API at http://localhost:1234
+      resources:
+        limits:
+          memory: 1024M
     environment:
       # WIPE_DATABASE: "true"
       ASPNETCORE_URLS: 'http://*:8080' # Binds to 8080 on all interfaces
       CustomJsonConfigurationFilePath: '/home/radixdlt/network-gateway/config.json'
-      PrometheusMetricsPort: '1234'
       ConnectionStrings__NetworkGatewayReadWrite: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
       DataAggregator__Network__NetworkName: 'localnet'
       DataAggregator__Network__DisableCoreApiHttpsCertificateChecks: 'false'
@@ -91,21 +94,21 @@ services:
       GatewayApi__Network__CoreApiNodes__2__Enabled: 'false'
       GatewayApi__Network__CoreApiNodes__3__Enabled: 'false'
 
-  gateway_api: # This is the base -- the _image and _built containers are defined below
+  gateway_api:
     image: 'radixdlt/babylon-ng-gateway-api:v1.10.3'
     profiles: ['NONE']
     ports:
-      - '127.0.0.1:5308:8080' # This allows you to connect to the API at http://localhost:5308
-      - '127.0.0.1:1235:1235' # This allows you to connect to the metrics API at http://localhost:1235
+      - '127.0.0.1:${RADIX_GATEWAY_PORT:-5308}:8080'
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        limits:
+          memory: 512M
     environment:
-      # Gateway API configuration
-      ASPNETCORE_URLS: 'http://*:8080' # Binds to 8080 on all interfaces
+      ASPNETCORE_URLS: 'http://*:8080'
       CustomJsonConfigurationFilePath: '/home/radixdlt/network-gateway/config.json'
-      PrometheusMetricsPort: '1235'
-      EnableSwagger: 'true'
+      EnableSwagger: 'false'
       ConnectionStrings__NetworkGatewayReadOnly: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
       ConnectionStrings__NetworkGatewayReadWrite: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
       GatewayApi__Endpoint__MaxPageSize: '30'
@@ -125,7 +128,6 @@ services:
       GatewayApi__Network__CoreApiNodes__3__Enabled: 'false'
 
   database_migrations_image:
-    # NB - image: is defined in the base data_aggregator
     extends:
       service: database_migrations
     profiles: ['network-gateway-image']
@@ -134,7 +136,6 @@ services:
         condition: service_healthy
 
   data_aggregator_image:
-    # NB - image: is defined in the base data_aggregator
     extends:
       service: data_aggregator
     profiles: ['network-gateway-image']
@@ -143,7 +144,6 @@ services:
         condition: service_completed_successfully
 
   gateway_api_image:
-    # NB - image: is defined in the base gateway_api
     extends:
       service: gateway_api
     profiles: ['network-gateway-image']

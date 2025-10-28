@@ -7,6 +7,7 @@ import {
 import { fileURLToPath } from 'url';
 
 import { RadixSigner } from '@hyperlane-xyz/radix-sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { HYP_KEY_BY_PROTOCOL, TestChainMetadata } from './constants.js';
 
@@ -64,10 +65,24 @@ export async function runRadixNode(
     packageDefinition: Uint8Array;
   },
 ) {
+  // Extract ports from chain metadata
+  const corePort = chainMetadata.rpcPort.toString();
+
+  const gatewayUrl = chainMetadata.gatewayUrls?.[0]?.http;
+  assert(
+    gatewayUrl,
+    `At least one gateway url should be defined in the ${chainMetadata.name} chain metadata`,
+  );
+  const gatewayPort = new URL(gatewayUrl).port;
+
   const environment = await new DockerComposeEnvironment(
     `${__dirname}/radix`,
     'docker-compose.yml',
   )
+    .withEnvironment({
+      RADIX_CORE_PORT: corePort,
+      RADIX_GATEWAY_PORT: gatewayPort,
+    })
     .withProfiles('fullnode', 'network-gateway-image')
     .withWaitStrategy('postgres_db-1', Wait.forHealthCheck())
     .withWaitStrategy('fullnode-1', Wait.forHealthCheck())
