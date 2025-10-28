@@ -1,12 +1,8 @@
 import {
   ChainMap,
   HypTokenRouterConfig,
-  IsmType,
   OwnableConfig,
-  RoutingIsmConfig,
   TokenType,
-  buildAggregationIsmConfigs,
-  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -15,18 +11,6 @@ import {
 } from '../../../../../src/config/warp.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
-
-const getIsm = (local: keyof typeof owners): RoutingIsmConfig => {
-  return {
-    type: IsmType.FALLBACK_ROUTING,
-    owner: owners[local],
-    domains: buildAggregationIsmConfigs(
-      local,
-      ['radix'],
-      defaultMultisigConfigs,
-    ),
-  };
-};
 
 const owners = {
   ethereum: '0xA365Bf3Da1f1B01E2a80f9261Ec717B305b2Eb8F',
@@ -85,7 +69,6 @@ export const getRadixUSDCWarpConfig = async (
   const solanamainnet: HypTokenRouterConfig = {
     ...routerConfig.solanamainnet,
     decimals: 6,
-    interchainSecurityModule: getIsm('solanamainnet'),
     owner: owners.solanamainnet,
     type: TokenType.collateral,
     token: tokens.solanamainnet.USDC,
