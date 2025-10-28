@@ -1,7 +1,10 @@
 import {
   Convert,
+  InstructionsKind,
   LTSRadixEngineToolkit,
   PrivateKey,
+  RadixEngineToolkit,
+  TransactionManifest,
   Value,
   ValueKind,
   array,
@@ -58,3 +61,35 @@ export const generateNewEd25519VirtualAccount = async (
     address,
   };
 };
+
+export async function stringToTransactionManifest(
+  tx: string,
+  networkId: number,
+): Promise<TransactionManifest> {
+  const res = await RadixEngineToolkit.Instructions.convert(
+    {
+      kind: InstructionsKind.String,
+      value: tx,
+    },
+    networkId,
+    InstructionsKind.Parsed,
+  );
+
+  return {
+    instructions: res,
+    blobs: [],
+  };
+}
+
+export async function transactionManifestToString(
+  tx: TransactionManifest,
+  networkId: number,
+): Promise<string> {
+  const res = await RadixEngineToolkit.Instructions.convert(
+    tx.instructions,
+    networkId,
+    InstructionsKind.String,
+  );
+
+  return res.value as string;
+}

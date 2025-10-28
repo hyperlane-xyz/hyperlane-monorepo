@@ -13,8 +13,9 @@ import {
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { getChain, getWarpAddresses } from '../../config/registry.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
-import { getArgs, withOutputFile } from '../agent-utils.js';
+import { svmGasOracleConfigPath } from '../../src/utils/sealevel.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
+import { getArgs, withWrite } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 // This script exists to print the gas oracle configs for a given environment
@@ -26,7 +27,7 @@ interface GasOracleConfigWithOverhead {
 }
 
 async function main() {
-  const { environment, outFile } = await withOutputFile(getArgs()).argv;
+  const { environment, write } = await withWrite(getArgs()).argv;
 
   const environmentConfig = getEnvironmentConfig(environment);
 
@@ -75,11 +76,12 @@ async function main() {
       value !== undefined,
   );
 
-  console.log(stringifyObject(gasOracles, 'json', 2));
-
-  if (outFile) {
-    console.log(`Writing config to ${outFile}`);
-    writeJsonAtPath(outFile, gasOracles);
+  if (write) {
+    const filepath = svmGasOracleConfigPath(environment);
+    console.log(`Writing config to ${filepath}`);
+    await writeAndFormatJsonAtPath(filepath, gasOracles);
+  } else {
+    console.log(stringifyObject(gasOracles, 'json', 2));
   }
 }
 
@@ -102,11 +104,17 @@ function getChainConnections(
     // All the mainnet3 warp route chains
     connectedChains = [
       ['solanamainnet', 'everclear'],
-      ['solanamainnet', 'infinityvmmainnet'],
       ['solanamainnet', 'sophon'],
       ['solanamainnet', 'abstract'],
       ['solanamainnet', 'apechain'],
       ['solanamainnet', 'subtensor'],
+      ['solanamainnet', 'pulsechain'],
+      ['solanamainnet', 'electroneum'],
+      ['solanamainnet', 'galactica'],
+      ['solanamainnet', 'radix'],
+      ['solanamainnet', 'carrchain'],
+      ['solanamainnet', 'incentiv'],
+      ['solanamainnet', 'litchain'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
@@ -136,7 +144,6 @@ function getChainConnections(
       // For SOL/solanatestnet-sonicsvmtestnet
       ['solanatestnet', 'sonicsvmtestnet'],
       ['solanatestnet', 'connextsepolia'],
-      ['solanatestnet', 'infinityvmmonza'],
       ['solanatestnet', 'basesepolia'],
     ];
   } else {

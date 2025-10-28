@@ -28,9 +28,8 @@ async fn test_validate_assigned_nonce_none_nonce() {
         Some(address),
     );
 
-    let (action, nonce) = state.validate_assigned_nonce(&tx).await.unwrap();
-    assert!(matches!(action, NonceAction::Assign));
-    assert_eq!(nonce, None);
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    assert_eq!(action, NonceAction::AssignNext { old_nonce: None });
 }
 
 #[tokio::test]
@@ -49,9 +48,13 @@ async fn test_validate_assigned_nonce_not_tracked() {
         Some(address),
     );
 
-    let (action, nonce) = state.validate_assigned_nonce(&tx).await.unwrap();
-    assert!(matches!(action, NonceAction::Assign));
-    assert_eq!(nonce, Some(nonce_val));
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    assert_eq!(
+        action,
+        NonceAction::AssignNext {
+            old_nonce: Some(nonce_val)
+        }
+    );
 }
 
 #[tokio::test]
@@ -74,9 +77,13 @@ async fn test_validate_assigned_nonce_tracked_different_tx_uuid() {
         Some(nonce_val),
         Some(address),
     );
-    let (action, nonce) = state.validate_assigned_nonce(&tx).await.unwrap();
-    assert!(matches!(action, NonceAction::Assign));
-    assert_eq!(nonce, Some(nonce_val));
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    assert_eq!(
+        action,
+        NonceAction::AssignNext {
+            old_nonce: Some(nonce_val)
+        }
+    );
 }
 
 #[tokio::test]
@@ -99,9 +106,13 @@ async fn test_validate_assigned_nonce_freed_status() {
         Some(nonce_val),
         Some(address),
     );
-    let (action, nonce) = state.validate_assigned_nonce(&tx).await.unwrap();
-    assert!(matches!(action, NonceAction::Assign));
-    assert_eq!(nonce, Some(nonce_val));
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    assert_eq!(
+        action,
+        NonceAction::AssignNext {
+            old_nonce: Some(nonce_val)
+        }
+    );
 }
 
 #[tokio::test]
@@ -126,9 +137,13 @@ async fn test_validate_assigned_nonce_taken_status_below_finalized() {
         Some(nonce_val),
         Some(address),
     );
-    let (action, nonce) = state.validate_assigned_nonce(&tx).await.unwrap();
-    assert!(matches!(action, NonceAction::Assign));
-    assert_eq!(nonce, Some(nonce_val));
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    assert_eq!(
+        action,
+        NonceAction::AssignNext {
+            old_nonce: Some(nonce_val)
+        }
+    );
 }
 
 #[tokio::test]
@@ -153,9 +168,13 @@ async fn test_validate_assigned_nonce_taken_status_equal_finalized() {
         Some(nonce_val),
         Some(address),
     );
-    let (action, nonce) = state.validate_assigned_nonce(&tx).await.unwrap();
-    assert!(matches!(action, NonceAction::Assign));
-    assert_eq!(nonce, Some(nonce_val));
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    assert_eq!(
+        action,
+        NonceAction::AssignNext {
+            old_nonce: Some(nonce_val)
+        }
+    );
 }
 
 #[tokio::test]
@@ -180,9 +199,8 @@ async fn test_validate_assigned_nonce_taken_status_above_finalized() {
         Some(nonce_val),
         Some(address),
     );
-    let (action, nonce) = state.validate_assigned_nonce(&tx).await.unwrap();
-    assert!(matches!(action, NonceAction::Noop));
-    assert_eq!(nonce, Some(nonce_val));
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
 }
 
 #[tokio::test]
@@ -204,7 +222,34 @@ async fn test_validate_assigned_nonce_committed_status() {
         Some(nonce_val),
         Some(address),
     );
-    let (action, nonce) = state.validate_assigned_nonce(&tx).await.unwrap();
-    assert!(matches!(action, NonceAction::Noop));
-    assert_eq!(nonce, Some(nonce_val));
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
+}
+
+#[tokio::test]
+async fn test_validate_assigned_nonce_with_db() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+
+    let uuid = TransactionUuid::random();
+    let nonce_val = U256::from(7);
+    nonce_db
+        .store_nonce_by_transaction_uuid(&address, &uuid, &nonce_val)
+        .await
+        .expect("Failed to store nonce");
+
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    // Set tracked_tx_uuid to uuid
+    state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
+
+    let tx = make_tx(
+        uuid,
+        TransactionStatus::PendingInclusion,
+        None,
+        Some(address),
+    );
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
 }

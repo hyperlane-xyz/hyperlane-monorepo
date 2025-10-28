@@ -86,13 +86,16 @@ describe('Environment', () => {
           const routingIsmDomains = routingIsm.domains;
 
           // Check that domains includes all chains except the local one
-          const expectedChains = supportedChainNames.filter((c) => c !== chain);
+          const expectedChains = supportedChainNames
+            .filter((c) => c !== chain)
+            .filter((c) => c !== 'forma');
 
           // Verify no unexpected chains in domains
           expect(Object.keys(routingIsmDomains)).to.have.lengthOf(
             expectedChains.length,
           );
           expect(Object.keys(routingIsmDomains)).to.not.include(chain);
+          expect(Object.keys(routingIsmDomains)).to.not.include('forma');
 
           // Verify each expected chain has an entry in the domains
           for (const expectedChain of expectedChains) {

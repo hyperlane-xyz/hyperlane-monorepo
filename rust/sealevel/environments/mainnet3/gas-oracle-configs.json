@@ -2,63 +2,71 @@
   "solanamainnet": {
     "abstract": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "89491282",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "83749287",
         "tokenDecimals": 18
       },
       "overhead": 333774
     },
     "apechain": {
       "oracleConfig": {
-        "tokenExchangeRate": "51692115923963851",
-        "gasPrice": "926512141953",
+        "tokenExchangeRate": "32756947928162937",
+        "gasPrice": "1412206444227",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "arbitrum": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "395879195",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "148191449",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "artela": {
       "oracleConfig": {
-        "tokenExchangeRate": "14396229354939",
-        "gasPrice": "3326799807503963",
+        "tokenExchangeRate": "13905136951941",
+        "gasPrice": "3326797363969087",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "avalanche": {
       "oracleConfig": {
-        "tokenExchangeRate": "2098005609224057338",
-        "gasPrice": "22828048141",
+        "tokenExchangeRate": "1535818200060198655",
+        "gasPrice": "30120474517",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "base": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "158351709",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "148191449",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "bsc": {
       "oracleConfig": {
-        "tokenExchangeRate": "66772358990339669679",
-        "gasPrice": "717263458",
+        "tokenExchangeRate": "85142720979231463830",
+        "gasPrice": "543318001",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "carrchain": {
+      "oracleConfig": {
+        "tokenExchangeRate": "47812782181197",
+        "gasPrice": "967514770046966",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "celestia": {
       "oracleConfig": {
-        "tokenExchangeRate": "12854471798067",
+        "tokenExchangeRate": "7863449382963",
         "gasPrice": "2000",
         "tokenDecimals": 6
       },
@@ -66,112 +74,152 @@
     },
     "eclipsemainnet": {
       "oracleConfig": {
-        "tokenExchangeRate": "30244936117170458",
-        "gasPrice": "1321",
+        "tokenExchangeRate": "31216088090699307",
+        "gasPrice": "1237",
         "tokenDecimals": 9
       },
       "overhead": 600000
     },
+    "electroneum": {
+      "oracleConfig": {
+        "tokenExchangeRate": "167104695495134",
+        "gasPrice": "276829880933499",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "ethereum": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "4000000000",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "2500000000",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "everclear": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "158351709",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "148191449",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "flowmainnet": {
       "oracleConfig": {
-        "tokenExchangeRate": "33101589280149579",
-        "gasPrice": "1446860229020",
+        "tokenExchangeRate": "20680269890639109",
+        "gasPrice": "2236894063858",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "form": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "158351709",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "148191449",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "galactica": {
+      "oracleConfig": {
+        "tokenExchangeRate": "4784062405939600",
+        "gasPrice": "9669517040563",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "hyperevm": {
       "oracleConfig": {
-        "tokenExchangeRate": "3448114677469616703",
-        "gasPrice": "13889727439",
+        "tokenExchangeRate": "3547958262265476071",
+        "gasPrice": "13038364473",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
-    "infinityvmmainnet": {
+    "incentiv": {
       "oracleConfig": {
-        "tokenExchangeRate": "77905889685260205",
-        "gasPrice": "0",
+        "tokenExchangeRate": "75248319454198856",
+        "gasPrice": "614758884888",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "ink": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "158351709",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "148191449",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "litchain": {
+      "oracleConfig": {
+        "tokenExchangeRate": "75248319454198856",
+        "gasPrice": "614758884888",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "mint": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "158351709",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "148191449",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "mode": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "158351709",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "148191449",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "optimism": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "158351709",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "148191449",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "paradex": {
       "oracleConfig": {
-        "tokenExchangeRate": "77905889685260205",
-        "gasPrice": "987654135",
+        "tokenExchangeRate": "75248319454198856",
+        "gasPrice": "987653410",
         "tokenDecimals": 18
       },
       "overhead": 130000000
     },
     "polygon": {
       "oracleConfig": {
-        "tokenExchangeRate": "18826503583670925",
-        "gasPrice": "2543933494286",
+        "tokenExchangeRate": "14405011538075649",
+        "gasPrice": "3211352718120",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
+    "pulsechain": {
+      "oracleConfig": {
+        "tokenExchangeRate": "2574997491722",
+        "gasPrice": "17964900201285592",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "radix": {
+      "oracleConfig": {
+        "tokenExchangeRate": "194427360288953",
+        "gasPrice": "1686383462081",
+        "tokenDecimals": 18
+      },
+      "overhead": 600000
+    },
     "solaxy": {
       "oracleConfig": {
-        "tokenExchangeRate": "6565518853",
-        "gasPrice": "6085083",
+        "tokenExchangeRate": "2155488110",
+        "gasPrice": "17902617",
         "tokenDecimals": 6
       },
       "overhead": 600000
@@ -179,38 +227,38 @@
     "sonicsvm": {
       "oracleConfig": {
         "tokenExchangeRate": "1500000000000000",
-        "gasPrice": "26635",
+        "gasPrice": "25726",
         "tokenDecimals": 9
       },
       "overhead": 600000
     },
     "soon": {
       "oracleConfig": {
-        "tokenExchangeRate": "30244936117170458",
-        "gasPrice": "1321",
+        "tokenExchangeRate": "31216088090699307",
+        "gasPrice": "1237",
         "tokenDecimals": 9
       },
       "overhead": 600000
     },
     "sophon": {
       "oracleConfig": {
-        "tokenExchangeRate": "3108915550015581",
-        "gasPrice": "8706116463066",
+        "tokenExchangeRate": "2159852513293869",
+        "gasPrice": "12104183417583",
         "tokenDecimals": 18
       },
       "overhead": 333774
     },
     "starknet": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "254404",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "238080",
         "tokenDecimals": 18
       },
       "overhead": 130000000
     },
     "subtensor": {
       "oracleConfig": {
-        "tokenExchangeRate": "33488625740105952009",
+        "tokenExchangeRate": "30148239189324771746",
         "gasPrice": "10000000000",
         "tokenDecimals": 18
       },
@@ -218,41 +266,57 @@
     },
     "superseed": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "158351709",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "148191449",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "svmbnb": {
       "oracleConfig": {
-        "tokenExchangeRate": "6677235899033966",
-        "gasPrice": "5984",
+        "tokenExchangeRate": "8514272097923146",
+        "gasPrice": "4533",
         "tokenDecimals": 9
       },
       "overhead": 600000
     },
     "unichain": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "158351709",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "148191449",
         "tokenDecimals": 18
       },
       "overhead": 166887
     },
     "worldchain": {
       "oracleConfig": {
-        "tokenExchangeRate": "302449361171704580866",
-        "gasPrice": "158351709",
+        "tokenExchangeRate": "312160880906993077154",
+        "gasPrice": "148191449",
         "tokenDecimals": 18
       },
       "overhead": 166887
     }
   },
   "eclipsemainnet": {
+    "arbitrum": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "148483169",
+        "tokenDecimals": 18
+      },
+      "overhead": 166460
+    },
+    "base": {
+      "oracleConfig": {
+        "tokenExchangeRate": "15000000000000000000",
+        "gasPrice": "148483169",
+        "tokenDecimals": 18
+      },
+      "overhead": 166460
+    },
     "celestia": {
       "oracleConfig": {
-        "tokenExchangeRate": "637518545994",
+        "tokenExchangeRate": "377855612150",
         "gasPrice": "2000",
         "tokenDecimals": 6
       },
@@ -261,7 +325,7 @@
     "ethereum": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
-        "gasPrice": "4000000000",
+        "gasPrice": "2500000000",
         "tokenDecimals": 18
       },
       "overhead": 166460
@@ -269,23 +333,23 @@
     "katana": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
-        "gasPrice": "158662109",
+        "gasPrice": "148483169",
         "tokenDecimals": 18
       },
       "overhead": 166460
     },
     "solanamainnet": {
       "oracleConfig": {
-        "tokenExchangeRate": "74392618694362",
-        "gasPrice": "63923",
+        "tokenExchangeRate": "72078217919636",
+        "gasPrice": "61743",
         "tokenDecimals": 9
       },
       "overhead": 600000
     },
     "sonicsvm": {
       "oracleConfig": {
-        "tokenExchangeRate": "74392618694362",
-        "gasPrice": "26635",
+        "tokenExchangeRate": "72078217919636",
+        "gasPrice": "25726",
         "tokenDecimals": 9
       },
       "overhead": 600000
@@ -293,15 +357,15 @@
     "soon": {
       "oracleConfig": {
         "tokenExchangeRate": "1500000000000000",
-        "gasPrice": "1321",
+        "gasPrice": "1237",
         "tokenDecimals": 9
       },
       "overhead": 600000
     },
     "stride": {
       "oracleConfig": {
-        "tokenExchangeRate": "69073009396",
-        "gasPrice": "11475",
+        "tokenExchangeRate": "22123174903",
+        "gasPrice": "33527",
         "tokenDecimals": 6
       },
       "overhead": 600000
@@ -310,8 +374,8 @@
   "soon": {
     "bsc": {
       "oracleConfig": {
-        "tokenExchangeRate": "3311580427794263105",
-        "gasPrice": "741709509",
+        "tokenExchangeRate": "4091290398007911464",
+        "gasPrice": "561840255",
         "tokenDecimals": 18
       },
       "overhead": 159736
@@ -319,23 +383,23 @@
     "eclipsemainnet": {
       "oracleConfig": {
         "tokenExchangeRate": "1500000000000000",
-        "gasPrice": "1321",
+        "gasPrice": "1237",
         "tokenDecimals": 9
       },
       "overhead": 600000
     },
     "solanamainnet": {
       "oracleConfig": {
-        "tokenExchangeRate": "74392618694362",
-        "gasPrice": "63923",
+        "tokenExchangeRate": "72078217919636",
+        "gasPrice": "61743",
         "tokenDecimals": 9
       },
       "overhead": 600000
     },
     "svmbnb": {
       "oracleConfig": {
-        "tokenExchangeRate": "331158042779426",
-        "gasPrice": "5984",
+        "tokenExchangeRate": "409129039800791",
+        "gasPrice": "4533",
         "tokenDecimals": 9
       },
       "overhead": 600000
@@ -344,8 +408,8 @@
   "sonicsvm": {
     "eclipsemainnet": {
       "oracleConfig": {
-        "tokenExchangeRate": "30244936117170458",
-        "gasPrice": "1321",
+        "tokenExchangeRate": "31216088090699307",
+        "gasPrice": "1237",
         "tokenDecimals": 9
       },
       "overhead": 600000
@@ -353,7 +417,7 @@
     "solanamainnet": {
       "oracleConfig": {
         "tokenExchangeRate": "1500000000000000",
-        "gasPrice": "63923",
+        "gasPrice": "61743",
         "tokenDecimals": 9
       },
       "overhead": 600000
@@ -363,23 +427,23 @@
     "bsc": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
-        "gasPrice": "741716571",
+        "gasPrice": "561842825",
         "tokenDecimals": 18
       },
       "overhead": 159736
     },
     "solanamainnet": {
       "oracleConfig": {
-        "tokenExchangeRate": "336965779556405",
-        "gasPrice": "63923",
+        "tokenExchangeRate": "264262167584335",
+        "gasPrice": "61743",
         "tokenDecimals": 9
       },
       "overhead": 600000
     },
     "soon": {
       "oracleConfig": {
-        "tokenExchangeRate": "6794338984237361",
-        "gasPrice": "1321",
+        "tokenExchangeRate": "5499487401567844",
+        "gasPrice": "1237",
         "tokenDecimals": 9
       },
       "overhead": 600000
@@ -388,17 +452,17 @@
   "solaxy": {
     "ethereum": {
       "oracleConfig": {
-        "tokenExchangeRate": "69099495698605754968851972",
-        "gasPrice": "4000000000",
-        "tokenDecimals": 18
+        "gasPrice": "9",
+        "tokenExchangeRate": "15000000000000000000",
+        "tokenDecimals": 6
       },
       "overhead": 159337
     },
     "solanamainnet": {
       "oracleConfig": {
-        "tokenExchangeRate": "342699495698605754968",
-        "gasPrice": "63923",
-        "tokenDecimals": 9
+        "gasPrice": "1",
+        "tokenExchangeRate": "15000000000000000000",
+        "tokenDecimals": 6
       },
       "overhead": 600000
     }

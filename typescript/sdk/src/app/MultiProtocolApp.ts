@@ -90,19 +90,33 @@ export class BaseSealevelAdapter extends BaseAppAdapter {
     seeds: Array<string | Buffer>,
     programId: string | PublicKey,
   ): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
+    return this.derivePdaWithBump(seeds, programId)[0];
+  }
+
+  static derivePdaWithBump(
+    seeds: Array<string | Buffer>,
+    programId: string | PublicKey,
+  ): [PublicKey, number] {
+    const [pda, bump] = PublicKey.findProgramAddressSync(
       seeds.map((s) => Buffer.from(s)),
       new PublicKey(programId),
     );
-    return pda;
+    return [pda, bump];
   }
 
-  // An dynamic alias for static method above for convenience
+  // Dynamic aliases for static methods above for convenience
   derivePda(
     seeds: Array<string | Buffer>,
     programId: string | PublicKey,
   ): PublicKey {
     return BaseSealevelAdapter.derivePda(seeds, programId);
+  }
+
+  derivePdaWithBump(
+    seeds: Array<string | Buffer>,
+    programId: string | PublicKey,
+  ): [PublicKey, number] {
+    return BaseSealevelAdapter.derivePdaWithBump(seeds, programId);
   }
 }
 

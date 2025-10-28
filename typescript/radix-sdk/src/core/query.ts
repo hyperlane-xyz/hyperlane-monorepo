@@ -1,13 +1,21 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import {
+  PrivateKey,
+  generateRandomNonce,
+} from '@radixdlt/radix-engine-toolkit';
+import { utils } from 'ethers';
 
-import { assert, ensure0x } from '@hyperlane-xyz/utils';
+import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import {
   EntityDetails,
   EntityField,
+  Hooks,
   Isms,
   MultisigIsms,
+  RadixHookTypes,
+  Receipt,
 } from '../utils/types.js';
 
 export class RadixCoreQuery {
@@ -24,11 +32,11 @@ export class RadixCoreQuery {
   public async getMailbox({ mailbox }: { mailbox: string }): Promise<{
     address: string;
     owner: string;
-    local_domain: number;
+    localDomain: number;
     nonce: number;
-    default_ism: string;
-    default_hook: string;
-    required_hook: string;
+    defaultIsm: string;
+    defaultHook: string;
+    requiredHook: string;
   }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(mailbox);
@@ -52,24 +60,72 @@ export class RadixCoreQuery {
     const result = {
       address: mailbox,
       owner: resourceHolders[0],
-      local_domain: parseInt(
+      localDomain: parseInt(
         fields.find((f) => f.field_name === 'local_domain')?.value ?? '0',
       ),
       nonce: parseInt(
         fields.find((f) => f.field_name === 'nonce')?.value ?? '0',
       ),
-      default_ism:
+      defaultIsm:
         fields.find((f) => f.field_name === 'default_ism')?.fields?.at(0)
           ?.value ?? '',
-      default_hook:
+      defaultHook:
         fields.find((f) => f.field_name === 'default_hook')?.fields?.at(0)
           ?.value ?? '',
-      required_hook:
+      requiredHook:
         fields.find((f) => f.field_name === 'required_hook')?.fields?.at(0)
           ?.value ?? '',
     };
 
     return result;
+  }
+
+  public async isMessageDelivered({
+    mailbox,
+    message_id,
+  }: {
+    mailbox: string;
+    message_id: string;
+  }): Promise<boolean> {
+    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
+
+    const constructionMetadata =
+      await this.gateway.transaction.innerClient.transactionConstruction();
+
+    const response =
+      await this.gateway.transaction.innerClient.transactionPreview({
+        transactionPreviewRequest: {
+          manifest: `
+  CALL_METHOD
+      Address("${mailbox}")
+      "delivered"
+      Bytes("${strip0x(message_id)}")
+  ;
+  `,
+          nonce: generateRandomNonce(),
+          signer_public_keys: [
+            {
+              key_type: 'EddsaEd25519',
+              key_hex: pk.publicKeyHex(),
+            },
+          ],
+          flags: {
+            use_free_credit: true,
+          },
+          start_epoch_inclusive: constructionMetadata.ledger_state.epoch,
+          end_epoch_exclusive: constructionMetadata.ledger_state.epoch + 2,
+        },
+      });
+
+    assert(
+      !(response.receipt as Receipt).error_message,
+      `${(response.receipt as Receipt).error_message}`,
+    );
+
+    const output = (response.receipt as Receipt).output;
+    assert(output.length, `found no output for delivered method`);
+
+    return (output[0].programmatic_json as { value: boolean }).value;
   }
 
   public async getIsmType({ ism }: { ism: string }): Promise<Isms> {
@@ -108,8 +164,8 @@ export class RadixCoreQuery {
     address: string;
     owner: string;
     routes: {
-      domain: number;
-      ism: string;
+      domainId: number;
+      ismAddress: string;
     }[];
   }> {
     const details =
@@ -142,15 +198,11 @@ export class RadixCoreQuery {
       fields.find((f) => f.field_name === 'routes')?.value ?? '';
     assert(routesKeyValueStore, `found no routes on RoutingIsm ${ism}`);
 
-    const { items } = await this.gateway.state.innerClient.keyValueStoreKeys({
-      stateKeyValueStoreKeysRequest: {
-        key_value_store_address: routesKeyValueStore,
-      },
-    });
+    const keys = await this.base.getKeysFromKeyValueStore(routesKeyValueStore);
 
     const routes = [];
 
-    for (const { key } of items) {
+    for (const key of keys) {
       const { entries } =
         await this.gateway.state.innerClient.keyValueStoreData({
           stateKeyValueStoreDataRequest: {
@@ -163,14 +215,15 @@ export class RadixCoreQuery {
           },
         });
 
-      const domain = parseInt(
+      const domainId = parseInt(
         (key.programmatic_json as EntityField)?.value ?? '0',
       );
-      const ism = (entries[0].value.programmatic_json as EntityField).value;
+      const ismAddress = (entries[0].value.programmatic_json as EntityField)
+        .value;
 
       routes.push({
-        domain,
-        ism,
+        domainId,
+        ismAddress,
       });
     }
 
@@ -181,16 +234,23 @@ export class RadixCoreQuery {
     };
   }
 
+  public async getHookType({ hook }: { hook: string }): Promise<Hooks> {
+    const details =
+      await this.gateway.state.getEntityDetailsVaultAggregated(hook);
+
+    return (details.details as EntityDetails).blueprint_name as Hooks;
+  }
+
   public async getIgpHook({ hook }: { hook: string }): Promise<{
     address: string;
     owner: string;
-    destination_gas_configs: {
-      [domain_id: string]: {
-        gas_oracle: {
-          token_exchange_rate: string;
-          gas_price: string;
+    destinationGasConfigs: {
+      [domainId: string]: {
+        gasOracle: {
+          tokenExchangeRate: string;
+          gasPrice: string;
         };
-        gas_overhead: string;
+        gasOverhead: string;
       };
     };
   }> {
@@ -198,9 +258,8 @@ export class RadixCoreQuery {
       await this.gateway.state.getEntityDetailsVaultAggregated(hook);
 
     assert(
-      (details.details as EntityDetails).blueprint_name ===
-        'InterchainGasPaymaster',
-      `Expected contract at address ${hook} to be "InterchainGasPaymaster" but got ${(details.details as EntityDetails).blueprint_name}`,
+      (details.details as EntityDetails).blueprint_name === RadixHookTypes.IGP,
+      `Expected contract at address ${hook} to be "${RadixHookTypes.IGP}" but got ${(details.details as EntityDetails).blueprint_name}`,
     );
 
     const ownerResource = (details.details as EntityDetails).role_assignments
@@ -229,15 +288,13 @@ export class RadixCoreQuery {
       `found no destination gas configs on hook ${hook}`,
     );
 
-    const destination_gas_configs = {};
+    const destinationGasConfigs = {};
 
-    const { items } = await this.gateway.state.innerClient.keyValueStoreKeys({
-      stateKeyValueStoreKeysRequest: {
-        key_value_store_address: destinationGasConfigsKeyValueStore,
-      },
-    });
+    const keys = await this.base.getKeysFromKeyValueStore(
+      destinationGasConfigsKeyValueStore,
+    );
 
-    for (const { key } of items) {
+    for (const key of keys) {
       const { entries } =
         await this.gateway.state.innerClient.keyValueStoreData({
           stateKeyValueStoreDataRequest: {
@@ -260,18 +317,18 @@ export class RadixCoreQuery {
         gasConfigFields?.find((r) => r.field_name === 'gas_oracle')?.fields ??
         [];
 
-      Object.assign(destination_gas_configs, {
+      Object.assign(destinationGasConfigs, {
         [remoteDomain]: {
-          gas_oracle: {
-            token_exchange_rate:
+          gasOracle: {
+            tokenExchangeRate:
               gasOracleFields.find(
                 (r) => r.field_name === 'token_exchange_rate',
               )?.value ?? '0',
-            gas_price:
+            gasPrice:
               gasOracleFields.find((r) => r.field_name === 'gas_price')
                 ?.value ?? '0',
           },
-          gas_overhead:
+          gasOverhead:
             gasConfigFields?.find((r) => r.field_name === 'gas_overhead')
               ?.value ?? '0',
         },
@@ -281,7 +338,7 @@ export class RadixCoreQuery {
     return {
       address: hook,
       owner: resourceHolders[0],
-      destination_gas_configs,
+      destinationGasConfigs,
     };
   }
 
@@ -292,8 +349,9 @@ export class RadixCoreQuery {
       await this.gateway.state.getEntityDetailsVaultAggregated(hook);
 
     assert(
-      (details.details as EntityDetails).blueprint_name === 'MerkleTreeHook',
-      `Expected contract at address ${hook} to be "MerkleTreeHook" but got ${(details.details as EntityDetails).blueprint_name}`,
+      (details.details as EntityDetails).blueprint_name ===
+        RadixHookTypes.MERKLE_TREE,
+      `Expected contract at address ${hook} to be "${RadixHookTypes.MERKLE_TREE}" but got ${(details.details as EntityDetails).blueprint_name}`,
     );
 
     return {

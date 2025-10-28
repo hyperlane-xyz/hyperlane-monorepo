@@ -1,5 +1,61 @@
 # @hyperlane-xyz/core
 
+## 9.0.16
+
+### Patch Changes
+
+- Updated dependencies [5a4e22d34]
+  - @hyperlane-xyz/utils@19.4.0
+
+## 9.0.15
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.3.0
+
+## 9.0.14
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.2.0
+
+## 9.0.13
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.1.1
+
+## 9.0.12
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.1.0
+
+## 9.0.11
+
+### Patch Changes
+
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/utils@19.0.0
+
+## 9.0.10
+
+### Patch Changes
+
+- a5728818f: Updated import statements for ProxyAdmin and TransparentUpgradeableProxy contracts as they weren't included in the build artifacts used for verification with the old import
+- Updated dependencies [c41bc3b93]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [6b8419370]
+  - @hyperlane-xyz/utils@18.3.0
+
+## 9.0.9
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@18.2.0
+
 ## 9.0.8
 
 ### Patch Changes

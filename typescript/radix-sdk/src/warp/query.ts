@@ -25,14 +25,14 @@ export class RadixWarpQuery {
   public async getToken({ token }: { token: string }): Promise<{
     address: string;
     owner: string;
-    token_type: 'Collateral' | 'Synthetic';
-    mailbox: string;
-    ism: string;
-    origin_denom: string;
+    tokenType: 'Collateral' | 'Synthetic';
+    mailboxAddress: string;
+    ismAddress: string;
+    denom: string;
     name: string;
     symbol: string;
     description: string;
-    divisibility: number;
+    decimals: number;
   }> {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(token);
@@ -76,7 +76,7 @@ export class RadixWarpQuery {
       name: '',
       symbol: '',
       description: '',
-      divisibility: 0,
+      decimals: 0,
     };
 
     if (token_type === 'Collateral') {
@@ -97,10 +97,11 @@ export class RadixWarpQuery {
     const result = {
       address: token,
       owner: resourceHolders[0],
-      token_type: token_type as 'Collateral' | 'Synthetic',
-      mailbox: fields.find((f) => f.field_name === 'mailbox')?.value ?? '',
-      ism: ismFields[0]?.value ?? '',
-      origin_denom,
+      tokenType: token_type as 'Collateral' | 'Synthetic',
+      mailboxAddress:
+        fields.find((f) => f.field_name === 'mailbox')?.value ?? '',
+      ismAddress: ismFields[0]?.value ?? '',
+      denom: origin_denom,
       ...metadata,
     };
 
@@ -109,9 +110,9 @@ export class RadixWarpQuery {
 
   public async getRemoteRouters({ token }: { token: string }): Promise<{
     address: string;
-    remote_routers: {
-      receiver_domain: string;
-      receiver_contract: string;
+    remoteRouters: {
+      receiverDomainId: number;
+      receiverAddress: string;
       gas: string;
     }[];
   }> {
@@ -132,15 +133,13 @@ export class RadixWarpQuery {
       `found no enrolled routers on token ${token}`,
     );
 
-    const remote_routers = [];
+    const remoteRouters = [];
 
-    const { items } = await this.gateway.state.innerClient.keyValueStoreKeys({
-      stateKeyValueStoreKeysRequest: {
-        key_value_store_address: enrolledRoutersKeyValueStore,
-      },
-    });
+    const keys = await this.base.getKeysFromKeyValueStore(
+      enrolledRoutersKeyValueStore,
+    );
 
-    for (const { key } of items) {
+    for (const key of keys) {
       const { entries } =
         await this.gateway.state.innerClient.keyValueStoreData({
           stateKeyValueStoreDataRequest: {
@@ -156,10 +155,11 @@ export class RadixWarpQuery {
       const routerFields =
         (entries[0].value.programmatic_json as EntityField)?.fields ?? [];
 
-      remote_routers.push({
-        receiver_domain:
+      remoteRouters.push({
+        receiverDomainId: parseInt(
           routerFields.find((r) => r.field_name === 'domain')?.value ?? '',
-        receiver_contract:
+        ),
+        receiverAddress:
           routerFields.find((r) => r.field_name === 'recipient')?.hex ?? '',
         gas: routerFields.find((r) => r.field_name === 'gas')?.value ?? '',
       });
@@ -167,28 +167,28 @@ export class RadixWarpQuery {
 
     const result = {
       address: token,
-      remote_routers,
+      remoteRouters,
     };
 
     return result;
   }
 
   public async getBridgedSupply({ token }: { token: string }): Promise<bigint> {
-    const { token_type, origin_denom } = await this.getToken({ token });
+    const { tokenType, denom } = await this.getToken({ token });
 
-    switch (token_type) {
+    switch (tokenType) {
       case 'Collateral': {
         // if the token is collateral we get the token contract balance
         // of the origin denom
-        return this.base.getBalance({ address: token, resource: origin_denom });
+        return this.base.getBalance({ address: token, resource: denom });
       }
       case 'Synthetic': {
         // if the token is synthetic we get the total supply of the synthetic
         // resource
-        return this.base.getTotalSupply({ resource: origin_denom });
+        return this.base.getTotalSupply({ resource: denom });
       }
       default: {
-        throw new Error(`unknown token type: ${token_type}`);
+        throw new Error(`unknown token type: ${tokenType}`);
       }
     }
   }
@@ -199,7 +199,7 @@ export class RadixWarpQuery {
   }: {
     token: string;
     destination_domain: number;
-  }): Promise<{ resource: string; amount: bigint }> {
+  }): Promise<{ denom: string; amount: bigint }> {
     const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
 
     const constructionMetadata =
@@ -240,7 +240,13 @@ CALL_METHOD
     const output = (response.receipt as Receipt).output;
     assert(output.length, `found no output for quote_remote_transfer method`);
 
-    const entries = output[0].programmatic_json.entries;
+    const programmaticJson = output[0].programmatic_json;
+    assert(
+      'entries' in programmaticJson,
+      'programmatic_json is not in the expected format',
+    );
+
+    const entries = programmaticJson.entries;
     assert(entries.length > 0, `quote_remote_transfer returned no resources`);
     assert(
       entries.length < 2,
@@ -248,7 +254,7 @@ CALL_METHOD
     );
 
     return {
-      resource: entries[0].key.value,
+      denom: entries[0].key.value,
       amount: BigInt(
         new BigNumber(entries[0].value.value)
           .times(new BigNumber(10).pow(18))

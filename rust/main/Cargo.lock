@@ -2418,7 +2418,7 @@ dependencies = [
 [[package]]
 name = "core-api-client"
 version = "1.0.0"
-source = "git+https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?branch=hyperlane#e453efa17ebce976b22561fb32383da3e4b4e99e"
+source = "git+https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad4ef48cab302cfa0435c548b54923b7e1"
 dependencies = [
  "core-api-client-async",
 ]
@@ -2426,9 +2426,9 @@ dependencies = [
 [[package]]
 name = "core-api-client-async"
 version = "1.0.0"
-source = "git+https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?branch=hyperlane#e453efa17ebce976b22561fb32383da3e4b4e99e"
+source = "git+https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad4ef48cab302cfa0435c548b54923b7e1"
 dependencies = [
- "reqwest 0.12.15",
+ "reqwest 0.11.27",
  "serde",
  "serde_json",
  "serde_with",
@@ -4891,7 +4891,7 @@ dependencies = [
 [[package]]
 name = "gateway-api-client"
 version = "1.0.0"
-source = "git+https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?branch=hyperlane#e453efa17ebce976b22561fb32383da3e4b4e99e"
+source = "git+https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad4ef48cab302cfa0435c548b54923b7e1"
 dependencies = [
  "gateway-api-client-async",
 ]
@@ -4899,9 +4899,9 @@ dependencies = [
 [[package]]
 name = "gateway-api-client-async"
 version = "1.0.0"
-source = "git+https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?branch=hyperlane#e453efa17ebce976b22561fb32383da3e4b4e99e"
+source = "git+https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?rev=2d284dad4ef48cab302cfa0435c548b54923b7e1#2d284dad4ef48cab302cfa0435c548b54923b7e1"
 dependencies = [
- "reqwest 0.12.15",
+ "reqwest 0.11.27",
  "serde",
  "serde_json",
  "serde_with",
@@ -5513,22 +5513,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyper-tls"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70206fc6890eaca9fde8a0bf71caa2ddfc9fe045ac9e5c70df101a7dbde866e0"
-dependencies = [
- "bytes",
- "http-body-util",
- "hyper 1.6.0",
- "hyper-util",
- "native-tls",
- "tokio",
- "tokio-native-tls",
- "tower-service",
-]
-
-[[package]]
 name = "hyper-util"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5687,7 +5671,7 @@ dependencies = [
  "hex 0.4.3",
  "http 1.2.0",
  "hyper 0.14.30",
- "hyper-tls 0.5.0",
+ "hyper-tls",
  "hyperlane-core",
  "hyperlane-cosmos-rs",
  "hyperlane-cosmwasm-interface",
@@ -5776,6 +5760,7 @@ dependencies = [
  "num 0.4.3",
  "num-traits",
  "reqwest 0.11.27",
+ "reqwest-utils",
  "serde",
  "serde_json",
  "thiserror 1.0.63",
@@ -5841,7 +5826,7 @@ dependencies = [
  "hex 0.4.3",
  "http 1.2.0",
  "hyper 0.14.30",
- "hyper-tls 0.5.0",
+ "hyper-tls",
  "hyperlane-core",
  "hyperlane-metric",
  "hyperlane-operation-verifier",
@@ -5851,8 +5836,10 @@ dependencies = [
  "radix-common",
  "radix-engine-interface",
  "radix-transactions",
+ "rand 0.8.5",
  "regex",
- "reqwest 0.12.15",
+ "reqwest 0.11.27",
+ "reqwest-utils",
  "ripemd",
  "sbor",
  "scrypto",
@@ -6017,6 +6004,7 @@ dependencies = [
  "cainome",
  "derive-new",
  "hyperlane-core",
+ "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
  "serde",
@@ -6525,18 +6513,28 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "core-api-client",
  "derive-new",
  "ethers",
  "ethers-core",
+ "ethers-prometheus",
  "eyre",
  "futures-util",
+ "gateway-api-client",
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-ethereum",
+ "hyperlane-radix",
  "hyperlane-sealevel",
  "itertools 0.12.1",
  "mockall",
  "prometheus",
+ "radix-common",
+ "radix-transactions",
+ "rand 0.8.5",
+ "regex",
+ "sbor",
+ "scrypto",
  "serde",
  "serde_json",
  "solana-client",
@@ -6549,6 +6547,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "tracing-test",
+ "url",
  "uuid 1.11.0",
 ]
 
@@ -8891,11 +8890,12 @@ dependencies = [
  "http-body 0.4.6",
  "hyper 0.14.30",
  "hyper-rustls 0.24.2",
- "hyper-tls 0.5.0",
+ "hyper-tls",
  "ipnet",
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "native-tls",
  "once_cell",
  "percent-encoding",
@@ -8907,7 +8907,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "sync_wrapper 0.1.2",
- "system-configuration 0.5.1",
+ "system-configuration",
  "tokio",
  "tokio-native-tls",
  "tokio-rustls 0.24.1",
@@ -8929,23 +8929,18 @@ checksum = "d19c46a6fdd48bc4dab94b6103fccc55d34c67cc0ad04653aad4ea2a07cd7bbb"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "encoding_rs",
  "futures-core",
  "futures-util",
- "h2 0.4.7",
  "http 1.2.0",
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.6.0",
  "hyper-rustls 0.27.6",
- "hyper-tls 0.6.0",
  "hyper-util",
  "ipnet",
  "js-sys",
  "log",
  "mime",
- "mime_guess",
- "native-tls",
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
@@ -8957,9 +8952,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "sync_wrapper 1.0.2",
- "system-configuration 0.6.1",
  "tokio",
- "tokio-native-tls",
  "tokio-rustls 0.26.1",
  "tower 0.5.2",
  "tower-service",
@@ -8969,6 +8962,15 @@ dependencies = [
  "web-sys",
  "webpki-roots 0.26.11",
  "windows-registry",
+]
+
+[[package]]
+name = "reqwest-utils"
+version = "0.1.0"
+dependencies = [
+ "reqwest 0.11.27",
+ "thiserror 1.0.63",
+ "url",
 ]
 
 [[package]]
@@ -9177,17 +9179,20 @@ name = "run-locally"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "core-api-client",
  "cosmwasm-schema 2.2.0",
  "ctrlc",
  "ethers",
  "ethers-contract",
  "ethers-core",
  "eyre",
+ "gateway-api-client",
  "hex 0.4.3",
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-cosmwasm-interface",
+ "hyperlane-radix",
  "hyperlane-starknet",
  "jobserver",
  "k256 0.13.4",
@@ -9195,10 +9200,15 @@ dependencies = [
  "maplit",
  "nix 0.26.4",
  "once_cell",
+ "radix-common",
+ "radix-engine-interface",
+ "radix-transactions",
  "regex",
  "relayer",
  "reqwest 0.11.27",
  "ripemd",
+ "sbor",
+ "scrypto",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -9207,6 +9217,7 @@ dependencies = [
  "tokio",
  "toml_edit 0.19.15",
  "ureq",
+ "url",
  "vergen",
  "which 4.4.2",
 ]
@@ -9224,7 +9235,7 @@ dependencies = [
  "futures",
  "http 0.2.12",
  "hyper 0.14.30",
- "hyper-tls 0.5.0",
+ "hyper-tls",
  "lazy_static",
  "log",
  "rusoto_credential",
@@ -11862,18 +11873,7 @@ checksum = "ba3a3adc5c275d719af8cb4272ea1c4a6d668a777f37e115f6d11ddbc1c8e0e7"
 dependencies = [
  "bitflags 1.3.2",
  "core-foundation 0.9.4",
- "system-configuration-sys 0.5.0",
-]
-
-[[package]]
-name = "system-configuration"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c879d448e9d986b661742763247d3693ed13609438cf3d006f51f5368a5ba6b"
-dependencies = [
- "bitflags 2.6.0",
- "core-foundation 0.9.4",
- "system-configuration-sys 0.6.0",
+ "system-configuration-sys",
 ]
 
 [[package]]
@@ -11881,16 +11881,6 @@ name = "system-configuration-sys"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a75fb188eb626b924683e3b95e3a48e63551fcfb51949de2f06a9d91dbee93c9"
-dependencies = [
- "core-foundation-sys",
- "libc",
-]
-
-[[package]]
-name = "system-configuration-sys"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
 dependencies = [
  "core-foundation-sys",
  "libc",

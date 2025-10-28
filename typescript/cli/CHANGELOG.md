@@ -1,5 +1,58 @@
 # @hyperlane-xyz/cli
 
+## 19.4.0
+
+### Minor Changes
+
+- 4011a4561: Fix bug that prevented the warp route ism to be set to the 0 address and include logic to update a pausable ism as it was missing
+
+## 19.3.0
+
+## 19.2.0
+
+### Minor Changes
+
+- 3181c49c7: fix bug related to cli throwing error after trying to retrieve a submitter config for a chain where it wasn't defined if the chain was not an extension
+
+## 19.1.1
+
+## 19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- e42a0e8e1: feat: radix support for the cli
+- 8eab305bd: feat: add altvm file submitter
+- 32479e139: feat: register AltVM signer & provider factories
+
+### Minor Changes
+
+- 9e5dbfdf1: Update `hyperlane warp send` to include `--chains` parameter to input which chains to send to
+- 6c97a305d: Use only rebalancer config chains when resolving warp rebalance command
+- b076393b5: Remove inflight guard from rebalancer
+
+### Patch Changes
+
+- 70354d6d9: Restore foreignDeployment field behaviour to allow enrollment of unsupported chains during deployment
+
+## 18.3.0
+
+### Minor Changes
+
+- 2b16904f8: Dont check for token collateralAddressOrDenom to enable HypNative router collateral balance reads
+- 571901a6d: Fix warp read crashing when providing the `--warpRouteId` flag
+
+### Patch Changes
+
+- a5728818f: Fixed pre deploy balance check logic that attempted to convert to bignumber decimal numbers
+
+## 18.2.0
+
+### Minor Changes
+
+- dfa9d368c: updated command context initialization logic to simplify signer configuration and remove private usage assumption
+
 ## 18.1.0
 
 ## 18.0.0

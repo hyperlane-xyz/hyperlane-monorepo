@@ -68,7 +68,7 @@ export {
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude, randomElement } from './arrays.js';
+export { chunk, exclude, randomElement, arrayEqual } from './arrays.js';
 export {
   concurrentMap,
   fetchWithTimeout,
@@ -202,3 +202,5 @@ export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
 export { tryParseJsonOrYaml } from './yaml.js';
 export { createServiceLogger } from './logging.js';
+export { MinimumRequiredGasByAction, GasAction } from './mingas.js';
+export * as AltVM from './altvm.js';

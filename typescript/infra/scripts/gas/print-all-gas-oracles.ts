@@ -1,19 +1,14 @@
-import {
-  ChainMap,
-  ChainName,
-  ProtocolAgnositicGasOracleConfig,
-} from '@hyperlane-xyz/sdk';
-import { objFilter, objMap, stringifyObject } from '@hyperlane-xyz/utils';
+import { ChainMap } from '@hyperlane-xyz/sdk';
+import { stringifyObject } from '@hyperlane-xyz/utils';
 
-import { getChains, getWarpAddresses } from '../../config/registry.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
+import { getChains } from '../../config/registry.js';
+import {
+  type GasOracleConfigWithOverhead,
+  OracleConfigSchema,
+} from '../../src/config/gas-oracle.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withOutputFile } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
-
-interface GasOracleConfigWithOverhead {
-  oracleConfig: ProtocolAgnositicGasOracleConfig;
-  overhead?: number;
-}
 
 async function main() {
   const allChainChoices = getChains();
@@ -72,8 +67,9 @@ async function main() {
             );
           }
 
+          const validatedOracleConfig = OracleConfigSchema.parse(oracleConfig);
           destAcc[destination] = {
-            oracleConfig,
+            oracleConfig: validatedOracleConfig,
             overhead: igpConfig?.overhead?.[destination],
           };
           return destAcc;
@@ -95,7 +91,7 @@ async function main() {
 
   if (outFile) {
     console.log(`Writing config to ${outFile}`);
-    writeJsonAtPath(outFile, gasOracles);
+    writeAndFormatJsonAtPath(outFile, gasOracles);
   }
 }
 

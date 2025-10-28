@@ -1,23 +1,51 @@
-import { IsmType } from '@hyperlane-xyz/sdk';
+import path from 'path';
 
+import { ChainName, IsmType } from '@hyperlane-xyz/sdk';
+
+import { Contexts } from '../../config/contexts.js';
 import { multisigIsms } from '../../config/multisigIsm.js';
 import { getChains } from '../../config/registry.js';
-import { getArgs, withContext } from '../agent-utils.js';
+import { DeployEnvironment } from '../../src/config/environment.js';
+import {
+  assertContext,
+  getMonorepoRoot,
+  writeAndFormatJsonAtPath,
+} from '../../src/utils/utils.js';
+import { getArgs, withWrite } from '../agent-utils.js';
 
 // This script exists to print the default multisig ISM validator sets for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(
 
+const multisigIsmConfigPath = (
+  environment: DeployEnvironment,
+  context: Contexts,
+  local: ChainName,
+) =>
+  path.resolve(
+    getMonorepoRoot(),
+    `rust/sealevel/environments/${environment}/multisig-ism-message-id/${local}/${context}/multisig-config.json`,
+  );
+
 async function main() {
-  const args = await withContext(getArgs())
+  const {
+    environment,
+    local,
+    context = Contexts.Hyperlane,
+    write,
+  } = await withWrite(getArgs())
+    .describe('context', 'write multisig ISM config to context')
+    .choices('context', [Contexts.Hyperlane, Contexts.ReleaseCandidate])
+    .alias('x', 'context')
     .describe('local', 'local chain')
     .choices('local', getChains())
     .demandOption('local').argv;
 
   const config = multisigIsms(
-    args.environment,
-    args.local,
+    environment,
+    local,
     IsmType.MESSAGE_ID_MULTISIG,
-    args.context,
+    // generate for hyperlane context by default
+    Contexts.Hyperlane,
   );
 
   // Cap any thresholds to 4 due to the Sealevel transaction size limit.
@@ -31,6 +59,11 @@ async function main() {
   const MAX_THRESHOLD = 4;
 
   for (const chain of Object.keys(config)) {
+    // exclude forma as it's not a core chain
+    if (chain === 'forma') {
+      continue;
+    }
+
     if (config[chain].threshold > MAX_THRESHOLD) {
       console.warn(
         `Threshold for ${chain} is ${config[chain].threshold}. Capping to ${MAX_THRESHOLD}.`,
@@ -39,7 +72,17 @@ async function main() {
     }
   }
 
-  console.log(JSON.stringify(config, null, 2));
+  if (write) {
+    // write to the context directory
+    // we use the `hyperlane` context for all config generation
+    // but when deploying new SVM ISMS, we deploy/configure a new "release candidate" ISM
+    // before promoting it to the `hyperlane` context and setting it as the default ISM
+    const filepath = multisigIsmConfigPath(environment, context, local);
+    console.log(`Writing config to ${filepath}`);
+    await writeAndFormatJsonAtPath(filepath, config);
+  } else {
+    console.log(JSON.stringify(config, null, 2));
+  }
 }
 
 main().catch((err) => {
