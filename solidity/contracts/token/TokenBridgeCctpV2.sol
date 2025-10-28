@@ -172,7 +172,8 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     function _bridgeViaCircle(
         uint32 circleDomain,
         bytes32 _recipient,
-        uint256 _amount
+        uint256 _amount,
+        uint256 _maxFee
     ) internal override {
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
             _amount,
@@ -180,7 +181,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             _recipient,
             address(wrappedToken),
             bytes32(0), // allow anyone to relay
-            maxFeeBps,
+            _maxFee,
             minFinalityThreshold
         );
     }
