@@ -1,6 +1,7 @@
 import { Logger } from 'pino';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AnnotatedTx } from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
   assert,
@@ -9,10 +10,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import {
-  ProtocolReceipt,
-  ProtocolTransaction,
-} from '../providers/ProviderType.js';
+import { ProtocolReceipt } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenType, gasOverhead } from './config.js';
@@ -23,7 +21,7 @@ export class AltVMDeployer<PT extends ProtocolType> {
 
   constructor(
     protected readonly signersMap: ChainMap<
-      AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>
+      AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>
     >,
   ) {
     this.logger = rootLogger.child({ module: 'AltVMDeployer' });

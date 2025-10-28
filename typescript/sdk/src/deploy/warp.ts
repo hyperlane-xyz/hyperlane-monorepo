@@ -1,6 +1,7 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AnnotatedTx } from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
   addressToBytes32,
@@ -28,7 +29,6 @@ import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AnyProtocolReceipt,
-  AnyProtocolTransaction,
   TypedAnnotatedTransaction,
 } from '../providers/ProviderType.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
@@ -53,7 +53,7 @@ type ChainAddresses = Record<string, string>;
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>,
+  altVmSigner: AltVM.ISignerFactory<AnnotatedTx, AnyProtocolReceipt>,
   registryAddresses: ChainMap<ChainAddresses>,
   apiKeys: ChainMap<string>,
 ): Promise<ChainMap<Address>> {
@@ -160,7 +160,7 @@ export async function executeWarpDeploy(
 async function resolveWarpIsmAndHook(
   warpConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>,
+  altVmSigner: AltVM.ISignerFactory<AnnotatedTx, AnyProtocolReceipt>,
   registryAddresses: ChainMap<ChainAddresses>,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier: ContractVerifier,
@@ -217,7 +217,7 @@ async function createWarpIsm({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
-  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>;
+  altVmSigner: AltVM.ISignerFactory<AnnotatedTx, AnyProtocolReceipt>;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -360,10 +360,7 @@ export async function enrollCrossChainRouters(
     warpDeployConfig,
   }: {
     multiProvider: MultiProvider;
-    altVmSigner: AltVM.ISignerFactory<
-      AnyProtocolTransaction,
-      AnyProtocolReceipt
-    >;
+    altVmSigner: AltVM.ISignerFactory<AnnotatedTx, AnyProtocolReceipt>;
     registryAddresses: ChainMap<ChainAddresses>;
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },

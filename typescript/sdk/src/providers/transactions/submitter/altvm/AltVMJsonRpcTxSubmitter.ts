@@ -1,12 +1,12 @@
 import { Logger } from 'pino';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AnnotatedTx } from '@hyperlane-xyz/provider-sdk/module';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   AnnotatedTypedTransaction,
   ProtocolReceipt,
-  ProtocolTransaction,
 } from '../../../ProviderType.js';
 import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
@@ -19,10 +19,7 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
   protected readonly logger: Logger;
 
   constructor(
-    public readonly signer: AltVM.ISigner<
-      ProtocolTransaction<PT>,
-      ProtocolReceipt<PT>
-    >,
+    public readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
     public readonly config: { chain: string },
   ) {
     this.logger = rootLogger.child({

@@ -1,17 +1,15 @@
 import { zeroAddress } from 'viem';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import {
+  AnnotatedTx,
+  HypModule,
+  HypModuleArgs,
+} from '@hyperlane-xyz/provider-sdk/module';
 import { Address, assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
-import {
-  HyperlaneModule,
-  HyperlaneModuleParams,
-} from '../core/AbstractHyperlaneModule.js';
-import {
-  AnnotatedTypedTransaction,
-  ProtocolReceipt,
-} from '../providers/ProviderType.js';
+import { ProtocolReceipt } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -29,11 +27,9 @@ type HookModuleAddresses = {
   mailbox: Address;
 };
 
-export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
-  PT,
-  HookConfig,
-  HookModuleAddresses
-> {
+export class AltVMHookModule<PT extends ProtocolType>
+  implements HypModule<HookConfig, HookModuleAddresses>
+{
   protected readonly logger = rootLogger.child({
     module: 'AltVMHookModule',
   });
@@ -44,14 +40,10 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
-    protected readonly signer: AltVM.ISigner<
-      AnnotatedTypedTransaction<PT>,
-      ProtocolReceipt<PT>
-    >,
+    private readonly args: HypModuleArgs<HookConfig, HookModuleAddresses>,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
   ) {
-    params.config = HookConfigSchema.parse(params.config);
-    super(params);
+    this.args.config = HookConfigSchema.parse(this.args.config);
 
     this.reader = new AltVMHookReader(chainLookup.getChainMetadata, signer);
 
@@ -63,9 +55,11 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
     return this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
-  public async update(
-    targetConfig: HookConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+  public serialize(): HookModuleAddresses {
+    return this.args.addresses;
+  }
+
+  public async update(targetConfig: HookConfig): Promise<AnnotatedTx[]> {
     if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }
@@ -106,9 +100,9 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
   protected async updateMutableHook(configs: {
     current: Exclude<HookConfig, string>;
     target: Exclude<HookConfig, string>;
-  }): Promise<AnnotatedTypedTransaction<PT>[]> {
+  }): Promise<AnnotatedTx[]> {
     const { current, target } = configs;
-    let updateTxs: AnnotatedTypedTransaction<PT>[];
+    let updateTxs: AnnotatedTx[];
 
     assert(
       current.type === target.type,
@@ -140,8 +134,8 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
   }: {
     currentConfig: IgpHookConfig;
     targetConfig: IgpHookConfig;
-  }): Promise<AnnotatedTypedTransaction<PT>[]> {
-    const updateTxs: AnnotatedTypedTransaction<PT>[] = [];
+  }): Promise<AnnotatedTx[]> {
+    const updateTxs: AnnotatedTx[] = [];
 
     for (const [remote, c] of Object.entries(targetConfig.oracleConfig)) {
       if (deepEquals(currentConfig.oracleConfig[remote], c)) {
@@ -197,7 +191,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
     config: HookConfig;
     addresses: HookModuleAddresses;
     chainLookup: ChainLookup;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
+    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
   }): Promise<AltVMHookModule<PT>> {
     const module = new AltVMHookModule<PT>(
       chainLookup,
