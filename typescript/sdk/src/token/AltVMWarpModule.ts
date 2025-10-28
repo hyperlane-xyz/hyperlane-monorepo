@@ -3,6 +3,11 @@ import { zeroAddress } from 'viem';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
+  AnnotatedTx,
+  HypModule,
+  HypModuleArgs,
+} from '@hyperlane-xyz/provider-sdk/module';
+import {
   Address,
   addressToBytes32,
   assert,
@@ -10,17 +15,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
-import {
-  HyperlaneModule,
-  HyperlaneModuleParams,
-} from '../core/AbstractHyperlaneModule.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig } from '../ism/types.js';
-import {
-  AnnotatedTypedTransaction,
-  ProtocolReceipt,
-  ProtocolTransaction,
-} from '../providers/ProviderType.js';
+import { ProtocolReceipt } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
@@ -35,11 +32,9 @@ type WarpRouteAddresses = {
   deployedTokenRoute: Address;
 };
 
-export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
-  PT,
-  HypTokenRouterConfig,
-  WarpRouteAddresses
-> {
+export class AltVMWarpModule<PT extends ProtocolType>
+  implements HypModule<HypTokenRouterConfig, WarpRouteAddresses>
+{
   protected logger: Logger;
 
   reader: AltVMWarpRouteReader;
@@ -47,14 +42,12 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    protected readonly signer: AltVM.ISigner<
-      AnnotatedTypedTransaction<PT>,
-      ProtocolReceipt<PT>
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
+    private readonly args: HypModuleArgs<
+      HypTokenRouterConfig,
+      WarpRouteAddresses
     >,
-    args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
   ) {
-    super(args);
-
     const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;
 
@@ -77,15 +70,17 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     );
   }
 
+  public serialize(): WarpRouteAddresses {
+    return this.args.addresses;
+  }
+
   /**
    * Updates the Warp Route contract with the provided configuration.
    *
    * @param expectedConfig - The configuration for the token router to be updated.
    * @returns An array of transactions that were executed to update the contract, or an error if the update failed.
    */
-  async update(
-    expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+  async update(expectedConfig: HypTokenRouterConfig): Promise<AnnotatedTx[]> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
@@ -116,10 +111,10 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
   async createRemoteRouterUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+  ): Promise<AnnotatedTx[]> {
     this.logger.debug(`Start creating remote router update transactions`);
 
-    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
+    const updateTransactions: AnnotatedTx[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -251,10 +246,10 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
   async createIsmUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+  ): Promise<AnnotatedTx[]> {
     this.logger.debug(`Start creating token ISM update transactions`);
 
-    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
+    const updateTransactions: AnnotatedTx[] = [];
 
     if (
       actualConfig.interchainSecurityModule ===
@@ -316,7 +311,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
   async createOwnershipUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+  ): Promise<AnnotatedTx[]> {
     this.logger.debug(`Start creating token owner update transactions`);
 
     if (actualConfig.owner === expectedConfig.owner) {
@@ -350,7 +345,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
   ): Promise<{
     deployedIsm: Address;
-    updateTransactions: AnnotatedTypedTransaction<PT>[];
+    updateTransactions: AnnotatedTx[];
   }> {
     this.logger.debug(`Start deploying token ISM`);
 
@@ -395,7 +390,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
     chain: string;
     config: HypTokenRouterConfig;
     chainLookup: ChainLookup;
-    signer: AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>;
+    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
   }): Promise<AltVMWarpModule<PT>> {
     const deployer = new AltVMDeployer({
       [params.chain]: params.signer,
