@@ -2,6 +2,11 @@ import { Logger } from 'pino';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
+  AnnotatedTx,
+  HypModule,
+  HypModuleArgs,
+} from '@hyperlane-xyz/provider-sdk/module';
+import {
   Address,
   assert,
   deepEquals,
@@ -11,14 +16,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
-import {
-  HyperlaneModule,
-  HyperlaneModuleParams,
-} from '../core/AbstractHyperlaneModule.js';
-import {
-  AnnotatedTypedTransaction,
-  ProtocolReceipt,
-} from '../providers/ProviderType.js';
+import { ProtocolReceipt } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -38,7 +36,7 @@ type IsmModuleAddresses = {
   mailbox: Address;
 };
 
-export class AltVMIsmModule
+export class AltVMIsmModule<PT extends ProtocolType>
   implements HypModule<IsmConfig, IsmModuleAddresses>
 {
   protected readonly logger = rootLogger.child({
@@ -52,15 +50,12 @@ export class AltVMIsmModule
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
-    protected readonly signer: AltVM.ISigner<
-      AnnotatedTypedTransaction<PT>,
-      ProtocolReceipt<PT>
-    >,
+    private readonly args: HypModuleArgs<IsmConfig, IsmModuleAddresses>,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
   ) {
     this.args.config = IsmConfigSchema.parse(this.args.config);
 
-    this.mailbox = params.addresses.mailbox;
+    this.mailbox = this.args.addresses.mailbox;
     const metadata = chainLookup.getChainMetadata(this.args.chain);
     this.chain = metadata.name;
 
@@ -155,7 +150,7 @@ export class AltVMIsmModule
       mailbox: string;
     };
     chainLookup: ChainLookup;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
+    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
   }): Promise<AltVMIsmModule<PT>> {
     const module = new AltVMIsmModule<PT>(
       chainLookup,

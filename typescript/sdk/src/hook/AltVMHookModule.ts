@@ -1,17 +1,15 @@
 import { zeroAddress } from 'viem';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import {
+  AnnotatedTx,
+  HypModule,
+  HypModuleArgs,
+} from '@hyperlane-xyz/provider-sdk/module';
 import { Address, assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
-import {
-  HyperlaneModule,
-  HyperlaneModuleParams,
-} from '../core/AbstractHyperlaneModule.js';
-import {
-  AnnotatedTypedTransaction,
-  ProtocolReceipt,
-} from '../providers/ProviderType.js';
+import { ProtocolReceipt } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -29,7 +27,7 @@ type HookModuleAddresses = {
   mailbox: Address;
 };
 
-export class AltVMHookModule
+export class AltVMHookModule<PT extends ProtocolType>
   implements HypModule<HookConfig, HookModuleAddresses>
 {
   protected readonly logger = rootLogger.child({
@@ -42,11 +40,8 @@ export class AltVMHookModule
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
-    protected readonly signer: AltVM.ISigner<
-      AnnotatedTypedTransaction<PT>,
-      ProtocolReceipt<PT>
-    >,
+    private readonly args: HypModuleArgs<HookConfig, HookModuleAddresses>,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>,
   ) {
     this.args.config = HookConfigSchema.parse(this.args.config);
 
@@ -196,7 +191,7 @@ export class AltVMHookModule
     config: HookConfig;
     addresses: HookModuleAddresses;
     chainLookup: ChainLookup;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
+    signer: AltVM.ISigner<AnnotatedTx, ProtocolReceipt<PT>>;
   }): Promise<AltVMHookModule<PT>> {
     const module = new AltVMHookModule<PT>(
       chainLookup,

@@ -9,9 +9,11 @@ import {
   type MinimumRequiredGasByAction,
 } from '@hyperlane-xyz/provider-sdk';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AnnotatedTx } from '@hyperlane-xyz/provider-sdk/module';
 import { RadixProvider, RadixSigner } from '@hyperlane-xyz/radix-sdk';
 import {
   AltVMJsonRpcTxSubmitter,
+  AnyProtocolReceipt,
   ChainMap,
   ChainMetadataManager,
   MultiProvider,
@@ -51,7 +53,7 @@ const ALT_VM_SUPPORTED_PROTOCOLS: AltVMProtocol = {
 
 type AltVMProtocol = ProtocolMap<{
   provider: AltVM.IProviderConnect;
-  signer: AltVM.ISignerConnect<AnnotatedTx, TxReceipt>;
+  signer: AltVM.ISignerConnect<AnnotatedTx, AnyProtocolReceipt>;
   gas?: MinimumRequiredGasByAction;
 }>;
 
@@ -115,14 +117,16 @@ export class AltVMProviderFactory
 
 export class AltVMSignerFactory
   extends AltVMSupportedProtocols
-  implements AltVM.ISignerFactory<AnnotatedTx, TxReceipt>
+  implements AltVM.ISignerFactory<AnnotatedTx, AnyProtocolReceipt>
 {
   private readonly metadataManager: ChainMetadataManager;
-  private readonly chains: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
+  private readonly chains: ChainMap<
+    AltVM.ISigner<AnnotatedTx, AnyProtocolReceipt>
+  >;
 
   private constructor(
     metadataManager: ChainMetadataManager,
-    chains: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
+    chains: ChainMap<AltVM.ISigner<AnnotatedTx, AnyProtocolReceipt>>,
   ) {
     super();
 
@@ -130,7 +134,7 @@ export class AltVMSignerFactory
     this.chains = chains;
   }
 
-  public get(chain: string): AltVM.ISigner<AnnotatedTx, TxReceipt> {
+  public get(chain: string): AltVM.ISigner<AnnotatedTx, AnyProtocolReceipt> {
     const protocol = this.metadataManager.getProtocol(chain);
 
     if (!this.supports(protocol)) {
@@ -189,7 +193,8 @@ export class AltVMSignerFactory
     keyByProtocol: SignerKeyProtocolMap,
     strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   ) {
-    const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
+    const signers: ChainMap<AltVM.ISigner<AnnotatedTx, AnyProtocolReceipt>> =
+      {};
 
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
