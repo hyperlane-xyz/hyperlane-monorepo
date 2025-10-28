@@ -28,6 +28,7 @@ import {IEverclearAdapter, IEverclear, IEverclearSpoke} from "../../contracts/in
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {IWETH} from "contracts/token/interfaces/IWETH.sol";
+import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 /**
@@ -398,6 +399,56 @@ contract EverclearTokenBridgeTest is Test {
         assertEq(fee, FEE_AMOUNT);
         assertEq(deadline, feeDeadline);
         assertEq(sig, feeSignature);
+    }
+
+    function testTransferRemoteWithFeeRecipient() public {
+        // Create a LinearFee contract as the fee recipient
+        // LinearFee(token, maxFee, halfAmount, owner)
+        address feeCollector = makeAddr("feeCollector");
+        LinearFee feeContract = new LinearFee(
+            address(token),
+            1e6, // maxFee
+            TRANSFER_AMT / 2, // halfAmount
+            feeCollector
+        );
+
+        // Set fee recipient to the LinearFee contract
+        vm.prank(OWNER);
+        bridge.setFeeRecipient(address(feeContract));
+
+        uint256 initialAliceBalance = token.balanceOf(ALICE);
+        uint256 initialFeeContractBalance = token.balanceOf(
+            address(feeContract)
+        );
+        uint256 initialBridgeBalance = token.balanceOf(address(bridge));
+
+        // Get the expected fee from the feeContract
+        uint256 expectedFeeRecipientFee = feeContract
+        .quoteTransferRemote(DESTINATION, RECIPIENT, TRANSFER_AMT)[0].amount;
+
+        vm.prank(ALICE);
+        bridge.transferRemote(DESTINATION, RECIPIENT, TRANSFER_AMT);
+
+        // Check Alice paid the transfer amount + external fee + fee recipient fee
+        assertEq(
+            token.balanceOf(ALICE),
+            initialAliceBalance -
+                TRANSFER_AMT -
+                FEE_AMOUNT -
+                expectedFeeRecipientFee
+        );
+
+        // Check fee contract received the fee recipient fee (this tests the fix!)
+        assertEq(
+            token.balanceOf(address(feeContract)),
+            initialFeeContractBalance + expectedFeeRecipientFee
+        );
+
+        // Check bridge only holds the transfer amount + external fee, not the fee recipient fee
+        assertEq(
+            token.balanceOf(address(bridge)),
+            initialBridgeBalance + TRANSFER_AMT + FEE_AMOUNT
+        );
     }
 
     function testTransferRemoteOutputAssetNotSet() public {
@@ -797,10 +848,9 @@ contract EverclearTokenBridgeForkTest is BaseEverclearTokenBridgeForkTest {
 contract MockEverclearEthBridge is EverclearEthBridge {
     constructor(
         IWETH _weth,
-        uint256 _scale,
         address _mailbox,
         IEverclearAdapter _everclearAdapter
-    ) EverclearEthBridge(_weth, _scale, _mailbox, _everclearAdapter) {}
+    ) EverclearEthBridge(_weth, _mailbox, _everclearAdapter) {}
 
     bytes public lastIntent;
     function _createIntent(
@@ -835,7 +885,6 @@ contract EverclearEthBridgeForkTest is BaseEverclearTokenBridgeForkTest {
         // Deploy ETH bridge implementation
         MockEverclearEthBridge implementation = new MockEverclearEthBridge(
             IWETH(ARBITRUM_WETH),
-            1,
             address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
             everclearAdapter
         );
@@ -927,7 +976,6 @@ contract EverclearEthBridgeForkTest is BaseEverclearTokenBridgeForkTest {
     function testEthBridgeConstructor() public {
         EverclearEthBridge newBridge = new EverclearEthBridge(
             IWETH(ARBITRUM_WETH),
-            1,
             address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
             everclearAdapter
         );
