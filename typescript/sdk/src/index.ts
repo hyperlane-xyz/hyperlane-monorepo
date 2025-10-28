@@ -821,6 +821,7 @@ export {
   WarpCoreConfigSchema,
   WarpTxCategory,
   WarpTypedTransaction,
+  WarpCoreFeeEstimate,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 export { EvmTimelockReader } from './timelock/evm/EvmTimelockReader.js';
