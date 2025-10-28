@@ -37,7 +37,7 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
 
     function deployErc20CollateralVaultDeposit(
         address _vault
-    ) public returns (HypERC4626OwnerCollateral erc20CollateralVaultDeposit_) {
+    ) public returns (HypERC4626OwnerCollateral) {
         HypERC4626OwnerCollateral implementation = new HypERC4626OwnerCollateral(
                 ERC4626(_vault),
                 SCALE,
@@ -54,9 +54,7 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
             )
         );
         localToken = HypERC4626OwnerCollateral(address(proxy));
-        erc20CollateralVaultDeposit_ = HypERC4626OwnerCollateral(
-            address(localToken)
-        );
+        return HypERC4626OwnerCollateral(address(localToken));
     }
     function setUp() public override {
         super.setUp();
