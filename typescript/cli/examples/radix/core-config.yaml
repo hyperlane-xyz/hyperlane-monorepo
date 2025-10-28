@@ -1,0 +1,14 @@
+defaultHook:
+  type: interchainGasPaymaster
+  beneficiary: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
+  oracleKey: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
+  oracleConfig: {}
+  overhead: {}
+  owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
+defaultIsm:
+  domains: {}
+  owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
+  type: domainRoutingIsm
+owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
+requiredHook:
+  type: merkleTreeHook
