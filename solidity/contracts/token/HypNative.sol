@@ -73,7 +73,6 @@ contract HypNative is LpCollateralRouter {
         NativeCollateral._transferTo(_recipient, _amount);
     }
 
-    receive() external payable {
-        donate(msg.value);
-    }
+    // allow receiving native tokens for collateral rebalancing
+    receive() external payable {}
 }
