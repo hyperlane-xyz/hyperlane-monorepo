@@ -19,7 +19,6 @@ import {
 
 import { ChainLookup } from '../altvm.js';
 import { ChainName } from '../types.js';
-import { normalizeConfig } from '../utils/ism.js';
 
 import { AltVMIsmReader } from './AltVMIsmReader.js';
 

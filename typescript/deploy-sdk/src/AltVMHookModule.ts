@@ -14,9 +14,13 @@ import {
   HypModuleArgs,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { Address, assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
-
-// import { normalizeConfig } from '../utils/ism.js';
+import {
+  Address,
+  assert,
+  deepEquals,
+  normalizeConfig,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
 
