@@ -84,13 +84,10 @@ export async function runRadixNode(
     .withWaitStrategy('postgres_db-1', Wait.forHealthCheck())
     .withWaitStrategy('fullnode-1', Wait.forHealthCheck())
     .withWaitStrategy(
-      'data_aggregator_image-1',
-      Wait.forLogMessage(/Application started/),
-    )
-    .withWaitStrategy(
       'gateway_api_image-1',
       Wait.forLogMessage(/HealthyAndSynced=1/),
     )
+    .withBuild()
     .up();
 
   // Adding dummy package address to avoid the signer crashing because

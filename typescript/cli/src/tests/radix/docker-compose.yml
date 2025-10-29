@@ -11,14 +11,14 @@ services:
     deploy:
       restart_policy:
         condition: on-failure
-      resources:
-        limits:
-          memory: 768M
+      # resources:
+      #   limits:
+      #     memory: 768M
     environment:
       # Full node configuration
       FULLNODE_NETWORK_ID: 240
       FULLNODE_LOG_LEVEL: info
-      FULLNODE_NETWORK_BOOTSTRAP_NODE: 'radix://node_tdx_2_1qwz237kqdpct5l3yjhmna66uxja2ymrf3x6hh528ng3gtvnwndtn5rsrad4@3.210.187.161'
+      # FULLNODE_NETWORK_BOOTSTRAP_NODE: 'radix://node_tdx_2_1qwz237kqdpct5l3yjhmna66uxja2ymrf3x6hh528ng3gtvnwndtn5rsrad4@3.210.187.161'
       FULLNODE_KEY_PASSWORD: 'fullnode_key_password'
       RADIXDLT_LOG_LEVEL: info
       RADIXDLT_CORE_API_PORT: 3333
@@ -34,7 +34,7 @@ services:
 
   postgres_db:
     image: 'postgres:15.2-alpine'
-    shm_size: 128m
+    shm_size: 256m
     profiles:
       [
         'network-gateway-built',
@@ -48,9 +48,9 @@ services:
     deploy:
       restart_policy:
         condition: on-failure
-      resources:
-        limits:
-          memory: 512M
+      # resources:
+      #   limits:
+      #     memory: 512M
     environment:
       # Database configuration
       POSTGRES_USER: 'db_dev_superuser'
@@ -107,10 +107,10 @@ services:
       ConnectionStrings__NetworkGatewayReadWrite: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
       GatewayApi__Endpoint__MaxPageSize: '30'
       GatewayApi__Endpoint__DefaultPageSize: '30'
-      # GatewayApi__AcceptableLedgerLag__PreventReadRequestsIfDbLedgerIsBehind: 'true'
-      # GatewayApi__AcceptableLedgerLag__PreventConstructionRequestsIfDbLedgerIsBehind: 'true'
-      # GatewayApi__AcceptableLedgerLag__ReadRequestAcceptableDbLedgerLagSeconds: '3600'
-      # GatewayApi__AcceptableLedgerLag__ConstructionRequestsAcceptableDbLedgerLagSeconds: '3600'
+      GatewayApi__AcceptableLedgerLag__PreventReadRequestsIfDbLedgerIsBehind: 'true'
+      GatewayApi__AcceptableLedgerLag__PreventConstructionRequestsIfDbLedgerIsBehind: 'true'
+      GatewayApi__AcceptableLedgerLag__ReadRequestAcceptableDbLedgerLagSeconds: '3600'
+      GatewayApi__AcceptableLedgerLag__ConstructionRequestsAcceptableDbLedgerLagSeconds: '3600'
       GatewayApi__Network__NetworkName: 'localnet'
       GatewayApi__Network__DisableCoreApiHttpsCertificateChecks: 'false'
       # Node configuration
