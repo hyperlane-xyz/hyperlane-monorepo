@@ -1,9 +1,5 @@
-import {
-  AltVMIsmReader,
-  ChainName,
-  DerivedIsmConfig,
-  EvmIsmReader,
-} from '@hyperlane-xyz/sdk';
+import { AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
+import { ChainName, DerivedIsmConfig, EvmIsmReader } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';

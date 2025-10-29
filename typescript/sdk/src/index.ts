@@ -205,7 +205,6 @@ export {
   ProtocolFeeSchema,
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
-export { AltVMIsmReader } from './ism/AltVMIsmReader.js';
 export { AltVMWarpModule } from './token/AltVMWarpModule.js';
 export { AltVMWarpRouteReader } from './token/AltVMWarpRouteReader.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
@@ -538,7 +537,6 @@ export {
   IcaRouterConfigSchema,
   IcaRouterConfig as InterchainAccountConfig,
 } from './ica/types.js';
-export { AltVMIsmModule } from './ism/AltVMIsmModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { offchainLookupRequestMessageHash } from './ism/metadata/ccipread.js';
 export {

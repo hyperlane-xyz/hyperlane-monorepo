@@ -1,7 +1,9 @@
 import { Logger } from 'pino';
 import { zeroAddress } from 'viem';
 
+import { AltVMIsmModule } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { DerivedIsmConfig, IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -16,8 +18,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
-import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
-import { DerivedIsmConfig } from '../ism/types.js';
 import { ChainName } from '../types.js';
 
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
@@ -355,7 +355,8 @@ export class AltVMWarpModule
       this.chainLookup,
       {
         chain: this.args.chain,
-        config: expectedConfig.interchainSecurityModule,
+        // FIXME: not all ISM types are supported yet
+        config: expectedConfig.interchainSecurityModule as IsmConfig | string,
         addresses: {
           ...this.args.addresses,
           mailbox: expectedConfig.mailbox,
@@ -370,7 +371,8 @@ export class AltVMWarpModule
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
     const updateTransactions = await ismModule.update(
-      expectedConfig.interchainSecurityModule,
+      // FIXME: not all ISM types are supported yet
+      expectedConfig.interchainSecurityModule as IsmConfig | string,
     );
     const { deployedIsm } = ismModule.serialize();
 

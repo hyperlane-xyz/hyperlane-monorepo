@@ -1,9 +1,7 @@
-import { AltVMHookReader } from '@hyperlane-xyz/deploy-sdk';
+import { AltVMHookReader, AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
-
-import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
 
 import { DerivedCoreConfig } from './types.js';
 
