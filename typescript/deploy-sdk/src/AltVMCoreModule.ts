@@ -1,10 +1,11 @@
-import { AltVMHookModule } from '@hyperlane-xyz/deploy-sdk';
+import { AltVMHookModule, AltVMIsmModule } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DerivedHookConfig,
   HookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
+import { DerivedIsmConfig, IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -14,8 +15,7 @@ import {
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HookType } from '../hook/types.js';
-import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
-import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
+import { IsmType } from '../ism/types.js';
 import { ChainName } from '../types.js';
 
 import { AltVMCoreReader } from './AltVMCoreReader.js';
@@ -107,7 +107,8 @@ export class AltVMCoreModule
     // 1. Deploy default ISM
     const ismModule = await AltVMIsmModule.create({
       chain: chainName,
-      config: config.defaultIsm,
+      // FIXME: not all ISM types are supported yet
+      config: config.defaultIsm as IsmConfig | Address,
       addresses: {
         mailbox: '',
       },
@@ -288,7 +289,8 @@ export class AltVMCoreModule
     // Try to update (may also deploy) Ism with the expected config
     const { deployedIsm, ismUpdateTxs } = await this.deployOrUpdateIsm(
       actualDefaultIsmConfig,
-      expectedConfig.defaultIsm,
+      // FIXME: not all ISM types are supported yet
+      expectedConfig.defaultIsm as IsmConfig | Address,
     );
 
     if (ismUpdateTxs.length) {
@@ -318,7 +320,7 @@ export class AltVMCoreModule
    */
   public async deployOrUpdateIsm(
     actualDefaultIsmConfig: DerivedIsmConfig,
-    expectDefaultIsmConfig: IsmConfig | string,
+    expectDefaultIsmConfig: IsmConfig | Address,
   ): Promise<{
     deployedIsm: Address;
     ismUpdateTxs: AnnotatedTx[];

@@ -1,7 +1,9 @@
 import { Logger } from 'pino';
 import { zeroAddress } from 'viem';
 
+import { AltVMIsmModule } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { DerivedIsmConfig, IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -16,8 +18,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
-import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
-import { DerivedIsmConfig } from '../ism/types.js';
 import { ChainName } from '../types.js';
 
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
