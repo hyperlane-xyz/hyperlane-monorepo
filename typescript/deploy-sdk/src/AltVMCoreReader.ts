@@ -1,9 +1,10 @@
-import { AltVMHookReader, AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { DerivedCoreConfig } from '@hyperlane-xyz/provider-sdk/core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import { DerivedCoreConfig } from './types.js';
+import { AltVMHookReader } from './AltVMHookReader.js';
+import { AltVMIsmReader } from './AltVMIsmReader.js';
 
 export class AltVMCoreReader {
   protected readonly logger = rootLogger.child({
