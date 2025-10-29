@@ -12,13 +12,13 @@ import {
   assert,
   deepEquals,
   intersection,
+  normalizeConfig,
   rootLogger,
   sleep,
 } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
 import { ChainName } from '../types.js';
-import { normalizeConfig } from '../utils/ism.js';
 
 import { AltVMIsmReader } from './AltVMIsmReader.js';
 import {
