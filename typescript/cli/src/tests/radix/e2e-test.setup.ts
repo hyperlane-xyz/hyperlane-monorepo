@@ -15,7 +15,9 @@ import { runRadixNode } from '../nodes.js';
 const HYPERLANE_RADIX_GIT = 'https://github.com/hyperlane-xyz/hyperlane-radix';
 const HYPERLANE_RADIX_VERSION = '1.1.0';
 
-let orginalRadixTestMentadata: typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix;
+let orginalRadixTestMentadata:
+  | typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
+  | undefined;
 
 async function downloadFile(url: string): Promise<Uint8Array> {
   const response = await fetch(url);
@@ -98,7 +100,7 @@ beforeEach(() => {
 after(function () {
   // Restore the original test metadata
   for (const [chainName, originalMetadata] of Object.entries(
-    orginalRadixTestMentadata,
+    orginalRadixTestMentadata ?? {},
   )) {
     const metadataPath =
       TEST_CHAIN_METADATA_PATH_BY_PROTOCOL[ProtocolType.Radix][

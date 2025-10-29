@@ -75,9 +75,6 @@ services:
     deploy:
       restart_policy:
         condition: on-failure
-      resources:
-        limits:
-          memory: 1024M
     environment:
       # WIPE_DATABASE: "true"
       ASPNETCORE_URLS: 'http://*:8080' # Binds to 8080 on all interfaces
