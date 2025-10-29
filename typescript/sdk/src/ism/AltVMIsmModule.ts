@@ -265,6 +265,13 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       routes,
     });
 
+    if (this.signer.getSignerAddress() !== config.owner) {
+      await this.signer.setRoutingIsmOwner({
+        ismAddress,
+        newOwner: config.owner,
+      });
+    }
+
     this.logger.debug(`Deployed routing ISM to ${ismAddress}`);
     return ismAddress;
   }

@@ -6,7 +6,7 @@ import {
   HookType,
   IsmType,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert, objLength } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -69,6 +69,7 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
       `Expected deployed defaultIsm to be of type ${HookType.MERKLE_TREE}`,
     );
     expect(deployedDefaultIsm.owner).to.equal(options.expectedDefaultIsmOwner);
+    expect(objLength(deployedDefaultIsm.domains)).to.equal(1);
   }
 
   describe('hyperlane core deploy --yes --key ...', () => {
@@ -103,16 +104,15 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
           expectedMailboOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
         },
       },
-      // TODO: fix this as it seems that the ism address is not set on deployment
-      // {
-      //   description:
-      //     'should create a core deployment with the provided address as the owner of the defaultIsm',
-      //   expect: {
-      //     expectedDefaultHookOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
-      //     expectedDefaultIsmOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
-      //     expectedMailboOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
-      //   },
-      // },
+      {
+        description:
+          'should create a core deployment with the provided address as the owner of the defaultIsm',
+        expect: {
+          expectedDefaultHookOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
+          expectedDefaultIsmOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
+          expectedMailboOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
+        },
+      },
     ];
 
     for (const { description, expect } of testCases) {
