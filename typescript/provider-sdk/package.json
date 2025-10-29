@@ -10,7 +10,9 @@
     ".": "./dist/index.js",
     "./altvm": "./dist/altvm.js",
     "./module": "./dist/module.js",
-    "./protocol": "./dist/protocol.js"
+    "./protocol": "./dist/protocol.js",
+    "./chain": "./dist/chain.js",
+    "./hook": "./dist/hook.js"
   },
   "scripts": {
     "build": "tsc",
