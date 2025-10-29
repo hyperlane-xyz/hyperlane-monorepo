@@ -16,10 +16,17 @@ export interface DerivedCoreConfig extends CoreConfig {
 
 export type DeployedCoreAddresses = {
   mailbox: string;
-  staticMerkleRootMultisigIsmFactory?: string;
-  staticMessageIdMultisigIsmFactory?: string;
+  staticMerkleRootMultisigIsmFactory: string;
+  proxyAdmin: string;
+  staticMerkleRootWeightedMultisigIsmFactory: string;
+  staticAggregationHookFactory: string;
+  staticAggregationIsmFactory: string;
+  staticMessageIdMultisigIsmFactory: string;
+  staticMessageIdWeightedMultisigIsmFactory: string;
   validatorAnnounce: string;
-  domainRoutingIsmFactory?: string;
+  testRecipient: string;
+  interchainAccountRouter: string;
+  domainRoutingIsmFactory: string;
   merkleTreeHook?: string;
   interchainGasPaymaster?: string;
 };

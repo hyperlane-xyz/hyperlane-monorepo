@@ -1,7 +1,9 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { AltVMCoreModule } from '@hyperlane-xyz/deploy-sdk';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { CoreConfig as ProviderCoreConfig } from '@hyperlane-xyz/provider-sdk/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainName,
@@ -109,7 +111,8 @@ export async function runCoreDeploy(params: DeployParams) {
 
       const coreModule = await AltVMCoreModule.create({
         chain,
-        config,
+        // TODO: Remove this cast when all ISM and Hook types are supported
+        config: config as ProviderCoreConfig,
         chainLookup: altVmChainLookup(multiProvider),
         signer,
       });
@@ -176,7 +179,8 @@ export async function runCoreApply(params: ApplyParams) {
         signer,
         {
           chain,
-          config,
+          // TODO: Remove this cast when all ISM and Hook types are supported
+          config: config as ProviderCoreConfig,
           addresses: deployedCoreAddresses,
         },
       );
