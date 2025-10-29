@@ -5,8 +5,8 @@ import {
   HypXERC20__factory,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
+import { AltVMWarpRouteReader } from '@hyperlane-xyz/deploy-sdk';
 import {
-  AltVMWarpRouteReader,
   ChainMap,
   ChainName,
   DerivedWarpRouteDeployConfig,

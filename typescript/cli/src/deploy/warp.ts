@@ -2,7 +2,9 @@ import { confirm } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { AltVMWarpModule } from '@hyperlane-xyz/deploy-sdk';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { WarpConfig as ProviderWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   AddWarpRouteConfigOptions,
   BaseRegistry,
@@ -10,7 +12,6 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
-  AltVMWarpModule,
   CCIPContractCache,
   ChainMap,
   ChainName,
@@ -679,7 +680,8 @@ async function updateExistingWarpRoute(
               altVmChainLookup(multiProvider),
               signer,
               {
-                config: configWithMailbox,
+                // TODO: Remove this cast when all token types are supported
+                config: configWithMailbox as ProviderWarpConfig,
                 chain,
                 addresses: {
                   deployedTokenRoute,
@@ -687,7 +689,10 @@ async function updateExistingWarpRoute(
               },
             );
 
-            const transactions = await warpModule.update(configWithMailbox);
+            const transactions = await warpModule.update(
+              // TODO: Remove this cast when all token types are supported
+              configWithMailbox as ProviderWarpConfig,
+            );
             updateTransactions[chain] = transactions;
             break;
           }

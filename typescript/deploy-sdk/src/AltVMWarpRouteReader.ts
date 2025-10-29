@@ -1,19 +1,23 @@
 import { Logger } from 'pino';
 
-import { AltVMHookReader, AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  DerivedCollateralWarpConfig,
+  DerivedSyntheticWarpConfig,
+  DerivedWarpConfig,
+  DestinationGas,
+  RemoteRouters,
+  TokenType,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ChainLookup } from '../altvm.js';
-import {
-  DestinationGas,
-  MailboxClientConfig,
-  RemoteRouters,
-  RemoteRoutersSchema,
-} from '../router/types.js';
+import { AltVMHookReader } from './AltVMHookReader.js';
+import { AltVMIsmReader } from './AltVMIsmReader.js';
 
-import { TokenType } from './config.js';
-import { DerivedTokenRouterConfig, HypTokenConfig } from './types.js';
+// Placeholder for hook address since providers don't expose token hook addresses yet
+// TODO: Replace with the zero address abstraction from provider-sdk when available
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 export class AltVMWarpRouteReader {
   protected readonly logger: Logger;
@@ -44,21 +48,57 @@ export class AltVMWarpRouteReader {
    */
   async deriveWarpRouteConfig(
     warpRouteAddress: Address,
-  ): Promise<DerivedTokenRouterConfig> {
-    // Derive the config type
-    const type = await this.deriveTokenType(warpRouteAddress);
-    const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
-    const tokenConfig = await this.fetchTokenConfig(type, warpRouteAddress);
+  ): Promise<DerivedWarpConfig> {
+    // Fetch token info once - this gives us type, metadata, owner, mailbox, ISM, etc.
+    const token = await this.provider.getToken({
+      tokenAddress: warpRouteAddress,
+    });
+
     const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
-    return {
-      ...baseMetadata,
-      ...tokenConfig,
+    // Derive ISM config if present, otherwise use zero address
+    const interchainSecurityModule = token.ismAddress
+      ? await this.ismReader.deriveIsmConfig(token.ismAddress)
+      : ZERO_ADDRESS;
+
+    // Hook address is not exposed by providers yet, use zero address as placeholder
+    const hook = ZERO_ADDRESS;
+
+    const baseConfig = {
+      owner: token.owner,
+      mailbox: token.mailboxAddress,
+      interchainSecurityModule,
+      hook,
       remoteRouters,
       destinationGas,
-      type,
-    } as DerivedTokenRouterConfig;
+      name: token.name || undefined,
+      symbol: token.symbol || undefined,
+      decimals: token.decimals || undefined,
+    };
+
+    // Return discriminated union based on type
+    switch (token.tokenType) {
+      case AltVM.TokenType.collateral: {
+        const collateralConfig: DerivedCollateralWarpConfig = {
+          ...baseConfig,
+          type: TokenType.collateral,
+          token: token.denom, // The underlying collateral denom
+        };
+        return collateralConfig;
+      }
+      case AltVM.TokenType.synthetic: {
+        const syntheticConfig: DerivedSyntheticWarpConfig = {
+          ...baseConfig,
+          type: TokenType.synthetic,
+        };
+        return syntheticConfig;
+      }
+      default:
+        throw new Error(
+          `Failed to determine token type for address ${warpRouteAddress}`,
+        );
+    }
   }
 
   /**
@@ -90,14 +130,16 @@ export class AltVMWarpRouteReader {
    * @param routerAddress - The address of the Warp Route contract.
    * @returns The base metadata for the Warp Route contract, including the mailbox, owner, hook, and ism.
    */
-  async fetchMailboxClientConfig(
-    routerAddress: Address,
-  ): Promise<MailboxClientConfig> {
+  async fetchMailboxClientConfig(routerAddress: Address): Promise<{
+    mailbox: string;
+    owner: string;
+    interchainSecurityModule?: any;
+  }> {
     const token = await this.provider.getToken({
       tokenAddress: routerAddress,
     });
 
-    const config: MailboxClientConfig = {
+    const config: any = {
       mailbox: token.mailboxAddress,
       owner: token.owner,
     };
@@ -108,23 +150,6 @@ export class AltVMWarpRouteReader {
     }
 
     return config;
-  }
-
-  /**
-   * Fetches the metadata for a token address.
-   *
-   * @param warpRouteAddress - The address of the token.
-   * @returns A partial ERC20 metadata object containing the token name, symbol, total supply, and decimals.
-   * Throws if unsupported token type
-   */
-  async fetchTokenConfig(
-    type: TokenType,
-    warpRouteAddress: Address,
-  ): Promise<HypTokenConfig> {
-    return {
-      type,
-      token: warpRouteAddress,
-    } as HypTokenConfig;
   }
 
   async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
@@ -139,7 +164,7 @@ export class AltVMWarpRouteReader {
       };
     }
 
-    return RemoteRoutersSchema.parse(routers);
+    return routers;
   }
 
   async fetchDestinationGas(
