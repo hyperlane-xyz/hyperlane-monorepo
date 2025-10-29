@@ -141,10 +141,30 @@ export class SquadsTransactionReader {
   private readMailboxInstruction(
     instructionData: Buffer,
   ): Partial<ParsedInstruction> {
-    const discriminator = instructionData[0];
+    if (instructionData.length < MAILBOX_DISCRIMINATOR_SIZE) {
+      return {
+        instructionType: InstructionType.UNKNOWN,
+        data: { error: ErrorMessage.INSTRUCTION_TOO_SHORT },
+        warnings: ['Mailbox instruction data too short'],
+      };
+    }
+
+    // Borsh enum discriminator is u32 little-endian
+    const discriminator = instructionData.readUInt32LE(0);
 
     switch (discriminator) {
-      case MailboxInstructionType.SET_DEFAULT_ISM: {
+      // Note: Parsing not implemented for the following Mailbox instructions:
+      // - INIT (0): Init(Init)
+      // - INBOX_PROCESS (1): InboxProcess(InboxProcess)
+      // - INBOX_GET_RECIPIENT_ISM (3): InboxGetRecipientIsm(Pubkey)
+      // - OUTBOX_DISPATCH (4): OutboxDispatch(OutboxDispatch)
+      // - OUTBOX_GET_COUNT (5): OutboxGetCount
+      // - OUTBOX_GET_LATEST_CHECKPOINT (6): OutboxGetLatestCheckpoint
+      // - OUTBOX_GET_ROOT (7): OutboxGetRoot
+      // - GET_OWNER (8): GetOwner
+      // - CLAIM_PROTOCOL_FEES (10): ClaimProtocolFees
+      // - SET_PROTOCOL_FEE_CONFIG (11): SetProtocolFeeConfig(ProtocolFee)
+      case MailboxInstructionType.INBOX_SET_DEFAULT_ISM: {
         const instructionType = MailboxInstructionName[discriminator];
         const minLength = MAILBOX_DISCRIMINATOR_SIZE + SOLANA_PUBKEY_SIZE;
         if (instructionData.length < minLength) {
@@ -254,6 +274,9 @@ export class SquadsTransactionReader {
     const discriminator = instructionData[HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE];
 
     switch (discriminator) {
+      // Note: Parsing not implemented for the following MultisigIsm instructions:
+      // - INIT (0): Initialize
+      // - GET_OWNER (2): GetOwner
       case MultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD: {
         // SetValidatorsAndThreshold instruction format (after 8-byte program discriminator):
         // [enum_discriminator: u8, domain: u32, validators_len: u32, validators: Vec<[u8; 20]>, threshold: u8]
@@ -345,9 +368,7 @@ export class SquadsTransactionReader {
         const instructionType = MultisigIsmInstructionName[discriminator];
         let offset = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + SOLANA_U8_SIZE;
 
-        const domain = instructionData.readUInt32LE(offset);
-        offset += SOLANA_U32_SIZE;
-
+        // TransferOwnership format: [program_discriminator(8), enum_variant(1), option_tag(1), pubkey(32)?]
         if (instructionData.length < offset + SOLANA_U8_SIZE) {
           return {
             instructionType,
@@ -360,145 +381,27 @@ export class SquadsTransactionReader {
           instructionData[offset] === OPTION_SOME_DISCRIMINATOR;
         offset += SOLANA_U8_SIZE;
 
-        const minLengthWithOwner = offset + SOLANA_U8_SIZE + SOLANA_PUBKEY_SIZE;
+        const minLengthWithOwner = offset + SOLANA_PUBKEY_SIZE;
         if (hasNewOwner && instructionData.length >= minLengthWithOwner) {
           const newOwner = new PublicKey(
-            instructionData.subarray(
-              offset + SOLANA_U8_SIZE,
-              offset + SOLANA_U8_SIZE + SOLANA_PUBKEY_SIZE,
-            ),
+            instructionData.subarray(offset, offset + SOLANA_PUBKEY_SIZE),
           );
           const newOwnerAddress = newOwner.toBase58();
           return {
             instructionType,
             data: {
-              domain,
               newOwner: newOwnerAddress,
             },
-            insight: `Transfer ownership to ${newOwnerAddress} for domain ${domain}`,
+            insight: `Transfer ownership to ${newOwnerAddress}`,
             warnings: [WarningMessage.OWNERSHIP_TRANSFER],
           };
         }
 
         return {
           instructionType,
-          data: { domain, newOwner: null },
-          insight: `Renounce ownership for domain ${domain}`,
+          data: { newOwner: null },
+          insight: `Renounce ownership`,
           warnings: [WarningMessage.OWNERSHIP_RENUNCIATION],
-        };
-      }
-
-      case MultisigIsmInstructionType.ENROLL_VALIDATORS: {
-        const instructionType = MultisigIsmInstructionName[discriminator];
-        let offset = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + SOLANA_U8_SIZE;
-
-        const domain = instructionData.readUInt32LE(offset);
-        offset += SOLANA_U32_SIZE;
-
-        const validatorsLen = instructionData.readUInt32LE(offset);
-        offset += SOLANA_U32_SIZE;
-
-        if (validatorsLen > MAX_VALIDATORS) {
-          throw new Error(
-            `Invalid validators length: ${validatorsLen} (max ${MAX_VALIDATORS})`,
-          );
-        }
-
-        const expectedSize =
-          HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE +
-          SOLANA_U8_SIZE +
-          SOLANA_U32_SIZE +
-          SOLANA_U32_SIZE +
-          validatorsLen * ETHEREUM_ADDRESS_SIZE;
-        if (instructionData.length < expectedSize) {
-          throw new Error(
-            `Instruction size mismatch: expected ${expectedSize}, got ${instructionData.length}`,
-          );
-        }
-
-        const validators: string[] = [];
-        for (let i = 0; i < validatorsLen; i++) {
-          const validatorBytes = instructionData.subarray(
-            offset,
-            offset + ETHEREUM_ADDRESS_SIZE,
-          );
-          validators.push(`0x${validatorBytes.toString('hex')}`);
-          offset += ETHEREUM_ADDRESS_SIZE;
-        }
-
-        const remoteChain = this.mpp.tryGetChainName(domain);
-        const chainInfo = remoteChain
-          ? `${remoteChain} (${domain})`
-          : `${domain}`;
-
-        const insight = `Enroll ${validatorsLen} validator${validatorsLen > 1 ? 's' : ''} for ${chainInfo}`;
-
-        return {
-          instructionType,
-          data: {
-            domain,
-            validatorCount: validatorsLen,
-            validators,
-          },
-          insight,
-          warnings: [],
-        };
-      }
-
-      case MultisigIsmInstructionType.UNENROLL_VALIDATORS: {
-        const instructionType = MultisigIsmInstructionName[discriminator];
-        let offset = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + SOLANA_U8_SIZE;
-
-        const domain = instructionData.readUInt32LE(offset);
-        offset += SOLANA_U32_SIZE;
-
-        const validatorsLen = instructionData.readUInt32LE(offset);
-        offset += SOLANA_U32_SIZE;
-
-        if (validatorsLen > MAX_VALIDATORS) {
-          throw new Error(
-            `Invalid validators length: ${validatorsLen} (max ${MAX_VALIDATORS})`,
-          );
-        }
-
-        const expectedSize =
-          HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE +
-          SOLANA_U8_SIZE +
-          SOLANA_U32_SIZE +
-          SOLANA_U32_SIZE +
-          validatorsLen * ETHEREUM_ADDRESS_SIZE;
-        if (instructionData.length < expectedSize) {
-          throw new Error(
-            `Instruction size mismatch: expected ${expectedSize}, got ${instructionData.length}`,
-          );
-        }
-
-        const validators: string[] = [];
-        for (let i = 0; i < validatorsLen; i++) {
-          const validatorBytes = instructionData.subarray(
-            offset,
-            offset + ETHEREUM_ADDRESS_SIZE,
-          );
-          validators.push(`0x${validatorBytes.toString('hex')}`);
-          offset += ETHEREUM_ADDRESS_SIZE;
-        }
-
-        const remoteChain = this.mpp.tryGetChainName(domain);
-        const chainInfo = remoteChain
-          ? `${remoteChain} (${domain})`
-          : `${domain}`;
-
-        const insight = `Unenroll ${validatorsLen} validator${validatorsLen > 1 ? 's' : ''} for ${chainInfo}`;
-
-        return {
-          instructionType,
-          data: {
-            domain,
-            validatorCount: validatorsLen,
-            validators,
-          },
-          insight,
-          warnings: [],
         };
       }
 
@@ -1307,30 +1210,11 @@ export class SquadsTransactionReader {
         break;
       }
 
-      case MailboxInstructionName[MailboxInstructionType.SET_DEFAULT_ISM]: {
+      case MailboxInstructionName[
+        MailboxInstructionType.INBOX_SET_DEFAULT_ISM
+      ]: {
         tx.args = {
           module: inst.data.newDefaultIsm,
-        };
-        break;
-      }
-
-      case MultisigIsmInstructionName[
-        MultisigIsmInstructionType.ENROLL_VALIDATORS
-      ]:
-      case MultisigIsmInstructionName[
-        MultisigIsmInstructionType.UNENROLL_VALIDATORS
-      ]: {
-        // Get remote chain for aliases
-        const remoteChain = this.mpp.tryGetChainName(inst.data.domain);
-
-        // Format validators with aliases for display
-        const validatorsWithAliases = remoteChain
-          ? formatValidatorsWithAliases(remoteChain, inst.data.validators)
-          : inst.data.validators;
-
-        tx.args = {
-          domain: inst.data.domain,
-          validators: validatorsWithAliases, // Display with aliases
         };
         break;
       }

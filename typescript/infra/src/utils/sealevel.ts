@@ -61,9 +61,9 @@ export const OPTION_NONE_DISCRIMINATOR = 0;
 // ============================================================================
 
 /**
- * Mailbox instruction discriminator size (1 byte enum discriminator)
+ * Mailbox instruction discriminator size (4 byte Borsh u32 enum discriminator)
  */
-export const MAILBOX_DISCRIMINATOR_SIZE = 1;
+export const MAILBOX_DISCRIMINATOR_SIZE = 4;
 
 /**
  * Hyperlane Sealevel program instruction discriminator size
@@ -152,12 +152,22 @@ export enum InstructionType {
 
 /**
  * Mailbox instruction discriminator values
+ * Matches rust/sealevel/programs/mailbox/src/instruction.rs
+ * Borsh enum serialization uses u32 discriminators
  */
 export enum MailboxInstructionType {
   INIT = 0,
-  SET_DEFAULT_ISM = 1,
-  TRANSFER_OWNERSHIP = 2,
-  // Add more as needed
+  INBOX_PROCESS = 1,
+  INBOX_SET_DEFAULT_ISM = 2,
+  INBOX_GET_RECIPIENT_ISM = 3,
+  OUTBOX_DISPATCH = 4,
+  OUTBOX_GET_COUNT = 5,
+  OUTBOX_GET_LATEST_CHECKPOINT = 6,
+  OUTBOX_GET_ROOT = 7,
+  GET_OWNER = 8,
+  TRANSFER_OWNERSHIP = 9,
+  CLAIM_PROTOCOL_FEES = 10,
+  SET_PROTOCOL_FEE_CONFIG = 11,
 }
 
 /**
@@ -165,8 +175,18 @@ export enum MailboxInstructionType {
  */
 export const MailboxInstructionName: Record<MailboxInstructionType, string> = {
   [MailboxInstructionType.INIT]: 'Init',
-  [MailboxInstructionType.SET_DEFAULT_ISM]: 'SetDefaultIsm',
+  [MailboxInstructionType.INBOX_PROCESS]: 'InboxProcess',
+  [MailboxInstructionType.INBOX_SET_DEFAULT_ISM]: 'InboxSetDefaultIsm',
+  [MailboxInstructionType.INBOX_GET_RECIPIENT_ISM]: 'InboxGetRecipientIsm',
+  [MailboxInstructionType.OUTBOX_DISPATCH]: 'OutboxDispatch',
+  [MailboxInstructionType.OUTBOX_GET_COUNT]: 'OutboxGetCount',
+  [MailboxInstructionType.OUTBOX_GET_LATEST_CHECKPOINT]:
+    'OutboxGetLatestCheckpoint',
+  [MailboxInstructionType.OUTBOX_GET_ROOT]: 'OutboxGetRoot',
+  [MailboxInstructionType.GET_OWNER]: 'GetOwner',
   [MailboxInstructionType.TRANSFER_OWNERSHIP]: 'TransferOwnership',
+  [MailboxInstructionType.CLAIM_PROTOCOL_FEES]: 'ClaimProtocolFees',
+  [MailboxInstructionType.SET_PROTOCOL_FEE_CONFIG]: 'SetProtocolFeeConfig',
 };
 
 // ============================================================================
@@ -175,14 +195,13 @@ export const MailboxInstructionName: Record<MailboxInstructionType, string> = {
 
 /**
  * MultisigIsm instruction discriminator values
+ * Matches rust/sealevel/programs/ism/multisig-ism-message-id/src/instruction.rs
  */
 export enum MultisigIsmInstructionType {
   INIT = 0,
   SET_VALIDATORS_AND_THRESHOLD = 1,
-  TRANSFER_OWNERSHIP = 2,
-  ENROLL_VALIDATORS = 3,
-  UNENROLL_VALIDATORS = 4,
-  // Add more as needed
+  GET_OWNER = 2,
+  TRANSFER_OWNERSHIP = 3,
 }
 
 /**
@@ -195,9 +214,8 @@ export const MultisigIsmInstructionName: Record<
   [MultisigIsmInstructionType.INIT]: 'Init',
   [MultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD]:
     'SetValidatorsAndThreshold',
+  [MultisigIsmInstructionType.GET_OWNER]: 'GetOwner',
   [MultisigIsmInstructionType.TRANSFER_OWNERSHIP]: 'TransferOwnership',
-  [MultisigIsmInstructionType.ENROLL_VALIDATORS]: 'EnrollValidators',
-  [MultisigIsmInstructionType.UNENROLL_VALIDATORS]: 'UnenrollValidators',
 };
 
 // ============================================================================
