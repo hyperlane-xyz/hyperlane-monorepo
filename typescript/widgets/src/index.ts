@@ -1,4 +1,5 @@
 export { Fade } from './animations/Fade.js';
+export { Skeleton } from './animations/Skeleton.js';
 export {
   ChainDetailsMenu,
   type ChainDetailsMenuProps,
@@ -32,6 +33,7 @@ export { DocsIcon } from './icons/Docs.js';
 export { EllipsisIcon } from './icons/Ellipsis.js';
 export { EnvelopeIcon } from './icons/Envelope.js';
 export { ErrorIcon } from './icons/Error.js';
+export { FuelPumpIcon } from './icons/FuelPump.js';
 export { FilterIcon } from './icons/Filter.js';
 export { FunnelIcon } from './icons/Funnel.js';
 export { GearIcon } from './icons/Gear.js';
