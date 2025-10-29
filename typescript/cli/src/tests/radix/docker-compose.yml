@@ -11,14 +11,11 @@ services:
     deploy:
       restart_policy:
         condition: on-failure
-      # resources:
-      #   limits:
-      #     memory: 768M
     environment:
       # Full node configuration
       FULLNODE_NETWORK_ID: 240
       FULLNODE_LOG_LEVEL: info
-      # FULLNODE_NETWORK_BOOTSTRAP_NODE: 'radix://node_tdx_2_1qwz237kqdpct5l3yjhmna66uxja2ymrf3x6hh528ng3gtvnwndtn5rsrad4@3.210.187.161'
+      FULLNODE_NETWORK_BOOTSTRAP_NODE: 'radix://node_tdx_2_1qwz237kqdpct5l3yjhmna66uxja2ymrf3x6hh528ng3gtvnwndtn5rsrad4@3.210.187.161'
       FULLNODE_KEY_PASSWORD: 'fullnode_key_password'
       RADIXDLT_LOG_LEVEL: info
       RADIXDLT_CORE_API_PORT: 3333
@@ -26,7 +23,7 @@ services:
       RADIXDLT_PROMETHEUS_API_PORT: 3335
       RADIXDLT_ENGINE_STATE_API_PORT: 3336
       RADIXDLT_NETWORK_SEEDS_REMOTE: ''
-      JAVA_OPTS: -server -Xms384m -Xmx384m -XX:MaxMetaspaceSize=128m -Dguice_bytecode_gen_option=DISABLED -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStoreType=jks -Djava.security.egd=file:/dev/urandom --enable-preview
+      JAVA_OPTS: -server -Xmx512m -Xmx512m -XX:+HeapDumpOnOutOfMemoryError -XX:+AlwaysPreTouch -Dguice_bytecode_gen_option=DISABLED -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStoreType=jks -Djava.security.egd=file:/dev/urandom -Dcom.sun.management.jmxremote.port=9011 -Dcom.sun.management.jmxremote.rmi.port=9011 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=core -agentlib:jdwp=transport=dt_socket,address=*:50505,suspend=n,server=y --enable-preview
       RADIXDLT_HOST_IP_ADDRESS: core0
       RADIXDLT_NODE_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY=
       RADIXDLT_GENESIS_DATA: /wYAAHNOYVBwWQAHAgCfdxlxngUUXCEGCgEACQEABQkHKAAAIQoJZAAAAAr0DRoICrgLCRsMCuCTBAUKFTQYoABAehDzWgUVMgEAIKAAAGSns7bgDTIWAAFWDVUuRAAYABBjLV7HaxWBDQHAICICAAEgIQEGIAchA//5e9V1Xu6kIEU6FDVSNdOC9kcvhWihiy8FehRgKXVWAQEBAWJ1APCVICECAgwEbmFtZSIAAQwTRGVmYXVsdCB2YWxpZGF0b3IgMQIMCGluZm9fdXJsIg0BDBhodHRwczovL3d3dy5yYWRpeGRsdC5jb22A0V2lblLuqlWNSPddLPYcqXQbJq7Y9QscHefNoU86AQIggAHR0ouStuhEmbg7B5fvUjVVPut+2qDOokPBEowv5zcgIQECIAchA//5dtEAASgACSEKAKBeSwE0oAAAAEDq7XRG0JwsnwwBKw0B4CAMCgx0cmFuc2Zlcl94cmQIcmFkaXN3YXAIbWV0YWRhdGERZnVuZ2libGVfcmVzb3VyY2UVbm9uX0IWAPBpHWFjY291bnRfYXV0aG9yaXplZF9kZXBvc2l0b3JzDmdsb2JhbF9uX293bmVkJm5vbl9mdW5naWJsZV9yZXNvdXJjZV93aXRoX3JlbW90ZV90eXBlGWt2X3N0b3JlX3dpdGhfcmVtb3RlXwEaPA9tYXhfdHJhbnNhY3Rpb24=
@@ -48,9 +45,6 @@ services:
     deploy:
       restart_policy:
         condition: on-failure
-      # resources:
-      #   limits:
-      #     memory: 512M
     environment:
       # Database configuration
       POSTGRES_USER: 'db_dev_superuser'
@@ -102,15 +96,12 @@ services:
     environment:
       ASPNETCORE_URLS: 'http://*:8080'
       CustomJsonConfigurationFilePath: '/home/radixdlt/network-gateway/config.json'
-      EnableSwagger: 'false'
       ConnectionStrings__NetworkGatewayReadOnly: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
       ConnectionStrings__NetworkGatewayReadWrite: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
       GatewayApi__Endpoint__MaxPageSize: '30'
       GatewayApi__Endpoint__DefaultPageSize: '30'
       GatewayApi__AcceptableLedgerLag__PreventReadRequestsIfDbLedgerIsBehind: 'true'
       GatewayApi__AcceptableLedgerLag__PreventConstructionRequestsIfDbLedgerIsBehind: 'true'
-      GatewayApi__AcceptableLedgerLag__ReadRequestAcceptableDbLedgerLagSeconds: '3600'
-      GatewayApi__AcceptableLedgerLag__ConstructionRequestsAcceptableDbLedgerLagSeconds: '3600'
       GatewayApi__Network__NetworkName: 'localnet'
       GatewayApi__Network__DisableCoreApiHttpsCertificateChecks: 'false'
       # Node configuration
