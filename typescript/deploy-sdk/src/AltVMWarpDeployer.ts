@@ -1,12 +1,10 @@
-import { Logger } from 'pino';
-
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { TokenType, WarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 export class AltVMDeployer {
-  protected logger: Logger;
+  protected logger: ReturnType<typeof rootLogger.child<never>>;
 
   constructor(
     protected readonly signersMap: Record<

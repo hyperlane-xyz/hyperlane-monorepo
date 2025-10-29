@@ -1,5 +1,3 @@
-import { Logger } from 'pino';
-
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
@@ -17,7 +15,7 @@ import { AltVMIsmReader } from './AltVMIsmReader.js';
 import { ZERO_ADDRESS } from './constants.js';
 
 export class AltVMWarpRouteReader {
-  protected readonly logger: Logger;
+  protected readonly logger: ReturnType<typeof rootLogger.child>;
   hookReader: AltVMHookReader;
   ismReader: AltVMIsmReader;
 
