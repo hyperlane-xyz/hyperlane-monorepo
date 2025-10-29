@@ -1,8 +1,9 @@
 import { zeroAddress } from 'viem';
 
-import { AltVMHookReader } from '@hyperlane-xyz/deploy-sdk';
+import { AltVMHookReader, AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { HookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import { IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   Address,
   TransformObjectTransformer,
@@ -22,7 +23,6 @@ import {
 
 import { isProxy } from '../deploy/proxy.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
@@ -307,7 +307,8 @@ export async function expandWarpDeployConfig(params: {
               provider,
             );
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
-              chainConfig.interchainSecurityModule,
+              // FIXME: not all ISM types are supported yet
+              chainConfig.interchainSecurityModule as IsmConfig | Address,
             );
           }
         }

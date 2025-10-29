@@ -1,6 +1,14 @@
 import { Logger } from 'pino';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  DomainRoutingIsmConfig,
+  IsmConfig,
+  IsmType,
+  MultisigIsmConfig,
+  STATIC_ISM_TYPES,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -17,24 +25,47 @@ import {
   sleep,
 } from '@hyperlane-xyz/utils';
 
-import { ChainLookup } from '../altvm.js';
-import { ChainName } from '../types.js';
-
 import { AltVMIsmReader } from './AltVMIsmReader.js';
-import {
-  DomainRoutingIsmConfig,
-  IsmConfig,
-  IsmConfigSchema,
-  IsmType,
-  MultisigIsmConfig,
-  STATIC_ISM_TYPES,
-} from './types.js';
-import { calculateDomainRoutingDelta } from './utils.js';
 
 type IsmModuleAddresses = {
   deployedIsm: Address;
   mailbox: Address;
 };
+
+// Determines the domains to enroll and unenroll to update the current ISM config
+// to match the target ISM config.
+function calculateDomainRoutingDelta(
+  current: DomainRoutingIsmConfig,
+  target: DomainRoutingIsmConfig,
+): { domainsToEnroll: string[]; domainsToUnenroll: string[] } {
+  const domainsToEnroll = [];
+  for (const origin of Object.keys(target.domains)) {
+    if (!current.domains[origin]) {
+      domainsToEnroll.push(origin);
+    } else {
+      const subModuleMatches = deepEquals(
+        current.domains[origin],
+        target.domains[origin],
+      );
+      if (!subModuleMatches) domainsToEnroll.push(origin);
+    }
+  }
+
+  const domainsToUnenroll = Object.keys(current.domains).reduce(
+    (acc, origin) => {
+      if (!Object.keys(target.domains).includes(origin)) {
+        acc.push(origin);
+      }
+      return acc;
+    },
+    [] as string[],
+  );
+
+  return {
+    domainsToEnroll,
+    domainsToUnenroll,
+  };
+}
 
 export class AltVMIsmModule
   implements HypModule<IsmConfig, IsmModuleAddresses>
@@ -46,15 +77,16 @@ export class AltVMIsmModule
   protected readonly mailbox: Address;
 
   // Cached chain name
-  public readonly chain: ChainName;
+  public readonly chain: string;
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    private readonly args: HypModuleArgs<IsmConfig, IsmModuleAddresses>,
+    private readonly args: HypModuleArgs<
+      IsmConfig | string,
+      IsmModuleAddresses
+    >,
     protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    this.args.config = IsmConfigSchema.parse(this.args.config);
-
     this.mailbox = this.args.addresses.mailbox;
     const metadata = chainLookup.getChainMetadata(this.args.chain);
     this.chain = metadata.name;
@@ -71,9 +103,9 @@ export class AltVMIsmModule
   }
 
   // whoever calls update() needs to ensure that targetConfig has a valid owner
-  public async update(expectedConfig: IsmConfig): Promise<AnnotatedTx[]> {
-    expectedConfig = IsmConfigSchema.parse(expectedConfig);
-
+  public async update(
+    expectedConfig: IsmConfig | string,
+  ): Promise<AnnotatedTx[]> {
     // Do not support updating to a custom ISM address
     if (typeof expectedConfig === 'string') {
       throw new Error(
@@ -119,7 +151,7 @@ export class AltVMIsmModule
     }
 
     let updateTxs: AnnotatedTx[] = [];
-    if (expectedConfig.type === IsmType.ROUTING) {
+    if (expectedConfig.type === 'domainRoutingIsm') {
       const logger = this.logger.child({
         destination: this.chain,
         ismType: expectedConfig.type,
@@ -145,7 +177,7 @@ export class AltVMIsmModule
     signer,
   }: {
     chain: string;
-    config: IsmConfig;
+    config: IsmConfig | string;
     addresses: {
       mailbox: string;
     };
@@ -169,7 +201,11 @@ export class AltVMIsmModule
     return module;
   }
 
-  protected async deploy({ config }: { config: IsmConfig }): Promise<Address> {
+  protected async deploy({
+    config,
+  }: {
+    config: IsmConfig | string;
+  }): Promise<Address> {
     if (typeof config === 'string') {
       return config;
     }
@@ -177,20 +213,22 @@ export class AltVMIsmModule
     this.logger.info(`Deploying ${ismType} to ${this.chain}`);
 
     switch (ismType) {
-      case IsmType.MERKLE_ROOT_MULTISIG: {
+      case 'merkleRootMultisigIsm': {
         return this.deployMerkleRootMultisigIsm(config);
       }
-      case IsmType.MESSAGE_ID_MULTISIG: {
+      case 'messageIdMultisigIsm': {
         return this.deployMessageIdMultisigIsm(config);
       }
-      case IsmType.ROUTING: {
+      case 'domainRoutingIsm': {
         return this.deployRoutingIsm(config);
       }
-      case IsmType.TEST_ISM: {
+      case 'testIsm': {
         return this.deployNoopIsm();
       }
       default:
-        throw new Error(`ISM type ${ismType} is not supported on AltVM`);
+        throw new Error(
+          `ISM type ${ismType as IsmType} is not supported on AltVM`,
+        );
     }
   }
 

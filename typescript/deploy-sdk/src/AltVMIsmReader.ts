@@ -1,15 +1,12 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
-
-import { ChainNameLookup } from '../altvm.js';
-
+import { ChainNameLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
-  IsmType,
   MultisigIsmConfig,
-} from './types.js';
+} from '@hyperlane-xyz/provider-sdk/ism';
+import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 export class AltVMIsmReader {
   protected readonly logger = rootLogger.child({
@@ -49,13 +46,13 @@ export class AltVMIsmReader {
     }
   }
 
-  async deriveIsmConfig(config: IsmConfig): Promise<DerivedIsmConfig> {
+  async deriveIsmConfig(config: IsmConfig | string): Promise<DerivedIsmConfig> {
     if (typeof config === 'string')
       return this.deriveIsmConfigFromAddress(config);
 
     // Extend the inner isms
     switch (config.type) {
-      case IsmType.ROUTING:
+      case 'domainRoutingIsm':
         for (const [chain, ism] of Object.entries(config.domains)) {
           config.domains[chain] = await this.deriveIsmConfig(ism);
         }
@@ -73,7 +70,7 @@ export class AltVMIsmReader {
     });
 
     return {
-      type: IsmType.MERKLE_ROOT_MULTISIG,
+      type: 'merkleRootMultisigIsm',
       address,
       validators: ism.validators,
       threshold: ism.threshold,
@@ -88,7 +85,7 @@ export class AltVMIsmReader {
     });
 
     return {
-      type: IsmType.MESSAGE_ID_MULTISIG,
+      type: 'messageIdMultisigIsm',
       address,
       validators: ism.validators,
       threshold: ism.threshold,
@@ -121,7 +118,7 @@ export class AltVMIsmReader {
     }
 
     return {
-      type: IsmType.ROUTING,
+      type: 'domainRoutingIsm',
       address,
       owner: ism.owner,
       domains,
@@ -130,7 +127,7 @@ export class AltVMIsmReader {
 
   private async deriveTestConfig(address: Address): Promise<DerivedIsmConfig> {
     return {
-      type: IsmType.TEST_ISM,
+      type: 'testIsm',
       address,
     };
   }

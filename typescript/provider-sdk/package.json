@@ -12,7 +12,8 @@
     "./module": "./dist/module.js",
     "./protocol": "./dist/protocol.js",
     "./chain": "./dist/chain.js",
-    "./hook": "./dist/hook.js"
+    "./hook": "./dist/hook.js",
+    "./ism": "./dist/ism.js"
   },
   "scripts": {
     "build": "tsc",
