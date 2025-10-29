@@ -45,7 +45,7 @@ export const XERC20_BRIDGES_CONFIG_PATH = join(
 
 type BridgeConfigBase = {
   chain: string;
-  type: TokenType.XERC20Lockbox | TokenType.XERC20;
+  type: typeof TokenType.XERC20Lockbox | typeof TokenType.XERC20;
   xERC20Address: Address;
   bridgeAddress: Address;
   decimals: number;

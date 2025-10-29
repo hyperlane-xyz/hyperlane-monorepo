@@ -1,21 +1,23 @@
-export enum TokenType {
-  synthetic = 'synthetic',
-  syntheticRebase = 'syntheticRebase',
-  syntheticUri = 'syntheticUri',
-  collateral = 'collateral',
-  collateralVault = 'collateralVault',
-  collateralVaultRebase = 'collateralVaultRebase',
-  XERC20 = 'xERC20',
-  XERC20Lockbox = 'xERC20Lockbox',
-  collateralFiat = 'collateralFiat',
-  collateralUri = 'collateralUri',
-  collateralCctp = 'collateralCctp',
-  native = 'native',
-  nativeOpL2 = 'nativeOpL2',
-  nativeOpL1 = 'nativeOpL1',
+export const TokenType = {
+  synthetic: 'synthetic',
+  syntheticRebase: 'syntheticRebase',
+  syntheticUri: 'syntheticUri',
+  collateral: 'collateral',
+  collateralVault: 'collateralVault',
+  collateralVaultRebase: 'collateralVaultRebase',
+  XERC20: 'xERC20',
+  XERC20Lockbox: 'xERC20Lockbox',
+  collateralFiat: 'collateralFiat',
+  collateralUri: 'collateralUri',
+  collateralCctp: 'collateralCctp',
+  native: 'native',
+  nativeOpL2: 'nativeOpL2',
+  nativeOpL1: 'nativeOpL1',
   // backwards compatible alias to native
-  nativeScaled = 'nativeScaled',
-}
+  nativeScaled: 'nativeScaled',
+} as const;
+
+export type TokenType = (typeof TokenType)[keyof typeof TokenType];
 
 // A token is defined movable collateral if its solidity contract implementation
 // is a subclass of MovableCollateralRouter
