@@ -30,24 +30,26 @@ export enum OnchainHookType {
   AMOUNT_ROUTING,
 }
 
-export enum HookType {
-  CUSTOM = 'custom',
-  MERKLE_TREE = 'merkleTreeHook',
-  INTERCHAIN_GAS_PAYMASTER = 'interchainGasPaymaster',
-  AGGREGATION = 'aggregationHook',
-  PROTOCOL_FEE = 'protocolFee',
-  OP_STACK = 'opStackHook',
-  ROUTING = 'domainRoutingHook',
-  FALLBACK_ROUTING = 'fallbackRoutingHook',
-  AMOUNT_ROUTING = 'amountRoutingHook',
-  PAUSABLE = 'pausableHook',
-  ARB_L2_TO_L1 = 'arbL2ToL1Hook',
-  MAILBOX_DEFAULT = 'defaultHook',
-  CCIP = 'ccipHook',
-}
+export const HookType = {
+  CUSTOM: 'custom',
+  MERKLE_TREE: 'merkleTreeHook',
+  INTERCHAIN_GAS_PAYMASTER: 'interchainGasPaymaster',
+  AGGREGATION: 'aggregationHook',
+  PROTOCOL_FEE: 'protocolFee',
+  OP_STACK: 'opStackHook',
+  ROUTING: 'domainRoutingHook',
+  FALLBACK_ROUTING: 'fallbackRoutingHook',
+  AMOUNT_ROUTING: 'amountRoutingHook',
+  PAUSABLE: 'pausableHook',
+  ARB_L2_TO_L1: 'arbL2ToL1Hook',
+  MAILBOX_DEFAULT: 'defaultHook',
+  CCIP: 'ccipHook',
+} as const;
+
+export type HookType = (typeof HookType)[keyof typeof HookType];
 
 export const HookTypeToContractNameMap: Record<
-  Exclude<HookType, HookType.CUSTOM>,
+  Exclude<HookType, typeof HookType.CUSTOM>,
   string
 > = {
   [HookType.MERKLE_TREE]: 'merkleTreeHook',
@@ -75,21 +77,21 @@ export type MailboxDefaultHookConfig = z.infer<typeof MailboxDefaultHookSchema>;
 export type CCIPHookConfig = z.infer<typeof CCIPHookSchema>;
 // explicitly typed to avoid zod circular dependency
 export type AggregationHookConfig = {
-  type: HookType.AGGREGATION;
+  type: typeof HookType.AGGREGATION;
   hooks: Array<HookConfig>;
 };
 export type RoutingHookConfig = OwnableConfig & {
   domains: ChainMap<HookConfig>;
 };
 export type DomainRoutingHookConfig = RoutingHookConfig & {
-  type: HookType.ROUTING;
+  type: typeof HookType.ROUTING;
 };
 export type FallbackRoutingHookConfig = RoutingHookConfig & {
-  type: HookType.FALLBACK_ROUTING;
+  type: typeof HookType.FALLBACK_ROUTING;
   fallback: HookConfig;
 };
 export type AmountRoutingHookConfig = {
-  type: HookType.AMOUNT_ROUTING;
+  type: typeof HookType.AMOUNT_ROUTING;
   threshold: number;
   lowerHook: HookConfig;
   upperHook: HookConfig;
@@ -100,7 +102,7 @@ export type HookConfig = z.infer<typeof HookConfigSchema>;
 export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
 // Hook types that can be updated in-place
-export const MUTABLE_HOOK_TYPE = [
+export const MUTABLE_HOOK_TYPE: HookType[] = [
   HookType.INTERCHAIN_GAS_PAYMASTER,
   HookType.PROTOCOL_FEE,
   HookType.ROUTING,
