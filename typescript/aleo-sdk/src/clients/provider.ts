@@ -1,4 +1,7 @@
-import { AleoNetworkClient, Transaction } from '@provablehq/sdk';
+import {
+  AleoNetworkClient,
+  Transaction as AleoTransaction,
+} from '@provablehq/sdk';
 
 import { AltVM, assert } from '@hyperlane-xyz/utils';
 
@@ -45,7 +48,7 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async estimateTransactionFee(
-    _req: AltVM.ReqEstimateTransactionFee<Transaction>,
+    _req: AltVM.ReqEstimateTransactionFee<AleoTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
     throw new Error(`TODO: implement`);
   }
@@ -128,103 +131,103 @@ export class AleoProvider implements AltVM.IProvider {
 
   async getCreateMailboxTransaction(
     _req: AltVM.ReqCreateMailbox,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getSetDefaultIsmTransaction(
     _req: AltVM.ReqSetDefaultIsm,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getSetDefaultHookTransaction(
     _req: AltVM.ReqSetDefaultHook,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getSetRequiredHookTransaction(
     _req: AltVM.ReqSetRequiredHook,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getSetMailboxOwnerTransaction(
     _req: AltVM.ReqSetMailboxOwner,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getCreateMerkleRootMultisigIsmTransaction(
     _req: AltVM.ReqCreateMerkleRootMultisigIsm,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getCreateMessageIdMultisigIsmTransaction(
     _req: AltVM.ReqCreateMessageIdMultisigIsm,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getCreateRoutingIsmTransaction(
     _req: AltVM.ReqCreateRoutingIsm,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getSetRoutingIsmRouteTransaction(
     _req: AltVM.ReqSetRoutingIsmRoute,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getRemoveRoutingIsmRouteTransaction(
     _req: AltVM.ReqRemoveRoutingIsmRoute,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getSetRoutingIsmOwnerTransaction(
     _req: AltVM.ReqSetRoutingIsmOwner,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getCreateNoopIsmTransaction(
     _req: AltVM.ReqCreateNoopIsm,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getCreateMerkleTreeHookTransaction(
     _req: AltVM.ReqCreateMerkleTreeHook,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getCreateInterchainGasPaymasterHookTransaction(
     _req: AltVM.ReqCreateInterchainGasPaymasterHook,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
     _req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getSetDestinationGasConfigTransaction(
     _req: AltVM.ReqSetDestinationGasConfig,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getCreateValidatorAnnounceTransaction(
     _req: AltVM.ReqCreateValidatorAnnounce,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
@@ -232,47 +235,49 @@ export class AleoProvider implements AltVM.IProvider {
 
   async getCreateCollateralTokenTransaction(
     _req: AltVM.ReqCreateCollateralToken,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getCreateSyntheticTokenTransaction(
     _req: AltVM.ReqCreateSyntheticToken,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getSetTokenOwnerTransaction(
     _req: AltVM.ReqSetTokenOwner,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getSetTokenIsmTransaction(
     _req: AltVM.ReqSetTokenIsm,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getEnrollRemoteRouterTransaction(
     _req: AltVM.ReqEnrollRemoteRouter,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getUnenrollRemoteRouterTransaction(
     _req: AltVM.ReqUnenrollRemoteRouter,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
-  async getTransferTransaction(_req: AltVM.ReqTransfer): Promise<Transaction> {
+  async getTransferTransaction(
+    _req: AltVM.ReqTransfer,
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 
   async getRemoteTransferTransaction(
     _req: AltVM.ReqRemoteTransfer,
-  ): Promise<Transaction> {
+  ): Promise<AleoTransaction> {
     throw new Error(`TODO: implement`);
   }
 }
