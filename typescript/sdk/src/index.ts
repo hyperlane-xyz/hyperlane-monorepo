@@ -786,7 +786,7 @@ export {
   getSafe,
   getSafeDelegates,
   getSafeService,
-  // @ts-ignore
+  safeApiKeyRequired,
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
@@ -821,6 +821,7 @@ export {
   WarpCoreConfigSchema,
   WarpTxCategory,
   WarpTypedTransaction,
+  WarpCoreFeeEstimate,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 export { EvmTimelockReader } from './timelock/evm/EvmTimelockReader.js';

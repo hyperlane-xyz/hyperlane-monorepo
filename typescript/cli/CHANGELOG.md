@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 19.4.0
+
+### Minor Changes
+
+- 4011a4561: Fix bug that prevented the warp route ism to be set to the 0 address and include logic to update a pausable ism as it was missing
+
 ## 19.3.0
 
 ## 19.2.0
