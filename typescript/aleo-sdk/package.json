@@ -20,7 +20,8 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rm -rf ./dist && tsc",
+    "prebuild": "node scripts/generate-artifacts.js",
+    "build": "yarn prebuild && rm -rf ./dist && tsc",
     "format": "prettier --write .",
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
