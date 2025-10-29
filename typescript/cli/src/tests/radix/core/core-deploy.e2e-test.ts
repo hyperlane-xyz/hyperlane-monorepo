@@ -33,7 +33,7 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
   );
 
   type CoreConfigOwnershipAssertion = {
-    expectedMailboOwner: Address;
+    expectedMailboxOwner: Address;
     expectedDefaultHookOwner: Address;
     expectedDefaultIsmOwner: Address;
   };
@@ -42,7 +42,7 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
     coreConfig: DerivedCoreConfig,
     options: CoreConfigOwnershipAssertion,
   ) {
-    expect(coreConfig.owner).to.equal(options.expectedMailboOwner);
+    expect(coreConfig.owner).to.equal(options.expectedMailboxOwner);
     expect(coreConfig.proxyAdmin?.owner).to.be.undefined;
 
     const deployedDefaultHook = coreConfig.defaultHook;
@@ -66,7 +66,7 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
     const deployedDefaultIsm = coreConfig.defaultIsm;
     assert(
       deployedDefaultIsm.type === IsmType.ROUTING,
-      `Expected deployed defaultIsm to be of type ${HookType.MERKLE_TREE}`,
+      `Expected deployed defaultIsm to be of type ${IsmType.ROUTING}`,
     );
     expect(deployedDefaultIsm.owner).to.equal(options.expectedDefaultIsmOwner);
     expect(objLength(deployedDefaultIsm.domains)).to.equal(1);
@@ -83,7 +83,7 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
         expect: {
           expectedDefaultHookOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
           expectedDefaultIsmOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
-          expectedMailboOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
+          expectedMailboxOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
         },
       },
       {
@@ -92,7 +92,7 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
         expect: {
           expectedDefaultHookOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
           expectedDefaultIsmOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
-          expectedMailboOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
+          expectedMailboxOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
         },
       },
       {
@@ -101,7 +101,7 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
         expect: {
           expectedDefaultHookOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
           expectedDefaultIsmOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
-          expectedMailboOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
+          expectedMailboxOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
         },
       },
       {
@@ -110,7 +110,7 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
         expect: {
           expectedDefaultHookOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
           expectedDefaultIsmOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
-          expectedMailboOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
+          expectedMailboxOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
         },
       },
     ];
@@ -121,7 +121,7 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
           CORE_CONFIG_PATH_BY_PROTOCOL.radix,
         );
 
-        coreConfig.owner = expect.expectedMailboOwner;
+        coreConfig.owner = expect.expectedMailboxOwner;
 
         const defaultHookConfig = coreConfig.defaultHook;
         assert(
