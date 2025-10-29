@@ -486,8 +486,6 @@ export {
   getCCIPRouterAddress,
   getChainNameFromCCIPSelector,
 } from './ccip/utils.js';
-export { AltVMCoreModule } from './core/AltVMCoreModule.js';
-export { AltVMCoreReader } from './core/AltVMCoreReader.js';
 export { EvmCoreModule } from './core/EvmCoreModule.js';
 export {
   isProxy,

@@ -13,7 +13,8 @@
     "./protocol": "./dist/protocol.js",
     "./chain": "./dist/chain.js",
     "./hook": "./dist/hook.js",
-    "./ism": "./dist/ism.js"
+    "./ism": "./dist/ism.js",
+    "./core": "./dist/core.js"
   },
   "scripts": {
     "build": "tsc",
