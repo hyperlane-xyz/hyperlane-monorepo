@@ -54,17 +54,17 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   static async connect(
     rpcUrls: string[],
     chainId: string | number,
-    { metadata }: Record<string, any>,
+    extraParams?: Record<string, any>,
   ): Promise<RadixProvider> {
     const networkId = parseInt(chainId.toString());
 
     return new RadixProvider({
       rpcUrls,
       networkId,
-      gatewayUrls: (metadata?.gatewayUrls as { http: string }[])?.map(
-        ({ http }) => http,
-      ),
-      packageAddress: metadata?.packageAddress,
+      gatewayUrls: (
+        extraParams?.metadata?.gatewayUrls as { http: string }[]
+      )?.map(({ http }) => http),
+      packageAddress: extraParams?.metadata?.packageAddress,
     });
   }
 

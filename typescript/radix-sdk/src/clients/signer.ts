@@ -82,7 +82,7 @@ export class RadixSigner
     return new RadixSigner(account, {
       networkId,
       rpcUrls,
-      gatewayUrls: (metadata?.gatewayUrls as { http: string }[]).map(
+      gatewayUrls: (metadata?.gatewayUrls as { http: string }[])?.map(
         ({ http }) => http,
       ),
       packageAddress: metadata.packageAddress as string | undefined,
