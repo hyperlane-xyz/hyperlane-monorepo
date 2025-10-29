@@ -422,7 +422,7 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: CLI radix e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:cross-chain:e2e
+        run: yarn --cwd typescript/cli test:radix:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
