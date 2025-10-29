@@ -1,6 +1,8 @@
 import { zeroAddress } from 'viem';
 
+import { AltVMHookReader } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { HookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   Address,
   TransformObjectTransformer,
@@ -274,7 +276,10 @@ export async function expandWarpDeployConfig(params: {
               (chain) => multiProvider.getChainMetadata(chain),
               provider,
             );
-            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+            chainConfig.hook = await reader.deriveHookConfig(
+              // FIXME: not all hook types are supported yet
+              chainConfig.hook as HookConfig | Address,
+            );
           }
         }
       }
