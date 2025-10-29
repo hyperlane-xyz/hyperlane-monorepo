@@ -7,7 +7,7 @@ import {
 import { fileURLToPath } from 'url';
 
 import { RadixSigner } from '@hyperlane-xyz/radix-sdk';
-import { assert, sleep } from '@hyperlane-xyz/utils';
+import { assert, retryAsync, sleep } from '@hyperlane-xyz/utils';
 
 import { HYP_KEY_BY_PROTOCOL, TestChainMetadata } from './constants.js';
 
@@ -105,7 +105,12 @@ export async function runRadixNode(
   )) as RadixSigner;
 
   // Fund the account with the internal signer
-  await signer['signer'].getTestnetXrd();
+  // Use retryAsync to handle transient errors (e.g., epoch expiry)
+  await retryAsync(
+    () => signer['signer'].getTestnetXrd(),
+    3, // attempts
+    1000, // base retry delay (1 second)
+  );
   console.log(
     `Funded test account on ${chainMetadata.name} before publishing the hyperlane package`,
   );
