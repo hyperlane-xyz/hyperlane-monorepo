@@ -1,0 +1,6 @@
+services:
+  hyperlane-aleo-simapp:
+    image: gcr.io/abacus-labs-dev/hyperlane-aleo-simapp:v1.0.1
+    ports:
+      - 26657:26657
+      - 1317:1317
