@@ -1,6 +1,25 @@
 services:
   hyperlane-aleo-simapp:
-    image: gcr.io/abacus-labs-dev/hyperlane-aleo-simapp:v1.0.1
+    image: gcr.io/abacus-labs-dev/hyperlane-aleo-tools:v1.0.0
+    entrypoint:
+      [
+        'leo',
+        'devnet',
+        '--storage',
+        'tmp',
+        '--snarkos',
+        '/usr/local/cargo/bin/snarkos',
+        '--snarkos-features',
+        'test_network',
+        '--clear-storage',
+        '--num-clients',
+        '1',
+        '-y',
+      ]
     ports:
-      - 26657:26657
-      - 1317:1317
+      - 3030:3030
+    environment:
+      - NETWORK=testnet
+      - PRIVATE_KEY="APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH"
+      - ENDPOINT=http://localhost:3030
+      - CONSENSUS_VERSION_HEIGHTS=0,1,2,3,4,5,6,7,8,9,10
