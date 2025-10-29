@@ -47,7 +47,7 @@ jobs:
         working-directory: ./rust/main
         run: |
           # Get latest agents-v* tag
-          LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
+          LATEST_TAG=$(../scripts/get-latest-agents-tag.sh)
 
           if [ -z "$LATEST_TAG" ]; then
             echo "No previous release found"
@@ -70,12 +70,12 @@ jobs:
         working-directory: ./rust/main
         run: |
           # Get current version from Cargo.toml workspace.package.version
-          CURRENT_VERSION=$(grep -A 10 '^\[workspace\.package\]' Cargo.toml | grep '^version = ' | head -1 | sed 's/version = "\(.*\)"/\1/')
+          CURRENT_VERSION=$(../scripts/get-workspace-version.sh)
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "Current workspace version: $CURRENT_VERSION"
 
           # Get latest agents-v* tag
-          LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
+          LATEST_TAG=$(../scripts/get-latest-agents-tag.sh)
 
           if [ -z "$LATEST_TAG" ]; then
             echo "latest_version=" >> $GITHUB_OUTPUT
@@ -109,63 +109,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Determine next version from conventional commits
         id: next_version
-        working-directory: ./rust/main
         env:
           CURRENT_VERSION: ${{ needs.check-release-status.outputs.current_version }}
         run: |
-          # Get commits since last release
-          LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
+          # Use helper script to determine next version
+          OUTPUT=$(./rust/scripts/determine-next-version.sh "$CURRENT_VERSION")
+          NEW_VERSION=$(echo "$OUTPUT" | sed -n '1p')
+          BUMP_TYPE=$(echo "$OUTPUT" | sed -n '2p')
 
-          if [ -z "$LATEST_TAG" ]; then
-            COMMITS=$(git log --oneline --no-merges -- .)
-          else
-            COMMITS=$(git log "${LATEST_TAG}..HEAD" --oneline --no-merges -- .)
-          fi
-
-          # Parse current version
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-
-          # Analyze commits for conventional commit types
-          HAS_BREAKING=false
-          HAS_MINOR=false
-          HAS_PATCH=false
-
-          while IFS= read -r commit; do
-            if echo "$commit" | grep -qE "^[a-f0-9]+ [a-z]+(\(.+\))?!:"; then
-              HAS_BREAKING=true
-            elif echo "$commit" | grep -qE "^[a-f0-9]+ (feat|refactor|perf|chore)(\(.+\))?:"; then
-              HAS_MINOR=true
-            elif echo "$commit" | grep -qE "^[a-f0-9]+ (fix|docs|test|ci|style|build)(\(.+\))?:"; then
-              HAS_PATCH=true
-            fi
-
-            # Check commit body for BREAKING CHANGE
-            COMMIT_HASH=$(echo "$commit" | cut -d' ' -f1)
-            if git show -s --format=%B "$COMMIT_HASH" | grep -q "BREAKING CHANGE:"; then
-              HAS_BREAKING=true
-            fi
-          done <<< "$COMMITS"
-
-          # Determine version bump
-          if [ "$HAS_BREAKING" = true ]; then
-            MAJOR=$((MAJOR + 1))
-            MINOR=0
-            PATCH=0
-            BUMP_TYPE="major"
-          elif [ "$HAS_MINOR" = true ]; then
-            MINOR=$((MINOR + 1))
-            PATCH=0
-            BUMP_TYPE="minor"
-          elif [ "$HAS_PATCH" = true ]; then
-            PATCH=$((PATCH + 1))
-            BUMP_TYPE="patch"
-          else
-            # Default to patch for any other changes
-            PATCH=$((PATCH + 1))
-            BUMP_TYPE="patch"
-          fi
-
-          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
           echo "Next version: $NEW_VERSION ($BUMP_TYPE bump from $CURRENT_VERSION)"
@@ -175,7 +126,7 @@ jobs:
           NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
         run: |
           # Get commit range for changelog generation
-          LATEST_TAG=$(git tag -l "agents-v*" --sort=-version:refname | grep -E "^agents-v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
+          LATEST_TAG=$(./rust/scripts/get-latest-agents-tag.sh)
 
           if [ -z "$LATEST_TAG" ]; then
             COMMIT_RANGE=""
@@ -203,25 +154,14 @@ jobs:
           # Generate per-workspace CHANGELOG.md files
           ./rust/scripts/generate-workspace-changelog.sh "$COMMIT_RANGE" "" --write-to-workspace "$NEW_VERSION"
       - name: Update version files
-        working-directory: ./rust/main
         env:
           NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
         run: |
           # Update workspace version in Cargo.toml
-          # Use awk to find [workspace.package] section and update version within it
-          awk -v new_version="$NEW_VERSION" '
-            /^\[workspace\.package\]/ { in_workspace=1 }
-            /^\[/ && !/^\[workspace\.package\]/ { in_workspace=0 }
-            in_workspace && /^version = / {
-              print "version = \"" new_version "\""
-              next
-            }
-            { print }
-          ' Cargo.toml > Cargo.toml.new
-          mv Cargo.toml.new Cargo.toml
-          echo "Updated Cargo.toml workspace version to $NEW_VERSION"
+          ./rust/scripts/update-workspace-version.sh "$NEW_VERSION"
 
           # Update Cargo.lock in rust/main
+          cd rust/main
           cargo update --workspace --offline 2>/dev/null || cargo update --workspace
           echo "Updated rust/main/Cargo.lock"
 
