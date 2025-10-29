@@ -8,7 +8,6 @@ use std::ops::RangeInclusive;
 use tonic::async_trait;
 use tracing::instrument;
 
-/// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
 pub struct KaspaDelivery {
     provider: KaspaProvider,
@@ -16,7 +15,6 @@ pub struct KaspaDelivery {
 }
 
 impl KaspaDelivery {
-    ///  New Delivery Indexer
     pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(KaspaDelivery {
             provider,
@@ -38,7 +36,7 @@ impl KaspaEventIndexer<H256> for KaspaDelivery {
 #[async_trait]
 impl Indexer<H256> for KaspaDelivery {
     #[instrument(err, skip(self))]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    #[allow(clippy::blocks_in_conditions)]
     async fn fetch_logs_in_range(
         &self,
         _range: RangeInclusive<u32>,
@@ -50,8 +48,6 @@ impl Indexer<H256> for KaspaDelivery {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 
-    // used for the tx id indexer task
-    //  can disable by setting this none https://github.com/dymensionxyz/hyperlane-monorepo/blob/5f2136acc6a8e12adaac9e053811e9c33623d01e/rust/main/hyperlane-base/src/contract_sync/mod.rs#L379
     async fn fetch_logs_by_tx_hash(
         &self,
         _tx_hash: H512,

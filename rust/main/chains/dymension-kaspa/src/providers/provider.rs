@@ -34,7 +34,6 @@ use tonic::async_trait;
 use tracing::info;
 use url::Url;
 
-/// dococo
 #[derive(Debug, Clone)]
 pub struct KaspaProvider {
     conf: ConnectionConf,
@@ -44,42 +43,37 @@ pub struct KaspaProvider {
     validators: ValidatorsClient,
     cosmos_rpc: CosmosProvider<ModuleQueryClient>,
 
-    /*
-      TODO: this is just a quick hack to get access to a kaspa escrow private key, we should change to wallet managed
-    */
+    // Quick hack for validator access to Kaspa escrow private key, should eventually be wallet-managed
     kas_key: Option<KaspaSecpKeypair>,
 
-    /// Optimistically give a hint for the next confirmation needed to be done on the Hub
-    /// If this value is out of date, the relayer can still manually poll Kaspa to figure out how to get synced
+    // Optimistic hint for next confirmation needed on Hub. If out of date, relayer polls Kaspa to sync
     pending_confirmation: Arc<PendingConfirmation>,
 
-    /// Kaspa bridge metrics for monitoring deposits, withdrawals, and failures
     metrics: KaspaBridgeMetrics,
 }
 
 impl KaspaProvider {
-    /// dococo
     pub async fn new(
-        conf: &ConnectionConf,
+        cfg: &ConnectionConf,
         domain: HyperlaneDomain,
         signer: Option<HyperlaneSigner>,
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
         registry: Option<&Registry>,
     ) -> ChainResult<Self> {
-        let rest = RestProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
-        let validators = ValidatorsClient::new(conf.clone())?;
+        let rest = RestProvider::new(cfg.clone(), signer, metrics.clone(), chain.clone())?;
+        let validators = ValidatorsClient::new(cfg.clone())?;
 
         let easy_wallet = get_easy_wallet(
             domain.clone(),
-            conf.kaspa_urls_wrpc[0].clone(), // TODO: try all of them as needed
-            conf.wallet_secret.clone(),
-            conf.wallet_dir.clone(),
+            cfg.kaspa_urls_wrpc[0].clone(), // TODO: try all of them as needed
+            cfg.wallet_secret.clone(),
+            cfg.wallet_dir.clone(),
         )
         .await
         .map_err(|e| eyre::eyre!("Failed to create easy wallet: {}", e))?;
 
-        let kas_key = match &conf.validator_stuff {
+        let kas_key = match &cfg.validator_stuff {
             Some(v) => {
                 let kp: KaspaSecpKeypair = serde_json::from_str(&v.kas_escrow_private).unwrap();
                 Some(kp)
@@ -90,32 +84,29 @@ impl KaspaProvider {
         let kaspa_metrics = if let Some(reg) = registry {
             KaspaBridgeMetrics::new(reg).expect("Failed to create KaspaBridgeMetrics")
         } else {
-            // Use default registry as fallback
             KaspaBridgeMetrics::new(&prometheus::default_registry())
                 .expect("Failed to create default KaspaBridgeMetrics")
         };
 
         let provider = KaspaProvider {
             domain: domain.clone(),
-            conf: conf.clone(),
+            conf: cfg.clone(),
             easy_wallet,
             rest,
             validators,
-            cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
+            cosmos_rpc: cosmos_grpc_client(cfg.hub_grpc_urls.clone()),
             kas_key,
             pending_confirmation: Arc::new(PendingConfirmation::new()),
             metrics: kaspa_metrics,
         };
 
-        // Initialize balance metrics on startup
         if let Err(e) = provider.update_balance_metrics().await {
-            tracing::warn!("Failed to initialize balance metrics on startup: {:?}", e);
+            tracing::error!("Failed to initialize balance metrics on startup: {:?}", e);
         }
 
         Ok(provider)
     }
 
-    /// dococo
     pub fn consume_pending_confirmation(&self) -> Option<ConfirmationFXG> {
         self.pending_confirmation.consume()
     }
@@ -128,32 +119,26 @@ impl KaspaProvider {
         self.pending_confirmation.get_pending()
     }
 
-    /// Get the minimum deposit amount in sompi from configuration
     pub fn get_min_deposit_sompi(&self) -> U256 {
         self.conf.min_deposit_sompi
     }
 
-    /// dococo
     pub fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_key.unwrap()
     }
 
-    /// dococo
     pub fn rest(&self) -> &RestProvider {
         &self.rest
     }
 
-    /// dococo
     pub fn rpc(&self) -> Arc<DynRpcApi> {
         self.easy_wallet.api()
     }
 
-    /// dococo
     pub fn validators(&self) -> &ValidatorsClient {
         &self.validators
     }
 
-    /// dococo
     pub fn hub_rpc(&self) -> &CosmosProvider<ModuleQueryClient> {
         &self.cosmos_rpc
     }
@@ -170,27 +155,26 @@ impl KaspaProvider {
         self.conf.relayer_stuff.as_ref().unwrap()
     }
 
-    /// Get the Kaspa deposit configuration if available
-    pub fn kaspa_time_config(&self) -> Option<crate::conf::KaspaTimeConfig> {
+    pub fn kaspa_time_cfg(&self) -> Option<crate::conf::KaspaTimeConfig> {
         self.conf
             .relayer_stuff
             .as_ref()
             .map(|r| r.kaspa_time_config.clone())
     }
 
-    /// dococo
-    /// Returns next outpoint
+    // Process withdrawals from Hub to Kaspa by building and submitting Kaspa transactions.
+    // Returns the subset of messages that were successfully processed.
     pub async fn process_withdrawal_messages(
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Vec<HyperlaneMessage>> {
-        let min_withdrawal_amount = self.conf.min_deposit_sompi;
+        let min_withdrawal_amt = self.conf.min_deposit_sompi;
         let res = on_new_withdrawals(
             msgs.clone(),
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
-            min_withdrawal_amount,
+            min_withdrawal_amt,
             self.must_relayer_stuff().tx_fee_multiplier,
         )
         .await;
@@ -203,14 +187,14 @@ impl KaspaProvider {
                 // Create withdrawal batch ID and calculate total amount
                 let all_msgs: Vec<_> = fxg.messages.iter().flatten().cloned().collect();
                 let withdrawal_batch_id = create_withdrawal_batch_id(&all_msgs);
-                let total_amount = calculate_total_withdrawal_amount(&all_msgs);
+                let total_amt = calculate_total_withdrawal_amount(&all_msgs);
 
                 let bundles_validators = match self.validators().get_withdraw_sigs(&fxg).await {
                     Ok(bundles) => bundles,
                     Err(e) => {
                         // Record withdrawal failure with deduplication
                         self.metrics
-                            .record_withdrawal_failed(&withdrawal_batch_id, total_amount);
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amt);
                         return Err(e.into());
                     }
                 };
@@ -228,7 +212,7 @@ impl KaspaProvider {
                     Err(e) => {
                         // Record withdrawal failure with deduplication
                         self.metrics
-                            .record_withdrawal_failed(&withdrawal_batch_id, total_amount);
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amt);
                         return Err(e);
                     }
                 };
@@ -237,22 +221,20 @@ impl KaspaProvider {
                     Ok(_) => {
                         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
-                        // Record successful withdrawal with message count
-                        let message_count =
+                        let msg_count =
                             fxg.messages.iter().map(|msgs| msgs.len()).sum::<usize>() as u64;
                         self.metrics.record_withdrawal_processed(
                             &withdrawal_batch_id,
-                            total_amount,
-                            message_count,
+                            total_amt,
+                            msg_count,
                         );
 
-                        // Update last withdrawal anchor point metric
                         if let Some(last_anchor) = fxg.anchors.last() {
-                            let current_timestamp = kaspa_core::time::unix_now();
+                            let current_ts = kaspa_core::time::unix_now();
                             self.metrics.update_last_anchor_point(
                                 &last_anchor.transaction_id.to_string(),
                                 last_anchor.index as u64,
-                                current_timestamp,
+                                current_ts,
                             );
                         }
 
@@ -263,9 +245,8 @@ impl KaspaProvider {
                         Ok(all_msgs)
                     }
                     Err(e) => {
-                        // Record withdrawal failure with deduplication
                         self.metrics
-                            .record_withdrawal_failed(&withdrawal_batch_id, total_amount);
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amt);
                         Err(e)
                     }
                 }
@@ -275,68 +256,61 @@ impl KaspaProvider {
                 Ok(msgs)
             }
             Err(e) => {
-                // Create withdrawal batch ID and calculate failed amount
                 let withdrawal_batch_id = create_withdrawal_batch_id(&msgs);
-                let failed_amount = calculate_total_withdrawal_amount(&msgs);
+                let failed_amt = calculate_total_withdrawal_amount(&msgs);
                 self.metrics
-                    .record_withdrawal_failed(&withdrawal_batch_id, failed_amount);
+                    .record_withdrawal_failed(&withdrawal_batch_id, failed_amt);
                 Err(e)
             }
         }
     }
 
     async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {
-        let mut ret = Vec::new();
+        let mut tx_ids = Vec::new();
         for tx in txs {
-            let allow_orphan = false; // TODO: what is this?
+            // allow_orphan controls whether TX can be submitted without parent TX being in DAG. Set to false to ensure TX chain integrity
+            let allow_orphan = false;
             let tx_id = self
                 .easy_wallet
                 .api()
                 .submit_transaction(tx, allow_orphan)
                 .await?;
-            ret.push(tx_id);
+            tx_ids.push(tx_id);
         }
 
-        // Update balance metrics after successful transaction submission
         if let Err(e) = self.update_balance_metrics().await {
             tracing::error!("Failed to update balance metrics: {:?}", e);
         }
 
-        Ok(ret)
+        Ok(tx_ids)
     }
 
-    /// Update balance metrics for relayer funds and escrow balance
     pub async fn update_balance_metrics(&self) -> Result<()> {
-        // Get UTXOs for escrow address using RPC API
         let utxos = self
             .rpc()
             .get_utxos_by_addresses(vec![self.escrow_address()])
             .await
             .map_err(|e| eyre::eyre!("Failed to get UTXOs for escrow address: {}", e))?;
 
-        // Calculate total escrow balance from UTXOs
-        let total_escrow_balance: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
+        let total_escrow_bal: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
 
-        // Update metrics
         self.metrics()
-            .update_funds_escrowed(total_escrow_balance as i64);
+            .update_funds_escrowed(total_escrow_bal as i64);
         self.metrics().update_escrow_utxo_count(utxos.len() as i64);
 
-        // Also update relayer balance if we have a wallet account
-        let account = self.wallet().account();
-        // Try to get balance with a few retries
-        let mut balance_opt = None;
+        let acct = self.wallet().account();
+        // Wallet balance may not be immediately available, retry a few times
+        let mut bal_opt = None;
         for _ in 0..5 {
-            if let Some(b) = account.balance() {
-                balance_opt = Some(b);
+            if let Some(b) = acct.balance() {
+                bal_opt = Some(b);
                 break;
             }
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
 
-        if let Some(balance) = balance_opt {
-            // Use mature balance for relayer funds metric
-            self.metrics().update_relayer_funds(balance.mature as i64);
+        if let Some(bal) = bal_opt {
+            self.metrics().update_relayer_funds(bal.mature as i64);
         }
 
         Ok(())
@@ -350,37 +324,32 @@ impl KaspaProvider {
         )
     }
 
-    /// get escrow address
     pub fn escrow_address(&self) -> Address {
         self.escrow().addr
     }
 
-    /// Get access to Kaspa bridge metrics
     pub fn metrics(&self) -> &KaspaBridgeMetrics {
         &self.metrics
     }
 }
 
 impl HyperlaneChain for KaspaProvider {
-    /// Return the domain
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
 
-    /// A provider for the chain
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
         Box::new(self.clone())
     }
 }
 
+// Only used by scraper, not implemented for Kaspa
 #[async_trait]
 impl HyperlaneProvider for KaspaProvider {
-    // only used by scraper
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         Err(HyperlaneProviderError::CouldNotFindBlockByHeight(height).into())
     }
 
-    // only used by scraper
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         return Err(HyperlaneProviderError::CouldNotFindTransactionByHash(*hash).into());
     }
@@ -404,19 +373,19 @@ async fn get_easy_wallet(
     domain: HyperlaneDomain,
     rpc_url: String,
     wallet_secret: String,
-    storage_folder: Option<String>,
+    storage_dir: Option<String>,
 ) -> Result<EasyKaspaWallet> {
     let args = EasyKaspaWalletArgs {
         wallet_secret,
         wrpc_url: rpc_url,
         net: domain_to_kas_network(&domain),
-        storage_folder,
+        storage_folder: storage_dir,
     };
     EasyKaspaWallet::try_new(args).await
 }
 
 fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
-    let hub_conf = HubConnectionConf::new(
+    let hub_cfg = HubConnectionConf::new(
         urls.clone(), // grpc_urls
         vec![],       // rpc_urls
         "".to_string(),
@@ -435,13 +404,13 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
     .unwrap(); // TODO: no unwrap for Result
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
-    // Create a dummy locator since we only need the query client
+    // Create dummy locator since we only need the query client, not full provider functionality
     let dummy_domain = hyperlane_core::HyperlaneDomain::new_test_domain("dummy");
-    let locator = hyperlane_core::ContractLocator {
+    let loc = hyperlane_core::ContractLocator {
         domain: &dummy_domain,
         address: hyperlane_core::H256::zero(),
     };
-    CosmosProvider::<ModuleQueryClient>::new(&hub_conf, &locator, None, metrics, chain).unwrap()
+    CosmosProvider::<ModuleQueryClient>::new(&hub_cfg, &loc, None, metrics, chain).unwrap()
     // TODO: no unwrap
 }
 

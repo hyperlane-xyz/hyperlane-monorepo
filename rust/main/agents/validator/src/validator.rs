@@ -221,13 +221,13 @@ impl BaseAgent for Validator {
 
         if is_kas(&self.origin_chain) {
             let prov = self.dymension_kaspa_args.clone().unwrap().kas_provider;
-            router = router.merge(
-                // TODO: config based
-                dymension_kaspa::router(dymension_kaspa::ValidatorServerResources::new(
-                    Arc::new(self.raw_signer.clone()),
-                    prov,
-                )),
-            )
+            let signing = dymension_kaspa::ValidatorISMSigningResources::new(
+                Arc::new(self.raw_signer.clone()),
+                self.signer.clone(),
+            );
+            router = router.merge(dymension_kaspa::router(
+                dymension_kaspa::ValidatorServerResources::new(signing, prov),
+            ))
         }
 
         let server = self

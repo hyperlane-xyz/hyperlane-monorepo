@@ -8,7 +8,6 @@ use std::ops::RangeInclusive;
 use tonic::async_trait;
 use tracing::instrument;
 
-/// Dispatch indexer to check if a new hyperlane message was dispatched
 #[derive(Debug, Clone)]
 pub struct KaspaDispatch {
     provider: KaspaProvider,
@@ -16,7 +15,6 @@ pub struct KaspaDispatch {
 }
 
 impl KaspaDispatch {
-    ///  New Dispatch Indexer
     pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(KaspaDispatch {
             provider,
@@ -38,7 +36,7 @@ impl KaspaEventIndexer<HyperlaneMessage> for KaspaDispatch {
 #[async_trait]
 impl Indexer<HyperlaneMessage> for KaspaDispatch {
     #[instrument(err, skip(self))]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    #[allow(clippy::blocks_in_conditions)]
     async fn fetch_logs_in_range(
         &self,
         _range: RangeInclusive<u32>,
@@ -61,7 +59,7 @@ impl Indexer<HyperlaneMessage> for KaspaDispatch {
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for KaspaDispatch {
     #[instrument(err, skip(self), ret)]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    #[allow(clippy::blocks_in_conditions)]
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }

@@ -6,7 +6,6 @@ use hyperlane_core::{
 
 use crate::KaspaProvider;
 
-/// UNUSED
 #[derive(Debug)]
 pub struct KaspaValidatorAnnounce {
     domain: HyperlaneDomain,
@@ -15,7 +14,6 @@ pub struct KaspaValidatorAnnounce {
 }
 
 impl KaspaValidatorAnnounce {
-    /// create a new instance of KaspaValidatorAnnounce
     pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             domain: locator.domain.clone(),
@@ -43,12 +41,8 @@ impl HyperlaneChain for KaspaValidatorAnnounce {
 
 #[async_trait]
 impl ValidatorAnnounce for KaspaValidatorAnnounce {
-    // called by validator to check he announced before he starts
-    // needs to return the location for the calling validator at least
     async fn get_announced_storage_locations(&self, _: &[H256]) -> ChainResult<Vec<Vec<String>>> {
-        /*
-        This just has to match the value that was passed to the agent on the CLI on boot, it's not really used semantically
-         */
+        // This value must match what was passed to the agent on CLI boot, it's not semantically used by the protocol
         let c = "ARBITRARY_VALUE_FOOBAR";
         Ok(vec![vec![format!("file://{}", c)]])
     }

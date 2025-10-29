@@ -2,7 +2,6 @@ use dym_kas_relayer::deposit::KaspaTxError;
 use hyperlane_core::ChainCommunicationError;
 use thiserror::Error;
 
-/// Extended Kaspa deposit operation errors with additional context
 #[derive(Error, Debug)]
 pub enum KaspaDepositError {
     #[error("Deposit not final enough: need {needed} confirmations, have {current}")]
@@ -13,18 +12,17 @@ pub enum KaspaDepositError {
 }
 
 impl KaspaDepositError {
-    /// Check if this error is retryable  
     pub fn is_retryable(&self) -> bool {
-        // All errors are retryable in this simplified version
         true
     }
 
-    /// Get retry delay hint in seconds (if applicable)
+    // Returns suggested retry delay based on missing confirmations.
+    // Kaspa produces ~10 blocks/sec, so 0.1 sec per confirmation.
     pub fn retry_delay_hint(&self) -> Option<f64> {
         match self {
             Self::NotFinalError { needed, current } => {
                 let missing = needed.saturating_sub(*current);
-                Some(missing as f64 * 0.1) // ~0.1 second per confirmation (10 confirmations per second)
+                Some(missing as f64 * 0.1)
             }
             _ => None,
         }

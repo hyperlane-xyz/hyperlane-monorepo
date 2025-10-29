@@ -7,28 +7,21 @@ use hyperlane_core::{
     config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256, U256,
 };
 
-/// Kaspa connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
-    /*
-    Used for both agents, since we need WRPC client for both and the easiest way to get the wrpc client is through the wallet
-    Should fix
-     */
+    // Used by both validator and relayer since easiest way to get WRPC client is through wallet
     pub wallet_secret: String,
-    pub wallet_dir: Option<String>, // optionally override default kaspa wallet directory
+    pub wallet_dir: Option<String>,
 
-    pub kaspa_urls_wrpc: Vec<String>, // direct connection to kaspa DAG node .e.g localhost:17210
-    pub kaspa_urls_rest: Vec<Url>, // connection to Kaspa higher level indexer server e.g. https://api.kaspa.org
+    pub kaspa_urls_wrpc: Vec<String>, // Direct connection to Kaspa DAG node, e.g. localhost:17210
+    pub kaspa_urls_rest: Vec<Url>, // Connection to Kaspa indexer server, e.g. https://api.kaspa.org
 
-    /*
-    Used by both, since it's used to build escrow public object, which is used by both agents
-     */
+    // Used by both agents to build escrow public object
     pub validator_pub_keys: Vec<String>,
 
-    pub multisig_threshold_hub_ism: usize, // TODO: no need for it to be config, can actually query from dymension destination object
+    pub multisig_threshold_hub_ism: usize, // Could be queried from Dymension destination object instead
     pub multisig_threshold_kaspa: usize,
 
-    // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/c5d733804d3713e8566d6b23366f7eed4917ee2a/rust/main/chains/hyperlane-cosmos-native/src/providers/grpc.rs#L77
     pub hub_grpc_urls: Vec<Url>,
     pub op_submission_config: OpSubmissionConfig,
 
@@ -45,7 +38,7 @@ pub struct ValidatorStuff {
     pub kas_token_placeholder: H256,
     pub hub_mailbox_id: String,
     pub kas_escrow_private: String,
-    pub toggles: ValidationConf, // only relevant for validator
+    pub toggles: ValidationConf,
 }
 
 #[derive(Debug, Clone)]
@@ -58,9 +51,7 @@ pub struct RelayerStuff {
 
 #[derive(Debug, Clone)]
 pub struct KaspaTimeConfig {
-    /// Base retry delay in seconds (used for exponential backoff)
     pub base_retry_delay_secs: u64,
-    /// Polling interval for checking new deposits
     pub poll_interval_secs: u64,
 }
 
@@ -101,7 +92,6 @@ impl Default for ValidationConf {
 }
 
 impl ConnectionConf {
-    /// Create a new connection configuration
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         wallet_secret: String,
@@ -121,7 +111,6 @@ impl ConnectionConf {
         min_deposit_sompi: U256,
         kaspa_time_config: Option<KaspaTimeConfig>,
 
-        // we could query these two instead
         hub_domain: u32,
         hub_token_id: H256,
 
@@ -175,21 +164,15 @@ impl ConnectionConf {
     }
 }
 
-/// Untyped kaspa amount
 #[derive(serde::Serialize, serde::Deserialize, new, Clone, Debug)]
 pub struct RawKaspaAmount {
-    /// Coin denom (e.g. `untrn`)
     pub denom: String,
-    /// Amount in the given denom
     pub amount: String,
 }
 
-/// Typed kaspa amount
 #[derive(Clone, Debug)]
 pub struct KaspaAmount {
-    /// Coin denom (e.g. `untrn`)
     pub denom: String,
-    /// Amount in the given denom
     pub amount: FixedPointNumber,
 }
 
@@ -203,6 +186,5 @@ impl TryFrom<RawKaspaAmount> for KaspaAmount {
     }
 }
 
-/// An error type when parsing a connection configuration.
 #[derive(thiserror::Error, Debug)]
 pub enum ConnectionConfError {}

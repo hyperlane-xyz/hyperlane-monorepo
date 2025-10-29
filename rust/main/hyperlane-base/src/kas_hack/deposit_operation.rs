@@ -1,6 +1,6 @@
 use dymension_kaspa::{conf::KaspaTimeConfig, Deposit};
 use std::time::{Duration, Instant};
-use tracing::{debug, info};
+use tracing::{debug, error};
 
 #[derive(Debug, Clone)]
 pub struct DepositOperation {
@@ -8,7 +8,6 @@ pub struct DepositOperation {
     pub escrow_address: String,
     pub retry_count: u32,
     pub next_attempt_after: Option<Instant>,
-    /// When this deposit operation was first created/detected
     pub created_at: Instant,
 }
 
@@ -30,24 +29,23 @@ impl DepositOperation {
         }
     }
 
-    pub fn mark_failed(&mut self, config: &KaspaTimeConfig) {
+    pub fn mark_failed(&mut self, cfg: &KaspaTimeConfig) {
         self.retry_count += 1;
-        // Exponential backoff with configurable base
-        let delay_secs = config.base_retry_delay_secs * (1 << (self.retry_count - 1).min(5));
-        self.next_attempt_after = Some(Instant::now() + Duration::from_secs(delay_secs));
-        info!(
+        // Exponential backoff capped at 2^5 to prevent excessive delays
+        let secs = cfg.base_retry_delay_secs * (1 << (self.retry_count - 1).min(5));
+        self.next_attempt_after = Some(Instant::now() + Duration::from_secs(secs));
+        error!(
             deposit_id = %self.deposit.id,
             retry_count = self.retry_count,
-            retry_after_secs = delay_secs,
+            retry_after_secs = secs,
             "Deposit operation failed, scheduling retry"
         );
     }
 
-    /// Mark failed with custom retry timing (for finality-based delays)
     pub fn mark_failed_with_custom_delay(&mut self, delay: Duration, reason: &str) {
         self.retry_count += 1;
         self.next_attempt_after = Some(Instant::now() + delay);
-        info!(
+        error!(
             deposit_id = %self.deposit.id,
             retry_count = self.retry_count,
             retry_after_secs = delay.as_secs_f64(),
@@ -62,7 +60,6 @@ impl DepositOperation {
     }
 }
 
-/// Simple operation queue for managing deposit retries
 #[derive(Debug)]
 pub struct DepositOpQueue {
     operations: std::collections::VecDeque<DepositOperation>,
@@ -75,10 +72,10 @@ impl DepositOpQueue {
         }
     }
 
-    pub fn push(&mut self, operation: DepositOperation) {
-        let operation_id = operation.deposit.id;
-        self.operations.push_back(operation);
-        debug!("Added deposit operation to queue: {}", operation_id);
+    pub fn push(&mut self, op: DepositOperation) {
+        let id = op.deposit.id;
+        self.operations.push_back(op);
+        debug!("Added deposit operation to queue: {}", id);
     }
 
     pub fn pop_ready(&mut self) -> Option<DepositOperation> {
@@ -89,10 +86,10 @@ impl DepositOpQueue {
         }
     }
 
-    pub fn requeue(&mut self, operation: DepositOperation) {
-        let operation_id = operation.deposit.id;
-        self.operations.push_back(operation);
-        debug!("Re-queued deposit operation: {}", operation_id);
+    pub fn requeue(&mut self, op: DepositOperation) {
+        let id = op.deposit.id;
+        self.operations.push_back(op);
+        debug!("Re-queued deposit operation: {}", id);
     }
 
     pub fn len(&self) -> usize {

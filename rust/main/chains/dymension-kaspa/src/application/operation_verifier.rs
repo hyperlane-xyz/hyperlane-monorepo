@@ -7,7 +7,6 @@ use hyperlane_operation_verifier::{
 };
 
 #[derive(new)]
-/// Kaspa application operation verifier
 pub struct KaspaApplicationOperationVerifier {}
 
 #[async_trait]

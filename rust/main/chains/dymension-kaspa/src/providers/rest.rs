@@ -89,17 +89,17 @@ impl BlockNumberGetter for RestProvider {
 impl RestProvider {
     /// Returns a new Rpc Provider
     pub fn new(
-        conf: ConnectionConf,
+        cfg: ConnectionConf,
         signer: Option<Signer>,
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let clients = [conf.kaspa_urls_rest[0].clone()] // TODO: allow more as fallback
+        let clients = [cfg.kaspa_urls_rest[0].clone()] // TODO: allow more as fallback
             .iter()
             .map(|url| {
-                let metrics_config =
+                let metrics_cfg =
                     PrometheusConfig::from_url(url, ClientConnectionType::Rpc, chain.clone());
-                KaspaHttpClient::from_url(url.to_string(), metrics.clone(), metrics_config)
+                KaspaHttpClient::from_url(url.to_string(), metrics.clone(), metrics_cfg)
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -110,7 +110,7 @@ impl RestProvider {
     }
 
     /// get the config used for the rest client
-    pub fn get_config(&self) -> Configuration {
+    pub fn get_cfg(&self) -> Configuration {
         self.client.client.get_config()
     }
 
@@ -130,12 +130,12 @@ impl RestProvider {
     pub async fn get_deposits(
         &self,
         escrow_addr: &str,
-        lower_bound_unix_time: Option<i64>,
+        lower_bound_ts: Option<i64>,
     ) -> ChainResult<Vec<Deposit>> {
         let res = self
             .client
             .client
-            .get_deposits_by_address(lower_bound_unix_time, escrow_addr)
+            .get_deposits_by_address(lower_bound_ts, escrow_addr)
             .await;
         res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
             .map(|deposits| deposits.into_iter().collect())
