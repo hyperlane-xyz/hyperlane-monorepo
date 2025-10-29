@@ -418,10 +418,11 @@ async fn run_stage(
     stage: InclusionStage,
     receiver: &mut mpsc::Receiver<Transaction>,
 ) -> Vec<Transaction> {
-    // future that receives `sent_payload_count` payloads from the building stage
+    // future that receives `sent_payload_count` payloads for the building stage
     let receiving_closure = async {
         let mut received = Vec::new();
         while received.len() < sent_txs_count {
+            tracing::debug!("Received payload for building stage");
             let tx_received = receiver.recv().await.unwrap();
             received.push(tx_received);
         }

@@ -5,7 +5,9 @@ use std::time::{Duration, Instant, SystemTime};
 
 use chrono::{TimeZone, Utc};
 use ethers::types::transaction::eip2718::TypedTransaction;
-use ethers::types::{TransactionReceipt, H160, H256 as EthersH256, U256 as EthersU256};
+use ethers::types::{
+    Address, Bloom, TransactionReceipt, H160, H256 as EthersH256, U256 as EthersU256, U64,
+};
 use ethers::utils::EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE;
 use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
@@ -963,6 +965,140 @@ async fn test_tx_ready_for_resubmission_minimum_time_between_submissions() {
             .adapter
             .tx_ready_for_resubmission(&tx)
             .await
+    );
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_tx_finalized_but_failed() {
+    let block_time = TEST_BLOCK_TIME;
+
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_default_fee_history(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+
+    mock_evm_provider
+        .expect_estimate_gas_limit()
+        .returning(|_, _| Ok(21000.into()));
+    mock_evm_provider
+        .expect_send()
+        .returning(|_, _| Ok(H256::random()));
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(|_| {
+            Ok(Some(TransactionReceipt {
+                transaction_hash: ethers::types::H256::random(),
+                transaction_index: U64::one(),
+                block_hash: Some(ethers::types::H256::random()),
+                block_number: Some(U64::one()),
+                from: Address::random(),
+                to: None,
+                cumulative_gas_used: ethers::types::U256::one(),
+                gas_used: Some(ethers::types::U256::one()),
+                contract_address: Some(Address::random()),
+                logs: Vec::new(),
+                status: Some(U64::zero()),
+                root: Some(ethers::types::H256::random()),
+                logs_bloom: Bloom::default(),
+                transaction_type: Some(U64::one()),
+                effective_gas_price: Some(ethers::types::U256::one()),
+            }))
+        });
+
+    let signer = H160::random();
+    let dispatcher_state = mock_dispatcher_state_with_provider(
+        mock_evm_provider,
+        signer,
+        block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
+    );
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
+    let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+
+    let created_txs = mock_evm_txs(
+        1,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::PendingInclusion,
+        signer,
+        ExpectedTxType::Eip1559,
+    )
+    .await;
+    let created_tx = created_txs[0].clone();
+    let mock_domain = TEST_DOMAIN.into();
+    inclusion_stage_pool
+        .lock()
+        .await
+        .insert(created_tx.uuid.clone(), created_tx.clone());
+
+    // tx should be successfully sent and move to mempool
+    let result = InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await;
+    assert!(result.is_ok());
+
+    let retrieved_tx = dispatcher_state
+        .tx_db
+        .retrieve_transaction_by_uuid(&created_tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        matches!(retrieved_tx.status, TransactionStatus::Mempool),
+        "Transaction should be mempool"
+    );
+
+    let result = InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await;
+    assert!(result.is_ok());
+
+    let retrieved_tx = dispatcher_state
+        .tx_db
+        .retrieve_transaction_by_uuid(&created_tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        matches!(retrieved_tx.status, TransactionStatus::Finalized),
+        "Transaction should be finalized"
+    );
+    // The pool should be empty
+    assert!(inclusion_stage_pool.lock().await.is_empty());
+
+    for detail in &created_tx.payload_details {
+        let payload = dispatcher_state
+            .payload_db
+            .retrieve_payload_by_uuid(&detail.uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            matches!(
+                payload.status,
+                PayloadStatus::InTransaction(TransactionStatus::Finalized)
+            ),
+            "Payload should be finalized"
+        );
+    }
+
+    let maybe_tx = tokio::time::timeout(Duration::from_millis(100), finality_stage_receiver.recv())
+        .await
+        .ok()
+        .flatten();
+    assert!(
+        maybe_tx.is_some(),
+        "Transaction should be sent to finality stage"
     );
 }
 
