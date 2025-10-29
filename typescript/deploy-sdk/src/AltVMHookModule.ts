@@ -1,5 +1,3 @@
-import { zeroAddress } from 'viem';
-
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
@@ -23,6 +21,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
+import { ZERO_ADDRESS } from './constants.js';
 
 type HookModuleAddresses = {
   deployedHook: Address;
@@ -64,7 +63,7 @@ export class AltVMHookModule
   public async update(
     targetConfig: HookConfig | Address,
   ): Promise<AnnotatedTx[]> {
-    if (targetConfig === zeroAddress) {
+    if (targetConfig === ZERO_ADDRESS) {
       return Promise.resolve([]);
     }
 
