@@ -7,7 +7,7 @@ on:
       - pb/rust-release-cargo # for testing
     paths:
       - 'rust/main/**'
-      - 'rust/scripts/generate-workspace-changelog.sh'
+      - 'rust/scripts/ci/**'
       - '.github/workflows/rust-release.yml'
   workflow_dispatch:
     inputs:
@@ -47,7 +47,7 @@ jobs:
         working-directory: ./rust/main
         run: |
           # Get latest agents-v* tag
-          LATEST_TAG=$(../scripts/get-latest-agents-tag.sh)
+          LATEST_TAG=$(../scripts/ci/get-latest-agents-tag.sh)
 
           if [ -z "$LATEST_TAG" ]; then
             echo "No previous release found"
@@ -70,12 +70,12 @@ jobs:
         working-directory: ./rust/main
         run: |
           # Get current version from Cargo.toml workspace.package.version
-          CURRENT_VERSION=$(../scripts/get-workspace-version.sh)
+          CURRENT_VERSION=$(../scripts/ci/get-workspace-version.sh)
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "Current workspace version: $CURRENT_VERSION"
 
           # Get latest agents-v* tag
-          LATEST_TAG=$(../scripts/get-latest-agents-tag.sh)
+          LATEST_TAG=$(../scripts/ci/get-latest-agents-tag.sh)
 
           if [ -z "$LATEST_TAG" ]; then
             echo "latest_version=" >> $GITHUB_OUTPUT
@@ -113,7 +113,7 @@ jobs:
           CURRENT_VERSION: ${{ needs.check-release-status.outputs.current_version }}
         run: |
           # Use helper script to determine next version
-          OUTPUT=$(./rust/scripts/determine-next-version.sh "$CURRENT_VERSION")
+          OUTPUT=$(./rust/scripts/ci/determine-next-version.sh "$CURRENT_VERSION")
           NEW_VERSION=$(echo "$OUTPUT" | sed -n '1p')
           BUMP_TYPE=$(echo "$OUTPUT" | sed -n '2p')
 
@@ -126,7 +126,7 @@ jobs:
           NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
         run: |
           # Get commit range for changelog generation
-          LATEST_TAG=$(./rust/scripts/get-latest-agents-tag.sh)
+          LATEST_TAG=$(./rust/scripts/ci/get-latest-agents-tag.sh)
 
           if [ -z "$LATEST_TAG" ]; then
             COMMIT_RANGE=""
@@ -136,9 +136,9 @@ jobs:
 
           # Generate unified changelog for PR body
           if [ -z "$COMMIT_RANGE" ]; then
-            CHANGELOG=$(./rust/scripts/generate-workspace-changelog.sh --no-header)
+            CHANGELOG=$(./rust/scripts/ci/generate-workspace-changelog.sh --no-header)
           else
-            CHANGELOG=$(./rust/scripts/generate-workspace-changelog.sh "$COMMIT_RANGE" --no-header)
+            CHANGELOG=$(./rust/scripts/ci/generate-workspace-changelog.sh "$COMMIT_RANGE" --no-header)
           fi
 
           # Save changelog to file for PR body
@@ -152,13 +152,13 @@ jobs:
           } >> $GITHUB_OUTPUT
 
           # Generate per-workspace CHANGELOG.md files
-          ./rust/scripts/generate-workspace-changelog.sh "$COMMIT_RANGE" "" --write-to-workspace "$NEW_VERSION"
+          ./rust/scripts/ci/generate-workspace-changelog.sh "$COMMIT_RANGE" "" --write-to-workspace "$NEW_VERSION"
       - name: Update version files
         env:
           NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
         run: |
           # Update workspace version in Cargo.toml
-          ./rust/scripts/update-workspace-version.sh "$NEW_VERSION"
+          ./rust/scripts/ci/update-workspace-version.sh "$NEW_VERSION"
 
           # Update Cargo.lock in rust/main
           cd rust/main
@@ -311,9 +311,9 @@ jobs:
           fi
 
           if [ -z "$PREV_TAG" ]; then
-            CHANGELOG=$(./rust/scripts/generate-workspace-changelog.sh)
+            CHANGELOG=$(./rust/scripts/ci/generate-workspace-changelog.sh)
           else
-            CHANGELOG=$(./rust/scripts/generate-workspace-changelog.sh "${PREV_TAG}..${COMMIT_RANGE_END}")
+            CHANGELOG=$(./rust/scripts/ci/generate-workspace-changelog.sh "${PREV_TAG}..${COMMIT_RANGE_END}")
           fi
 
           # Generate new contributors section using GitHub's auto-generated notes
