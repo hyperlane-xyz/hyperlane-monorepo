@@ -39,8 +39,9 @@ export class AleoProvider implements AltVM.IProvider {
     return this.aleoClient.getLatestHeight();
   }
 
-  async getBalance(_req: AltVM.ReqGetBalance): Promise<bigint> {
-    throw new Error(`TODO: implement`);
+  async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
+    const balance = await this.aleoClient.getPublicBalance(req.address);
+    return BigInt(balance);
   }
 
   async getTotalSupply(_req: AltVM.ReqGetTotalSupply): Promise<bigint> {
