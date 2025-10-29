@@ -14,10 +14,7 @@ import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
 import { AltVMIsmReader } from './AltVMIsmReader.js';
-
-// Placeholder for hook address since providers don't expose token hook addresses yet
-// TODO: Replace with the zero address abstraction from provider-sdk when available
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+import { ZERO_ADDRESS } from './constants.js';
 
 export class AltVMWarpRouteReader {
   protected readonly logger: Logger;
