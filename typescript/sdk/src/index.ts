@@ -530,8 +530,6 @@ export {
   NativeTokenPriceConfig,
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
-export { AltVMHookModule } from './hook/AltVMHookModule.js';
-export { AltVMHookReader } from './hook/AltVMHookReader.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
 export {
   DerivedIcaRouterConfig,

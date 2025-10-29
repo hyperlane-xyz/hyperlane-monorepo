@@ -11,9 +11,9 @@ export type DerivedHookConfig = WithAddress<HookConfig>;
 export const MUTABLE_HOOK_TYPE: HookType[] = [
   'interchainGasPaymaster',
   // 'protocolFee',
-  // 'routing',
-  // 'fallbackRouting',
-  // 'pausable',
+  // 'domainRoutingHook',
+  // 'fallbackRoutingHook',
+  // 'pausableHook',
 ];
 
 export interface IgpHookConfig {
