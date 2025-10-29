@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       prerelease_suffix:
-        description: 'Prerelease suffix (e.g., "beta.1", "rc.1", "alpha.2"). Leave empty to auto-generate "beta.N".'
+        description: 'Prerelease suffix (e.g., "preview.1", "rc.1", "alpha.2"). Leave empty to auto-generate "preview.N".'
         required: false
         type: string
         default: ''
@@ -275,13 +275,13 @@ jobs:
             if [ -n "$PRERELEASE_SUFFIX" ]; then
               SUFFIX="$PRERELEASE_SUFFIX"
             else
-              # Auto-generate beta.N
-              LAST_BETA=$(git tag -l "agents-v${BASE_VERSION}-beta.*" | sort -V | tail -1)
-              if [ -z "$LAST_BETA" ]; then
-                SUFFIX="beta.1"
+              # Auto-generate preview.N
+              LAST_PREVIEW=$(git tag -l "agents-v${BASE_VERSION}-preview.*" | sort -V | tail -1)
+              if [ -z "$LAST_PREVIEW" ]; then
+                SUFFIX="preview.1"
               else
-                BETA_NUM=$(echo "$LAST_BETA" | sed 's/.*beta\.\([0-9]*\)/\1/')
-                SUFFIX="beta.$((BETA_NUM + 1))"
+                PREVIEW_NUM=$(echo "$LAST_PREVIEW" | sed 's/.*preview\.\([0-9]*\)/\1/')
+                SUFFIX="preview.$((PREVIEW_NUM + 1))"
               fi
             fi
             VERSION="${BASE_VERSION}-${SUFFIX}"
@@ -298,6 +298,20 @@ jobs:
 
           TAG_NAME="agents-v${VERSION}"
           echo "Creating $RELEASE_TYPE: $TAG_NAME"
+
+          # Check if tag already exists
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Error: Tag $TAG_NAME already exists!" >&2
+            echo "Cannot overwrite existing tag. Please use a different version or prerelease suffix." >&2
+            exit 1
+          fi
+
+          # Check if GitHub release already exists
+          if gh release view "$TAG_NAME" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Error: GitHub release $TAG_NAME already exists!" >&2
+            echo "Cannot overwrite existing release. Please use a different version or prerelease suffix." >&2
+            exit 1
+          fi
 
           # Generate workspace-grouped changelog
           PREV_TAG=$(git describe --tags --abbrev=0 --match "agents-v*" 2>/dev/null || echo "")
