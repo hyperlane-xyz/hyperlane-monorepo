@@ -65,9 +65,6 @@ export async function runRadixNode(
     packageDefinition: Uint8Array;
   },
 ) {
-  // Extract ports from chain metadata
-  const corePort = chainMetadata.rpcPort.toString();
-
   const gatewayUrl = chainMetadata.gatewayUrls?.[0]?.http;
   assert(
     gatewayUrl,
@@ -80,7 +77,7 @@ export async function runRadixNode(
     'docker-compose.yml',
   )
     .withEnvironment({
-      RADIX_CORE_PORT: corePort,
+      RADIX_CORE_PORT: chainMetadata.rpcPort.toString(),
       RADIX_GATEWAY_PORT: gatewayPort,
     })
     .withProfiles('fullnode', 'network-gateway-image')
@@ -94,7 +91,7 @@ export async function runRadixNode(
 
   // Adding dummy package address to avoid the signer crashing because
   // no Hyperlane package is deployed on the new node
-  chainMetadata.packageAddress = 'no-yet-deployed';
+  chainMetadata.packageAddress = 'not-yet-deployed';
   const signer = (await RadixSigner.connectWithSigner(
     chainMetadata.rpcUrls.map((rpc) => rpc.http),
     HYP_KEY_BY_PROTOCOL.radix,
