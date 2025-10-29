@@ -22,7 +22,7 @@ NEW_VERSION="$1"
 
 # Determine script directory and repo structure
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUST_MAIN_DIR="$SCRIPT_DIR/../main"
+RUST_MAIN_DIR="$SCRIPT_DIR/../../main"
 CARGO_TOML="$RUST_MAIN_DIR/Cargo.toml"
 
 # Use awk to find [workspace.package] section and update version within it

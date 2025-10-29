@@ -25,7 +25,7 @@ set -euo pipefail
 
 # Determine script directory and repo structure
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUST_MAIN_DIR="$SCRIPT_DIR/../main"
+RUST_MAIN_DIR="$SCRIPT_DIR/../../main"
 
 # Parse arguments
 COMMIT_RANGE=""

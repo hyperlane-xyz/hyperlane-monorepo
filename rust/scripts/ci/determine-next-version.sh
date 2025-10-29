@@ -30,7 +30,7 @@ COMMIT_RANGE="${2:-}"
 
 # Determine script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUST_MAIN_DIR="$SCRIPT_DIR/../main"
+RUST_MAIN_DIR="$SCRIPT_DIR/../../main"
 
 # If no commit range specified, use commits since latest tag
 if [ -z "$COMMIT_RANGE" ]; then

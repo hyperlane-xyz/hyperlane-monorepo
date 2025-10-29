@@ -11,7 +11,7 @@ set -euo pipefail
 
 # Determine script directory and repo structure
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUST_MAIN_DIR="$SCRIPT_DIR/../main"
+RUST_MAIN_DIR="$SCRIPT_DIR/../../main"
 
 grep -A 10 '^\[workspace\.package\]' "$RUST_MAIN_DIR/Cargo.toml" | \
   grep '^version = ' | \
