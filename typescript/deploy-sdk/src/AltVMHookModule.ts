@@ -1,19 +1,7 @@
 import { zeroAddress } from 'viem';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  TxReceipt,
-} from '@hyperlane-xyz/provider-sdk/module';
-import { Address, assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
-
-import { ChainLookup } from '../altvm.js';
-import { ChainName } from '../types.js';
-import { normalizeConfig } from '../utils/ism.js';
-
-import { AltVMHookReader } from './AltVMHookReader.js';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   HookConfig,
   HookType,
@@ -26,13 +14,9 @@ import {
   HypModuleArgs,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import {
-  Address,
-  assert,
-  deepEquals,
-  normalizeConfig,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
+
+// import { normalizeConfig } from '../utils/ism.js';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
 
@@ -50,14 +34,14 @@ export class AltVMHookModule
   protected readonly reader: AltVMHookReader;
 
   // Cached chain name
-  public readonly chain: ChainName;
+  public readonly chain: string;
 
   constructor(
     protected readonly chainLookup: ChainLookup,
     private readonly args: HypModuleArgs<HookConfig, HookModuleAddresses>,
     protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    this.args.config = HookConfigSchema.parse(this.args.config);
+    // this.args.config = HookConfigSchema.parse(this.args.config);
 
     this.reader = new AltVMHookReader(chainLookup.getChainMetadata, signer);
 
@@ -73,7 +57,9 @@ export class AltVMHookModule
     return this.args.addresses;
   }
 
-  public async update(targetConfig: HookConfig): Promise<AnnotatedTx[]> {
+  public async update(
+    targetConfig: HookConfig | Address,
+  ): Promise<AnnotatedTx[]> {
     if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }
@@ -218,11 +204,7 @@ export class AltVMHookModule
     return module;
   }
 
-  protected async deploy({
-    config,
-  }: {
-    config: HookConfig | string;
-  }): Promise<Address> {
+  protected async deploy({ config }: { config: HookConfig }): Promise<Address> {
     // config = HookConfigSchema.parse(config);
 
     if (typeof config === 'string') {
