@@ -80,7 +80,7 @@ fi
 
 # Temporary directory for categorization
 TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
+trap 'rm -rf "$TEMP_DIR"' EXIT
 
 # Extract workspace members from rust/main/Cargo.toml
 WORKSPACE_MEMBERS=$(grep -A 100 '^\[workspace\]' "$RUST_MAIN_DIR/Cargo.toml" | sed -n '/^members = \[/,/^\]/p' | grep '"' | sed 's/[", ]//g')
