@@ -1,4 +1,10 @@
+import { AltVMHookModule } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  DerivedHookConfig,
+  HookConfig,
+} from '@hyperlane-xyz/provider-sdk/hook';
 import {
   AnnotatedTx,
   HypModule,
@@ -7,9 +13,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ChainLookup } from '../altvm.js';
-import { AltVMHookModule } from '../hook/AltVMHookModule.js';
-import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
+import { HookType } from '../hook/types.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { ChainName } from '../types.js';
@@ -111,7 +115,8 @@ export class AltVMCoreModule
     // 3. Deploy default hook
     const defaultHookModule = await AltVMHookModule.create({
       chain: chainName,
-      config: config.defaultHook,
+      // FIXME: not all hook types are supported yet
+      config: config.defaultHook as HookConfig | Address,
       addresses: {
         deployedHook: '',
         mailbox: mailbox.mailboxAddress,
@@ -125,7 +130,8 @@ export class AltVMCoreModule
     // 4. Deploy required hook
     const requiredHookModule = await AltVMHookModule.create({
       chain: chainName,
-      config: config.requiredHook,
+      // FIXME: not all hook types are supported yet
+      config: config.requiredHook as HookConfig | Address,
       addresses: {
         deployedHook: '',
         mailbox: mailbox.mailboxAddress,
@@ -358,7 +364,8 @@ export class AltVMCoreModule
     // Try to update (may also deploy) Hook with the expected config
     const { deployedHook, hookUpdateTxs } = await this.deployOrUpdateHook(
       actualDefaultHookConfig,
-      expectedConfig.defaultHook,
+      // FIXME: not all hook types are supported yet
+      expectedConfig.defaultHook as HookConfig | Address,
     );
 
     if (hookUpdateTxs.length) {
@@ -400,7 +407,8 @@ export class AltVMCoreModule
     // Try to update (may also deploy) Hook with the expected config
     const { deployedHook, hookUpdateTxs } = await this.deployOrUpdateHook(
       actualRequiredHookConfig,
-      expectedConfig.requiredHook,
+      // FIXME: not all hook types are supported yet
+      expectedConfig.requiredHook as HookConfig | Address,
     );
 
     if (hookUpdateTxs.length) {
@@ -430,7 +438,7 @@ export class AltVMCoreModule
    */
   public async deployOrUpdateHook(
     actualHookConfig: DerivedHookConfig,
-    expectHookConfig: HookConfig,
+    expectHookConfig: HookConfig | Address,
   ): Promise<{
     deployedHook: Address;
     hookUpdateTxs: AnnotatedTx[];

@@ -192,7 +192,7 @@ export class AltVMHookModule
     signer,
   }: {
     chain: string;
-    config: HookConfig;
+    config: HookConfig | string;
     addresses: HookModuleAddresses;
     chainLookup: ChainLookup;
     signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
@@ -208,7 +208,11 @@ export class AltVMHookModule
     return module;
   }
 
-  protected async deploy({ config }: { config: HookConfig }): Promise<Address> {
+  protected async deploy({
+    config,
+  }: {
+    config: HookConfig | string;
+  }): Promise<Address> {
     // config = HookConfigSchema.parse(config);
 
     if (typeof config === 'string') {
