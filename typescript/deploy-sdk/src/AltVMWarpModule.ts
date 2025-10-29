@@ -1,5 +1,3 @@
-import { Logger } from 'pino';
-
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { DerivedIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
@@ -32,7 +30,7 @@ type WarpRouteAddresses = {
 export class AltVMWarpModule
   implements HypModule<WarpConfig, WarpRouteAddresses>
 {
-  protected logger: Logger;
+  protected logger: ReturnType<typeof rootLogger.child<never>>;
 
   reader: AltVMWarpRouteReader;
   public readonly chainName: string;
