@@ -1,5 +1,4 @@
 import { Logger } from 'pino';
-import { zeroAddress } from 'viem';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
@@ -24,6 +23,7 @@ import {
 import { AltVMIsmModule } from './AltVMIsmModule.js';
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
+import { ZERO_ADDRESS } from './constants.js';
 
 type WarpRouteAddresses = {
   deployedTokenRoute: Address;
@@ -256,7 +256,7 @@ export class AltVMWarpModule
 
     if (
       !expectedConfig.interchainSecurityModule ||
-      expectedConfig.interchainSecurityModule === zeroAddress
+      expectedConfig.interchainSecurityModule === ZERO_ADDRESS
     ) {
       this.logger.debug(`Token ISM config is empty. No updates needed.`);
       return updateTransactions;
