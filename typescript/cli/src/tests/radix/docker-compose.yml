@@ -99,9 +99,6 @@ services:
     deploy:
       restart_policy:
         condition: on-failure
-      resources:
-        limits:
-          memory: 512M
     environment:
       ASPNETCORE_URLS: 'http://*:8080'
       CustomJsonConfigurationFilePath: '/home/radixdlt/network-gateway/config.json'
