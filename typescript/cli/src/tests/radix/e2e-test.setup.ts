@@ -47,7 +47,7 @@ async function downloadRadixContracts(): Promise<{
 }
 
 before(async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   // Clean up existing chain addresses
   Object.entries(TEST_CHAIN_NAMES_BY_PROTOCOL).forEach(
@@ -72,20 +72,18 @@ before(async function () {
     TEST_CHAIN_METADATA_BY_PROTOCOL.radix,
   ) as (keyof typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix)[];
 
-  await Promise.all(
-    radixTestChains.map(async (chain) => {
-      await runRadixNode(TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain], {
-        code: new Uint8Array(code),
-        packageDefinition: new Uint8Array(packageDefinition),
-      });
+  for (const chain of radixTestChains) {
+    await runRadixNode(TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain], {
+      code: new Uint8Array(code),
+      packageDefinition: new Uint8Array(packageDefinition),
+    });
 
-      // Write back to registry file so CLI can read the package address field injected
-      // when starting the node
-      const metadataPath = TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix[chain];
-      const updatedMetadata = TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain];
-      writeYamlOrJson(metadataPath, updatedMetadata);
-    }),
-  );
+    // Write back to registry file so CLI can read the package address field injected
+    // when starting the node
+    const metadataPath = TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix[chain];
+    const updatedMetadata = TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain];
+    writeYamlOrJson(metadataPath, updatedMetadata);
+  }
 });
 
 // Reset the test registry for each test invocation

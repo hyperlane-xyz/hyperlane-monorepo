@@ -87,12 +87,11 @@ export async function runRadixNode(
       'gateway_api_image-1',
       Wait.forLogMessage(/HealthyAndSynced=1/),
     )
-    .withBuild()
     .up();
 
   // Wait 10 sec to give time to the gateway api to sync
   console.log(`Waiting on the gateway API to sync for ${chainMetadata.name}`);
-  await sleep(10_000);
+  await sleep(15_000);
 
   // Adding dummy package address to avoid the signer crashing because
   // no Hyperlane package is deployed on the new node
