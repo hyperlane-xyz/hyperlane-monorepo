@@ -26,9 +26,11 @@ function parseImports(programCode: string): string[] {
   return imports;
 }
 
-export function loadPrograms(programName: string): string[] {
+export function loadPrograms(
+  programName: string,
+): { programName: string; program: string }[] {
   const visited = new Set<string>();
-  const result: string[] = [];
+  const result: { programName: string; program: string }[] = [];
 
   function visit(prog: string) {
     if (visited.has(prog)) return;
@@ -41,7 +43,10 @@ export function loadPrograms(programName: string): string[] {
     for (const dep of deps) {
       visit(dep);
     }
-    result.push(prog);
+    result.push({
+      programName: prog,
+      program: code,
+    });
   }
 
   visit(programName);

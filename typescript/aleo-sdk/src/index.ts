@@ -16,7 +16,10 @@ const main = async () => {
   ];
 
   for (let program of programs) {
-    console.log(program, loadPrograms(program));
+    console.log(
+      program,
+      loadPrograms(program).map((p) => p.programName),
+    );
   }
 
   const localnetRpc = 'http://localhost:3030';
