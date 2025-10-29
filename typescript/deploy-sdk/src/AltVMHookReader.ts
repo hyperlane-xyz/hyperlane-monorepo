@@ -1,8 +1,5 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
-
-import { ChainMetadataLookup } from '../altvm.js';
-
+import { ChainMetadataLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DerivedHookConfig,
   HookConfig,
