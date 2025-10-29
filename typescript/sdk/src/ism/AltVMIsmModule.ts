@@ -8,6 +8,7 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  eqAddress,
   intersection,
   rootLogger,
   sleep,
@@ -265,7 +266,7 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       routes,
     });
 
-    if (this.signer.getSignerAddress() !== config.owner) {
+    if (!eqAddress(this.signer.getSignerAddress(), config.owner)) {
       await this.signer.setRoutingIsmOwner({
         ismAddress,
         newOwner: config.owner,

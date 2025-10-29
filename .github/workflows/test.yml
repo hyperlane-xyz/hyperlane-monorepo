@@ -462,7 +462,12 @@ jobs:
   cli-e2e:
     runs-on: ubuntu-latest
     needs:
-      [cli-evm-e2e-matrix, cli-cosmos-e2e-matrix, cli-cross-chain-e2e-matrix]
+      [
+        cli-evm-e2e-matrix,
+        cli-cosmos-e2e-matrix,
+        cli-cross-chain-e2e-matrix,
+        cli-radix-e2e-matrix,
+      ]
     if: always()
     steps:
       - uses: actions/checkout@v5
@@ -481,6 +486,11 @@ jobs:
         with:
           job_name: 'CLI Cross Chain E2E'
           result: ${{ needs.cli-cross-chain-e2e-matrix.result }}
+      - name: Check CLI Radix E2E status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI Radix E2E'
+          result: ${{ needs.cli-radix-e2e-matrix.result }}
 
   cosmos-sdk-e2e-run:
     runs-on: depot-ubuntu-latest
