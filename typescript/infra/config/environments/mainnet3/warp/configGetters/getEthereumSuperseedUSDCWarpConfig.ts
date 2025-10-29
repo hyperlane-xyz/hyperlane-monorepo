@@ -119,6 +119,6 @@ export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
     superseed: {
       ...superseed,
       token: '0x99a38322cAF878Ef55AE4d0Eda535535eF8C7960',
-    } as Extract<HypTokenConfig, { type: TokenType.collateralFiat }>,
+    } as Extract<HypTokenConfig, { type: typeof TokenType.collateralFiat }>,
   };
 };
