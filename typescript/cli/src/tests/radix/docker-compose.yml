@@ -107,8 +107,10 @@ services:
       ConnectionStrings__NetworkGatewayReadWrite: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
       GatewayApi__Endpoint__MaxPageSize: '30'
       GatewayApi__Endpoint__DefaultPageSize: '30'
-      GatewayApi__AcceptableLedgerLag__PreventReadRequestsIfDbLedgerIsBehind: 'true'
-      GatewayApi__AcceptableLedgerLag__PreventConstructionRequestsIfDbLedgerIsBehind: 'true'
+      # GatewayApi__AcceptableLedgerLag__PreventReadRequestsIfDbLedgerIsBehind: 'true'
+      # GatewayApi__AcceptableLedgerLag__PreventConstructionRequestsIfDbLedgerIsBehind: 'true'
+      # GatewayApi__AcceptableLedgerLag__ReadRequestAcceptableDbLedgerLagSeconds: '3600'
+      # GatewayApi__AcceptableLedgerLag__ConstructionRequestsAcceptableDbLedgerLagSeconds: '3600'
       GatewayApi__Network__NetworkName: 'localnet'
       GatewayApi__Network__DisableCoreApiHttpsCertificateChecks: 'false'
       # Node configuration
