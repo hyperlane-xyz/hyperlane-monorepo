@@ -1004,6 +1004,7 @@ async fn test_tx_finalized_but_failed() {
                 logs_bloom: Bloom::default(),
                 transaction_type: Some(U64::one()),
                 effective_gas_price: Some(ethers::types::U256::one()),
+                ..Default::default()
             }))
         });
 
