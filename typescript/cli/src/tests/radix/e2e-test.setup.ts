@@ -66,18 +66,24 @@ before(async function () {
   // Store the original metadata so that it can be restored after all the test run
   orginalRadixTestMentadata = deepCopy(TEST_CHAIN_METADATA_BY_PROTOCOL.radix);
 
-  await runRadixNode(TEST_CHAIN_METADATA_BY_PROTOCOL.radix.CHAIN_NAME_1, {
-    code: new Uint8Array(code),
-    packageDefinition: new Uint8Array(packageDefinition),
-  });
+  const radixTestChains = Object.keys(
+    TEST_CHAIN_METADATA_BY_PROTOCOL.radix,
+  ) as (keyof typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix)[];
 
-  // Write back to registry file so CLI can read the package address field injected
-  // when starting the node
-  const metadataPath =
-    TEST_CHAIN_METADATA_PATH_BY_PROTOCOL[ProtocolType.Radix].CHAIN_NAME_1;
-  const updatedMetadata =
-    TEST_CHAIN_METADATA_BY_PROTOCOL[ProtocolType.Radix].CHAIN_NAME_1;
-  writeYamlOrJson(metadataPath, updatedMetadata);
+  await Promise.all(
+    radixTestChains.map(async (chain) => {
+      await runRadixNode(TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain], {
+        code: new Uint8Array(code),
+        packageDefinition: new Uint8Array(packageDefinition),
+      });
+
+      // Write back to registry file so CLI can read the package address field injected
+      // when starting the node
+      const metadataPath = TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix[chain];
+      const updatedMetadata = TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain];
+      writeYamlOrJson(metadataPath, updatedMetadata);
+    }),
+  );
 });
 
 // Reset the test registry for each test invocation

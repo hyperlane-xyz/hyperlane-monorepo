@@ -33,6 +33,7 @@ export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   },
   [ProtocolType.Radix]: {
     CHAIN_NAME_1: 'radix1',
+    CHAIN_NAME_2: 'radix2',
   },
 } as const satisfies ProtocolMap<Record<string, string>>;
 

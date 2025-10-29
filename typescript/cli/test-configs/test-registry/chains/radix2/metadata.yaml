@@ -9,19 +9,19 @@ blocks:
   estimateBlockTime: 5
   reorgPeriod: 0
 chainId: 240
-displayName: Radix1
-domainId: 1421493353
+displayName: Radix2
+domainId: 1421493354
 gatewayUrls:
-  - http: http://127.0.0.1:5308
-name: radix1
+  - http: http://127.0.0.1:5309
+name: radix2
 nativeToken:
   decimals: 18
   denom: resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd
   name: Radix
   symbol: XRD
 protocol: radix
-restPort: 3333
-rpcPort: 3333
+restPort: 3334
+rpcPort: 3334
 rpcUrls:
-  - http: http://127.0.0.1:3333/core
+  - http: http://127.0.0.1:3334/core
 technicalStack: other
