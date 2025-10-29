@@ -80,7 +80,6 @@ export async function runRadixNode(
       RADIX_CORE_PORT: chainMetadata.rpcPort.toString(),
       RADIX_GATEWAY_PORT: gatewayPort,
     })
-    .withProjectName(chainMetadata.name)
     .withProfiles('fullnode', 'network-gateway-image')
     .withWaitStrategy('postgres_db-1', Wait.forHealthCheck())
     .withWaitStrategy('fullnode-1', Wait.forHealthCheck())
@@ -90,9 +89,9 @@ export async function runRadixNode(
     )
     .up();
 
-  // Wait 20 sec to give time to the gateway api to sync
+  // Wait 10 sec to give time to the gateway api to sync
   console.log(`Waiting on the gateway API to sync for ${chainMetadata.name}`);
-  await sleep(20_000);
+  await sleep(10_000);
 
   // Adding dummy package address to avoid the signer crashing because
   // no Hyperlane package is deployed on the new node
