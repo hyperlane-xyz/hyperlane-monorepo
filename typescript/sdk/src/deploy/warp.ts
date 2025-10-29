@@ -1,6 +1,8 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { AltVMIsmModule } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
@@ -266,7 +268,8 @@ async function createWarpIsm({
         addresses: {
           mailbox: chainAddresses.mailbox,
         },
-        config: interchainSecurityModule,
+        // FIXME: not all ISM types are supported yet
+        config: interchainSecurityModule as ProviderIsmConfig | string,
         chainLookup: altVmChainLookup(multiProvider),
         signer,
       });
