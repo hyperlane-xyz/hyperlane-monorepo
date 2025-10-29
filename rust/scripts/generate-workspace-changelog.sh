@@ -136,7 +136,7 @@ git log --no-merges --format="%H" $COMMIT_RANGE -- rust/main | while read -r com
     workspace_file=$(echo "$workspace" | tr '/' '_')
 
     # Store commit in workspace category file (just message, PR# already in message)
-    echo "$workspace|$commit_msg" >> "$TEMP_DIR/$workspace_file"
+    echo "$commit_msg" >> "$TEMP_DIR/$workspace_file"
 done
 
 # Function to generate changelog for a specific workspace
@@ -150,7 +150,7 @@ generate_workspace_changelog() {
             echo "### $workspace"
             echo ""
         fi
-        sort -u "$TEMP_DIR/$workspace_file" | while IFS='|' read -r ws msg; do
+        sort -u "$TEMP_DIR/$workspace_file" | while read -r msg; do
             echo "* $msg"
         done
     fi
