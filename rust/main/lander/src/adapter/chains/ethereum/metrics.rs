@@ -7,8 +7,8 @@ use serde_json::to_string;
 
 use hyperlane_core::{HyperlaneDomain, U256};
 
-pub const LABEL_BATCHED_TRANSCATION_SUCCESS: &str = "success";
-pub const LABEL_BATCHED_TRANSCATION_FAILED: &str = "failed";
+pub const LABEL_BATCHED_TRANSACTION_SUCCESS: &str = "success";
+pub const LABEL_BATCHED_TRANSACTION_FAILED: &str = "failed";
 
 #[derive(Clone)]
 pub struct EthereumAdapterMetrics {

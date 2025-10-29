@@ -35,7 +35,7 @@ use hyperlane_ethereum::{
 };
 
 use crate::adapter::chains::ethereum::metrics::{
-    LABEL_BATCHED_TRANSCATION_FAILED, LABEL_BATCHED_TRANSCATION_SUCCESS,
+    LABEL_BATCHED_TRANSACTION_FAILED, LABEL_BATCHED_TRANSACTION_SUCCESS,
 };
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
@@ -452,7 +452,7 @@ impl AdaptsChain for EthereumAdapter {
                     .state
                     .metrics()
                     .increment_batched_transactions(
-                        LABEL_BATCHED_TRANSCATION_SUCCESS,
+                        LABEL_BATCHED_TRANSACTION_SUCCESS,
                         payloads.len() as u64,
                     );
                 res
@@ -463,7 +463,7 @@ impl AdaptsChain for EthereumAdapter {
                     .state
                     .metrics()
                     .increment_batched_transactions(
-                        LABEL_BATCHED_TRANSCATION_FAILED,
+                        LABEL_BATCHED_TRANSACTION_FAILED,
                         payloads.len() as u64,
                     );
                 tracing::warn!(
