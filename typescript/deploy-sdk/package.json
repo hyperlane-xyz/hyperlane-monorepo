@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/deploy-sdk",
-  "version": "19.3.0",
+  "version": "0.1.0",
   "description": "Deployer SDK for the Hyperlane Protocol",
   "type": "module",
   "files": [
@@ -17,7 +17,7 @@
     "prettier": "prettier --write ."
   },
   "dependencies": {
-    "@hyperlane-xyz/provider-sdk": "19.3.0",
+    "@hyperlane-xyz/provider-sdk": "0.1.0",
     "zod": "^3.21.2"
   },
   "devDependencies": {
