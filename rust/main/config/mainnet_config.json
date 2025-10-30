@@ -9364,7 +9364,7 @@
         "name": "Abacus Works",
         "url": "https://www.hyperlane.xyz"
       },
-      "gasCurrencyCoinGeckoId": "litkey",
+      "gasCurrencyCoinGeckoId": "lit-protocol",
       "name": "litchain",
       "nativeToken": {
         "decimals": 18,
