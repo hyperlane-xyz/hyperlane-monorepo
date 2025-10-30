@@ -8131,7 +8131,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk":
+"@hyperlane-xyz/aleo-sdk@npm:19.4.0, @hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk"
   dependencies:
@@ -8584,6 +8584,7 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/proto-signing": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
+    "@hyperlane-xyz/aleo-sdk": "npm:19.4.0"
     "@hyperlane-xyz/core": "npm:9.0.16"
     "@hyperlane-xyz/cosmos-sdk": "npm:19.4.0"
     "@hyperlane-xyz/eslint-config": "workspace:^"
