@@ -51,7 +51,6 @@ import {
   SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
   SQUADS_DISCRIMINATOR_SIZE,
   SQUADS_INSTRUCTION_DISCRIMINATORS,
-  SQUADS_V4_PROGRAM_ID,
   SquadsAccountType,
   SquadsInstructionName,
   SquadsInstructionType,
@@ -417,14 +416,6 @@ export class SquadsTransactionReader {
   }
 
   /**
-   * Check if instruction is for Squads V4 program
-   */
-  private isSquadsV4Instruction(programId: PublicKey): boolean {
-    // typically just solanamainnet
-    return programId.equals(SQUADS_V4_PROGRAM_ID);
-  }
-
-  /**
    * Read and parse a Squads V4 instruction
    */
   private readSquadsV4Instruction(
@@ -690,22 +681,6 @@ export class SquadsTransactionReader {
         if (this.isMultisigIsmInstruction(programId, corePrograms)) {
           programName = ProgramName.MULTISIG_ISM;
           parsed = this.readMultisigIsmInstruction(chain, instructionData);
-          parsedInstructions.push({
-            programId,
-            programName,
-            instructionType: parsed.instructionType || InstructionType.UNKNOWN,
-            data: parsed.data || {},
-            accounts,
-            warnings: parsed.warnings || [],
-            insight: parsed.insight,
-          });
-          warnings.push(...(parsed.warnings || []));
-          continue;
-        }
-
-        if (this.isSquadsV4Instruction(programId)) {
-          programName = ProgramName.SQUADS_V4;
-          parsed = this.readSquadsV4Instruction(instructionData);
           parsedInstructions.push({
             programId,
             programName,

@@ -14,13 +14,6 @@ import { logTable } from './log.js';
 // ============================================================================
 
 /**
- * Squads V4 Program ID
- */
-export const SQUADS_V4_PROGRAM_ID = new PublicKey(
-  squadsConfigs.solanamainnet.programId,
-);
-
-/**
  * Squads V4 instruction discriminator size (8-byte Anchor discriminator)
  * First 8 bytes of SHA256 hash of "global:instruction_name"
  */
