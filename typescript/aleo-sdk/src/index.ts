@@ -1,27 +1,13 @@
-import { loadPrograms } from './artifacts.js';
+import { Account } from '@provablehq/sdk';
+
 import { AleoProvider } from './clients/provider.js';
 import { AleoSigner } from './clients/signer.js';
 
 export { AleoProvider } from './clients/provider.js';
 export { AleoSigner } from './clients/signer.js';
+export { AleoTransaction, AleoReceipt } from './utils/types.js';
 
 const main = async () => {
-  let programs = [
-    'mailbox',
-    'validator_announce',
-    'ism_manager',
-    'hook_manager',
-    'credits',
-    'dispatch_proxy',
-  ];
-
-  for (let program of programs) {
-    console.log(
-      program,
-      loadPrograms(program).map((p) => p.programName),
-    );
-  }
-
   const localnetRpc = 'http://localhost:3030';
   const provider = await AleoProvider.connect([localnetRpc], '');
 
@@ -41,6 +27,20 @@ const main = async () => {
     denom: '',
   });
   console.log('signer balance: ', balance);
+
+  const bobAddress = new Account().address().to_string();
+
+  await signer.transfer({
+    amount: '10',
+    recipient: bobAddress,
+    denom: '',
+  });
+
+  const balanceBob = await signer.getBalance({
+    address: bobAddress,
+    denom: '',
+  });
+  console.log('balance bob: ', balanceBob);
 };
 
 main();

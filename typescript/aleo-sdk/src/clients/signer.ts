@@ -2,12 +2,15 @@ import {
   Account,
   AleoKeyProvider,
   AleoNetworkClient,
-  ConfirmedTransactionJSON as AleoReceipt,
-  Transaction as AleoTransaction,
+  NetworkRecordProvider,
   ProgramManager,
+  ProgramManagerBase,
 } from '@provablehq/sdk';
 
-import { AltVM } from '@hyperlane-xyz/utils';
+import { AltVM, sleep } from '@hyperlane-xyz/utils';
+
+import { loadPrograms } from '../artifacts.js';
+import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 import { AleoProvider } from './provider.js';
 
@@ -17,6 +20,7 @@ export class AleoSigner
 {
   private readonly aleoAccount: Account;
   private readonly keyProvider: AleoKeyProvider;
+  private readonly networkRecordProvider: NetworkRecordProvider;
   private readonly programManager: ProgramManager;
 
   static async connectWithSigner(
@@ -44,8 +48,16 @@ export class AleoSigner
     this.keyProvider = new AleoKeyProvider();
     this.keyProvider.useCache(true);
 
-    this.programManager = new ProgramManager(rpcUrls[0]);
-    this.programManager.setKeyProvider(this.keyProvider);
+    this.networkRecordProvider = new NetworkRecordProvider(
+      this.aleoAccount,
+      this.aleoClient,
+    );
+
+    this.programManager = new ProgramManager(
+      rpcUrls[0],
+      this.keyProvider,
+      this.networkRecordProvider,
+    );
     this.programManager.setAccount(this.aleoAccount);
   }
 
@@ -75,10 +87,82 @@ export class AleoSigner
 
   // ### TX CORE ###
 
+  private async isProgramDeployed(programName: string) {
+    // TODO: is there a more efficient way for checking if a program exists
+    // without downloading the entire source code again?
+    try {
+      await this.aleoClient.getProgram(`${programName}.aleo`);
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async pollForTransactionConfirmed(
+    txId: string,
+  ): Promise<AleoReceipt> {
+    // we try to poll for 2 minutes
+    const pollAttempts = 120;
+    const pollDelayMs = 1000;
+
+    for (let i = 0; i < pollAttempts; i++) {
+      try {
+        return await this.programManager.networkClient.getConfirmedTransaction(
+          txId,
+        );
+      } catch {
+        await sleep(pollDelayMs);
+      }
+    }
+
+    throw new Error(`reached poll limit of ${pollAttempts} attempts`);
+  }
+
   async createMailbox(
     _req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    throw new Error(`TODO: implement`);
+    const mailboxAddress = 'test';
+    const programs = loadPrograms('mailbox');
+
+    for (const { programName, program } of programs) {
+      const isDeployed = await this.isProgramDeployed(`${programName}.aleo`);
+
+      // if the program is already deployed (which can be the case for some imports)
+      // we simply skip it
+      if (isDeployed) {
+        continue;
+      }
+
+      const fee = await ProgramManagerBase.estimateDeploymentFee(program);
+      console.log(`estimated fee ${fee} for program ${programName}`);
+
+      console.log('buildDeploymentTransaction', programName, program.length);
+
+      const tx = await this.programManager.buildDeploymentTransaction(
+        program,
+        Number(fee),
+        false,
+      );
+
+      console.log('created tx');
+
+      const transaction_id =
+        await this.programManager.networkClient.submitTransaction(tx);
+
+      console.log('transaction_id', transaction_id);
+
+      const transaction =
+        await this.programManager.networkClient.getConfirmedTransaction(
+          transaction_id,
+        );
+
+      console.log('transaction', transaction);
+    }
+
+    return {
+      mailboxAddress,
+    };
   }
 
   async setDefaultIsm(
@@ -216,9 +300,19 @@ export class AleoSigner
   }
 
   async transfer(
-    _req: Omit<AltVM.ReqTransfer, 'signer'>,
+    req: Omit<AltVM.ReqTransfer, 'signer'>,
   ): Promise<AltVM.ResTransfer> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getTransferTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.pollForTransactionConfirmed(txId);
+
+    return {
+      recipient: req.recipient,
+    };
   }
 
   async remoteTransfer(

@@ -1,13 +1,12 @@
-import {
-  AleoNetworkClient,
-  Transaction as AleoTransaction,
-} from '@provablehq/sdk';
+import { AleoNetworkClient } from '@provablehq/sdk';
 
 import { AltVM, assert } from '@hyperlane-xyz/utils';
 
+import { AleoTransaction } from '../utils/types.js';
+
 export class AleoProvider implements AltVM.IProvider {
-  private readonly aleoClient: AleoNetworkClient;
-  private readonly rpcUrls: string[];
+  protected readonly aleoClient: AleoNetworkClient;
+  protected readonly rpcUrls: string[];
 
   static async connect(
     rpcUrls: string[],
@@ -271,9 +270,15 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getTransferTransaction(
-    _req: AltVM.ReqTransfer,
+    req: AltVM.ReqTransfer,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'credits.aleo',
+      functionName: 'transfer_public',
+      priorityFee: 0.2,
+      privateFee: false,
+      inputs: [req.recipient, `${req.amount}u64`],
+    };
   }
 
   async getRemoteTransferTransaction(
