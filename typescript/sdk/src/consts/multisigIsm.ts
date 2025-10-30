@@ -974,16 +974,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  holesky: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x7ab28ad88bb45867137ea823af88e2cb02359c03',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-
   hyperevm: {
     threshold: 3,
     validators: [
@@ -2161,16 +2151,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  sovachain: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x5f9a044bbf460fb7236bfae24b5ca9090fff844d',
-        alias: AW_VALIDATOR_ALIAS,
-      },
     ],
   },
 
