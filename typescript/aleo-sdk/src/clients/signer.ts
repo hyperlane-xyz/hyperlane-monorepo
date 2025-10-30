@@ -3,12 +3,13 @@ import {
   AleoKeyProvider,
   AleoNetworkClient,
   NetworkRecordProvider,
+  Program,
   ProgramManager,
 } from '@provablehq/sdk';
 
 import { AltVM, sleep } from '@hyperlane-xyz/utils';
 
-import { loadPrograms } from '../artifacts.js';
+import { loadProgramsInDeployOrder } from '../artifacts.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 import { AleoProvider } from './provider.js';
@@ -86,11 +87,11 @@ export class AleoSigner
 
   // ### TX CORE ###
 
-  private async isProgramDeployed(programName: string) {
+  private async isProgramDeployed(program: Program) {
     // TODO: is there a more efficient way for checking if a program exists
     // without downloading the entire source code again?
     try {
-      await this.aleoClient.getProgram(`${programName}.aleo`);
+      await this.aleoClient.getProgram(program.id());
 
       return true;
     } catch {
@@ -122,10 +123,17 @@ export class AleoSigner
     _req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
     const mailboxAddress = 'test';
-    const programs = loadPrograms('mailbox');
+    const programs = loadProgramsInDeployOrder('dispatch_proxy');
 
-    for (const { programName, program } of programs) {
-      const isDeployed = await this.isProgramDeployed(`${programName}.aleo`);
+    console.log(
+      'programs being deployed in order:',
+      programs.map((p) => p.id()).join(', '),
+    );
+
+    for (const program of programs) {
+      const isDeployed = await this.isProgramDeployed(program);
+
+      console.log('isDeployed', program.id(), isDeployed);
 
       // if the program is already deployed (which can be the case for some imports)
       // we simply skip it
@@ -133,14 +141,14 @@ export class AleoSigner
         continue;
       }
 
-      // const fee = await ProgramManagerBase.estimateDeploymentFee(program);
-      // console.log(`estimated fee ${fee} for program ${programName}`);
+      // const fee = await ProgramManagerBase.estimateDeploymentFee(program.toString());
+      // console.log(`estimated fee ${fee} for program ${program.id()}`);
       const fee = '20543910';
 
-      console.log('deploy', programName, program.length);
+      console.log('deploy', program.id(), program.toString().length);
 
       const txId = await this.programManager.deploy(
-        program,
+        program.toString(),
         Number(fee),
         false,
       );
@@ -149,7 +157,7 @@ export class AleoSigner
 
       await this.pollForTransactionConfirmed(txId);
 
-      console.log('tx confirmed, deployed program ', programName);
+      console.log('tx confirmed, deployed program', program.id());
     }
 
     return {

@@ -14,7 +14,7 @@ const folders = fs
   .map((dirent) => dirent.name);
 
 let programs = [];
-let output = '';
+let output = `import { Program } from '@provablehq/sdk';\n\n`;
 
 const readContentFromPath = (filePath, programName) => {
   const content = fs.readFileSync(filePath, 'utf8');
@@ -63,8 +63,7 @@ for (const folder of folders) {
 }
 
 output += `
-// Map from program name to program source code export variable
-const programs: Record<string, string> = {
+export const programRegistry: Record<string, string> = {
   dispatch_proxy,
   credits,
   hook_manager,
@@ -73,40 +72,29 @@ const programs: Record<string, string> = {
   validator_announce,
 };
 
-function parseImports(programCode: string): string[] {
-  // Regex to capture 'import SOMETHING.aleo;' -> extract 'SOMETHING'
-  const regex = /^import\\s+(\\w+)\.aleo;/gm;
-  const imports: string[] = [];
-  let match;
-  while ((match = regex.exec(programCode)) !== null) {
-    imports.push(match[1]);
-  }
-  return imports;
-}
-
-export function loadPrograms(programName: string): { programName: string, program: string }[] {
+export function loadProgramsInDeployOrder(programName: string): Program[] {
   const visited = new Set<string>();
-  const result: { programName: string, program: string }[] = [];
+  const programs: Program[] = [];
 
-  function visit(prog: string) {
-    if (visited.has(prog)) return;
-    visited.add(prog);
+  function visit(p: string) {
+    if (visited.has(p)) return;
+    visited.add(p);
 
-    const code = programs[prog]; 
-    if (!code) throw new Error('Program not found');
+    const code = programRegistry[p];
+    if (!code) throw new Error(\`Program \${p} not found\`);
 
-    const deps = parseImports(code);
-    for (const dep of deps) {
-      visit(dep);
-    }
-    result.push({
-      programName: prog,
-      program: code
-    });
+    const program = Program.fromString(code);
+
+    program
+      .getImports()
+      .map((dep) => dep.replace('.aleo', ''))
+      .forEach((dep) => visit(dep));
+
+    programs.push(program);
   }
 
   visit(programName);
-  return result;
+  return programs;
 }
 `;
 
