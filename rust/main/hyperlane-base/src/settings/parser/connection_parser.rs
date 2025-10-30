@@ -501,6 +501,80 @@ pub fn build_radix_connection_conf(
     }
 }
 
+pub fn build_aleo_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    _operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+
+    let mailbox_program = chain
+        .chain(&mut local_err)
+        .get_key("mailboxProgram")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                (&chain.cwp).add("mailbox_program"),
+                eyre!("Missing network name for chain"),
+            );
+            None
+        });
+
+    let hook_manager_program = chain
+        .chain(&mut local_err)
+        .get_key("hookManagerProgram")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                (&chain.cwp).add("hook_manager_program"),
+                eyre!("Missing network name for chain"),
+            );
+            None
+        });
+    let ism_manager_program = chain
+        .chain(&mut local_err)
+        .get_key("ismManagerProgram")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                (&chain.cwp).add("ism_manager_program"),
+                eyre!("Missing network name for chain"),
+            );
+            None
+        });
+    let validator_announce_program = chain
+        .chain(&mut local_err)
+        .get_key("validatorAnnounceProgram")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                (&chain.cwp).add("validator_announce_program"),
+                eyre!("Missing network name for chain"),
+            );
+            None
+        });
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        Some(ChainConnectionConf::Aleo(
+            hyperlane_aleo::ConnectionConf::new(
+                rpcs.to_vec(),
+                mailbox_program?.to_string(),
+                hook_manager_program?.to_string(),
+                ism_manager_program?.to_string(),
+                validator_announce_program?.to_string(),
+            ),
+        ))
+    }
+}
+
 pub fn build_connection_conf(
     domain_protocol: HyperlaneDomainProtocol,
     rpcs: &[Url],
@@ -531,9 +605,11 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Starknet => {
             build_starknet_connection_conf(rpcs, chain, err, operation_batch)
         }
-        // TODO: adjust the connection config
         HyperlaneDomainProtocol::Radix => {
             build_radix_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        HyperlaneDomainProtocol::Aleo => {
+            build_aleo_connection_conf(rpcs, chain, err, operation_batch)
         }
     }
 }

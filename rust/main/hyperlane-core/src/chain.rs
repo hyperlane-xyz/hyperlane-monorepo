@@ -389,6 +389,8 @@ pub enum HyperlaneDomainProtocol {
     CosmosNative,
     /// A Raidx based chain
     Radix,
+    /// A Aleo based chain
+    Aleo,
 }
 
 impl HyperlaneDomainProtocol {
@@ -735,7 +737,7 @@ impl HyperlaneDomain {
         let protocol = self.domain_protocol();
         match protocol {
             Ethereum | Cosmos | CosmosNative | Starknet => IndexMode::Block,
-            Fuel | Sealevel | Radix => IndexMode::Sequence,
+            Fuel | Sealevel | Radix | Aleo => IndexMode::Sequence,
         }
     }
 }

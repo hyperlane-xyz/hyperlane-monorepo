@@ -140,7 +140,6 @@ impl Mailbox for CosmosNativeMailbox {
     ) -> ChainResult<TxOutcome> {
         let any_encoded = self.encode_hyperlane_message(message, metadata)?;
         let gas_limit: Option<u64> = tx_gas_limit.map(|gas| gas.as_u64());
-
         let response = self
             .provider
             .rpc()

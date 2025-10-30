@@ -21,9 +21,9 @@ use hyperlane_base::{
     SequencedDataContractSync,
 };
 use hyperlane_core::{
-    Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
-    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
-    ValidatorAnnounce, H256, U256,
+    Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneDomainProtocol, HyperlaneSigner, HyperlaneSignerExt, Mailbox, MerkleTreeHook,
+    MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
@@ -406,13 +406,24 @@ impl Validator {
     async fn announce(&self) -> Result<()> {
         let address = self.signer.eth_address();
         let announcement_location = self.checkpoint_syncer.announcement_location();
+        let mut padded_announcmenet_location = announcement_location.clone();
+
+        // pad to 480 bytes for aleo
+        if self.origin_chain.domain_protocol() == HyperlaneDomainProtocol::Aleo {
+            let target_len = 480;
+            let current_len = padded_announcmenet_location.as_bytes().len();
+            if current_len < target_len {
+                let pad_len = target_len - current_len;
+                padded_announcmenet_location.push_str(&"\0".repeat(pad_len));
+            }
+        }
 
         // Sign and post the validator announcement
         let announcement = Announcement {
             validator: address,
             mailbox_address: self.mailbox.address(),
             mailbox_domain: self.mailbox.domain().id(),
-            storage_location: announcement_location.clone(),
+            storage_location: padded_announcmenet_location.clone(),
         };
         let signed_announcement = self.signer.sign(announcement.clone()).await?;
         self.checkpoint_syncer
