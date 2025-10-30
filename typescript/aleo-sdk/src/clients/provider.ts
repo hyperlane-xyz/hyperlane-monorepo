@@ -63,8 +63,31 @@ export class AleoProvider implements AltVM.IProvider {
 
   // ### QUERY CORE ###
 
-  async getMailbox(_req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    throw new Error(`TODO: implement`);
+  async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
+    const res = await this.aleoClient.getProgramMappingPlaintext(
+      req.mailboxAddress,
+      'mailbox',
+      'true',
+    );
+
+    const {
+      mailbox_owner,
+      local_domain,
+      default_ism,
+      default_hook,
+      required_hook,
+      nonce,
+    } = res.toObject();
+
+    return {
+      address: req.mailboxAddress,
+      owner: mailbox_owner,
+      localDomain: local_domain,
+      defaultIsm: default_ism,
+      defaultHook: default_hook,
+      requiredHook: required_hook,
+      nonce: nonce,
+    };
   }
 
   async isMessageDelivered(
