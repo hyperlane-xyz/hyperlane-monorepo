@@ -6,6 +6,7 @@ import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
 
+import { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk';
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
@@ -13,6 +14,7 @@ import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
 
 import {
+  AleoProvider,
   CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
@@ -163,6 +165,14 @@ export function defaultRadixProviderBuilder(
   return { provider, type: ProviderType.Radix };
 }
 
+export function defaultAleoProviderBuilder(
+  rpcUrls: RpcUrl[],
+  _network: string | number,
+): AleoProvider {
+  const provider = new AleoSDKProvider(rpcUrls.map((rpc) => rpc.http));
+  return { provider, type: ProviderType.Aleo };
+}
+
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
@@ -193,6 +203,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
   [ProviderType.Radix]: defaultRadixProviderBuilder,
+  [ProviderType.Aleo]: defaultAleoProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -205,4 +216,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.CosmosNative]: defaultCosmJsNativeProviderBuilder,
   [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProtocolType.Radix]: defaultRadixProviderBuilder,
+  [ProtocolType.Aleo]: defaultAleoProviderBuilder,
 };

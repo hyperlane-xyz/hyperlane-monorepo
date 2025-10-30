@@ -8,6 +8,7 @@ export enum ProtocolType {
   CosmosNative = 'cosmosnative',
   Starknet = 'starknet',
   Radix = 'radix',
+  Aleo = 'aleo',
 }
 // A type that also allows for literal values of the enum
 export type ProtocolTypeValue = `${ProtocolType}`;

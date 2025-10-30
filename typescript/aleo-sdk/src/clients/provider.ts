@@ -15,7 +15,7 @@ export class AleoProvider implements AltVM.IProvider {
     return new AleoProvider(rpcUrls);
   }
 
-  protected constructor(rpcUrls: string[]) {
+  constructor(rpcUrls: string[]) {
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
     this.rpcUrls = rpcUrls;
