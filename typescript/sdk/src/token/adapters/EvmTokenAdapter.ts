@@ -72,7 +72,7 @@ import {
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
-const QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION = '10.0.0-beta';
+const QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION = '10.0.0-beta.0';
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -320,12 +320,15 @@ export class EvmHypSyntheticAdapter
     };
   }
 
-  async populateTransferRemoteTx({
-    weiAmountOrId,
-    destination,
-    recipient,
-    interchainGas,
-  }: TransferRemoteParams): Promise<PopulatedTransaction> {
+  async populateTransferRemoteTx(
+    {
+      weiAmountOrId,
+      destination,
+      recipient,
+      interchainGas,
+    }: TransferRemoteParams,
+    nativeValue = 0n,
+  ): Promise<PopulatedTransaction> {
     if (!interchainGas)
       interchainGas = await this.quoteTransferRemoteGas({
         destination,
@@ -333,11 +336,22 @@ export class EvmHypSyntheticAdapter
         amount: BigInt(weiAmountOrId),
       });
 
+    // add igp to native value
+    nativeValue += interchainGas.igpQuote.amount;
+
+    // add token fee to native value if the denom is undefined or zero address (native token)
+    if (
+      !interchainGas.tokenFeeQuote?.addressOrDenom ||
+      isZeroishAddress(interchainGas.tokenFeeQuote?.addressOrDenom)
+    ) {
+      nativeValue += interchainGas.tokenFeeQuote?.amount ?? 0n;
+    }
+
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
     ](destination, recipBytes32, weiAmountOrId, {
-      value: interchainGas.igpQuote.amount.toString(),
+      value: nativeValue.toString(),
     });
   }
 }
@@ -870,92 +884,6 @@ export class EvmHypNativeAdapter
     return false;
   }
 
-  override async quoteTransferRemoteGas({
-    destination,
-    recipient,
-    amount,
-  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
-    const contractVersion = await this.contract.PACKAGE_VERSION();
-
-    const hasQuoteTransferRemote = isValidContractVersion(
-      contractVersion,
-      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
-    );
-    const igpQuote = await this.contract.quoteGasPayment(destination);
-    const igpQuoteBigInt = BigInt(igpQuote.toString());
-
-    // Version does not support quoteTransferRemote defaulting to quoteGasPayment
-    if (!hasQuoteTransferRemote) {
-      return { igpQuote: { amount: igpQuoteBigInt } };
-    }
-
-    assert(
-      !isNullish(amount),
-      'Amount must be defined for quoteTransferRemoteGas',
-    );
-    assert(recipient, 'Recipient must be defined for quoteTransferRemoteGas');
-
-    const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-
-    // quoteTransferRemote returns igp + fee + amount for native routes
-    const [combinedQuote] = await this.contract.quoteTransferRemote(
-      destination,
-      recipBytes32,
-      amount.toString(),
-    );
-    const [tokenAddressOrDenom, combinedAmount] = combinedQuote;
-    const fee = BigInt(combinedAmount.toString()) - amount - igpQuoteBigInt;
-
-    return {
-      igpQuote: {
-        amount: igpQuoteBigInt,
-      },
-      tokenFeeQuote: {
-        amount: fee,
-        addressOrDenom: tokenAddressOrDenom,
-      },
-    };
-  }
-
-  override async populateTransferRemoteTx({
-    weiAmountOrId,
-    destination,
-    recipient,
-    interchainGas,
-  }: TransferRemoteParams): Promise<PopulatedTransaction> {
-    const amount = BigInt(weiAmountOrId);
-    if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas({
-        destination,
-        amount,
-        recipient,
-      });
-
-    let txValue = amount;
-    const {
-      igpQuote: { addressOrDenom: igpAddressOrDenom, amount: igpAmount },
-      tokenFeeQuote,
-    } = interchainGas;
-
-    // If the igp token is native Eth
-    if (!igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)) {
-      txValue += igpAmount;
-    }
-
-    if (
-      tokenFeeQuote &&
-      (!tokenFeeQuote.addressOrDenom ||
-        isZeroishAddress(tokenFeeQuote.addressOrDenom))
-    ) {
-      txValue += tokenFeeQuote.amount;
-    }
-
-    const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    return this.contract.populateTransaction[
-      'transferRemote(uint32,bytes32,uint256)'
-    ](destination, recipBytes32, weiAmountOrId, { value: txValue?.toString() });
-  }
-
   /**
    * @param quotes - The quotes returned by getRebalanceQuotes
    */
@@ -980,6 +908,24 @@ export class EvmHypNativeAdapter
       {
         value,
       },
+    );
+  }
+
+  async populateTransferRemoteTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+    interchainGas,
+  }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    return super.populateTransferRemoteTx(
+      {
+        weiAmountOrId,
+        destination,
+        recipient,
+        interchainGas,
+      },
+      // Pass the amount as initial native value to the parent class
+      BigInt(weiAmountOrId),
     );
   }
 
