@@ -57,8 +57,9 @@ export function hyperlaneWarpInitRaw({
   privateKey?: string;
   advanced?: boolean;
 }): ProcessPromise {
-  return $`${hypKey ? ['HYP_KEY=' + hypKey] : []
-    } ${localTestRunCmdPrefix()} hyperlane warp init \
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : []
+  } ${localTestRunCmdPrefix()} hyperlane warp init \
         --registry ${REGISTRY_PATH} \
         ${warpCorePath ? ['--out', warpCorePath] : []} \
         ${privateKey ? ['--key', privateKey] : []} \
@@ -96,8 +97,9 @@ export function hyperlaneWarpDeployRaw({
   privateKey?: string;
   warpRouteId?: string;
 }): ProcessPromise {
-  return $`${hypKey ? ['HYP_KEY=' + hypKey] : []
-    } ${localTestRunCmdPrefix()} hyperlane warp deploy \
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : []
+  } ${localTestRunCmdPrefix()} hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
         ${warpDeployPath ? ['--config', warpDeployPath] : []} \
         ${warpCorePath ? ['--warp', warpCorePath] : []} \
@@ -397,6 +399,7 @@ type GetWarpTokenConfigOptions = {
   xerc20: Address;
   xerc20Lockbox: Address;
   chainName: ChainName;
+  everclearBridgeAdapter: Address;
 };
 
 export function generateWarpConfigs(
