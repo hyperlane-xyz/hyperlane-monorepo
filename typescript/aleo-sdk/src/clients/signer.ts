@@ -6,7 +6,7 @@ import {
   ProgramManager,
 } from '@provablehq/sdk';
 
-import { AltVM, sleep } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/utils';
 
 import { loadProgramsInDeployOrder } from '../artifacts.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
@@ -71,7 +71,7 @@ export class AleoSigner
     transaction: AleoTransaction,
   ): Promise<AleoReceipt> {
     const txId = await this.programManager.execute(transaction);
-    return this.pollForTransactionConfirmed(txId);
+    return this.aleoClient.waitForTransactionConfirmation(txId);
   }
 
   async sendAndConfirmBatchTransactions(
@@ -83,35 +83,12 @@ export class AleoSigner
   // ### TX CORE ###
 
   private async isProgramDeployed(program: Program) {
-    // TODO: is there a more efficient way for checking if a program exists
-    // without downloading the entire source code again?
     try {
       await this.aleoClient.getProgram(program.id());
-
       return true;
     } catch {
       return false;
     }
-  }
-
-  private async pollForTransactionConfirmed(
-    txId: string,
-  ): Promise<AleoReceipt> {
-    // we try to poll for 2 minutes
-    const pollAttempts = 120;
-    const pollDelayMs = 1000;
-
-    for (let i = 0; i < pollAttempts; i++) {
-      try {
-        return await this.programManager.networkClient.getConfirmedTransaction(
-          txId,
-        );
-      } catch {
-        await sleep(pollDelayMs);
-      }
-    }
-
-    throw new Error(`reached poll limit of ${pollAttempts} attempts`);
   }
 
   async createMailbox(
@@ -150,7 +127,7 @@ export class AleoSigner
 
       console.log('txId', txId);
 
-      await this.pollForTransactionConfirmed(txId);
+      await this.aleoClient.waitForTransactionConfirmation(txId);
 
       console.log('tx confirmed, deployed program', program.id());
     }
@@ -303,7 +280,7 @@ export class AleoSigner
     });
 
     const txId = await this.programManager.execute(tx);
-    await this.pollForTransactionConfirmed(txId);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
 
     return {
       recipient: req.recipient,
