@@ -103,13 +103,6 @@
       "0x43e915573d9f1383cbf482049e4a012290759e7f"
     ]
   },
-  "holesky": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": [
-      "0x7ab28ad88bb45867137ea823af88e2cb02359c03"
-    ]
-  },
   "inksepolia": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,

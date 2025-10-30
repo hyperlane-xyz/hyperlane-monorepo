@@ -16,9 +16,6 @@
       "0xbf86037899efe97bca4cea865607e10b849b5878"
     ]
   },
-  "holesky": {
-    "validators": ["0x9af51a9e6405451bb9caf12607e178db202d6821"]
-  },
   "scrollsepolia": {
     "validators": [
       "0x50d939d66f114350f322eb8b2e9f01fbc401d4c9",
