@@ -218,6 +218,22 @@ export {
   multisigConfigToIsmConfig,
 } from './ism/multisig.js';
 export {
+  MultisigIsmInstructionName,
+  MultisigIsmInstructionType,
+  MultisigIsmSetValidatorsInstruction,
+  MultisigIsmSetValidatorsInstructionSchema,
+  MultisigIsmTransferOwnershipInstruction,
+  MultisigIsmTransferOwnershipInstructionSchema,
+} from './ism/serialization.js';
+export {
+  MailboxInstructionName,
+  MailboxInstructionType,
+  MailboxSetDefaultIsmInstruction,
+  MailboxSetDefaultIsmInstructionSchema,
+  MailboxTransferOwnershipInstruction,
+  MailboxTransferOwnershipInstructionSchema,
+} from './mailbox/serialization.js';
+export {
   AggregationIsmConfig,
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfig,
