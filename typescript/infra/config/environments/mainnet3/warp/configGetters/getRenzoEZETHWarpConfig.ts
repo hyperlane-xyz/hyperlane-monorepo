@@ -345,7 +345,7 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
   },
 };
 
-export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
+export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
   {
     arbitrum: '0xE5219Cf568D366ae4b96Efb04d826E6f2e72DaA0',
     optimism: '0x365DC37679F21B3Ef629158CA962f05Bac7f0236',
@@ -367,6 +367,27 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     ink: '0x42A4E564836AE98C2522368Be2faA6e96Ff7a07f',
     monad: '0xf2a0775ED23887F3C47Bf1f0D01cc580281dA2E4',
     xlayer: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  };
+
+export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
+  {
+    arbitrum: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+    optimism: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    base: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    blast: '0xda7dBF0DB81882372B598a715F86eD5254A01b0a',
+    bsc: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+    mode: '0x7791eeA3484Ba4E5860B7a2293840767619c2B58',
+    linea: '0xb7092685571B49786F1248c6205B5ac3A691c65E',
+    ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+    fraxtal: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    taiko: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    sei: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+    swell: '0x435E8c9652Da151292F3981bbf663EBEB6668501',
+    unichain: '0x70aF964829DA7F3f51973EE806AEeAB9225F2661',
+    berachain: '0x865BA5789D82F2D4C5595a3968dad729A8C3daE6',
+    worldchain: '0x7Be36310285cA4e809C296526745DA983c8F8e0f',
+    plasma: '0x76Cd13F5Bfb73f501795988Ef5d017606Bb16DBd',
   };
 
 const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
@@ -417,6 +438,38 @@ const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
   taiko: {
     address: '0xA3666f8a327AADB666F1906A38B17937e5F11f92',
     owner: ezEthSafes.taiko,
+  },
+  swell: {
+    address: '0xc4D0b4ef01eD7091792fe3D4c039457719e2DC68',
+    owner: ezEthSafes.swell,
+  },
+  unichain: {
+    address: '0xa92a7036fd5b2a8C2A6BB24bE2d9Cf66a1a0849F',
+    owner: ezEthSafes.unichain,
+  },
+  berachain: {
+    address: '0xfc5c1d5Ac3655668F2545668938a52D7810DB86d',
+    owner: ezEthSafes.berachain,
+  },
+  worldchain: {
+    address: '0xA4b2951bCd4B0ec43f2B4Deecd639551dC165E23',
+    owner: ezEthSafes.worldchain,
+  },
+  plasma: {
+    address: '0xf6fB78dc009C1A4286c0E7d90C10c9E8906a62Ea',
+    owner: ezEthSafes.plasma,
+  },
+  ink: {
+    address: '0xF2Dd52FBCEf6A763C63B29091B7a327d6a698ca8',
+    owner: ezEthOwners.ink,
+  },
+  monad: {
+    address: '0x01e6b0f2937DC6Df7452dd689dC2AC7ABBc00107',
+    owner: ezEthOwners.monad,
+  },
+  xlayer: {
+    address: '0xf8867113af2676B5d157E2C10C2924fB40f14cfd',
+    owner: ezEthOwners.xlayer,
   },
 };
 
@@ -557,7 +610,7 @@ export function getRenzoWarpConfigGenerator(params: {
 export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: ezEthChainsToDeploy,
   validators: ezEthValidators,
-  safes: ezEthSafes,
+  safes: ezEthOwners,
   xERC20Addresses: ezEthAddresses,
   xERC20Lockbox: ezEthProductionLockbox,
   tokenPrices: renzoTokenPrices,
@@ -565,4 +618,4 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
 });
 
 export const getEZETHGnosisSafeBuilderStrategyConfig =
-  getGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
+  getGnosisSafeBuilderStrategyConfigGenerator(ezEthOwners);
