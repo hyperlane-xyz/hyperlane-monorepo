@@ -301,7 +301,6 @@ export class EvmHypSyntheticAdapter
       addressOrDenom: quote[0],
       amount: BigInt(quote[1].toString()),
     }));
-    console.log(tokenFeeQuotes);
 
     // Because the amount is added on  the fees, we need to subtract it from the actual fees
     const tokenFeeQuote: Quote | undefined =
