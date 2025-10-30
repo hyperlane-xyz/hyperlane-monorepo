@@ -85,14 +85,14 @@ export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
 // and are intended to derisk hitting max env var length limits.
 export type RelayerConfigMapConfig = Pick<
   RelayerConfig,
-  | 'addressBlacklist'
-  | 'gasPaymentEnforcement'
-  | 'metricAppContexts'
-  | 'ismCacheConfigs'
+  'addressBlacklist' | 'gasPaymentEnforcement' | 'ismCacheConfigs'
 >;
+// Config that will be embedded into relayer docker image because
+// of its large size.
+export type RelayerAppContextConfig = Pick<RelayerConfig, 'metricAppContexts'>;
 // The rest of the config is intended to be set as env vars.
 export type RelayerEnvConfig = Omit<
-  RelayerConfig,
+  Omit<RelayerConfig, keyof RelayerAppContextConfig>,
   keyof RelayerConfigMapConfig
 >;
 
@@ -168,9 +168,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
         baseConfig.skipTransactionGasLimitFor.join(',');
     }
     if (baseConfig.metricAppContextsGetter) {
-      relayerConfig.metricAppContexts = JSON.stringify(
-        baseConfig.metricAppContextsGetter(),
-      );
+      relayerConfig.metricAppContexts = baseConfig.metricAppContextsGetter();
     }
     if (baseConfig.ismCacheConfigs) {
       relayerConfig.ismCacheConfigs = baseConfig.ismCacheConfigs;

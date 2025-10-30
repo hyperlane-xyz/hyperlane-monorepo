@@ -1,9 +1,9 @@
 import { compareVersions } from 'compare-versions';
 import { z } from 'zod';
 
+import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import packageJson from '../../package.json' with { type: 'json' };
 import { HookConfig, HookType } from '../hook/types.js';
 import {
   IsmConfig,
@@ -21,19 +21,16 @@ import { isCompliant } from '../utils/schemas.js';
 
 import { TokenType } from './config.js';
 
-export const CONTRACTS_VERSION =
-  packageJson.dependencies['@hyperlane-xyz/core'];
-
 export const WarpRouteDeployConfigSchemaErrors = {
   ONLY_SYNTHETIC_REBASE: `Config with ${TokenType.collateralVaultRebase} must be deployed with ${TokenType.syntheticRebase}`,
   NO_SYNTHETIC_ONLY: `Config must include Native or Collateral OR all synthetics must define token metadata`,
 };
 
 export const contractVersionMatchesDependency = (version: string) => {
-  return compareVersions(version, CONTRACTS_VERSION) === 0;
+  return compareVersions(version, CONTRACTS_PACKAGE_VERSION) === 0;
 };
 
-export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane-xyz/core dependency version (${CONTRACTS_VERSION})`;
+export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane-xyz/core dependency version (${CONTRACTS_PACKAGE_VERSION})`;
 
 export const TokenMetadataSchema = z.object({
   name: z.string(),
@@ -118,22 +115,42 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
 export type CollateralTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
 export const isCollateralTokenConfig = isCompliant(CollateralTokenConfigSchema);
 
-const xERC20LimitConfigSchema = z.object({
+export enum XERC20Type {
+  Velo = 'velo',
+  Standard = 'standard',
+}
+
+// Velo variant
+const XERC20VSLimitConfigSchema = z.object({
+  type: z.literal(XERC20Type.Velo),
   bufferCap: z.string().optional(),
   rateLimitPerSecond: z.string().optional(),
 });
-export type XERC20LimitConfig = z.infer<typeof xERC20LimitConfigSchema>;
+export type XERC20VSLimitConfig = z.infer<typeof XERC20VSLimitConfigSchema>;
 
+const XERC20StandardLimitConfigSchema = z.object({
+  type: z.literal(XERC20Type.Standard),
+  mint: z.string().optional(),
+  burn: z.string().optional(),
+});
+export type XERC20StandardLimitConfig = z.infer<
+  typeof XERC20StandardLimitConfigSchema
+>;
+
+const xERC20Limits = z.discriminatedUnion('type', [
+  XERC20VSLimitConfigSchema,
+  XERC20StandardLimitConfigSchema,
+]);
 const xERC20ExtraBridgesLimitConfigsSchema = z.object({
   lockbox: z.string(),
-  limits: xERC20LimitConfigSchema,
+  limits: xERC20Limits,
 });
 
 const xERC20TokenMetadataSchema = z.object({
   xERC20: z
     .object({
       extraBridges: z.array(xERC20ExtraBridgesLimitConfigsSchema).optional(),
-      warpRouteLimits: xERC20LimitConfigSchema,
+      warpRouteLimits: xERC20Limits,
     })
     .optional(),
 });
@@ -206,13 +223,30 @@ export enum ContractVerificationStatus {
   Error = 'error',
   Skipped = 'skipped',
 }
+
+export enum OwnerStatus {
+  Active = 'active', // Active address with nonce > 0 and/or contract code
+  Inactive = 'inactive',
+  GnosisSafe = 'gnosisSafe',
+  Error = 'error',
+  Skipped = 'skipped',
+}
 export const HypTokenRouterVirtualConfigSchema = z.object({
   contractVerificationStatus: z.record(
     z.enum([
-      ContractVerificationStatus.Verified,
-      ContractVerificationStatus.Unverified,
       ContractVerificationStatus.Error,
       ContractVerificationStatus.Skipped,
+      ContractVerificationStatus.Verified,
+      ContractVerificationStatus.Unverified,
+    ]),
+  ),
+  ownerStatus: z.record(
+    z.enum([
+      OwnerStatus.Error,
+      OwnerStatus.Skipped,
+      OwnerStatus.Active,
+      OwnerStatus.Inactive,
+      OwnerStatus.GnosisSafe,
     ]),
   ),
 });

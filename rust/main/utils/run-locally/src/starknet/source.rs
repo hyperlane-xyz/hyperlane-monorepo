@@ -4,8 +4,8 @@ use tempfile::tempdir;
 
 use crate::{
     logging::log,
-    starknet::utils::{download, make_target, make_target_starkli, untar, unzip},
-    utils::concat_path,
+    starknet::utils::{make_target, make_target_starkli, untar, unzip},
+    utils::{concat_path, download},
 };
 
 use super::{CAIRO_HYPERLANE_GIT, CAIRO_HYPERLANE_VERSION, STARKNET_CLI_GIT, STARKNET_CLI_VERSION};
@@ -46,7 +46,8 @@ impl CodeSource {
                 (entry.file_name().into_string().unwrap(), entry.path())
             })
             .filter(|(filename, _)| filename.ends_with(".contract_class.json"))
-            .filter(|(filename, _)| !filename.contains("Mock"))
+            .filter(|(filename, _)| !filename.to_lowercase().contains("test"))
+            .filter(|(filename, _)| !filename.to_lowercase().contains("mock"))
             .map(|v| (v.0.replace(".contract_class.json", ""), v.1))
             .collect()
     }
@@ -80,7 +81,8 @@ impl CodeSource {
                 (entry.file_name().into_string().unwrap(), entry.path())
             })
             .filter(|(filename, _)| filename.ends_with(".contract_class.json"))
-            .filter(|(filename, _)| !filename.contains("Mock"))
+            .filter(|(filename, _)| !filename.to_lowercase().contains("test"))
+            .filter(|(filename, _)| !filename.to_lowercase().contains("mock"))
             .map(|v| (v.0.replace(".contract_class.json", ""), v.1))
             .collect()
     }

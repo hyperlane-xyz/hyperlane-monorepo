@@ -1,14 +1,17 @@
-use hyperlane_core::{ChainCommunicationError, H256};
+use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, H256};
 use url::Url;
 
 /// Starknet connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
-    pub url: Url,
+    pub urls: Vec<Url>,
 
     /// Native token address that is used to pay for transaction fees.
     pub native_token_address: H256,
+
+    /// Operation batching configuration
+    pub op_submission_config: OpSubmissionConfig,
 }
 
 /// An error type when parsing a connection configuration.

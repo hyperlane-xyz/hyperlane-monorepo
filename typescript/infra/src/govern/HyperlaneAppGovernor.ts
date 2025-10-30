@@ -8,13 +8,13 @@ import {
   ChainName,
   ChainTechnicalStack,
   CheckerViolation,
+  GetCallRemoteSettings,
   HyperlaneApp,
   HyperlaneAppChecker,
   InterchainAccount,
   OwnableConfig,
   OwnerViolation,
   ProxyAdminViolation,
-  canProposeSafeTransactions,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -27,9 +27,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { awIcas } from '../../config/environments/mainnet3/governance/ica/aw.js';
-import { regularIcas } from '../../config/environments/mainnet3/governance/ica/regular.js';
+import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_awLegacy.js';
+import { regularIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_regularLegacy.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
+import { legacyEthIcaRouter, legacyIcaChainRouters } from '../config/chain.js';
 import {
   GovernanceType,
   Owner,
@@ -53,7 +54,7 @@ export type AnnotatedCallData = CallData & {
   submissionType?: SubmissionType;
   description: string;
   expandedDescription?: string;
-  icaTargetChain?: ChainName;
+  callRemoteArgs?: GetCallRemoteSettings;
   governanceType?: GovernanceType;
 };
 
@@ -61,7 +62,7 @@ export type InferredCall = {
   type: SubmissionType;
   chain: ChainName;
   call: AnnotatedCallData;
-  icaTargetChain?: ChainName;
+  callRemoteArgs?: GetCallRemoteSettings;
 };
 
 export abstract class HyperlaneAppGovernor<
@@ -138,15 +139,15 @@ export abstract class HyperlaneAppGovernor<
         `${SubmissionType[submissionType]} calls: ${callsForSubmissionType.length}`,
       );
       callsForSubmissionType.map(
-        ({ icaTargetChain, description, expandedDescription, ...call }) => {
+        ({ callRemoteArgs, description, expandedDescription, ...call }) => {
           // Print a blank line to separate calls
           rootLogger.info('');
 
           // Print the ICA call header if it exists
-          if (icaTargetChain) {
+          if (callRemoteArgs) {
             rootLogger.info(
               chalk.bold(
-                `> INTERCHAIN ACCOUNT CALL: ${chain} -> ${icaTargetChain}`,
+                `> INTERCHAIN ACCOUNT CALL: ${chain} -> ${callRemoteArgs.destination}`,
               ),
             );
           }
@@ -199,7 +200,7 @@ export abstract class HyperlaneAppGovernor<
           );
           try {
             // Process calls in batches up to max size of 100
-            const maxBatchSize = 100;
+            const maxBatchSize = 120;
             for (
               let i = 0;
               i < callsForSubmissionType.length;
@@ -300,7 +301,7 @@ export abstract class HyperlaneAppGovernor<
       newCalls[inferredCall.chain] = newCalls[inferredCall.chain] || [];
       newCalls[inferredCall.chain].push({
         submissionType: inferredCall.type,
-        icaTargetChain: inferredCall.icaTargetChain,
+        callRemoteArgs: inferredCall.callRemoteArgs,
         ...inferredCall.call,
       });
     };
@@ -385,8 +386,21 @@ export abstract class HyperlaneAppGovernor<
     let accountConfig = this.interchainAccount.knownAccounts[account.address];
 
     if (!accountConfig) {
-      const { ownerType, governanceType: icaGovernanceType } =
-        await determineGovernanceType(chain, account.address);
+      let ownerType: Owner | null;
+      let icaGovernanceType: GovernanceType;
+
+      // Backstop to still be able to parse legacy Abacus Works ICAs
+      if (eqAddress(account.address, awIcasLegacy[chain])) {
+        ownerType = Owner.ICA;
+        icaGovernanceType = GovernanceType.AbacusWorks;
+      } else if (eqAddress(account.address, regularIcasLegacy[chain])) {
+        ownerType = Owner.ICA;
+        icaGovernanceType = GovernanceType.Regular;
+      } else {
+        ({ ownerType, governanceType: icaGovernanceType } =
+          await determineGovernanceType(chain, account.address));
+      }
+
       // verify that we expect it to be an ICA
       assert(ownerType === Owner.ICA, 'ownerType should be ICA');
       // get the set of safes for this governance type
@@ -396,6 +410,13 @@ export abstract class HyperlaneAppGovernor<
       accountConfig = {
         origin,
         owner: remoteOwner,
+        ...(legacyIcaChainRouters[chain]
+          ? {
+              localRouter: legacyEthIcaRouter,
+              routerOverride:
+                legacyIcaChainRouters[chain].interchainAccountRouter,
+            }
+          : {}),
       };
     }
 
@@ -430,7 +451,7 @@ export abstract class HyperlaneAppGovernor<
     );
 
     // Get the encoded call to the remote ICA
-    const callRemote = await this.interchainAccount.getCallRemote({
+    const callRemoteArgs: GetCallRemoteSettings = {
       chain: origin,
       destination: chain,
       innerCalls: [
@@ -441,7 +462,9 @@ export abstract class HyperlaneAppGovernor<
         },
       ],
       config: accountConfig,
-    });
+    };
+    const callRemote =
+      await this.interchainAccount.getCallRemote(callRemoteArgs);
 
     // If the call to the remote ICA is not valid, default to manual submission
     if (!callRemote.to || !callRemote.data) {
@@ -489,7 +512,7 @@ export abstract class HyperlaneAppGovernor<
         type: subType,
         chain: origin,
         call: encodedCall,
-        icaTargetChain: chain,
+        callRemoteArgs,
       };
     }
 
@@ -539,14 +562,16 @@ export abstract class HyperlaneAppGovernor<
         await this.checkSubmitterBalance(chain, submitterAddress, call.value);
       }
 
-      // Check if the submitter is the owner of the contract
+      // If it's not an ICA call, check if the submitter is the owner of the contract
       try {
-        const ownable = Ownable__factory.connect(call.to, signer);
-        const owner = await ownable.owner();
-        const isOwner = eqAddress(owner, submitterAddress);
+        if (!isICACall) {
+          const ownable = Ownable__factory.connect(call.to, signer);
+          const owner = await ownable.owner();
+          const isOwner = eqAddress(owner, submitterAddress);
 
-        if (!isOwner) {
-          return false;
+          if (!isOwner) {
+            return false;
+          }
         }
       } catch {
         // If the contract does not implement Ownable, just continue

@@ -13,7 +13,6 @@ import {
   getOverhead,
 } from '../../../src/config/gas-oracle.js';
 
-import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
@@ -30,11 +29,15 @@ const romeTestnetConnectedChains = [
 ];
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
-  let overhead = getOverhead(local, remote, ethereumChainNames);
+  let overhead = getOverhead(local, remote);
 
   // Special case for rometestnet2 due to non-standard gas metering.
   if (remote === 'rometestnet2') {
     overhead *= 12;
+  }
+
+  if (remote === 'somniatestnet') {
+    overhead *= 2;
   }
 
   return overhead;
@@ -52,16 +55,6 @@ function getOracleConfigWithOverrides(origin: ChainName) {
     );
   }
 
-  if (origin === 'infinityvmmonza') {
-    // For InfinityVM Monza, override all remote chain gas configs to use 0 gas
-    for (const remoteConfig of Object.values(oracleConfig)) {
-      remoteConfig.gasPrice = '0';
-    }
-  }
-  // Solana Testnet -> InfinityVM Monza, similarly don't charge gas
-  if (origin === 'solanatestnet') {
-    oracleConfig['infinityvmmonza'].gasPrice = '0';
-  }
   return oracleConfig;
 }
 

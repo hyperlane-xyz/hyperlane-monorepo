@@ -14,6 +14,8 @@ import {
   usdcTokenAddresses,
 } from './cctp.js';
 
+const SERVICE_URL = 'https://testnet-offchain-lookup.services.hyperlane.xyz';
+
 export const getCCTPWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
@@ -37,8 +39,8 @@ export const getCCTPWarpConfig = async (
         token: usdcTokenAddresses[chain],
         messageTransmitter: messageTransmitterAddresses[chain],
         tokenMessenger: tokenMessengerAddresses[chain],
-        urls: ['https://offchain-lookup.web3tools.net/cctp/getProofs'],
         cctpVersion: 'V1',
+        urls: [`${SERVICE_URL}/cctp/getCctpAttestation`],
       };
       return [chain, config];
     }),

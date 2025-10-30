@@ -14,6 +14,7 @@ export interface TransferParams {
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
   interchainGas?: InterchainGasQuote;
+  customHook?: Address;
 }
 
 export interface InterchainGasQuote {
@@ -27,6 +28,11 @@ export interface RateLimitMidPoint {
   lastBufferUsedTime: number;
   bufferStored: bigint;
   midPoint: bigint;
+}
+
+export interface xERC20Limits {
+  mint: bigint;
+  burn: bigint;
 }
 
 export interface ITokenAdapter<Tx> {
@@ -55,6 +61,7 @@ export interface IMovableCollateralRouterAdapter<Tx> extends ITokenAdapter<Tx> {
     amount: Numberish,
     isWarp: boolean,
   ): Promise<InterchainGasQuote[]>;
+  getWrappedTokenAddress(): Promise<Address>;
 
   populateRebalanceTx(
     domain: Domain,
@@ -73,6 +80,7 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   quoteTransferRemoteGas(
     destination: Domain,
     sender?: Address,
+    customHook?: Address,
   ): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }
@@ -112,4 +120,12 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
     rateLimitPerSecond: bigint,
     bridge: Address,
   ): Promise<Tx>;
+}
+
+export interface IXERC20Adapter<Tx> extends ITokenAdapter<Tx> {
+  getLimits(bridge: Address): Promise<xERC20Limits>;
+}
+
+export interface IHypCollateralFiatAdapter<Tx> extends IHypTokenAdapter<Tx> {
+  getMintLimit(): Promise<bigint>;
 }

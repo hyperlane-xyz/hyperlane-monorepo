@@ -30,17 +30,17 @@ jobs:
   yarn-install:
     runs-on: depot-ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
       - name: yarn-cache
-        uses: buildjet/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -64,13 +64,14 @@ jobs:
         run: yarn syncpack list-mismatches
 
   lint-prettier:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
@@ -116,7 +117,7 @@ jobs:
       current_sha: ${{ steps.determine-base-sha.outputs.current_sha }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -143,7 +144,7 @@ jobs:
       only_rust: ${{ steps.check-rust-only.outputs.only_rust }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -179,7 +180,7 @@ jobs:
     timeout-minutes: 10
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -204,7 +205,7 @@ jobs:
     needs: [yarn-test-run]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check yarn-test status
         uses: ./.github/actions/check-job-status
         with:
@@ -219,11 +220,19 @@ jobs:
       BALANCE_CHANGES: false
       WARP_CONFIG_CHANGES: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
+
+      - name: Install gitleaks
+        id: gitleaks-install
+        if: github.event_name != 'merge_group'
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}}
 
       - name: Check for balance/config changes
         run: |
@@ -236,14 +245,16 @@ jobs:
 
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
-        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           cache-provider: github
 
       - name: Checkout registry
-        if: env.BALANCE_CHANGES == 'true' || env.WARP_CONFIG_CHANGES == 'true'
         uses: ./.github/actions/checkout-registry
+
+      - name: GitLeaks Tests
+        if: steps.gitleaks-install.outcome != 'skipped'
+        run: yarn --cwd typescript/infra test:gitleaks
 
       - name: Balance Tests
         if: env.BALANCE_CHANGES == 'true'
@@ -258,7 +269,7 @@ jobs:
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -276,14 +287,14 @@ jobs:
     needs: [cli-install-test-run]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check cli-install-test status
         uses: ./.github/actions/check-job-status
         with:
           job_name: 'CLI Install Test'
           result: ${{ needs.cli-install-test-run.result }}
 
-  cli-e2e-matrix:
+  cli-evm-e2e-matrix:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
@@ -300,20 +311,25 @@ jobs:
           # Other commands
           - relay
           # Warp Commands
-          - warp-apply
+          - warp-apply-1
+          - warp-apply-2
+          - warp-apply-ism-updates
+          - warp-apply-submitters
           - warp-bridge-1
           - warp-bridge-2
-          - warp-check
+          - warp-check-1
+          - warp-check-2
+          - warp-check-3
           - warp-deploy
           - warp-extend-basic
           - warp-extend-config
           - warp-extend-recovery
           - warp-init
           - warp-read
-          - warp-send
           - warp-rebalancer
+          - warp-send
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -332,29 +348,114 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: CLI e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:e2e
+      - name: CLI ethereum e2e tests (${{ matrix.test }})
+        run: yarn --cwd typescript/cli test:ethereum:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-cosmos-e2e-matrix:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-apply
+          - core-check
+          - core-deploy
+          - core-read
+          # Warp Commands
+          - warp-deploy
+          - warp-read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: foundry-install
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI cosmosnative e2e tests (${{ matrix.test }})
+        run: yarn --cwd typescript/cli test:cosmosnative:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-cross-chain-e2e-matrix:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Warp Commands
+          - warp-apply
+          - warp-deploy
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          cache-provider: github
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI cross chain e2e tests (${{ matrix.test }})
+        run: yarn --cwd typescript/cli test:cross-chain:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-e2e:
     runs-on: ubuntu-latest
-    needs: [cli-e2e-matrix]
+    needs:
+      [cli-evm-e2e-matrix, cli-cosmos-e2e-matrix, cli-cross-chain-e2e-matrix]
     if: always()
     steps:
-      - uses: actions/checkout@v4
-      - name: Check cli-e2e matrix status
+      - uses: actions/checkout@v5
+      - name: Check CLI EVM E2E status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'CLI E2E'
-          result: ${{ needs.cli-e2e-matrix.result }}
+          job_name: 'CLI EVM E2E'
+          result: ${{ needs.cli-evm-e2e-matrix.result }}
+      - name: Check CLI CosmosNative E2E status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI CosmosNative E2E'
+          result: ${{ needs.cli-cosmos-e2e-matrix.result }}
+      - name: Check CLI Cross Chain E2E status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI Cross Chain E2E'
+          result: ${{ needs.cli-cross-chain-e2e-matrix.result }}
 
   cosmos-sdk-e2e-run:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -374,7 +475,7 @@ jobs:
     needs: [cosmos-sdk-e2e-run]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check cosmos-sdk-e2e status
         uses: ./.github/actions/check-job-status
         with:
@@ -388,7 +489,7 @@ jobs:
       matrix:
         environment: [mainnet3, testnet4]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -418,15 +519,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet]
+        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet, radix]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
@@ -540,7 +641,7 @@ jobs:
 
       - name: Run sccache-cache
         if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: mozilla-actions/sccache-action@v0.0.8
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: agent tests (CosmWasm)
         if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
@@ -555,6 +656,15 @@ jobs:
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
+
+      - name: agent tests (Radix)
+        run: cargo test --release --package run-locally --bin run-locally --features radix -- radix::test --nocapture
+        if: ${{ matrix.e2e-type == 'radix' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
 
       - name: agent tests (EVM)
         if: ${{ matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
@@ -616,7 +726,7 @@ jobs:
             module: core
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -647,7 +757,7 @@ jobs:
     needs: env-test-matrix
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check env-test matrix status
         uses: ./.github/actions/check-job-status
         with:
@@ -659,7 +769,7 @@ jobs:
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -686,7 +796,7 @@ jobs:
     needs: [coverage-run]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check coverage status
         uses: ./.github/actions/check-job-status
         with:

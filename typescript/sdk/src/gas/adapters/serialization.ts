@@ -48,6 +48,52 @@ export const SealevelInterchainGasPaymasterConfigSchema = {
 };
 
 /**
+ * Gas Oracle Borsh Schema
+ */
+
+// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/accounts.rs#L234
+export class SealevelRemoteGasData {
+  token_exchange_rate!: bigint;
+  gas_price!: bigint;
+  token_decimals!: number;
+
+  constructor(public readonly fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+export const SealevelRemoteGasDataSchema = {
+  kind: 'struct',
+  fields: [
+    ['token_exchange_rate', 'u128'],
+    ['gas_price', 'u128'],
+    ['token_decimals', 'u8'],
+  ],
+};
+
+// Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/accounts.rs#L45
+export enum SealevelGasOracleType {
+  RemoteGasData = 0,
+}
+
+export class SealevelGasOracle {
+  type!: SealevelGasOracleType;
+  data!: SealevelRemoteGasData;
+
+  constructor(public readonly fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+export const SealevelGasOracleSchema = {
+  kind: 'struct',
+  fields: [
+    ['type', 'u8'],
+    ['data', SealevelRemoteGasData],
+  ],
+};
+
+/**
  * IGP Program Data Borsh Schema
  */
 
@@ -104,7 +150,7 @@ export class SealevelIgpData {
   /// The beneficiary of the IGP.
   beneficiary!: Uint8Array; // 32 bytes
   beneficiary_pub_key!: PublicKey;
-  gas_oracles!: Map<number, bigint>;
+  gas_oracles!: Map<number, SealevelGasOracle>;
 
   constructor(fields: any) {
     Object.assign(this, fields);
@@ -127,10 +173,12 @@ export const SealevelIgpDataSchema = new Map<any, any>([
         ['salt', [32]],
         ['owner', { kind: 'option', type: [32] }],
         ['beneficiary', [32]],
-        ['gas_oracles', { kind: 'map', key: 'u32', value: 'u64' }],
+        ['gas_oracles', { kind: 'map', key: 'u32', value: SealevelGasOracle }],
       ],
     },
   ],
+  [SealevelGasOracle, SealevelGasOracleSchema],
+  [SealevelRemoteGasData, SealevelRemoteGasDataSchema],
 ]);
 
 /**
@@ -138,7 +186,7 @@ export const SealevelIgpDataSchema = new Map<any, any>([
  */
 
 // Should match Instruction in https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/8f8853bcd7105a6dd7af3a45c413b137ded6e888/rust/sealevel/programs/hyperlane-sealevel-igp/src/instruction.rs#L19-L42
-export enum SealeveIgpInstruction {
+export enum SealevelIgpInstruction {
   Init,
   InitIgp,
   InitOverheadIgp,
@@ -202,4 +250,111 @@ export const SealevelIgpQuoteGasPaymentResponseSchema = new Map<any, any>([
       fields: [['payment_quote', 'u64']],
     },
   ],
+]);
+
+/**
+ * Gas Oracle Configuration Schemas
+ */
+
+export class SealevelGasOracleConfig {
+  domain!: number;
+  gas_oracle!: SealevelGasOracle | null;
+
+  constructor(domain: number, gasOracle: SealevelGasOracle | null) {
+    this.domain = domain;
+    this.gas_oracle = gasOracle;
+  }
+}
+
+export const SealevelGasOracleConfigSchema = {
+  kind: 'struct' as const,
+  fields: [
+    ['domain', 'u32'],
+    ['gas_oracle', { kind: 'option' as const, type: SealevelGasOracle }],
+  ],
+};
+
+export class SealevelGasOverheadConfig {
+  destination_domain!: number;
+  gas_overhead!: bigint | null;
+
+  constructor(destination_domain: number, gas_overhead: bigint | null) {
+    this.destination_domain = destination_domain;
+    this.gas_overhead = gas_overhead;
+  }
+}
+
+export const SealevelGasOverheadConfigSchema = {
+  kind: 'struct' as const,
+  fields: [
+    ['destination_domain', 'u32'],
+    ['gas_overhead', { kind: 'option' as const, type: 'u64' }],
+  ],
+};
+
+/**
+ * Instruction Schemas
+ */
+
+export class SealevelSetGasOracleConfigsInstruction {
+  configs!: SealevelGasOracleConfig[];
+
+  constructor(configs: SealevelGasOracleConfig[]) {
+    this.configs = configs;
+  }
+}
+
+export const SealevelSetGasOracleConfigsInstructionSchema = new Map<any, any>([
+  [
+    SealevelInstructionWrapper,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['data', SealevelSetGasOracleConfigsInstruction],
+      ],
+    },
+  ],
+  [
+    SealevelSetGasOracleConfigsInstruction,
+    {
+      kind: 'struct',
+      fields: [['configs', [SealevelGasOracleConfig]]],
+    },
+  ],
+  [SealevelGasOracleConfig, SealevelGasOracleConfigSchema],
+  [SealevelGasOracle, SealevelGasOracleSchema],
+  [SealevelRemoteGasData, SealevelRemoteGasDataSchema],
+]);
+
+export class SealevelSetDestinationGasOverheadsInstruction {
+  configs!: SealevelGasOverheadConfig[];
+
+  constructor(configs: SealevelGasOverheadConfig[]) {
+    this.configs = configs;
+  }
+}
+
+export const SealevelSetDestinationGasOverheadsInstructionSchema = new Map<
+  any,
+  any
+>([
+  [
+    SealevelInstructionWrapper,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['data', SealevelSetDestinationGasOverheadsInstruction],
+      ],
+    },
+  ],
+  [
+    SealevelSetDestinationGasOverheadsInstruction,
+    {
+      kind: 'struct',
+      fields: [['configs', [SealevelGasOverheadConfig]]],
+    },
+  ],
+  [SealevelGasOverheadConfig, SealevelGasOverheadConfigSchema],
 ]);

@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
-use crate::traits::CheckpointSyncer;
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
+
+use crate::traits::CheckpointSyncer;
 
 #[derive(Debug, Clone)]
 /// Type for reading/write to LocalStorage
@@ -42,6 +43,10 @@ impl LocalStorage {
 
     fn reorg_flag_path(&self) -> PathBuf {
         self.path.join("reorg_flag.json")
+    }
+
+    fn reorg_rpc_responses_path(&self) -> PathBuf {
+        self.path.join("reorg_rpc_responses.json")
     }
 
     fn metadata_file_path(&self) -> PathBuf {
@@ -116,7 +121,7 @@ impl CheckpointSyncer for LocalStorage {
     }
 
     fn announcement_location(&self) -> String {
-        format!("file://{}", self.path.to_str().unwrap())
+        format!("file://{}", self.path.as_os_str().to_string_lossy())
     }
 
     async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
@@ -134,5 +139,13 @@ impl CheckpointSyncer for LocalStorage {
         };
         let reorg = serde_json::from_slice(&data)?;
         Ok(Some(reorg))
+    }
+
+    async fn write_reorg_rpc_responses(&self, log: String) -> Result<()> {
+        let path = self.reorg_rpc_responses_path();
+        tokio::fs::write(&path, &log)
+            .await
+            .with_context(|| format!("Writing log to {path:?}"))?;
+        Ok(())
     }
 }

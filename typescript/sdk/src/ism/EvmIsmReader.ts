@@ -366,11 +366,31 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   ): Promise<WithAddress<RoutingIsmConfig>> {
     const ism = AmountRoutingIsm__factory.connect(address, this.provider);
 
-    const [lowerIsm, upperIsm, threshold] = await Promise.all([
-      ism.lower(),
-      ism.upper(),
-      ism.threshold(),
-    ]);
+    let lowerIsm: Address;
+    let upperIsm: Address;
+    let threshold: BigNumber;
+    try {
+      [lowerIsm, upperIsm, threshold] = await Promise.all([
+        ism.lower(),
+        ism.upper(),
+        ism.threshold(),
+      ]);
+    } catch {
+      // If we fail to access AmountRoutingIsm properties, this is likely a legacy InterchainAccountIsm
+      this.logger.debug(
+        'Error accessing AmountRoutingIsm properties, treating as legacy InterchainAccountIsm.',
+        address,
+      );
+
+      // return a basic ICA routing config for legacy contracts
+      return {
+        type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+        isms: {},
+        address,
+        owner: ethers.constants.AddressZero,
+      };
+    }
+
     return {
       type: IsmType.AMOUNT_ROUTING,
       address,

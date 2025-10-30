@@ -1,4 +1,5 @@
 import { PopulatedTransaction } from 'ethers';
+import { Logger } from 'pino';
 
 import {
   type ChainMap,
@@ -20,29 +21,29 @@ import { Metrics } from '../metrics/Metrics.js';
 import {
   type BridgeConfigWithOverride,
   getBridgeConfig,
-  rebalancerLogger,
 } from '../utils/index.js';
 
 export class Rebalancer implements IRebalancer {
+  private readonly logger: Logger;
   constructor(
     private readonly bridges: ChainMap<BridgeConfigWithOverride>,
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
+    logger: Logger,
     private readonly metrics?: Metrics,
-  ) {}
+  ) {
+    this.logger = logger.child({ class: Rebalancer.name });
+  }
 
   async rebalance(routes: RebalancingRoute[]): Promise<void> {
     if (routes.length === 0) {
-      rebalancerLogger.info('No routes to execute, exiting');
+      this.logger.info('No routes to execute, exiting');
       return;
     }
 
-    rebalancerLogger.info(
-      { numberOfRoutes: routes.length },
-      'Rebalance initiated',
-    );
+    this.logger.info({ numberOfRoutes: routes.length }, 'Rebalance initiated');
 
     const { preparedTransactions, preparationFailures } =
       await this.prepareTransactions(routes);
@@ -68,7 +69,7 @@ export class Rebalancer implements IRebalancer {
       gasEstimationFailures > 0 ||
       transactionFailures > 0
     ) {
-      rebalancerLogger.error(
+      this.logger.error(
         {
           preparationFailures,
           gasEstimationFailures,
@@ -88,7 +89,7 @@ export class Rebalancer implements IRebalancer {
       }
     }
 
-    rebalancerLogger.info('✅ Rebalance successful');
+    this.logger.info('✅ Rebalance successful');
     return;
   }
 
@@ -96,7 +97,7 @@ export class Rebalancer implements IRebalancer {
     preparedTransactions: PreparedTransaction[];
     preparationFailures: number;
   }> {
-    rebalancerLogger.info(
+    this.logger.info(
       { numRoutes: routes.length },
       'Preparing all rebalance transactions.',
     );
@@ -120,7 +121,7 @@ export class Rebalancer implements IRebalancer {
   ): Promise<PreparedTransaction | null> {
     const { origin, destination, amount } = route;
 
-    rebalancerLogger.info(
+    this.logger.info(
       {
         origin,
         destination,
@@ -149,6 +150,7 @@ export class Rebalancer implements IRebalancer {
       this.bridges,
       origin,
       destination,
+      this.logger,
     );
 
     // 2. Get quotes
@@ -162,7 +164,7 @@ export class Rebalancer implements IRebalancer {
         bridgeIsWarp,
       );
     } catch (error) {
-      rebalancerLogger.error(
+      this.logger.error(
         {
           origin,
           destination,
@@ -185,7 +187,7 @@ export class Rebalancer implements IRebalancer {
         quotes,
       );
     } catch (error) {
-      rebalancerLogger.error(
+      this.logger.error(
         {
           origin,
           destination,
@@ -208,7 +210,7 @@ export class Rebalancer implements IRebalancer {
     const destinationDomain = this.chainMetadata[destination];
 
     if (!originToken) {
-      rebalancerLogger.error(
+      this.logger.error(
         { origin, destination, amount },
         'Route validation failed: origin token not found.',
       );
@@ -220,7 +222,7 @@ export class Rebalancer implements IRebalancer {
       originTokenAmount.getDecimalFormattedAmount();
 
     if (!destinationToken) {
-      rebalancerLogger.error(
+      this.logger.error(
         { origin, destination, amount: decimalFormattedAmount },
         'Route validation failed: destination token not found.',
       );
@@ -228,7 +230,7 @@ export class Rebalancer implements IRebalancer {
     }
 
     if (!destinationDomain) {
-      rebalancerLogger.error(
+      this.logger.error(
         { origin, destination, amount: decimalFormattedAmount },
         'Route validation failed: destination domain metadata not found.',
       );
@@ -239,7 +241,7 @@ export class Rebalancer implements IRebalancer {
       this.warpCore.multiProvider,
     );
     if (!(originHypAdapter instanceof EvmMovableCollateralAdapter)) {
-      rebalancerLogger.error(
+      this.logger.error(
         {
           origin,
           destination,
@@ -254,7 +256,7 @@ export class Rebalancer implements IRebalancer {
     const signer = this.multiProvider.getSigner(origin);
     const signerAddress = await signer.getAddress();
     if (!(await originHypAdapter.isRebalancer(signerAddress))) {
-      rebalancerLogger.error(
+      this.logger.error(
         {
           origin,
           destination,
@@ -272,7 +274,7 @@ export class Rebalancer implements IRebalancer {
       destinationDomain.domainId,
     );
     if (!eqAddress(allowedDestination, destinationToken.addressOrDenom)) {
-      rebalancerLogger.error(
+      this.logger.error(
         {
           origin,
           destination,
@@ -287,14 +289,19 @@ export class Rebalancer implements IRebalancer {
       return false;
     }
 
-    const { bridge } = getBridgeConfig(this.bridges, origin, destination);
+    const { bridge } = getBridgeConfig(
+      this.bridges,
+      origin,
+      destination,
+      this.logger,
+    );
     if (
       !(await originHypAdapter.isBridgeAllowed(
         destinationDomain.domainId,
         bridge,
       ))
     ) {
-      rebalancerLogger.error(
+      this.logger.error(
         {
           origin,
           destination,
@@ -318,7 +325,7 @@ export class Rebalancer implements IRebalancer {
     transactionFailures: number;
     successfulTransactions: PreparedTransaction[];
   }> {
-    rebalancerLogger.info(
+    this.logger.info(
       { numTransactions: transactions.length },
       'Estimating gas for all prepared transactions.',
     );
@@ -343,7 +350,7 @@ export class Rebalancer implements IRebalancer {
       } else {
         gasEstimationFailures++;
         const failedTransaction = transactions[i];
-        rebalancerLogger.error(
+        this.logger.error(
           {
             origin: failedTransaction.route.origin,
             destination: failedTransaction.route.destination,
@@ -358,7 +365,7 @@ export class Rebalancer implements IRebalancer {
     });
 
     if (validTransactions.length === 0) {
-      rebalancerLogger.info('No transactions to execute after gas estimation.');
+      this.logger.info('No transactions to execute after gas estimation.');
       return {
         gasEstimationFailures,
         transactionFailures: 0,
@@ -367,7 +374,7 @@ export class Rebalancer implements IRebalancer {
     }
 
     // 2. Send transactions
-    rebalancerLogger.info(
+    this.logger.info(
       { numTransactions: validTransactions.length },
       'Sending valid transactions.',
     );
@@ -379,7 +386,7 @@ export class Rebalancer implements IRebalancer {
         const decimalFormattedAmount =
           transaction.originTokenAmount.getDecimalFormattedAmount();
         const tokenName = transaction.originTokenAmount.token.name;
-        rebalancerLogger.info(
+        this.logger.info(
           {
             origin,
             destination,
@@ -392,7 +399,7 @@ export class Rebalancer implements IRebalancer {
           origin,
           transaction.populatedTx,
         );
-        rebalancerLogger.info(
+        this.logger.info(
           {
             origin,
             destination,
@@ -405,7 +412,7 @@ export class Rebalancer implements IRebalancer {
         successfulTransactions.push(transaction);
       } catch (error) {
         transactionFailures++;
-        rebalancerLogger.error(
+        this.logger.error(
           {
             origin: transaction.route.origin,
             destination: transaction.route.destination,
@@ -440,12 +447,13 @@ export class Rebalancer implements IRebalancer {
         this.bridges,
         origin,
         destination,
+        this.logger,
       );
       const minAccepted = BigInt(
         toWei(bridgeMinAcceptedAmount, originToken.decimals),
       );
       if (minAccepted > amount) {
-        rebalancerLogger.info(
+        this.logger.info(
           {
             origin,
             destination,

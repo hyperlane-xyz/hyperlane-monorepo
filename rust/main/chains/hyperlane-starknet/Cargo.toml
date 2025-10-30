@@ -17,6 +17,7 @@ cainome.workspace = true
 derive-new = { workspace = true }
 starknet.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing-futures.workspace = true
@@ -27,6 +28,7 @@ url.workspace = true
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
+hyperlane-metric = { path = "../../hyperlane-metric" }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["starknet"] }

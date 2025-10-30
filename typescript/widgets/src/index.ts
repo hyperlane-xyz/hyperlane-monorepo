@@ -1,4 +1,5 @@
 export { Fade } from './animations/Fade.js';
+export { Skeleton } from './animations/Skeleton.js';
 export {
   ChainDetailsMenu,
   type ChainDetailsMenuProps,
@@ -32,6 +33,7 @@ export { DocsIcon } from './icons/Docs.js';
 export { EllipsisIcon } from './icons/Ellipsis.js';
 export { EnvelopeIcon } from './icons/Envelope.js';
 export { ErrorIcon } from './icons/Error.js';
+export { FuelPumpIcon } from './icons/FuelPump.js';
 export { FilterIcon } from './icons/Filter.js';
 export { FunnelIcon } from './icons/Funnel.js';
 export { GearIcon } from './icons/Gear.js';
@@ -102,6 +104,8 @@ export {
   useCosmosDisconnectFn,
   useCosmosTransactionFns,
   useCosmosWalletDetails,
+  useCosmosSwitchNetwork,
+  useCosmosWatchAsset,
 } from './walletIntegrations/cosmos.js';
 export {
   getWagmiChainConfigs,
@@ -111,6 +115,8 @@ export {
   useEthereumDisconnectFn,
   useEthereumTransactionFns,
   useEthereumWalletDetails,
+  useEthereumSwitchNetwork,
+  useEthereumWatchAsset,
 } from './walletIntegrations/ethereum.js';
 export {
   getAccountAddressAndPubKey,
@@ -123,6 +129,7 @@ export {
   useDisconnectFns,
   useTransactionFns,
   useWalletDetails,
+  useWatchAsset,
 } from './walletIntegrations/multiProtocol.js';
 export { MultiProtocolWalletModal } from './walletIntegrations/MultiProtocolWalletModal.js';
 export {
@@ -132,6 +139,8 @@ export {
   useSolanaDisconnectFn,
   useSolanaTransactionFns,
   useSolanaWalletDetails,
+  useSolanaSwitchNetwork,
+  useSolanaWatchAsset,
 } from './walletIntegrations/solana.js';
 export {
   getStarknetChains,
@@ -141,6 +150,8 @@ export {
   useStarknetDisconnectFn,
   useStarknetTransactionFns,
   useStarknetWalletDetails,
+  useStarknetSwitchNetwork,
+  useStarknetWatchAsset,
 } from './walletIntegrations/starknet.js';
 export type {
   AccountInfo,
@@ -149,7 +160,10 @@ export type {
   ChainTransactionFns,
   SendTransactionFn,
   SwitchNetworkFn,
+  SwitchNetworkFns,
   WalletDetails,
+  SendMultiTransactionFn,
+  WatchAssetFns,
 } from './walletIntegrations/types.js';
 export {
   ethers5TxToWagmiTx,
@@ -157,3 +171,9 @@ export {
   getChainsForProtocol,
 } from './walletIntegrations/utils.js';
 export { WalletLogo } from './walletIntegrations/WalletLogo.js';
+export {
+  RdtProvider,
+  GatewayApiProvider,
+  PopupProvider,
+} from './walletIntegrations/radix/RadixProviders.js';
+export { AccountProvider } from './walletIntegrations/radix/AccountContext.js';

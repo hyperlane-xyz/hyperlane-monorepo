@@ -5,7 +5,7 @@
 
 # -------- Base Image with Tools --------
 # Base image containing all necessary build tools and dependencies
-FROM rust:1.81.0 AS base
+FROM rust:1.86.0 AS base
 RUN apt-get update && \
     apt-get install -y --no-install-recommends musl-tools clang && \
     apt-get clean && \
@@ -64,6 +64,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM ubuntu:22.04
 WORKDIR /app
 COPY rust/main/config /app/config
+COPY rust/main/app-contexts /app/app-contexts
 COPY --from=builder /release/* .
 
 # Install runtime dependencies

@@ -1,7 +1,8 @@
-mod build;
-mod common;
-mod config;
-mod estimate;
-mod simulate;
-mod status;
-mod submit;
+mod tests_build;
+pub mod tests_common;
+mod tests_config;
+mod tests_estimate;
+mod tests_reverted_payload;
+mod tests_simulate;
+mod tests_status;
+mod tests_submit;

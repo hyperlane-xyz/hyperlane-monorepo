@@ -21,7 +21,7 @@ use crate::{
 
 pub type GasLimit = U256;
 
-#[derive(new, Debug, Clone)]
+#[derive(new, Debug, Clone, PartialEq)]
 pub struct TxBuildingResult {
     /// payload details for the payloads in this transaction
     /// this is a vector because multiple payloads can be included in a single transaction
@@ -44,7 +44,9 @@ pub trait AdaptsChain: Send + Sync {
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
 
     /// Simulates a Transaction before submitting it for the first time. Called in the Inclusion Stage (PayloadDispatcher)
-    async fn simulate_tx(&self, tx: &Transaction) -> Result<bool, LanderError>;
+    async fn simulate_tx(&self, _tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError> {
+        Ok(vec![])
+    }
 
     /// Estimates a Transaction's gas limit. Called in the Inclusion Stage (PayloadDispatcher)
     /// Skips estimation if the Transaction has already been estimated
@@ -111,5 +113,24 @@ pub trait AdaptsChain: Send + Sync {
     /// Replaces calldata in this tx with a transfer-to-self, to use its payload(s) for filling a nonce gap
     async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError> {
         todo!()
+    }
+
+    /// Returns the polling interval for checking if transactions need reprocessing.
+    ///
+    /// Returns `None` if the adapter does not support transaction reprocessing,
+    /// or `Some(Duration)` specifying how frequently to poll.
+    fn reprocess_txs_poll_rate(&self) -> Option<Duration> {
+        None
+    }
+
+    /// Get a list of transactions that need to be reprocessed.
+    ///
+    /// Returns an empty vector if no transactions need reprocessing or if the adapter
+    /// does not support reprocessing.
+    ///
+    /// Note: Implementations may update internal state (e.g., finalized nonce boundaries)
+    /// as part of determining which transactions need reprocessing.
+    async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
+        Ok(Vec::new())
     }
 }

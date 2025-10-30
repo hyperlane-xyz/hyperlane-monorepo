@@ -24,7 +24,7 @@ pub struct RelayerTerminationInvariantParams<'a> {
     pub submitter_queue_length_expected: u32,
     pub non_matching_igp_message_count: u32,
     pub double_insertion_message_count: u32,
-    pub sealevel_tx_id_indexing: bool,
+    pub skip_tx_id_indexing: bool,
     pub submitter_type: SubmitterType,
 }
 
@@ -44,7 +44,7 @@ pub fn relayer_termination_invariants_met(
         submitter_queue_length_expected,
         non_matching_igp_message_count,
         double_insertion_message_count,
-        sealevel_tx_id_indexing,
+        skip_tx_id_indexing,
         submitter_type,
     } = params.clone();
 
@@ -139,7 +139,7 @@ pub fn relayer_termination_invariants_met(
 
     // Sealevel relayer does not require tx id indexing.
     // It performs sequenced indexing, that's why we don't expect any tx_id_logs
-    let expected_tx_id_logs = if sealevel_tx_id_indexing {
+    let expected_tx_id_logs = if skip_tx_id_indexing {
         0
     } else {
         config.kathy_messages
@@ -212,9 +212,9 @@ pub fn relayer_termination_invariants_met(
     }
 
     if matches!(submitter_type, SubmitterType::Lander)
-        && !submitter_metrics_invariants_met(params, RELAYER_METRICS_PORT, &hashmap! {})?
+        && !lander_metrics_invariants_met(params, RELAYER_METRICS_PORT, &hashmap! {})?
     {
-        log!("Submitter metrics invariants not met");
+        log!("Lander metrics invariants not met");
         return Ok(false);
     }
 
@@ -306,7 +306,7 @@ pub fn relayer_balance_check(starting_relayer_balance: f64) -> eyre::Result<bool
     Ok(true)
 }
 
-pub fn submitter_metrics_invariants_met(
+pub fn lander_metrics_invariants_met(
     params: RelayerTerminationInvariantParams,
     relayer_port: &str,
     filter_hashmap: &HashMap<&str, &str>,
@@ -364,12 +364,11 @@ pub fn submitter_metrics_invariants_met(
     .iter()
     .sum::<u32>();
 
-    if finalized_transactions < params.total_messages_expected {
-        log!(
-            "hyperlane_lander_finalized_transactions {} count, expected {}",
-            finalized_transactions,
-            params.total_messages_expected
-        );
+    // Checking that some transactions were finalized.
+    // Since we have batching for Ethereum with Lander, we cannot predict the exact number of
+    // finalized transactions.
+    if finalized_transactions == 0 {
+        log!("hyperlane_lander_finalized_transactions is zero, expected at least one",);
         return Ok(false);
     }
     if building_stage_queue_length != 0 {
@@ -396,17 +395,25 @@ pub fn submitter_metrics_invariants_met(
         );
         return Ok(false);
     }
-    if dropped_payloads != 0 {
+
+    // We expect that the number of dropped payloads is less than or equal to the total messages
+    // expected. Otherwise, it means that the relayer is dropping too many payloads.
+    // We cannot ensure that zero payloads are dropped because we have a random delivery failures
+    // simulation in the `TestTokenRecipient` contract. Even though we have a retry mechanism
+    // in place to simulate transactions, we still expect some payloads maybe dropped when
+    // a transaction is included in a block with hash ending in 0.
+    if dropped_payloads >= params.total_messages_expected {
         log!(
-            "hyperlane_lander_dropped_payloads {} count, expected {}",
+            "hyperlane_lander_dropped_payloads {} count, expected less than {}",
             dropped_payloads,
-            0
+            params.total_messages_expected
         );
         return Ok(false);
     }
-    if dropped_transactions != 0 {
+    // Dropped transactions should not exceed half of messages expected
+    if dropped_transactions > params.total_messages_expected.div_ceil(2) {
         log!(
-            "hyperlane_lander_dropped_transactions {} count, expected {}",
+            "hyperlane_lander_dropped_transactions {} count, expected less than {}",
             dropped_transactions,
             0
         );

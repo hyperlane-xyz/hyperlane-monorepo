@@ -28,10 +28,9 @@ pub struct BuildingStage {
 }
 
 impl BuildingStage {
-    #[instrument(skip(self), name = "BuildingStage::run")]
+    #[instrument(skip(self), name = "BuildingStage::run", fields(domain=%self.domain))]
     pub async fn run(&self) {
         loop {
-            self.update_metrics().await;
             // event-driven by the Building queue
             let payloads = self
                 .queue
@@ -39,25 +38,33 @@ impl BuildingStage {
                 .await;
             if payloads.is_empty() {
                 // wait for more payloads to arrive
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
                 continue;
             }
+            // note: this will set the queue length metric to `length - payloads.len()`,
+            // so worst case this will be lower by `max_batch_size`
+            self.update_metrics().await;
 
-            info!(?payloads, "Building transactions from payloads");
-            let tx_building_results = self.state.adapter.build_transactions(&payloads).await;
+            self.build_transactions(&payloads).await;
+        }
+    }
 
-            for tx_building_result in tx_building_results {
-                // push payloads that failed to be processed (but didn't fail simulation)
-                // to the back of the queue
-                if let Err(err) = self
-                    .handle_tx_building_result(tx_building_result.clone())
-                    .await
-                {
-                    error!(?err, payloads=?tx_building_result.payloads, "Error handling tx building result");
-                    let full_payloads =
-                        get_full_payloads_from_details(&payloads, &tx_building_result.payloads);
-                    self.queue.extend(full_payloads).await;
-                }
+    #[instrument(skip_all, fields(payload_and_message_ids = ?payloads.iter().map(|p| (p.details.uuid.to_string(), p.details.metadata.clone())).collect::<Vec<_>>()))]
+    async fn build_transactions(&self, payloads: &Vec<FullPayload>) {
+        info!(?payloads, "Building transactions from payloads");
+        let tx_building_results = self.state.adapter.build_transactions(payloads).await;
+
+        for tx_building_result in tx_building_results {
+            // push payloads that failed to be processed (but didn't fail simulation)
+            // to the back of the queue
+            if let Err(err) = self
+                .handle_tx_building_result(tx_building_result.clone())
+                .await
+            {
+                error!(?err, payloads=?tx_building_result.payloads, "Error handling tx building result");
+                let full_payloads =
+                    get_full_payloads_from_details(payloads, &tx_building_result.payloads);
+                self.queue.extend(full_payloads).await;
             }
         }
     }
@@ -89,13 +96,15 @@ impl BuildingStage {
             return Ok(());
         };
         info!(?tx, "Transaction built successfully");
+        self.state.store_tx(&tx).await;
+        // Only send tx to inclusion stage after we stored it
+        // This prevents TX from dropping in case the send operation fails
         call_until_success_or_nonretryable_error(
             || self.send_tx_to_inclusion_stage(tx.clone()),
             "Sending transaction to inclusion stage",
             &self.state,
         )
         .await?;
-        self.state.store_tx(&tx).await;
         Ok(())
     }
 

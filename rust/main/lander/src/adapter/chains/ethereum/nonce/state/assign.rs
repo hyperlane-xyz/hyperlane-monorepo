@@ -1,4 +1,4 @@
-use tracing::{debug, warn};
+use tracing::{debug, instrument, warn};
 
 use hyperlane_core::U256;
 
@@ -9,19 +9,24 @@ use super::super::status::NonceStatus;
 use super::NonceManagerState;
 
 impl NonceManagerState {
+    #[instrument(skip(self), fields(?tx_uuid, ?old_nonce))]
     pub(crate) async fn assign_next_nonce(
         &self,
         tx_uuid: &TransactionUuid,
-        nonce: &Option<U256>,
+        old_nonce: &Option<U256>,
     ) -> NonceResult<U256> {
-        if let Some(nonce) = nonce {
-            // If different nonce was assigned to the transaction,
-            // we clear the tracked nonce for the transaction first.
-            warn!(
-                ?nonce,
-                "Reassigning nonce to transaction, clearing currently tracked nonce"
-            );
-            self.clear_tracked_tx_uuid(nonce).await?;
+        if let Some(nonce) = old_nonce {
+            // Only clear nonce and tx_uuid linkage if the old_nonce is indeed associated with the tx_uuid in question
+            if *tx_uuid == self.get_tracked_tx_uuid(nonce).await? {
+                // If the different nonce was assigned to the transaction,
+                // we clear the tracked nonce for the transaction first.
+                warn!(
+                    ?nonce,
+                    "Reassigning nonce to transaction, clearing currently tracked nonce"
+                );
+                self.clear_tracked_tx_uuid(nonce).await?;
+                self.clear_tracked_tx_nonce(tx_uuid).await?;
+            }
         }
 
         let (finalized_nonce, upper_nonce) = self.get_boundary_nonces().await?;
@@ -38,7 +43,8 @@ impl NonceManagerState {
 
         if next_nonce == upper_nonce {
             // If we reached the upper nonce, we need to update it.
-            self.set_upper_nonce(&(next_nonce + 1)).await?;
+            self.set_upper_nonce(&(next_nonce.saturating_add(U256::one())))
+                .await?;
         }
 
         self.set_tracked_tx_uuid(&next_nonce, tx_uuid).await?;
@@ -46,6 +52,7 @@ impl NonceManagerState {
         Ok(next_nonce)
     }
 
+    #[instrument(skip(self), fields(?finalized_nonce, ?upper_nonce))]
     async fn identify_next_nonce(
         &self,
         finalized_nonce: Option<U256>,
@@ -61,13 +68,16 @@ impl NonceManagerState {
         let mut next_nonce = finalized_nonce;
 
         while next_nonce < upper_nonce {
-            next_nonce += U256::one();
+            next_nonce = next_nonce.saturating_add(U256::one());
 
             let tracked_tx_uuid = self.get_tracked_tx_uuid(&next_nonce).await?;
 
             if tracked_tx_uuid == TransactionUuid::default() {
                 // If the nonce is not tracked, we can use it.
-                debug!("There is no tracked transaction for nonce, reusing it");
+                debug!(
+                    ?next_nonce,
+                    "There is no tracked transaction for nonce, reusing it"
+                );
                 break;
             }
 

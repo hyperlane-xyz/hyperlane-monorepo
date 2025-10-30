@@ -5,6 +5,7 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   AgentConfig,
   ChainMap,
+  ChainMetadata,
   ChainTechnicalStack,
   CoreFactories,
   HyperlaneContracts,
@@ -25,8 +26,13 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { agentSpecificChainMetadataOverrides } from '../../config/environments/mainnet3/chains.js';
 import mainnet3GasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
 import testnet4GasPrices from '../../config/environments/testnet4/gasPrices.json' with { type: 'json' };
+import {
+  RelayerAppContextConfig,
+  RelayerConfigHelper,
+} from '../../src/config/agent/relayer.js';
 import { getCombinedChainsToScrape } from '../../src/config/agent/scraper.js';
 import {
   DeployEnvironment,
@@ -37,11 +43,12 @@ import {
   filterRemoteDomainMetadata,
   isEthereumProtocolChain,
   readJSONAtPath,
-  writeJsonAtPath,
+  writeAndFormatJsonAtPath,
 } from '../../src/utils/utils.js';
 import {
   Modules,
   getAddresses,
+  getAgentAppContextConfigJsonPath,
   getAgentConfig,
   getAgentConfigJsonPath,
   getArgs,
@@ -53,6 +60,7 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
   await writeAgentConfig(multiProvider, environment);
+  await writeAgentAppContexts(multiProvider, environment);
 }
 
 // Keep as a function in case we want to use it in the future
@@ -63,20 +71,29 @@ export async function writeAgentConfig(
   // Get gas prices for Cosmos chains.
   // Instead of iterating through `addresses`, which only includes EVM chains,
   // iterate through the environment chain names.
+
+  const envConfig = getEnvironmentConfig(environment);
   const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
   const environmentChains = envAgentConfig.environmentChainNames;
+  const registry =
+    environment !== 'test' ? await envConfig.getRegistry() : undefined;
+
+  // Build additional config for:
+  // - cosmos/cosmos native chains that require special gas price handling
+  // - any chains that have agent-specific overrides
   const additionalConfig = Object.fromEntries(
     await Promise.all(
-      environmentChains
-        .filter(
-          (chain) =>
-            chainIsProtocol(chain, ProtocolType.Cosmos) ||
-            chainIsProtocol(chain, ProtocolType.CosmosNative),
-        )
-        .map(async (chain) => {
+      environmentChains.map(async (chain) => {
+        let config: Partial<ChainMetadata> = {};
+
+        // Get Cosmos gas price if applicable
+        if (
+          chainIsProtocol(chain, ProtocolType.Cosmos) ||
+          chainIsProtocol(chain, ProtocolType.CosmosNative)
+        ) {
           try {
             const gasPrice = await getCosmosChainGasPrice(chain, multiProvider);
-            return [chain, { gasPrice }];
+            config.gasPrice = gasPrice;
           } catch (error) {
             rootLogger.error(`Error getting gas price for ${chain}:`, error);
             const { denom } = await multiProvider.getNativeToken(chain);
@@ -87,9 +104,27 @@ export async function writeAgentConfig(
                     .amount
                 : testnet4GasPrices[chain as keyof typeof testnet4GasPrices]
                     .amount;
-            return [chain, { gasPrice: { denom, amount } }];
+            config.gasPrice = { denom, amount };
           }
-        }),
+        }
+
+        // Merge agent-specific overrides with general overrides
+        // TODO: support testnet4 overrides (if we ever need to)
+        const agentSpecificOverrides =
+          agentSpecificChainMetadataOverrides[chain];
+        if (agentSpecificOverrides && registry) {
+          const chainMetadata = await registry.getChainMetadata(chain);
+          assert(chainMetadata, `Chain metadata not found for chain ${chain}`);
+          // Only care about blocks and transactionOverrides from the agent-specific overrides
+          const { blocks, transactionOverrides } = objMerge(
+            chainMetadata,
+            agentSpecificOverrides,
+          );
+          config = objMerge(config, { blocks, transactionOverrides });
+        }
+
+        return [chain, config];
+      }),
     ),
   );
 
@@ -197,28 +232,53 @@ export async function writeAgentConfig(
     additionalConfig,
   );
 
-  // Manually add contract addresses for Lumia chain
-  if (agentConfig.chains['lumia']) {
-    agentConfig.chains['lumia'] = {
-      ...agentConfig.chains['lumia'],
-      interchainGasPaymaster: '0x9024A3902B542C87a5C4A2b3e15d60B2f087Dc3E',
-      mailbox: '0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7',
-      merkleTreeHook: '0x9c44E6b8F0dB517C2c3a0478caaC5349b614F912',
-      validatorAnnounce: '0x989B7307d266151BE763935C856493D968b2affF',
-    };
-  }
-
   const filepath = getAgentConfigJsonPath(envNameToAgentEnv[environment]);
+  console.log(`Writing config to ${filepath}`);
   if (fs.existsSync(filepath)) {
     const currentAgentConfig: AgentConfig = readJSONAtPath(filepath);
     // Remove transactionOverrides from each chain in the agent config
     // To ensure all overrides are configured in infra code or the registry, and not in JSON
     for (const chainConfig of Object.values(currentAgentConfig.chains)) {
+      // special case for 0g as we want some agent specific overrides
+      if (chainConfig.name === 'zerogravity') {
+        continue;
+      }
       delete chainConfig.transactionOverrides;
     }
-    writeJsonAtPath(filepath, objMerge(currentAgentConfig, agentConfig));
+    writeAndFormatJsonAtPath(
+      filepath,
+      objMerge(currentAgentConfig, agentConfig),
+    );
   } else {
-    writeJsonAtPath(filepath, agentConfig);
+    writeAndFormatJsonAtPath(filepath, agentConfig);
+  }
+}
+
+export async function writeAgentAppContexts(
+  multiProvider: MultiProvider,
+  environment: DeployEnvironment,
+) {
+  const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
+  const relayerConfig = await new RelayerConfigHelper(
+    envAgentConfig,
+  ).buildConfig();
+
+  const agentConfigMap: RelayerAppContextConfig = {
+    metricAppContexts: relayerConfig.metricAppContexts,
+  };
+
+  const filepath = getAgentAppContextConfigJsonPath(
+    envNameToAgentEnv[environment],
+  );
+  console.log(`Writing config to ${filepath}`);
+  if (fs.existsSync(filepath)) {
+    const currentAgentConfigMap = readJSONAtPath(filepath);
+    writeAndFormatJsonAtPath(
+      filepath,
+      objMerge(currentAgentConfigMap, agentConfigMap),
+    );
+  } else {
+    writeAndFormatJsonAtPath(filepath, agentConfigMap);
   }
 }
 

@@ -46,8 +46,7 @@ impl CosmosAddress {
     /// - digest: H256 digest (hex representation of address)
     /// - prefix: Bech32 prefix
     /// - byte_count: Number of bytes to truncate the digest to. Cosmos addresses can sometimes
-    ///     be less than 32 bytes, so this helps to serialize it in bech32 with the appropriate
-    ///     length.
+    ///   be less than 32 bytes, so this helps to serialize it in bech32 with the appropriate length.
     pub fn from_h256(digest: H256, prefix: &str, byte_count: usize) -> ChainResult<Self> {
         // This is the hex-encoded version of the address
         let untruncated_bytes = digest.as_bytes();
@@ -56,7 +55,7 @@ impl CosmosAddress {
             return Err(Overflow.into());
         }
 
-        let remainder_bytes_start = untruncated_bytes.len() - byte_count;
+        let remainder_bytes_start = untruncated_bytes.len().saturating_sub(byte_count);
         // Left-truncate the digest to the desired length
         let bytes = &untruncated_bytes[remainder_bytes_start..];
 
@@ -112,7 +111,7 @@ impl FromStr for CosmosAddress {
 
 #[cfg(test)]
 pub mod test {
-    use hyperlane_core::utils::hex_or_base58_to_h256;
+    use hyperlane_core::utils::hex_or_base58_or_bech32_to_h256;
 
     use super::*;
 
@@ -130,7 +129,7 @@ pub mod test {
     #[test]
     fn test_bech32_decode_from_cosmos_key() {
         let hex_key = "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
-        let key = hex_or_base58_to_h256(hex_key).unwrap();
+        let key = hex_or_base58_or_bech32_to_h256(hex_key).unwrap();
         let prefix = "neutron";
         let addr =
             CosmosAddress::from_privkey(key.as_bytes(), prefix, &AccountAddressType::Bitcoin)
@@ -151,7 +150,7 @@ pub mod test {
     #[test]
     fn test_bech32_encode_from_h256() {
         let hex_key = "0x1b16866227825a5166eb44031cdcf6568b3e80b52f2806e01b89a34dc90ae616";
-        let key = hex_or_base58_to_h256(hex_key).unwrap();
+        let key = hex_or_base58_or_bech32_to_h256(hex_key).unwrap();
         let prefix = "dual";
         let addr =
             CosmosAddress::from_h256(key, prefix, 32).expect("Cosmos address creation failed");

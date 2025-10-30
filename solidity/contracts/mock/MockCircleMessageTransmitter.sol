@@ -21,9 +21,11 @@ contract MockCircleMessageTransmitter is
     using CctpMessageV2 for bytes29;
     using TypeCasts for address;
 
+    uint64 public nonce = 0;
     mapping(bytes32 => bool) processedNonces;
     MockToken token;
-    uint32 public version;
+    uint32 public override version;
+    uint32 public override localDomain = 0;
 
     constructor(MockToken _token) {
         token = _token;
@@ -122,10 +124,6 @@ contract MockCircleMessageTransmitter is
 
     function setVersion(uint32 _version) external {
         version = _version;
-    }
-
-    function localDomain() external view returns (uint32) {
-        return 0;
     }
 
     function replaceMessage(

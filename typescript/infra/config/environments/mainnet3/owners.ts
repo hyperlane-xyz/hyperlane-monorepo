@@ -2,7 +2,8 @@ import { ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { ethereumChainNames } from './chains.js';
-import { awIcas } from './governance/ica/aw.js';
+import { awIcasLegacy } from './governance/ica/_awLegacy.js';
+import { regularIcasLegacy } from './governance/ica/_regularLegacy.js';
 import { regularIcas } from './governance/ica/regular.js';
 import { awSafes } from './governance/safe/aw.js';
 import { regularSafes } from './governance/safe/regular.js';
@@ -23,8 +24,9 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => {
     const owner =
       regularIcas[local] ??
+      regularIcasLegacy[local] ??
       regularSafes[local] ??
-      awIcas[local] ??
+      awIcasLegacy[local] ??
       awSafes[local] ??
       DEPLOYER;
 
@@ -94,5 +96,14 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   },
   solaxy: {
     owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
+  },
+  noble: {
+    owner: 'TODO: configure noble owner',
+  },
+  celestia: {
+    owner: 'TODO: configure celestia owner',
+  },
+  radix: {
+    owner: 'account_rdx1280taxhhnuek02y59yapsg4kjtux954qkyufpwmy4dlfcxdrjzr7fj',
   },
 };

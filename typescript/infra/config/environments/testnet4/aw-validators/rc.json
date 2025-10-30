@@ -1,13 +1,6 @@
 {
-  "weavevmtestnet": {
+  "somniatestnet": {
     "validators": []
-  },
-  "alfajores": {
-    "validators": [
-      "0xace978aaa61d9ee44fe3ab147fd227e0e66b8909",
-      "0x6c8bfdfb8c40aba10cc9fb2cf0e3e856e0e5dbb3",
-      "0x54c65eb7677e6086cdde3d5ccef89feb2103a11d"
-    ]
   },
   "bsctestnet": {
     "validators": [

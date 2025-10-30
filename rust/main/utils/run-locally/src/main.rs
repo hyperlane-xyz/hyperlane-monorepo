@@ -40,7 +40,7 @@ use utils::{get_matching_lines, get_ts_infra_path};
 
 use crate::{
     config::Config,
-    ethereum::{start_anvil, termination_invariants::termination_invariants_met},
+    ethereum::{ethereum_termination_invariants::termination_invariants_met, start_anvil},
     invariants::post_startup_invariants,
     metrics::agent_balance_sum,
     utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
@@ -66,6 +66,9 @@ mod cosmosnative;
 
 #[cfg(feature = "starknet")]
 mod starknet;
+
+#[cfg(feature = "radix")]
+mod radix;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
     let dir = Path::new("/tmp/test_logs");

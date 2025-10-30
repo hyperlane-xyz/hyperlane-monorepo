@@ -9,7 +9,8 @@ import { isObjEmpty } from '@hyperlane-xyz/utils';
 
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
-import { HelmManager } from '../utils/helm.js';
+import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../utils/consts.js';
+import { HelmManager, getHelmReleaseName } from '../utils/helm.js';
 import { getInfraPath, readYaml } from '../utils/utils.js';
 
 export class RebalancerHelmManager extends HelmManager {
@@ -32,6 +33,18 @@ export class RebalancerHelmManager extends HelmManager {
   }
 
   async runPreflightChecks(localConfigPath: string) {
+    const monitorReleaseName = getHelmReleaseName(
+      this.warpRouteId,
+      WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
+    );
+    if (
+      await HelmManager.doesHelmReleaseExist(monitorReleaseName, this.namespace)
+    ) {
+      throw new Error(
+        `Warp route monitor for ${this.warpRouteId} already exists. Only one of rebalancer or monitor is allowed.`,
+      );
+    }
+
     const warpCoreConfig = getWarpCoreConfig(this.warpRouteId);
     if (!warpCoreConfig) {
       throw new Error(
@@ -62,7 +75,7 @@ export class RebalancerHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: 'a546be2-20250602-142949',
+        tag: 'e0f2a19-20251021-202631',
       },
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
@@ -76,24 +89,10 @@ export class RebalancerHelmManager extends HelmManager {
   }
 
   get helmReleaseName() {
-    return RebalancerHelmManager.getHelmReleaseName(this.warpRouteId);
-  }
-
-  static getHelmReleaseName(warpRouteId: string): string {
-    let name = `${RebalancerHelmManager.helmReleasePrefix}-${warpRouteId
-      .toLowerCase()
-      .replaceAll('/', '-')}`;
-
-    // 52 because the max label length is 63, and there is an auto appended 11 char
-    // suffix, e.g. `controller-revision-hash=hyperlane-warp-route-tia-mantapacific-neutron-566dc75599`
-    const maxChars = 52;
-
-    // Max out length, and it can't end with a dash.
-    if (name.length > maxChars) {
-      name = name.slice(0, maxChars);
-      name = name.replace(/-+$/, '');
-    }
-    return name;
+    return getHelmReleaseName(
+      this.warpRouteId,
+      RebalancerHelmManager.helmReleasePrefix,
+    );
   }
 
   // TODO: allow for a rebalancer to be uninstalled

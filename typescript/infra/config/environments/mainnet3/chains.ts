@@ -12,10 +12,38 @@ export const ethereumChainNames = supportedChainNames.filter(
   isEthereumProtocolChain,
 );
 
+// Agent specific chain metadata overrides
+// Such as minGasPrice, minFeePerGas, minPriorityFeePerGas
+export const agentSpecificChainMetadataOverrides: ChainMap<
+  Partial<ChainMetadata>
+> = {
+  incentiv: {
+    transactionOverrides: {
+      minGasPrice: 1 * 10 ** 9, // 1 gwei
+      minFeePerGas: 1 * 10 ** 9, // 1 gwei
+      minPriorityFeePerGas: 1 * 10 ** 9, // 1 gwei
+    },
+  },
+  ronin: {
+    transactionOverrides: {
+      minGasPrice: 20 * 10 ** 9, // 20 gwei
+      minFeePerGas: 20 * 10 ** 9, // 20 gwei
+      minPriorityFeePerGas: 20 * 10 ** 9, // 20 gwei
+    },
+  },
+  ink: {
+    transactionOverrides: {
+      minGasPrice: 1, // 1 wei
+      minFeePerGas: 1, // 1 wei
+      minPriorityFeePerGas: 1, // 1 wei
+    },
+  },
+};
+
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsc: {
     transactionOverrides: {
-      gasPrice: 3 * 10 ** 9, // 3 gwei
+      gasPrice: 1 * 10 ** 8, // 0.1 gwei
     },
   },
   polygonzkevm: {
@@ -48,12 +76,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   morph: {
     transactionOverrides: {
       gasPrice: 1 * 10 ** 6, // 0.001 gwei
-    },
-  },
-  rootstockmainnet: {
-    transactionOverrides: {
-      gasPrice: 7 * 10 ** 7, // 0.07 gwei
-      // gasLimit: 6800000, // set when deploying contracts
     },
   },
   // Deploy-only overrides, set when deploying contracts
@@ -89,11 +111,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     // to large swings in gas prices.
   //     maxFeePerGas: 800 * 10 ** 9, // 800 gwei
   //     maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
-  //   },
-  // },
-  // unitzero: {
-  //   transactionOverrides: {
-  //     gasPrice: 600 * 10 ** 9, // 600 gwei
   //   },
   // },
   // matchain: {

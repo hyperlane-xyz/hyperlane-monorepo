@@ -206,14 +206,13 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
     // Divide the keys between the configmap and the env config.
     const configMapConfig: RelayerConfigMapConfig = {
       addressBlacklist: config.addressBlacklist,
-      metricAppContexts: config.metricAppContexts,
       gasPaymentEnforcement: config.gasPaymentEnforcement,
       ismCacheConfigs: config.ismCacheConfigs,
     };
-    const envConfig = objOmitKeys<RelayerConfig>(
-      config,
-      Object.keys(configMapConfig),
-    ) as RelayerEnvConfig;
+    const envConfig = objOmitKeys<RelayerConfig>(config, [
+      ...Object.keys(configMapConfig),
+      'metricAppContexts',
+    ]) as RelayerEnvConfig;
 
     values.hyperlane.relayer = {
       enabled: true,
@@ -250,15 +249,6 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       value: 'relayer',
       effect: 'NoSchedule',
     });
-
-    if (this.context.includes('vanguard')) {
-      values.tolerations.push({
-        key: 'context-family',
-        operator: 'Equal',
-        value: 'vanguard',
-        effect: 'NoSchedule',
-      });
-    }
 
     return values;
   }

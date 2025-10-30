@@ -4,6 +4,7 @@ import {
   ERC20,
   ERC20__factory,
   HypERC20Collateral,
+  IERC4626__factory,
   IXERC20Lockbox__factory,
   Ownable,
   Ownable__factory,
@@ -18,13 +19,15 @@ import { TokenMismatchViolation } from '../deploy/types.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
 import { ProxiedFactories } from '../router/types.js';
 import { ChainName } from '../types.js';
+import { verifyScale } from '../utils/decimals.js';
 
 import { HypERC20App } from './app.js';
-import { TokenType } from './config.js';
+import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import { HypERC20Factories } from './contracts.js';
 import {
   HypTokenRouterConfig,
   TokenMetadata,
+  isCctpTokenConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,
   isSyntheticTokenConfig,
@@ -145,7 +148,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       try {
         await this.multiProvider.estimateGas(chain, {
           to: hypToken.address,
-          from: await this.multiProvider.getSignerAddress(chain),
+          from: NON_ZERO_SENDER_ADDRESS,
           value: BigNumber.from(1),
         });
       } catch {
@@ -237,7 +240,8 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       decimals = await (hypToken as unknown as ERC20).decimals();
     } else if (
       isCollateralTokenConfig(expectedConfig) ||
-      isXERC20TokenConfig(expectedConfig)
+      isXERC20TokenConfig(expectedConfig) ||
+      isCctpTokenConfig(expectedConfig)
     ) {
       const collateralToken = await this.getCollateralToken(chain);
       decimals = await collateralToken.decimals();
@@ -256,6 +260,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
     if (
       isCollateralTokenConfig(expectedConfig) ||
+      isCctpTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig)
     ) {
       const provider = this.multiProvider.getProvider(chain);
@@ -265,6 +270,18 @@ export class HypERC20Checker extends ProxiedRouterChecker<
           expectedConfig.token,
           provider,
         ).callStatic.ERC20();
+        collateralToken = ERC20__factory.connect(
+          collateralTokenAddress,
+          provider,
+        );
+      } else if (
+        expectedConfig.type === TokenType.collateralVault ||
+        expectedConfig.type === TokenType.collateralVaultRebase
+      ) {
+        const collateralTokenAddress = await IERC4626__factory.connect(
+          expectedConfig.token,
+          provider,
+        ).callStatic.asset();
         collateralToken = ERC20__factory.connect(
           collateralTokenAddress,
           provider,
@@ -286,26 +303,75 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     chain: ChainName,
     hypToken: TokenRouter,
     chainDecimals: Record<ChainName, number | undefined>,
-    decimalType: string,
+    decimalType: 'actual' | 'config',
     nonEmpty: boolean,
   ) {
-    const uniqueChainDecimals = new Set(
-      Object.values(chainDecimals).filter((decimals) => !!decimals),
+    const definedDecimals = Object.values(chainDecimals).filter(
+      (decimals): decimals is number => decimals !== undefined,
     );
-    if (
-      uniqueChainDecimals.size > 1 ||
-      (nonEmpty && uniqueChainDecimals.size === 0)
-    ) {
+    const uniqueChainDecimals = new Set(definedDecimals);
+
+    // Disallow partial specification: some chains define decimals while others don't
+    const totalChains = Object.keys(chainDecimals).length;
+    const definedCount = definedDecimals.length;
+    if (definedCount > 0 && definedCount < totalChains) {
       const violation: TokenMismatchViolation = {
         type: 'TokenDecimalsMismatch',
         chain,
-        expected: `${
-          nonEmpty ? 'non-empty and ' : ''
-        }consistent ${decimalType} decimals`,
-        actual: JSON.stringify(chainDecimals),
+        expected: `consistent ${decimalType} decimals specified across all chains (considering scale)`,
+        actual: JSON.stringify(chainDecimals, (_k, v) =>
+          v === undefined ? 'undefined' : v,
+        ),
         tokenAddress: hypToken.address,
       };
       this.addViolation(violation);
+      return;
     }
+
+    // If we require non-empty and nothing is defined, report immediately
+    if (nonEmpty && uniqueChainDecimals.size === 0) {
+      const violation: TokenMismatchViolation = {
+        type: 'TokenDecimalsMismatch',
+        chain,
+        expected: `non-empty and consistent ${decimalType} decimals (considering scale)`,
+        actual: JSON.stringify(chainDecimals, (_k, v) =>
+          v === undefined ? 'undefined' : v,
+        ),
+        tokenAddress: hypToken.address,
+      };
+      this.addViolation(violation);
+      return;
+    }
+
+    // If unscaled decimals agree, no need to check scale
+    if (uniqueChainDecimals.size <= 1) return;
+
+    // Build a TokenMetadata map from all chains; at this point decimals are defined on all chains
+    const metadataMap = new Map<string, TokenMetadata>(
+      Object.entries(chainDecimals).map(([chn, decimals]) => [
+        chn,
+        {
+          name: this.configMap[chn]?.name ?? 'unknown',
+          symbol: this.configMap[chn]?.symbol ?? 'unknown',
+          decimals: decimals as number,
+          scale: this.configMap[chn]?.scale ?? 1,
+        },
+      ]),
+    );
+
+    if (verifyScale(metadataMap)) {
+      return; // Decimals are consistent when accounting for scale
+    }
+
+    const violation: TokenMismatchViolation = {
+      type: 'TokenDecimalsMismatch',
+      chain,
+      expected: `consistent ${decimalType} decimals (considering scale)`,
+      actual: JSON.stringify(chainDecimals, (_k, v) =>
+        v === undefined ? 'undefined' : v,
+      ),
+      tokenAddress: hypToken.address,
+    };
+    this.addViolation(violation);
   }
 }

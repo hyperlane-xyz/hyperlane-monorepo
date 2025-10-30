@@ -2,9 +2,11 @@ import { zeroAddress } from 'viem';
 
 import {
   Address,
+  AltVM,
   ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
+  assert,
   deepCopy,
   intersection,
   isAddressEvm,
@@ -18,7 +20,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
+import { AltVMHookReader } from '../hook/AltVMHookReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
@@ -34,6 +38,7 @@ import {
   DerivedWarpRouteDeployConfig,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
+  OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   isMovableCollateralTokenConfig,
@@ -45,9 +50,18 @@ import {
 const getGasConfig = (
   warpDeployConfig: WarpRouteDeployConfig,
   chain: string,
-): string =>
-  warpDeployConfig[chain].gas?.toString() ||
-  gasOverhead(warpDeployConfig[chain].type).toString();
+): string => {
+  const chainDeployConfig = warpDeployConfig[chain];
+  assert(
+    chainDeployConfig,
+    `Deploy config not found for chain ${chain}. Unable to get gas config`,
+  );
+
+  return (
+    chainDeployConfig.gas?.toString() ||
+    gasOverhead(chainDeployConfig.type).toString()
+  );
+};
 
 /**
  * Returns default router addresses and gas values for cross-chain communication.
@@ -64,15 +78,23 @@ export function getDefaultRemoteRouterAndDestinationGasConfig(
   const remoteRouters: RemoteRouters = {};
   const destinationGas: DestinationGas = {};
 
-  const otherChains = multiProvider
-    .getRemoteChains(chain)
-    .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
+  const otherChains = multiProvider.getRemoteChains(chain).filter(
+    (remoteChain) =>
+      // Include chains that specify foreignDeployment so that they can be enrolled
+      // in the current deployment/update
+      Object.keys(deployedRoutersAddresses).includes(remoteChain) ||
+      warpDeployConfig[remoteChain]?.foreignDeployment,
+  );
 
   for (const otherChain of otherChains) {
     const domainId = multiProvider.getDomainId(otherChain);
 
     remoteRouters[domainId] = {
-      address: deployedRoutersAddresses[otherChain],
+      address:
+        // Include chains that specify foreignDeployment so that the gas configuration
+        // can be in the current deployment/update
+        deployedRoutersAddresses[otherChain] ??
+        warpDeployConfig[otherChain].foreignDeployment,
     };
 
     destinationGas[domainId] = getGasConfig(warpDeployConfig, otherChain);
@@ -109,12 +131,14 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
+  altVmProvider: AltVM.IProviderFactory;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
+    altVmProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
@@ -190,23 +214,48 @@ export async function expandWarpDeployConfig(params: {
 
       chainConfig.destinationGas = formattedDestinationGas;
 
-      const isEVMChain =
-        multiProvider.getProtocol(chain) === ProtocolType.Ethereum;
+      const protocol = multiProvider.getProtocol(chain);
+      const isEVMChain = protocol === ProtocolType.Ethereum;
 
-      // Expand EVM warpDeployConfig virtual to the control states
+      // Expand EVM warpDeployConfig virtual to the control states (states that we expect)
+      // For contractVerificationStatus, all values should be 'verified'
+      // For ownerStatus, all values should be 'active or 'gnosisSafe'
       if (
-        expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus &&
-        multiProvider.getProtocol(chain) === ProtocolType.Ethereum
+        isEVMChain &&
+        expandedOnChainWarpConfig?.[chain]?.contractVerificationStatus
       ) {
         // For most cases, we set to Verified
         chainConfig.contractVerificationStatus = objMap(
           expandedOnChainWarpConfig[chain].contractVerificationStatus ?? {},
           (_, status) => {
-            // Skipped for local e2e testing
-            if (status === ContractVerificationStatus.Skipped)
-              return ContractVerificationStatus.Skipped;
+            switch (status) {
+              case ContractVerificationStatus.Skipped:
+              case ContractVerificationStatus.Verified:
+                return status; // Pass through the status so diffs will be shown
+              case ContractVerificationStatus.Unverified:
+              case ContractVerificationStatus.Error:
+                return ContractVerificationStatus.Verified;
+            }
+          },
+        );
+      }
 
-            return ContractVerificationStatus.Verified;
+      if (isEVMChain && expandedOnChainWarpConfig?.[chain]?.ownerStatus) {
+        // For 'active' or 'gnosis-safe', we set their actual state as the control because they are both acceptable.
+        // For other cases, we expect 'active'
+        chainConfig.ownerStatus = objMap(
+          expandedOnChainWarpConfig[chain].ownerStatus ?? {},
+          (_, status) => {
+            switch (status) {
+              // Skipped for local e2e testing
+              case OwnerStatus.Skipped:
+              case OwnerStatus.Active:
+              case OwnerStatus.GnosisSafe:
+                return status; // Pass through the status so diffs will be shown
+              case OwnerStatus.Error:
+              case OwnerStatus.Inactive:
+                return OwnerStatus.Active;
+            }
           },
         );
       }
@@ -214,28 +263,45 @@ export async function expandWarpDeployConfig(params: {
       // Expand the hook config only if we have an explicit config in the deploy config
       // and the current chain is an EVM one.
       // if we have an address we leave it like that to avoid deriving
-      if (
-        isEVMChain &&
-        chainConfig.hook &&
-        typeof chainConfig.hook !== 'string'
-      ) {
-        const reader = new EvmHookReader(multiProvider, chain);
+      if (chainConfig.hook && typeof chainConfig.hook !== 'string') {
+        switch (protocol) {
+          case ProtocolType.Ethereum: {
+            const reader = new EvmHookReader(multiProvider, chain);
+            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+            break;
+          }
+          default: {
+            const provider = await altVmProvider.get(chain);
 
-        chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+            const reader = new AltVMHookReader(multiProvider, provider);
+            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+          }
+        }
       }
 
       // Expand the ism config only if we have an explicit config in the deploy config
       // if we have an address we leave it like that to avoid deriving
       if (
-        isEVMChain &&
         chainConfig.interchainSecurityModule &&
         typeof chainConfig.interchainSecurityModule !== 'string'
       ) {
-        const reader = new EvmIsmReader(multiProvider, chain);
+        switch (protocol) {
+          case ProtocolType.Ethereum: {
+            const reader = new EvmIsmReader(multiProvider, chain);
+            chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
+              chainConfig.interchainSecurityModule,
+            );
+            break;
+          }
+          default: {
+            const provider = await altVmProvider.get(chain);
 
-        chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
-          chainConfig.interchainSecurityModule,
-        );
+            const reader = new AltVMIsmReader(multiProvider, provider);
+            chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
+              chainConfig.interchainSecurityModule,
+            );
+          }
+        }
       }
 
       return chainConfig;

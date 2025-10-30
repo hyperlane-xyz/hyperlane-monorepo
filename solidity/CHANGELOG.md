@@ -1,5 +1,165 @@
 # @hyperlane-xyz/core
 
+## 9.0.16
+
+### Patch Changes
+
+- Updated dependencies [5a4e22d34]
+  - @hyperlane-xyz/utils@19.4.0
+
+## 9.0.15
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.3.0
+
+## 9.0.14
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.2.0
+
+## 9.0.13
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.1.1
+
+## 9.0.12
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.1.0
+
+## 9.0.11
+
+### Patch Changes
+
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/utils@19.0.0
+
+## 9.0.10
+
+### Patch Changes
+
+- a5728818f: Updated import statements for ProxyAdmin and TransparentUpgradeableProxy contracts as they weren't included in the build artifacts used for verification with the old import
+- Updated dependencies [c41bc3b93]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [6b8419370]
+  - @hyperlane-xyz/utils@18.3.0
+
+## 9.0.9
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@18.2.0
+
+## 9.0.8
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@18.1.0
+
+## 9.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfc0eb2a7]
+  - @hyperlane-xyz/utils@18.0.0
+
+## 9.0.6
+
+### Patch Changes
+
+- Updated dependencies [8c15edc67]
+- Updated dependencies [e0bda316a]
+  - @hyperlane-xyz/utils@17.0.0
+
+## 9.0.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.2.0
+
+## 9.0.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.1.1
+
+## 9.0.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.1.0
+
+## 9.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.0.0
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [a33c8abd4]
+  - @hyperlane-xyz/utils@15.0.0
+
+## 9.0.0
+
+### Major Changes
+
+- 155f5a5e8: Remove old liquidity layer contracts
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@14.4.0
+
+## 8.1.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@14.3.0
+
+## 8.1.1
+
+### Patch Changes
+
+- c177c4733: Remove absolute imports. Fixes compilation for users who import from files under `solidity/contracts`.
+  - @hyperlane-xyz/utils@14.2.0
+
+## 8.1.0
+
+### Minor Changes
+
+- ecaa4ef90: Add ownerStatus virtual config to `warp check`, which checks the proxy, implementation, and proxy admin owners. Add ISafe and IOwnerManager. Also, refactor contractVerificationStatus slightly
+
+### Patch Changes
+
+- bd91094c3: Export CONTRACTS_PACKAGE_VERSION from core package.
+- 04fc563f4: Fix TokenBridgeCCTP.verify burn message sender enforcement
+  - @hyperlane-xyz/utils@14.1.0
+
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/utils@14.0.0
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [0ec92f775]
+- Updated dependencies [ec8d196d9]
+- Updated dependencies [bacf16a80]
+  - @hyperlane-xyz/utils@13.4.0
+
 ## 8.0.0
 
 ### Major Changes

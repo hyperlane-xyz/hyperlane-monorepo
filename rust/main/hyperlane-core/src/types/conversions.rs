@@ -50,7 +50,7 @@ pub fn bytes_to_h512(data: &[u8]) -> H512 {
     }
 
     let mut buf = [0; 64];
-    buf[64 - data.len()..64].copy_from_slice(data);
+    buf[64usize.saturating_sub(data.len())..64].copy_from_slice(data);
 
     H512::from_slice(&buf)
 }

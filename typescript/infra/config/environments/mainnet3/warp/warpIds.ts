@@ -3,18 +3,19 @@ export enum WarpRouteIds {
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
   RenzoEZETH = 'EZETH/renzo-prod',
   RenzoEZETHSTAGE = 'EZETHSTAGE/renzo-stage',
+  RadixUSDC = 'USDC/radix',
   ArbitrumBaseEnduranceUSDC = 'USDC/arbitrum-base-endurance',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
-  ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
-  ArbitrumTreasureMAGIC = 'MAGIC/arbitrum-treasure',
+  ArbitrumNeutronTIA = 'TIA/arbitrum-celestia-neutron',
   ArtelaBaseSolanaART = 'ART/artela-base-solanamainnet',
   BscEthereumLumiaPrismPNDR = 'PNDR/bsc-ethereum-lumiaprism',
   BaseSolanamainnetTONY = 'TONY/base-solanamainnet',
+  CarrChainCARR = 'CARR/carrchain',
   ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP = 'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
-  SolanamainnetTrumpchainTRUMP = 'TRUMP/solanamainnet-trumpchain',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
   EclipseEthereumSolanaUSDC = 'USDC/eclipsemainnet-ethereum-solanamainnet',
+  EclipseUSDCSTAGE = 'USDCSTAGE/eclipsemainnet',
   EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
   EclipseEthereumTETH = 'tETH/eclipsemainnet-ethereum',
   EclipseEthereumWBTC = 'WBTC/eclipsemainnet-ethereum',
@@ -77,18 +78,19 @@ export enum WarpRouteIds {
   SolanaSonicsvmSSOL = 'sSOL/solanamainnet-sonicsvm',
   SolanaSonicsvmLrtsSOL = 'lrtsSOL/solanamainnet-sonicsvm',
   SolanaSonicsvmSonicSOL = 'sonicSOL/solanamainnet-sonicsvm',
-  EthereumSolanaTreasureSMOL = 'SMOL/ethereum-solanamainnet-treasure',
-  EclipseEthereumES = 'ES/eclipsemainnet-ethereum',
+  EclipseEthereumES = 'ES/eclipse',
   BaseSolanaSophonCDX = 'CDX/base-solanamainnet-sophon',
   ArbitrumSolanaLOGX = 'LOGX/arbitrum-solanamainnet',
   oUSDT = 'oUSDT/production',
   oUSDTSTAGE = 'oUSDT/staging',
+  oXAUT = 'oXAUT/production',
   HyperevmSolanaSOL = 'SOL/hyperevm-solanamainnet',
   MintSolanaMINT = 'MINT/mint-solanamainnet',
   EthereumUnichainPumpBTC = 'pumpBTCuni/ethereum-unichain',
   ArbitrumBaseEthereumLumiaprismOptimismPolygonETH = 'ETH/arbitrum-base-ethereum-lumiaprism-optimism-polygon',
   BscHyperevmEnzoBTC = 'enzoBTC/bsc-hyperevm',
   BscHyperevmSTBTC = 'stBTC/bsc-hyperevm',
+  MitosisMITO = 'MITO/mitosis',
   // Soon Routes
   SolanaSoonAi16z = 'ai16z/solanamainnet-soon',
   SolanaSoonELIZA = 'ELIZA/solanamainnet-soon',
@@ -100,8 +102,28 @@ export enum WarpRouteIds {
   SolanaSoonGOAT = 'GOAT/solanamainnet-soon',
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
-  // Not present in the registry
-  // TestnetCCTP = 'USDC/arbitrumsepolia-basesepolia-optimismsepolia-sepolia-unichainsepolia',
+  LumiaUSDC = 'USDC/lumia',
+  MatchainUSDC = 'USDC/matchain',
+  SubtensorUSDC = 'USDC/subtensor',
+  ParadexUSDC = 'USDC/paradex',
+
+  SonicSVMMoney = 'MONEY/sonicsvm',
+
+  PulsechainUSDC = 'USDC/pulsechain',
+  ElectroneumUSDC = 'USDC/electroneum',
+
+  GalacticaGNET = 'GNET/galactica',
+
+  SolaxyUSDC = 'USDC/solaxy',
+
+  MantraUSDC = 'USDC/mantra',
+
+  IncentivUSDC = 'USDC/incentiv',
+
+  LitchainLITKEY = 'LITKEY/litchain',
+
+  MainnetCCTP = 'USDC/mainnet-cctp',
+  TestnetCCTP = 'USDC/testnet-cctp',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',

@@ -20,6 +20,7 @@ import {
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   ITokenBridge__factory,
+  IFiatToken__factory,
   IXERC20,
   IXERC20VS,
   IXERC20VS__factory,
@@ -47,16 +48,19 @@ import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
 import {
+  IHypCollateralFiatAdapter,
   IHypTokenAdapter,
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
   IMovableCollateralRouterAdapter,
   ITokenAdapter,
+  IXERC20Adapter,
   IXERC20VSAdapter,
   InterchainGasQuote,
   RateLimitMidPoint,
   TransferParams,
   TransferRemoteParams,
+  xERC20Limits,
 } from './ITokenAdapter.js';
 
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
@@ -301,7 +305,7 @@ export class EvmHypCollateralAdapter
     );
   }
 
-  protected async getWrappedTokenAddress(): Promise<Address> {
+  async getWrappedTokenAddress(): Promise<Address> {
     if (!this.wrappedTokenAddress) {
       this.wrappedTokenAddress = await this.collateralContract.token();
     }
@@ -471,7 +475,7 @@ export class EvmMovableCollateralAdapter
 
 export class EvmHypCollateralFiatAdapter
   extends EvmHypCollateralAdapter
-  implements IHypTokenAdapter<PopulatedTransaction>
+  implements IHypCollateralFiatAdapter<PopulatedTransaction>
 {
   /**
    * Note this may be inaccurate, as this returns the total supply
@@ -481,6 +485,17 @@ export class EvmHypCollateralFiatAdapter
   override async getBridgedSupply(): Promise<bigint> {
     const wrapped = await this.getWrappedTokenAdapter();
     return wrapped.getTotalSupply();
+  }
+
+  async getMintLimit(): Promise<bigint> {
+    const wrappedToken = await this.getWrappedTokenAddress();
+    const fiatToken = IFiatToken__factory.connect(
+      wrappedToken,
+      this.getProvider(),
+    );
+    const limit = await fiatToken.minterAllowance(this.addresses.token);
+
+    return limit.toBigInt();
   }
 }
 
@@ -843,6 +858,50 @@ export class EvmHypNativeAdapter
       {
         value,
       },
+    );
+  }
+
+  override async getBridgedSupply(): Promise<bigint | undefined> {
+    const balance = await this.getProvider().getBalance(this.addresses.token);
+    return BigInt(balance.toString());
+  }
+}
+
+export class EvmXERC20Adapter
+  extends EvmTokenAdapter
+  implements IXERC20Adapter<PopulatedTransaction>
+{
+  xERC20: IXERC20;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.xERC20 = IXERC20__factory.connect(addresses.token, this.getProvider());
+  }
+
+  async getLimits(bridge: Address): Promise<xERC20Limits> {
+    const mint = await this.xERC20.mintingMaxLimitOf(bridge);
+    const burn = await this.xERC20.burningMaxLimitOf(bridge);
+
+    return {
+      mint: BigInt(mint.toString()),
+      burn: BigInt(burn.toString()),
+    };
+  }
+
+  async populateSetLimitsTx(
+    bridge: Address,
+    mint: bigint,
+    burn: bigint,
+  ): Promise<PopulatedTransaction> {
+    return this.xERC20.populateTransaction.setLimits(
+      bridge,
+      mint.toString(),
+      burn.toString(),
     );
   }
 }

@@ -1,5 +1,132 @@
 # @hyperlane-xyz/cli
 
+## 19.4.0
+
+### Minor Changes
+
+- 4011a4561: Fix bug that prevented the warp route ism to be set to the 0 address and include logic to update a pausable ism as it was missing
+
+## 19.3.0
+
+## 19.2.0
+
+### Minor Changes
+
+- 3181c49c7: fix bug related to cli throwing error after trying to retrieve a submitter config for a chain where it wasn't defined if the chain was not an extension
+
+## 19.1.1
+
+## 19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- e42a0e8e1: feat: radix support for the cli
+- 8eab305bd: feat: add altvm file submitter
+- 32479e139: feat: register AltVM signer & provider factories
+
+### Minor Changes
+
+- 9e5dbfdf1: Update `hyperlane warp send` to include `--chains` parameter to input which chains to send to
+- 6c97a305d: Use only rebalancer config chains when resolving warp rebalance command
+- b076393b5: Remove inflight guard from rebalancer
+
+### Patch Changes
+
+- 70354d6d9: Restore foreignDeployment field behaviour to allow enrollment of unsupported chains during deployment
+
+## 18.3.0
+
+### Minor Changes
+
+- 2b16904f8: Dont check for token collateralAddressOrDenom to enable HypNative router collateral balance reads
+- 571901a6d: Fix warp read crashing when providing the `--warpRouteId` flag
+
+### Patch Changes
+
+- a5728818f: Fixed pre deploy balance check logic that attempted to convert to bignumber decimal numbers
+
+## 18.2.0
+
+### Minor Changes
+
+- dfa9d368c: updated command context initialization logic to simplify signer configuration and remove private usage assumption
+
+## 18.1.0
+
+## 18.0.0
+
+### Major Changes
+
+- 552b253b9: deprecated dry-run support in the cli in favour of `hyperlane warp fork` and `hyperlane fork` commands
+
+## 17.0.0
+
+### Minor Changes
+
+- dfa883e24: Fixes chain resolver for `hyperlane submit` by adding the STRATEGY enum into the chain resolver switch.
+
+## 16.2.0
+
+### Patch Changes
+
+- db55c3e00: fix: parse private keys as string instead of number
+
+## 16.1.1
+
+## 16.1.0
+
+## 16.0.0
+
+### Minor Changes
+
+- 3fac22334: Fix FileSubmitterStrategy to correctly append a transaction file
+- a2596f0d9: Add GET `warp-route/core` to HTTP Registry Server
+
+## 15.0.0
+
+### Minor Changes
+
+- 2bc17e200: Update submit command to be able to handle transaction file of multiple chains
+- 87213a66d: Update `warp fork` to start up an HttpRegistry
+- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additional updates to types related to these changes.
+
+### Patch Changes
+
+- e407e8bae: Gracefully continue checking delivery of all messages even if one delivery check fails.
+
+## 14.4.0
+
+## 14.3.0
+
+### Patch Changes
+
+- b5174ada7: Fix strategy flag propagation
+
+## 14.2.0
+
+## 14.1.0
+
+## 14.0.0
+
+### Major Changes
+
+- 66c13b539: Updated ICA transaction support for allowing the CLI to send them when provided with the appropriate strategy config
+
+## 13.4.0
+
+### Minor Changes
+
+- 5f60deed3: add cosmos warp read logic in sdk
+- 83c628e2e: Update registry dependency.
+- e48e5346f: add warp fork and fork commands
+- 545324a57: updates the warp core output file logic to use the input file name as seed for the filename when a warp id is not provided
+
+### Patch Changes
+
+- f6256b351: fix: use consistent warp route selector for all warp commands
+
 ## 13.3.0
 
 ### Minor Changes
