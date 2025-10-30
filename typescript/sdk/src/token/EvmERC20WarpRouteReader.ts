@@ -875,6 +875,13 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       ),
     );
 
+    // Remove unset domains from the output
+    const filteredOutputAssets = objFilter(
+      outputAssets,
+      (_domainId, assetAddress): assetAddress is string =>
+        !isZeroish(assetAddress),
+    );
+
     const feeParamsByDomain = await promiseObjAll(
       objMap(arrayToObject(domains.map(String)), async (domainId, _) => {
         const [fee, deadline, signature] =
@@ -888,30 +895,27 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       }),
     );
 
+    // Remove unset fee params from the output
+    const filteredFeeParamsByDomain = objFilter(
+      feeParamsByDomain,
+      (
+        _domainId,
+        feeConfig,
+      ): feeConfig is EverclearEthBridgeTokenConfig['everclearFeeParams'][number] => {
+        // if all the fields have their default value then the fee config for the
+        // current domain is unset
+        return !(
+          feeConfig.deadline === 0 &&
+          feeConfig.fee === 0 &&
+          feeConfig.signature === '0x'
+        );
+      },
+    );
+
     return {
       everclearBridgeAddress,
-      // Remove unset domains from the output
-      outputAssets: objFilter(
-        outputAssets,
-        (_domainId, assetAddress): assetAddress is string =>
-          !isZeroish(assetAddress),
-      ),
-      // Remove unset fee params from the output
-      everclearFeeParams: objFilter(
-        feeParamsByDomain,
-        (
-          _domainId,
-          feeConfig,
-        ): feeConfig is EverclearEthBridgeTokenConfig['everclearFeeParams'][number] => {
-          // if all the fields have their default value then the fee config for the
-          // current domain is unset
-          return !(
-            feeConfig.deadline === 0 &&
-            feeConfig.fee === 0 &&
-            feeConfig.signature === '0x'
-          );
-        },
-      ),
+      outputAssets: filteredOutputAssets,
+      everclearFeeParams: filteredFeeParamsByDomain,
     };
   }
 

@@ -468,7 +468,7 @@ type JSPrimitiveTypes =
   | null;
 
 /**
- * Returns an object where only the keys from `a` that are not in `b` or are different, are kept
+ * Returns an object where only the keys from `a` that are not in `b` or are different values, are kept
  */
 export function objDiff<
   TKey extends string | number,

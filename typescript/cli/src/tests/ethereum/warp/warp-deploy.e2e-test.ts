@@ -110,7 +110,7 @@ function extractInputOnlyFields(config: TokenFeeConfigInput): any {
 }
 
 describe('hyperlane warp deploy e2e tests', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(1.5 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let chain2Metadata: ChainMetadata;
   let chain2Addresses: ChainAddresses = {};

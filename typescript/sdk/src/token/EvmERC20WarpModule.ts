@@ -599,8 +599,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       expectedOutputAssets,
       actualOutputAssets,
       (address, address2) =>
-        !!address &&
-        !!address2 &&
         addressToBytes32(address) === addressToBytes32(address2),
     );
     if (isObjEmpty(outputAssetsToAdd)) {
@@ -735,7 +733,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       const { deadline, fee, signature } = feeConfig;
 
       return {
-        annotation: `Setting Everclear fee params for domain "${domainId}" on token "${this.args.addresses.deployedTokenRoute}" and chain "${this.chainName}"`,
+        annotation: `Setting Everclear fee params with deadline "${deadline}" for domain "${domainId}" on token "${this.args.addresses.deployedTokenRoute}" and chain "${this.chainName}"`,
         chainId: this.multiProvider.getEvmChainId(this.chainName),
         to: this.args.addresses.deployedTokenRoute,
         data: EverclearTokenBridge__factory.createInterface().encodeFunctionData(
@@ -1260,25 +1258,21 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       }
     }
 
-    if (
-      isEverclearTokenBridgeConfig(config) &&
-      !isObjEmpty(config.outputAssets)
-    ) {
+    if (isEverclearTokenBridgeConfig(config)) {
       const addRemoteOutputTokens = warpModule.createAddRemoteOutputAssetsTxs(
         actualConfig,
         config,
       );
 
-      if (addRemoteOutputTokens.length > 0) {
-        await multiProvider.sendTransaction(chain, addRemoteOutputTokens[0]);
-      }
-    }
-
-    if (isEverclearTokenBridgeConfig(config)) {
       const updateEverclearFeeParamsTxs =
         warpModule.createUpdateEverclearFeeParamsTxs(actualConfig, config);
 
-      for (const tx of updateEverclearFeeParamsTxs) {
+      const everclearTxs = [
+        ...addRemoteOutputTokens,
+        ...updateEverclearFeeParamsTxs,
+      ];
+
+      for (const tx of everclearTxs) {
         await multiProvider.sendTransaction(chain, tx);
       }
     }

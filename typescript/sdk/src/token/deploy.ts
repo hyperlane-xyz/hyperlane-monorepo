@@ -163,7 +163,6 @@ abstract class TokenDeployer<
     } else if (isEverclearEthBridgeTokenConfig(config)) {
       return [
         config.wethAddress,
-        scale,
         config.mailbox,
         config.everclearBridgeAddress,
       ];
