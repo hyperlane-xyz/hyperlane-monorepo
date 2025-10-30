@@ -1,7 +1,6 @@
 import {
   Account,
   AleoKeyProvider,
-  AleoNetworkClient,
   NetworkRecordProvider,
   Program,
   ProgramManager,
@@ -28,22 +27,15 @@ export class AleoSigner
     privateKey: string,
     _extraParams?: Record<string, any>,
   ): Promise<AltVM.ISigner<AleoTransaction, AleoReceipt>> {
-    const aleoClient = new AleoNetworkClient(rpcUrls[0]);
-    const aleoAccount = new Account({
-      privateKey,
-    });
-
-    return new AleoSigner(aleoClient, rpcUrls, aleoAccount);
+    return new AleoSigner(rpcUrls, privateKey);
   }
 
-  protected constructor(
-    aleoClient: AleoNetworkClient,
-    rpcUrls: string[],
-    aleoAccount: Account,
-  ) {
-    super(aleoClient, rpcUrls);
+  protected constructor(rpcUrls: string[], privateKey: string) {
+    super(rpcUrls);
 
-    this.aleoAccount = aleoAccount;
+    this.aleoAccount = new Account({
+      privateKey,
+    });
 
     this.keyProvider = new AleoKeyProvider();
     this.keyProvider.useCache(true);

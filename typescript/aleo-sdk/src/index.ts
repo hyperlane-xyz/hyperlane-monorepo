@@ -28,13 +28,19 @@ const main = async () => {
   });
   console.log('signer balance: ', balance);
 
-  const mailboxAddress = await signer.createMailbox({
-    domainId: 1337,
-    defaultIsmAddress: '',
-  });
-  console.log('mailboxAddress', mailboxAddress);
-
   const bobAddress = new Account().address().to_string();
+
+  const transferTx = await provider.getTransferTransaction({
+    signer: '',
+    amount: '10',
+    recipient: bobAddress,
+    denom: '',
+  });
+
+  const estimation = await provider.estimateTransactionFee({
+    transaction: transferTx,
+  });
+  console.log('estimated fee for transfer:', estimation.fee);
 
   await signer.transfer({
     amount: '10',
