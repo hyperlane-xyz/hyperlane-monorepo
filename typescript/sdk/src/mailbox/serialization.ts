@@ -6,7 +6,7 @@ import { SealevelInstructionWrapper } from '../utils/sealevelSerialization.js';
  * Mailbox instruction types matching Rust enum
  * See: rust/sealevel/programs/mailbox/src/instruction.rs
  */
-export enum MailboxInstructionType {
+export enum SealevelMailboxInstructionType {
   INIT = 0,
   INBOX_PROCESS = 1,
   INBOX_SET_DEFAULT_ISM = 2,
@@ -21,27 +21,32 @@ export enum MailboxInstructionType {
   SET_PROTOCOL_FEE_CONFIG = 11,
 }
 
-export const MailboxInstructionName: Record<MailboxInstructionType, string> = {
-  [MailboxInstructionType.INIT]: 'Init',
-  [MailboxInstructionType.INBOX_PROCESS]: 'InboxProcess',
-  [MailboxInstructionType.INBOX_SET_DEFAULT_ISM]: 'InboxSetDefaultIsm',
-  [MailboxInstructionType.INBOX_GET_RECIPIENT_ISM]: 'InboxGetRecipientIsm',
-  [MailboxInstructionType.OUTBOX_DISPATCH]: 'OutboxDispatch',
-  [MailboxInstructionType.OUTBOX_GET_COUNT]: 'OutboxGetCount',
-  [MailboxInstructionType.OUTBOX_GET_LATEST_CHECKPOINT]:
+export const SealevelMailboxInstructionName: Record<
+  SealevelMailboxInstructionType,
+  string
+> = {
+  [SealevelMailboxInstructionType.INIT]: 'Init',
+  [SealevelMailboxInstructionType.INBOX_PROCESS]: 'InboxProcess',
+  [SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM]: 'InboxSetDefaultIsm',
+  [SealevelMailboxInstructionType.INBOX_GET_RECIPIENT_ISM]:
+    'InboxGetRecipientIsm',
+  [SealevelMailboxInstructionType.OUTBOX_DISPATCH]: 'OutboxDispatch',
+  [SealevelMailboxInstructionType.OUTBOX_GET_COUNT]: 'OutboxGetCount',
+  [SealevelMailboxInstructionType.OUTBOX_GET_LATEST_CHECKPOINT]:
     'OutboxGetLatestCheckpoint',
-  [MailboxInstructionType.OUTBOX_GET_ROOT]: 'OutboxGetRoot',
-  [MailboxInstructionType.GET_OWNER]: 'GetOwner',
-  [MailboxInstructionType.TRANSFER_OWNERSHIP]: 'TransferOwnership',
-  [MailboxInstructionType.CLAIM_PROTOCOL_FEES]: 'ClaimProtocolFees',
-  [MailboxInstructionType.SET_PROTOCOL_FEE_CONFIG]: 'SetProtocolFeeConfig',
+  [SealevelMailboxInstructionType.OUTBOX_GET_ROOT]: 'OutboxGetRoot',
+  [SealevelMailboxInstructionType.GET_OWNER]: 'GetOwner',
+  [SealevelMailboxInstructionType.TRANSFER_OWNERSHIP]: 'TransferOwnership',
+  [SealevelMailboxInstructionType.CLAIM_PROTOCOL_FEES]: 'ClaimProtocolFees',
+  [SealevelMailboxInstructionType.SET_PROTOCOL_FEE_CONFIG]:
+    'SetProtocolFeeConfig',
 };
 
 /**
  * SetDefaultIsm instruction data
  * Matches: rust/sealevel/programs/mailbox/src/instruction.rs
  */
-export class MailboxSetDefaultIsmInstruction {
+export class SealevelMailboxSetDefaultIsmInstruction {
   newIsm!: Uint8Array;
   newIsmPubkey!: PublicKey;
 
@@ -51,19 +56,19 @@ export class MailboxSetDefaultIsmInstruction {
   }
 }
 
-export const MailboxSetDefaultIsmInstructionSchema = new Map<any, any>([
+export const SealevelMailboxSetDefaultIsmInstructionSchema = new Map<any, any>([
   [
     SealevelInstructionWrapper,
     {
       kind: 'struct',
       fields: [
         ['instruction', 'u32'], // Borsh enum discriminator (4 bytes)
-        ['data', MailboxSetDefaultIsmInstruction],
+        ['data', SealevelMailboxSetDefaultIsmInstruction],
       ],
     },
   ],
   [
-    MailboxSetDefaultIsmInstruction,
+    SealevelMailboxSetDefaultIsmInstruction,
     {
       kind: 'struct',
       fields: [
@@ -77,7 +82,7 @@ export const MailboxSetDefaultIsmInstructionSchema = new Map<any, any>([
  * TransferOwnership instruction data
  * Matches: rust/sealevel/programs/mailbox/src/instruction.rs
  */
-export class MailboxTransferOwnershipInstruction {
+export class SealevelMailboxTransferOwnershipInstruction {
   newOwner!: Uint8Array | null;
   newOwnerPubkey?: PublicKey;
 
@@ -89,19 +94,22 @@ export class MailboxTransferOwnershipInstruction {
   }
 }
 
-export const MailboxTransferOwnershipInstructionSchema = new Map<any, any>([
+export const SealevelMailboxTransferOwnershipInstructionSchema = new Map<
+  any,
+  any
+>([
   [
     SealevelInstructionWrapper,
     {
       kind: 'struct',
       fields: [
         ['instruction', 'u32'],
-        ['data', MailboxTransferOwnershipInstruction],
+        ['data', SealevelMailboxTransferOwnershipInstruction],
       ],
     },
   ],
   [
-    MailboxTransferOwnershipInstruction,
+    SealevelMailboxTransferOwnershipInstruction,
     {
       kind: 'struct',
       fields: [

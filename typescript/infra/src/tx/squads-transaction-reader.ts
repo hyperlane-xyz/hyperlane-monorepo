@@ -12,20 +12,20 @@ import fs from 'fs';
 
 import {
   ChainName,
-  MailboxInstructionName,
-  MailboxInstructionType,
-  MailboxSetDefaultIsmInstruction,
-  MailboxSetDefaultIsmInstructionSchema,
-  MailboxTransferOwnershipInstruction,
-  MailboxTransferOwnershipInstructionSchema,
   MultiProtocolProvider,
-  MultisigIsmInstructionName,
-  MultisigIsmInstructionType,
-  MultisigIsmSetValidatorsInstruction,
-  MultisigIsmSetValidatorsInstructionSchema,
-  MultisigIsmTransferOwnershipInstruction,
-  MultisigIsmTransferOwnershipInstructionSchema,
   SealevelInstructionWrapper,
+  SealevelMailboxInstructionName,
+  SealevelMailboxInstructionType,
+  SealevelMailboxSetDefaultIsmInstruction,
+  SealevelMailboxSetDefaultIsmInstructionSchema,
+  SealevelMailboxTransferOwnershipInstruction,
+  SealevelMailboxTransferOwnershipInstructionSchema,
+  SealevelMultisigIsmInstructionName,
+  SealevelMultisigIsmInstructionType,
+  SealevelMultisigIsmSetValidatorsInstruction,
+  SealevelMultisigIsmSetValidatorsInstructionSchema,
+  SealevelMultisigIsmTransferOwnershipInstruction,
+  SealevelMultisigIsmTransferOwnershipInstructionSchema,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -167,17 +167,18 @@ export class SquadsTransactionReader {
         // - GET_OWNER (8): GetOwner
         // - CLAIM_PROTOCOL_FEES (10): ClaimProtocolFees
         // - SET_PROTOCOL_FEE_CONFIG (11): SetProtocolFeeConfig(ProtocolFee)
-        case MailboxInstructionType.INBOX_SET_DEFAULT_ISM: {
+        case SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM: {
           const wrapper = deserializeUnchecked(
-            MailboxSetDefaultIsmInstructionSchema,
+            SealevelMailboxSetDefaultIsmInstructionSchema,
             SealevelInstructionWrapper,
             instructionData,
           );
-          const instruction = wrapper.data as MailboxSetDefaultIsmInstruction;
+          const instruction =
+            wrapper.data as SealevelMailboxSetDefaultIsmInstruction;
           const ismAddress = instruction.newIsmPubkey.toBase58();
 
           return {
-            instructionType: MailboxInstructionName[discriminator],
+            instructionType: SealevelMailboxInstructionName[discriminator],
             data: {
               newDefaultIsm: ismAddress,
             },
@@ -186,19 +187,19 @@ export class SquadsTransactionReader {
           };
         }
 
-        case MailboxInstructionType.TRANSFER_OWNERSHIP: {
+        case SealevelMailboxInstructionType.TRANSFER_OWNERSHIP: {
           const wrapper = deserializeUnchecked(
-            MailboxTransferOwnershipInstructionSchema,
+            SealevelMailboxTransferOwnershipInstructionSchema,
             SealevelInstructionWrapper,
             instructionData,
           );
           const instruction =
-            wrapper.data as MailboxTransferOwnershipInstruction;
+            wrapper.data as SealevelMailboxTransferOwnershipInstruction;
 
           if (instruction.newOwnerPubkey) {
             const newOwnerAddress = instruction.newOwnerPubkey.toBase58();
             return {
-              instructionType: MailboxInstructionName[discriminator],
+              instructionType: SealevelMailboxInstructionName[discriminator],
               data: {
                 newOwner: newOwnerAddress,
               },
@@ -208,7 +209,7 @@ export class SquadsTransactionReader {
           }
 
           return {
-            instructionType: MailboxInstructionName[discriminator],
+            instructionType: SealevelMailboxInstructionName[discriminator],
             data: { newOwner: null },
             insight: 'Renounce ownership',
             warnings: [WarningMessage.OWNERSHIP_RENUNCIATION],
@@ -278,14 +279,14 @@ export class SquadsTransactionReader {
         // Note: Parsing not implemented for the following MultisigIsm instructions:
         // - INIT (0): Initialize
         // - GET_OWNER (2): GetOwner
-        case MultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD: {
+        case SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD: {
           const wrapper = deserializeUnchecked(
-            MultisigIsmSetValidatorsInstructionSchema,
+            SealevelMultisigIsmSetValidatorsInstructionSchema,
             SealevelInstructionWrapper,
             borshData,
           );
           const instruction =
-            wrapper.data as MultisigIsmSetValidatorsInstruction;
+            wrapper.data as SealevelMultisigIsmSetValidatorsInstruction;
 
           const remoteChain = this.mpp.tryGetChainName(instruction.domain);
           const chainInfo = remoteChain
@@ -296,7 +297,7 @@ export class SquadsTransactionReader {
           const insight = `Set ${validatorCount} validator${validatorCount > 1 ? 's' : ''} with threshold ${instruction.threshold} for ${chainInfo}`;
 
           return {
-            instructionType: MultisigIsmInstructionName[discriminator],
+            instructionType: SealevelMultisigIsmInstructionName[discriminator],
             data: {
               domain: instruction.domain,
               threshold: instruction.threshold,
@@ -308,19 +309,20 @@ export class SquadsTransactionReader {
           };
         }
 
-        case MultisigIsmInstructionType.TRANSFER_OWNERSHIP: {
+        case SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP: {
           const wrapper = deserializeUnchecked(
-            MultisigIsmTransferOwnershipInstructionSchema,
+            SealevelMultisigIsmTransferOwnershipInstructionSchema,
             SealevelInstructionWrapper,
             borshData,
           );
           const instruction =
-            wrapper.data as MultisigIsmTransferOwnershipInstruction;
+            wrapper.data as SealevelMultisigIsmTransferOwnershipInstruction;
 
           if (instruction.newOwnerPubkey) {
             const newOwnerAddress = instruction.newOwnerPubkey.toBase58();
             return {
-              instructionType: MultisigIsmInstructionName[discriminator],
+              instructionType:
+                SealevelMultisigIsmInstructionName[discriminator],
               data: {
                 newOwner: newOwnerAddress,
               },
@@ -330,7 +332,7 @@ export class SquadsTransactionReader {
           }
 
           return {
-            instructionType: MultisigIsmInstructionName[discriminator],
+            instructionType: SealevelMultisigIsmInstructionName[discriminator],
             data: { newOwner: null },
             insight: 'Renounce ownership',
             warnings: [WarningMessage.OWNERSHIP_RENUNCIATION],
@@ -979,8 +981,8 @@ export class SquadsTransactionReader {
 
     // Add args for important instructions
     switch (inst.instructionType) {
-      case MultisigIsmInstructionName[
-        MultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+      case SealevelMultisigIsmInstructionName[
+        SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
       ]: {
         // Get remote chain for aliases
         const remoteChain = this.mpp.tryGetChainName(inst.data.domain);
@@ -1023,8 +1025,8 @@ export class SquadsTransactionReader {
         break;
       }
 
-      case MailboxInstructionName[
-        MailboxInstructionType.INBOX_SET_DEFAULT_ISM
+      case SealevelMailboxInstructionName[
+        SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
       ]: {
         tx.args = {
           module: inst.data.newDefaultIsm,
@@ -1032,9 +1034,11 @@ export class SquadsTransactionReader {
         break;
       }
 
-      case MailboxInstructionName[MailboxInstructionType.TRANSFER_OWNERSHIP]:
-      case MultisigIsmInstructionName[
-        MultisigIsmInstructionType.TRANSFER_OWNERSHIP
+      case SealevelMailboxInstructionName[
+        SealevelMailboxInstructionType.TRANSFER_OWNERSHIP
+      ]:
+      case SealevelMultisigIsmInstructionName[
+        SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP
       ]: {
         tx.args = {
           newOwner: inst.data.newOwner || null,
