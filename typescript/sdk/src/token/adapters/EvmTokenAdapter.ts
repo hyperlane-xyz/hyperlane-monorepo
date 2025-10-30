@@ -335,6 +335,7 @@ export class EvmHypSyntheticAdapter
 
     let nativeValue = interchainGas.igpQuote.amount;
 
+    // add token fee to native value if the denom is undefined or zero address (native token)
     if (
       !interchainGas.tokenFeeQuote?.addressOrDenom ||
       isZeroishAddress(interchainGas.tokenFeeQuote?.addressOrDenom)
