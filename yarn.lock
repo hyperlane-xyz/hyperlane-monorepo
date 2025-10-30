@@ -8322,7 +8322,7 @@ __metadata:
   resolution: "@hyperlane-xyz/deploy-sdk@workspace:typescript/deploy-sdk"
   dependencies:
     "@hyperlane-xyz/eslint-config": "workspace:^"
-    "@hyperlane-xyz/provider-sdk": "npm:19.3.0"
+    "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@types/node": "npm:^18.14.5"
     eslint: "npm:^9.31.0"
@@ -8528,7 +8528,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/provider-sdk@npm:19.3.0, @hyperlane-xyz/provider-sdk@workspace:typescript/provider-sdk":
+"@hyperlane-xyz/provider-sdk@npm:0.1.0, @hyperlane-xyz/provider-sdk@workspace:typescript/provider-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/provider-sdk@workspace:typescript/provider-sdk"
   dependencies:
