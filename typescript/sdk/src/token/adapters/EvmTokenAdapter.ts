@@ -923,8 +923,8 @@ export class EvmHypNativeAdapter
         destination,
         recipient,
         interchainGas,
-        // Pass the amount as native value to the parent class
       },
+      // Pass the amount as initial native value to the parent class
       BigInt(weiAmountOrId),
     );
   }
