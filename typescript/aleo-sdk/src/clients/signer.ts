@@ -58,23 +58,26 @@ export class AleoSigner
   }
 
   supportsTransactionBatching(): boolean {
-    throw new Error(`TODO: implement`);
+    return false;
   }
 
-  transactionToPrintableJson(_transaction: AleoTransaction): Promise<object> {
-    throw new Error(`TODO: implement`);
+  async transactionToPrintableJson(
+    transaction: AleoTransaction,
+  ): Promise<object> {
+    return transaction;
   }
 
   async sendAndConfirmTransaction(
-    _transaction: AleoTransaction,
+    transaction: AleoTransaction,
   ): Promise<AleoReceipt> {
-    throw new Error(`TODO: implement`);
+    const txId = await this.programManager.execute(transaction);
+    return this.pollForTransactionConfirmed(txId);
   }
 
   async sendAndConfirmBatchTransactions(
     _transactions: AleoTransaction[],
   ): Promise<AleoReceipt> {
-    throw new Error(`TODO: implement`);
+    throw new Error(`${AleoSigner.name} does not support transaction batching`);
   }
 
   // ### TX CORE ###
