@@ -12,12 +12,12 @@ export class AleoProvider implements AltVM.IProvider {
     rpcUrls: string[],
     _chainId: string | number,
   ): Promise<AleoProvider> {
-    assert(rpcUrls.length > 0, `got no rpcUrls`);
-
     return new AleoProvider(rpcUrls);
   }
 
   protected constructor(rpcUrls: string[]) {
+    assert(rpcUrls.length > 0, `got no rpcUrls`);
+
     this.rpcUrls = rpcUrls;
     this.aleoClient = new AleoNetworkClient(rpcUrls[0]);
   }
