@@ -4,7 +4,6 @@ import {
   AleoNetworkClient,
   NetworkRecordProvider,
   ProgramManager,
-  ProgramManagerBase,
 } from '@provablehq/sdk';
 
 import { AltVM, sleep } from '@hyperlane-xyz/utils';
@@ -134,30 +133,23 @@ export class AleoSigner
         continue;
       }
 
-      const fee = await ProgramManagerBase.estimateDeploymentFee(program);
-      console.log(`estimated fee ${fee} for program ${programName}`);
+      // const fee = await ProgramManagerBase.estimateDeploymentFee(program);
+      // console.log(`estimated fee ${fee} for program ${programName}`);
+      const fee = '20543910';
 
-      console.log('buildDeploymentTransaction', programName, program.length);
+      console.log('deploy', programName, program.length);
 
-      const tx = await this.programManager.buildDeploymentTransaction(
+      const txId = await this.programManager.deploy(
         program,
         Number(fee),
         false,
       );
 
-      console.log('created tx');
+      console.log('txId', txId);
 
-      const transaction_id =
-        await this.programManager.networkClient.submitTransaction(tx);
+      await this.pollForTransactionConfirmed(txId);
 
-      console.log('transaction_id', transaction_id);
-
-      const transaction =
-        await this.programManager.networkClient.getConfirmedTransaction(
-          transaction_id,
-        );
-
-      console.log('transaction', transaction);
+      console.log('tx confirmed, deployed program ', programName);
     }
 
     return {

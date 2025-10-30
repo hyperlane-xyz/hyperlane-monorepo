@@ -28,6 +28,12 @@ const main = async () => {
   });
   console.log('signer balance: ', balance);
 
+  const mailboxAddress = await signer.createMailbox({
+    domainId: 1337,
+    defaultIsmAddress: '',
+  });
+  console.log('mailboxAddress', mailboxAddress);
+
   const bobAddress = new Account().address().to_string();
 
   await signer.transfer({

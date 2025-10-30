@@ -8158,7 +8158,7 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.4.0"
-    "@provablehq/sdk": "npm:^0.9.9"
+    "@provablehq/sdk": "npm:^0.9.10"
     "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
@@ -11474,24 +11474,25 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@provablehq/sdk@npm:^0.9.9":
-  version: 0.9.9
-  resolution: "@provablehq/sdk@npm:0.9.9"
+"@provablehq/sdk@npm:^0.9.10":
+  version: 0.9.10
+  resolution: "@provablehq/sdk@npm:0.9.10"
   dependencies:
-    "@provablehq/wasm": "npm:^0.9.9"
+    "@provablehq/wasm": "npm:^0.9.10"
+    "@scure/base": "npm:^2.0.0"
     comlink: "npm:^4.4.2"
     core-js: "npm:^3.40.0"
     mime: "npm:^4.0.6"
     sync-request: "npm:^6.1.0"
     xmlhttprequest-ssl: "npm:^3.1.0"
-  checksum: 10/230d78d4c0115296318407152d0da22d2d9dfa5efcc05205024554ba666e0f6b3c857c7a36b4092fc352b99c05fd4ab592ce4ac097792c2d3d3c924f17bd151e
+  checksum: 10/2bb645a9a14ebcb0272cc0a8ab52c47ccb1583b1dbb068339093127b074ccfe7aeb31951da1d4973b0a0677159cef7fe117c868ca9321a22a9c8a906447ba4c0
   languageName: node
   linkType: hard
 
-"@provablehq/wasm@npm:^0.9.9":
-  version: 0.9.9
-  resolution: "@provablehq/wasm@npm:0.9.9"
-  checksum: 10/390eaf1ca723cd7b14b78548b6acb2c9a1e1395f1ae21fa4506c20e76a3a17617b76c1845d7eaa4da9889497348008748a1bfc963504c4728d7eecaa3eaa131d
+"@provablehq/wasm@npm:^0.9.10":
+  version: 0.9.10
+  resolution: "@provablehq/wasm@npm:0.9.10"
+  checksum: 10/6927902272991a7312389070c606269a1ae8898f04f8b055666957c7ef946b2804e7e61ef1920c46de1708586b068d500356bc463b000442ae20921e55da3a48
   languageName: node
   linkType: hard
 
@@ -14236,6 +14237,13 @@ __metadata:
   version: 1.1.9
   resolution: "@scure/base@npm:1.1.9"
   checksum: 10/f0ab7f687bbcdee2a01377fe3cd808bf63977999672751295b6a92625d5322f4754a96d40f6bd579bc367aad48ecf8a4e6d0390e70296e6ded1076f52adb16bb
+  languageName: node
+  linkType: hard
+
+"@scure/base@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@scure/base@npm:2.0.0"
+  checksum: 10/8fb86024f22e9c532d513b8df8a672252e58bd5695920ce646162287f0accd38e89cab58722a738b3d247b5dcf7760362ae2d82d502be7e62a555f5d98f8a110
   languageName: node
   linkType: hard
 

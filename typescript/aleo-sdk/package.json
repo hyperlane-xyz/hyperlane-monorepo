@@ -48,6 +48,6 @@
   },
   "dependencies": {
     "@hyperlane-xyz/utils": "19.4.0",
-    "@provablehq/sdk": "^0.9.9"
+    "@provablehq/sdk": "^0.9.10"
   }
 }
