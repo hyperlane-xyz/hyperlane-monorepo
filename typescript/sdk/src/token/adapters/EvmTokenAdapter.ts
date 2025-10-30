@@ -301,6 +301,7 @@ export class EvmHypSyntheticAdapter
       addressOrDenom: quote[0],
       amount: BigInt(quote[1].toString()),
     }));
+    console.log(tokenFeeQuotes);
 
     // Because the amount is added on  the fees, we need to subtract it from the actual fees
     const tokenFeeQuote: Quote | undefined =
@@ -320,12 +321,15 @@ export class EvmHypSyntheticAdapter
     };
   }
 
-  async populateTransferRemoteTx({
-    weiAmountOrId,
-    destination,
-    recipient,
-    interchainGas,
-  }: TransferRemoteParams): Promise<PopulatedTransaction> {
+  async populateTransferRemoteTx(
+    {
+      weiAmountOrId,
+      destination,
+      recipient,
+      interchainGas,
+    }: TransferRemoteParams,
+    nativeValue = 0n,
+  ): Promise<PopulatedTransaction> {
     if (!interchainGas)
       interchainGas = await this.quoteTransferRemoteGas({
         destination,
@@ -333,7 +337,8 @@ export class EvmHypSyntheticAdapter
         amount: BigInt(weiAmountOrId),
       });
 
-    let nativeValue = interchainGas.igpQuote.amount;
+    // add igp to native value
+    nativeValue += interchainGas.igpQuote.amount;
 
     // add token fee to native value if the denom is undefined or zero address (native token)
     if (
@@ -904,6 +909,24 @@ export class EvmHypNativeAdapter
       {
         value,
       },
+    );
+  }
+
+  async populateTransferRemoteTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+    interchainGas,
+  }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    return super.populateTransferRemoteTx(
+      {
+        weiAmountOrId,
+        destination,
+        recipient,
+        interchainGas,
+        // Pass the amount as native value to the parent class
+      },
+      BigInt(weiAmountOrId),
     );
   }
 
