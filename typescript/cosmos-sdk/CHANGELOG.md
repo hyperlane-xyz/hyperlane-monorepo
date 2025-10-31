@@ -1,5 +1,13 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 19.5.0
+
+### Patch Changes
+
+- Updated dependencies [312826d10]
+  - @hyperlane-xyz/utils@19.5.0
+  - @hyperlane-xyz/cosmos-types@19.5.0
+
 ## 19.4.0
 
 ### Patch Changes

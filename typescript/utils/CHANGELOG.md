@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 19.5.0
+
+### Minor Changes
+
+- 312826d10: Updated the AltVM provider connect interface so that it can optionally accept extra params needed for instantiating the provider
+
 ## 19.4.0
 
 ### Patch Changes
