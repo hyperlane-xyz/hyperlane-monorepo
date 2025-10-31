@@ -208,7 +208,8 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
   [WarpRouteIds.MainnetCCTPV1]: getCCTPV1StrategyConfig,
-  [WarpRouteIds.MainnetCCTPV2]: getCCTPV2StrategyConfig,
+  [WarpRouteIds.MainnetCCTPV2Fast]: getCCTPV2StrategyConfig,
+  [WarpRouteIds.MainnetCCTPV2Standard]: getCCTPV2StrategyConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
 };
