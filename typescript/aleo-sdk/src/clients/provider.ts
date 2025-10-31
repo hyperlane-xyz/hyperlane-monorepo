@@ -400,9 +400,19 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getSetDestinationGasConfigTransaction(
-    _req: AltVM.ReqSetDestinationGasConfig,
+    req: AltVM.ReqSetDestinationGasConfig,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'hook_manager.aleo',
+      functionName: 'set_destination_gas_config',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [
+        req.hookAddress,
+        `${req.destinationGasConfig.remoteDomainId}u32`,
+        `{gas_overhead:${req.destinationGasConfig.gasOverhead}u128,exchange_rate:${req.destinationGasConfig.gasOracle.tokenExchangeRate}u128,gas_price:${req.destinationGasConfig.gasOracle.gasPrice}u128}`,
+      ],
+    };
   }
 
   async getCreateValidatorAnnounceTransaction(

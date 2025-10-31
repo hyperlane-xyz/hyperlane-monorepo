@@ -22,10 +22,23 @@ const main = async () => {
   });
   console.log('signer credits balance: ', balance);
 
-  const { hookAddress } = await signer.createInterchainGasPaymasterHook({
-    denom: '',
+  // const { hookAddress } = await signer.createInterchainGasPaymasterHook({
+  //   denom: '',
+  // });
+  // console.log('hookAddress', hookAddress);
+
+  await signer.setDestinationGasConfig({
+    hookAddress:
+      'aleo1luec7p59xlxlldvh697073yn6prwpv59ax32utu6tpq40c4ahs9q3axudk',
+    destinationGasConfig: {
+      remoteDomainId: 1337,
+      gasOverhead: '1000',
+      gasOracle: {
+        tokenExchangeRate: '1000',
+        gasPrice: '1',
+      },
+    },
   });
-  console.log('hookAddress', hookAddress);
 };
 
 main();

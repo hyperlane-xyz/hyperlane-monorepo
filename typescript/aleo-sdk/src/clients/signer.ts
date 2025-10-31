@@ -311,9 +311,19 @@ export class AleoSigner
   }
 
   async setDestinationGasConfig(
-    _req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
+    req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
   ): Promise<AltVM.ResSetDestinationGasConfig> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getSetDestinationGasConfigTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      destinationGasConfig: req.destinationGasConfig,
+    };
   }
 
   async createValidatorAnnounce(
