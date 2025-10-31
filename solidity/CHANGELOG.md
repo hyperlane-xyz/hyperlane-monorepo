@@ -1,6 +1,6 @@
 # @hyperlane-xyz/core
 
-## 10.0.0-beta.0
+## 10.0.0
 
 ### Major Changes
 
@@ -46,7 +46,7 @@
 - f930794d7: Update Yield Routes (HypERC4626OwnerCollateral and HypERC4626Collateral) to use safeApprove
 - 9a43cdca9: Remove absolute imports. Fixes compilation for users who import from files under `solidity/contracts`.
 - Updated dependencies [419e16910]
-  - @hyperlane-xyz/utils@19.6.0-beta.0
+  - @hyperlane-xyz/utils@19.6.0
 
 ## 9.0.17
 
