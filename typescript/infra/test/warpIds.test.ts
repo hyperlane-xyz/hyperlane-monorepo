@@ -6,8 +6,7 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 
-// TODO: enable when merging audit branch to main
-describe.skip('Warp IDs', () => {
+describe('Warp IDs', () => {
   it('Has all warp IDs in the registry', async () => {
     const registry = getRegistry({
       registryUris: [DEFAULT_GITHUB_REGISTRY],
