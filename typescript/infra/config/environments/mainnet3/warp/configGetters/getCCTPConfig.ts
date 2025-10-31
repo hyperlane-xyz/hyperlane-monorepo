@@ -12,6 +12,7 @@ import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcasLegacy } from '../../governance/ica/_awLegacy.js';
+import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import {
   FAST_FINALITY_THRESHOLD,
@@ -29,7 +30,7 @@ const SERVICE_URL = 'https://offchain-lookup.services.hyperlane.xyz';
 export const CCTP_CHAINS = Object.keys(tokenMessengerV1Addresses);
 
 // TODO: remove this once the route has been updated to be owned by non-legacy ownership
-const owners: Record<ChainName, string> = {
+const v1Owners: Record<ChainName, string> = {
   arbitrum: '0xaB547e6cde21a5cC3247b8F80e6CeC3a030FAD4A',
   avalanche: awIcasLegacy['avalanche'],
   base: '0xA6D9Aa3878423C266480B5a7cEe74917220a1ad2',
@@ -58,9 +59,8 @@ const getCCTPWarpConfig = (
   return Object.fromEntries(
     chains.map((chain) => {
       // TODO: restore after route has been updated
-      // const owner = awIcasLegacy[chain] ?? awSafes[chain];
-
-      const owner = owners[chain];
+      const owner =
+        version === 'V1' ? v1Owners[chain] : (awIcas[chain] ?? awSafes[chain]);
 
       assert(owner, `Owner not found for ${chain}`);
       const config: HypTokenRouterConfig = {
