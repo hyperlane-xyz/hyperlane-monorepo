@@ -232,6 +232,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.CosmNativeHypSynthetic]: null,
 
   //TODO: check this and manage it.
+  [TokenStandard.StarknetNative]: null,
   [TokenStandard.StarknetHypCollateral]: null,
   [TokenStandard.StarknetHypNative]: null,
   [TokenStandard.StarknetHypSynthetic]: null,

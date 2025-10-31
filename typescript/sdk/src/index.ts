@@ -569,7 +569,10 @@ export {
   chainMetadataToStarknetChain,
   chainMetadataToViemChain,
 } from './metadata/chainMetadataConversion.js';
-export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
+export {
+  AnnotatedEV5Transaction,
+  PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
+} from './providers/ProviderType.js';
 export {
   RebalancerBaseChainConfigSchema,
   RebalancerConfigSchema,
@@ -702,7 +705,7 @@ export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';
 export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
-export { Token } from './token/Token.js';
+export { Token, getCollateralTokenAdapter } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
 export {
   getTokenConnectionId,
