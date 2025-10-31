@@ -384,7 +384,13 @@ export class AleoProvider implements AltVM.IProvider {
   async getCreateInterchainGasPaymasterHookTransaction(
     _req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'hook_manager.aleo',
+      functionName: 'init_igp',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [],
+    };
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(

@@ -163,14 +163,14 @@ export class AleoSigner
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    const nonce = await this.aleoClient.getProgramMappingValue(
+    let nonce = await this.aleoClient.getProgramMappingValue(
       'ism_manager.aleo',
       'nonce',
       'true',
     );
 
     if (nonce === null) {
-      throw new Error(`could not read nonce from ism_manager`);
+      nonce = '0u32';
     }
 
     const tx = await this.getCreateMessageIdMultisigIsmTransaction({
@@ -225,14 +225,14 @@ export class AleoSigner
   async createNoopIsm(
     req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
-    const nonce = await this.aleoClient.getProgramMappingValue(
+    let nonce = await this.aleoClient.getProgramMappingValue(
       'ism_manager.aleo',
       'nonce',
       'true',
     );
 
     if (nonce === null) {
-      throw new Error(`could not read nonce from ism_manager`);
+      nonce = '0u32';
     }
 
     const tx = await this.getCreateNoopIsmTransaction({
@@ -267,9 +267,41 @@ export class AleoSigner
   }
 
   async createInterchainGasPaymasterHook(
-    _req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
+    req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
-    throw new Error(`TODO: implement`);
+    let nonce = await this.aleoClient.getProgramMappingValue(
+      'hook_manager.aleo',
+      'nonce',
+      'true',
+    );
+
+    if (nonce === null) {
+      nonce = '0u32';
+    }
+
+    const tx = await this.getCreateInterchainGasPaymasterHookTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    const hookAddress = await this.aleoClient.getProgramMappingValue(
+      'hook_manager.aleo',
+      'hook_addresses',
+      nonce,
+    );
+
+    if (hookAddress === null) {
+      throw new Error(
+        `could not read hook address with nonce ${nonce} from hook_manager`,
+      );
+    }
+
+    return {
+      hookAddress,
+    };
   }
 
   async setInterchainGasPaymasterHookOwner(

@@ -22,11 +22,10 @@ const main = async () => {
   });
   console.log('signer credits balance: ', balance);
 
-  const { ismAddress } = await signer.createMessageIdMultisigIsm({
-    validators: ['0xd21f837e1eb0C10ddBD4687821dbDa5929B3570a'],
-    threshold: 1,
+  const { hookAddress } = await signer.createInterchainGasPaymasterHook({
+    denom: '',
   });
-  console.log('ismAddress', ismAddress);
+  console.log('hookAddress', hookAddress);
 };
 
 main();
