@@ -163,17 +163,7 @@ export class AltVMCoreModule
 
     const addresses: DeployedCoreAddresses = {
       mailbox: mailbox.mailboxAddress,
-      staticMerkleRootMultisigIsmFactory: '',
-      proxyAdmin: '',
-      staticMerkleRootWeightedMultisigIsmFactory: '',
-      staticAggregationHookFactory: '',
-      staticAggregationIsmFactory: '',
-      staticMessageIdMultisigIsmFactory: '',
-      staticMessageIdWeightedMultisigIsmFactory: '',
       validatorAnnounce: validatorAnnounce.validatorAnnounceId,
-      testRecipient: '',
-      interchainAccountRouter: '',
-      domainRoutingIsmFactory: '',
     };
 
     if (config.defaultIsm && typeof config.defaultIsm !== 'string') {
