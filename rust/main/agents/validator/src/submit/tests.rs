@@ -9,10 +9,11 @@ use hyperlane_base::db::{
     DbResult, HyperlaneDb, InterchainGasExpenditureData, InterchainGasPaymentData,
 };
 use hyperlane_core::{
-    identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainGasPayment,
-    InterchainGasPaymentMeta, MerkleTreeHook, MerkleTreeInsertion, PendingOperationStatus,
-    ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId, H160, H256,
+    identifiers::UniqueIdentifier, test_utils::dummy_domain, CheckpointInfo, GasPaymentKey,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeHook, MerkleTreeInsertion,
+    PendingOperationStatus, ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId, H160,
+    H256,
 };
 
 use super::*;
@@ -130,6 +131,8 @@ mockall::mock! {
         fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
         fn store_payload_uuids_by_message_id(&self, message_id: &H256, payload_uuids: Vec<UniqueIdentifier>) -> DbResult<()>;
         fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+        fn store_latest_checkpoint_info(&self, checkpoint_info: &CheckpointInfo) -> DbResult<()>;
+        fn retrieve_latest_checkpoint_info(&self) -> DbResult<Option<CheckpointInfo>>;
     }
 }
 
@@ -219,11 +222,15 @@ fn reorg_event_is_correct(
         mock_onchain_merkle_tree.root()
     );
     assert_eq!(
+        reorg_event.canonical_checkpoint_index,
+        mock_onchain_merkle_tree.index()
+    );
+    assert_eq!(
         reorg_event.local_merkle_root,
         expected_local_merkle_tree.root()
     );
     assert_eq!(
-        reorg_event.checkpoint_index,
+        reorg_event.local_checkpoint_index,
         expected_local_merkle_tree.index()
     );
     // timestamp diff should be less than 1 second
@@ -241,20 +248,20 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
     let unix_timestamp = chrono::Utc::now().timestamp() as u64;
     let expected_reorg_period = 12;
 
-    let pre_reorg_merke_insertions = [
+    let pre_reorg_merkle_insertions = [
         MerkleTreeInsertion::new(0, H256::random()),
         MerkleTreeInsertion::new(1, H256::random()),
         MerkleTreeInsertion::new(2, H256::random()),
     ];
     let mut expected_local_merkle_tree = IncrementalMerkle::default();
-    for insertion in pre_reorg_merke_insertions.iter() {
+    for insertion in pre_reorg_merkle_insertions.iter() {
         expected_local_merkle_tree.ingest(insertion.message_id());
     }
 
     // the last leaf is different post-reorg
     let post_reorg_merkle_insertions = [
-        pre_reorg_merke_insertions[0],
-        pre_reorg_merke_insertions[1],
+        pre_reorg_merkle_insertions[0],
+        pre_reorg_merkle_insertions[1],
         MerkleTreeInsertion::new(2, H256::random()),
     ];
     let mut mock_onchain_merkle_tree = IncrementalMerkle::default();
@@ -271,7 +278,7 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
     // the db returns the pre-reorg merkle tree insertions
     let mut db = MockDb::new();
     db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
-        .returning(move |sequence| Ok(Some(pre_reorg_merke_insertions[*sequence as usize])));
+        .returning(move |sequence| Ok(Some(pre_reorg_merkle_insertions[*sequence as usize])));
 
     // boilerplate mocks
     let mut mock_merkle_tree_hook = MockMerkleTreeHook::new();
@@ -354,20 +361,20 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
 async fn sign_and_submit_checkpoint_same_signature() {
     let expected_reorg_period = 12;
 
-    let pre_reorg_merke_insertions = [
+    let pre_reorg_merkle_insertions = [
         MerkleTreeInsertion::new(0, H256::random()),
         MerkleTreeInsertion::new(1, H256::random()),
         MerkleTreeInsertion::new(2, H256::random()),
     ];
     let mut expected_local_merkle_tree = IncrementalMerkle::default();
-    for insertion in pre_reorg_merke_insertions.iter() {
+    for insertion in pre_reorg_merkle_insertions.iter() {
         expected_local_merkle_tree.ingest(insertion.message_id());
     }
 
     // the last leaf is different post-reorg
     let post_reorg_merkle_insertions = [
-        pre_reorg_merke_insertions[0],
-        pre_reorg_merke_insertions[1],
+        pre_reorg_merkle_insertions[0],
+        pre_reorg_merkle_insertions[1],
         MerkleTreeInsertion::new(2, H256::random()),
     ];
     let mut mock_onchain_merkle_tree = IncrementalMerkle::default();
@@ -384,7 +391,7 @@ async fn sign_and_submit_checkpoint_same_signature() {
     // the db returns the pre-reorg merkle tree insertions
     let mut db = MockDb::new();
     db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
-        .returning(move |sequence| Ok(Some(pre_reorg_merke_insertions[*sequence as usize])));
+        .returning(move |sequence| Ok(Some(pre_reorg_merkle_insertions[*sequence as usize])));
 
     // boilerplate mocks
     let mut mock_merkle_tree_hook = MockMerkleTreeHook::new();
@@ -459,20 +466,20 @@ async fn sign_and_submit_checkpoint_same_signature() {
 async fn sign_and_submit_checkpoint_different_signature() {
     let expected_reorg_period = 12;
 
-    let pre_reorg_merke_insertions = [
+    let pre_reorg_merkle_insertions = [
         MerkleTreeInsertion::new(0, H256::random()),
         MerkleTreeInsertion::new(1, H256::random()),
         MerkleTreeInsertion::new(2, H256::random()),
     ];
     let mut expected_local_merkle_tree = IncrementalMerkle::default();
-    for insertion in pre_reorg_merke_insertions.iter() {
+    for insertion in pre_reorg_merkle_insertions.iter() {
         expected_local_merkle_tree.ingest(insertion.message_id());
     }
 
     // the last leaf is different post-reorg
     let post_reorg_merkle_insertions = [
-        pre_reorg_merke_insertions[0],
-        pre_reorg_merke_insertions[1],
+        pre_reorg_merkle_insertions[0],
+        pre_reorg_merkle_insertions[1],
         MerkleTreeInsertion::new(2, H256::random()),
     ];
     let mut mock_onchain_merkle_tree = IncrementalMerkle::default();
@@ -489,7 +496,7 @@ async fn sign_and_submit_checkpoint_different_signature() {
     // the db returns the pre-reorg merkle tree insertions
     let mut db = MockDb::new();
     db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
-        .returning(move |sequence| Ok(Some(pre_reorg_merke_insertions[*sequence as usize])));
+        .returning(move |sequence| Ok(Some(pre_reorg_merkle_insertions[*sequence as usize])));
 
     // boilerplate mocks
     let mut mock_merkle_tree_hook = MockMerkleTreeHook::new();
@@ -571,4 +578,200 @@ async fn sign_and_submit_checkpoint_different_signature() {
         .await;
 
     logs_contain("Checkpoint already submitted, but with different signature, overwriting");
+}
+
+fn setup_validate_checkpoint() -> (IncrementalMerkle, ValidatorSubmitter) {
+    let expected_reorg_period = 12;
+    let merkle_insertions = [
+        MerkleTreeInsertion::new(0, H256::random()),
+        MerkleTreeInsertion::new(1, H256::random()),
+        MerkleTreeInsertion::new(2, H256::random()),
+    ];
+    let mut mock_onchain_merkle_tree = IncrementalMerkle::default();
+    for insertion in merkle_insertions.iter() {
+        mock_onchain_merkle_tree.ingest(insertion.message_id());
+    }
+
+    let db = MockDb::new();
+    // boilerplate mocks
+    let mut mock_merkle_tree_hook = MockMerkleTreeHook::new();
+    mock_merkle_tree_hook
+        .expect_address()
+        .returning(|| H256::from_low_u64_be(0));
+    let dummy_domain = dummy_domain(0, "dummy_domain");
+    mock_merkle_tree_hook
+        .expect_domain()
+        .return_const(dummy_domain.clone());
+    let mut mock_checkpoint_syncer = MockCheckpointSyncer::new();
+    mock_checkpoint_syncer
+        .expect_write_reorg_status()
+        .returning(|_| Ok(()));
+
+    let signer: Signers = "1111111111111111111111111111111111111111111111111111111111111111"
+        .parse::<ethers::signers::LocalWallet>()
+        .unwrap()
+        .into();
+
+    let mut mock_reorg_reporter = MockReorgReporter::new();
+    mock_reorg_reporter
+        .expect_report_at_block()
+        .return_const(());
+
+    // instantiate the validator submitter
+    let validator_submitter = ValidatorSubmitter::new(
+        Duration::from_secs(1),
+        ReorgPeriod::from_blocks(expected_reorg_period),
+        Arc::new(mock_merkle_tree_hook),
+        dummy_singleton_handle(),
+        signer,
+        Arc::new(mock_checkpoint_syncer),
+        Arc::new(db),
+        dummy_metrics(),
+        50,
+        Arc::new(mock_reorg_reporter),
+    );
+
+    (mock_onchain_merkle_tree, validator_submitter)
+}
+
+#[tokio::test]
+#[tracing_test::traced_test]
+async fn validate_checkpoint_higher_index() {
+    let (mock_onchain_merkle_tree, validator_submitter) = setup_validate_checkpoint();
+
+    let checkpoint_at_block = CheckpointAtBlock {
+        checkpoint: Checkpoint {
+            root: mock_onchain_merkle_tree.root(),
+            index: mock_onchain_merkle_tree.index(),
+            merkle_tree_hook_address: H256::random(),
+            mailbox_domain: 100,
+        },
+        block_height: Some(1000),
+    };
+
+    let latest_seen_checkpoint = CheckpointInfo {
+        block_height: 400,
+        checkpoint_index: 1,
+    };
+    let res = validator_submitter
+        .validate_checkpoint(&checkpoint_at_block, &latest_seen_checkpoint)
+        .await;
+    // should be valid because it is just a newer checkpoint
+    assert!(res);
+
+    let latest_seen_checkpoint = CheckpointInfo {
+        block_height: 1000,
+        checkpoint_index: 1,
+    };
+    let res = validator_submitter
+        .validate_checkpoint(&checkpoint_at_block, &latest_seen_checkpoint)
+        .await;
+    // should be valid because it is just a newer checkpoint
+    assert!(res);
+
+    let latest_seen_checkpoint = CheckpointInfo {
+        block_height: 1400,
+        checkpoint_index: 1,
+    };
+    let res = validator_submitter
+        .validate_checkpoint(&checkpoint_at_block, &latest_seen_checkpoint)
+        .await;
+    // should be valid because it is just a newer checkpoint
+    assert!(res);
+}
+
+#[tokio::test]
+#[tracing_test::traced_test]
+async fn validate_checkpoint_same_index() {
+    let (mock_onchain_merkle_tree, validator_submitter) = setup_validate_checkpoint();
+
+    let checkpoint_at_block = CheckpointAtBlock {
+        checkpoint: Checkpoint {
+            root: mock_onchain_merkle_tree.root(),
+            index: mock_onchain_merkle_tree.index(),
+            merkle_tree_hook_address: H256::random(),
+            mailbox_domain: 100,
+        },
+        block_height: Some(1000),
+    };
+
+    let latest_seen_checkpoint = CheckpointInfo {
+        block_height: 400,
+        checkpoint_index: 2,
+    };
+    let res = validator_submitter
+        .validate_checkpoint(&checkpoint_at_block, &latest_seen_checkpoint)
+        .await;
+    // should be valid because it is just the same checkpoint,
+    // queried at a higher block height
+    assert!(res);
+
+    let latest_seen_checkpoint = CheckpointInfo {
+        block_height: 1000,
+        checkpoint_index: 2,
+    };
+    let res = validator_submitter
+        .validate_checkpoint(&checkpoint_at_block, &latest_seen_checkpoint)
+        .await;
+    // Should be valid because it is just the same checkpoint,
+    // queried at the exact same block height.
+    assert!(res);
+
+    let latest_seen_checkpoint = CheckpointInfo {
+        block_height: 1400,
+        checkpoint_index: 2,
+    };
+    let res = validator_submitter
+        .validate_checkpoint(&checkpoint_at_block, &latest_seen_checkpoint)
+        .await;
+    // should be valid because it is just the same checkpoint
+    // but RPC is behind, so block height decreased
+    assert!(res);
+}
+
+#[tokio::test]
+#[tracing_test::traced_test]
+async fn validate_checkpoint_lower_index() {
+    let (mock_onchain_merkle_tree, validator_submitter) = setup_validate_checkpoint();
+
+    let checkpoint_at_block = CheckpointAtBlock {
+        checkpoint: Checkpoint {
+            root: mock_onchain_merkle_tree.root(),
+            index: mock_onchain_merkle_tree.index(),
+            merkle_tree_hook_address: H256::random(),
+            mailbox_domain: 100,
+        },
+        block_height: Some(1000),
+    };
+
+    let latest_seen_checkpoint = CheckpointInfo {
+        block_height: 400,
+        checkpoint_index: 6,
+    };
+    let res = validator_submitter
+        .validate_checkpoint(&checkpoint_at_block, &latest_seen_checkpoint)
+        .await;
+    // should be invalid because it is a lower checkpoint at a higher block height
+    assert!(!res);
+
+    let latest_seen_checkpoint = CheckpointInfo {
+        block_height: 1000,
+        checkpoint_index: 6,
+    };
+    let res = validator_submitter
+        .validate_checkpoint(&checkpoint_at_block, &latest_seen_checkpoint)
+        .await;
+    // should be invalid because it is a lower checkpoint at the same block height
+    assert!(!res);
+
+    let latest_seen_checkpoint = CheckpointInfo {
+        block_height: 1400,
+        checkpoint_index: 6,
+    };
+    let res = validator_submitter
+        .validate_checkpoint(&checkpoint_at_block, &latest_seen_checkpoint)
+        .await;
+    // Should be valid because it is just an older checkpoint.
+    // RPC could be behind so we get an outdated response.
+    assert!(res);
 }
