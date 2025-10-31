@@ -27,7 +27,7 @@ pub enum MetadataBuildError {
     /// While building metadata, encountered something that should
     /// prohibit all metadata for the message from being built.
     /// Provides the reason for the refusal.
-    #[error("Refused")]
+    #[error("Refused ({0})")]
     Refused(String),
     /// Unable to fetch metadata, but no error occurred
     #[error("Could not fetch metadata")]

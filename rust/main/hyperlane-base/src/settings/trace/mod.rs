@@ -82,6 +82,7 @@ impl TracingConfig {
                 // .with_target("tokio", Level::Trace)
                 .with_target("aws_sdk_s3", Level::Info)
                 .with_target("aws_smithy_runtime", Level::Info)
+                .with_target("starknet_providers", Level::Trace)
                 .with_target("ethers_providers", Level::Debug);
         }
 
