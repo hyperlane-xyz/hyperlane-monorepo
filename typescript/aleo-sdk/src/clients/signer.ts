@@ -199,21 +199,73 @@ export class AleoSigner
   }
 
   async createRoutingIsm(
-    _req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
+    req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
-    throw new Error(`TODO: implement`);
+    let nonce = await this.aleoClient.getProgramMappingValue(
+      'ism_manager.aleo',
+      'nonce',
+      'true',
+    );
+
+    if (nonce === null) {
+      nonce = '0u32';
+    }
+
+    const tx = await this.getCreateRoutingIsmTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    const ismAddress = await this.aleoClient.getProgramMappingValue(
+      'ism_manager.aleo',
+      'ism_addresses',
+      nonce,
+    );
+
+    if (ismAddress === null) {
+      throw new Error(
+        `could not read ism address with nonce ${nonce} from ism_manager`,
+      );
+    }
+
+    return {
+      ismAddress,
+    };
   }
 
   async setRoutingIsmRoute(
-    _req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
+    req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmRoute> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getSetRoutingIsmRouteTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      route: req.route,
+    };
   }
 
   async removeRoutingIsmRoute(
-    _req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
+    req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getRemoveRoutingIsmRouteTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      domainId: req.domainId,
+    };
   }
 
   async setRoutingIsmOwner(

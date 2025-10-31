@@ -10,6 +10,11 @@ import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { AleoTransaction } from '../utils/types.js';
 
+// TODO: make denom in AltVM optional
+// TODO: add remove destination gas config method in AltVM
+// TODO: only allow domainId in createMailox in AltVM
+// TODO: add createNoopHook method in AltVM
+
 export class AleoProvider implements AltVM.IProvider {
   protected readonly aleoClient: AleoNetworkClient;
   protected readonly rpcUrls: string[];
@@ -342,19 +347,41 @@ export class AleoProvider implements AltVM.IProvider {
   async getCreateRoutingIsmTransaction(
     _req: AltVM.ReqCreateRoutingIsm,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'ism_manager.aleo',
+      functionName: 'init_domain_routing',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [],
+    };
   }
 
   async getSetRoutingIsmRouteTransaction(
-    _req: AltVM.ReqSetRoutingIsmRoute,
+    req: AltVM.ReqSetRoutingIsmRoute,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'ism_manager.aleo',
+      functionName: 'set_domain',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [
+        req.ismAddress,
+        `${req.route.domainId}u32`,
+        req.route.ismAddress,
+      ],
+    };
   }
 
   async getRemoveRoutingIsmRouteTransaction(
-    _req: AltVM.ReqRemoveRoutingIsmRoute,
+    req: AltVM.ReqRemoveRoutingIsmRoute,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'ism_manager.aleo',
+      functionName: 'remove_domain',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [req.ismAddress, `${req.domainId}u32`],
+    };
   }
 
   async getSetRoutingIsmOwnerTransaction(
