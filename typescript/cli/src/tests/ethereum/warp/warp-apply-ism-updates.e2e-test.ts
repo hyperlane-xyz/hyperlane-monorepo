@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   IsmConfig,
   IsmType,
@@ -8,7 +9,6 @@ import {
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { TokenType } from '../../../../../utils/dist/altvm.js';
 import { writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { deployTestOffchainLookupISM } from '../commands/helpers.js';
@@ -27,6 +27,8 @@ import {
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
 } from '../consts.js';
+
+const { TokenType } = AltVM;
 
 describe('hyperlane warp apply E2E (ISM updates)', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);

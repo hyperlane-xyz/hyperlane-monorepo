@@ -1,17 +1,17 @@
 import { Logger } from 'pino';
 
-import { Address, AltVM, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
+import { ChainLookup } from '../altvm.js';
 import { AltVMHookReader } from '../hook/AltVMHookReader.js';
 import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
   DestinationGas,
   MailboxClientConfig,
   RemoteRouters,
   RemoteRoutersSchema,
 } from '../router/types.js';
-import { ChainNameOrId } from '../types.js';
 
 import { TokenType } from './config.js';
 import { DerivedTokenRouterConfig, HypTokenConfig } from './types.js';
@@ -22,12 +22,14 @@ export class AltVMWarpRouteReader {
   ismReader: AltVMIsmReader;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
-    protected readonly chain: ChainNameOrId,
+    chainLookup: ChainLookup,
     protected readonly provider: AltVM.IProvider,
   ) {
-    this.hookReader = new AltVMHookReader(metadataManager, provider);
-    this.ismReader = new AltVMIsmReader(metadataManager, provider);
+    this.hookReader = new AltVMHookReader(
+      chainLookup.getChainMetadata,
+      provider,
+    );
+    this.ismReader = new AltVMIsmReader(chainLookup.getChainName, provider);
 
     this.logger = rootLogger.child({
       module: AltVMWarpRouteReader.name,

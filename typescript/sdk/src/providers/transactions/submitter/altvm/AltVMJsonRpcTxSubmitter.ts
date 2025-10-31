@@ -1,11 +1,12 @@
 import { Logger } from 'pino';
 
-import { AltVM, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   AnnotatedTypedTransaction,
   ProtocolReceipt,
-  ProtocolTransaction,
 } from '../../../ProviderType.js';
 import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
@@ -18,10 +19,7 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
   protected readonly logger: Logger;
 
   constructor(
-    public readonly signer: AltVM.ISigner<
-      ProtocolTransaction<PT>,
-      ProtocolReceipt<PT>
-    >,
+    public readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
     public readonly config: { chain: string },
   ) {
     this.logger = rootLogger.child({
@@ -43,10 +41,10 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
         }
       }
       const receipt = await this.signer.sendAndConfirmBatchTransactions(txs);
-      return [receipt];
+      return [receipt as ProtocolReceipt<PT>];
     }
 
-    const receipts = [];
+    const receipts: ProtocolReceipt<PT>[] = [];
 
     for (const tx of txs) {
       if (tx.annotation) {
@@ -54,7 +52,7 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
       }
 
       const receipt = await this.signer.sendAndConfirmTransaction(tx);
-      receipts.push(receipt);
+      receipts.push(receipt as ProtocolReceipt<PT>);
     }
 
     return receipts;

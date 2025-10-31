@@ -1,6 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   AltVMCoreModule,
@@ -10,8 +11,8 @@ import {
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
+  altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import { GasAction, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -110,7 +111,7 @@ export async function runCoreDeploy(params: DeployParams) {
       const coreModule = await AltVMCoreModule.create({
         chain,
         config,
-        multiProvider,
+        chainLookup: altVmChainLookup(multiProvider),
         signer,
       });
 
@@ -171,11 +172,15 @@ export async function runCoreApply(params: ApplyParams) {
         strategyUrl: params.strategyUrl,
       });
 
-      const coreModule = new AltVMCoreModule(multiProvider, signer, {
-        chain,
-        config,
-        addresses: deployedCoreAddresses,
-      });
+      const coreModule = new AltVMCoreModule(
+        altVmChainLookup(multiProvider),
+        signer,
+        {
+          chain,
+          config,
+          addresses: deployedCoreAddresses,
+        },
+      );
 
       const transactions = await coreModule.update(config);
 

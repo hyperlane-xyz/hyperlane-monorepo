@@ -1,27 +1,16 @@
 import { zeroAddress } from 'viem';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  Address,
-  AltVM,
-  ChainId,
-  Domain,
-  ProtocolType,
-  assert,
-  deepEquals,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+  AnnotatedTx,
+  HypModule,
+  HypModuleArgs,
+  TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import { Address, assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
 
-import {
-  HyperlaneModule,
-  HyperlaneModuleParams,
-} from '../core/AbstractHyperlaneModule.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import {
-  AnnotatedTypedTransaction,
-  ProtocolReceipt,
-} from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainLookup } from '../altvm.js';
+import { ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
@@ -38,46 +27,39 @@ type HookModuleAddresses = {
   mailbox: Address;
 };
 
-export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
-  PT,
-  HookConfig,
-  HookModuleAddresses
-> {
+export class AltVMHookModule
+  implements HypModule<HookConfig, HookModuleAddresses>
+{
   protected readonly logger = rootLogger.child({
     module: 'AltVMHookModule',
   });
   protected readonly reader: AltVMHookReader;
 
-  // Adding these to reduce how often we need to grab from ChainMetadataManager.
+  // Cached chain name
   public readonly chain: ChainName;
-  public readonly chainId: ChainId;
-  public readonly domainId: Domain;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
-    params: HyperlaneModuleParams<HookConfig, HookModuleAddresses>,
-    protected readonly signer: AltVM.ISigner<
-      AnnotatedTypedTransaction<PT>,
-      ProtocolReceipt<PT>
-    >,
+    protected readonly chainLookup: ChainLookup,
+    private readonly args: HypModuleArgs<HookConfig, HookModuleAddresses>,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    params.config = HookConfigSchema.parse(params.config);
-    super(params);
+    this.args.config = HookConfigSchema.parse(this.args.config);
 
-    this.reader = new AltVMHookReader(metadataManager, signer);
+    this.reader = new AltVMHookReader(chainLookup.getChainMetadata, signer);
 
-    this.chain = metadataManager.getChainName(this.args.chain);
-    this.chainId = metadataManager.getChainId(this.chain);
-    this.domainId = metadataManager.getDomainId(this.chain);
+    const metadata = chainLookup.getChainMetadata(this.args.chain);
+    this.chain = metadata.name;
   }
 
   public async read(): Promise<HookConfig> {
     return this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
-  public async update(
-    targetConfig: HookConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+  public serialize(): HookModuleAddresses {
+    return this.args.addresses;
+  }
+
+  public async update(targetConfig: HookConfig): Promise<AnnotatedTx[]> {
     if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }
@@ -118,9 +100,9 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
   protected async updateMutableHook(configs: {
     current: Exclude<HookConfig, string>;
     target: Exclude<HookConfig, string>;
-  }): Promise<AnnotatedTypedTransaction<PT>[]> {
+  }): Promise<AnnotatedTx[]> {
     const { current, target } = configs;
-    let updateTxs: AnnotatedTypedTransaction<PT>[];
+    let updateTxs: AnnotatedTx[];
 
     assert(
       current.type === target.type,
@@ -152,15 +134,15 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
   }: {
     currentConfig: IgpHookConfig;
     targetConfig: IgpHookConfig;
-  }): Promise<AnnotatedTypedTransaction<PT>[]> {
-    const updateTxs: AnnotatedTypedTransaction<PT>[] = [];
+  }): Promise<AnnotatedTx[]> {
+    const updateTxs: AnnotatedTx[] = [];
 
     for (const [remote, c] of Object.entries(targetConfig.oracleConfig)) {
       if (deepEquals(currentConfig.oracleConfig[remote], c)) {
         continue;
       }
 
-      const remoteDomain = this.metadataManager.tryGetDomainId(remote);
+      const remoteDomain = this.chainLookup.getDomainId(remote);
       if (remoteDomain === null) {
         this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
         continue;
@@ -198,26 +180,22 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
     return updateTxs;
   }
 
-  public static async create<PT extends ProtocolType>({
+  public static async create({
     chain,
     config,
     addresses,
-    multiProvider,
+    chainLookup,
     signer,
   }: {
-    chain: ChainNameOrId;
+    chain: string;
     config: HookConfig;
     addresses: HookModuleAddresses;
-    multiProvider: MultiProvider;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
-  }): Promise<AltVMHookModule<PT>> {
-    const module = new AltVMHookModule<PT>(
-      multiProvider,
-      {
-        addresses,
-        chain,
-        config,
-      },
+    chainLookup: ChainLookup;
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  }): Promise<AltVMHookModule> {
+    const module = new AltVMHookModule(
+      chainLookup,
+      { addresses, chain, config },
       signer,
     );
 
@@ -252,7 +230,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
   }): Promise<Address> {
     this.logger.debug('Deploying IGP as hook...');
 
-    const { nativeToken } = this.metadataManager.getChainMetadata(this.chain);
+    const { nativeToken } = this.chainLookup.getChainMetadata(this.chain);
 
     assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
 
@@ -261,7 +239,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
     });
 
     for (const [remote, c] of Object.entries(config.oracleConfig)) {
-      const remoteDomain = this.metadataManager.tryGetDomainId(remote);
+      const remoteDomain = this.chainLookup.getDomainId(remote);
       if (remoteDomain === null) {
         this.logger.warn(`Skipping gas oracle ${this.chain} -> ${remote}.`);
         continue;

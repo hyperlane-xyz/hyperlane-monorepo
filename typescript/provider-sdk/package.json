@@ -7,7 +7,10 @@
     "dist"
   ],
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/index.js",
+    "./altvm": "./dist/altvm.js",
+    "./module": "./dist/module.js",
+    "./protocol": "./dist/protocol.js"
   },
   "scripts": {
     "build": "tsc",
@@ -17,6 +20,7 @@
     "prettier": "prettier --write ."
   },
   "dependencies": {
+    "@hyperlane-xyz/utils": "19.4.0",
     "zod": "^3.21.2"
   },
   "devDependencies": {

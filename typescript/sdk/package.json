@@ -11,6 +11,7 @@
     "@cosmjs/stargate": "^0.32.4",
     "@hyperlane-xyz/core": "9.0.16",
     "@hyperlane-xyz/cosmos-sdk": "19.4.0",
+    "@hyperlane-xyz/provider-sdk": "0.1.0",
     "@hyperlane-xyz/radix-sdk": "19.4.0",
     "@hyperlane-xyz/starknet-core": "19.4.0",
     "@hyperlane-xyz/utils": "19.4.0",
