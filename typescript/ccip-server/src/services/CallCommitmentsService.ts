@@ -25,7 +25,10 @@ import {
 
 import { prisma } from '../db.js';
 import { createAbiHandler } from '../utils/abiHandler.js';
-import { PrometheusMetrics } from '../utils/prometheus.js';
+import {
+  PrometheusMetrics,
+  UnhandledErrorReason,
+} from '../utils/prometheus.js';
 
 import {
   BaseService,
@@ -135,7 +138,11 @@ export class CallCommitmentsService extends BaseService {
         },
         'Database error during commitment processing',
       );
-      PrometheusMetrics.logUnhandledError(this.config.serviceName);
+      PrometheusMetrics.logUnhandledError(
+        this.config.serviceName,
+        UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
+        revealMessageId,
+      );
       return res.status(500).json({ error: 'Internal server error' });
     }
 

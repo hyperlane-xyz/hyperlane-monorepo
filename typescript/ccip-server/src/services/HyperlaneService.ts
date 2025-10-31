@@ -1,6 +1,9 @@
 import { Logger } from 'pino';
 
-import { PrometheusMetrics } from '../utils/prometheus.js';
+import {
+  PrometheusMetrics,
+  UnhandledErrorReason,
+} from '../utils/prometheus.js';
 
 import { Message, MessageTx } from './explorerTypes.js';
 
@@ -98,7 +101,11 @@ class HyperlaneService {
         },
         'Hyperlane service: GraphQL search request returned 500 status code',
       );
-      PrometheusMetrics.logUnhandledError(this.serviceName);
+      PrometheusMetrics.logUnhandledError(
+        this.serviceName,
+        UnhandledErrorReason.EXPLORER_GRAPHQL_500,
+        id,
+      );
       throw new Error(
         'Hyperlane service: GraphQL search request returned 500 status code',
       );
@@ -120,6 +127,11 @@ class HyperlaneService {
           responseAsJson,
         },
         'Hyperlane service: GraphQL search request returned no results',
+      );
+      PrometheusMetrics.logUnhandledError(
+        this.serviceName,
+        UnhandledErrorReason.EXPLORER_GRAPHQL_NO_RESULTS,
+        id,
       );
       throw new Error(
         'Hyperlane service: GraphQL search request returned no results',
