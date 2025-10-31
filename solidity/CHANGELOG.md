@@ -10,7 +10,7 @@
 
   `FungibleTokenRouter` has been removed and functionality lifted into `TokenRouter`.
 
-  `quoteTransferRemote` and `transferRemote` can no longer be overriden with optional `hook` and `hookMetadata` for simplicity.
+  `quoteTransferRemote` and `transferRemote` can no longer be overridden with optional `hook` and `hookMetadata` for simplicity.
 
   `quoteTransferRemote` returns a consistent shape of `[nativeMailboxDispatchFee, internalTokenFee, externalTokenFee]`.
 
