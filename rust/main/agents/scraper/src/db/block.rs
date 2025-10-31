@@ -101,6 +101,11 @@ impl ScraperDb {
                     .do_nothing()
                     .to_owned(),
             )
+            .on_conflict(
+                OnConflict::column(block::Column::Hash)
+                    .do_nothing()
+                    .to_owned(),
+            )
             .exec(&self.0)
             .await
         {
