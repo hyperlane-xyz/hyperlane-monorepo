@@ -224,13 +224,20 @@ export {
   multisigConfigToIsmConfig,
 } from './ism/multisig.js';
 export {
+  SealevelAccessControlData,
+  SealevelAccessControlDataSchema,
+  SealevelDomainData,
+  SealevelDomainDataSchema,
   SealevelMultisigIsmInstructionName,
   SealevelMultisigIsmInstructionType,
   SealevelMultisigIsmSetValidatorsInstruction,
   SealevelMultisigIsmSetValidatorsInstructionSchema,
   SealevelMultisigIsmTransferOwnershipInstruction,
   SealevelMultisigIsmTransferOwnershipInstructionSchema,
+  SealevelValidatorsAndThreshold,
+  SealevelValidatorsAndThresholdSchema,
 } from './ism/serialization.js';
+export { SealevelMultisigAdapter } from './ism/adapters/SealevelMultisigAdapter.js';
 export {
   SealevelMailboxInstructionName,
   SealevelMailboxInstructionType,
