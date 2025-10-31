@@ -3,23 +3,23 @@ on:
   push:
     branches: [main]
     tags:
-      - '**'
+      - "**"
   pull_request:
     paths:
       # For now, because this image is only used to use `infra`, we just build for infra or .registryrc changes
-      - 'typescript/infra/**'
-      - '.registryrc'
-      - 'Dockerfile'
-      - 'docker-entrypoint.sh'
-      - '.dockerignore'
-      - '.github/workflows/monorepo-docker.yml'
-      - 'typescript/ccip-server/**'
+      - "typescript/infra/**"
+      - ".registryrc"
+      - "Dockerfile"
+      - "docker-entrypoint.sh"
+      - ".dockerignore"
+      - ".github/workflows/monorepo-docker.yml"
+      - "typescript/ccip-server/**"
   workflow_dispatch:
     inputs:
       include_arm64:
-        description: 'Include arm64 in the build'
+        description: "Include arm64 in the build"
         required: false
-        default: 'false'
+        default: "false"
 
 concurrency:
   group: build-push-monorepo-${{ github.ref }}
@@ -45,6 +45,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      pull-requests: write
 
     # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
     needs: [check-env]
@@ -98,6 +99,7 @@ jobs:
           fi
 
       - name: Build and push
+        id: build
         uses: depot/build-push-action@v1
         with:
           project: 3cpjhx94qv
@@ -109,3 +111,26 @@ jobs:
           build-args: |
             REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
+
+      - name: Comment image tags on PR
+        if: github.event_name == 'pull_request' && success()
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: monorepo-docker-image
+          message: |
+            ## 🐳 Monorepo Docker Image Built Successfully
+
+            **Image Tags:**
+            ```
+            ${{ steps.meta.outputs.tags }}
+            ```
+
+            **Digest:** `${{ steps.build.outputs.digest }}`
+            ```
+
+      - name: Delete PR comment on failure
+        if: github.event_name == 'pull_request' && failure()
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: monorepo-docker-image
+          delete: true
