@@ -732,8 +732,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     return Object.entries(feesToSet).map(([domainId, feeConfig]) => {
       const { deadline, fee, signature } = feeConfig;
 
+      // Deadline is in seconds
+      const humanReadableDeadline = new Date(deadline * 1000).toISOString();
       return {
-        annotation: `Setting Everclear fee params with deadline "${deadline}" for domain "${domainId}" on token "${this.args.addresses.deployedTokenRoute}" and chain "${this.chainName}"`,
+        annotation: `Setting Everclear fee params with deadline "${humanReadableDeadline}" for domain "${domainId}" on token "${this.args.addresses.deployedTokenRoute}" and chain "${this.chainName}"`,
         chainId: this.multiProvider.getEvmChainId(this.chainName),
         to: this.args.addresses.deployedTokenRoute,
         data: EverclearTokenBridge__factory.createInterface().encodeFunctionData(
