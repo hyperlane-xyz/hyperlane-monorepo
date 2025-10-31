@@ -7,4 +7,3 @@ export { AltVMIsmReader } from './AltVMIsmReader.js';
 export { AltVMWarpModule } from './AltVMWarpModule.js';
 export { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 export { AltVMDeployer } from './AltVMWarpDeployer.js';
-export { ZERO_ADDRESS } from './constants.js';

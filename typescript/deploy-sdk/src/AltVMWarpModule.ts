@@ -15,13 +15,13 @@ import {
   Address,
   addressToBytes32,
   assert,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { AltVMIsmModule } from './AltVMIsmModule.js';
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
-import { ZERO_ADDRESS } from './constants.js';
 
 type WarpRouteAddresses = {
   deployedTokenRoute: Address;
@@ -254,7 +254,8 @@ export class AltVMWarpModule
 
     if (
       !expectedConfig.interchainSecurityModule ||
-      expectedConfig.interchainSecurityModule === ZERO_ADDRESS
+      (typeof expectedConfig.interchainSecurityModule === 'string' &&
+        isZeroishAddress(expectedConfig.interchainSecurityModule))
     ) {
       this.logger.debug(`Token ISM config is empty. No updates needed.`);
       return updateTransactions;
