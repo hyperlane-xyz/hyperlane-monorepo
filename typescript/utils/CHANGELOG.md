@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 19.6.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
 ## 19.6.0-beta.0
 
 ### Minor Changes
