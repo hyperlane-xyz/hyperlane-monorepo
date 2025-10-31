@@ -1,0 +1,30 @@
+{
+  "name": "@hyperlane-xyz/deploy-sdk",
+  "version": "0.1.0",
+  "description": "Deployer SDK for the Hyperlane Protocol",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "lint": "eslint",
+    "clean": "rm -rf ./dist",
+    "prettier": "prettier --write ."
+  },
+  "dependencies": {
+    "@hyperlane-xyz/provider-sdk": "0.1.0",
+    "zod": "^3.21.2"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/node": "^18.14.5",
+    "eslint": "^9.31.0",
+    "typescript": "5.3.3"
+  }
+}

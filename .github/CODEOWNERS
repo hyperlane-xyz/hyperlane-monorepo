@@ -12,6 +12,10 @@ typescript/utils @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
 typescript/sdk @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
 typescript/widgets @xaroz @cmcewen @antigremlin
 
+## Multi-VM SDK
+typescript/deploy-sdk @ltyu @xeno097 @troykessler @antigremlin
+typescript/provider-sdk @ltyu @xeno097 @troykessler @antigremlin
+
 ## CLI
 typescript/cli @yorhodes @ltyu @xeno097 @antigremlin
 
