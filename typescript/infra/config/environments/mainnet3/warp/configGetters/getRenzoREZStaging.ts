@@ -25,13 +25,13 @@ const rezStagingAddresses = {
 };
 
 const rezEthValidators = pick(ezEthValidators, rezEthChainsToDeploy);
-const rezEthSafes = pick(rezStagingSafes, rezEthChainsToDeploy);
+const rezEthOwners = pick(rezStagingSafes, rezEthChainsToDeploy);
 const rezEthTokenPrices = pick(renzoTokenPrices, rezEthChainsToDeploy);
 
 export const getRezStagingWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: rezEthChainsToDeploy,
   validators: rezEthValidators,
-  safes: rezEthSafes,
+  safes: rezEthOwners,
   xERC20Addresses: rezStagingAddresses,
   xERC20Lockbox: rezStagingLockbox,
   tokenPrices: rezEthTokenPrices,

@@ -1,7 +1,7 @@
 import { pick } from '@hyperlane-xyz/utils';
 
 import {
-  ezEthSafes,
+  ezEthOwners,
   ezEthValidators,
   getRenzoWarpConfigGenerator,
   renzoTokenPrices,
@@ -16,13 +16,13 @@ const rezEthAddresses = {
 };
 
 const rezEthValidators = pick(ezEthValidators, rezEthChainsToDeploy);
-const rezEthSafes = pick(ezEthSafes, rezEthChainsToDeploy);
+const rezEthOwners = pick(ezEthOwners, rezEthChainsToDeploy);
 const rezEthTokenPrices = pick(renzoTokenPrices, rezEthChainsToDeploy);
 
 export const getREZBaseEthereumWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: rezEthChainsToDeploy,
   validators: rezEthValidators,
-  safes: rezEthSafes,
+  safes: rezEthOwners,
   xERC20Addresses: rezEthAddresses,
   xERC20Lockbox: rezProductionLockbox,
   tokenPrices: rezEthTokenPrices,
