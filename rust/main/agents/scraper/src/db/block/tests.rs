@@ -1,5 +1,7 @@
 use migration::MigratorTrait;
 use sea_orm::{Database, DbErr};
+use testcontainers::runners::AsyncRunner;
+use testcontainers_modules::postgres::Postgres;
 
 use hyperlane_core::{BlockInfo, H256};
 
@@ -16,23 +18,32 @@ fn make_block(height: u64, hash: H256, timestamp: u64) -> BlockInfo {
     }
 }
 
-/// Tests store_blocks() with a real postgres instance
+/// Tests store_blocks() with a real postgres instance using testcontainers
 /// This test verifies:
 /// 1. New blocks are inserted successfully
 /// 2. Duplicate blocks (same hash) are handled with DO NOTHING
 /// 3. Duplicate blocks (same domain+height) are handled with DO NOTHING
 /// 4. Multiple blocks can be inserted in one call
+//#[ignore]
 #[tokio::test]
 async fn test_store_blocks_real_postgres() -> Result<(), DbErr> {
-    const POSTGRES_URL: &str = "postgresql://postgres:password@localhost:5432/postgres";
+    // Start a Postgres container
+    let postgres_container = Postgres::default().start().await.unwrap();
+
+    // Get connection details from the container
+    let host_port = postgres_container.get_host_port_ipv4(5432).await.unwrap();
+    let postgres_url = format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        host_port
+    );
 
     // Connect to database
-    let db = Database::connect(POSTGRES_URL).await?;
+    let db = Database::connect(&postgres_url).await?;
 
     // Run migrations to create schema
     migration::Migrator::up(&db, None).await?;
 
-    let scraper_db = ScraperDb::with_connection(Database::connect(POSTGRES_URL).await?);
+    let scraper_db = ScraperDb::with_connection(Database::connect(&postgres_url).await?);
 
     // Test 1: Insert new blocks
     let block1 = make_block(1, H256::from_low_u64_be(0x1), 1000);
